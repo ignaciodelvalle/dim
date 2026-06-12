@@ -362,6 +362,44 @@ describe("migrate runner e2e (local DB, scratch dir + table)", { timeout: 30_000
     expect(created[0].r).toBe("_dim_e2e_scratch");
   });
 
+  it("-- dim:no-transaction: multi-statement file splits per statement (CONCURRENTLY works)", async () => {
+    // CREATE INDEX CONCURRENTLY cannot run inside a transaction block — including
+    // the implicit one postgres.js wraps around multi-statement strings. This
+    // proves the splitter executes each statement on its own round-trip.
+    writeFileSync(
+      path.join(dir, "0000_e2e.sql"),
+      `${[
+        "-- dim:no-transaction",
+        "create table public._dim_e2e_scratch (id int primary key, val text);",
+        "-- a comment between statements",
+        "create index concurrently if not exists _dim_e2e_scratch_val_idx on public._dim_e2e_scratch (val);",
+        "create index concurrently if not exists _dim_e2e_scratch_val2_idx on public._dim_e2e_scratch (val) where val is not null;",
+      ].join("\n")}\n`,
+    );
+
+    const res = runMigrate([], dir);
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain("Applied 1 migration");
+
+    const idx = await sql.unsafe<{ indexname: string }[]>(
+      "select indexname from pg_indexes where tablename = '_dim_e2e_scratch' order by indexname",
+    );
+    const names = idx.map((r) => r.indexname);
+    expect(names).toContain("_dim_e2e_scratch_val_idx");
+    expect(names).toContain("_dim_e2e_scratch_val2_idx");
+  });
+
+  it("-- dim:no-transaction: refuses dollar-quoted bodies (splitter cannot parse them)", async () => {
+    writeFileSync(
+      path.join(dir, "0000_e2e.sql"),
+      `${["-- dim:no-transaction", "do $$ begin perform 1; end $$;"].join("\n")}\n`,
+    );
+
+    const res = runMigrate([], dir);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain("dollar-quoting");
+  });
+
   it("schema-populated guard: refuses apply when tracking is empty but sentinel table exists; allows baseline", async () => {
     // Use a throwaway sentinel so we do not touch the real public.pets table.
     const SENTINEL = "public._dim_e2e_guard_sentinel";

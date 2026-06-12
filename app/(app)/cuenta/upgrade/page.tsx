@@ -16,7 +16,15 @@ import { VetUpgradeForm } from "./VetUpgradeForm";
 export default async function UpgradePage() {
   const { user } = await requireUserOrRedirect();
 
-  const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
+  const [profile] = await db
+    .select({
+      role: profiles.role,
+      dniVerified: profiles.dniVerified,
+      matriculaNumber: profiles.matriculaNumber,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
   const memberships = await getActiveMemberships(user.id);
   const adminMembership = memberships.find((m) => m.membership.role === "admin");
 

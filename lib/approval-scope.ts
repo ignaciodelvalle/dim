@@ -18,6 +18,7 @@ import {
   govtAssignments,
 } from "@/db";
 import type { AdminOrGovtJurisdiction } from "@/lib/auth-guards";
+import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/keyset-pagination";
 
 // Types that ONLY admin can decide. Spec §5.
 // Note: role_upgrade_govt, role_upgrade_admin, govt_assignment_grant were
@@ -96,21 +97,41 @@ export function visibleRequestsClause(
 // `typeFilter` pushes the type predicate into SQL so the query returns only
 // matching rows regardless of total queue size — avoids JS-side silently
 // missing rows beyond the former LIMIT 200 ceiling (P1-10).
+//
+// `opts.limit` caps the result set. List-rendering callers (cola page, gob
+// dashboard preview) pass 200 so the query stays bounded. Omit for the rare
+// COUNT-style caller — but prefer a dedicated COUNT query for those instead.
+//
+// `opts.cursor` enables keyset pagination (PERF-5): when provided the query
+// returns only rows OLDER than the cursor row — (createdAt, id) < (cursorTs, cursorId).
+// Fetch limit+1 to detect hasMore; the page renders limit rows and uses row N+1
+// solely to decide whether to show the "older" link.
 export async function fetchVisiblePendingRequests(
   profile: { id: string; role: "admin" | "govt" },
   jurisdictions: readonly AdminOrGovtJurisdiction[],
   typeFilter?: ApprovalRequestType,
+  opts?: { limit?: number; cursor?: KeysetCursor },
 ): Promise<ApprovalRequest[]> {
   const scopeClause = visibleRequestsClause(profile, jurisdictions);
   const typeClause = typeFilter ? eq(approvalRequests.type, typeFilter) : undefined;
-  const whereClause = typeClause
-    ? and(eq(approvalRequests.status, "pending"), scopeClause, typeClause)
-    : and(eq(approvalRequests.status, "pending"), scopeClause);
-  return db
+  const cursorClause = keysetWhere(
+    approvalRequests.createdAt,
+    approvalRequests.id,
+    decodeCursor(opts?.cursor),
+  );
+  const clauses = [
+    eq(approvalRequests.status, "pending"),
+    scopeClause,
+    typeClause,
+    cursorClause,
+  ].filter(Boolean);
+  const whereClause = and(...(clauses as Parameters<typeof and>));
+  const q = db
     .select()
     .from(approvalRequests)
     .where(whereClause)
-    .orderBy(desc(approvalRequests.createdAt));
+    .orderBy(desc(approvalRequests.createdAt), desc(approvalRequests.id));
+  return opts?.limit !== undefined ? q.limit(opts.limit) : q;
 }
 
 // Unused import guard for `exists` — kept for symmetry with notExists when

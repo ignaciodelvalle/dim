@@ -10,7 +10,7 @@
 import { db, ownerships, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpCallout, OpCrumbs } from "@/components/ui/dashboard";
@@ -112,7 +112,12 @@ export default async function OrgMascotasPage({
   }
 
   // Which lost pets with shelter_custody already have a pending return proposal?
-  // A proposal is pending if there is no subsequent custody_transferred event.
+  // A proposal is pending if there is a custody_transfer_proposed event and no
+  // subsequent custody_transferred event resolves it.
+  //
+  // Replaces the former N+1 loop (2 queries per pet) with one batch query:
+  //   1. DISTINCT ON (pet_id) to get the latest proposal per pet.
+  //   2. NOT EXISTS subquery to verify no subsequent transfer exists.
   const pendingProposalPetIds = new Set<string>();
   if (petIds.length > 0) {
     const lostPetIds = cards
@@ -120,31 +125,34 @@ export default async function OrgMascotasPage({
       .map((c) => c.pet.id);
 
     if (lostPetIds.length > 0) {
-      for (const petId of lostPetIds) {
-        const [latestProposal] = await db
-          .select({ id: petEvents.id, occurredAt: petEvents.occurredAt })
-          .from(petEvents)
-          .where(
-            and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_proposed")),
-          )
-          .orderBy(desc(petEvents.occurredAt))
-          .limit(1);
-
-        if (latestProposal) {
-          const [subsequentTransfer] = await db
-            .select({ id: petEvents.id })
-            .from(petEvents)
-            .where(
-              and(
-                eq(petEvents.petId, petId),
-                eq(petEvents.eventType, "custody_transferred"),
-                gt(petEvents.occurredAt, latestProposal.occurredAt),
-              ),
-            )
-            .limit(1);
-          if (!subsequentTransfer) pendingProposalPetIds.add(petId);
-        }
-      }
+      // Single query: latest proposal per pet that has no subsequent transfer.
+      const rows = await db.execute<{ pet_id: string }>(sql`
+        SELECT lp.pet_id::text AS pet_id
+        FROM (
+          SELECT DISTINCT ON (pe.pet_id)
+            pe.pet_id,
+            pe.occurred_at AS proposed_at
+          FROM pet_events pe
+          WHERE pe.pet_id = ANY(ARRAY[${sql.join(
+            lostPetIds.map((id) => sql`${id}::uuid`),
+            sql`, `,
+          )}])
+            AND pe.event_type = 'custody_transfer_proposed'
+          ORDER BY pe.pet_id, pe.occurred_at DESC
+        ) lp
+        WHERE NOT EXISTS (
+          SELECT 1 FROM pet_events t
+          WHERE t.pet_id = lp.pet_id
+            AND t.event_type = 'custody_transferred'
+            -- >= (not >) is intentional: a transfer event at the exact proposal
+            -- timestamp resolves the proposal (avoids a phantom pending CTA).
+            -- Matches lib/owner-dashboard's fetchOpenCasesSweep semantics for
+            -- the same concept. The old JS loop used strict >, which would have
+            -- left a same-millisecond transfer as falsely pending.
+            AND t.occurred_at >= lp.proposed_at
+        )
+      `);
+      for (const row of rows) pendingProposalPetIds.add(row.pet_id);
     }
   }
 

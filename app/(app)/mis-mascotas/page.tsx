@@ -12,13 +12,15 @@ import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnPetPhoto, LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { LnStatusFlag } from "@/components/ui/StatusFlag";
-import { attachments, db, ownerships, pets, profiles } from "@/db";
+import { attachments, db, ownerships, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import {
   countPendingApplications,
   countPendingTransfers,
   fetchActiveReminders,
 } from "@/lib/owner-dashboard";
+import { PET_CARD_PHOTO_SELECT, PET_CARD_SELECT } from "@/lib/pet-projections";
+import { getProfileCached } from "@/lib/request-cache";
 import { resolveVetLanding } from "@/lib/role-landing";
 import { petPhotoUrl } from "@/lib/storage";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
@@ -33,7 +35,8 @@ export default async function MisMascotasPage({
 }) {
   const { supabase, user } = await requireUserOrRedirect();
 
-  const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
+  // getProfileCached is warmed by (app)/layout.tsx in the same render pass.
+  const profile = await getProfileCached(user.id);
   const params = await searchParams;
   const claimedCount = params.reclamado ? Number.parseInt(params.reclamado, 10) : null;
 
@@ -49,7 +52,11 @@ export default async function MisMascotasPage({
   const [ownedPets, activeReminders, pendingApplicationsCount, pendingTransfersCount] =
     await Promise.all([
       db
-        .select({ pet: pets, photo: attachments, ownershipRole: ownerships.role })
+        .select({
+          pet: PET_CARD_SELECT,
+          photo: PET_CARD_PHOTO_SELECT,
+          ownershipRole: ownerships.role,
+        })
         .from(pets)
         .innerJoin(ownerships, eq(ownerships.petId, pets.id))
         .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))

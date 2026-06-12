@@ -11,8 +11,19 @@ import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { type Notification, type Pet, db, notifications, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import {
+  decodeCursor,
+  encodeCursor,
+  keysetWhere,
+  newerHref,
+  olderHref,
+} from "@/lib/keyset-pagination";
 import { fetchNotificationCategoryCounts } from "@/lib/owner-dashboard";
 import { and, desc, eq, isNull } from "drizzle-orm";
+
+// Maximum notifications rendered per page (PERF-5 keyset pagination).
+// We fetch LIMIT+1 to detect hasMore; render only LIMIT rows.
+const NOTIFICATIONS_PAGE_LIMIT = 100;
 
 // ---------------------------------------------------------------------------
 // Grouping logic (unchanged from original)
@@ -101,15 +112,18 @@ const CATEGORY_ORDER: Category[] = [
 export default async function NotificacionesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cat?: string }>;
+  searchParams: Promise<{ cat?: string; cursor?: string }>;
 }) {
   const { user } = await requireUserOrRedirect();
-  const { cat } = await searchParams;
+  const { cat, cursor: rawCursor } = await searchParams;
 
   const activeCat: Category =
     cat && ["all", "perdidas", "health", "custody", "adoption", "welfare", "admin"].includes(cat)
       ? (cat as Category)
       : "all";
+
+  // Keyset cursor — null means first page.
+  const cursor = decodeCursor(rawCursor);
 
   const counts = await fetchNotificationCategoryCounts(user.id);
 
@@ -125,21 +139,42 @@ export default async function NotificacionesPage({
 
   const visibleCategories = CATEGORY_ORDER.filter((c) => c === "all" || countByCategory[c] > 0);
 
-  const whereClause =
-    activeCat === "all"
-      ? and(eq(notifications.userId, user.id), isNull(notifications.archivedAt))
-      : and(
-          eq(notifications.userId, user.id),
-          isNull(notifications.archivedAt),
-          eq(notifications.category, activeCat),
-        );
+  const baseClauses = [
+    eq(notifications.userId, user.id),
+    isNull(notifications.archivedAt),
+    activeCat !== "all" ? eq(notifications.category, activeCat) : undefined,
+    // Keyset predicate: only rows older than the cursor.
+    keysetWhere(notifications.createdAt, notifications.id, cursor),
+  ].filter(Boolean);
+  const whereClause = and(...(baseClauses as Parameters<typeof and>));
 
-  const rows = await db
+  // Fetch limit+1 to detect whether a next page exists.
+  const rawRows = await db
     .select({ notification: notifications, pet: pets })
     .from(notifications)
     .leftJoin(pets, eq(notifications.relatedPetId, pets.id))
     .where(whereClause)
-    .orderBy(desc(notifications.createdAt));
+    .orderBy(desc(notifications.createdAt), desc(notifications.id))
+    .limit(NOTIFICATIONS_PAGE_LIMIT + 1);
+
+  const hasMore = rawRows.length > NOTIFICATIONS_PAGE_LIMIT;
+  const rows = hasMore ? rawRows.slice(0, NOTIFICATIONS_PAGE_LIMIT) : rawRows;
+
+  // Build filter params map (cursor excluded — it's managed by pagination links).
+  const filterParams: Record<string, string | undefined> =
+    activeCat !== "all" ? { cat: activeCat } : {};
+
+  // Last row drives the "older" cursor.
+  const lastRow = rows.at(-1);
+  const olderLink =
+    hasMore && lastRow
+      ? olderHref("/notificaciones", filterParams, {
+          ts: lastRow.notification.createdAt,
+          id: lastRow.notification.id,
+        })
+      : null;
+  // "Back to page 1" link — only shown when we're not already on page 1.
+  const newerLink = rawCursor ? newerHref("/notificaciones", filterParams) : null;
 
   const unreadCount = rows.filter((r) => r.notification.readAt === null).length;
   const groups = groupNotifications(rows);
@@ -272,6 +307,35 @@ export default async function NotificacionesPage({
             );
           })}
         </ul>
+      )}
+
+      {/* Pagination footer — only shown when there are rows */}
+      {(newerLink || olderLink) && (
+        <nav
+          aria-label="Paginación de notificaciones"
+          className="mt-[28px] flex items-center justify-between gap-4 border-t border-[var(--color-ln-line)] pt-[20px]"
+        >
+          <div>
+            {newerLink && (
+              <Link
+                href={newerLink}
+                className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+              >
+                ← Más recientes
+              </Link>
+            )}
+          </div>
+          <div>
+            {olderLink && (
+              <Link
+                href={olderLink}
+                className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+              >
+                Ver más antiguos →
+              </Link>
+            )}
+          </div>
+        </nav>
       )}
     </div>
   );

@@ -11,6 +11,31 @@ import {
   OpPill,
 } from "@/components/ui/dashboard";
 import { db, welfareReportAttachments, welfareReports } from "@/db";
+
+// Admin moderation projection — all PII fields included (admin role).
+// Performance projection only: drops reporter contact fields, workflow/triage
+// fields, derivation fields, and org-intervention fields not shown in this view.
+const ADMIN_WELFARE_MODERATION_SELECT = {
+  id: welfareReports.id,
+  referenceCode: welfareReports.referenceCode,
+  kind: welfareReports.kind,
+  severity: welfareReports.severity,
+  status: welfareReports.status,
+  description: welfareReports.description,
+  subjectKind: welfareReports.subjectKind,
+  subjectPetId: welfareReports.subjectPetId,
+  subjectDescription: welfareReports.subjectDescription,
+  locationAddress: welfareReports.locationAddress,
+  jurisdictionProvince: welfareReports.jurisdictionProvince,
+  jurisdictionLocality: welfareReports.jurisdictionLocality,
+  locationLat: welfareReports.locationLat,
+  locationLng: welfareReports.locationLng,
+  occurredAt: welfareReports.occurredAt,
+  createdAt: welfareReports.createdAt,
+  flaggedAt: welfareReports.flaggedAt,
+  flagReasons: welfareReports.flagReasons,
+  moderationResolvedAt: welfareReports.moderationResolvedAt,
+} as const;
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { readPoint } from "@/lib/location";
@@ -49,7 +74,11 @@ export default async function ModeracionDetailPage({
   const { id } = await params;
   await requireAdminOrRedirect();
 
-  const [report] = await db.select().from(welfareReports).where(eq(welfareReports.id, id)).limit(1);
+  const [report] = await db
+    .select(ADMIN_WELFARE_MODERATION_SELECT)
+    .from(welfareReports)
+    .where(eq(welfareReports.id, id))
+    .limit(1);
   if (!report) notFound();
   if (!report.flaggedAt) notFound();
 

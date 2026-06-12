@@ -1,8 +1,11 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
+import { likeContains } from "@/lib/like-helpers";
 
 const ACTION_LABELS: Record<string, string> = {
   request_approved: "Solicitud aprobada",
@@ -18,19 +21,36 @@ const ACTION_LABELS: Record<string, string> = {
   approval_request_withdrawn_by_applicant: "Solicitud retirada por aplicante",
 };
 
+const AUDITORIA_PAGE_LIMIT = 200;
+
 export default async function AdminAuditoriaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string; actor?: string }>;
+  searchParams: Promise<{ action?: string; actor?: string; cursor?: string }>;
 }) {
   await requireAdminOrRedirect();
 
   const sp = await searchParams;
   const actionFilter = sp.action?.trim() || null;
   const actorFilter = sp.actor?.trim() || null;
+  const rawCursor = sp.cursor;
+  const cursor = decodeCursor(rawCursor);
 
-  // Build base query with optional filters.
-  const query = db
+  // Build WHERE clause — push both filters into SQL so the LIMIT is
+  // applied after filtering (JS-side filtering would silently miss rows
+  // beyond the cap). actionFilter uses ILIKE for substring match;
+  // actorFilter uses exact equality on the UUID column.
+  // Keyset predicate is AND-composed last.
+  const filterClauses = [];
+  if (actionFilter)
+    filterClauses.push(sql`${auditLog.action} ILIKE ${likeContains(actionFilter)} ESCAPE '\\'`);
+  if (actorFilter) filterClauses.push(eq(auditLog.actorUserId, actorFilter));
+  const cursorClause = keysetWhere(auditLog.performedAt, auditLog.id, cursor);
+  if (cursorClause) filterClauses.push(cursorClause);
+  const whereClause = filterClauses.length > 0 ? and(...filterClauses) : undefined;
+
+  // Fetch limit+1 to detect hasMore.
+  const rawEntries = await db
     .select({
       id: auditLog.id,
       actorUserId: auditLog.actorUserId,
@@ -40,18 +60,27 @@ export default async function AdminAuditoriaPage({
       performedAt: auditLog.performedAt,
     })
     .from(auditLog)
-    .orderBy(desc(auditLog.performedAt))
-    .limit(200);
+    .where(whereClause)
+    .orderBy(desc(auditLog.performedAt), desc(auditLog.id))
+    .limit(AUDITORIA_PAGE_LIMIT + 1);
 
-  let entries = await query;
+  const hasMore = rawEntries.length > AUDITORIA_PAGE_LIMIT;
+  const entries = hasMore ? rawEntries.slice(0, AUDITORIA_PAGE_LIMIT) : rawEntries;
 
-  // Apply JS-side filters (small dataset; avoids dynamic SQL complexity).
-  if (actionFilter) {
-    entries = entries.filter((e) => e.action.includes(actionFilter));
-  }
-  if (actorFilter) {
-    entries = entries.filter((e) => e.actorUserId === actorFilter);
-  }
+  // Pagination links — changing a filter resets cursor to page 1.
+  const filterParams: Record<string, string | undefined> = {
+    ...(actionFilter ? { action: actionFilter } : {}),
+    ...(actorFilter ? { actor: actorFilter } : {}),
+  };
+  const lastEntry = entries.at(-1);
+  const olderLink =
+    hasMore && lastEntry
+      ? olderHref("/admin/auditoria", filterParams, {
+          ts: lastEntry.performedAt,
+          id: lastEntry.id,
+        })
+      : null;
+  const newerLink = rawCursor ? newerHref("/admin/auditoria", filterParams) : null;
 
   // Resolve actor names in one batch. actorUserId is nullable (ARCH-H,
   // migration 0080): rows whose actor was hard-deleted have NULL actor_user_id.
@@ -146,6 +175,35 @@ export default async function AdminAuditoriaPage({
             </ul>
           </OpCardBody>
         </OpCard>
+      )}
+
+      {/* Pagination footer */}
+      {(newerLink || olderLink) && (
+        <nav
+          aria-label="Paginación de auditoría"
+          className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+        >
+          <div>
+            {newerLink && (
+              <Link
+                href={newerLink}
+                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                ← Más recientes
+              </Link>
+            )}
+          </div>
+          <div>
+            {olderLink && (
+              <Link
+                href={olderLink}
+                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                Ver más antiguos →
+              </Link>
+            )}
+          </div>
+        </nav>
       )}
     </div>
   );

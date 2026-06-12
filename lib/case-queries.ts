@@ -7,10 +7,10 @@
 // requireAdminOrGovtOrRedirect). Once Fase F lands per-kind RLS, these
 // helpers stay correct — they query the same rows the policies expose.
 
+import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/keyset-pagination";
 import { and, desc, eq, exists, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import {
-  type Case,
   type CaseClosedReason,
   type CaseEvent,
   type CaseStatus,
@@ -28,6 +28,77 @@ import {
   welfareReports,
 } from "@/db";
 import { type CaseKind, isCaseKind } from "@/src/modules/cases/domain/case-kinds";
+
+// ---------------------------------------------------------------------------
+// Performance projections — perf-only, not security boundaries.
+// List views and detail joins use these to avoid fetching all 27 cols of cases.
+// ---------------------------------------------------------------------------
+
+// Columns consumed by mapListRow + list pages (8 of 27 cols).
+const CASE_LIST_SELECT = {
+  id: cases.id,
+  publicCode: cases.publicCode,
+  caseKind: cases.caseKind,
+  status: cases.status,
+  jurisdictionProvince: cases.jurisdictionProvince,
+  jurisdictionLocality: cases.jurisdictionLocality,
+  openedAt: cases.openedAt,
+  closedAt: cases.closedAt,
+} as const;
+
+// Columns consumed by getCaseDetailByPublicCode (20 of 27 cols).
+const CASE_DETAIL_SELECT = {
+  id: cases.id,
+  publicCode: cases.publicCode,
+  caseKind: cases.caseKind,
+  status: cases.status,
+  closedReason: cases.closedReason,
+  primarySubjectKind: cases.primarySubjectKind,
+  primaryLocationLat: cases.primaryLocationLat,
+  primaryLocationLng: cases.primaryLocationLng,
+  jurisdictionCountry: cases.jurisdictionCountry,
+  jurisdictionProvince: cases.jurisdictionProvince,
+  jurisdictionLocality: cases.jurisdictionLocality,
+  openedAt: cases.openedAt,
+  openedReason: cases.openedReason,
+  closedAt: cases.closedAt,
+  primaryPetId: cases.primaryPetId,
+  welfareReportId: cases.welfareReportId,
+  custodyDisputeId: cases.custodyDisputeId,
+  openedByOrganizationId: cases.openedByOrganizationId,
+  closedByUserId: cases.closedByUserId,
+  openedByUserId: cases.openedByUserId,
+} as const;
+
+// Columns consumed by getOutbreakInvestigationDetail (13 of 27 cols).
+const CASE_OUTBREAK_DETAIL_SELECT = {
+  id: cases.id,
+  publicCode: cases.publicCode,
+  caseKind: cases.caseKind,
+  status: cases.status,
+  closedReason: cases.closedReason,
+  jurisdictionCountry: cases.jurisdictionCountry,
+  jurisdictionProvince: cases.jurisdictionProvince,
+  jurisdictionLocality: cases.jurisdictionLocality,
+  openedAt: cases.openedAt,
+  openedReason: cases.openedReason,
+  closedAt: cases.closedAt,
+  closedByUserId: cases.closedByUserId,
+  openedByUserId: cases.openedByUserId,
+} as const;
+
+// Columns consumed by listOutbreakInvestigationsForGovt (9 of 27 cols).
+const CASE_OUTBREAK_LIST_SELECT = {
+  id: cases.id,
+  publicCode: cases.publicCode,
+  status: cases.status,
+  closedReason: cases.closedReason,
+  jurisdictionProvince: cases.jurisdictionProvince,
+  jurisdictionLocality: cases.jurisdictionLocality,
+  openedAt: cases.openedAt,
+  closedAt: cases.closedAt,
+  openedReason: cases.openedReason,
+} as const;
 
 // ---------------------------------------------------------------------------
 // Case detail
@@ -93,9 +164,16 @@ export interface CaseEventRow {
 export async function getCaseDetailByPublicCode(publicCode: string): Promise<CaseDetail | null> {
   const [row] = await db
     .select({
-      c: cases,
-      pet: pets,
-      petPhotoPath: attachments.storagePath,
+      c: CASE_DETAIL_SELECT,
+      pet: {
+        id: pets.id,
+        publicToken: pets.publicToken,
+        name: pets.name,
+        species: pets.species,
+        sex: pets.sex,
+        primaryPhotoStoragePath: attachments.storagePath,
+        status: pets.status,
+      },
       openedByUser: {
         id: profiles.id,
         displayName: profiles.displayName,
@@ -173,7 +251,10 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
       })
       .from(petEvents)
       .where(eq(petEvents.caseId, row.c.id))
-      .orderBy(desc(petEvents.occurredAt)),
+      .orderBy(desc(petEvents.occurredAt))
+      // Cap newest 200; merged timeline sorted desc after join. PERF-5 will
+      // add cursor-based pagination for deep case histories.
+      .limit(200),
     // case_events covers pet-less cases (location/general/unowned) and
     // reporter_comment entries for welfare_denuncia. Merged into the shared
     // timeline so the case detail page shows a unified history.
@@ -188,7 +269,8 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
       })
       .from(caseEvents)
       .where(eq(caseEvents.caseId, row.c.id))
-      .orderBy(desc(caseEvents.occurredAt)),
+      .orderBy(desc(caseEvents.occurredAt))
+      .limit(200),
   ]);
 
   const caseKind = isCaseKind(row.c.caseKind) ? row.c.caseKind : ("bite_incident" as CaseKind);
@@ -213,15 +295,15 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
     openedAt: row.c.openedAt,
     openedReason: row.c.openedReason,
     closedAt: row.c.closedAt,
-    pet: row.pet
+    pet: row.pet?.id
       ? {
           id: row.pet.id,
-          publicToken: row.pet.publicToken,
-          name: row.pet.name,
-          species: row.pet.species,
-          sex: row.pet.sex,
-          primaryPhotoStoragePath: row.petPhotoPath ?? null,
-          status: row.pet.status,
+          publicToken: row.pet.publicToken ?? "",
+          name: row.pet.name ?? "",
+          species: row.pet.species ?? "",
+          sex: row.pet.sex ?? "",
+          primaryPhotoStoragePath: row.pet.primaryPhotoStoragePath ?? null,
+          status: row.pet.status ?? "",
         }
       : null,
     welfareReport: welfareReportRow,
@@ -285,8 +367,19 @@ export interface CaseListItem {
   closedAt: Date | null;
 }
 
+type CaseListRow = {
+  id: string;
+  publicCode: string;
+  caseKind: string;
+  status: CaseStatus;
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+  openedAt: Date;
+  closedAt: Date | null;
+};
+
 function mapListRow(row: {
-  c: Case;
+  c: CaseListRow;
   petName: string | null;
   petPublicToken: string | null;
 }): CaseListItem {
@@ -366,7 +459,7 @@ export async function listCasesForOrg(
 
   const rows = await db
     .select({
-      c: cases,
+      c: CASE_LIST_SELECT,
       petName: pets.name,
       petPublicToken: pets.publicToken,
     })
@@ -397,44 +490,55 @@ export async function listCaseKindDistributionForOrg(orgId: string): Promise<Cas
   return rows.map((r) => r.caseKind).filter(isCaseKind) as CaseKind[];
 }
 
+// opts.cursor enables keyset pagination (PERF-5): when provided, only rows
+// OLDER than the cursor are returned — (openedAt, id) < (cursorTs, cursorId).
+// Callers should fetch limit+1 to detect hasMore; render limit rows only.
 export async function listCasesForGovt(
   jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
+  opts?: { limit?: number; cursor?: KeysetCursor },
 ): Promise<CaseListItem[]> {
   if (jurisdictions.length === 0) return [];
+  const jurisdictionFilter = or(
+    ...jurisdictions.map((j) =>
+      and(eq(cases.jurisdictionProvince, j.province), eq(cases.jurisdictionLocality, j.locality)),
+    ),
+  );
+  const cursorClause = keysetWhere(cases.openedAt, cases.id, decodeCursor(opts?.cursor));
+  const whereClause = cursorClause ? and(jurisdictionFilter, cursorClause) : jurisdictionFilter;
+  const limit = opts?.limit ?? 300;
   const rows = await db
     .select({
-      c: cases,
+      c: CASE_LIST_SELECT,
       petName: pets.name,
       petPublicToken: pets.publicToken,
     })
     .from(cases)
     .leftJoin(pets, eq(pets.id, cases.primaryPetId))
-    .where(
-      or(
-        ...jurisdictions.map((j) =>
-          and(
-            eq(cases.jurisdictionProvince, j.province),
-            eq(cases.jurisdictionLocality, j.locality),
-          ),
-        ),
-      ),
-    )
-    .orderBy(desc(cases.openedAt))
-    .limit(300);
+    .where(whereClause)
+    .orderBy(desc(cases.openedAt), desc(cases.id))
+    .limit(limit);
   return rows.map(mapListRow);
 }
 
-export async function listCasesForAdmin(): Promise<CaseListItem[]> {
+// opts.cursor enables keyset pagination (PERF-5): see listCasesForGovt.
+export async function listCasesForAdmin(opts?: {
+  limit?: number;
+  cursor?: KeysetCursor;
+}): Promise<CaseListItem[]> {
+  const cursorClause = keysetWhere(cases.openedAt, cases.id, decodeCursor(opts?.cursor));
+  const limit = opts?.limit ?? 500;
   const rows = await db
     .select({
-      c: cases,
+      c: CASE_LIST_SELECT,
       petName: pets.name,
       petPublicToken: pets.publicToken,
     })
     .from(cases)
     .leftJoin(pets, eq(pets.id, cases.primaryPetId))
-    .orderBy(desc(cases.openedAt))
-    .limit(500);
+    // Drizzle's .where(undefined) emits no WHERE clause — deliberate: admin sees all cases on page 1.
+    .where(cursorClause)
+    .orderBy(desc(cases.openedAt), desc(cases.id))
+    .limit(limit);
   return rows.map(mapListRow);
 }
 
@@ -462,7 +566,7 @@ export async function listOpenCasesForAdminPreview(limit = 5): Promise<OpenCases
   const [items, totalRow] = await Promise.all([
     db
       .select({
-        c: cases,
+        c: CASE_LIST_SELECT,
         petName: pets.name,
         petPublicToken: pets.publicToken,
       })
@@ -503,7 +607,7 @@ export async function listOpenCasesForGovtPreview(
   const [items, total] = await Promise.all([
     db
       .select({
-        c: cases,
+        c: CASE_LIST_SELECT,
         petName: pets.name,
         petPublicToken: pets.publicToken,
       })
@@ -586,7 +690,7 @@ export async function listOutbreakInvestigationsForGovt(
       : undefined;
 
   const rows = await db
-    .select({ c: cases })
+    .select({ c: CASE_OUTBREAK_LIST_SELECT })
     .from(cases)
     .where(
       and(
@@ -619,7 +723,7 @@ export async function getOutbreakInvestigationDetail(
 ): Promise<OutbreakInvestigationDetail | null> {
   const [row] = await db
     .select({
-      c: cases,
+      c: CASE_OUTBREAK_DETAIL_SELECT,
       openedByUser: {
         id: profiles.id,
         displayName: profiles.displayName,

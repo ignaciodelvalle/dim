@@ -13,7 +13,17 @@ import { FosterVolunteerWizard } from "./FosterVolunteerWizard";
 export default async function OfrecermeComoTransitoPage() {
   const { user } = await requireUserOrRedirect();
 
-  const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
+  const [profile] = await db
+    .select({
+      role: profiles.role,
+      accountType: profiles.accountType,
+      dniVerified: profiles.dniVerified,
+      displayName: profiles.displayName,
+      phone: profiles.phone,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
   if (!profile) {
     return (
       <div className="mx-auto max-w-2xl px-[32px] py-[28px]">

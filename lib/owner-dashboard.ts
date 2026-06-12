@@ -312,33 +312,75 @@ async function fetchPendingFosterProposals(userId: string): Promise<WorkflowItem
   }));
 }
 
-async function fetchLostPets(userId: string): Promise<WorkflowItem[]> {
-  const rows = await db
-    .select({
-      id: pets.id,
-      publicToken: pets.publicToken,
-      name: pets.name,
-      updatedAt: pets.updatedAt,
-    })
-    .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(
-      and(
-        eq(ownerships.ownerUserId, userId),
-        eq(ownerships.role, "owner"),
-        isNull(ownerships.endedAt),
-        eq(pets.status, "lost"),
-      ),
-    );
-  return rows.map((r) => ({
-    id: `pet_lost:${r.id}`,
-    kind: "pet_lost" as const,
-    title: `${r.name} está reportada como perdida`,
-    subtitle: "Avisanos cuando aparezca",
-    ctaUrl: `/mis-mascotas/${r.publicToken}`,
-    since: r.updatedAt,
-    severity: "urgent" as const,
-  }));
+// Consolidated query: pets requiring attention — lost + pending PPP attestation.
+// Replaces fetchLostPets(owner-dashboard) + fetchPendingPppAttestations (2 → 1 query).
+async function fetchPetAlerts(userId: string): Promise<WorkflowItem[]> {
+  const rows = await db.execute<{
+    kind: "pet_lost" | "dangerous_breed_pending_attestation";
+    pet_id: string;
+    pet_name: string;
+    pet_public_token: string;
+    since_ts: string;
+  }>(sql`
+    -- Lost pets owned by user
+    SELECT
+      'pet_lost'::text AS kind,
+      p.id::text        AS pet_id,
+      p.name            AS pet_name,
+      p.public_token    AS pet_public_token,
+      p.updated_at::text AS since_ts
+    FROM pets p
+    JOIN ownerships o ON o.pet_id = p.id
+     AND o.owner_user_id = ${userId}
+     AND o.role = 'owner'
+     AND o.ended_at IS NULL
+    WHERE p.status = 'lost'
+
+    UNION ALL
+
+    -- PPP pets with no dangerous_breed_attested event yet
+    SELECT
+      'dangerous_breed_pending_attestation'::text AS kind,
+      p.id::text        AS pet_id,
+      p.name            AS pet_name,
+      p.public_token    AS pet_public_token,
+      p.created_at::text AS since_ts
+    FROM pets p
+    JOIN ownerships o ON o.pet_id = p.id
+     AND o.owner_user_id = ${userId}
+     AND o.role = 'owner'
+     AND o.ended_at IS NULL
+    WHERE p.potentially_dangerous_breed = TRUE
+      AND p.status != 'deceased'
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events e
+        WHERE e.pet_id = p.id
+          AND e.event_type = 'dangerous_breed_attested'
+      )
+  `);
+
+  return rows.map((r) => {
+    if (r.kind === "pet_lost") {
+      return {
+        id: `pet_lost:${r.pet_id}`,
+        kind: "pet_lost" as const,
+        title: `${r.pet_name} está reportada como perdida`,
+        subtitle: "Avisanos cuando aparezca",
+        ctaUrl: `/mis-mascotas/${r.pet_public_token}`,
+        since: new Date(r.since_ts),
+        severity: "urgent" as const,
+      };
+    }
+    return {
+      id: `ppp_pending:${r.pet_id}`,
+      kind: "dangerous_breed_pending_attestation" as const,
+      title: `Atestá la raza de ${r.pet_name}`,
+      subtitle: "Tu mascota es PPP (potencialmente peligrosa) — hace falta atestación legal",
+      ctaUrl: `/mis-mascotas/${r.pet_public_token}/eventos/atestar-raza-peligrosa`,
+      since: new Date(r.since_ts),
+      severity: "warning" as const,
+    };
+  });
 }
 
 async function fetchOpenWelfareReports(userId: string): Promise<WorkflowItem[]> {
@@ -362,20 +404,25 @@ async function fetchOpenWelfareReports(userId: string): Promise<WorkflowItem[]> 
   }));
 }
 
-async function fetchPendingAdoptionApplications(userId: string): Promise<WorkflowItem[]> {
-  // Same predicate as /mis-mascotas/postulaciones: submitted by user, no
-  // resolution yet, and not finalized to me.
+// Consolidated query: pending pet-event workflows — adoption applications +
+// custody transfer proposals. Replaces two separate petEvents queries (2 → 1).
+async function fetchPendingPetEventWorkflows(userId: string): Promise<WorkflowItem[]> {
   const rows = await db.execute<{
-    application_id: string;
+    kind: "adoption_application_pending" | "custody_transfer_pending";
+    item_id: string;
+    pet_id: string;
     pet_name: string;
     pet_public_token: string;
-    submitted_at: string;
+    since_ts: string;
   }>(sql`
+    -- Pending adoption applications submitted by this user
     SELECT
-      e.id::text AS application_id,
-      p.name AS pet_name,
-      p.public_token AS pet_public_token,
-      e.recorded_at::text AS submitted_at
+      'adoption_application_pending'::text AS kind,
+      e.id::text                           AS item_id,
+      p.id::text                           AS pet_id,
+      p.name                               AS pet_name,
+      p.public_token                       AS pet_public_token,
+      e.recorded_at::text                  AS since_ts
     FROM pet_events e
     JOIN pets p ON p.id = e.pet_id
     WHERE e.event_type = 'adoption_application_submitted'
@@ -391,33 +438,17 @@ async function fetchPendingAdoptionApplications(userId: string): Promise<Workflo
         WHERE f.pet_id = e.pet_id
           AND f.event_type = 'adoption_finalized'
       )
-    ORDER BY e.recorded_at DESC
-  `);
-  return rows.map((r) => ({
-    id: `adoption_application:${r.application_id}`,
-    kind: "adoption_application_pending" as const,
-    title: `Tu postulación para ${r.pet_name}`,
-    subtitle: "Pendiente de revisión del refugio",
-    ctaUrl: "/mis-mascotas/postulaciones",
-    since: new Date(r.submitted_at),
-    severity: "info" as const,
-  }));
-}
 
-async function fetchPendingCustodyTransfers(userId: string): Promise<WorkflowItem[]> {
-  // Pets the user owns where a custody_transfer_proposed exists and no
-  // subsequent custody_transferred resolves it.
-  const rows = await db.execute<{
-    pet_id: string;
-    pet_public_token: string;
-    pet_name: string;
-    proposed_at: string;
-  }>(sql`
+    UNION ALL
+
+    -- Custody transfer proposals on pets the user owns, not yet resolved
     SELECT
-      p.id::text AS pet_id,
-      p.public_token AS pet_public_token,
-      p.name AS pet_name,
-      e.occurred_at::text AS proposed_at
+      'custody_transfer_pending'::text AS kind,
+      p.id::text                       AS item_id,
+      p.id::text                       AS pet_id,
+      p.name                           AS pet_name,
+      p.public_token                   AS pet_public_token,
+      e.occurred_at::text              AS since_ts
     FROM pet_events e
     JOIN pets p ON p.id = e.pet_id
     JOIN ownerships o ON o.pet_id = p.id
@@ -431,17 +462,32 @@ async function fetchPendingCustodyTransfers(userId: string): Promise<WorkflowIte
           AND t.event_type = 'custody_transferred'
           AND t.occurred_at >= e.occurred_at
       )
-    ORDER BY e.occurred_at DESC
+
+    ORDER BY since_ts DESC
   `);
-  return rows.map((r) => ({
-    id: `custody_transfer:${r.pet_id}`,
-    kind: "custody_transfer_pending" as const,
-    title: `Propuesta de devolución para ${r.pet_name}`,
-    subtitle: "Alguien intenta devolverla — confirmá la transferencia",
-    ctaUrl: `/mis-mascotas/${r.pet_public_token}/devolucion`,
-    since: new Date(r.proposed_at),
-    severity: "warning" as const,
-  }));
+
+  return rows.map((r) => {
+    if (r.kind === "adoption_application_pending") {
+      return {
+        id: `adoption_application:${r.item_id}`,
+        kind: "adoption_application_pending" as const,
+        title: `Tu postulación para ${r.pet_name}`,
+        subtitle: "Pendiente de revisión del refugio",
+        ctaUrl: "/mis-mascotas/postulaciones",
+        since: new Date(r.since_ts),
+        severity: "info" as const,
+      };
+    }
+    return {
+      id: `custody_transfer:${r.pet_id}`,
+      kind: "custody_transfer_pending" as const,
+      title: `Propuesta de devolución para ${r.pet_name}`,
+      subtitle: "Alguien intenta devolverla — confirmá la transferencia",
+      ctaUrl: `/mis-mascotas/${r.pet_public_token}/devolucion`,
+      since: new Date(r.since_ts),
+      severity: "warning" as const,
+    };
+  });
 }
 
 async function fetchPendingApprovalRequests(userId: string): Promise<WorkflowItem[]> {
@@ -491,98 +537,22 @@ async function fetchOpenCustodyDisputes(userId: string): Promise<WorkflowItem[]>
   }));
 }
 
-async function fetchOpenBiteCases(userId: string): Promise<WorkflowItem[]> {
-  // Open bite_incident cases (rabies observation) where the affected pet
-  // is owned by the user.
-  const rows = await db
-    .select({
-      caseId: cases.id,
-      publicCode: cases.publicCode,
-      petName: pets.name,
-      petPublicToken: pets.publicToken,
-      openedAt: cases.openedAt,
-    })
-    .from(cases)
-    .innerJoin(pets, eq(pets.id, cases.primaryPetId))
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(
-      and(
-        eq(cases.caseKind, "bite_incident"),
-        ne(cases.status, "closed"),
-        eq(ownerships.ownerUserId, userId),
-        eq(ownerships.role, "owner"),
-        isNull(ownerships.endedAt),
-      ),
-    );
-  return rows.map((r) => ({
-    id: `bite_case:${r.caseId}`,
-    kind: "bite_observation_open" as const,
-    title: `Observación por mordedura · ${r.petName}`,
-    subtitle: `${r.publicCode} · procedimiento en curso`,
-    ctaUrl: `/mis-mascotas/${r.petPublicToken}`,
-    since: r.openedAt,
-    severity: "warning" as const,
-  }));
-}
-
-async function fetchPendingPppAttestations(userId: string): Promise<WorkflowItem[]> {
-  // Pets flagged as potentially dangerous breed where the owner has NOT
-  // yet recorded a `dangerous_breed_attested` event. Surfaces as a
-  // pending task on /inicio so the owner can comply.
-  const rows = await db.execute<{
-    pet_id: string;
-    pet_name: string;
-    pet_public_token: string;
-    registered_at: string;
-  }>(sql`
-    SELECT
-      p.id::text AS pet_id,
-      p.name AS pet_name,
-      p.public_token AS pet_public_token,
-      p.created_at::text AS registered_at
-    FROM pets p
-    JOIN ownerships o ON o.pet_id = p.id
-     AND o.owner_user_id = ${userId}
-     AND o.role = 'owner'
-     AND o.ended_at IS NULL
-    WHERE p.potentially_dangerous_breed = TRUE
-      AND p.status != 'deceased'
-      AND NOT EXISTS (
-        SELECT 1 FROM pet_events e
-        WHERE e.pet_id = p.id
-          AND e.event_type = 'dangerous_breed_attested'
-      )
-  `);
-  return rows.map((r) => ({
-    id: `ppp_pending:${r.pet_id}`,
-    kind: "dangerous_breed_pending_attestation" as const,
-    title: `Atestá la raza de ${r.pet_name}`,
-    subtitle: "Tu mascota es PPP (potencialmente peligrosa) — hace falta atestación legal",
-    ctaUrl: `/mis-mascotas/${r.pet_public_token}/eventos/atestar-raza-peligrosa`,
-    since: new Date(r.registered_at),
-    severity: "warning" as const,
-  }));
-}
-
-// Case kinds with a dedicated fetcher above. The sweep below excludes
-// these so we don't show duplicate rows. `adoption_listing` is org-side
-// only and intentionally skipped.
-const CASE_KINDS_COVERED_BY_KIND_FETCHERS = [
+// Case kinds handled by dedicated fetchers elsewhere in this module.
+// The combined open-cases sweep below covers the remaining kinds + bite_incident.
+const CASES_HANDLED_BY_OTHER_FETCHERS = [
   "foster_placement",
   "lost_pet_episode",
   "welfare_denuncia",
   "adoption_application",
   "custody_dispute",
   "custody_transfer_handshake",
-  "bite_incident",
   "adoption_listing",
 ] as const;
 
-// Catch-all: any open case the user is connected to via pet ownership,
-// opener, or applicant role, whose `caseKind` is NOT already covered by a
-// dedicated fetcher. Surfaces case kinds like `microchip_remediation` and
-// any future kind without requiring a code change to the dashboard.
-async function fetchOpenCasesGenericSweep(userId: string): Promise<WorkflowItem[]> {
+// Consolidated query: open cases connected to the user — bite_incident
+// (rabies observation) + any other open case kind not handled by a dedicated
+// fetcher. Replaces fetchOpenBiteCases + fetchOpenCasesGenericSweep (2 → 1 query).
+async function fetchOpenCasesSweep(userId: string): Promise<WorkflowItem[]> {
   const rows = await db
     .selectDistinct({
       caseId: cases.id,
@@ -590,6 +560,7 @@ async function fetchOpenCasesGenericSweep(userId: string): Promise<WorkflowItem[
       caseKind: cases.caseKind,
       openedAt: cases.openedAt,
       petName: pets.name,
+      petPublicToken: pets.publicToken,
     })
     .from(cases)
     .leftJoin(pets, eq(pets.id, cases.primaryPetId))
@@ -604,23 +575,47 @@ async function fetchOpenCasesGenericSweep(userId: string): Promise<WorkflowItem[
     .where(
       and(
         ne(cases.status, "closed"),
-        notInArray(cases.caseKind, [...CASE_KINDS_COVERED_BY_KIND_FETCHERS]),
+        notInArray(cases.caseKind, [...CASES_HANDLED_BY_OTHER_FETCHERS]),
         or(
-          eq(ownerships.ownerUserId, userId),
-          eq(cases.openedByUserId, userId),
-          eq(cases.applicantUserId, userId),
+          // bite_incident is reachable only via the ownership arm — it must NOT
+          // surface through openedByUserId / applicantUserId because those arms
+          // would expose bite cases to reporters/applicants who are not owners,
+          // breaking the owner-only visibility contract for bite_incident.
+          and(eq(cases.caseKind, "bite_incident"), eq(ownerships.ownerUserId, userId)),
+          and(
+            ne(cases.caseKind, "bite_incident"),
+            or(
+              eq(ownerships.ownerUserId, userId),
+              eq(cases.openedByUserId, userId),
+              eq(cases.applicantUserId, userId),
+            ),
+          ),
         ),
       ),
     );
-  return rows.map((r) => ({
-    id: `case_generic:${r.caseId}`,
-    kind: "case_generic_open" as const,
-    title: r.petName ? `Caso ${r.publicCode} · ${r.petName}` : `Caso ${r.publicCode}`,
-    subtitle: caseKindLabelFallback(r.caseKind),
-    ctaUrl: `/casos/${r.publicCode}`,
-    since: r.openedAt,
-    severity: "info" as const,
-  }));
+
+  return rows.map((r) => {
+    if (r.caseKind === "bite_incident") {
+      return {
+        id: `bite_case:${r.caseId}`,
+        kind: "bite_observation_open" as const,
+        title: `Observación por mordedura · ${r.petName ?? "mascota"}`,
+        subtitle: `${r.publicCode} · procedimiento en curso`,
+        ctaUrl: r.petPublicToken ? `/mis-mascotas/${r.petPublicToken}` : `/casos/${r.publicCode}`,
+        since: r.openedAt,
+        severity: "warning" as const,
+      };
+    }
+    return {
+      id: `case_generic:${r.caseId}`,
+      kind: "case_generic_open" as const,
+      title: r.petName ? `Caso ${r.publicCode} · ${r.petName}` : `Caso ${r.publicCode}`,
+      subtitle: caseKindLabelFallback(r.caseKind),
+      ctaUrl: `/casos/${r.publicCode}`,
+      since: r.openedAt,
+      severity: "info" as const,
+    };
+  });
 }
 
 // Lightweight label lookup that doesn't import lib/case-kinds.ts (avoids
@@ -641,32 +636,34 @@ function caseKindLabelFallback(caseKind: string): string {
   }
 }
 
+// fetchOpenWorkflows: 10 → 7 queries by merging homogeneous sub-fetchers.
+//
+// Before: fetchLostPets + fetchPendingPppAttestations (2 pets queries)
+//         fetchPendingAdoptionApplications + fetchPendingCustodyTransfers (2 petEvents queries)
+//         fetchOpenBiteCases + fetchOpenCasesGenericSweep (2 cases queries)
+// After:  fetchPetAlerts (1) + fetchPendingPetEventWorkflows (1) + fetchOpenCasesSweep (1)
+// Remaining unchanged: fetchPendingFosterProposals, fetchOpenWelfareReports,
+//   fetchPendingApprovalRequests, fetchOpenCustodyDisputes (structurally distinct).
 export async function fetchOpenWorkflows(userId: string): Promise<WorkflowItem[]> {
-  const [foster, lost, welfare, adoption, custody, approval, disputes, bite, ppp, generic] =
+  const [foster, petAlerts, welfare, petEventWorkflows, approval, disputes, casesSweep] =
     await Promise.all([
       fetchPendingFosterProposals(userId),
-      fetchLostPets(userId),
+      fetchPetAlerts(userId),
       fetchOpenWelfareReports(userId),
-      fetchPendingAdoptionApplications(userId),
-      fetchPendingCustodyTransfers(userId),
+      fetchPendingPetEventWorkflows(userId),
       fetchPendingApprovalRequests(userId),
       fetchOpenCustodyDisputes(userId),
-      fetchOpenBiteCases(userId),
-      fetchPendingPppAttestations(userId),
-      fetchOpenCasesGenericSweep(userId),
+      fetchOpenCasesSweep(userId),
     ]);
   // Sort by `since` desc — most recently opened workflow on top.
   return [
     ...foster,
-    ...lost,
+    ...petAlerts,
     ...welfare,
-    ...adoption,
-    ...custody,
+    ...petEventWorkflows,
     ...approval,
     ...disputes,
-    ...bite,
-    ...ppp,
-    ...generic,
+    ...casesSweep,
   ].sort((a, b) => b.since.getTime() - a.since.getTime());
 }
 
@@ -998,6 +995,7 @@ export async function fetchVaccinationHistory(petId: string): Promise<Vaccinatio
     WHERE e.pet_id = ${petId}
       AND e.event_type = 'vaccination_administered'
     ORDER BY e.recorded_at DESC
+    LIMIT 50
   `);
 
   return rows.map((r) => ({
@@ -1204,6 +1202,14 @@ export interface PetProfileV2Events {
 export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProfileV2Events> {
   const [typedRows, recentRows] = await Promise.all([
     // Query A — whitelisted events for state computation, oldest first.
+    // INTENTIONALLY UNCAPPED: typedEvents is consumed by achievement replay
+    // (getEarnedAchievements), pregnancy state derivation, medication tracking,
+    // rabies observation, and PetCurrentStateSection — all of which need the
+    // COMPLETE ordered history to compute correct state. An arbitrary DESC cap
+    // would silently produce wrong achievements and stale state for long-lived
+    // pets. Only the whitelist (PROFILE_V2_TYPED_EVENT_TYPES) bounds the row
+    // count; most pets have ≤ 50 whitelisted events in their lifetime.
+    // Revisit if profiling shows a specific pet accumulating > 500 typed events.
     db
       .select()
       .from(petEvents)

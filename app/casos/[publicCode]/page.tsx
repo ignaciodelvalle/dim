@@ -15,17 +15,16 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { CaseBadge } from "@/components/CaseBadge";
-import { db, govtAssignments, profiles } from "@/db";
 import type { EventType } from "@/db/schema";
 import { canReadCase } from "@/lib/case-access";
 import { getNormativesForCase } from "@/lib/case-normatives";
 import { type CaseDetail, getCaseDetailByPublicCode } from "@/lib/case-queries";
 import { eventPayloadSummary } from "@/lib/events";
 import { eventTypeLabel, formatDate, formatDateTime, sexLabel, speciesLabel } from "@/lib/format";
+import { getJurisdictionsCached, getProfileCached } from "@/lib/request-cache";
 import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
-import { and, eq, isNull } from "drizzle-orm";
 
 // Reads auth cookies (viewer-dependent PII gating) — never statically cache.
 export const dynamic = "force-dynamic";
@@ -50,22 +49,12 @@ export default async function CaseDetailPage({ params }: PageProps) {
   let jurisdictions: Array<{ province: string; locality: string }> = [];
 
   if (user) {
-    const [profile] = await db
-      .select({ id: profiles.id, role: profiles.role })
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1);
+    const profile = await getProfileCached(user.id);
     if (profile) {
       viewerRole = profile.role;
       viewerUserId = profile.id;
       if (profile.role === "govt") {
-        jurisdictions = await db
-          .select({
-            province: govtAssignments.jurisdictionProvince,
-            locality: govtAssignments.jurisdictionLocality,
-          })
-          .from(govtAssignments)
-          .where(and(eq(govtAssignments.userId, profile.id), isNull(govtAssignments.revokedAt)));
+        jurisdictions = await getJurisdictionsCached(profile.id);
       }
     }
   }

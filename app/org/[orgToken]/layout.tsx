@@ -7,15 +7,14 @@
 // The orgToken (organizations.publicToken) is the URL-stable identifier used
 // throughout this portal instead of inferring an "active org" from session.
 
-import { eq } from "drizzle-orm";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { buildOrgNav } from "@/components/layout/nav-presets";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
-import { db, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { getProfileCached } from "@/lib/request-cache";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 export default async function OrgLayout({
@@ -29,13 +28,9 @@ export default async function OrgLayout({
   // Validates membership. Returns notFound() on failure — never leaks org existence.
   const { user, organization, membership } = await requireOrgAccessByToken(orgToken);
 
-  // profiles.displayName is NOT NULL — always present; no fallback needed.
-  const [profile] = await db
-    .select({ displayName: profiles.displayName })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-
+  // getProfileCached is warmed by requireOrgAccessByToken → requireUserOrRedirect;
+  // this is a memoized hit within the same render pass, not a second DB round-trip.
+  const profile = await getProfileCached(user.id);
   const displayName = profile?.displayName ?? "";
   // Capability-gated items (Ingresos, Check-ins, Permisos) only render for
   // members holding the matching capability. The pages re-check defensively;

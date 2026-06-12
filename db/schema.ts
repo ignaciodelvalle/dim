@@ -457,7 +457,8 @@ export const profiles = pgTable(
       .on(table.role)
       .where(sql`${table.accountType} = 'institutional' AND ${table.deactivatedAt} IS NULL`),
     // PII soft-delete partial (compliance PR 1, migration 0058).
-    profilesDeletedIdx: index("public_profiles_deleted_idx")
+    // Renamed from public_profiles_deleted_idx → profiles_deleted_idx (migration 0095).
+    profilesDeletedIdx: index("profiles_deleted_idx")
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
     // CHECK constraints — added via ALTER in migrations 0011 / 0015.
@@ -644,7 +645,8 @@ export const pets = pgTable(
     ),
     statusIdx: index("pets_status_idx").on(table.status),
     // PII soft-delete partial (compliance PR 1).
-    petsDeletedIdx: index("public_pets_deleted_idx")
+    // Renamed from public_pets_deleted_idx → pets_deleted_idx (migration 0095).
+    petsDeletedIdx: index("pets_deleted_idx")
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
     adoptionListingIdx: index("pets_adoption_listing_active_idx")
@@ -894,12 +896,11 @@ export const organizationMemberships = pgTable(
   (table) => ({
     orgIdx: index("organization_memberships_org_id_idx").on(table.organizationId),
     userIdx: index("organization_memberships_user_id_idx").on(table.userId),
-    activeIdx: index("organization_memberships_active_idx")
-      .on(table.organizationId, table.userId)
-      .where(sql`${table.leftAt} IS NULL`),
     // Exactly one active membership per (org, user). Mirrors migration 0072.
     // Prevents duplicate active memberships if two concurrent invite-accepts
     // slip past the FOR UPDATE lock (e.g. via different invite tokens).
+    // Note: organization_memberships_active_idx (non-unique on same columns) was
+    // dropped in migration 0095 — it was fully covered by this unique index.
     activeUniqueIdx: uniqueIndex("organization_memberships_active_unique")
       .on(table.organizationId, table.userId)
       .where(sql`${table.leftAt} IS NULL`),
@@ -1169,6 +1170,12 @@ export const reminders = pgTable(
     appointmentIdx: index("reminders_appointment_idx")
       .on(table.appointmentId)
       .where(sql`${table.appointmentId} IS NOT NULL`),
+    // Medication / checkin type lookups per pet (migration 0096).
+    petTypeDueIdx: index("reminders_pet_type_due_idx").on(
+      table.petId,
+      table.reminderType,
+      table.dueAt,
+    ),
   }),
 );
 
@@ -1338,6 +1345,11 @@ export const notifications = pgTable(
     relatedCaseIdIdx: index("notifications_related_case_id_idx")
       .on(table.relatedCaseId)
       .where(sql`${table.relatedCaseId} IS NOT NULL`),
+    // Pet FK index for lost-pet / disease dedup scans (migration 0096).
+    // Partial: only rows that reference a specific pet are relevant.
+    relatedPetIdx: index("notifications_related_pet_idx")
+      .on(table.relatedPetId)
+      .where(sql`${table.relatedPetId} IS NOT NULL`),
   }),
 );
 
@@ -1472,6 +1484,16 @@ export const welfareReports = pgTable(
     reporterOrganizationIdx: index("welfare_reports_org_reporter_idx")
       .on(table.reporterOrganizationId)
       .where(sql`${table.reporterOrganizationId} IS NOT NULL`),
+    // Government welfare inbox: (province, locality, status) for active
+    // reports (migration 0096). Partial: excludes terminal statuses.
+    jurisdictionStatusIdx: index("welfare_reports_jurisdiction_status_idx")
+      .on(table.jurisdictionProvince, table.jurisdictionLocality, table.status)
+      .where(sql`${table.status} NOT IN ('closed', 'invalid', 'duplicate')`),
+    // Overdue queue sort: (province, locality, created_at) for open reports
+    // (migration 0096).
+    openCreatedAtIdx: index("welfare_reports_open_created_at_idx")
+      .on(table.jurisdictionProvince, table.jurisdictionLocality, table.createdAt)
+      .where(sql`${table.status} = 'open'`),
     welfareReportsJurisdictionProvinceCanonical: check(
       "welfare_reports_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
@@ -1559,7 +1581,8 @@ export const libretaShareTokens = pgTable(
     petActiveIdx: index("libreta_share_tokens_pet_idx")
       .on(table.petId)
       .where(sql`${table.revokedAt} IS NULL`),
-    tokenIdx: index("libreta_share_tokens_token_idx").on(table.shareToken),
+    // Note: libreta_share_tokens_token_idx (non-unique on share_token) was dropped
+    // in migration 0095 — it is fully covered by the UNIQUE constraint on share_token.
   }),
 );
 
@@ -1716,6 +1739,11 @@ export const approvalRequests = pgTable(
     typeIdx: index("approval_requests_type_idx").on(table.type, table.status),
     initiatedByIdx: index("approval_requests_initiated_by_idx").on(table.initiatedByUserId),
     decidedByIdx: index("approval_requests_decided_by_idx").on(table.decidedByUserId),
+    // Admin proposal lookup by target org (migration 0096). Partial: only
+    // organization_verification requests set this column.
+    targetOrgIdx: index("approval_requests_target_org_idx")
+      .on(table.targetOrganizationId)
+      .where(sql`${table.targetOrganizationId} IS NOT NULL`),
     // CHECK constraints — also declared via ALTER in migrations 0015, 0017.
     approvalTypeValid: check(
       "approval_type_valid",
@@ -2288,7 +2316,14 @@ export const appointments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    petIdx: index("appointments_pet_idx").on(table.petId, table.createdAt),
+    // (pet_id, status, created_at): replaces the old (pet_id, created_at) index.
+    // Covers the pet-detail confirmed-turnos query and all other pet+status
+    // appointment lookups. Migration 0096 drops appointments_pet_idx.
+    petStatusIdx: index("appointments_pet_status_idx").on(
+      table.petId,
+      table.status,
+      table.createdAt,
+    ),
     ownerIdx: index("appointments_owner_idx").on(table.ownerUserId, table.status),
     orgIdx: index("appointments_org_idx")
       .on(table.organizationId, table.status)
@@ -2296,6 +2331,11 @@ export const appointments = pgTable(
     slotIdx: index("appointments_slot_idx")
       .on(table.slotId)
       .where(sql`${table.status} = 'confirmed'`),
+    // Org servicios booking summary (migration 0096).
+    serviceOfferingIdx: index("appointments_service_offering_idx").on(
+      table.serviceOfferingId,
+      table.status,
+    ),
     appointmentStatusValid: check(
       "appointment_status_valid",
       sql`${table.status} in ('confirmed', 'attended', 'no_show', 'cancelled_by_owner', 'cancelled_by_org')`,
@@ -2711,7 +2751,8 @@ export const custodyDisputes = pgTable(
       "custody_disputes_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
     ),
-    custodyDisputesDeletedIdx: index("public_custody_disputes_deleted_idx")
+    // Renamed from public_custody_disputes_deleted_idx → custody_disputes_deleted_idx (migration 0095).
+    custodyDisputesDeletedIdx: index("custody_disputes_deleted_idx")
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
     // Indexes shipped in migration 0025, mirrored here for schema↔migration
@@ -3072,6 +3113,14 @@ export const cases = pgTable(
       .where(
         sql`${table.status} IN ('open', 'escalated') AND ${table.receiverOrganizationId} IS NOT NULL`,
       ),
+    // Performance indexes added in migration 0096.
+    applicantUserIdx: index("cases_applicant_user_idx").on(table.applicantUserId),
+    welfareReportIdx: index("cases_welfare_report_idx")
+      .on(table.welfareReportId)
+      .where(sql`${table.welfareReportId} IS NOT NULL`),
+    custodyDisputeIdx: index("cases_custody_dispute_idx")
+      .on(table.custodyDisputeId)
+      .where(sql`${table.custodyDisputeId} IS NOT NULL`),
     // CHECK constraints also declared via ALTER in migration 0033.
     casesSubjectPetConsistency: check(
       "cases_subject_pet_consistency",
@@ -3486,7 +3535,8 @@ export const petIdentifications = pgTable(
       "replacement_reason_valid",
       sql`${table.replacementReason} IS NULL OR ${table.replacementReason} IN ('damaged','migrated','illegible','medical','other')`,
     ),
-    petIdentificationsDeletedIdx: index("public_pet_identifications_deleted_idx")
+    // Renamed from public_pet_identifications_deleted_idx → pet_identifications_deleted_idx (migration 0095).
+    petIdentificationsDeletedIdx: index("pet_identifications_deleted_idx")
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
   }),
@@ -3601,7 +3651,8 @@ export const organizationInvitations = pgTable(
   },
   (table) => ({
     orgIdx: index("org_invitations_org_id_idx").on(table.organizationId),
-    tokenIdx: index("org_invitations_token_idx").on(table.invitationToken),
+    // Note: org_invitations_token_idx (non-unique on invitation_token) was dropped
+    // in migration 0095 — it is fully covered by the UNIQUE constraint on invitation_token.
     emailIdx: index("org_invitations_email_idx").on(table.email),
     // Partial unique index — exactly one active invite per (org, lower(email)).
     // Mirrors the SQL: CREATE UNIQUE INDEX … WHERE accepted_at IS NULL AND revoked_at IS NULL.

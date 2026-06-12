@@ -1,3 +1,4 @@
+import { newerHref, olderHref } from "@/lib/keyset-pagination";
 import { and, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
@@ -26,24 +27,28 @@ function parseTypeParam(raw: string | undefined): ApprovalRequestType | null {
     : null;
 }
 
+const COLA_PAGE_LIMIT = 200;
+
 export default async function ColaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string }>;
+  searchParams: Promise<{ type?: string; cursor?: string }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
-  const { type: rawType } = await searchParams;
+  const { type: rawType, cursor: rawCursor } = await searchParams;
   const activeType = parseTypeParam(rawType);
 
-  // Fetch only the rows matching the type filter in SQL (not JS post-filter) so
-  // the LIMIT inside fetchVisiblePendingRequests is applied AFTER the type
-  // predicate — prevents silently truncating the queue when many requests exist.
-  const pending = await fetchVisiblePendingRequests(
+  // Fetch limit+1 to detect hasMore for keyset pagination (PERF-5).
+  const rawPending = await fetchVisiblePendingRequests(
     profile,
     jurisdictions,
     activeType ?? undefined,
+    { limit: COLA_PAGE_LIMIT + 1, cursor: rawCursor },
   );
+
+  const hasMore = rawPending.length > COLA_PAGE_LIMIT;
+  const pending = hasMore ? rawPending.slice(0, COLA_PAGE_LIMIT) : rawPending;
 
   // Resolve applicant display names in one batched query so the list
   // renders human-readable instead of UUIDs.
@@ -64,6 +69,15 @@ export default async function ColaPage({
       ? "No hay solicitudes pendientes en tu scope."
       : `${pending.length} solicitud${pending.length === 1 ? "" : "es"} pendiente${pending.length === 1 ? "" : "s"}.`;
 
+  // Pagination links — filter params exclude cursor so changing a filter resets to page 1.
+  const filterParams: Record<string, string | undefined> = activeType ? { type: activeType } : {};
+  const lastReq = pending.at(-1);
+  const olderLink =
+    hasMore && lastReq
+      ? olderHref("/gob/cola", filterParams, { ts: lastReq.createdAt, id: lastReq.id })
+      : null;
+  const newerLink = rawCursor ? newerHref("/gob/cola", filterParams) : null;
+
   return (
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -72,7 +86,7 @@ export default async function ColaPage({
           <p className="text-[13px] text-ln-op-mute">{subtitle}</p>
         </header>
 
-        {/* Type filter chips — searchParam-driven, server component pattern */}
+        {/* Type filter chips — links drop ?cursor so filters reset to page 1 */}
         <nav aria-label="Filtrar por tipo" className="flex flex-wrap gap-2">
           <Link
             href="/gob/cola"
@@ -111,6 +125,35 @@ export default async function ColaPage({
             createdAt: new Date(req.createdAt).toLocaleDateString("es-AR"),
           }))}
         />
+
+        {/* Pagination footer */}
+        {(newerLink || olderLink) && (
+          <nav
+            aria-label="Paginación de cola"
+            className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+          >
+            <div>
+              {newerLink && (
+                <Link
+                  href={newerLink}
+                  className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                >
+                  ← Más recientes
+                </Link>
+              )}
+            </div>
+            <div>
+              {olderLink && (
+                <Link
+                  href={olderLink}
+                  className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                >
+                  Ver más antiguos →
+                </Link>
+              )}
+            </div>
+          </nav>
+        )}
       </div>
     </main>
   );

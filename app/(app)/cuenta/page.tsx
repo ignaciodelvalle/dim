@@ -37,16 +37,36 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
 export default async function CuentaPage() {
   const { user } = await requireUserOrRedirect();
 
-  const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
-
-  let email = "";
-  try {
-    const adminClient = createAdminClient();
-    const { data } = await adminClient.auth.admin.getUserById(user.id);
-    email = data?.user?.email ?? "";
-  } catch {
-    // Non-critical
-  }
+  // Profile DB read and admin auth email lookup are independent — run in parallel.
+  const adminClient = createAdminClient();
+  const [[profile], emailResult] = await Promise.all([
+    db
+      .select({
+        role: profiles.role,
+        displayName: profiles.displayName,
+        avatarUrl: profiles.avatarUrl,
+        accountType: profiles.accountType,
+        dniNumber: profiles.dniNumber,
+        dniVerified: profiles.dniVerified,
+        matriculaNumber: profiles.matriculaNumber,
+        matriculaJurisdiccion: profiles.matriculaJurisdiccion,
+        matriculaVerified: profiles.matriculaVerified,
+        discloseNameCredential: profiles.discloseNameCredential,
+        disclosePhoneCredential: profiles.disclosePhoneCredential,
+        allowOrgContact: profiles.allowOrgContact,
+        allowLostAlertsInZone: profiles.allowLostAlertsInZone,
+        preferredVetName: profiles.preferredVetName,
+        preferredVetPhone: profiles.preferredVetPhone,
+        emergencyContactName: profiles.emergencyContactName,
+        emergencyContactPhone: profiles.emergencyContactPhone,
+        phone: profiles.phone,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1),
+    adminClient.auth.admin.getUserById(user.id).catch(() => ({ data: null })),
+  ]);
+  const email = emailResult.data?.user?.email ?? "";
 
   let vetNeedsClinic = false;
   if (profile?.role === "vet" && profile.matriculaVerified) {

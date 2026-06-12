@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dashboard";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { PET_OBSERVATION_SELECT } from "@/lib/pet-projections";
 import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
 
 import { CloseObservationForm } from "./CloseObservationForm";
@@ -23,7 +24,11 @@ export default async function ObservationDetailPage({
   const { publicToken } = await params;
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
-  const [pet] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
+  const [pet] = await db
+    .select(PET_OBSERVATION_SELECT)
+    .from(pets)
+    .where(eq(pets.publicToken, publicToken))
+    .limit(1);
   if (!pet) notFound();
   if (pet.rabiesObservationStatus !== "in_progress") {
     notFound();
@@ -38,7 +43,7 @@ export default async function ObservationDetailPage({
   }
 
   const [startedEvent] = await db
-    .select()
+    .select({ id: petEvents.id, payload: petEvents.payload })
     .from(petEvents)
     .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "rabies_observation_started")))
     .orderBy(desc(petEvents.occurredAt))

@@ -92,17 +92,17 @@ export default async function GobMaltratoPage({
   const selectedLocalitySlug = sp.locality ?? null;
   const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
 
-  // Fetch localities for the selected province to populate <JurisdictionSwitcher>.
-  const localities =
+  // Both lookups depend only on already-resolved sync values — run in parallel.
+  const [localities, selectedLocalityRow] = await Promise.all([
+    // Localities list for <JurisdictionSwitcher> dropdown.
     selectedProvinceObj != null
-      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-      : [];
-
-  // Resolve locality slug → canonical locality name for the WHERE clause.
-  const selectedLocalityRow =
+      ? listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
+      : Promise.resolve([] as Awaited<ReturnType<typeof listLocalitiesByProvince>>),
+    // Resolve locality slug → canonical name for the SQL WHERE clause.
     selectedProvinceObj && selectedLocalitySlug
-      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : null;
+      ? localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
+      : Promise.resolve(null),
+  ]);
 
   // Build allowedProvinces for <JurisdictionSwitcher>.
   const allowedProvinces =

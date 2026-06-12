@@ -89,54 +89,56 @@ export default async function OrgAgendaPage({
   const localMidnight = new Date(`${targetDateStr}T00:00:00.000-03:00`);
   const localNextMidnight = new Date(localMidnight.getTime() + 24 * 60 * 60 * 1000);
 
-  const rows = await db
-    .select({
-      appointment: appointments,
-      slot: timeSlots,
-      offering: serviceOfferings,
-      pet: pets,
-      ownerProfile: {
-        displayName: profiles.displayName,
-        phone: profiles.phone,
-      },
-    })
-    .from(appointments)
-    .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
-    .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
-    .innerJoin(pets, eq(pets.id, appointments.petId))
-    .leftJoin(profiles, eq(profiles.id, appointments.ownerUserId))
-    .where(
-      and(
-        eq(appointments.organizationId, organization.id),
-        gte(timeSlots.startsAt, localMidnight),
-        lt(timeSlots.startsAt, localNextMidnight),
-      ),
-    )
-    .orderBy(timeSlots.startsAt);
-
-  // Slot occupancy query for "Cupos del día".
-  const slotRows = await db
-    .select({
-      id: timeSlots.id,
-      startsAt: timeSlots.startsAt,
-      endsAt: timeSlots.endsAt,
-      capacity: timeSlots.capacity,
-      bookingsCount: timeSlots.bookingsCount,
-      status: timeSlots.status,
-      offeringId: serviceOfferings.id,
-      offeringTitle: serviceOfferings.displayName,
-      serviceKind: serviceOfferings.serviceKind,
-    })
-    .from(timeSlots)
-    .innerJoin(serviceOfferings, eq(serviceOfferings.id, timeSlots.serviceOfferingId))
-    .where(
-      and(
-        eq(serviceOfferings.organizationId, organization.id),
-        gte(timeSlots.startsAt, localMidnight),
-        lt(timeSlots.startsAt, localNextMidnight),
-      ),
-    )
-    .orderBy(timeSlots.startsAt);
+  // Appointments and slot-occupancy queries are independent — run in parallel.
+  const [rows, slotRows] = await Promise.all([
+    db
+      .select({
+        appointment: appointments,
+        slot: timeSlots,
+        offering: serviceOfferings,
+        pet: pets,
+        ownerProfile: {
+          displayName: profiles.displayName,
+          phone: profiles.phone,
+        },
+      })
+      .from(appointments)
+      .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
+      .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
+      .innerJoin(pets, eq(pets.id, appointments.petId))
+      .leftJoin(profiles, eq(profiles.id, appointments.ownerUserId))
+      .where(
+        and(
+          eq(appointments.organizationId, organization.id),
+          gte(timeSlots.startsAt, localMidnight),
+          lt(timeSlots.startsAt, localNextMidnight),
+        ),
+      )
+      .orderBy(timeSlots.startsAt),
+    // Slot occupancy for "Cupos del día".
+    db
+      .select({
+        id: timeSlots.id,
+        startsAt: timeSlots.startsAt,
+        endsAt: timeSlots.endsAt,
+        capacity: timeSlots.capacity,
+        bookingsCount: timeSlots.bookingsCount,
+        status: timeSlots.status,
+        offeringId: serviceOfferings.id,
+        offeringTitle: serviceOfferings.displayName,
+        serviceKind: serviceOfferings.serviceKind,
+      })
+      .from(timeSlots)
+      .innerJoin(serviceOfferings, eq(serviceOfferings.id, timeSlots.serviceOfferingId))
+      .where(
+        and(
+          eq(serviceOfferings.organizationId, organization.id),
+          gte(timeSlots.startsAt, localMidnight),
+          lt(timeSlots.startsAt, localNextMidnight),
+        ),
+      )
+      .orderBy(timeSlots.startsAt),
+  ]);
 
   // Group slots by offering.
   const offeringGroupsMap = new Map<string, OfferingGroup>();

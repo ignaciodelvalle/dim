@@ -1,9 +1,10 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
 
 const ACTION_LABELS: Record<string, string> = {
   // Approval queue
@@ -117,27 +118,53 @@ const ACTION_LABELS: Record<string, string> = {
   adopter_pii_viewed: "Datos del adoptante vistos",
 };
 
-export default async function AdminHistorialPage() {
+const ADMIN_HISTORIAL_PAGE_LIMIT = 100;
+
+export default async function AdminHistorialPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cursor?: string }>;
+}) {
   const { user } = await requireAdminOrRedirect();
+  const { cursor: rawCursor } = await searchParams;
+  const cursor = decodeCursor(rawCursor);
 
-  const entries = await db
-    .select({
-      id: auditLog.id,
-      action: auditLog.action,
-      performedAt: auditLog.performedAt,
-      approvalRequestId: auditLog.approvalRequestId,
-    })
-    .from(auditLog)
-    .where(eq(auditLog.actorUserId, user.id))
-    .orderBy(desc(auditLog.performedAt))
-    .limit(100);
+  // Keyset predicate — only rows older than cursor.
+  const cursorClause = keysetWhere(auditLog.performedAt, auditLog.id, cursor);
+  const whereClause = cursorClause
+    ? and(eq(auditLog.actorUserId, user.id), cursorClause)
+    : eq(auditLog.actorUserId, user.id);
 
-  // Resolve actor display name
-  const [actor] = await db
-    .select({ displayName: profiles.displayName })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  // Entries and actor profile are independent — run in parallel.
+  // Fetch limit+1 to detect hasMore for keyset pagination (PERF-5).
+  const [[actor], rawEntries] = await Promise.all([
+    db
+      .select({ displayName: profiles.displayName })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1),
+    db
+      .select({
+        id: auditLog.id,
+        action: auditLog.action,
+        performedAt: auditLog.performedAt,
+        approvalRequestId: auditLog.approvalRequestId,
+      })
+      .from(auditLog)
+      .where(whereClause)
+      .orderBy(desc(auditLog.performedAt), desc(auditLog.id))
+      .limit(ADMIN_HISTORIAL_PAGE_LIMIT + 1),
+  ]);
+
+  const hasMore = rawEntries.length > ADMIN_HISTORIAL_PAGE_LIMIT;
+  const entries = hasMore ? rawEntries.slice(0, ADMIN_HISTORIAL_PAGE_LIMIT) : rawEntries;
+
+  const lastEntry = entries.at(-1);
+  const olderLink =
+    hasMore && lastEntry
+      ? olderHref("/admin/historial", {}, { ts: lastEntry.performedAt, id: lastEntry.id })
+      : null;
+  const newerLink = rawCursor ? newerHref("/admin/historial", {}) : null;
 
   // Build a lookup from approvalRequestId → publicToken so we can link to the
   // detail page instead of showing raw UUIDs (P2 audit action labels).
@@ -208,6 +235,35 @@ export default async function AdminHistorialPage() {
             </ul>
           </OpCardBody>
         </OpCard>
+      )}
+
+      {/* Pagination footer */}
+      {(newerLink || olderLink) && (
+        <nav
+          aria-label="Paginación de historial"
+          className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+        >
+          <div>
+            {newerLink && (
+              <Link
+                href={newerLink}
+                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                ← Más recientes
+              </Link>
+            )}
+          </div>
+          <div>
+            {olderLink && (
+              <Link
+                href={olderLink}
+                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                Ver más antiguos →
+              </Link>
+            )}
+          </div>
+        </nav>
       )}
     </div>
   );

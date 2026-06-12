@@ -1,10 +1,9 @@
-import { eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { GOB_NAV } from "@/components/layout/nav-presets";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
-import { db, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { getProfileCached } from "@/lib/request-cache";
 
 // Gate the /gob/* segment. Both admin and govt can access this surface.
 // Admin has universal scope; govt is scoped to their assigned localities.
@@ -23,13 +22,9 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
           ? `${jurisdictions[0].locality}, ${jurisdictions[0].province}`
           : `${jurisdictions.length} LOCALIDADES`;
 
-  // profiles.displayName is NOT NULL — always present.
-  const [profileRow] = await db
-    .select({ displayName: profiles.displayName })
-    .from(profiles)
-    .where(eq(profiles.id, profile.id))
-    .limit(1);
-
+  // getProfileCached is already warmed by requireAdminOrGovtOrRedirect above —
+  // this call is a memoized hit, not a second DB round-trip.
+  const profileRow = await getProfileCached(profile.id);
   const displayName = profileRow?.displayName ?? "";
 
   // Right-side actions: role + scope + cross-portal links.

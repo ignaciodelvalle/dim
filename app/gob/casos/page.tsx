@@ -10,12 +10,34 @@ import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listCasesForGovt } from "@/lib/case-queries";
 import { formatDate } from "@/lib/format";
+import { newerHref, olderHref } from "@/lib/keyset-pagination";
 
-export default async function GovtCasosPage() {
+const GOVT_CASOS_PAGE_LIMIT = 300;
+
+export default async function GovtCasosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cursor?: string }>;
+}) {
   const session = await requireAdminOrGovtOrRedirect();
   if (session.profile.role === "admin") redirect("/admin/casos");
 
-  const items = await listCasesForGovt(session.jurisdictions);
+  const { cursor: rawCursor } = await searchParams;
+
+  // Fetch limit+1 to detect hasMore.
+  const rawItems = await listCasesForGovt(session.jurisdictions, {
+    limit: GOVT_CASOS_PAGE_LIMIT + 1,
+    cursor: rawCursor,
+  });
+  const hasMore = rawItems.length > GOVT_CASOS_PAGE_LIMIT;
+  const items = hasMore ? rawItems.slice(0, GOVT_CASOS_PAGE_LIMIT) : rawItems;
+
+  const lastItem = items.at(-1);
+  const olderLink =
+    hasMore && lastItem
+      ? olderHref("/gob/casos", {}, { ts: lastItem.openedAt, id: lastItem.id })
+      : null;
+  const newerLink = rawCursor ? newerHref("/gob/casos", {}) : null;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
@@ -73,6 +95,35 @@ export default async function GovtCasosPage() {
             </ul>
           </OpCardBody>
         </OpCard>
+      )}
+
+      {/* Pagination footer */}
+      {(newerLink || olderLink) && (
+        <nav
+          aria-label="Paginación de casos"
+          className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+        >
+          <div>
+            {newerLink && (
+              <Link
+                href={newerLink}
+                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                ← Más recientes
+              </Link>
+            )}
+          </div>
+          <div>
+            {olderLink && (
+              <Link
+                href={olderLink}
+                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                Ver más antiguos →
+              </Link>
+            )}
+          </div>
+        </nav>
       )}
     </main>
   );

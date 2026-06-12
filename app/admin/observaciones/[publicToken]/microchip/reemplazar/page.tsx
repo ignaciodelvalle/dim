@@ -17,7 +17,11 @@ export default async function ReplaceMicrochipAdminPage({
   const { publicToken } = await params;
   await requireAdminOrRedirect();
 
-  const [pet] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
+  const [pet] = await db
+    .select({ id: pets.id, name: pets.name, publicToken: pets.publicToken })
+    .from(pets)
+    .where(eq(pets.publicToken, publicToken))
+    .limit(1);
   if (!pet) notFound();
 
   const boundAction = replaceMicrochipAdminAction.bind(null, pet.publicToken);
