@@ -1,8 +1,14 @@
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { BulkApprovalQueueList } from "@/components/BulkApprovalQueueList";
-import { APPROVAL_REQUEST_TYPES, type ApprovalRequestType, db, profiles } from "@/db";
+import {
+  APPROVAL_REQUEST_TYPES,
+  type ApprovalRequestType,
+  approvalRequests,
+  db,
+  profiles,
+} from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
@@ -30,10 +36,14 @@ export default async function ColaPage({
   const { type: rawType } = await searchParams;
   const activeType = parseTypeParam(rawType);
 
-  const all = await fetchVisiblePendingRequests(profile, jurisdictions);
-
-  // Apply type filter when a valid ?type= is present.
-  const pending = activeType ? all.filter((r) => r.type === activeType) : all;
+  // Fetch only the rows matching the type filter in SQL (not JS post-filter) so
+  // the LIMIT inside fetchVisiblePendingRequests is applied AFTER the type
+  // predicate — prevents silently truncating the queue when many requests exist.
+  const pending = await fetchVisiblePendingRequests(
+    profile,
+    jurisdictions,
+    activeType ?? undefined,
+  );
 
   // Resolve applicant display names in one batched query so the list
   // renders human-readable instead of UUIDs.
@@ -58,18 +68,38 @@ export default async function ColaPage({
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="space-y-2">
-          {/* Back link when viewing a filtered subset */}
-          {activeType && (
-            <Link
-              href="/gob/cola"
-              className="inline-flex items-center gap-1 text-[12px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4 no-underline"
-            >
-              ← Ver todas las solicitudes
-            </Link>
-          )}
           <h1 className="text-[22px] font-semibold tracking-tight text-ln-op-ink">{pageTitle}</h1>
           <p className="text-[13px] text-ln-op-mute">{subtitle}</p>
         </header>
+
+        {/* Type filter chips — searchParam-driven, server component pattern */}
+        <nav aria-label="Filtrar por tipo" className="flex flex-wrap gap-2">
+          <Link
+            href="/gob/cola"
+            className={[
+              "inline-flex items-center rounded-full border px-3.5 py-1 text-[12px] font-medium no-underline transition-colors",
+              !activeType
+                ? "border-ln-op-azul bg-ln-op-azul text-white"
+                : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-ink-2",
+            ].join(" ")}
+          >
+            Todas
+          </Link>
+          {(APPROVAL_REQUEST_TYPES as readonly ApprovalRequestType[]).map((t) => (
+            <Link
+              key={t}
+              href={`/gob/cola?type=${t}`}
+              className={[
+                "inline-flex items-center rounded-full border px-3.5 py-1 text-[12px] font-medium no-underline transition-colors",
+                activeType === t
+                  ? "border-ln-op-azul bg-ln-op-azul text-white"
+                  : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-ink-2",
+              ].join(" ")}
+            >
+              {TYPE_LABELS[t]}
+            </Link>
+          ))}
+        </nav>
 
         <BulkApprovalQueueList
           detailUrlPrefix="/gob/cola"

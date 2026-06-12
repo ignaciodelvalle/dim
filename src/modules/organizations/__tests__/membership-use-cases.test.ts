@@ -546,6 +546,9 @@ describe("setMemberEventWrite", () => {
     findActiveMembership: vi.fn(),
     setEventWrite: vi.fn().mockResolvedValue(undefined),
     insertAuditLog: vi.fn().mockResolvedValue(undefined),
+    insertGrant: vi.fn().mockResolvedValue({ id: "grant-1" }),
+    findApprovedGrant: vi.fn().mockResolvedValue(null),
+    revokeGrant: vi.fn().mockResolvedValue(undefined),
   });
 
   // Transparent transaction mock: immediately invokes the callback with a fake tx.
@@ -657,6 +660,133 @@ describe("setMemberEventWrite", () => {
       }),
       expect.anything(),
     );
+  });
+
+  it("grants event.write capability with a single complete insertGrant when canWrite=true and no existing grant", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "member" }),
+        ),
+      // No existing approved grant — should proceed to insert.
+      findApprovedGrant: vi.fn().mockResolvedValue(null),
+      insertGrant: vi.fn().mockResolvedValue({ id: "grant-new" }),
+    };
+    const result = await setMemberEventWrite(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        canWrite: true,
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: makeTx() },
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.insertGrant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        membershipId: "mem-target",
+        organizationId: "org-1",
+        capability: "event.write",
+        status: "approved",
+        decidedByUserId: "user-actor",
+        decisionReason: "toggle",
+      }),
+      expect.anything(),
+    );
+    // updateGrant must NOT be called — grant is complete on insert.
+    expect(repo).not.toHaveProperty("updateGrant");
+  });
+
+  it("is idempotent: skips insertGrant when an approved grant already exists (canWrite=true)", async () => {
+    const existingGrant = { id: "grant-existing" };
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "member" }),
+        ),
+      findApprovedGrant: vi.fn().mockResolvedValue(existingGrant),
+      insertGrant: vi.fn(),
+    };
+    const result = await setMemberEventWrite(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        canWrite: true,
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: makeTx() },
+    );
+    expect(result.ok).toBe(true);
+    // Already approved — no new grant row.
+    expect(repo.insertGrant).not.toHaveBeenCalled();
+  });
+
+  it("revokes event.write capability with reason 'toggle' when canWrite=false and grant exists", async () => {
+    const existingGrant = { id: "grant-existing" };
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "member" }),
+        ),
+      findApprovedGrant: vi.fn().mockResolvedValue(existingGrant),
+    };
+    const result = await setMemberEventWrite(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        canWrite: false,
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: makeTx() },
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.findApprovedGrant).toHaveBeenCalledWith(
+      "mem-target",
+      "event.write",
+      expect.anything(),
+    );
+    expect(repo.revokeGrant).toHaveBeenCalledWith(
+      "grant-existing",
+      "user-actor",
+      "toggle",
+      expect.anything(),
+    );
+    expect(repo.insertGrant).not.toHaveBeenCalled();
+  });
+
+  it("skips revokeGrant when canWrite=false and no active grant exists", async () => {
+    const repo = {
+      ...baseRepo(),
+      findActiveMembership: vi
+        .fn()
+        .mockResolvedValue(
+          makeMembership({ id: "mem-target", userId: "user-target", role: "member" }),
+        ),
+      findApprovedGrant: vi.fn().mockResolvedValue(null),
+    };
+    const result = await setMemberEventWrite(
+      {
+        organizationId: "org-1",
+        membershipId: "mem-target",
+        canWrite: false,
+        actor: { userId: "user-actor", role: "admin", membershipId: "mem-actor" },
+        organization: { publicToken: "TKN" },
+      },
+      { repo, transaction: makeTx() },
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.findApprovedGrant).toHaveBeenCalled();
+    // No grant to revoke — revokeGrant must NOT be called.
+    expect(repo.revokeGrant).not.toHaveBeenCalled();
   });
 });
 

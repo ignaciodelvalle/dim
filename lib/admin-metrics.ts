@@ -45,6 +45,9 @@ export type CronRunRow = {
   lastRunAt: Date | null;
   lastStatus: "ok" | "failed" | "running" | null;
   itemsProcessed: number | null;
+  /** Raw details JSONB from the most recent cron_run row. Populated on failure
+   *  by the cron route handler (field: { errors: [{id, reason}] }). */
+  lastDetails: Record<string, unknown> | null;
 };
 
 export async function fetchUserMetrics(): Promise<UserMetrics> {
@@ -210,6 +213,7 @@ export async function fetchCronRuns(): Promise<CronRunRow[]> {
         startedAt: cronRuns.startedAt,
         status: cronRuns.status,
         itemsProcessed: cronRuns.itemsProcessed,
+        details: cronRuns.details,
       })
       .from(cronRuns)
       .where(eq(cronRuns.cronName, n.cronName))
@@ -220,6 +224,7 @@ export async function fetchCronRuns(): Promise<CronRunRow[]> {
       lastRunAt: latest?.startedAt ?? null,
       lastStatus: latest?.status ?? null,
       itemsProcessed: latest?.itemsProcessed ?? null,
+      lastDetails: latest?.details ? (latest.details as Record<string, unknown>) : null,
     });
   }
   return results;

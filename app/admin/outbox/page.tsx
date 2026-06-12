@@ -1,17 +1,23 @@
 // Admin Outbox list — shows recent event notification outbox rows with filters.
 //
-// Design: pure server component, admin-gated via layout. JS-side filtering
-// (same pattern as auditoria/page.tsx) — simple, no dynamic SQL complexity.
+// Design: pure server component, admin-gated via layout. Filters are pushed
+// into the SQL WHERE clause so the result set is correct regardless of total
+// outbox size — the previous JS-side filter over LIMIT 200 silently missed
+// matching rows beyond position 200 (P1-12).
 // Filter form uses <form method="get"> — no JS required.
 
-import { desc } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpBreach, OpCard, OpPill } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox } from "@/db";
-import type { OutboxStatus } from "@/db";
+import type { OutboxStatus, OutboxTargetKind } from "@/db";
+import { PROVINCES } from "@/lib/ar-provincias";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { applyOutboxFilters, buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
+import { buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
+
+// Set of canonical province names for filter validation.
+const VALID_PROVINCE_NAMES = new Set<string>(PROVINCES.map((p) => p.name));
 
 // Tone map per breach cue value.
 type BreachCue = ReturnType<typeof buildBreachCue>;
@@ -75,14 +81,52 @@ export default async function AdminOutboxPage({
 
   const hasFilters = Object.values(filters).some(Boolean);
 
-  // Fetch recent rows — DB already ordered; JS-side filtering applied below.
-  const rawRows = await db
+  // Build SQL WHERE clauses for each active filter so the LIMIT is applied
+  // AFTER narrowing — prevents silently missing matching rows beyond 200 (P1-12).
+  const conditions: ReturnType<typeof eq>[] = [];
+  // When breach=yes, status is implied to be 'pending' — skip the standalone status
+  // condition to avoid the always-false contradiction (e.g. status='delivered' AND status='pending').
+  if (
+    filters.status &&
+    filters.breach !== "yes" &&
+    (["pending", "delivered", "failed"] as string[]).includes(filters.status)
+  ) {
+    conditions.push(eq(eventNotificationOutbox.status, filters.status as OutboxStatus));
+  }
+  if (
+    filters.target_kind &&
+    (["govt_webhook", "eno_authority", "audit_export", "internal_dashboard"] as string[]).includes(
+      filters.target_kind,
+    )
+  ) {
+    conditions.push(
+      eq(eventNotificationOutbox.targetKind, filters.target_kind as OutboxTargetKind),
+    );
+  }
+  // Province: only push condition when the value is a known canonical province name.
+  if (filters.province && VALID_PROVINCE_NAMES.has(filters.province)) {
+    conditions.push(eq(eventNotificationOutbox.targetJurisdictionProvince, filters.province));
+  }
+  // breach filter: "yes" → pending AND slaDueAt < now() (skip separate status condition —
+  // breach already implies pending, combining them produces status='delivered' AND status='pending'
+  // which is always-false); "no" → NOT (pending AND slaDueAt < now()).
+  if (filters.breach === "yes") {
+    conditions.push(lt(eventNotificationOutbox.slaDueAt, sql`now()`));
+    conditions.push(eq(eventNotificationOutbox.status, "pending"));
+  } else if (filters.breach === "no") {
+    conditions.push(
+      sql`NOT (${eventNotificationOutbox.status} = 'pending' AND ${eventNotificationOutbox.slaDueAt} < now())`,
+    );
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const rows = await db
     .select()
     .from(eventNotificationOutbox)
+    .where(whereClause)
     .orderBy(desc(eventNotificationOutbox.createdAt))
     .limit(200);
-
-  const rows = applyOutboxFilters(rawRows, filters);
 
   const breachCount = rows.filter((r) => buildBreachCue(r.status, r.slaDueAt) === "breach").length;
 
@@ -94,7 +138,9 @@ export default async function AdminOutboxPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Outbox de notificaciones</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Ultimas {rawRows.length} filas del outbox de eventos de notificacion ENO/govt.
+          {hasFilters
+            ? `${rows.length} fila${rows.length === 1 ? "" : "s"} con los filtros aplicados.`
+            : `Ultimas ${rows.length} filas del outbox de eventos de notificacion ENO/govt.`}
         </p>
       </header>
 

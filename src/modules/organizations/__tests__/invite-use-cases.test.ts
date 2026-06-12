@@ -285,6 +285,7 @@ describe("acceptInvitation", () => {
     findExistingActiveMembership: vi.fn().mockResolvedValue(null),
     markInviteAccepted: vi.fn().mockResolvedValue(undefined),
     insertMembership: vi.fn().mockResolvedValue("mem-new"),
+    insertGrant: vi.fn().mockResolvedValue({ id: "grant-new" }),
     findAccepterDisplayName: vi.fn().mockResolvedValue("Test User"),
     insertAuditLog: vi.fn().mockResolvedValue(undefined),
   });
@@ -437,6 +438,85 @@ describe("acceptInvitation", () => {
     }
     expect(repo.insertMembership).toHaveBeenCalled();
     expect(repo.markInviteAccepted).toHaveBeenCalled();
+  });
+
+  it("inserts approved event.write grant for coordinator role when canWritePetEvents=true", async () => {
+    const org = { id: "org-1", publicToken: "ORG-TKN", displayName: "Test Org" };
+    const repo = {
+      ...baseRepo(),
+      lockInviteByToken: vi.fn().mockResolvedValue(
+        makeInvite({
+          invitedRole: "coordinator",
+          canWritePetEvents: true,
+          invitedByUserId: "user-inviter",
+        }),
+      ),
+      findOrgById: vi.fn().mockResolvedValue(org),
+      insertMembership: vi.fn().mockResolvedValue("mem-coordinator"),
+      insertGrant: vi.fn().mockResolvedValue({ id: "grant-coordinator" }),
+    };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+    const result = await acceptInvitation(
+      { invitationToken: "TKN", userId: "user-accepter", userEmail: "test@example.com" },
+      { repo, transaction: txFn, isUniqueViolation: vi.fn().mockReturnValue(false) },
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.insertGrant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        membershipId: "mem-coordinator",
+        capability: "event.write",
+        status: "approved",
+        decisionReason: "invitation",
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("does NOT insert event.write grant for admin role even when canWritePetEvents=true", async () => {
+    const org = { id: "org-1", publicToken: "ORG-TKN", displayName: "Test Org" };
+    const repo = {
+      ...baseRepo(),
+      lockInviteByToken: vi
+        .fn()
+        .mockResolvedValue(makeInvite({ invitedRole: "admin", canWritePetEvents: true })),
+      findOrgById: vi.fn().mockResolvedValue(org),
+      insertMembership: vi.fn().mockResolvedValue("mem-admin"),
+      insertGrant: vi.fn(),
+    };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+    const result = await acceptInvitation(
+      { invitationToken: "TKN", userId: "user-accepter", userEmail: "test@example.com" },
+      { repo, transaction: txFn, isUniqueViolation: vi.fn().mockReturnValue(false) },
+    );
+    expect(result.ok).toBe(true);
+    // admin gets event.write implicitly — no grant row needed.
+    expect(repo.insertGrant).not.toHaveBeenCalled();
+  });
+
+  it("does NOT insert event.write grant when canWritePetEvents=false", async () => {
+    const org = { id: "org-1", publicToken: "ORG-TKN", displayName: "Test Org" };
+    const repo = {
+      ...baseRepo(),
+      lockInviteByToken: vi
+        .fn()
+        .mockResolvedValue(makeInvite({ invitedRole: "member", canWritePetEvents: false })),
+      findOrgById: vi.fn().mockResolvedValue(org),
+      insertMembership: vi.fn().mockResolvedValue("mem-member"),
+      insertGrant: vi.fn(),
+    };
+    const txFn = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+    const result = await acceptInvitation(
+      { invitationToken: "TKN", userId: "user-accepter", userEmail: "test@example.com" },
+      { repo, transaction: txFn, isUniqueViolation: vi.fn().mockReturnValue(false) },
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.insertGrant).not.toHaveBeenCalled();
   });
 
   it("accept-invite idempotency: unique violation caught → 'Ya sos miembro activo'", async () => {

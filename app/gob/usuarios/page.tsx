@@ -32,7 +32,7 @@ export default async function UsuariosPage({
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-  const results = await searchUsers(query);
+  const results = await searchUsers(query, { role: profile.role, jurisdictions });
 
   // Fire-and-forget pii_queried entry. Logging only happens when the user
   // typed a query — empty-query landings are not a PII read.

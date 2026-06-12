@@ -50,10 +50,13 @@ ALTER TABLE eno_processing_queue
   ADD CONSTRAINT eno_processing_queue_status_check
   CHECK (status IN ('pending', 'processing', 'processed', 'failed'));
 
--- Update the status index to continue covering all queryable states.
--- The existing index already covers (status, queued_at); just rebuild
--- so the planner sees the updated statistics after the schema change.
-REINDEX INDEX CONCURRENTLY eno_processing_queue_status_idx;
+-- Refresh planner statistics after the status-domain change. The original
+-- version of this migration used REINDEX INDEX CONCURRENTLY here, which is
+-- wrong twice over: REINDEX cannot run inside a transaction block (the
+-- runner wraps each file in BEGIN/COMMIT), and rebuilding an index does not
+-- refresh planner statistics anyway — ANALYZE does. The index definition is
+-- unchanged by the CHECK-constraint swap, so no rebuild is needed.
+ANALYZE eno_processing_queue;
 
 COMMENT ON COLUMN eno_processing_queue.claimed_at IS
   'Set to now() when a cron run claims the row (status=processing). '

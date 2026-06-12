@@ -3,7 +3,13 @@
 // Client wrapper for the analytics export form.
 // Surfaces the signedUrl returned by generateExportAction using useActionState.
 // On error, shows the error message inline.
+//
+// P1-6 fix: hidden inputs must reflect the LIVE URL state that the PeriodPicker
+// updates client-side, not the SSR snapshot passed as props. We read period/from/to
+// from useSearchParams() so a PeriodPicker change is immediately mirrored into the
+// form before submission.
 
+import { useSearchParams } from "next/navigation";
 import { useActionState } from "react";
 
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
@@ -30,9 +36,9 @@ async function submitAction(_prev: ExportState, formData: FormData): Promise<Exp
 export function ExportFormClient({
   allowedProvinces,
   localities,
-  period,
-  from,
-  to,
+  period: ssrPeriod,
+  from: ssrFrom,
+  to: ssrTo,
 }: {
   allowedProvinces: Array<{ code: string; name: string }>;
   localities: Array<{ slug: string; name: string }>;
@@ -41,12 +47,18 @@ export function ExportFormClient({
   to: string;
 }) {
   const [state, dispatch, pending] = useActionState(submitAction, initialState);
+  // Read live URL state so the hidden inputs always match the currently-selected
+  // period, even after the PeriodPicker updates the URL client-side.
+  const searchParams = useSearchParams();
+  const period = searchParams.get("period") ?? ssrPeriod;
+  const from = searchParams.get("from") ?? ssrFrom;
+  const to = searchParams.get("to") ?? ssrTo;
 
   return (
     <form action={dispatch} className="space-y-6">
       {/* Hidden inputs carrying PeriodPicker + JurisdictionSwitcher state
-          from searchParams. The client components update the URL; these
-          hidden fields pass the values into the server action via FormData. */}
+          from the LIVE URL (useSearchParams). These update reactively when the
+          PeriodPicker changes the URL so the export matches the displayed charts. */}
       <input type="hidden" name="period" value={period} />
       {from && <input type="hidden" name="from" value={from} />}
       {to && <input type="hidden" name="to" value={to} />}

@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { BulkApprovalQueueList } from "@/components/BulkApprovalQueueList";
@@ -35,13 +35,18 @@ export default async function AdminColaPage({
   const activeType = parseTypeParam(rawType);
 
   // Admin sees ALL pending requests - no jurisdiction filter.
-  const all = await db
+  // Type filter is pushed into SQL (not JS) so the result set is not silently
+  // capped at an intermediate LIMIT before filtering (P1-10).
+  const typeClause = activeType ? eq(approvalRequests.type, activeType) : undefined;
+  const pending = await db
     .select()
     .from(approvalRequests)
-    .where(eq(approvalRequests.status, "pending"))
+    .where(
+      typeClause
+        ? and(eq(approvalRequests.status, "pending"), typeClause)
+        : eq(approvalRequests.status, "pending"),
+    )
     .orderBy(desc(approvalRequests.createdAt));
-
-  const pending = activeType ? all.filter((r) => r.type === activeType) : all;
 
   const applicantIds = Array.from(new Set(pending.map((r) => r.applicantUserId)));
   const namesById = new Map<string, string>();
@@ -62,18 +67,39 @@ export default async function AdminColaPage({
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        {activeType && (
-          <Link
-            href="/admin/cola"
-            className="inline-flex items-center gap-1 text-[12px] text-ln-op-mute underline underline-offset-4 hover:text-ln-op-ink"
-          >
-            {"<-"} Ver todas las solicitudes
-          </Link>
-        )}
         <h1 className="text-[22px] font-semibold text-ln-op-ink">{pageTitle}</h1>
         <p className="text-[13px] text-ln-op-ink-2">{subtitle}</p>
         <p className="text-[12px] text-ln-op-mute">Vista universal - todas las jurisdicciones.</p>
       </header>
+
+      {/* Type filter chips — searchParam-driven, server component pattern */}
+      <nav aria-label="Filtrar por tipo" className="flex flex-wrap gap-2">
+        <Link
+          href="/admin/cola"
+          className={[
+            "inline-flex items-center rounded-full border px-3.5 py-1 text-[12px] font-medium no-underline transition-colors",
+            !activeType
+              ? "border-ln-op-azul bg-ln-op-azul text-white"
+              : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-ink-2",
+          ].join(" ")}
+        >
+          Todas
+        </Link>
+        {(APPROVAL_REQUEST_TYPES as readonly ApprovalRequestType[]).map((t) => (
+          <Link
+            key={t}
+            href={`/admin/cola?type=${t}`}
+            className={[
+              "inline-flex items-center rounded-full border px-3.5 py-1 text-[12px] font-medium no-underline transition-colors",
+              activeType === t
+                ? "border-ln-op-azul bg-ln-op-azul text-white"
+                : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-ink-2",
+            ].join(" ")}
+          >
+            {TYPE_LABELS[t]}
+          </Link>
+        ))}
+      </nav>
 
       <BulkApprovalQueueList
         detailUrlPrefix="/admin/cola"
