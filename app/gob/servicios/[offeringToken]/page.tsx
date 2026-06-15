@@ -88,7 +88,7 @@ export default async function GobServicioDetailPage({
           href="/gob/servicios"
           className="text-[13px] text-ln-op-azul underline underline-offset-4 hover:text-ln-op-ink no-underline"
         >
-          {"<-"} Volver a servicios pendientes
+          {"←"} Volver a servicios pendientes
         </Link>
       </div>
 

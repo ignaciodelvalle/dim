@@ -88,7 +88,7 @@ export default async function ModeracionListPage() {
                               })}
                           </p>
                         </div>
-                        <span className="text-[12px] font-semibold text-ln-op-azul">{"->"}</span>
+                        <span className="text-[12px] font-semibold text-ln-op-azul">{"→"}</span>
                       </div>
                     </OpCardBody>
                   </Link>
