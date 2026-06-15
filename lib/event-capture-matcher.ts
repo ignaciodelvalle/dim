@@ -131,6 +131,38 @@ const PATTERNS: Pattern[] = [
     confidence: "medium",
   },
 
+  // Lost — status_changed has no registry entry (one shared key for the
+  // lost/found sub-flows), so route via routeOverride like pregnancy. Placed
+  // BEFORE the pregnancy patterns; triggers require pet/escape context so they
+  // don't swallow symptoms ("perdió el apetito/peso/pelo") or "perdió el
+  // embarazo". Confidence "medium" → the UI asks to confirm.
+  {
+    eventType: "status_changed",
+    triggers: [
+      /perd(?:er|[íi])\s+(?:a\s+)?(?:mi\s+)?(?:mascota|perr[oa]|gat[oa]|cachorr|animal)/i,
+      /se\s+(?:me\s+)?perdi[óo]/i,
+      /se\s+(?:me\s+)?escap[óo]/i,
+      /no\s+(?:lo|la)\s+(?:encuentro|puedo\s+encontrar)/i,
+      /\bdesaparec[ií]\w*/i,
+      /marcar?\s+(?:como\s+)?perdid[oa]/i,
+    ],
+    confidence: "medium",
+    routeOverride: "?sheet=marcar-perdida",
+  },
+  // Found — the pet reappeared.
+  {
+    eventType: "status_changed",
+    triggers: [
+      /(?:lo|la)\s+encontr\w*/i,
+      /\bapareci[óo]/i,
+      /volvi[óo]\s+(?:a\s+)?casa/i,
+      /ya\s+est[áa]\s+(?:de\s+vuelta|en\s+casa)/i,
+      /marcar?\s+(?:como\s+)?encontrad[oa]/i,
+    ],
+    confidence: "medium",
+    routeOverride: "?sheet=marcar-encontrada",
+  },
+
   // Pregnancy — pair of started/ended sub-flows over clinical_info_logged.
   // Patterns checked BEFORE the symptom catch-all so "perdió el embarazo"
   // doesn't get classified as a generic symptom.

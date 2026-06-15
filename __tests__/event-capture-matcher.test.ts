@@ -36,6 +36,10 @@ describe("matchCaptureIntent — triggers (14 event types)", () => {
     ["ecografía abdominal", "clinical_info_logged"],
     ["check-in post adopción", "post_adoption_checkin"],
     ["anotar: tomó poca agua", "note_added"],
+    ["perdí a mi perro", "status_changed"],
+    ["se perdió ayer", "status_changed"],
+    ["lo encontré en la plaza", "status_changed"],
+    ["apareció esta mañana", "status_changed"],
   ])("'%s' → %s", (text, expected) => {
     const result = matchCaptureIntent(text);
     expect(result, `no match for "${text}"`).toBeTruthy();
@@ -46,6 +50,40 @@ describe("matchCaptureIntent — triggers (14 event types)", () => {
     expect(matchCaptureIntent("hola")).toBeNull();
     expect(matchCaptureIntent("")).toBeNull();
     expect(matchCaptureIntent("   ")).toBeNull();
+  });
+});
+
+describe("matchCaptureIntent — lost / found routing", () => {
+  it("'perdí a mi perro' routes to marcar-perdida (confirm)", () => {
+    const r = matchCaptureIntent("perdí a mi perro");
+    expect(r?.eventType).toBe("status_changed");
+    expect(r?.routeOverride).toBe("?sheet=marcar-perdida");
+    expect(r?.confidence).toBe("medium");
+  });
+
+  it("'se perdió' / 'se escapó' route to marcar-perdida", () => {
+    expect(matchCaptureIntent("se perdió ayer")?.routeOverride).toBe("?sheet=marcar-perdida");
+    expect(matchCaptureIntent("se escapó del patio")?.routeOverride).toBe("?sheet=marcar-perdida");
+  });
+
+  it("'apareció' / 'lo encontré' route to marcar-encontrada", () => {
+    expect(matchCaptureIntent("apareció esta mañana")?.routeOverride).toBe(
+      "?sheet=marcar-encontrada",
+    );
+    expect(matchCaptureIntent("lo encontré en la plaza")?.routeOverride).toBe(
+      "?sheet=marcar-encontrada",
+    );
+  });
+
+  it("'perdió el embarazo' still routes to miscarriage, NOT lost-pet", () => {
+    const r = matchCaptureIntent("perdió el embarazo");
+    expect(r?.eventType).toBe("clinical_info_logged");
+    expect(r?.routeOverride).toContain("miscarriage");
+  });
+
+  it("symptom phrasings with 'perdió' are NOT classified as lost-pet", () => {
+    expect(matchCaptureIntent("perdió el apetito")?.eventType).not.toBe("status_changed");
+    expect(matchCaptureIntent("perdió mucho peso")?.eventType).not.toBe("status_changed");
   });
 });
 
