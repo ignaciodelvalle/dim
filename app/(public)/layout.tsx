@@ -1,20 +1,21 @@
 import { AppFooter, AppHeader } from "@/components/layout";
+import { PUBLIC_NAV } from "@/components/layout/nav-presets";
 
 /**
- * Layout para páginas públicas e institucionales:
- * envuelve children con AppHeader (cinta argentina + nav) y AppFooter (links + CC).
+ * Layout for public and institutional pages.
+ * Wraps children with AppHeader (argentina stripe + public nav) and AppFooter.
  *
- * Las áreas de usuario autenticado (libreta, casos, denuncias propias) van bajo
- * el route group `(app)` con su propio layout y no usan este shell.
+ * Authenticated app areas (libreta, org portal, own cases) live under the
+ * (app) route group with their own shell and do not use this layout.
  *
- * El estado activo del nav se resuelve client-side con usePathname() — no
- * necesita middleware ni headers().
+ * Active nav state is resolved client-side via usePathname() — no middleware
+ * or headers() calls required.
  */
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
-      <AppHeader />
+      <AppHeader nav={PUBLIC_NAV} />
       <div className="flex-1">{children}</div>
       <AppFooter />
     </div>

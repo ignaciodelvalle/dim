@@ -62,6 +62,13 @@ export default async function LoginPage({
       className="flex min-h-screen flex-col items-center justify-center p-6 bg-[var(--color-ln-paper)]"
     >
       <div className="w-full max-w-sm space-y-8">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1 text-sm text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)] no-underline"
+        >
+          ← Volver al inicio
+        </Link>
+
         <div className="text-center space-y-2">
           <h1 className="font-[var(--font-ln-serif)] text-[28px] font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Iniciar sesión

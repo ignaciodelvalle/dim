@@ -8,7 +8,7 @@ import { HeaderNav, type NavItem } from "./HeaderNav";
  *
  * Estructura:
  *   ▔▔▔▔▔▔▔  cinta argentina celeste-blanco-celeste (4px)
- *   [logo MiMAR · tagline]   [nav: Inicio · Adoptar · Denuncias · Libreta]   [Mi cuenta]
+ *   [logo MiMAR · tagline]   [nav: Inicio · Adoptar · Denuncias]   [Mi cuenta]
  *
  * Server Component. La nav (active state + drawer mobile) vive en HeaderNav (client).
  */
@@ -17,7 +17,6 @@ const DEFAULT_NAV: NavItem[] = [
   { href: "/", label: "Inicio" },
   { href: "/adoptar", label: "Adoptar", matchPrefix: "/adoptar" },
   { href: "/denuncias", label: "Denuncias", matchPrefix: "/denuncias" },
-  { href: "/libreta", label: "Mi libreta", matchPrefix: "/libreta" },
 ];
 
 type Props = {
