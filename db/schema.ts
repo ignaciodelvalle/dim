@@ -430,6 +430,11 @@ export const profiles = pgTable(
     // Added by migration 0087.
     tosAcceptedAt: timestamp("tos_accepted_at", { withTimezone: true }),
     tosVersion: text("tos_version"),
+    // Coarse location of the user — collected at registration (step 2) and
+    // used for regional health-campaign targeting. Never precise coordinates.
+    // Added by migration 0097.
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
     // PII baseline (compliance PR 1, migration 0058). Added by
     // pii.apply_baseline(). See lib/audit/log.ts (todo, separate sprint).
     createdBy: uuid("created_by").references((): AnyPgColumn => profiles.id, {
@@ -475,6 +480,11 @@ export const profiles = pgTable(
     profilesInstitutionalNoPii: check(
       "profiles_institutional_no_pii",
       sql`${table.accountType} = 'personal' or (${table.dniNumber} is null and ${table.matriculaNumber} is null and ${table.matriculaJurisdiccion} is null)`,
+    ),
+    // Added by migration 0097.
+    profilesJurisdictionProvinceCanonical: check(
+      "profiles_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
     ),
   }),
 );
