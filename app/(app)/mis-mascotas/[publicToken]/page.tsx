@@ -1249,6 +1249,7 @@ export default async function PetDetailPage({
                   qrUrl={`/p/${pet.publicToken}.png`}
                   publicHref={`/p/${pet.publicToken}`}
                   shareHref={`/mis-mascotas/${pet.publicToken}?sheet=compartir-libreta`}
+                  medicalViewHref={`/mis-mascotas/${pet.publicToken}?sheet=mostrar-tier2`}
                 />
 
                 {/* Physical tag interest */}
