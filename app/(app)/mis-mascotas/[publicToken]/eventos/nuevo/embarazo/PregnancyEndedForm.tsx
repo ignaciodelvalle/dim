@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 
 import type { PregnancyFormState } from "@/app/actions/pregnancy";
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
 
@@ -29,7 +30,7 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
     <>
       <LnSheetHeader
         tone="rosa"
-        icon="🍼"
+        icon={<Icon name="lactancia" decorative />}
         title="Cerrar gestación"
         subtitle="Libreta sanitaria oficial"
       />

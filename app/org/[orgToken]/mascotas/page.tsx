@@ -13,6 +13,7 @@ import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructu
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { OpCallout, OpCrumbs } from "@/components/ui/dashboard";
 
 import { OrgMascotasBulkList } from "./OrgMascotasBulkList";
@@ -204,7 +205,7 @@ export default async function OrgMascotasPage({
                 Token público: <code className="font-ln-mono">{recentlyCreated}</code>.
               </>
             }
-            icon="✓"
+            icon={<Icon name="check-circle" decorative />}
           />
         )}
         {recentlyFostered && (
@@ -215,7 +216,7 @@ export default async function OrgMascotasPage({
                 Tránsito asignado para <code className="font-ln-mono">{recentlyFostered}</code>.
               </>
             }
-            icon="🏠"
+            icon={<Icon name="casa" decorative />}
           />
         )}
         {recentlyFosterEnded && (
@@ -226,7 +227,7 @@ export default async function OrgMascotasPage({
                 Tránsito cerrado para <code className="font-ln-mono">{recentlyFosterEnded}</code>.
               </>
             }
-            icon="✓"
+            icon={<Icon name="check-circle" decorative />}
           />
         )}
         {recentlyTransferred && (
@@ -239,7 +240,7 @@ export default async function OrgMascotasPage({
                 listado y aparece en el destino.
               </>
             }
-            icon="→"
+            icon={<Icon name="transferencia" decorative />}
           />
         )}
         {recentlyAdopted && (
@@ -251,7 +252,7 @@ export default async function OrgMascotasPage({
                 animal pasa a un nuevo dueño y sale del listado de custodia.
               </>
             }
-            icon="✓"
+            icon={<Icon name="check-circle" decorative />}
           />
         )}
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRadio, LnSelect, LnTextarea } from "@/components/ui/Field";
 import {
@@ -103,7 +104,7 @@ export function DeathRecordForm({
     <>
       <LnSheetHeader
         tone="seal"
-        icon="🕊️"
+        icon={<Icon name="fallecimiento" decorative />}
         title="Registrar fallecimiento"
         subtitle="Libreta sanitaria oficial"
       />

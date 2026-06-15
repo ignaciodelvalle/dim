@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
@@ -27,7 +28,7 @@ export function SterilizationForm({
     <>
       <LnSheetHeader
         tone="rosa"
-        icon="✂️"
+        icon={<Icon name="esterilizacion" decorative />}
         title="Registrar esterilización"
         subtitle="Libreta sanitaria oficial"
       />

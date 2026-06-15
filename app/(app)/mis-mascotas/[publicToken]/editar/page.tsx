@@ -1,3 +1,4 @@
+import { Icon } from "@/components/Icon";
 import { PetForm } from "@/components/PetForm";
 import { LnSheetCard, LnSheetHeader, LnSheetWrap } from "@/components/ui/Sheet";
 import { attachments, db } from "@/db";
@@ -35,7 +36,7 @@ export default async function EditPetPage({
       <LnSheetCard wide>
         <LnSheetHeader
           tone="azul"
-          icon="✏️"
+          icon={<Icon name="editar" decorative />}
           title={`Editar ${pet.name}`}
           subtitle="Cualquier cambio queda registrado en la libreta"
         />

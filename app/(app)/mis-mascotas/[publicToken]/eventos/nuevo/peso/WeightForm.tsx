@@ -5,6 +5,7 @@
  * Action, useActionState wiring, field names, and submit logic: untouched.
  */
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRow, LnSuffixWrap, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
@@ -37,7 +38,7 @@ export function WeightForm({
     <>
       <LnSheetHeader
         tone="azul"
-        icon="⚖️"
+        icon={<Icon name="peso" decorative />}
         title="Registrar peso"
         subtitle="Libreta sanitaria oficial"
       />

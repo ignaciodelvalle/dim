@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
@@ -36,7 +37,7 @@ export function MedicationEndForm({
     <>
       <LnSheetHeader
         tone="violeta"
-        icon="🛑"
+        icon={<Icon name="medicacion-fin" decorative />}
         title="Fin de medicación"
         subtitle="Libreta sanitaria oficial"
       />
