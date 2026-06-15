@@ -20,10 +20,10 @@ export default async function AdminDashboardPage() {
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           MiMAR Plataforma {"·"} ADMIN {"·"} Universal
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Panel de administracion</h1>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Panel de administración</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Gestion de cuentas institucionales: govts y admins del sistema. Las aprobaciones de cola,
-          busqueda de usuarios y verificacion de orgs viven en el portal de Gobierno.
+          Gestión de cuentas institucionales: govts y admins del sistema. Las aprobaciones de cola,
+          búsqueda de usuarios y verificación de orgs viven en el portal de Gobierno.
         </p>
       </header>
 
@@ -36,7 +36,7 @@ export default async function AdminDashboardPage() {
           tone={queue.pendingTotal > 0 ? "warn" : "neutral"}
           sub={
             queue.oldestPendingDaysAgo != null
-              ? `Mas vieja: ${queue.oldestPendingDaysAgo}d`
+              ? `Más vieja: ${queue.oldestPendingDaysAgo}d`
               : undefined
           }
         />
@@ -51,9 +51,9 @@ export default async function AdminDashboardPage() {
       {/* Govt / Admin account cards */}
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <AccountCard
-          label="Govts"
+          label="Gobiernos"
           description="Listado de govts activos. Crea cuentas, asigna localidades y revoca accesos."
-          cta={{ href: "/admin/govts", label: "Ir a Govts" }}
+          cta={{ href: "/admin/govts", label: "Ir a Gobiernos" }}
         />
         <AccountCard
           label="Admins"
@@ -65,7 +65,7 @@ export default async function AdminDashboardPage() {
       {/* Callout: link to govt portal */}
       <OpCallout
         icon={<span>&#127970;</span>}
-        title="Cola de solicitudes y busqueda de usuarios"
+        title="Cola de solicitudes y búsqueda de usuarios"
         body={
           <>
             Las aprobaciones, rechazos, propuestas de rol y revocaciones viven en el panel de
@@ -74,7 +74,7 @@ export default async function AdminDashboardPage() {
               href="/gob"
               className="font-semibold text-ln-op-azul underline underline-offset-4 hover:text-ln-op-azul-700"
             >
-              Ir a Gobierno {"->"}&nbsp;
+              Ir a Gobierno {"→"}&nbsp;
             </Link>
           </>
         }
@@ -101,7 +101,7 @@ function AccountCard({
           href={cta.href}
           className="mt-2 inline-block text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
         >
-          {cta.label} {"->"}
+          {cta.label} {"→"}
         </Link>
       </OpCardBody>
     </OpCard>

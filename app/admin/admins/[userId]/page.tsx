@@ -91,7 +91,7 @@ export default async function AdminDetailPage({
             href="/admin/admins"
             className="underline underline-offset-4 hover:text-ln-op-ink-2"
           >
-            {"<-"} Volver a Administradores
+            {"←"} Volver a Administradores
           </Link>
         </p>
 
