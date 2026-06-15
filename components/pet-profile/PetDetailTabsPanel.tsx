@@ -124,6 +124,7 @@ function LibretaPanel({
       <LibretaHealthStatusSection
         status={data.healthStatus}
         activeRemindersCount={data.activeRemindersCount}
+        petPublicToken={petPublicToken}
       />
 
       <LibretaSanitariaView

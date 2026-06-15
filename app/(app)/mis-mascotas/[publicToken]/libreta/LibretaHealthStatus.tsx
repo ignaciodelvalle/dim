@@ -10,6 +10,8 @@
 // Presentational component — receives the precomputed snapshot as props.
 // Uses LN tokens exclusively; no raw palette values, no dark: variants.
 
+import Link from "next/link";
+
 import type { LibretaHealthStatus } from "@/lib/libreta-health-status";
 import {
   PERMANENT_CONDITIONS,
@@ -20,9 +22,14 @@ import {
 interface Props {
   status: LibretaHealthStatus;
   activeRemindersCount: number;
+  petPublicToken: string;
 }
 
-export function LibretaHealthStatusSection({ status, activeRemindersCount }: Props) {
+export function LibretaHealthStatusSection({
+  status,
+  activeRemindersCount,
+  petPublicToken,
+}: Props) {
   const { vaccinations, permanentConditions, permanentConditionsOther, medicationsActive } = status;
 
   // Vacunación headline: prefer the most-urgent number. Order: expired,
@@ -66,8 +73,11 @@ export function LibretaHealthStatusSection({ status, activeRemindersCount }: Pro
         <Card
           label="Pendientes"
           value={activeRemindersCount}
-          sub={activeRemindersCount === 1 ? "recordatorio" : "recordatorios"}
+          sub={activeRemindersCount > 0 ? "ver vacunas →" : "sin pendientes"}
           tone={activeRemindersCount > 0 ? "warning" : "ok"}
+          href={
+            activeRemindersCount > 0 ? `/mis-mascotas/${petPublicToken}?tab=vacunas` : undefined
+          }
         />
         <ConditionsCard labels={conditionLabels} />
         <MedicationCard items={medicationsActive} />
@@ -81,11 +91,14 @@ function Card({
   value,
   sub,
   tone,
+  href,
 }: {
   label: string;
   value: number;
   sub: string;
   tone: "ok" | "warning" | "danger";
+  /** When present the whole card becomes a link (drill-down to the detail). */
+  href?: string;
 }) {
   const valueColor =
     tone === "danger"
@@ -94,8 +107,10 @@ function Card({
         ? "var(--color-ln-warn)"
         : "var(--color-ln-ok)";
 
-  return (
-    <div className="rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[12px] py-[10px]">
+  const base =
+    "rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[12px] py-[10px]";
+  const body = (
+    <>
       <p
         className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.06em] font-semibold"
         style={{ color: "var(--color-ln-faint)" }}
@@ -108,8 +123,21 @@ function Card({
       <p className="text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
         {sub}
       </p>
-    </div>
+    </>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={`${base} block no-underline transition-colors hover:bg-[var(--color-ln-stripe)]`}
+      >
+        {body}
+      </Link>
+    );
+  }
+
+  return <div className={base}>{body}</div>;
 }
 
 function ConditionsCard({ labels }: { labels: string[] }) {
