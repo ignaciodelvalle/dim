@@ -83,7 +83,14 @@ export async function fetchRabiesCoverage(
   const petsScope = petsScopeClause(actor, jurisdictions);
   const eventsScope = petEventsScopeClause(actor, jurisdictions);
 
-  const dogsConditions = [sql`${pets.species} = ${"dog"}`];
+  // Exclude deceased dogs from the denominator: a deceased pet can never be
+  // vaccinated, so including it deflates the coverage rate artificially.
+  // Mirrors the 'active', 'lost' scope used by fetchAnalyticsMetrics in
+  // lib/govt-dashboards.ts (totalConditions).
+  const dogsConditions = [
+    sql`${pets.species} = ${"dog"}`,
+    sql`${pets.status} IN ('active', 'lost')`,
+  ];
   if (petsScope) dogsConditions.push(sql`(${petsScope})`);
 
   // Distinct dogs with a rabies vaccination event in scope, last 12 months.
@@ -368,12 +375,35 @@ export async function fetchActiveZoonosis(
   if (eventsScope) hidatConditions.push(sql`(${eventsScope})`);
 
   // 1. Pets with active rabies observation (status column on pets table).
+  //    Returned separately for the sub-label in the KPI tile ("X rabia").
   const rabiesConditions = [sql`${pets.rabiesObservationStatus} = ${"in_progress"}`];
   if (petsScope) rabiesConditions.push(sql`(${petsScope})`);
 
-  // 2. Open bite_incident cases in scope.
-  const biteCaseConditions = [eq(cases.caseKind, "bite_incident"), eq(cases.status, "open")];
-  if (casesScope) biteCaseConditions.push(sql`(${casesScope})`);
+  // 2. Deduplicated rabies+bite count: distinct pets that have EITHER an active
+  //    rabies observation OR an open bite_incident case.
+  //
+  //    Math.max(rabies, biteCases) was incorrect: it assumed the two sets were
+  //    fully nested, but a pet can appear in only one of them (e.g. a bite case
+  //    opened before the vet triggers a rabies observation, or an obs still
+  //    in_progress after the case closed). The correct dedup is a UNION of pet IDs
+  //    from both sources followed by COUNT DISTINCT.
+  //
+  //    casesScope and petsScope are built with different column references
+  //    (cases.jurisdiction* vs pets.jurisdiction*) — we build each WHERE arm
+  //    separately and UNION the pet IDs before counting.
+  const rabiesWhereFragments: ReturnType<typeof sql>[] = [
+    sql`${pets.rabiesObservationStatus} = ${"in_progress"}`,
+  ];
+  if (petsScope) rabiesWhereFragments.push(sql`(${petsScope})`);
+  const rabiesWhere = sql.join(rabiesWhereFragments, sql` AND `);
+
+  // Build the bite-case WHERE fragment manually so we can embed it in raw SQL.
+  const biteWhereFragments: ReturnType<typeof sql>[] = [
+    sql`${cases.caseKind} = ${"bite_incident"}`,
+    sql`${cases.status} = ${"open"}`,
+  ];
+  if (casesScope) biteWhereFragments.push(sql`(${casesScope})`);
+  const biteWhere = sql.join(biteWhereFragments, sql` AND `);
 
   // 3. This week: rabies_observation_started events in scope.
   const startedThisWeekConditions = [
@@ -390,16 +420,20 @@ export async function fetchActiveZoonosis(
   ];
   if (eventsScope) startedLastWeekConditions.push(sql`(${eventsScope})`);
 
-  const [rabiesRows, biteCaseRows, thisWeekRows, lastWeekRows, leptoRows, hidatRows] =
+  const [rabiesRows, deduplicatedBiteRabiesRows, thisWeekRows, lastWeekRows, leptoRows, hidatRows] =
     await Promise.all([
       db
         .select({ n: count() })
         .from(pets)
         .where(and(...rabiesConditions)),
-      db
-        .select({ n: count() })
-        .from(cases)
-        .where(and(...biteCaseConditions)),
+      // Distinct pets in EITHER active-obs OR open-bite-case state.
+      db.execute<{ n: string }>(sql`
+        SELECT COUNT(DISTINCT pet_id)::text AS n FROM (
+          SELECT id AS pet_id FROM pets WHERE ${rabiesWhere}
+          UNION
+          SELECT primary_pet_id AS pet_id FROM cases WHERE ${biteWhere} AND primary_pet_id IS NOT NULL
+        ) combined
+      `),
       db
         .select({ n: count() })
         .from(petEvents)
@@ -419,13 +453,11 @@ export async function fetchActiveZoonosis(
     ]);
 
   const rabies = rabiesRows[0]?.n ?? 0;
-  // Deduplicate: bite cases include active rabies obs; use the larger of the two
-  // as the total (a bite_incident case is opened alongside each rabies obs).
-  const biteCases = biteCaseRows[0]?.n ?? 0;
+  const deduplicatedBiteRabies = Number(deduplicatedBiteRabiesRows[0]?.n ?? 0);
   const lepto = leptoRows[0]?.n ?? 0;
   const hidat = hidatRows[0]?.n ?? 0;
-  // Total = active rabies/bite cases + the disease report counts.
-  const total = Math.max(rabies, biteCases) + lepto + hidat;
+  // Total = deduplicated active-rabies-or-bite-case pets + disease report counts.
+  const total = deduplicatedBiteRabies + lepto + hidat;
 
   const thisWeek = thisWeekRows[0]?.n ?? 0;
   const lastWeek = lastWeekRows[0]?.n ?? 0;
