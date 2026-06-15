@@ -8,6 +8,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db, organizationMemberships, profiles } from "@/db";
 import { pgError } from "@/lib/db-errors";
+import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import { LEGAL_VERSION } from "@/lib/legal-version";
 import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
@@ -108,6 +109,13 @@ export async function completeIdentityAction(
     return { error: "El DNI debe tener 7 u 8 dígitos numéricos." };
   }
 
+  // Location — optional. LocationFields (l1 mode) submits provinceCode (ISO)
+  // + localityName. canonicalProvinceNameForStorage normalizes the ISO code to
+  // the canonical province display name stored in all other jurisdiction columns.
+  const jurisdictionProvince =
+    canonicalProvinceNameForStorage(String(formData.get("provinceCode") ?? "").trim()) ?? null;
+  const jurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -128,6 +136,10 @@ export async function completeIdentityAction(
         // Store DNI as unverified. dniVerified stays false (its default).
         // The /cuenta/verificar-dni flow sets dniVerified=true with audit trail.
         ...(rawDni ? { dniNumber: rawDni } : {}),
+        // Persist user location when provided. Both columns are nullable so
+        // omitting them (empty form) leaves the profile without location.
+        ...(jurisdictionProvince !== null ? { jurisdictionProvince } : {}),
+        ...(jurisdictionLocality !== null ? { jurisdictionLocality } : {}),
         // Persist provable consent (Ley 25.326 art. 5). The TOS/privacy checkbox
         // is required in step 1 (signupAction) and step 2 is unreachable without
         // it, so reaching here means consent was given. We record it on the same
