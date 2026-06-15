@@ -4,7 +4,7 @@ import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
@@ -27,6 +27,10 @@ export function MedicationEndForm({
   const [state, formAction, isPending] = useActionState(action, initialState);
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
+  const [selectedMedicationId, setSelectedMedicationId] = useState("");
+  const [occurredAt, setOccurredAt] = useState(today);
+  const [reason, setReason] = useState("");
+  const [notes, setNotes] = useState("");
 
   return (
     <>
@@ -45,7 +49,8 @@ export function MedicationEndForm({
                 id={id}
                 name="medicationStartedEventId"
                 required
-                defaultValue=""
+                value={selectedMedicationId}
+                onChange={(e) => setSelectedMedicationId(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               >
@@ -68,7 +73,8 @@ export function MedicationEndForm({
                 type="date"
                 required
                 mono
-                defaultValue={today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -81,6 +87,8 @@ export function MedicationEndForm({
                 name="reason"
                 type="text"
                 placeholder="Tratamiento completo, efectos adversos..."
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -92,6 +100,8 @@ export function MedicationEndForm({
                 id={id}
                 name="notes"
                 rows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />

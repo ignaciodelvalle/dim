@@ -31,6 +31,15 @@ export function BiteForm({
   const [victimKind, setVictimKind] = useState<"human" | "animal" | "unknown">("human");
   const [confirmObservation, setConfirmObservation] = useState(false);
 
+  // Controlled field state
+  const [occurredAt, setOccurredAt] = useState(today);
+  const [locationDescription, setLocationDescription] = useState("");
+  const [victimContactName, setVictimContactName] = useState("");
+  const [victimContactPhone, setVictimContactPhone] = useState("");
+  const [victimAgeEstimate, setVictimAgeEstimate] = useState("");
+  const [severity, setSeverity] = useState("");
+  const [context, setContext] = useState("");
+
   return (
     <>
       <LnSheetHeader
@@ -51,7 +60,8 @@ export function BiteForm({
                 required
                 mono
                 max={today}
-                defaultValue={today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -64,6 +74,8 @@ export function BiteForm({
                 name="locationDescription"
                 type="text"
                 placeholder="Ej: Plaza Italia, esquina Cerviño"
+                value={locationDescription}
+                onChange={(e) => setLocationDescription(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -124,6 +136,8 @@ export function BiteForm({
                     id={id}
                     name="victimContactName"
                     type="text"
+                    value={victimContactName}
+                    onChange={(e) => setVictimContactName(e.target.value)}
                     aria-describedby={describedBy}
                     invalid={invalid}
                   />
@@ -135,6 +149,8 @@ export function BiteForm({
                     id={id}
                     name="victimContactPhone"
                     type="tel"
+                    value={victimContactPhone}
+                    onChange={(e) => setVictimContactPhone(e.target.value)}
                     aria-describedby={describedBy}
                     invalid={invalid}
                   />
@@ -147,6 +163,8 @@ export function BiteForm({
                     name="victimAgeEstimate"
                     type="text"
                     placeholder="Ej: niño, adulto, mayor"
+                    value={victimAgeEstimate}
+                    onChange={(e) => setVictimAgeEstimate(e.target.value)}
                     aria-describedby={describedBy}
                     invalid={invalid}
                   />
@@ -161,7 +179,8 @@ export function BiteForm({
                 id={id}
                 name="severity"
                 required
-                defaultValue=""
+                value={severity}
+                onChange={(e) => setSeverity(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               >
@@ -181,6 +200,8 @@ export function BiteForm({
                 name="context"
                 rows={3}
                 placeholder="Ej: estaba jugando con el perro del vecino y se asustó cuando lo abrazaron."
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />

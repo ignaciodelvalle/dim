@@ -1,3 +1,13 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/vaccine-due",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/data-lifecycle",
+      "schedule": "30 3 * * *"
+    }
+  ]
 }

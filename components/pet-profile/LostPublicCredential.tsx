@@ -15,6 +15,7 @@
 // `pets`. The component itself never decides what to show — the page
 // passes only what's actually disclosable.
 
+import { BRANDING } from "@/lib/branding";
 import { lostBannerHeadline, lostFirstPersonLine, normalizePhoneForTel } from "@/lib/format";
 import { tattooLocationLabel } from "@/lib/lookups";
 import Link from "next/link";
@@ -254,7 +255,7 @@ export function LostPublicCredential({
           )}
 
         <p className="text-center text-[11px] text-ln-mute ">
-          Esta credencial pertenece a MiMAR — Mi Mascota Argentina.
+          Esta credencial pertenece a {BRANDING.appName} — {BRANDING.appNameLong}.
         </p>
       </div>
     </main>

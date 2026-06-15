@@ -11,13 +11,13 @@ export function PetQuickActions({ petPublicToken, petStatus, preferredVetPhone }
 
   return (
     <div className="flex flex-wrap gap-2" data-section="quick-actions">
-      {/* Modo perdido — active → marcar-perdida; lost → marcar-encontrada; deceased → hidden */}
+      {/* Marcar como perdida — active → marcar-perdida; lost → marcar-encontrada; deceased → hidden */}
       {petStatus === "active" && (
         <Link
           href={`${base}?sheet=marcar-perdida`}
           className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full transition-colors bg-transparent text-ln-err border-[3px] border-ln-err hover:bg-ln-err hover:text-white active:translate-y-px"
         >
-          Modo perdido
+          Marcar como perdida
         </Link>
       )}
       {petStatus === "lost" && (

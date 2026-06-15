@@ -99,7 +99,7 @@ export default async function AdminReviewRequestPage({
           href="/admin/cola"
           className="text-[12px] text-ln-op-mute underline underline-offset-4 hover:text-ln-op-ink"
         >
-          {"<-"} Volver a la cola
+          {"←"} Volver a la cola
         </Link>
       </div>
 
