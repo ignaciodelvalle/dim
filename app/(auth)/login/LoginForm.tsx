@@ -2,12 +2,13 @@
 
 import { type AuthFormState, loginAction } from "@/app/actions/auth";
 import { LnField, LnInput } from "@/components/ui/Field";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const initialState: AuthFormState = { error: null };
 
 export function LoginForm({ returnTo }: { returnTo: string | null }) {
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
+  const [email, setEmail] = useState("");
 
   return (
     <div className="space-y-5">
@@ -27,6 +28,8 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
                 required
                 aria-describedby={describedBy}
                 invalid={invalid}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             )}
           </LnField>
