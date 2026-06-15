@@ -31,6 +31,7 @@ import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { notifyOutbreakInvestigationOpened } from "@/lib/authority";
 import { closeCase, escalateCase, openCase } from "@/lib/case-helpers";
+import { checkboxOn } from "@/lib/form-checkbox";
 import { requireAlivePetAccess } from "@/lib/pet-access";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
@@ -120,7 +121,7 @@ export async function reportBiteAction(
   }
   const severity = severityRaw as "minor" | "moderate" | "severe";
 
-  const confirmed = formData.get("confirmObservation") === "on";
+  const confirmed = checkboxOn(formData, "confirmObservation");
   if (!confirmed) {
     return {
       error:
@@ -265,7 +266,7 @@ export async function reportBiteFromOrgAction(
   }
   const severity = severityRaw as "minor" | "moderate" | "severe";
 
-  if (formData.get("confirmObservation") !== "on") {
+  if (!checkboxOn(formData, "confirmObservation")) {
     return {
       error:
         "Tenés que confirmar que entendés que esto inicia una observación obligatoria de 10 días.",
@@ -278,7 +279,7 @@ export async function reportBiteFromOrgAction(
   const victimContactPhone = String(formData.get("victimContactPhone") ?? "").trim() || null;
   const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
   const injuriesSummary = String(formData.get("injuriesSummary") ?? "").trim() || null;
-  const vetInvolved = formData.get("vetInvolved") === "on";
+  const vetInvolved = checkboxOn(formData, "vetInvolved");
   const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
   const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
   const noRedirect = String(formData.get("noRedirect") ?? "") === "1";
