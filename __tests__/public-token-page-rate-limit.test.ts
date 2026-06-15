@@ -117,9 +117,11 @@ vi.mock("@/components/event/ConfidenceBadge", () => ({ ConfidenceBadge: vi.fn(()
 vi.mock("@/components/pet-profile/LostPublicCredential", () => ({
   LostPublicCredential: vi.fn(() => null),
 }));
-vi.mock("@/app/p/[publicToken]/FoundPetForm", () => ({ FoundPetForm: vi.fn(() => null) }));
-vi.mock("@/app/p/[publicToken]/ScanLogger", () => ({ ScanLogger: vi.fn(() => null) }));
-vi.mock("@/app/p/[publicToken]/Tier2MedicalView", () => ({ Tier2MedicalView: vi.fn(() => null) }));
+vi.mock("@/app/(public)/p/[publicToken]/FoundPetForm", () => ({ FoundPetForm: vi.fn(() => null) }));
+vi.mock("@/app/(public)/p/[publicToken]/ScanLogger", () => ({ ScanLogger: vi.fn(() => null) }));
+vi.mock("@/app/(public)/p/[publicToken]/Tier2MedicalView", () => ({
+  Tier2MedicalView: vi.fn(() => null),
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -153,7 +155,7 @@ describe("PublicCredentialPage — per-IP rate limiting (V1-1)", () => {
   });
 
   it("calls enforceRateLimit with 'public_token_page' and caller IP", async () => {
-    const { default: PublicCredentialPage } = await import("@/app/p/[publicToken]/page");
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
 
     // Pet not found path — notFound() will throw. We only care that enforceRateLimit
     // was called with the right arguments.
@@ -177,7 +179,7 @@ describe("PublicCredentialPage — per-IP rate limiting (V1-1)", () => {
       ),
     );
 
-    const { default: PublicCredentialPage } = await import("@/app/p/[publicToken]/page");
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
 
     const result = await PublicCredentialPage({
       params: Promise.resolve({ publicToken: "DIM-AAAA-BBBB" }),

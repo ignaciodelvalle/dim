@@ -6,6 +6,7 @@ import {
   completeIdentityAction,
   signupAction,
 } from "@/app/actions/auth";
+import { LocationFields } from "@/components/LocationFields";
 import { LnCheckbox, LnInput } from "@/components/ui/Field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -114,6 +115,16 @@ export function SignupForm({
             hint="Podés agregarlo después desde tu cuenta."
             placeholder="Ej: 34567890"
           />
+
+          <div className="space-y-1.5">
+            <p className="block text-sm font-medium text-[var(--color-ln-ink)]">
+              Localidad <span className="font-normal text-[var(--color-ln-mute)]">(opcional)</span>
+            </p>
+            <LocationFields mode="l1" />
+            <p className="text-xs text-[var(--color-ln-mute)]">
+              Ayuda a las campañas regionales de salud animal.
+            </p>
+          </div>
 
           {identityState.error && (
             <p className="text-sm text-[var(--color-ln-err)]" role="alert">

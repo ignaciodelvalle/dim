@@ -4,6 +4,18 @@
 import type { NavItem } from "./HeaderNav";
 
 // ---------------------------------------------------------------------------
+// Public portal nav — shared by all unauthenticated-accessible portals.
+// Intentionally excludes "Mi libreta" (requires auth) and "Inicio" (landing).
+// ---------------------------------------------------------------------------
+
+export const PUBLIC_NAV: NavItem[] = [
+  { href: "/adoptar", label: "Adoptar", matchPrefix: "/adoptar" },
+  { href: "/perdidas", label: "Mascotas perdidas", matchPrefix: "/perdidas" },
+  { href: "/refugios", label: "Refugios", matchPrefix: "/refugios" },
+  { href: "/denuncias", label: "Denuncias", matchPrefix: "/denuncias" },
+];
+
+// ---------------------------------------------------------------------------
 // Owner portal
 // ---------------------------------------------------------------------------
 

@@ -56,7 +56,37 @@ export function PetReminders({
   reminders: ActiveReminderRow[];
   petToken: string;
 }) {
-  if (reminders.length === 0) return null;
+  if (reminders.length === 0) {
+    return (
+      <LnCard aria-labelledby="pet-reminders-heading">
+        <LnCardHead
+          title={<span id="pet-reminders-heading">Próximas vacunas</span>}
+          actions={
+            <Link
+              href={`/mis-mascotas/${petToken}/vacunas/programar`}
+              className="text-sm text-[var(--color-ln-azul)] underline-offset-4 hover:underline"
+            >
+              + Programar
+            </Link>
+          }
+        />
+        <LnCardBody>
+          <div className="rounded-xl border border-dashed border-[var(--color-ln-line-strong)] p-5 text-center">
+            <p className="text-sm text-[var(--color-ln-mute)]">Sin próximas vacunas.</p>
+            <p className="mt-1 text-xs text-[var(--color-ln-mute)]">
+              Programá un recordatorio y te avisamos cuando se acerque la fecha.
+            </p>
+            <Link
+              href={`/mis-mascotas/${petToken}/vacunas/programar`}
+              className="mt-3 inline-block text-xs font-medium text-[var(--color-ln-azul)] hover:underline"
+            >
+              Programar vacuna →
+            </Link>
+          </div>
+        </LnCardBody>
+      </LnCard>
+    );
+  }
 
   return (
     <LnCard aria-labelledby="pet-reminders-heading">

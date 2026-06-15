@@ -88,7 +88,30 @@ export function PetUpcomingCareSection({
 
   const { visible, hasMore } = mergeUpcomingItems(allItems);
 
-  if (visible.length === 0) return null;
+  if (visible.length === 0) {
+    return (
+      <section
+        aria-labelledby="pp-cuidados-h"
+        className="rounded-2xl border border-ln-line bg-ln-card p-4  "
+      >
+        <h2 id="pp-cuidados-h" className="mb-3 text-base font-semibold text-ln-ink ">
+          Cuidados próximos
+        </h2>
+        <div className="rounded-xl border border-dashed border-ln-line-strong p-5 text-center">
+          <p className="text-sm text-ln-mute ">Sin cuidados programados.</p>
+          <p className="mt-1 text-xs text-ln-mute ">
+            Registrá vacunas, turnos o medicaciones para que aparezcan acá.
+          </p>
+          <Link
+            href={`/mis-mascotas/${petToken}/vacunas/programar`}
+            className="mt-3 inline-block text-xs font-medium text-ln-azul hover:underline"
+          >
+            Programar vacuna →
+          </Link>
+        </div>
+      </section>
+    );
+  }
 
   const kindIcon: Record<UpcomingCareItem["kind"], string> = {
     reminder: "💉",

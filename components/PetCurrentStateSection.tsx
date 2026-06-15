@@ -5,9 +5,10 @@
 // training, favourite foods, pregnancy, and rabies observation.
 //
 // Each field is suppressed when null / empty. When ALL fields are absent,
-// an invitation copy is shown instead.
+// a signposted empty state is shown with entry points to the relevant flows.
 
 import { formatDate } from "@/lib/format";
+import Link from "next/link";
 import {
   type CanonicalIdentificationSnapshot,
   type CurrentStateEvent,
@@ -44,10 +45,13 @@ export function PetCurrentStateSection({
   pet,
   typedEvents,
   canonicalIds = { microchip: null, tattoo: null },
+  petToken,
 }: {
   pet: CurrentStatePet;
   typedEvents: CurrentStateEvent[];
   canonicalIds?: CanonicalIdentificationSnapshot;
+  /** Public token of the pet — used to build empty-state action links. */
+  petToken?: string;
 }) {
   const fields = deriveCurrentStateFields(pet, typedEvents, canonicalIds);
 
@@ -72,9 +76,28 @@ export function PetCurrentStateSection({
       </h2>
 
       {!hasAnyField ? (
-        <p className="text-sm text-ln-mute ">
-          Cargá información para ver el resumen del estado actual.
-        </p>
+        <div className="rounded-xl border border-dashed border-ln-line-strong p-5 text-center">
+          <p className="text-sm text-ln-mute ">Sin datos de estado cargados.</p>
+          <p className="mt-1 text-xs text-ln-mute ">
+            Registrá el peso o el microchip para que aparezca el resumen de salud.
+          </p>
+          {petToken && (
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href={`/mis-mascotas/${petToken}?sheet=peso`}
+                className="text-xs font-medium text-ln-azul hover:underline"
+              >
+                Registrar peso →
+              </Link>
+              <Link
+                href={`/mis-mascotas/${petToken}/eventos/nuevo/microchip`}
+                className="text-xs font-medium text-ln-azul hover:underline"
+              >
+                Registrar microchip →
+              </Link>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="divide-y divide-ln-line ">
           {fields.weight && (
