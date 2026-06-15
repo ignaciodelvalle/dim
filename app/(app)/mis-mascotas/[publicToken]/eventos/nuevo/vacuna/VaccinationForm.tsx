@@ -4,6 +4,7 @@
 // Presentation ONLY: action, useActionState wiring, field names, and submit
 // logic are untouched.
 
+import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
@@ -61,7 +62,7 @@ export function VaccinationForm({
     <>
       <LnSheetHeader
         tone="verde"
-        icon="💉"
+        icon={<Icon name="vacuna" decorative />}
         title="Registrar vacuna"
         subtitle="Libreta sanitaria oficial"
       />

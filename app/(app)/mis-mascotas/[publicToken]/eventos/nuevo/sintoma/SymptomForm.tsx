@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
@@ -31,7 +32,7 @@ export function SymptomForm({
     <>
       <LnSheetHeader
         tone="warn"
-        icon="🩺"
+        icon={<Icon name="sintoma" decorative />}
         title="Registrar síntoma"
         subtitle="Libreta sanitaria oficial"
       />

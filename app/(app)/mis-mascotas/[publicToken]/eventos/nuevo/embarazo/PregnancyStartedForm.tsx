@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 
 import type { PregnancyFormState } from "@/app/actions/pregnancy";
+import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
@@ -24,7 +25,7 @@ export function PregnancyStartedForm({ action }: { action: FormAction }) {
     <>
       <LnSheetHeader
         tone="rosa"
-        icon="🤰"
+        icon={<Icon name="embarazo" decorative />}
         title="Registrar embarazo"
         subtitle="Libreta sanitaria oficial"
       />

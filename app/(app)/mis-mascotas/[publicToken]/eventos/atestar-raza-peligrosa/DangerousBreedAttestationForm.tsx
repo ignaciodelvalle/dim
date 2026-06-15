@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetHeader } from "@/components/ui/Sheet";
 import type { EventFormState } from "@/src/modules/events/actions";
@@ -65,7 +66,7 @@ function Step1({ onContinue }: { onContinue: () => void }) {
     <>
       <LnSheetHeader
         tone="warn"
-        icon="⚠️"
+        icon={<Icon name="alerta" decorative />}
         title="Atestar raza peligrosa"
         subtitle="Paso 1 de 2 · Información legal"
       />
@@ -146,7 +147,7 @@ function Step2({
     <>
       <LnSheetHeader
         tone="warn"
-        icon="⚠️"
+        icon={<Icon name="alerta" decorative />}
         title="Atestar raza peligrosa"
         subtitle="Paso 2 de 2 · Datos del registro"
       />
