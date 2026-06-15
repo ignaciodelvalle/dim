@@ -274,6 +274,11 @@ export default async function CuentaPage() {
           description="Avisos, alertas y novedades de tus mascotas"
         />
         <ActionRow
+          href="/denuncias/mias"
+          label="Mis denuncias"
+          description="Denuncias de bienestar animal que presentaste"
+        />
+        <ActionRow
           href="/cuenta/memberships"
           label="Mis organizaciones"
           description="Refugios, clínicas y redes en las que participás"
@@ -285,7 +290,7 @@ export default async function CuentaPage() {
         />
         {profile.role === "owner" && (
           <ActionRow
-            href="?sheet=solicitar-upgrade-vet"
+            href="/cuenta/upgrade"
             label="Convertirme en profesional / organización"
             description="Registrá tu matrícula veterinaria o creá una clínica, refugio u otra organización"
           />
@@ -296,28 +301,11 @@ export default async function CuentaPage() {
           description="Descargar tus datos · Eliminar cuenta · Ley 25.326"
         />
         {profile.role === "owner" && profile.accountType === "personal" && (
-          <>
-            <ActionRow
-              href="/cuenta/ofrecerme-como-transito"
-              label="Ofrecerme como hogar de tránsito"
-              description="Inscribite en el pool de voluntarios para cuidar mascotas en custodia"
-            />
-            <ActionRow
-              href="/cuenta/transitos/propuestas"
-              label="Propuestas de tránsito"
-              description="Refugios proponiéndote cuidar mascotas"
-            />
-            <ActionRow
-              href="/cuenta/transitos/activos"
-              label="Tránsitos activos"
-              description="Mascotas que estás cuidando ahora"
-            />
-            <ActionRow
-              href="/cuenta/transitos/historial"
-              label="Historial de tránsitos"
-              description="Tránsitos terminados y propuestas no concretadas"
-            />
-          </>
+          <ActionRow
+            href="/cuenta/transitos"
+            label="Tránsitos"
+            description="Hogar de tránsito, propuestas, tránsitos activos e historial"
+          />
         )}
         {profile.role === "vet" && (
           <ActionRow
