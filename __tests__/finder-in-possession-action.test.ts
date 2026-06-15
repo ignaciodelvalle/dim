@@ -226,7 +226,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
 
   it("anon happy path: inserts petEvent (kind=finder_in_possession) and notification", async () => {
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -275,7 +275,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const photo = new File(["fake-image-bytes"], "luna-now.jpg", { type: "image/jpeg" });
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true", photoNow: photo });
@@ -298,7 +298,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const photo = new File(["bytes"], "fail.jpg", { type: "image/jpeg" });
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true", photoNow: photo });
@@ -322,7 +322,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -340,7 +340,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     buildMockDb("active");
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -356,7 +356,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     buildMockDb("lost");
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const { finderName: _dropped, ...noName } = BASE_FIELDS;
     const fd = makeFormData({ ...noName, canKeepIndefinite: "true" });
@@ -372,7 +372,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     buildMockDb("lost");
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const { finderPhone: _dropped, ...noPhone } = BASE_FIELDS;
     const fd = makeFormData({
@@ -393,7 +393,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     buildMockDb("lost");
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({
       finderName: "Ana",
@@ -413,7 +413,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     buildMockDb("lost");
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({
       finderName: "Ana",
@@ -443,7 +443,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     );
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -462,7 +462,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     buildMockDb("lost");
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -483,7 +483,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({
       finderName: "Carlos",
@@ -506,7 +506,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -529,7 +529,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const photo = new File(["fake-image-bytes"], "luna-now.jpg", { type: "image/jpeg" });
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true", photoNow: photo });
@@ -562,7 +562,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const photo = new File(["fake-image-bytes"], "now.jpg", { type: "image/jpeg" });
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true", photoNow: photo });
@@ -581,7 +581,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -599,7 +599,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({
       finderName: "María",
