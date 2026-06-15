@@ -61,10 +61,10 @@ export function Icon({ name, size, decorative, className, style, ...rest }: Icon
       style={sizeStyle}
       {...rest}
     >
-      {/* In the real component the webfont's ::before pseudo-element renders
-          the glyph. Until then, the icon name shows as text so the layout is
-          still inspectable. */}
-      {name}
+      {/* Stub: the icono-arg webfont is not wired yet, so render NO glyph and
+          — crucially — NO text. Previously this rendered {name}, which leaked
+          raw icon names (e.g. "qr", "corazon") into the UI. data-icon-name on
+          the span is retained for future webfont wiring and debugging. */}
     </span>
   );
 }
