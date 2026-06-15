@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Caveat, IBM_Plex_Mono, IBM_Plex_Sans, IBM_Plex_Serif } from "next/font/google";
 
 import { Toaster } from "@/components/Toaster";
+import { BRANDING } from "@/lib/branding";
 
 import "./globals.css";
 
@@ -47,10 +48,10 @@ const lnFontVars = [
 // --------------------------------------------------------------------------
 
 export const metadata: Metadata = {
-  title: "MiMAR — Mi Mascota Argentina",
+  title: `${BRANDING.appName} — ${BRANDING.appNameLong}`,
   description:
     "La libreta sanitaria digital de tu mascota. Para encontrarse, para cuidarse, para ayudarnos a cuidar a todas.",
-  applicationName: "MiMAR",
+  applicationName: BRANDING.appName,
 };
 
 export const viewport: Viewport = {
