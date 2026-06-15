@@ -620,7 +620,7 @@ export default async function PublicCredentialPage({
             </div>
             <div className="min-w-0 flex-1">
               <span className="font-[var(--font-ln-serif)] text-[13px] font-semibold text-ln-ink">
-                miMAR
+                MiMAR
               </span>
               <span className="block font-[var(--font-ln-mono)] text-[8px] uppercase tracking-[.14em] text-ln-mute">
                 Credencial pública
@@ -775,7 +775,7 @@ export default async function PublicCredentialPage({
 
           {/* Credential footer */}
           <div className="px-[16px] py-[12px] text-center font-[var(--font-ln-mono)] text-[9.5px] leading-[1.7] tracking-[.02em] text-ln-faint">
-            CREDENCIAL PÚBLICA · miMAR · Registro Nacional de Mascotas
+            CREDENCIAL PÚBLICA · MiMAR · Registro Nacional de Mascotas
             <br />
             {pet.publicToken.toUpperCase()} · República Argentina
           </div>

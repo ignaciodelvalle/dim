@@ -39,6 +39,16 @@ export function PetQuickActions({ petPublicToken, petStatus, preferredVetPhone }
         Compartir QR
       </Link>
 
+      {/* Imprimir cartel — printable lost-pet poster; only meaningful for lost pets */}
+      {petStatus === "lost" && (
+        <Link
+          href={`${base}/cartel`}
+          className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full transition-colors bg-ln-card text-ln-azul border-[3px] border-ln-line hover:border-ln-line-strong active:translate-y-px"
+        >
+          Imprimir cartel
+        </Link>
+      )}
+
       {/* Llamar vet — tel: link when phone is set, disabled otherwise */}
       {preferredVetPhone ? (
         <a
