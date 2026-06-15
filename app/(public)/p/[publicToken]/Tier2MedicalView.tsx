@@ -73,51 +73,24 @@ export function Tier2MedicalView({
         : `${vaccineSummary.active} al día`;
 
   return (
-    <section aria-labelledby="tier2-h" style={{ padding: "13px 16px" }}>
+    <section aria-labelledby="tier2-h" className="px-[16px] py-[13px]">
       {/* Section eyebrow */}
-      <p
-        style={{
-          fontFamily: "var(--font-ln-mono)",
-          fontSize: 9.5,
-          letterSpacing: ".1em",
-          textTransform: "uppercase",
-          color: "var(--color-ln-ok)",
-          fontWeight: 600,
-          marginBottom: 4,
-        }}
-      >
+      <p className="mb-[4px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-ok">
         Información médica · habilitada por el dueño
       </p>
       <h2
         id="tier2-h"
-        style={{
-          fontFamily: "var(--font-ln-serif)",
-          fontSize: 16,
-          fontWeight: 600,
-          color: "var(--color-ln-ink)",
-          margin: "0 0 2px",
-        }}
+        className="m-0 mb-[2px] font-[var(--font-ln-serif)] text-[16px] font-semibold text-ln-ink"
       >
         Resumen médico vigente
       </h2>
-      <p
-        style={{
-          fontSize: 11.5,
-          color: "var(--color-ln-mute)",
-          margin: "0 0 12px",
-        }}
-      >
-        Visible hasta el <strong style={{ color: "var(--color-ln-ink-2)" }}>{untilLabel}</strong>.
+      <p className="m-0 mb-[12px] text-[11.5px] text-ln-mute">
+        Visible hasta el <strong className="text-ln-ink-2">{untilLabel}</strong>.
       </p>
 
       {/* Aggregate stats grid */}
       <dl
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "10px 12px",
-          marginBottom: conditionLabels.length > 0 || activeMedications.length > 0 ? 12 : 0,
-        }}
+        className={`grid grid-cols-2 gap-x-[12px] gap-y-[10px] ${conditionLabels.length > 0 || activeMedications.length > 0 ? "mb-[12px]" : ""}`}
       >
         <MedStat
           label="Vacunación"
@@ -136,21 +109,13 @@ export function Tier2MedicalView({
       {/* Active medications */}
       {activeMedications.length > 0 && (
         <MedBlock label="Medicación activa">
-          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+          <ul className="m-0 list-none p-0">
             {activeMedications.map((drug) => (
               <li
                 key={drug}
-                style={{
-                  fontSize: 13,
-                  color: "var(--color-ln-ink)",
-                  padding: "4px 0",
-                  borderBottom: "1px solid var(--color-ln-line-2)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 7,
-                }}
+                className="flex items-center gap-[7px] border-b border-ln-line-2 py-[4px] text-[13px] text-ln-ink"
               >
-                <span aria-hidden="true" style={{ color: "var(--color-ln-azul)", fontSize: 10 }}>
+                <span aria-hidden="true" className="text-[10px] text-ln-azul">
                   ●
                 </span>
                 {drug}
@@ -163,23 +128,12 @@ export function Tier2MedicalView({
       {/* Permanent conditions */}
       {conditionLabels.length > 0 && (
         <MedBlock label="Condiciones permanentes">
-          <p style={{ fontSize: 13, color: "var(--color-ln-ink)", margin: 0, lineHeight: 1.5 }}>
-            {conditionLabels.join(" · ")}
-          </p>
+          <p className="m-0 text-[13px] leading-[1.5] text-ln-ink">{conditionLabels.join(" · ")}</p>
         </MedBlock>
       )}
 
       {/* Privacy notice */}
-      <p
-        style={{
-          fontFamily: "var(--font-ln-mono)",
-          fontSize: 9.5,
-          color: "var(--color-ln-faint)",
-          letterSpacing: ".02em",
-          marginTop: 10,
-          lineHeight: 1.5,
-        }}
-      >
+      <p className="mt-[10px] font-[var(--font-ln-mono)] text-[9.5px] leading-[1.5] tracking-[.02em] text-ln-faint">
         Esta vista no expone contacto del dueño, dirección ni notas privadas.
       </p>
     </section>
@@ -201,58 +155,26 @@ function MedStat({
   sub: string;
   tone: "ok" | "warn" | "danger" | "neutral";
 }) {
-  const valueColor =
+  const valueClass =
     tone === "danger"
-      ? "var(--color-ln-err)"
+      ? "text-ln-err"
       : tone === "warn"
-        ? "var(--color-ln-warn)"
+        ? "text-ln-warn"
         : tone === "ok"
-          ? "var(--color-ln-ok)"
-          : "var(--color-ln-ink-2)";
+          ? "text-ln-ok"
+          : "text-ln-ink-2";
 
   return (
-    <div
-      style={{
-        borderRadius: 4,
-        background: "var(--color-ln-stripe)",
-        border: "1px solid var(--color-ln-line)",
-        padding: "10px 12px",
-      }}
-    >
-      <dt
-        style={{
-          fontFamily: "var(--font-ln-mono)",
-          fontSize: 9,
-          letterSpacing: ".08em",
-          textTransform: "uppercase",
-          fontWeight: 600,
-          color: "var(--color-ln-mute)",
-          marginBottom: 4,
-        }}
-      >
+    <div className="rounded-[4px] border border-ln-line bg-ln-stripe px-[12px] py-[10px]">
+      <dt className="mb-[4px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.08em] text-ln-mute">
         {label}
       </dt>
       <dd
-        style={{
-          fontFamily: "var(--font-ln-serif)",
-          fontSize: 22,
-          fontWeight: 600,
-          lineHeight: 1,
-          color: valueColor,
-          margin: 0,
-        }}
+        className={`m-0 font-[var(--font-ln-serif)] text-[22px] font-semibold leading-none ${valueClass}`}
       >
         {value}
       </dd>
-      <p
-        style={{
-          fontSize: 11.5,
-          color: "var(--color-ln-mute)",
-          marginTop: 3,
-        }}
-      >
-        {sub}
-      </p>
+      <p className="mt-[3px] text-[11.5px] text-ln-mute">{sub}</p>
     </div>
   );
 }
@@ -263,26 +185,8 @@ function MedStat({
 
 function MedBlock({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div
-      style={{
-        borderRadius: 4,
-        background: "var(--color-ln-stripe)",
-        border: "1px solid var(--color-ln-line)",
-        padding: "10px 12px",
-        marginBottom: 10,
-      }}
-    >
-      <p
-        style={{
-          fontFamily: "var(--font-ln-mono)",
-          fontSize: 9,
-          letterSpacing: ".08em",
-          textTransform: "uppercase",
-          fontWeight: 600,
-          color: "var(--color-ln-mute)",
-          marginBottom: 6,
-        }}
-      >
+    <div className="mb-[10px] rounded-[4px] border border-ln-line bg-ln-stripe px-[12px] py-[10px]">
+      <p className="mb-[6px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.08em] text-ln-mute">
         {label}
       </p>
       {children}
