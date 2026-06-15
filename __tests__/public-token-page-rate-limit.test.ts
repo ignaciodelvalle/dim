@@ -119,7 +119,9 @@ vi.mock("@/components/pet-profile/LostPublicCredential", () => ({
 }));
 vi.mock("@/app/(public)/p/[publicToken]/FoundPetForm", () => ({ FoundPetForm: vi.fn(() => null) }));
 vi.mock("@/app/(public)/p/[publicToken]/ScanLogger", () => ({ ScanLogger: vi.fn(() => null) }));
-vi.mock("@/app/(public)/p/[publicToken]/Tier2MedicalView", () => ({ Tier2MedicalView: vi.fn(() => null) }));
+vi.mock("@/app/(public)/p/[publicToken]/Tier2MedicalView", () => ({
+  Tier2MedicalView: vi.fn(() => null),
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
