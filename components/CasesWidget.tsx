@@ -55,7 +55,7 @@ export function CasesWidget({
       aria-labelledby="oh-cases-h"
       className="rounded-2xl border border-ln-line bg-ln-card p-4  "
     >
-      <div className="mb-3 flex items-baseline justify-between">
+      <div className="mb-3">
         <h2 id="oh-cases-h" className="text-base font-semibold text-ln-ink ">
           Mis casos
           {total > 0 && (
@@ -64,9 +64,6 @@ export function CasesWidget({
             </span>
           )}
         </h2>
-        <Link href="/cuenta/casos" className="text-xs font-medium text-ln-azul hover:underline">
-          Ver historial →
-        </Link>
       </div>
 
       {visible.length === 0 ? (
