@@ -40,12 +40,20 @@ export function MedicationStartForm({
 
   const catalogDrugs = drugsForSpecies(species);
   const [matchedDrug, setMatchedDrug] = useState<DrugDef | null>(null);
+  const [drugName, setDrugName] = useState("");
   const [doseValue, setDoseValue] = useState("");
   const [frequency, setFrequency] = useState<string>(matchedDrug?.typicalFrequency ?? "");
   const [showCustomHours, setShowCustomHours] = useState(false);
+  const [customHours, setCustomHours] = useState("");
+  const [firstDoseAt, setFirstDoseAt] = useState(localDatetime);
+  const [durationDays, setDurationDays] = useState("");
+  const [prescribedBy, setPrescribedBy] = useState("");
+  const [occurredAt, setOccurredAt] = useState(defaultOccurredAt ?? today);
+  const [notes, setNotes] = useState(defaultNotes ?? "");
 
   function handleDrugNameChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
+    setDrugName(val);
     const found = findDrugByLabel(val);
     setMatchedDrug(found);
     if (found) {
@@ -95,6 +103,7 @@ export function MedicationStartForm({
                 list="drug-options"
                 required
                 placeholder="Amoxicilina, Metronidazol..."
+                value={drugName}
                 onChange={handleDrugNameChange}
                 autoComplete="off"
                 aria-describedby={describedBy}
@@ -175,6 +184,8 @@ export function MedicationStartForm({
                   max="24"
                   required
                   placeholder="Ej. 8"
+                  value={customHours}
+                  onChange={(e) => setCustomHours(e.target.value)}
                   aria-describedby={describedBy}
                   invalid={invalid}
                 />
@@ -195,7 +206,8 @@ export function MedicationStartForm({
                 type="datetime-local"
                 required
                 mono
-                defaultValue={localDatetime}
+                value={firstDoseAt}
+                onChange={(e) => setFirstDoseAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -213,6 +225,8 @@ export function MedicationStartForm({
                   min="1"
                   max="90"
                   placeholder="Ej. 7"
+                  value={durationDays}
+                  onChange={(e) => setDurationDays(e.target.value)}
                   aria-describedby={describedBy}
                 />
               )}
@@ -226,6 +240,8 @@ export function MedicationStartForm({
                   name="prescribedBy"
                   type="text"
                   placeholder="Nombre del veterinario/a"
+                  value={prescribedBy}
+                  onChange={(e) => setPrescribedBy(e.target.value)}
                   aria-describedby={describedBy}
                 />
               )}
@@ -245,7 +261,8 @@ export function MedicationStartForm({
                 type="date"
                 required
                 mono
-                defaultValue={defaultOccurredAt ?? today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -263,7 +280,8 @@ export function MedicationStartForm({
                 id={id}
                 name="notes"
                 rows={3}
-                defaultValue={defaultNotes ?? ""}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}
