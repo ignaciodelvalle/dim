@@ -37,6 +37,13 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
   const [subKind, setSubKind] = useState<SubKind>("lab_work");
   const today = new Date().toISOString().slice(0, 10);
 
+  // Controlled field state
+  const [title, setTitle] = useState("");
+  const [details, setDetails] = useState("");
+  const [performedBy, setPerformedBy] = useState("");
+  const [occurredAt, setOccurredAt] = useState(today);
+  const [notes, setNotes] = useState("");
+
   return (
     <>
       <LnSheetHeader
@@ -75,6 +82,8 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
                 type="text"
                 required
                 placeholder={TITLE_PLACEHOLDERS[subKind]}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -87,6 +96,8 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
                 name="details"
                 rows={4}
                 placeholder="Resultados, valores de referencia, comentarios del veterinario…"
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}
@@ -98,6 +109,8 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
                 name="performedBy"
                 type="text"
                 placeholder="Dr. García · Clínica Veterinaria X"
+                value={performedBy}
+                onChange={(e) => setPerformedBy(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}
@@ -110,7 +123,8 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
                 type="date"
                 required
                 mono
-                defaultValue={today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -123,6 +137,8 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
                 name="notes"
                 rows={3}
                 placeholder="Cualquier detalle extra que quieras recordar…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}
