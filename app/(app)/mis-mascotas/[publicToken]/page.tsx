@@ -233,13 +233,13 @@ function memorialEventStyle(eventType: string): { color: string; icon: string } 
       return { color: "var(--color-ln-ok)", icon: "🩺" };
     case "medication_started":
     case "medication_stopped":
-      return { color: "#6b4ea8", icon: "💊" };
+      return { color: "var(--color-ln-violeta)", icon: "💊" };
     case "note_added":
-      return { color: "#b0771a", icon: "📝" };
+      return { color: "var(--color-ln-memorial-note)", icon: "📝" };
     case "clinical_info_logged":
       return { color: "var(--color-ln-celeste)", icon: "📋" };
     case "death_recorded":
-      return { color: "#7a6a50", icon: "🍃" };
+      return { color: "var(--color-ln-memorial)", icon: "🍃" };
     default:
       return { color: "var(--color-ln-mute)", icon: "·" };
   }
@@ -321,7 +321,7 @@ function LnMemorialTimeline({
                 ]
                   .filter(Boolean)
                   .join(" ")}
-                style={{ color: isDeathEvent ? "#7a6a50" : "var(--color-ln-ink)" }}
+                style={{ color: isDeathEvent ? "var(--color-ln-memorial)" : "var(--color-ln-ink)" }}
               >
                 {summary.primary}
               </p>
@@ -424,7 +424,7 @@ function DeceasedView({
   return (
     <div
       className="min-h-screen"
-      style={{ background: "#faf8f3", fontFamily: "var(--font-ln-sans)" }}
+      style={{ background: "var(--color-ln-memorial-bg)", fontFamily: "var(--font-ln-sans)" }}
     >
       {/* Desaturated guilloché */}
       <div
@@ -479,7 +479,7 @@ function DeceasedView({
           {/* Serif name 52px */}
           <h1
             className="m-0 font-[var(--font-ln-serif)] font-semibold leading-tight tracking-[-0.02em]"
-            style={{ fontSize: 52, color: "#2a2018" }}
+            style={{ fontSize: 52, color: "var(--color-ln-memorial-ink)" }}
           >
             {pet.name}
           </h1>
@@ -487,7 +487,7 @@ function DeceasedView({
           {/* Italic subtitle */}
           <p
             className="font-[var(--font-ln-serif)] font-medium"
-            style={{ fontSize: 16, color: "#7a6a50", fontStyle: "italic" }}
+            style={{ fontSize: 16, color: "var(--color-ln-memorial)", fontStyle: "italic" }}
           >
             {subtitle}
           </p>
@@ -503,7 +503,7 @@ function DeceasedView({
             >
               Editar mascota
             </Link>
-            <span className="mx-[8px]" style={{ color: "#c0b89a" }}>
+            <span className="mx-[8px]" style={{ color: "var(--color-ln-memorial-faint)" }}>
               ·
             </span>
             <Link
@@ -514,7 +514,7 @@ function DeceasedView({
             >
               Ver credencial pública
             </Link>
-            <span className="mx-[8px]" style={{ color: "#c0b89a" }}>
+            <span className="mx-[8px]" style={{ color: "var(--color-ln-memorial-faint)" }}>
               ·
             </span>
             <Link
@@ -539,7 +539,7 @@ function DeceasedView({
           </p>
           <h2
             className="m-0 mb-[6px] font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em]"
-            style={{ color: "#2a2018" }}
+            style={{ color: "var(--color-ln-memorial-ink)" }}
           >
             Historial
           </h2>

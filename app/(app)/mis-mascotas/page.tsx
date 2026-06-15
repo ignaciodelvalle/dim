@@ -276,7 +276,7 @@ function MemorialRow({
 
       {/* Info */}
       <div className="min-w-0">
-        <span className="font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[#5d5240]">
+        <span className="font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-memorial-sepia)]">
           {name}
         </span>
         {breed && <p className="mt-[2px] text-[12.5px] text-[var(--color-ln-mute)]">{breed}</p>}
