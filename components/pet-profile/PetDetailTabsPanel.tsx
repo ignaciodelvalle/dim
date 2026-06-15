@@ -148,7 +148,7 @@ function LibretaPanel({
           Exportar libreta (PDF oficial)
         </button>
         <span className="hidden print:block text-[var(--color-ln-mute)]">
-          Generada por miMAR · {new Date().toLocaleString("es-AR")}
+          Generada por MiMAR · {new Date().toLocaleString("es-AR")}
         </span>
       </footer>
     </div>

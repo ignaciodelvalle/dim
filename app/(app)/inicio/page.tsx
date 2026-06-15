@@ -12,8 +12,10 @@ import Link from "next/link";
 
 import { CasesWidget, adaptWorkflow } from "@/components/CasesWidget";
 import { EventCatcher, type EventCatcherPet, type PetState } from "@/components/EventCatcher";
+import { LnButton } from "@/components/ui/Button";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { BRANDING } from "@/lib/branding";
@@ -217,17 +219,16 @@ export default async function InicioPage() {
               ))}
             </LnRegistry>
           ) : (
-            <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[24px] text-center">
-              <p className="text-[13px] text-[var(--color-ln-mute)]">
-                Todavía no cargaste ninguna mascota.
-              </p>
-              <Link
-                href="/mis-mascotas/nueva"
-                className="mt-[10px] inline-block rounded-[3px] bg-[var(--color-ln-azul)] px-[14px] py-[8px] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
-              >
-                Agregar mi primera mascota
-              </Link>
-            </div>
+            <LnEmptyState
+              title="Todavía no cargaste ninguna mascota."
+              action={
+                <Link href="/mis-mascotas/nueva">
+                  <LnButton variant="primary" size="sm">
+                    Agregar mi primera mascota
+                  </LnButton>
+                </Link>
+              }
+            />
           )}
         </div>
 

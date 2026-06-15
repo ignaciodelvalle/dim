@@ -58,10 +58,22 @@ export function LnSuccessScreen({
       <div className="max-w-sm w-full space-y-8 text-center">
         {/* Success icon badge — green tint, LN ok token */}
         <div
-          className="w-16 h-16 rounded-full bg-[var(--color-ln-ok-050)] border border-[var(--color-ln-ok-100)] flex items-center justify-center mx-auto text-3xl"
+          className="w-16 h-16 rounded-full bg-[var(--color-ln-ok-050)] border border-[var(--color-ln-ok-100)] flex items-center justify-center mx-auto"
           aria-hidden="true"
         >
-          ✅
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-8 h-8 text-[var(--color-ln-ok)]"
+            role="img"
+            aria-label="Éxito"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
         </div>
 
         <div className="space-y-2">

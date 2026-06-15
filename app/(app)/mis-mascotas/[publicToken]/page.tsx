@@ -1309,7 +1309,7 @@ export default async function PetDetailPage({
                         Inscripción válida
                       </p>
                       <p className="mt-[2px] text-[11.5px] text-[var(--color-ln-mute)]">
-                        miMAR · Registro Nacional de Mascotas
+                        MiMAR · Registro Nacional de Mascotas
                       </p>
                     </div>
                   </div>
