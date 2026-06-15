@@ -4,7 +4,7 @@ import type { EventFormState } from "@/app/actions/tattoo";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { TATTOO_LOCATIONS } from "@/lib/lookups";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
@@ -14,6 +14,11 @@ const FORM_ID = "tattoo-form";
 export function TattooForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const today = new Date().toISOString().slice(0, 10);
+  const [tattooCode, setTattooCode] = useState("");
+  const [locationOnBody, setLocationOnBody] = useState("");
+  const [description, setDescription] = useState("");
+  const [recordedAt, setRecordedAt] = useState(today);
+  const [recordedBy, setRecordedBy] = useState("");
 
   return (
     <>
@@ -33,6 +38,8 @@ export function TattooForm({ action }: { action: FormAction }) {
                 type="text"
                 required
                 placeholder="Ej: K9-2014-A"
+                value={tattooCode}
+                onChange={(e) => setTattooCode(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
                 mono
@@ -44,7 +51,8 @@ export function TattooForm({ action }: { action: FormAction }) {
               <LnSelect
                 id={id}
                 name="locationOnBody"
-                defaultValue=""
+                value={locationOnBody}
+                onChange={(e) => setLocationOnBody(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               >
@@ -67,6 +75,8 @@ export function TattooForm({ action }: { action: FormAction }) {
                 name="description"
                 rows={3}
                 placeholder="Ej: criadero FCA, campaña de castración CABA 2018, refugio…"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -79,7 +89,8 @@ export function TattooForm({ action }: { action: FormAction }) {
                 name="recordedAt"
                 type="date"
                 mono
-                defaultValue={today}
+                value={recordedAt}
+                onChange={(e) => setRecordedAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -91,6 +102,8 @@ export function TattooForm({ action }: { action: FormAction }) {
                 id={id}
                 name="recordedBy"
                 type="text"
+                value={recordedBy}
+                onChange={(e) => setRecordedBy(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />

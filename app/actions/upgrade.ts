@@ -539,8 +539,17 @@ export async function requestVetUpgradeAction(
   return requestVetUpgradeForUser(user.id, {
     matriculaNumber: String(formData.get("matriculaNumber") ?? "").trim(),
     matriculaJurisdiccion: String(formData.get("matriculaJurisdiccion") ?? "").trim(),
-    operationalProvince: String(formData.get("operationalProvince") ?? "").trim(),
-    operationalLocality: String(formData.get("operationalLocality") ?? "").trim(),
+    // LocationFields (l1) submits provinceCode (ISO) + localityName; keep the
+    // legacy free-text names as fallback. canonicalProvinceNameForStorage
+    // normalizes either shape to the canonical province display name.
+    operationalProvince:
+      canonicalProvinceNameForStorage(
+        String(formData.get("provinceCode") ?? "").trim() ||
+          String(formData.get("operationalProvince") ?? "").trim(),
+      ) ?? "",
+    operationalLocality:
+      String(formData.get("localityName") ?? "").trim() ||
+      String(formData.get("operationalLocality") ?? "").trim(),
     especialidad: String(formData.get("especialidad") ?? "").trim() || null,
     anosExperiencia: anos && Number.isFinite(anos) ? anos : null,
   });

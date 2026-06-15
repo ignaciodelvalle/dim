@@ -1,10 +1,11 @@
 "use client";
 
+import { useActionState, useState } from "react";
+
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
-import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
@@ -30,6 +31,11 @@ export function NoteForm({
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
 
+  // Controlled field state
+  const [text, setText] = useState(defaults?.text ?? "");
+  const [category, setCategory] = useState("");
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+
   return (
     <>
       <LnSheetHeader tone="azul" icon="📝" title="Nota" subtitle="Libreta sanitaria oficial" />
@@ -43,7 +49,9 @@ export function NoteForm({
                 name="text"
                 rows={5}
                 required
-                defaultValue={defaults?.text ?? ""}
+                autoFocus
+                value={text}
+                onChange={(e) => setText(e.target.value)}
                 placeholder="¿Qué observaste?"
                 aria-describedby={describedBy}
                 invalid={invalid}
@@ -55,7 +63,8 @@ export function NoteForm({
               <LnSelect
                 id={id}
                 name="category"
-                defaultValue=""
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               >
@@ -76,7 +85,8 @@ export function NoteForm({
                 type="date"
                 required
                 mono
-                defaultValue={defaults?.occurredAt ?? today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />

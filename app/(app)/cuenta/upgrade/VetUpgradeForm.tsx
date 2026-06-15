@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import { type UpgradeFormState, requestVetUpgradeAction } from "@/app/actions/upgrade";
+import { LocationFields } from "@/components/LocationFields";
 import { LnInput } from "@/components/ui/Field";
 
 const initialState: UpgradeFormState = { error: null };
@@ -56,23 +57,14 @@ export function VetUpgradeForm() {
         hint="Dónde fue emitida tu matrícula. Ej: CABA, Buenos Aires, Córdoba"
         required
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field
-          id="operationalProvince"
-          name="operationalProvince"
-          type="text"
-          label="Provincia donde ejercés"
-          hint="Si es la misma que la matrícula, repetila."
-          required
-        />
-        <Field
-          id="operationalLocality"
-          name="operationalLocality"
-          type="text"
-          label="Localidad"
-          hint="Ej: Palermo, San Isidro, Pilar."
-          required
-        />
+      <div className="space-y-1.5">
+        <p className="block text-sm font-medium text-[var(--color-ln-ink)]">
+          Localidad donde ejercés
+        </p>
+        <LocationFields mode="l1" />
+        <p className="text-xs text-[var(--color-ln-mute)]">
+          Para enrutar tu verificación al gobierno correspondiente. Requerido.
+        </p>
       </div>
       <Field
         id="especialidad"

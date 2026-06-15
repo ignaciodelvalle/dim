@@ -64,16 +64,6 @@ export function deriveActionItems(input: PetActionsMenuInput): ActionItem[] {
     });
   }
 
-  // "Marcar como perdida" — only when active.
-  if (pet.status === "active") {
-    items.push({
-      id: "mark-lost",
-      label: "Marcar como perdida",
-      href: `/mis-mascotas/${pet.publicToken}?sheet=marcar-perdida`,
-      variant: "danger",
-    });
-  }
-
   // Ley 26.858 — only for dog + legal owner role.
   if (pet.species === "dog" && accessPath === "owner" && ownershipRole === "owner") {
     items.push({

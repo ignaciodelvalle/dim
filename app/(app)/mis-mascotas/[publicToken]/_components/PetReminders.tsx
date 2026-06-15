@@ -74,7 +74,7 @@ export function PetReminders({
               href={`/mis-mascotas/${petToken}?tab=vacunas`}
               className="text-[var(--color-ln-azul)] underline-offset-4 hover:underline"
             >
-              Ver libreta →
+              Ver vacunas →
             </Link>
           </div>
         }

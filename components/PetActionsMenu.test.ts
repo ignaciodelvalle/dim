@@ -18,7 +18,7 @@ function makeInput(overrides: Partial<PetActionsMenuInput> = {}): PetActionsMenu
 }
 
 describe("deriveActionItems — conditional rules", () => {
-  it("'Marcar como perdida' only rendered when pet.status === 'active' (R-NEW-7)", () => {
+  it("'Marcar como perdida' is no longer in the overflow menu — moved to the pill + mobile footer to dedupe (R-NEW-7, revised in #550)", () => {
     const activePet = deriveActionItems(
       makeInput({ pet: { species: "dog", status: "active", publicToken: "TK" } }),
     );
@@ -26,7 +26,10 @@ describe("deriveActionItems — conditional rules", () => {
       makeInput({ pet: { species: "dog", status: "lost", publicToken: "TK" } }),
     );
 
-    expect(activePet.map((a) => a.id)).toContain("mark-lost");
+    // Dedupe (task #9): the lost/found CTA lives on the profile pill and the
+    // mobile footer, so it was removed from the overflow actions menu to avoid
+    // a third, redundant entry point.
+    expect(activePet.map((a) => a.id)).not.toContain("mark-lost");
     expect(lostPet.map((a) => a.id)).not.toContain("mark-lost");
   });
 

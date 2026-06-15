@@ -1,3 +1,4 @@
+import { BRANDING } from "@/lib/branding";
 import Link from "next/link";
 import { GobStripe } from "./GobStripe";
 
@@ -56,9 +57,9 @@ export function AppFooter({ columns = DEFAULT_COLUMNS }: Props) {
           <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
             {/* Marca + tagline */}
             <div>
-              <p className="text-lg font-bold text-ln-azul">MiMAR</p>
+              <p className="text-lg font-bold text-ln-azul">{BRANDING.appName}</p>
               <p className="mt-1 text-sm text-ln-mute">
-                Mi Mascota Argentina · Credencial digital sanitaria.
+                {BRANDING.appNameLong} · {BRANDING.tagline}.
               </p>
               <p className="mt-4 text-xs text-ln-mute">
                 Una iniciativa pública para que cada animal cuente con su historia clínica portable.
