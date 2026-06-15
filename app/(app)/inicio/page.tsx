@@ -10,14 +10,14 @@
 
 import Link from "next/link";
 
-import { type CaseRow, CasesWidget } from "@/components/CasesWidget";
+import { CasesWidget, adaptWorkflow } from "@/components/CasesWidget";
 import { EventCatcher, type EventCatcherPet, type PetState } from "@/components/EventCatcher";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { speciesLabel } from "@/lib/format";
-import type { DashboardPet, WorkflowItem, WorkflowKind } from "@/lib/owner-dashboard";
+import type { DashboardPet } from "@/lib/owner-dashboard";
 import {
   fetchActiveReminders,
   fetchOpenWorkflows,
@@ -54,34 +54,8 @@ function adaptPet(p: DashboardPet): EventCatcherPet {
   };
 }
 
-const WORKFLOW_KIND_ICON: Record<WorkflowKind, string> = {
-  pet_lost: "🧭",
-  welfare_report_open: "🚨",
-  welfare_report_closed: "🚨",
-  adoption_application_pending: "📨",
-  adoption_application_resolved: "📨",
-  foster_proposal_pending: "🏠",
-  foster_proposal_resolved: "🏠",
-  custody_transfer_pending: "🤝",
-  custody_dispute_open: "⚖️",
-  approval_request_pending: "📋",
-  approval_request_decided: "📋",
-  bite_observation_open: "🦷",
-  dangerous_breed_pending_attestation: "⚠️",
-  case_generic_open: "📁",
-};
-
-function adaptWorkflow(w: WorkflowItem): CaseRow {
-  return {
-    id: w.id,
-    title: w.title,
-    subtitle: w.subtitle ?? "",
-    ctaUrl: w.ctaUrl,
-    since: w.since,
-    severity: w.severity === "urgent" ? "danger" : w.severity,
-    icon: WORKFLOW_KIND_ICON[w.kind],
-  };
-}
+// WORKFLOW_KIND_ICON + adaptWorkflow live in components/CasesWidget.tsx
+// (shared by /inicio and /cuenta/casos).
 
 /** Map DB pet status to LnPetStatus for registry rows. */
 function toLnStatus(status: string): "ok" | "lost" {
@@ -299,7 +273,7 @@ export default async function InicioPage() {
           )}
 
           {/* Casos abiertos — CasesWidget has its own card frame */}
-          {cases.length > 0 && <CasesWidget cases={cases} />}
+          {cases.length > 0 && <CasesWidget cases={cases} historyHref="/cuenta/casos" />}
         </div>
       </div>
 
