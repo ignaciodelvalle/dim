@@ -27,8 +27,11 @@ export function ScheduleVaccineForm({
   const vaccines = vaccinesForSpecies(species);
   const [suggestedDate, setSuggestedDate] = useState<string>("");
   const [dateValue, setDateValue] = useState<string>("");
+  const [vaccineName, setVaccineName] = useState<string>("");
+  const [description, setDescription] = useState<string>("");
 
   function handleVaccineChange(name: string) {
+    setVaccineName(name);
     const def = vaccines.find((v) => v.name.toLowerCase() === name.trim().toLowerCase());
     if (def?.intervalMonths) {
       const suggested = isoDateFromNowPlusMonths(def.intervalMonths);
@@ -52,6 +55,7 @@ export function ScheduleVaccineForm({
             autoComplete="off"
             aria-describedby={describedBy}
             invalid={invalid}
+            value={vaccineName}
             onChange={(e) => handleVaccineChange(e.target.value)}
           />
         )}
@@ -92,6 +96,8 @@ export function ScheduleVaccineForm({
             name="description"
             rows={3}
             placeholder="Cualquier detalle (clínica habitual, dosis, etc.)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
