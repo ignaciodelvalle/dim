@@ -16,6 +16,7 @@ import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { BRANDING } from "@/lib/branding";
 import { speciesLabel } from "@/lib/format";
 import type { DashboardPet, WorkflowItem, WorkflowKind } from "@/lib/owner-dashboard";
 import {
@@ -197,7 +198,7 @@ export default async function InicioPage() {
             <span className="text-center">
               ASIENTO
               <br />
-              miMAR
+              {BRANDING.appName}
             </span>
           </div>
         </div>
@@ -312,7 +313,7 @@ export default async function InicioPage() {
         >
           + Denunciar maltrato animal
         </Link>
-        <span>miMAR · Registro Nacional de Mascotas</span>
+        <span>{BRANDING.appName} · Registro Nacional de Mascotas</span>
       </div>
     </div>
   );

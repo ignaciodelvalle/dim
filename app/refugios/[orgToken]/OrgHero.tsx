@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { LnBadge } from "@/components/ui/Badge";
 import { LnGuilloche } from "@/components/ui/DocElements";
+import { BRANDING } from "@/lib/branding";
 import type { OrgPublicProfile } from "@/lib/org-public-profile";
 import { orgLogoUrl } from "@/lib/storage";
 
@@ -31,8 +32,7 @@ interface Props {
   serviceCount: number;
 }
 
-const TRUST_COPY =
-  "Refugio verificado por MiMAR. Las postulaciones llegan directo al equipo del refugio, que coordina los próximos pasos por email con cada candidato.";
+const TRUST_COPY = `Refugio verificado por ${BRANDING.appName}. Las postulaciones llegan directo al equipo del refugio, que coordina los próximos pasos por email con cada candidato.`;
 
 export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Props) {
   const logoUrl = orgLogoUrl(org.logoStoragePath);
