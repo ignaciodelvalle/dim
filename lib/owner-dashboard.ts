@@ -1270,6 +1270,40 @@ function humanizeApprovalRequestType(type: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Count helpers for /cuenta/transitos hub badges
+// ---------------------------------------------------------------------------
+
+/**
+ * Count pending foster proposals for a volunteer user.
+ * Used by the /cuenta/transitos hub to show a badge on the Propuestas card.
+ */
+export async function countPendingFosterProposals(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(fosterProposals)
+    .where(and(eq(fosterProposals.volunteerUserId, userId), eq(fosterProposals.status, "pending")));
+  return row?.n ?? 0;
+}
+
+/**
+ * Count active foster ownerships (role = 'foster', endedAt IS NULL).
+ * Used by the /cuenta/transitos hub to show a badge on the Tránsitos activos card.
+ */
+export async function countActiveFosterOwnerships(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.ownerUserId, userId),
+        eq(ownerships.role, "foster"),
+        isNull(ownerships.endedAt),
+      ),
+    );
+  return row?.n ?? 0;
+}
+
+// ---------------------------------------------------------------------------
 // Count helpers for /mis-mascotas "Más acciones" badges
 // ---------------------------------------------------------------------------
 
