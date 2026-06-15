@@ -1,6 +1,7 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/tattoo";
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { TATTOO_LOCATIONS } from "@/lib/lookups";
@@ -24,7 +25,7 @@ export function TattooForm({ action }: { action: FormAction }) {
     <>
       <LnSheetHeader
         tone="azul"
-        icon="🖊️"
+        icon={<Icon name="tatuaje" decorative />}
         title="Registrar tatuaje"
         subtitle="Libreta sanitaria oficial"
       />

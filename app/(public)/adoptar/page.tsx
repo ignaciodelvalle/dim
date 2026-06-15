@@ -49,7 +49,7 @@ export default async function AdoptarPage({
         {/* Hero heading */}
         <header className="space-y-2 max-w-[720px]">
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[42px] font-semibold leading-[1.05] tracking-[-0.025em] text-[var(--color-ln-ink)]">
-            Adoptar en <span className="text-[var(--color-ln-azul)]">miMAR</span>
+            Adoptar en <span className="text-[var(--color-ln-azul)]">MiMAR</span>
           </h1>
           <p className="text-[16px] leading-[1.55] text-[var(--color-ln-ink-2)]">
             Mascotas publicadas por refugios verificados en Argentina. Si ves alguna que te resuene,

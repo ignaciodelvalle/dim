@@ -120,7 +120,7 @@ export function HeaderNav({ nav, user }: Props) {
           </Link>
         ) : (
           <Link
-            href="/auth/login"
+            href="/login"
             className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-azul px-6 text-sm font-semibold text-white no-underline hover:bg-ln-azul-700"
           >
             Iniciar sesión
@@ -207,7 +207,7 @@ export function HeaderNav({ nav, user }: Props) {
                 </Link>
               ) : (
                 <Link
-                  href="/auth/login"
+                  href="/login"
                   className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-ln-azul px-6 text-sm font-semibold text-white no-underline"
                 >
                   Iniciar sesión

@@ -15,6 +15,7 @@ import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
+import { LnBadge } from "@/components/ui/Badge";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 
@@ -148,12 +149,8 @@ export default async function CuentaPage() {
                 </p>
               )}
               <div className="mt-[8px] flex flex-wrap gap-[6px]">
-                <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
-                  {roleLabel}
-                </span>
-                <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
-                  {accountTypeLabel}
-                </span>
+                <LnBadge variant="info">{roleLabel}</LnBadge>
+                <LnBadge variant="neutral">{accountTypeLabel}</LnBadge>
               </div>
             </div>
           </div>
@@ -184,15 +181,13 @@ export default async function CuentaPage() {
             ) : (
               <div className="flex items-center gap-[10px]">
                 <span className="h-[8px] w-[8px] flex-shrink-0 rounded-full bg-[var(--color-ln-mute)]" />
-                <span className="text-[13px] text-[var(--color-ln-mute)]">
-                  DNI no declarado —{" "}
-                  <Link
-                    href="?sheet=verificar-dni"
-                    className="text-[var(--color-ln-azul)] no-underline hover:underline"
-                  >
-                    Declarar ahora
-                  </Link>
-                </span>
+                <span className="text-[13px] text-[var(--color-ln-mute)]">DNI no declarado</span>
+                <Link
+                  href="?sheet=verificar-dni"
+                  className="inline-flex items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[11px] py-[6px] text-[12px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] no-underline"
+                >
+                  Declarar ahora
+                </Link>
               </div>
             )}
 
@@ -338,7 +333,7 @@ export default async function CuentaPage() {
       {/* Footer */}
       <div className="mt-[32px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
         <span>Documento sincronizado</span>
-        <span>miMAR · Registro Nacional de Mascotas</span>
+        <span>MiMAR · Registro Nacional de Mascotas</span>
       </div>
 
       {/* Sheet mounter */}
@@ -379,9 +374,23 @@ function VerificationBadge({ verified }: { verified: boolean }) {
   return (
     <span
       aria-label="no declarado"
-      className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-warn-050)] text-[11px] text-[var(--color-ln-warn)]"
+      className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]"
     >
-      ⏳
+      {/* clock/pending glyph */}
+      <svg
+        width="11"
+        height="11"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
     </span>
   );
 }

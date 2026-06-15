@@ -152,10 +152,18 @@ export default async function AsistenciaPage({
                 </p>
               )}
               {serviceDog.credentialStatus === "vigente" && (
-                <p className="mt-[8px] text-[12.5px] text-[var(--color-ln-ok)]">
-                  Tu banner público está activo cuando elegís mostrarlo. Lo podés presentar en la
-                  puerta de un local, transporte o servicio público.
-                </p>
+                <div className="mt-[8px]">
+                  <p className="text-[12.5px] text-[var(--color-ln-ok)]">
+                    Tu banner público está activo cuando elegís mostrarlo. Lo podés presentar en la
+                    puerta de un local, transporte o servicio público.
+                  </p>
+                  <Link
+                    href={`/mis-mascotas/${publicToken}/asistencia/presentar`}
+                    className="mt-[6px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                  >
+                    Presentar credencial →
+                  </Link>
+                </div>
               )}
             </LnCardBody>
           </LnCard>

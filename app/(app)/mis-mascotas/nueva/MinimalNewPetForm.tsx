@@ -2,6 +2,7 @@
 
 import { type FormEvent, useActionState, useState } from "react";
 
+import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnInput, LnRadio, LnSelect } from "@/components/ui/Field";
 import type { NewPetFormState } from "@/src/modules/pets/actions";
 
@@ -78,6 +79,20 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
             No sé
           </LnRadio>
         </div>
+      </div>
+
+      {/* ── Location ─────────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-[6px]">
+        <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+          Localidad{" "}
+          <span className="font-normal lowercase tracking-[.04em] text-[var(--color-ln-faint)]">
+            opcional
+          </span>
+        </p>
+        <LocationFields mode="l1" />
+        <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+          Ayuda a las campañas regionales de salud animal.
+        </p>
       </div>
 
       {/* ── Error ────────────────────────────────────────────────────── */}

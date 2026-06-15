@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import {
@@ -44,7 +45,7 @@ export function BiteForm({
     <>
       <LnSheetHeader
         tone="seal"
-        icon="🦷"
+        icon={<Icon name="mordedura" decorative />}
         title="Reportar mordedura"
         subtitle="Libreta sanitaria oficial"
       />

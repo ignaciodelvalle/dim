@@ -46,7 +46,7 @@ vi.mock("next/link", () => ({
   }) => React.createElement("a", { href, className }, children),
 }));
 
-import { PetSightingForm } from "@/app/p/[publicToken]/sighting/PetSightingForm";
+import { PetSightingForm } from "@/app/(public)/p/[publicToken]/sighting/PetSightingForm";
 
 function render(node: React.ReactElement): string {
   return renderToStaticMarkup(node);

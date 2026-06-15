@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
@@ -36,7 +37,7 @@ export function VetVisitForm({
     <>
       <LnSheetHeader
         tone="azul"
-        icon="🏥"
+        icon={<Icon name="vet" decorative />}
         title="Visita veterinaria"
         subtitle="Libreta sanitaria oficial"
       />

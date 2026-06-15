@@ -4,6 +4,7 @@
 // Presentation ONLY: action, useActionState wiring, field names, and submit
 // logic are untouched.
 
+import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRow, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
@@ -73,7 +74,7 @@ export function MedicationStartForm({
     <>
       <LnSheetHeader
         tone="violeta"
-        icon="💊"
+        icon={<Icon name="medicacion" decorative />}
         title="Inicio de medicación"
         subtitle="Libreta sanitaria oficial"
       />

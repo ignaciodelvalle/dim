@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
 import type { EventFormState } from "@/src/modules/events/actions";
@@ -31,7 +32,7 @@ export function ReplaceMicrochipForm({
     <>
       <LnSheetHeader
         tone="azul"
-        icon="🔄"
+        icon={<Icon name="microchip-reemplazo" decorative />}
         title="Reemplazar microchip"
         subtitle="Libreta sanitaria oficial"
       />

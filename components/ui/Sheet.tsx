@@ -21,7 +21,7 @@ import type { ReactNode } from "react";
  *   "verde"   #2e7d4f  (vacuna)
  *   "violeta" #6b4ea8  (medicación)
  *   "seal"    #a23a2c  (perdida)
- *   "warn"    #b0771a  (cautionary)
+ *   "warn"    #96600e  (cautionary)
  *
  * Usage:
  *   <LnSheetPage
@@ -50,7 +50,7 @@ export type LnSheetTone = "azul" | "verde" | "violeta" | "seal" | "warn" | "rosa
 const toneTopBorder: Record<LnSheetTone, string> = {
   azul: "border-t-[var(--color-ln-azul)]",
   verde: "border-t-[var(--color-ln-ok)]",
-  violeta: "border-t-[#6b4ea8]",
+  violeta: "border-t-[var(--color-ln-violeta)]",
   seal: "border-t-[var(--color-ln-seal)]",
   warn: "border-t-[var(--color-ln-warn)]",
   rosa: "border-t-[var(--color-ln-rosa)]",
@@ -59,16 +59,17 @@ const toneTopBorder: Record<LnSheetTone, string> = {
 const toneIconBg: Record<LnSheetTone, string> = {
   azul: "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)] border-[var(--color-ln-celeste-100)]",
   verde: "bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)] border-[var(--color-ln-ok-100)]",
-  violeta: "bg-[#f0ecf8] text-[#6b4ea8] border-[#ddd2f0]",
+  violeta:
+    "bg-[var(--color-ln-violeta-050)] text-[var(--color-ln-violeta)] border-[var(--color-ln-violeta-100)]",
   seal: "bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)] border-[var(--color-ln-err-100)]",
   warn: "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] border-[var(--color-ln-warn-100)]",
-  rosa: "bg-[#fbe8f2] text-[var(--color-ln-rosa)] border-[#efbdd8]",
+  rosa: "bg-[var(--color-ln-rosa-050)] text-[var(--color-ln-rosa)] border-[var(--color-ln-rosa-100)]",
 };
 
 const toneCtaClass: Record<LnSheetTone, string> = {
   azul: "bg-[var(--color-ln-azul)] border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)]",
   verde: "bg-[var(--color-ln-ok)] border-[var(--color-ln-ok)] hover:opacity-90",
-  violeta: "bg-[#6b4ea8] border-[#6b4ea8] hover:opacity-90",
+  violeta: "bg-[var(--color-ln-violeta)] border-[var(--color-ln-violeta)] hover:opacity-90",
   seal: "bg-[var(--color-ln-seal)] border-[var(--color-ln-seal)] hover:opacity-90",
   warn: "bg-[var(--color-ln-warn)] border-[var(--color-ln-warn)] hover:opacity-90",
   rosa: "bg-[var(--color-ln-rosa)] border-[var(--color-ln-rosa)] hover:opacity-90",

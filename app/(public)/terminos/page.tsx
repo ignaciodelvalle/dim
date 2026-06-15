@@ -9,16 +9,8 @@ export const metadata: Metadata = {
 
 export default function TerminosPage() {
   return (
-    <main className="min-h-screen bg-[var(--color-ln-paper)]">
+    <main id="main-content" className="bg-[var(--color-ln-paper)]">
       <div className="max-w-2xl mx-auto px-6 py-12 space-y-10">
-        <Link
-          href="/"
-          className="inline-block text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)] transition-colors no-underline"
-          style={{ fontFamily: "var(--font-ln-mono)" }}
-        >
-          ← Volver al inicio
-        </Link>
-
         <header className="space-y-2">
           <h1
             className="text-[32px] font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"

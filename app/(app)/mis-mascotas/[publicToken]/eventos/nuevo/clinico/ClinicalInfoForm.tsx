@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
@@ -48,7 +49,7 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
     <>
       <LnSheetHeader
         tone="azul"
-        icon="🔬"
+        icon={<Icon name="clinico" decorative />}
         title="Información clínica"
         subtitle="Libreta sanitaria oficial"
       />

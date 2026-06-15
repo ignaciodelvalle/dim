@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import type { WorkflowItem, WorkflowKind } from "@/lib/owner-dashboard";
 
 // CasesWidget — the owner's cases list.
@@ -28,22 +29,22 @@ export type CaseRow = {
   icon?: string;
 };
 
-/** Case-kind → icon (emoji in v1). */
+/** Case-kind → icon name for the Icon component. */
 export const WORKFLOW_KIND_ICON: Record<WorkflowKind, string> = {
-  pet_lost: "🧭",
-  welfare_report_open: "🚨",
-  welfare_report_closed: "🚨",
-  adoption_application_pending: "📨",
-  adoption_application_resolved: "📨",
-  foster_proposal_pending: "🏠",
-  foster_proposal_resolved: "🏠",
-  custody_transfer_pending: "🤝",
-  custody_dispute_open: "⚖️",
-  approval_request_pending: "📋",
-  approval_request_decided: "📋",
-  bite_observation_open: "🦷",
-  dangerous_breed_pending_attestation: "⚠️",
-  case_generic_open: "📁",
+  pet_lost: "perdida",
+  welfare_report_open: "denuncia",
+  welfare_report_closed: "denuncia",
+  adoption_application_pending: "solicitud",
+  adoption_application_resolved: "solicitud",
+  foster_proposal_pending: "casa",
+  foster_proposal_resolved: "casa",
+  custody_transfer_pending: "trato",
+  custody_dispute_open: "disputa",
+  approval_request_pending: "custodia",
+  approval_request_decided: "custodia",
+  bite_observation_open: "mordedura",
+  dangerous_breed_pending_attestation: "alerta",
+  case_generic_open: "nota",
 };
 
 /** Adapt a WorkflowItem (lib/owner-dashboard) to a CaseRow for rendering. */
@@ -145,10 +146,10 @@ function CaseIcon({
           : "bg-ln-celeste/10 text-ln-azul";
   return (
     <span
-      className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base ${tone}`}
+      className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tone}`}
       aria-hidden
     >
-      {icon ?? "•"}
+      {icon ? <Icon name={icon} size={18} decorative /> : <Icon name="nota" size={18} decorative />}
     </span>
   );
 }
