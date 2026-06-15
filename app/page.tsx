@@ -92,7 +92,7 @@ export default async function Home() {
               >
                 Soy refugio o vet
                 <span className="block text-xs font-normal opacity-70 mt-1">
-                  Después configurás la org
+                  Registrá tu organización después
                 </span>
               </Link>
               <Link

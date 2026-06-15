@@ -13,7 +13,7 @@ const flagConfig: Record<LnPetStatus, { label: string; bg: string; text: string;
   {
     ok: {
       label: "AL DÍA",
-      bg: "bg-[#e8f3ec]",
+      bg: "bg-[var(--color-ln-ok-bg)]",
       text: "text-[var(--color-ln-ok)]",
       border: "border-[var(--color-ln-ok-100)]",
     },
@@ -31,9 +31,9 @@ const flagConfig: Record<LnPetStatus, { label: string; bg: string; text: string;
     },
     pregnant: {
       label: "PREÑADA",
-      bg: "bg-[#fbe9f1]",
+      bg: "bg-[var(--color-ln-rosa-bg)]",
       text: "text-[var(--color-ln-rosa)]",
-      border: "border-[#f1c8dd]",
+      border: "border-[var(--color-ln-rosa-bd)]",
     },
   };
 
@@ -84,7 +84,7 @@ const vstampConfig: Record<
   },
   over: {
     label: "VENCIDA",
-    bg: "bg-[#fcefed]",
+    bg: "bg-[var(--color-ln-err-bg)]",
     text: "text-[var(--color-ln-err)]",
     border: "border-[var(--color-ln-err-100)]",
   },
@@ -122,8 +122,8 @@ export function LnMemorialChip({ className = "" }: { className?: string }) {
   return (
     <span
       className={[
-        "inline-flex items-center gap-[6px] rounded-full border border-[#e0d4b8] bg-[#f0ead9] px-[10px] py-[3px]",
-        "font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.1em] text-[#6a5a3f]",
+        "inline-flex items-center gap-[6px] rounded-full border border-[var(--color-ln-memorial-chip-bd)] bg-[var(--color-ln-memorial-chip-bg)] px-[10px] py-[3px]",
+        "font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.1em] text-[var(--color-ln-memorial-chip-text)]",
         className,
       ]
         .filter(Boolean)
