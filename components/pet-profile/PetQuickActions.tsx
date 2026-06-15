@@ -48,12 +48,19 @@ export function PetQuickActions({ petPublicToken, petStatus, preferredVetPhone }
           Llamar vet
         </a>
       ) : (
-        <span
-          className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full bg-ln-card text-ln-azul border-[3px] border-ln-line opacity-50 cursor-not-allowed"
-          aria-disabled="true"
-          title="No tenés un vet de cabecera configurado. Editá tu cuenta para agregarlo."
-        >
-          Llamar vet
+        <span className="flex flex-col items-start gap-0.5">
+          <span
+            className="inline-flex items-center justify-center min-h-9 px-4 text-sm font-semibold rounded-full bg-ln-card text-ln-azul border-[3px] border-ln-line opacity-50 cursor-not-allowed"
+            aria-disabled="true"
+          >
+            Llamar vet
+          </span>
+          <Link
+            href="/cuenta/editar"
+            className="pl-1 text-[11px] text-ln-mute hover:text-ln-azul hover:underline"
+          >
+            Agregar vet de cabecera →
+          </Link>
         </span>
       )}
     </div>

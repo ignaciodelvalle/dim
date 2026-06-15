@@ -1150,6 +1150,7 @@ export default async function PetDetailPage({
                   <PetCurrentStateSection
                     pet={pet}
                     typedEvents={typedEvents}
+                    petToken={pet.publicToken}
                     canonicalIds={{
                       microchip: canonicalIds.microchip
                         ? {
@@ -1247,6 +1248,7 @@ export default async function PetDetailPage({
                   publicToken={pet.publicToken}
                   qrUrl={`/p/${pet.publicToken}.png`}
                   publicHref={`/p/${pet.publicToken}`}
+                  shareHref={`/mis-mascotas/${pet.publicToken}?sheet=compartir-libreta`}
                 />
 
                 {/* Physical tag interest */}
