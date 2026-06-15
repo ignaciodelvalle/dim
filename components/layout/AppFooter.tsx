@@ -23,7 +23,9 @@ const DEFAULT_COLUMNS: Column[] = [
       { href: "/perdidas", label: "Mascotas perdidas" },
       { href: "/adoptar", label: "Adoptar" },
       { href: "/denuncias", label: "Denuncias" },
-      { href: "/libreta", label: "Mi libreta" },
+      // /libreta requires auth — omitted from public footer to avoid dead link.
+      // Authenticated users reach it from their portal sidebar.
+      { href: "/login", label: "Mi libreta" },
     ],
   },
   {
