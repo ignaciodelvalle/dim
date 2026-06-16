@@ -1,6 +1,7 @@
 "use client";
 
 import type { NavItem } from "@/components/layout/HeaderNav";
+import { BRANDING } from "@/lib/branding";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -84,7 +85,9 @@ export function OpMobileDrawer({
               m·
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="font-ln-serif text-[15px] font-semibold text-white">MiMAR</span>
+              <span className="font-ln-serif text-[15px] font-semibold text-white">
+                {BRANDING.appName}
+              </span>
               <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
                 {brandSubtitle}
               </span>

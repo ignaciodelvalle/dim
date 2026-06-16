@@ -1,4 +1,5 @@
 import type { NavItem } from "@/components/layout/HeaderNav";
+import { BRANDING } from "@/lib/branding";
 import { type NavSection, OpRailNav } from "./OpRailNav";
 
 type Props = {
@@ -57,7 +58,7 @@ export function OpRail({
         </div>
         <div className="flex flex-col leading-tight">
           <span className="font-ln-serif text-[15px] font-semibold tracking-[-0.005em] text-white">
-            MiMAR
+            {BRANDING.appName}
           </span>
           <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
             {brandSubtitle}

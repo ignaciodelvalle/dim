@@ -5,6 +5,7 @@
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { OpCallout, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { db, serviceOfferings } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
@@ -63,7 +64,7 @@ export default async function ServiciosPage({
 
       {!canCreate && offerings.length === 0 && (
         <OpCallout
-          icon="🔒"
+          icon={<Icon name="candado" decorative />}
           title="Permiso requerido"
           body={
             <>

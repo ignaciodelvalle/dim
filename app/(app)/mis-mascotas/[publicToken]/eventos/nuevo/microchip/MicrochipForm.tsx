@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
@@ -26,7 +27,7 @@ export function MicrochipForm({
     <>
       <LnSheetHeader
         tone="azul"
-        icon="📡"
+        icon={<Icon name="microchip" decorative />}
         title="Registrar microchip"
         subtitle="Libreta sanitaria oficial"
       />

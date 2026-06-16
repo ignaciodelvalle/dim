@@ -122,7 +122,7 @@ export default async function OrganizacionesPage({
 
       <p className="text-[12px] text-ln-op-mute">
         <Link href="/gob" className="underline underline-offset-4 hover:text-ln-op-ink-2">
-          {"<-"} Volver al dashboard
+          {"←"} Volver al dashboard
         </Link>
       </p>
     </div>

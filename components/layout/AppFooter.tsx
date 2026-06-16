@@ -1,3 +1,4 @@
+import { BRANDING } from "@/lib/branding";
 import Link from "next/link";
 import { GobStripe } from "./GobStripe";
 
@@ -22,7 +23,9 @@ const DEFAULT_COLUMNS: Column[] = [
       { href: "/perdidas", label: "Mascotas perdidas" },
       { href: "/adoptar", label: "Adoptar" },
       { href: "/denuncias", label: "Denuncias" },
-      { href: "/libreta", label: "Mi libreta" },
+      // /libreta requires auth — omitted from public footer to avoid dead link.
+      // Authenticated users reach it from their portal sidebar.
+      { href: "/login", label: "Mi libreta" },
     ],
   },
   {
@@ -56,9 +59,9 @@ export function AppFooter({ columns = DEFAULT_COLUMNS }: Props) {
           <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
             {/* Marca + tagline */}
             <div>
-              <p className="text-lg font-bold text-ln-azul">MiMAR</p>
+              <p className="text-lg font-bold text-ln-azul">{BRANDING.appName}</p>
               <p className="mt-1 text-sm text-ln-mute">
-                Mi Mascota Argentina · Credencial digital sanitaria.
+                {BRANDING.appNameLong} · {BRANDING.tagline}.
               </p>
               <p className="mt-4 text-xs text-ln-mute">
                 Una iniciativa pública para que cada animal cuente con su historia clínica portable.

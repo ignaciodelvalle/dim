@@ -1,10 +1,12 @@
 "use client";
 
+import { useActionState, useState } from "react";
+
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { SymptomFormState } from "@/src/modules/events/actions";
-import { useActionState } from "react";
 
 const initialState: SymptomFormState = { error: null };
 type FormAction = (prev: SymptomFormState, formData: FormData) => Promise<SymptomFormState>;
@@ -21,11 +23,16 @@ export function SymptomForm({
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
 
+  // Controlled field state
+  const [freeText, setFreeText] = useState("");
+  const [severity, setSeverity] = useState("");
+  const [onsetAt, setOnsetAt] = useState("");
+
   return (
     <>
       <LnSheetHeader
         tone="warn"
-        icon="🩺"
+        icon={<Icon name="sintoma" decorative />}
         title="Registrar síntoma"
         subtitle="Libreta sanitaria oficial"
       />
@@ -40,6 +47,8 @@ export function SymptomForm({
                 required
                 rows={5}
                 placeholder={`Ej: hace dos días que ${petName} vomita y está decaída. Hoy no quiso comer.`}
+                value={freeText}
+                onChange={(e) => setFreeText(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -50,7 +59,8 @@ export function SymptomForm({
               <LnSelect
                 id={id}
                 name="severity"
-                defaultValue=""
+                value={severity}
+                onChange={(e) => setSeverity(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               >
@@ -69,6 +79,8 @@ export function SymptomForm({
                 type="date"
                 mono
                 max={today}
+                value={onsetAt}
+                onChange={(e) => setOnsetAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />

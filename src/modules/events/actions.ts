@@ -35,6 +35,7 @@ import { pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { findDisease } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
+import { checkboxOn } from "@/lib/form-checkbox";
 import { parseDateInput } from "@/lib/format";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
 import type { SupabaseServerClient } from "@/lib/pet-access";
@@ -1005,7 +1006,7 @@ export async function recordDiseaseDiagnosisAction(
   }
 
   const diseaseCode = String(formData.get("diseaseCode") ?? "").trim();
-  const confirmedByLab = formData.get("confirmedByLab") === "on";
+  const confirmedByLab = checkboxOn(formData, "confirmedByLab");
   const labName = String(formData.get("labName") ?? "").trim() || null;
   const labReportRef = String(formData.get("labReportReference") ?? "").trim() || null;
   const diagnosisDateRaw = String(formData.get("diagnosisDate") ?? "").trim();
@@ -1069,7 +1070,7 @@ function parseDisclosurePrefsFromForm(
   formData: FormData,
   petDefaults: import("./application/lifecycle/set-pet-lost-use-case").DisclosurePrefsInput,
 ): import("./application/lifecycle/set-pet-lost-use-case").DisclosurePrefsInput {
-  const checked = (name: string) => formData.get(name) === "on";
+  const checked = (name: string) => checkboxOn(formData, name);
   const hasSection = [
     "disclose_first_name_when_lost",
     "disclose_phone_when_lost",

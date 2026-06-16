@@ -4,6 +4,7 @@
 // Presentation ONLY: action, useActionState wiring, field names, and submit
 // logic are untouched.
 
+import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
@@ -41,6 +42,11 @@ export function VaccinationForm({
   const [vaccineName, setVaccineName] = useState(initialVaccineName ?? "");
   const [nextDueAt, setNextDueAt] = useState("");
   const [nextDueOverridden, setNextDueOverridden] = useState(false);
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+  const [brand, setBrand] = useState("");
+  const [batch, setBatch] = useState("");
+  const [administeredBy, setAdministeredBy] = useState("");
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   const suggestedNextDue = useMemo(() => {
     const def = findVaccineByName(vaccineName);
@@ -56,7 +62,7 @@ export function VaccinationForm({
     <>
       <LnSheetHeader
         tone="verde"
-        icon="💉"
+        icon={<Icon name="vacuna" decorative />}
         title="Registrar vacuna"
         subtitle="Libreta sanitaria oficial"
       />
@@ -99,7 +105,8 @@ export function VaccinationForm({
                   type="date"
                   required
                   mono
-                  defaultValue={defaults?.occurredAt ?? today}
+                  value={occurredAt}
+                  onChange={(e) => setOccurredAt(e.target.value)}
                   aria-describedby={describedBy}
                   invalid={invalid}
                 />
@@ -133,19 +140,41 @@ export function VaccinationForm({
           <LnRow>
             <LnField label="Marca / laboratorio">
               {({ id, describedBy }) => (
-                <LnInput id={id} name="brand" type="text" aria-describedby={describedBy} />
+                <LnInput
+                  id={id}
+                  name="brand"
+                  type="text"
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  aria-describedby={describedBy}
+                />
               )}
             </LnField>
             <LnField label="Lote">
               {({ id, describedBy }) => (
-                <LnInput id={id} name="batch" type="text" mono aria-describedby={describedBy} />
+                <LnInput
+                  id={id}
+                  name="batch"
+                  type="text"
+                  mono
+                  value={batch}
+                  onChange={(e) => setBatch(e.target.value)}
+                  aria-describedby={describedBy}
+                />
               )}
             </LnField>
           </LnRow>
 
           <LnField label="Aplicada por (vet / clínica)">
             {({ id, describedBy }) => (
-              <LnInput id={id} name="administeredBy" type="text" aria-describedby={describedBy} />
+              <LnInput
+                id={id}
+                name="administeredBy"
+                type="text"
+                value={administeredBy}
+                onChange={(e) => setAdministeredBy(e.target.value)}
+                aria-describedby={describedBy}
+              />
             )}
           </LnField>
 
@@ -160,7 +189,8 @@ export function VaccinationForm({
                 id={id}
                 name="notes"
                 rows={3}
-                defaultValue={defaults?.notes ?? ""}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}

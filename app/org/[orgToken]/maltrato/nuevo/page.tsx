@@ -14,7 +14,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
-import { WelfareReportForm } from "@/app/denuncias/nueva/WelfareReportForm";
+import { WelfareReportForm } from "@/app/(public)/denuncias/nueva/WelfareReportForm";
 import { OpBreach, OpCallout, OpCrumbs } from "@/components/ui/dashboard";
 import { db, organizationMemberships, organizations, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";

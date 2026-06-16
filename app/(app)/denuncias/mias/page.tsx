@@ -90,7 +90,7 @@ export default async function MisDenunciasPage() {
       {reports.length === 0 ? (
         <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] px-[24px] py-[40px] text-center">
           <p className="font-[var(--font-ln-serif)] text-[16px] text-[var(--color-ln-ink-2)]">
-            Aún no enviaste denuncias.
+            No hay denuncias en tu historial.
           </p>
           <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
             Podés reportar maltrato, abandono u otras situaciones de riesgo para animales.

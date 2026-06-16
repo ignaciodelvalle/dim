@@ -25,6 +25,8 @@ const BASE_VALID: Record<string, string> = {
   name: "Rex",
   species: "dog",
   sex: "male",
+  localityName: "La Plata",
+  provinceCode: "AR-B",
 };
 
 // ---------------------------------------------------------------------------
@@ -57,6 +59,19 @@ describe("parsePetForm — required fields", () => {
     expect(result.parsed).not.toBeNull();
     expect(result.parsed?.name).toBe("Rex");
     expect(result.parsed?.species).toBe("dog");
+  });
+
+  it("returns LOCALITY_REQUIRED when localityName is missing", () => {
+    const { localityName: _omitted, ...withoutLocality } = BASE_VALID;
+    const fd = makeFormData(withoutLocality);
+    const result = parsePetForm(fd);
+    expect(result).toMatchObject({ parsed: null, error: "LOCALITY_REQUIRED" });
+  });
+
+  it("returns LOCALITY_REQUIRED when localityName is blank", () => {
+    const fd = makeFormData({ ...BASE_VALID, localityName: "  " });
+    const result = parsePetForm(fd);
+    expect(result).toMatchObject({ parsed: null, error: "LOCALITY_REQUIRED" });
   });
 });
 

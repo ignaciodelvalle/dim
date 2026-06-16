@@ -1,6 +1,7 @@
 "use client";
 
 import { Icon } from "@/components/Icon";
+import { BRANDING } from "@/lib/branding";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
@@ -119,7 +120,7 @@ export function HeaderNav({ nav, user }: Props) {
           </Link>
         ) : (
           <Link
-            href="/auth/login"
+            href="/login"
             className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-azul px-6 text-sm font-semibold text-white no-underline hover:bg-ln-azul-700"
           >
             Iniciar sesión
@@ -161,7 +162,7 @@ export function HeaderNav({ nav, user }: Props) {
           />
           <div className="absolute right-0 top-0 h-full w-[85%] max-w-sm bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-ln-line px-4 py-3">
-              <span className="text-lg font-bold text-ln-azul">MiMAR</span>
+              <span className="text-lg font-bold text-ln-azul">{BRANDING.appName}</span>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -206,7 +207,7 @@ export function HeaderNav({ nav, user }: Props) {
                 </Link>
               ) : (
                 <Link
-                  href="/auth/login"
+                  href="/login"
                   className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-ln-azul px-6 text-sm font-semibold text-white no-underline"
                 >
                   Iniciar sesión

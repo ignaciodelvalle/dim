@@ -1,70 +1,253 @@
-// Minimal stub for the Poncho `icono-arg` webfont Icon component.
+// Icon component backed by lucide-react.
 //
-// `docs/archive/poncho/PLAN.md` describes Fase 1 (completada) as including:
-//   "852 íconos `icono-arg` como webfont + componente <Icon name="..." />"
+// Previously a stub for the icono-arg webfont (never committed). Replaced
+// with a curated ICON_MAP covering every name actually used in the app.
 //
-// The PLAN doc and the Poncho components that import this file were rescued
-// from a detached working tree (Cowork session writing to the old path), but
-// the actual icon webfont assets (`public/fonts/icono-arg/*.woff2`) and the
-// full IconName registry were never committed.
+// Public API is unchanged:
+//   <Icon name="vacuna" size="md" decorative />
 //
-// This stub keeps the import surface stable so the rest of the Poncho code
-// type-checks and builds. Each <Icon /> renders the icon name as text — a
-// visible reminder to come back and wire up the real webfont. Replace this
-// file when:
-//   1. `public/fonts/icono-arg/*.{woff,woff2}` are committed
-//   2. The 852-name registry is generated (script or static export)
+// Size tokens: "sm" → 16 px, "md" → 20 px, "lg" → 24 px.
+// Numbers are treated as pixels; arbitrary CSS strings (e.g. "1.1em") are
+// passed via width/height attributes on the SVG.
+// Icons inherit currentColor — the parent element controls the color.
+//
+// Unknown names: render <HelpCircle> fallback + console.warn in development.
+// Kept as a free string (not a union) so callers with dynamic names compile
+// without casting and unknown names degrade gracefully.
 
+import {
+  AlertTriangle,
+  Baby,
+  Bell,
+  BriefcaseMedical,
+  Building2,
+  Camera,
+  CheckCircle,
+  ChevronRight,
+  Circle,
+  Clock,
+  Eye,
+  FileText,
+  Handshake,
+  Heart,
+  HelpCircle,
+  Home,
+  IdCard,
+  Info,
+  Laptop,
+  LayoutDashboard,
+  LineChart,
+  Lock,
+  LogOut,
+  MapPin,
+  Megaphone,
+  Menu,
+  MessageSquare,
+  Milk,
+  Nfc,
+  PawPrint,
+  Pencil,
+  Phone,
+  Pill,
+  QrCode,
+  RefreshCw,
+  Scale,
+  Scissors,
+  Search,
+  Settings,
+  Shield,
+  ShieldCheck,
+  Siren,
+  Smartphone,
+  Stethoscope,
+  Syringe,
+  Users,
+  Wrench,
+  X,
+  XCircle,
+  Zap,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type React from "react";
 import type { HTMLAttributes } from "react";
 
 /**
- * Name of one of the 852 `icono-arg` glyphs. Today this is a free `string`;
- * tighten to a discriminated union once the registry lands.
+ * Name of an icon in the ICON_MAP registry.
+ * Kept as a plain string (not a union) so dynamic callers compile without
+ * casting and unknown names fall back gracefully.
  */
 export type IconName = string;
 
 /**
- * The full registry of available icon names. Empty in the stub so that
- * consumers like `IconSearch` render without crashing — replace with the
- * generated list.
+ * Internal map: app icon name → Lucide component.
+ *
+ * Spanish semantic names match what callers pass (vacuna, corazon, …).
+ * English/UI names cover Alert / EmptyState / Badge slots (info, close, …).
  */
-export const iconNames: ReadonlyArray<IconName> = [];
+const ICON_MAP: Record<string, LucideIcon> = {
+  // ── Event form icons ─────────────────────────────────────────────────────
+  vacuna: Syringe,
+  microchip: Nfc,
+  "microchip-reemplazo": RefreshCw,
+  transferencia: RefreshCw,
+  peso: Scale,
+  medicacion: Pill,
+  esterilizacion: Scissors,
+  tatuaje: Pencil,
+  embarazo: Baby,
+  lactancia: Milk,
+  checkin: MapPin,
+  nota: FileText,
+  sintoma: Stethoscope,
+  clinico: BriefcaseMedical,
+  mordedura: PawPrint,
+  fallecimiento: Circle,
+  vet: Stethoscope,
+  "medicacion-fin": XCircle,
+
+  // ── Core semantic icons ──────────────────────────────────────────────────
+  credenciales: IdCard,
+  credential: IdCard,
+  denuncia: Megaphone,
+  lupa: Search,
+  search: Search,
+  qr: QrCode,
+  corazon: Heart,
+  heart: Heart,
+  telefono: Phone,
+  phone: Phone,
+  ubicacion: MapPin,
+  "map-pin": MapPin,
+  ojo: Eye,
+  ver: Eye,
+  casa: Home,
+  home: Home,
+  camara: Camera,
+  celular: Smartphone,
+  alerta: AlertTriangle,
+  alert: AlertTriangle,
+  "alert-triangle": AlertTriangle,
+  "alert-circle": AlertTriangle,
+  candado: Lock,
+  lock: Lock,
+  reloj: Clock,
+  clock: Clock,
+  editar: Pencil,
+  edit: Pencil,
+  perdida: Siren,
+  lost: Siren,
+  huella: PawPrint,
+  paw: PawPrint,
+  usuarios: Users,
+  users: Users,
+  edificio: Building2,
+  building: Building2,
+
+  // ── Case kind icons ───────────────────────────────────────────────────────
+  solicitud: FileText,
+  propuesta: MessageSquare,
+  trato: Handshake,
+  reparacion: Wrench,
+  brote: AlertTriangle,
+  custodia: FileText,
+  disputa: Scale,
+
+  // ── UI semantic icons ────────────────────────────────────────────────────
+  close: X,
+  info: Info,
+  warning: AlertTriangle,
+  error: XCircle,
+  "check-circle": CheckCircle,
+  "shield-check": ShieldCheck,
+  shield: Shield,
+  "chevron-right": ChevronRight,
+  "chart-line": LineChart,
+  "heart-filled": Heart,
+  menu: Menu,
+  settings: Settings,
+  bell: Bell,
+  logout: LogOut,
+  dashboard: LayoutDashboard,
+  laptop: Laptop,
+  zap: Zap,
+};
+
+/** All registered icon names — consumed by the IconSearch browser in /design. */
+export const iconNames: ReadonlyArray<IconName> = Object.keys(ICON_MAP);
+
+// ── Size resolution ──────────────────────────────────────────────────────────
+
+type SizeProp = "sm" | "md" | "lg" | number | string;
+
+function resolveSize(size?: SizeProp): { px?: number; css?: string } {
+  if (size === undefined) return { px: 20 }; // default md
+  if (size === "sm") return { px: 16 };
+  if (size === "md") return { px: 20 };
+  if (size === "lg") return { px: 24 };
+  if (typeof size === "number") return { px: size };
+  return { css: size }; // arbitrary CSS string e.g. "1.1em"
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 type IconProps = {
   name: IconName;
-  /** Size token ("sm" | "md" | "lg"), pixel number, or any CSS length string
-   *  (e.g. "1.1em"). Defaults to inheriting the parent's font-size. */
-  size?: "sm" | "md" | "lg" | number | string;
-  /** True when the icon is purely decorative (paired with adjacent text).
-   *  Adds `aria-hidden`; consumers must not rely on it for semantics. */
+  /**
+   * "sm" (16 px) | "md" (20 px, default) | "lg" (24 px) | number (px) | CSS string.
+   */
+  size?: SizeProp;
+  /** When true, aria-hidden is set — use for decorative icons paired with visible text. */
   decorative?: boolean;
-} & Omit<HTMLAttributes<HTMLSpanElement>, "aria-hidden">;
+} & Omit<HTMLAttributes<SVGElement>, "aria-hidden">;
 
 export function Icon({ name, size, decorative, className, style, ...rest }: IconProps) {
-  const sizeStyle =
-    typeof size === "number"
-      ? { fontSize: `${size}px`, ...style }
-      : size === "sm"
-        ? { fontSize: "1rem", ...style }
-        : size === "lg"
-          ? { fontSize: "1.5rem", ...style }
-          : size === "md"
-            ? { fontSize: "1.25rem", ...style }
-            : typeof size === "string"
-              ? { fontSize: size, ...style }
-              : style;
+  const LucideComponent = ICON_MAP[name];
+
+  if (!LucideComponent) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(`[Icon] Unknown icon name: "${name}". Rendering fallback.`);
+    }
+    return (
+      <FallbackIcon
+        name={name}
+        size={size}
+        decorative={decorative}
+        className={className}
+        style={style}
+        {...(rest as React.SVGProps<SVGSVGElement>)}
+      />
+    );
+  }
+
+  const { px, css } = resolveSize(size);
+  const sizeProps = px !== undefined ? { width: px, height: px } : { width: css, height: css };
+
   return (
-    <span
-      className={`iconArg${className ? ` ${className}` : ""}`}
+    <LucideComponent
       data-icon-name={name}
       aria-hidden={decorative ? true : undefined}
-      style={sizeStyle}
-      {...rest}
-    >
-      {/* In the real component the webfont's ::before pseudo-element renders
-          the glyph. Until then, the icon name shows as text so the layout is
-          still inspectable. */}
-      {name}
-    </span>
+      className={className}
+      style={style}
+      strokeWidth={1.75}
+      {...sizeProps}
+      {...(rest as React.SVGProps<SVGSVGElement>)}
+    />
+  );
+}
+
+function FallbackIcon({ name, size, decorative, className, style, ...rest }: IconProps) {
+  const { px, css } = resolveSize(size);
+  const sizeProps = px !== undefined ? { width: px, height: px } : { width: css, height: css };
+
+  return (
+    <HelpCircle
+      data-icon-name={name}
+      aria-hidden={decorative ? true : undefined}
+      className={className}
+      style={style}
+      strokeWidth={1.75}
+      {...sizeProps}
+      {...(rest as React.SVGProps<SVGSVGElement>)}
+    />
   );
 }

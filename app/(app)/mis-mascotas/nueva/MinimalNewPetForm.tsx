@@ -2,6 +2,7 @@
 
 import { type FormEvent, useActionState, useState } from "react";
 
+import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnInput, LnRadio, LnSelect } from "@/components/ui/Field";
 import type { NewPetFormState } from "@/src/modules/pets/actions";
 
@@ -35,6 +36,17 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
     if (!speciesValue) {
       e.preventDefault();
       setClientError("Elegí la especie antes de continuar.");
+      return;
+    }
+    // Read localityName via FormData, exactly as the server does. We must NOT
+    // use form.elements.namedItem("localityName"): LocationFields renders both
+    // an input id="localityName" AND a hidden input name="localityName", so
+    // namedItem() returns a RadioNodeList (id+name collision) whose .value is
+    // empty — which previously blocked submit even with a locality selected.
+    const localityValue = String(new FormData(form).get("localityName") ?? "").trim();
+    if (!localityValue) {
+      e.preventDefault();
+      setClientError("Seleccioná la localidad antes de continuar.");
       return;
     }
     setClientError(null);
@@ -78,6 +90,20 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
             No sé
           </LnRadio>
         </div>
+      </div>
+
+      {/* ── Location — REQUIRED ──────────────────────────────────────── */}
+      <div className="flex flex-col gap-[6px]">
+        <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+          Localidad{" "}
+          <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
+            *
+          </span>
+        </p>
+        <LocationFields mode="l1" />
+        <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+          Requerido. Ayuda a las campañas regionales de salud animal.
+        </p>
       </div>
 
       {/* ── Error ────────────────────────────────────────────────────── */}

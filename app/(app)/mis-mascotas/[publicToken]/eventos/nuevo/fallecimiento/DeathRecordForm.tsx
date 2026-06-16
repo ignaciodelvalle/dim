@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRadio, LnSelect, LnTextarea } from "@/components/ui/Field";
 import {
@@ -77,9 +78,19 @@ export function DeathRecordForm({
   const today = new Date().toISOString().slice(0, 10);
   const [cause, setCause] = useState("");
   const [selectedDiseaseCode, setSelectedDiseaseCode] = useState("");
+  const [confirmedByLab, setConfirmedByLab] = useState(false);
+  const [causeDetail, setCauseDetail] = useState("");
+  const [confirmedByVet, setConfirmedByVet] = useState(false);
+  const [vetName, setVetName] = useState("");
   const [disposition, setDisposition] = useState("");
   const [deathAtClinic, setDeathAtClinic] = useState(false);
   const [vetContactedOwner, setVetContactedOwner] = useState("");
+  const [clinicName, setClinicName] = useState("");
+  const [vetDecidedAlone, setVetDecidedAlone] = useState(false);
+  const [ownerToPrivateCrematorium, setOwnerToPrivateCrematorium] = useState(false);
+  const [facility, setFacility] = useState("");
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   const diseaseOptions = diseasesForSpecies(species);
   const selectedDiseaseDef = findDisease(selectedDiseaseCode);
@@ -93,7 +104,7 @@ export function DeathRecordForm({
     <>
       <LnSheetHeader
         tone="seal"
-        icon="🕊️"
+        icon={<Icon name="fallecimiento" decorative />}
         title="Registrar fallecimiento"
         subtitle="Libreta sanitaria oficial"
       />
@@ -153,7 +164,12 @@ export function DeathRecordForm({
               {isReportableDisease && (
                 <LnCallout tone="warn">Reportable a autoridad sanitaria</LnCallout>
               )}
-              <LnCheckbox name="confirmedByLab" value="true">
+              <LnCheckbox
+                name="confirmedByLab"
+                value="true"
+                checked={confirmedByLab}
+                onChange={(e) => setConfirmedByLab(e.target.checked)}
+              >
                 Confirmado por laboratorio
               </LnCheckbox>
             </LnSubCard>
@@ -166,12 +182,19 @@ export function DeathRecordForm({
                 name="causeDetail"
                 rows={2}
                 placeholder="Detalles, si querés agregar"
+                value={causeDetail}
+                onChange={(e) => setCauseDetail(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}
           </LnField>
 
-          <LnCheckbox name="confirmedByVet" value="true">
+          <LnCheckbox
+            name="confirmedByVet"
+            value="true"
+            checked={confirmedByVet}
+            onChange={(e) => setConfirmedByVet(e.target.checked)}
+          >
             Confirmado por veterinario/a
           </LnCheckbox>
 
@@ -182,6 +205,8 @@ export function DeathRecordForm({
                 name="vetName"
                 type="text"
                 placeholder="Dra. López, Dr. García..."
+                value={vetName}
+                onChange={(e) => setVetName(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}
@@ -196,7 +221,11 @@ export function DeathRecordForm({
                 checked={deathAtClinic}
                 onChange={(e) => {
                   setDeathAtClinic(e.target.checked);
-                  if (!e.target.checked) setVetContactedOwner("");
+                  if (!e.target.checked) {
+                    setVetContactedOwner("");
+                    setVetDecidedAlone(false);
+                    setClinicName("");
+                  }
                 }}
               >
                 Falleció durante una estadía en la veterinaria
@@ -211,6 +240,8 @@ export function DeathRecordForm({
                         name="clinicName"
                         type="text"
                         placeholder="Clínica Veterinaria…"
+                        value={clinicName}
+                        onChange={(e) => setClinicName(e.target.value)}
                         aria-describedby={describedBy}
                       />
                     )}
@@ -240,7 +271,12 @@ export function DeathRecordForm({
                   </div>
 
                   {showVetDecidedAlone && (
-                    <LnCheckbox name="vetDecidedAlone" value="true">
+                    <LnCheckbox
+                      name="vetDecidedAlone"
+                      value="true"
+                      checked={vetDecidedAlone}
+                      onChange={(e) => setVetDecidedAlone(e.target.checked)}
+                    >
                       El veterinario decidió la disposición sin poder contactarme
                     </LnCheckbox>
                   )}
@@ -249,7 +285,12 @@ export function DeathRecordForm({
             </div>
           </LnSheetAccordion>
 
-          <LnCheckbox name="ownerToPrivateCrematorium" value="true">
+          <LnCheckbox
+            name="ownerToPrivateCrematorium"
+            value="true"
+            checked={ownerToPrivateCrematorium}
+            onChange={(e) => setOwnerToPrivateCrematorium(e.target.checked)}
+          >
             Llevé el cuerpo a un crematorio privado por mi cuenta
           </LnCheckbox>
 
@@ -305,6 +346,8 @@ export function DeathRecordForm({
                 name="facility"
                 type="text"
                 placeholder={facilityHint.placeholder}
+                value={facility}
+                onChange={(e) => setFacility(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}
@@ -318,7 +361,8 @@ export function DeathRecordForm({
                 type="date"
                 required
                 mono
-                defaultValue={defaults?.occurredAt ?? today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -330,7 +374,8 @@ export function DeathRecordForm({
                 id={id}
                 name="notes"
                 rows={3}
-                defaultValue={defaults?.notes ?? ""}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}

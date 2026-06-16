@@ -1,9 +1,37 @@
 // Unit tests for nav-presets — pure module, no React required.
 
 import { describe, expect, it } from "vitest";
-import { ADMIN_NAV, GOB_NAV, OWNER_NAV, buildOrgNav } from "./nav-presets";
+import { ADMIN_NAV, GOB_NAV, OWNER_NAV, PUBLIC_NAV, buildOrgNav } from "./nav-presets";
 
 const ALL_GATED_CAPS = new Set(["intake.create", "adoption.review", "capability.grant"]);
+
+describe("PUBLIC_NAV", () => {
+  it("has exactly 4 items", () => {
+    expect(PUBLIC_NAV).toHaveLength(4);
+  });
+
+  it("contains Adoptar, Mascotas perdidas, Refugios, Denuncias", () => {
+    const labels = PUBLIC_NAV.map((i) => i.label);
+    expect(labels).toContain("Adoptar");
+    expect(labels).toContain("Mascotas perdidas");
+    expect(labels).toContain("Refugios");
+    expect(labels).toContain("Denuncias");
+  });
+
+  it("does not include Mi libreta (requires auth)", () => {
+    const labels = PUBLIC_NAV.map((i) => i.label);
+    expect(labels).not.toContain("Mi libreta");
+    expect(labels).not.toContain("Libreta");
+  });
+
+  it("all hrefs point to public portal routes", () => {
+    const hrefs = PUBLIC_NAV.map((i) => i.href);
+    expect(hrefs).toContain("/adoptar");
+    expect(hrefs).toContain("/perdidas");
+    expect(hrefs).toContain("/refugios");
+    expect(hrefs).toContain("/denuncias");
+  });
+});
 
 describe("buildOrgNav", () => {
   it("produces 14 membership-only items when no capabilities are passed", () => {

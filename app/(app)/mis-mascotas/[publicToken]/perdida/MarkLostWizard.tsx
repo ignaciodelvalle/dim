@@ -6,6 +6,7 @@
 
 import { useRef, useState, useTransition } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
@@ -173,7 +174,7 @@ export function MarkLostWizard({
     <>
       <LnSheetHeader
         tone="seal"
-        icon="🔍"
+        icon={<Icon name="lupa" decorative />}
         title={`Marcar ${petName} como perdida`}
         subtitle={`Paso ${step} de ${totalSteps} · ${stepLabels[step - 1]}`}
       />

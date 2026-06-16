@@ -78,7 +78,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
         {/* Back nav */}
         <p className="text-[12px] text-ln-op-mute">
           <Link href="/admin/govts" className="underline underline-offset-4 hover:text-ln-op-ink-2">
-            {"<-"} Volver a Gobiernos
+            {"←"} Volver a Gobiernos
           </Link>
         </p>
 

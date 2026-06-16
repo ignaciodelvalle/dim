@@ -1,7 +1,7 @@
 "use client";
 
 import { LnField, LnTextarea } from "@/components/ui/Field";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 export type CommentFormState = { error: string | null; success: boolean };
 
@@ -11,6 +11,11 @@ type CommentFormAction = (prev: CommentFormState, formData: FormData) => Promise
 
 export function ReporterCommentForm({ action }: { action: CommentFormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    if (state.success) setText("");
+  }, [state.success]);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -27,6 +32,8 @@ export function ReporterCommentForm({ action }: { action: CommentFormAction }) {
             required
             maxLength={2000}
             placeholder="Escribí tu comentario..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
