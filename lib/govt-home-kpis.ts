@@ -94,12 +94,16 @@ export async function fetchRabiesCoverage(
   if (petsScope) dogsConditions.push(sql`(${petsScope})`);
 
   // Distinct dogs with a rabies vaccination event in scope, last 12 months.
-  // vaccination_administered payload carries `vaccine_name`; ILIKE '%rabi%'
-  // catches "rabia", "rabies", "antirrábica" (note: without accent — ILIKE is
-  // ASCII-case-insensitive only; %rabi% covers the accented variant's prefix).
+  // vaccination_administered payload carries `vaccine_name`. Match the SAME
+  // accent-aware regex the surveillance module uses
+  // (~* '(antirr[áa]bica|rabies)'), NOT ILIKE '%rabi%': ILIKE is
+  // accent-SENSITIVE, so it silently MISSED the canonical form name
+  // "Antirrábica" (the accented á breaks the 'rabi' substring) and
+  // undercounted coverage to ~zero. Keeping the same regex as
+  // surveillance-repository.ts keeps "is a rabies vaccine" consistent.
   const rabiesVaccConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
-    sql`(${petEvents.payload}->>'vaccine_name') ILIKE ${"%rabi%"}`,
+    sql`(${petEvents.payload}->>'vaccine_name') ~* '(antirr[áa]bica|rabies)'`,
     gte(petEvents.occurredAt, since12m),
   ];
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
