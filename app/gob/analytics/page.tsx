@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { MapChoropleth } from "@/components/charts/MapChoropleth";
+import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -19,7 +19,7 @@ import {
   fetchDeathCauses,
   fetchOutbreakHistory,
 } from "@/lib/govt-dashboards";
-import { AcquisitionChart } from "./_components/AcquisitionChart";
+import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
 
 export const dynamic = "force-dynamic";
@@ -206,7 +206,7 @@ export default async function GobAnalyticsPage({
               description="No hay registros de mascotas con método de adquisición en los últimos 12 meses."
             />
           ) : (
-            <AcquisitionChart data={acquisitionTrend} />
+            <AcquisitionChartDynamic data={acquisitionTrend} />
           )}
         </OpCardBody>
       </OpCard>
@@ -224,7 +224,7 @@ export default async function GobAnalyticsPage({
           }
         />
         <OpCardBody>
-          <MapChoropleth data={choroplethData} />
+          <MapChoroplethDynamic data={choroplethData} />
         </OpCardBody>
       </OpCard>
 
