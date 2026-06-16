@@ -36,6 +36,7 @@ import type {
   WelfareReportAttachment,
 } from "@/db/schema";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { insertEventIdempotent } from "@/lib/event-idempotency";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -500,6 +501,23 @@ export class WelfareRepository {
     executor: DbOrTx = db,
   ): Promise<void> {
     await executor.insert(petEvents).values(values);
+  }
+
+  /**
+   * Insert a pet event with idempotency-key deduplication.
+   * Routes through insertEventIdempotent from lib/event-idempotency.
+   * When clientIdempotencyKey is null/undefined, falls back to a plain insert.
+   * Returns { wasNoop: true } when a conflict was detected (duplicate submission).
+   */
+  async insertPetEventIdempotent(
+    values: typeof petEvents.$inferInsert,
+    executor: DbOrTx = db,
+  ): Promise<{ wasNoop: boolean }> {
+    const { wasNoop } = await insertEventIdempotent(
+      values,
+      executor as Parameters<typeof insertEventIdempotent>[1],
+    );
+    return { wasNoop };
   }
 
   /**

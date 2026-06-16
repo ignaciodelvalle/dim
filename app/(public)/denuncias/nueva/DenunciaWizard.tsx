@@ -31,6 +31,7 @@
 //
 // Anti-spam: honeypot field included. Dwell-time measured from mount to submit.
 
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { useRef, useState } from "react";
 
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
@@ -92,6 +93,11 @@ export function DenunciaWizard() {
   // Ref to the outer <form> so we can read all inputs at submit time,
   // including LocationFields' uncontrolled hidden inputs inside Step3Where.
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Stable UUID generated once per mount — survives re-renders. Deduplicates
+  // the pet-event bridge rows when the form is submitted more than once
+  // (double-click, network retry).
+  const { key: idempotencyKey } = useIdempotencyKey();
 
   // Mount timestamp for dwell-time bot rejection (handoff P4-2d).
   // Submits with dwell < 10s are silently dropped server-side — the user
@@ -231,6 +237,10 @@ export function DenunciaWizard() {
       // Dwell time — millisecond delta from mount to submit. Server uses
       // this to silent-reject obvious bots.
       formData.set("dwellTimeMs", String(Date.now() - mountedAt.current));
+
+      // Idempotency key — stable per mount, deduplicates pet-event bridge
+      // rows on double-submit or retry with the same form session.
+      formData.set("clientIdempotencyKey", idempotencyKey);
 
       const result = await createWelfareReportAction({ error: null }, formData);
 
