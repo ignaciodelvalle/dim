@@ -17,7 +17,7 @@ import {
   ownerProposeReturnToOrgFormAction,
 } from "@/app/actions/return-to-owner-form";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const RETURN_REASONS: Array<{ value: string; label: string }> = [
   { value: "post_adoption_failed_return", label: "Cambio de circunstancias / no me pude adaptar" },
@@ -45,6 +45,10 @@ export function OwnerInitiateReturnForm({
 }) {
   const bound = ownerProposeReturnToOrgFormAction.bind(null, petPublicToken);
   const [state, formAction, isPending] = useActionState(bound, initialState);
+
+  // Controlled field state — preserves typed input on validation error.
+  const [notes, setNotes] = useState("");
+  const [proposedAt, setProposedAt] = useState(todayIso());
 
   if (state.success) {
     return (
@@ -113,6 +117,8 @@ export function OwnerInitiateReturnForm({
           name="notes"
           rows={4}
           maxLength={1000}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
           placeholder="Contale al refugio detalles sobre la situación, el estado de la mascota, disponibilidad horaria…"
           className="resize-y rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[10px] py-[8px] font-[var(--font-ln-sans)] text-[13px] text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
@@ -130,7 +136,8 @@ export function OwnerInitiateReturnForm({
           id="proposedAt"
           name="proposedAt"
           type="date"
-          defaultValue={todayIso()}
+          value={proposedAt}
+          onChange={(e) => setProposedAt(e.target.value)}
           className="w-[200px] rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[10px] py-[8px] font-[var(--font-ln-mono)] text-[13px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
       </div>

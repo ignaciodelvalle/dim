@@ -5,7 +5,7 @@
 
 import type { ScheduleRuleFormState } from "@/app/actions/schedule-rules";
 import { LnCheckbox, LnInput } from "@/components/ui/Field";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const WEEKDAYS = [
   { value: 1, label: "Lun" },
@@ -35,6 +35,12 @@ export function AgendaRuleForm({
   const [state, formAction, isPending] = useActionState(createAction, INITIAL_STATE);
 
   const today = new Date().toISOString().slice(0, 10);
+
+  // Controlled field state — preserves typed input on validation error.
+  const [startTimeLocal, setStartTimeLocal] = useState("08:00");
+  const [endTimeLocal, setEndTimeLocal] = useState("12:00");
+  const [effectiveFrom, setEffectiveFrom] = useState(today);
+  const [effectiveUntil, setEffectiveUntil] = useState("");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -78,7 +84,8 @@ export function AgendaRuleForm({
             name="startTimeLocal"
             type="time"
             required
-            defaultValue="08:00"
+            value={startTimeLocal}
+            onChange={(e) => setStartTimeLocal(e.target.value)}
           />
         </div>
         <div className="space-y-1">
@@ -90,7 +97,8 @@ export function AgendaRuleForm({
             name="endTimeLocal"
             type="time"
             required
-            defaultValue="12:00"
+            value={endTimeLocal}
+            onChange={(e) => setEndTimeLocal(e.target.value)}
           />
         </div>
       </div>
@@ -106,7 +114,8 @@ export function AgendaRuleForm({
             name="effectiveFrom"
             type="date"
             required
-            defaultValue={today}
+            value={effectiveFrom}
+            onChange={(e) => setEffectiveFrom(e.target.value)}
           />
         </div>
         <div className="space-y-1">
@@ -114,7 +123,13 @@ export function AgendaRuleForm({
             Válido hasta{" "}
             <span className="text-ln-op-mute font-normal">(opcional — sin fecha = abierto)</span>
           </label>
-          <LnInput id="effectiveUntil" name="effectiveUntil" type="date" />
+          <LnInput
+            id="effectiveUntil"
+            name="effectiveUntil"
+            type="date"
+            value={effectiveUntil}
+            onChange={(e) => setEffectiveUntil(e.target.value)}
+          />
         </div>
       </div>
 

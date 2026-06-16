@@ -115,6 +115,26 @@ export function PetForm({
   const [sensitiveDialogOpen, setSensitiveDialogOpen] = useState<boolean>(false);
   const sensitiveButtonRef = useRef<HTMLButtonElement>(null);
 
+  // Controlled field state — preserves typed input on validation error.
+  const [name, setName] = useState<string>(existingPet?.name ?? "");
+  const [color, setColor] = useState<string>(existingPet?.color ?? "");
+  const [trainingLevel, setTrainingLevel] = useState<string>(existingPet?.trainingLevel ?? "");
+  const [acquisitionMethod, setAcquisitionMethod] = useState<string>(
+    existingPet?.acquisitionMethod ?? "",
+  );
+  const [insuranceCompany, setInsuranceCompany] = useState<string>(
+    existingPet?.insuranceCompany ?? "",
+  );
+  const [insurancePolicyNumber, setInsurancePolicyNumber] = useState<string>(
+    existingPet?.insurancePolicyNumber ?? "",
+  );
+  const [favouriteFoodsOther, setFavouriteFoodsOther] = useState<string>(
+    (existingPet?.favouriteFoods ?? []).filter((v) => !new Set(COMMON_FOODS).has(v)).join(", "),
+  );
+  const [knownAllergiesOther, setKnownAllergiesOther] = useState<string>(
+    (existingPet?.knownAllergies ?? []).filter((v) => !new Set(COMMON_ALLERGIES).has(v)).join(", "),
+  );
+
   function toggleCondition(code: PermanentCondition) {
     setConditions((prev) => {
       const next = new Set(prev);
@@ -153,8 +173,8 @@ export function PetForm({
   return (
     <form action={formAction} className="flex flex-col gap-[10px]">
       {hiddenFields &&
-        Object.entries(hiddenFields).map(([name, value]) => (
-          <input key={name} type="hidden" name={name} value={value} />
+        Object.entries(hiddenFields).map(([key, value]) => (
+          <input key={key} type="hidden" name={key} value={value} />
         ))}
 
       {/* Custody toggle — only on create, not compact */}
@@ -174,7 +194,8 @@ export function PetForm({
             type="text"
             required
             autoComplete="off"
-            defaultValue={existingPet?.name}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -262,7 +283,8 @@ export function PetForm({
             id={id}
             name="color"
             type="text"
-            defaultValue={existingPet?.color ?? undefined}
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
             aria-describedby={describedBy}
           />
         )}
@@ -335,12 +357,9 @@ export function PetForm({
             {/* Estimated weight */}
             <LnField label="Peso estimado" hint="En kilogramos.">
               {({ id, describedBy }) => (
-                <LnInput
+                <LnWeightInput
                   id={id}
                   name="estimatedWeightKg"
-                  type="number"
-                  step="0.1"
-                  min="0"
                   defaultValue={existingPet?.estimatedWeightKg ?? undefined}
                   aria-describedby={describedBy}
                 />
@@ -367,9 +386,8 @@ export function PetForm({
                 name="favouriteFoodsOther"
                 type="text"
                 placeholder="Otros (separá por coma si querés varios)"
-                defaultValue={(existingPet?.favouriteFoods ?? [])
-                  .filter((v) => !new Set(COMMON_FOODS).has(v))
-                  .join(", ")}
+                value={favouriteFoodsOther}
+                onChange={(e) => setFavouriteFoodsOther(e.target.value)}
               />
             </div>
 
@@ -394,9 +412,8 @@ export function PetForm({
                 name="knownAllergiesOther"
                 type="text"
                 placeholder="Otros (separá por coma si querés varios)"
-                defaultValue={(existingPet?.knownAllergies ?? [])
-                  .filter((v) => !new Set(COMMON_ALLERGIES).has(v))
-                  .join(", ")}
+                value={knownAllergiesOther}
+                onChange={(e) => setKnownAllergiesOther(e.target.value)}
               />
             </div>
 
@@ -406,7 +423,8 @@ export function PetForm({
                 <LnSelect
                   id={id}
                   name="trainingLevel"
-                  defaultValue={existingPet?.trainingLevel ?? ""}
+                  value={trainingLevel}
+                  onChange={(e) => setTrainingLevel(e.target.value)}
                   aria-describedby={describedBy}
                   invalid={invalid}
                 >
@@ -432,7 +450,8 @@ export function PetForm({
                 <LnSelect
                   id={id}
                   name="acquisitionMethod"
-                  defaultValue={existingPet?.acquisitionMethod ?? ""}
+                  value={acquisitionMethod}
+                  onChange={(e) => setAcquisitionMethod(e.target.value)}
                   aria-describedby={describedBy}
                   invalid={invalid}
                 >
@@ -460,7 +479,8 @@ export function PetForm({
                     type="text"
                     list="insurance-companies"
                     placeholder="Buscar o tipear…"
-                    defaultValue={existingPet?.insuranceCompany ?? undefined}
+                    value={insuranceCompany}
+                    onChange={(e) => setInsuranceCompany(e.target.value)}
                     aria-describedby={describedBy}
                   />
                 )}
@@ -477,7 +497,8 @@ export function PetForm({
                     name="insurancePolicyNumber"
                     type="text"
                     mono
-                    defaultValue={existingPet?.insurancePolicyNumber ?? undefined}
+                    value={insurancePolicyNumber}
+                    onChange={(e) => setInsurancePolicyNumber(e.target.value)}
                     aria-describedby={describedBy}
                   />
                 )}
@@ -785,6 +806,8 @@ function LnAgeFields({
   defaultYears: number | null;
   defaultMonths: number | null;
 }) {
+  const [years, setYears] = useState<string>(defaultYears != null ? String(defaultYears) : "");
+  const [months, setMonths] = useState<string>(defaultMonths != null ? String(defaultMonths) : "");
   return (
     <div className="flex flex-col gap-[6px]">
       <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
@@ -798,7 +821,8 @@ function LnAgeFields({
           min="0"
           max="40"
           placeholder="Años"
-          defaultValue={defaultYears ?? undefined}
+          value={years}
+          onChange={(e) => setYears(e.target.value)}
         />
         <LnInput
           id="ageMonths"
@@ -807,7 +831,8 @@ function LnAgeFields({
           min="0"
           max="11"
           placeholder="Meses"
-          defaultValue={defaultMonths ?? undefined}
+          value={months}
+          onChange={(e) => setMonths(e.target.value)}
         />
       </div>
       <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
@@ -817,12 +842,52 @@ function LnAgeFields({
   );
 }
 
+function LnWeightInput({
+  id,
+  name,
+  defaultValue,
+  "aria-describedby": describedBy,
+}: {
+  id: string;
+  name: string;
+  defaultValue?: number | string;
+  "aria-describedby"?: string;
+}) {
+  const [value, setValue] = useState<string>(defaultValue != null ? String(defaultValue) : "");
+  return (
+    <LnInput
+      id={id}
+      name={name}
+      type="number"
+      step="0.1"
+      min="0"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      aria-describedby={describedBy}
+    />
+  );
+}
+
 function MicrochipBlock({
   existingCanonicalChip,
 }: {
   // ARCH-S: canonical chip data replaces dropped pets.microchipId* columns.
   existingCanonicalChip?: ExistingCanonicalChip | null;
 }) {
+  const [microchipId, setMicrochipId] = useState<string>(existingCanonicalChip?.code ?? "");
+  const [microchipCountryCode, setMicrochipCountryCode] = useState<string>(
+    existingCanonicalChip?.isoCountryCode ?? "858",
+  );
+  const [microchipImplantedAt, setMicrochipImplantedAt] = useState<string>(
+    existingCanonicalChip?.recordedAt ?? "",
+  );
+  const [microchipImplantedBy, setMicrochipImplantedBy] = useState<string>(
+    existingCanonicalChip?.recordedByLabel ?? "",
+  );
+  const [microchipLocation, setMicrochipLocation] = useState<string>(
+    existingCanonicalChip?.implantationSite ?? "",
+  );
+
   return (
     <div className="flex flex-col gap-[10px] border-t border-[var(--color-ln-line-2)] pt-[12px]">
       <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
@@ -836,7 +901,8 @@ function MicrochipBlock({
             type="text"
             mono
             autoComplete="off"
-            defaultValue={existingCanonicalChip?.code ?? undefined}
+            value={microchipId}
+            onChange={(e) => setMicrochipId(e.target.value)}
             aria-describedby={describedBy}
           />
         )}
@@ -848,7 +914,8 @@ function MicrochipBlock({
             name="microchipCountryCode"
             type="text"
             mono
-            defaultValue={existingCanonicalChip?.isoCountryCode ?? "858"}
+            value={microchipCountryCode}
+            onChange={(e) => setMicrochipCountryCode(e.target.value)}
             aria-describedby={describedBy}
           />
         )}
@@ -860,7 +927,8 @@ function MicrochipBlock({
             name="microchipImplantedAt"
             type="date"
             mono
-            defaultValue={existingCanonicalChip?.recordedAt ?? undefined}
+            value={microchipImplantedAt}
+            onChange={(e) => setMicrochipImplantedAt(e.target.value)}
             aria-describedby={describedBy}
           />
         )}
@@ -871,7 +939,8 @@ function MicrochipBlock({
             id={id}
             name="microchipImplantedBy"
             type="text"
-            defaultValue={existingCanonicalChip?.recordedByLabel ?? undefined}
+            value={microchipImplantedBy}
+            onChange={(e) => setMicrochipImplantedBy(e.target.value)}
             aria-describedby={describedBy}
           />
         )}
@@ -881,7 +950,8 @@ function MicrochipBlock({
           <LnSelect
             id={id}
             name="microchipLocation"
-            defaultValue={existingCanonicalChip?.implantationSite ?? ""}
+            value={microchipLocation}
+            onChange={(e) => setMicrochipLocation(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           >
