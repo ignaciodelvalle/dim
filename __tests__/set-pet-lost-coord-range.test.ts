@@ -98,7 +98,9 @@ vi.mock("@/src/modules/events/infrastructure/events-repository", () => ({
 vi.mock("@/db", () => ({
   db: {
     transaction: mockTransaction,
-    select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn(async () => []) })) })) })),
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn(async () => []) })) })),
+    })),
   },
   pets: {},
   petEvents: {},
