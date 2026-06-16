@@ -33,6 +33,7 @@ import { notifyOutbreakInvestigationOpened } from "@/lib/authority";
 import { closeCase, escalateCase, openCase } from "@/lib/case-helpers";
 import { checkboxOn } from "@/lib/form-checkbox";
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
+import { parseLocationFromFormData } from "@/lib/location-value";
 import { requireAlivePetAccess } from "@/lib/pet-access";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
@@ -136,10 +137,9 @@ export async function reportBiteAction(
   const victimContactPhone = String(formData.get("victimContactPhone") ?? "").trim() || null;
   const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
-  const eventJurisdictionProvince = canonicalProvinceNameForStorage(
-    String(formData.get("provinceCode") ?? ""),
-  );
-  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+  const loc = parseLocationFromFormData(formData);
+  const eventJurisdictionProvince = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
+  const eventJurisdictionLocality = loc.locality;
 
   // 4. Call use-case.
   const result = await reportBite(
@@ -284,10 +284,9 @@ export async function reportBiteFromOrgAction(
   const injuriesSummary = String(formData.get("injuriesSummary") ?? "").trim() || null;
   const vetInvolved = checkboxOn(formData, "vetInvolved");
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
-  const eventJurisdictionProvince = canonicalProvinceNameForStorage(
-    String(formData.get("provinceCode") ?? ""),
-  );
-  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+  const loc = parseLocationFromFormData(formData);
+  const eventJurisdictionProvince = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
+  const eventJurisdictionLocality = loc.locality;
   const noRedirect = String(formData.get("noRedirect") ?? "") === "1";
 
   // 4. Call use-case.

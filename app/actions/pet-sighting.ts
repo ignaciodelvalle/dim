@@ -28,6 +28,7 @@ import { headers } from "next/headers";
 import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { parseLocationFromFormData } from "@/lib/location-value";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
@@ -66,8 +67,7 @@ export async function reportPetSightingAction(
     throw err;
   }
 
-  const latRaw = String(formData.get("locationLat") ?? "").trim();
-  const lngRaw = String(formData.get("locationLng") ?? "").trim();
+  const loc = parseLocationFromFormData(formData);
   const description = String(formData.get("description") ?? "").trim();
   const sightedAtIso = String(formData.get("sightedAt") ?? "").trim();
 
@@ -80,11 +80,16 @@ export async function reportPetSightingAction(
   const finderContact = rawFinderContact ? rawFinderContact.slice(0, 120) : null;
   const photoFile = formData.get("photo") instanceof File ? (formData.get("photo") as File) : null;
 
-  const lat = latRaw ? Number.parseFloat(latRaw) : Number.NaN;
-  const lng = lngRaw ? Number.parseFloat(lngRaw) : Number.NaN;
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+  if (
+    loc.lat === null ||
+    loc.lng === null ||
+    !Number.isFinite(loc.lat) ||
+    !Number.isFinite(loc.lng)
+  ) {
     return { ok: false, error: "Marcá un punto en el mapa para indicar dónde la viste." };
   }
+  const lat = loc.lat;
+  const lng = loc.lng;
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
     return { ok: false, error: "La ubicación está fuera de rango." };
   }

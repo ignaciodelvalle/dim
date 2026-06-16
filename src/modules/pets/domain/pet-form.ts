@@ -3,6 +3,7 @@
 // Extracted from app/actions/pets.ts parsePetForm + helpers.
 
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
+import { parseLocationFromFormData } from "@/lib/location-value";
 import { type PermanentCondition, sanitizeConditionCodes } from "@/lib/permanent-conditions";
 import type { ParsedPet } from "./types";
 
@@ -84,9 +85,11 @@ export function parsePetForm(
   if (!name) return { parsed: null, error: "Falta el nombre." };
   if (!species) return { parsed: null, error: "Falta la especie." };
 
+  const loc = parseLocationFromFormData(formData);
+
   // Locality is required — pets must always have a jurisdiction.
   // Existing pets without a locality are forced to set one on their next edit.
-  const localityNameRaw = String(formData.get("localityName") ?? "").trim();
+  const localityNameRaw = loc.locality ?? "";
   if (!localityNameRaw) {
     return { parsed: null, error: "LOCALITY_REQUIRED" };
   }
@@ -184,10 +187,8 @@ export function parsePetForm(
     trainingLevel,
     insuranceCompany: String(formData.get("insuranceCompany") ?? "").trim() || null,
     insurancePolicyNumber: String(formData.get("insurancePolicyNumber") ?? "").trim() || null,
-    jurisdictionProvince: canonicalProvinceNameForStorage(
-      String(formData.get("provinceCode") ?? "").trim(),
-    ),
-    jurisdictionLocality: String(formData.get("localityName") ?? "").trim() || null,
+    jurisdictionProvince: canonicalProvinceNameForStorage(loc.provinceCode ?? ""),
+    jurisdictionLocality: loc.locality,
     acquisitionMethod,
     emergencyInfoVisible: formData.get("emergencyInfoVisible") === "true",
     permanentConditions,
