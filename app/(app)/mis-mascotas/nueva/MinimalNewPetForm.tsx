@@ -38,6 +38,14 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
       setClientError("Elegí la especie antes de continuar.");
       return;
     }
+    // LocationFields populates localityName via a hidden input on selection.
+    const localityValue = (form.elements.namedItem("localityName") as HTMLInputElement | null)
+      ?.value;
+    if (!localityValue) {
+      e.preventDefault();
+      setClientError("Seleccioná la localidad antes de continuar.");
+      return;
+    }
     setClientError(null);
   }
 
@@ -81,17 +89,17 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
         </div>
       </div>
 
-      {/* ── Location ─────────────────────────────────────────────────── */}
+      {/* ── Location — REQUIRED ──────────────────────────────────────── */}
       <div className="flex flex-col gap-[6px]">
         <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
           Localidad{" "}
-          <span className="font-normal lowercase tracking-[.04em] text-[var(--color-ln-faint)]">
-            opcional
+          <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
+            *
           </span>
         </p>
         <LocationFields mode="l1" />
         <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-          Ayuda a las campañas regionales de salud animal.
+          Requerido. Ayuda a las campañas regionales de salud animal.
         </p>
       </div>
 
