@@ -37,6 +37,7 @@ import { findDisease } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
 import { checkboxOn } from "@/lib/form-checkbox";
 import { parseDateInput } from "@/lib/format";
+import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
 import type { SupabaseServerClient } from "@/lib/pet-access";
 import { createClient } from "@/lib/supabase/server";
@@ -829,7 +830,9 @@ export async function createVetVisitAction(
   const clinic = String(formData.get("clinic") ?? "").trim() || null;
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
-  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  const eventJurisdictionProvince = canonicalProvinceNameForStorage(
+    String(formData.get("provinceCode") ?? ""),
+  );
   const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
 
   if (!reason) return { error: "Falta el motivo de la visita." };
@@ -903,7 +906,9 @@ export async function createClinicalInfoAction(
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
-  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  const eventJurisdictionProvince = canonicalProvinceNameForStorage(
+    String(formData.get("provinceCode") ?? ""),
+  );
   const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
 
   if (!(CLINICAL_SUB_KINDS as readonly string[]).includes(subKindRaw)) {

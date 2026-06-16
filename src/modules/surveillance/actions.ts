@@ -32,6 +32,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { notifyOutbreakInvestigationOpened } from "@/lib/authority";
 import { closeCase, escalateCase, openCase } from "@/lib/case-helpers";
 import { checkboxOn } from "@/lib/form-checkbox";
+import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import { requireAlivePetAccess } from "@/lib/pet-access";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
@@ -135,7 +136,9 @@ export async function reportBiteAction(
   const victimContactPhone = String(formData.get("victimContactPhone") ?? "").trim() || null;
   const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
-  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  const eventJurisdictionProvince = canonicalProvinceNameForStorage(
+    String(formData.get("provinceCode") ?? ""),
+  );
   const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
 
   // 4. Call use-case.
@@ -280,7 +283,9 @@ export async function reportBiteFromOrgAction(
   const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
   const injuriesSummary = String(formData.get("injuriesSummary") ?? "").trim() || null;
   const vetInvolved = checkboxOn(formData, "vetInvolved");
-  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  const eventJurisdictionProvince = canonicalProvinceNameForStorage(
+    String(formData.get("provinceCode") ?? ""),
+  );
   const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
   const noRedirect = String(formData.get("noRedirect") ?? "") === "1";
 
