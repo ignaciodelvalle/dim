@@ -128,6 +128,7 @@ export default async function MisMascotasPage({
       {/* ------------------------------------------------------------------ */}
       {activePets.length === 0 ? (
         <LnEmptyState
+          variant="dashed"
           title="No tenés mascotas registradas."
           description="Cargá una mascota para verla acá."
           action={

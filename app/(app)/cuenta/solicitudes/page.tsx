@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { approvalRequests, db, organizationInvitations, organizations } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -203,11 +204,7 @@ export default async function SolicitudesPage({
 
       {/* Empty state */}
       {totalCount === 0 && (
-        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
-          <p className="text-[13px] text-[var(--color-ln-mute)]">
-            No mandaste solicitudes todavía.
-          </p>
-        </div>
+        <LnEmptyState variant="dashed" title="No mandaste solicitudes todavía." />
       )}
 
       {/* Filter chips */}

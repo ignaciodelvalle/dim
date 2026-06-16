@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { OngoingMedication } from "@/lib/owner-dashboard";
 
 function formatDate(d: Date): string {
@@ -13,9 +14,10 @@ export function MedicationsWidget({ medications }: { medications: OngoingMedicat
         <h2 className="text-lg font-medium text-[var(--color-ln-ink)]">Tratamientos en curso</h2>
       </div>
       {medications.length === 0 ? (
-        <div className="border border-dashed border-[var(--color-ln-line-strong)] rounded-xl p-6 text-center text-sm text-[var(--color-ln-mute)]">
-          Ninguna mascota está bajo tratamiento activo en este momento.
-        </div>
+        <LnEmptyState
+          variant="dashed"
+          title="Ninguna mascota está bajo tratamiento activo en este momento."
+        />
       ) : (
         <ul className="space-y-2">
           {medications.map((m) => (

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AppointmentCard } from "@/components/AppointmentCard";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { UpcomingAppointment } from "@/lib/owner-dashboard";
 
 export function AppointmentsWidget({ appointments }: { appointments: UpcomingAppointment[] }) {
@@ -16,15 +17,18 @@ export function AppointmentsWidget({ appointments }: { appointments: UpcomingApp
         </Link>
       </div>
       {appointments.length === 0 ? (
-        <div className="border border-dashed border-[var(--color-ln-line-strong)] rounded-xl p-6 text-center space-y-2">
-          <p className="text-sm text-[var(--color-ln-mute)]">No tenés turnos próximos.</p>
-          <Link
-            href="/turnos/buscar"
-            className="inline-block text-xs text-[var(--color-ln-ink-2)] underline underline-offset-4"
-          >
-            Buscar turno disponible →
-          </Link>
-        </div>
+        <LnEmptyState
+          variant="dashed"
+          title="No tenés turnos próximos."
+          action={
+            <Link
+              href="/turnos/buscar"
+              className="text-xs text-[var(--color-ln-ink-2)] underline underline-offset-4"
+            >
+              Buscar turno disponible →
+            </Link>
+          }
+        />
       ) : (
         <ul className="space-y-2">
           {appointments.map((appt) => (

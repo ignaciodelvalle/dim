@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { NotificationCard } from "@/components/NotificationCard";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { Pet } from "@/db";
 import type { DashboardNotification } from "@/lib/owner-dashboard";
 
@@ -40,9 +41,7 @@ export function NotificationsWidget({
         </Link>
       </div>
       {notifications.length === 0 ? (
-        <div className="border border-dashed border-[var(--color-ln-line-strong)] rounded-xl p-6 text-center text-sm text-[var(--color-ln-mute)]">
-          No tenés nada sin leer.
-        </div>
+        <LnEmptyState variant="dashed" title="No tenés nada sin leer." />
       ) : (
         <ul className="space-y-2">
           {notifications.map((n) => (

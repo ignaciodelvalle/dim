@@ -4,6 +4,7 @@
 import Link from "next/link";
 
 import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, organizations, ownerships, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { and, eq, isNull } from "drizzle-orm";
@@ -72,15 +73,18 @@ export default async function TransitosActivosPage() {
       </div>
 
       {rows.length === 0 ? (
-        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
-          <p className="text-[13px] text-[var(--color-ln-mute)]">No tenés tránsitos activos.</p>
-          <Link
-            href="/cuenta/transitos/propuestas"
-            className="mt-[10px] inline-block text-[12.5px] text-[var(--color-ln-azul)] no-underline hover:underline"
-          >
-            Mirá tus propuestas →
-          </Link>
-        </div>
+        <LnEmptyState
+          variant="dashed"
+          title="No tenés tránsitos activos."
+          action={
+            <Link
+              href="/cuenta/transitos/propuestas"
+              className="text-[12.5px] text-[var(--color-ln-azul)] no-underline hover:underline"
+            >
+              Mirá tus propuestas →
+            </Link>
+          }
+        />
       ) : (
         <div className="flex flex-col gap-[12px]">
           {rows.map(({ ownership, pet }) => {
