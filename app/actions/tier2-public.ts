@@ -6,19 +6,29 @@
 // esterilización, medicación activa, condiciones permanentes) on top of
 // the Tier 0 identity rollups it normally shows.
 //
-// v1 hardcodes the duration to 24 hours. The mockup proposes a 4-card
-// picker (24h / 7d / 30d / siempre); the longer durations render as
-// disabled cards in the UI so users see the roadmap without picking
-// something we haven't validated yet.
+// The owner picks a window from the duration card picker. 24h / 7d / 30d are
+// expiring windows (set a future tier2PublicEnabledUntil). "siempre" (no expiry)
+// needs a dedicated permanent flag — since a null expiry reads as inactive on the
+// public page — and is tracked as a separate follow-up; this action accepts the
+// three bounded durations and falls back to 24h for anything unrecognized.
 
 import { db, pets } from "@/db";
 import { requirePetAccess } from "@/lib/pet-access";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Bounded share windows offered by the duration picker, keyed by the card id.
+const DURATION_MS: Record<string, number> = {
+  "24h": DAY_MS,
+  "7d": 7 * DAY_MS,
+  "30d": 30 * DAY_MS,
+};
 
-export async function enableTier2PublicAction(publicToken: string): Promise<void> {
+export async function enableTier2PublicAction(
+  publicToken: string,
+  formData?: FormData,
+): Promise<void> {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) throw new Error(access.error);
   const { pet } = access;
@@ -29,7 +39,11 @@ export async function enableTier2PublicAction(publicToken: string): Promise<void
     throw new Error("No se puede habilitar Tier 2 en una mascota fallecida.");
   }
 
-  const until = new Date(Date.now() + TWENTY_FOUR_HOURS_MS);
+  // Default to 24h when no/unknown duration is submitted (back-compat with any
+  // caller that invokes the action without form data).
+  const duration = String(formData?.get("duration") ?? "24h");
+  const windowMs = DURATION_MS[duration] ?? DAY_MS;
+  const until = new Date(Date.now() + windowMs);
 
   await db
     .update(pets)
