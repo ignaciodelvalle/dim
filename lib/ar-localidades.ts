@@ -150,14 +150,20 @@ export async function searchLocalities(input: {
   const q = normalize(input.query);
   if (q.length < MIN_QUERY_LENGTH) return [];
   const qSlug = q.replace(/\s+/g, "-");
-  const qContains = `%${input.query}%`;
+  // Build the "contains" pattern from the normalized slug (accent- and
+  // case-folded) and match it against locality_slug — NOT a raw ILIKE on
+  // locality_name. Postgres ILIKE is case-insensitive but accent-SENSITIVE, so
+  // `%${input.query}%` on the display name missed mid-string matches when the
+  // query's accents didn't match (e.g. "cordoba" vs stored "Córdoba"). Matching
+  // the already-normalized slug makes all three score branches behave uniformly.
+  const qContains = `%${qSlug}%`;
   const qPrefix = `${qSlug}%`;
 
   const scoreExpr = sql<number>`(
     case
       when ${arLocalities.localitySlug} = ${qSlug} then 1000
       when ${arLocalities.localitySlug} like ${qPrefix} then 100
-      when ${arLocalities.localityName} ilike ${qContains} then 10
+      when ${arLocalities.localitySlug} like ${qContains} then 10
       else 0
     end
   )`;
