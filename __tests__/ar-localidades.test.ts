@@ -197,6 +197,21 @@ describe("ar-localidades — search", () => {
     expect(r.length).toBeGreaterThan(0);
   });
 
+  it("returns identical results whether the query carries accents or not", async () => {
+    if (!catalogPopulated) return;
+    // Accent parity across the WHOLE scoring (including the substring branch):
+    // the accented and unaccented spellings must resolve to the same rows.
+    // Before the fix the "contains" branch did a raw ILIKE on the display name
+    // (accent-sensitive), so a mid-string match like "Nueva Córdoba" surfaced for
+    // "córdoba" but not "cordoba". Matching the normalized slug folds accents.
+    const ids = (rs: Awaited<ReturnType<typeof searchLocalities>>) =>
+      rs.map((r) => r.indecId).sort();
+    const withAccent = await searchLocalities({ query: "córdoba" });
+    const without = await searchLocalities({ query: "cordoba" });
+    expect(without.length).toBeGreaterThan(0);
+    expect(ids(without)).toEqual(ids(withAccent));
+  });
+
   it("respects the limit parameter (capped at 50)", async () => {
     if (!catalogPopulated) return;
     const r = await searchLocalities({ query: "san", limit: 5 });
