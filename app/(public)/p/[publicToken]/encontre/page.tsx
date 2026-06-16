@@ -17,7 +17,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
+import { attachments, db, ownerships, pets, profiles } from "@/db";
 import { petPhotoUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -70,30 +70,36 @@ export default async function FinderInPossessionPage({
 
   // Gate 2: owner disabled the finder form.
   if (!pet.allowFinderFormWhenLost) {
-    // Resolve disclosed contact info when the owner opted in.
+    // Resolve disclosed contact info only when the owner opted in for each field.
+    // Each network/DB call is individually gated so PII is never loaded unless
+    // it will be shown — phone from the profile row only when disclosePhoneWhenLost,
+    // email from the admin API only when discloseEmailWhenLost.
     let ownerPhone: string | null = null;
     let ownerEmail: string | null = null;
 
-    if (pet.disclosePhoneWhenLost || pet.discloseEmailWhenLost) {
+    if (pet.disclosePhoneWhenLost) {
       const [ownerRow] = await db
-        .select({ profile: profiles, ownerUserId: ownerships.ownerUserId })
+        .select({ phone: profiles.phone })
         .from(ownerships)
         .leftJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
         .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
         .limit(1);
+      ownerPhone = ownerRow?.phone ?? null;
+    }
 
-      if (ownerRow) {
-        if (pet.disclosePhoneWhenLost) {
-          ownerPhone = ownerRow.profile?.phone ?? null;
-        }
-        if (pet.discloseEmailWhenLost && ownerRow.ownerUserId) {
-          try {
-            const admin = createAdminClient();
-            const { data } = await admin.auth.admin.getUserById(ownerRow.ownerUserId);
-            ownerEmail = data?.user?.email ?? null;
-          } catch {
-            // Non-fatal — render without email.
-          }
+    if (pet.discloseEmailWhenLost) {
+      const [ownerRow] = await db
+        .select({ ownerUserId: ownerships.ownerUserId })
+        .from(ownerships)
+        .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+        .limit(1);
+      if (ownerRow?.ownerUserId) {
+        try {
+          const admin = createAdminClient();
+          const { data } = await admin.auth.admin.getUserById(ownerRow.ownerUserId);
+          ownerEmail = data?.user?.email ?? null;
+        } catch {
+          // Non-fatal — render without email.
         }
       }
     }

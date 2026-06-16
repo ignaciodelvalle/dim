@@ -392,9 +392,11 @@ export default async function PublicCredentialPage({
 
     // Split display_name on first whitespace to get just the first name. We
     // never expose the full legal name on a public credential.
-    const firstName = ownerRow?.profile.displayName
-      ? ownerRow.profile.displayName.trim().split(/\s+/)[0]
-      : null;
+    // Guard at resolution: only derive when the owner opted in.
+    const firstName =
+      pet.discloseFirstNameWhenLost && ownerRow?.profile.displayName
+        ? ownerRow.profile.displayName.trim().split(/\s+/)[0]
+        : null;
 
     // Email is stored in auth.users (not profiles). Only fetch it when the
     // owner has opted in — avoids an unnecessary admin API call on every
@@ -436,7 +438,8 @@ export default async function PublicCredentialPage({
 
     lostContext = {
       ownerFirstName: firstName ?? null,
-      phone: ownerRow?.profile.phone ?? null,
+      // Guard at resolution: only load phone into memory when the owner opted in.
+      phone: pet.disclosePhoneWhenLost ? (ownerRow?.profile.phone ?? null) : null,
       email: ownerEmail,
       locationText: textLocation ?? geoLocation,
       lostLat: eventPoint?.lat ?? null,
