@@ -18,9 +18,10 @@ import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { pgError } from "@/lib/db-errors";
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import {
+  CoordError,
   JurisdictionValidationError,
-  resolveCanonicalJurisdiction,
-} from "@/lib/jurisdiction-validation";
+  normalizeLocationForWrite,
+} from "@/lib/location-normalize";
 import { generateApprovalRequestToken, generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueToken } from "@/lib/unique-token";
@@ -169,17 +170,29 @@ export async function requestVetUpgradeForUser(
   const matriculaJur = input.matriculaJurisdiccion.trim();
   // Canonicalize operational jurisdiction strictly against the INDEC catalog.
   // validateVetInput already guarantees both fields are non-empty (2-60 chars).
+  // locality:"strict" — resolveCanonicalJurisdiction (vet upgrade behavior unchanged).
   let opProvince: string;
   let opLocality: string;
   try {
-    const opJurisdiction = await resolveCanonicalJurisdiction({
-      rawProvince: input.operationalProvince,
-      rawLocality: input.operationalLocality,
-    });
-    opProvince = opJurisdiction.province.name;
-    opLocality = opJurisdiction.locality.localityName;
+    const normalizedOp = await normalizeLocationForWrite(
+      {
+        province: input.operationalProvince,
+        provinceCode: null,
+        locality: input.operationalLocality,
+        localityIndecId: null,
+        lat: null,
+        lng: null,
+        address: null,
+      },
+      { locality: "strict" },
+    );
+    opProvince = normalizedOp.province ?? input.operationalProvince;
+    opLocality = normalizedOp.locality ?? input.operationalLocality;
   } catch (err) {
     if (err instanceof JurisdictionValidationError) {
+      return { error: err.message };
+    }
+    if (err instanceof CoordError) {
       return { error: err.message };
     }
     throw err;
@@ -368,17 +381,29 @@ export async function createOrganizationForUser(
   const cuit = input.cuit ? input.cuit.replace(/-/g, "") : null;
   // Canonicalize org jurisdiction strictly against the INDEC catalog.
   // validateOrgInput already guarantees both fields are non-empty (2-60 chars).
+  // locality:"strict" — resolveCanonicalJurisdiction (org create behavior unchanged).
   let province: string;
   let locality: string;
   try {
-    const orgJurisdiction = await resolveCanonicalJurisdiction({
-      rawProvince: input.jurisdictionProvince,
-      rawLocality: input.jurisdictionLocality,
-    });
-    province = orgJurisdiction.province.name;
-    locality = orgJurisdiction.locality.localityName;
+    const normalizedOrg = await normalizeLocationForWrite(
+      {
+        province: input.jurisdictionProvince,
+        provinceCode: null,
+        locality: input.jurisdictionLocality,
+        localityIndecId: null,
+        lat: null,
+        lng: null,
+        address: null,
+      },
+      { locality: "strict" },
+    );
+    province = normalizedOrg.province ?? input.jurisdictionProvince;
+    locality = normalizedOrg.locality ?? input.jurisdictionLocality;
   } catch (err) {
     if (err instanceof JurisdictionValidationError) {
+      return { error: err.message };
+    }
+    if (err instanceof CoordError) {
       return { error: err.message };
     }
     throw err;

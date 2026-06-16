@@ -29,9 +29,10 @@ import {
 } from "@/lib/institutional-scope";
 import type { ActorProfile } from "@/lib/institutional-scope";
 import {
+  CoordError,
   JurisdictionValidationError,
-  resolveCanonicalJurisdiction,
-} from "@/lib/jurisdiction-validation";
+  normalizeLocationForWrite,
+} from "@/lib/location-normalize";
 import { validateMotivoAndAttachments } from "@/lib/revocation-validation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -131,16 +132,31 @@ export async function createInstitutionalAccountForAuthority(
   // touching auth or the DB. Bad data fails fast with a clear message — no
   // orphan auth users to compensate for. The catalog returns the canonical
   // (Province name, Locality name) pair, which is what we persist.
+  // locality:"strict" — resolveCanonicalJurisdiction per locality (admin-institutional behavior unchanged).
   const canonicalLocalities: { province: string; locality: string }[] = [];
   for (const l of initialLocalities) {
     try {
-      const { province, locality } = await resolveCanonicalJurisdiction({
-        rawProvince: l.province,
-        rawLocality: l.locality,
+      const normalizedLoc = await normalizeLocationForWrite(
+        {
+          province: l.province,
+          provinceCode: null,
+          locality: l.locality,
+          localityIndecId: null,
+          lat: null,
+          lng: null,
+          address: null,
+        },
+        { locality: "strict" },
+      );
+      canonicalLocalities.push({
+        province: normalizedLoc.province ?? l.province,
+        locality: normalizedLoc.locality ?? l.locality,
       });
-      canonicalLocalities.push({ province: province.name, locality: locality.localityName });
     } catch (err) {
       if (err instanceof JurisdictionValidationError) {
+        return { error: err.message };
+      }
+      if (err instanceof CoordError) {
         return { error: err.message };
       }
       throw err;
@@ -753,17 +769,27 @@ export async function assignGovtLocalityForAuthority(
   const { targetUserId, province: rawProvince, locality: rawLocality } = parsed.data;
 
   // 1.5 Resolve through the canonical catalog. We only persist canonical names.
+  // locality:"strict" — resolveCanonicalJurisdiction (govt assignment behavior unchanged).
   let canonicalProvince: string;
   let canonicalLocality: string;
   try {
-    const resolved = await resolveCanonicalJurisdiction({
-      rawProvince,
-      rawLocality,
-    });
-    canonicalProvince = resolved.province.name;
-    canonicalLocality = resolved.locality.localityName;
+    const normalizedLoc = await normalizeLocationForWrite(
+      {
+        province: rawProvince,
+        provinceCode: null,
+        locality: rawLocality,
+        localityIndecId: null,
+        lat: null,
+        lng: null,
+        address: null,
+      },
+      { locality: "strict" },
+    );
+    canonicalProvince = normalizedLoc.province ?? rawProvince;
+    canonicalLocality = normalizedLoc.locality ?? rawLocality;
   } catch (err) {
     if (err instanceof JurisdictionValidationError) return { error: err.message };
+    if (err instanceof CoordError) return { error: err.message };
     throw err;
   }
 

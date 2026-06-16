@@ -29,9 +29,10 @@ import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import {
+  CoordError,
   JurisdictionValidationError,
-  resolveCanonicalJurisdiction,
-} from "@/lib/jurisdiction-validation";
+  normalizeLocationForWrite,
+} from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
@@ -172,16 +173,28 @@ export async function createIntakeAction(
   // The intake form uses LocationFields (forces a catalog selection); this
   // validates crafted/bypassed requests and ensures org-side intakes converge
   // on the same canonical spelling as owner-side registrations.
+  // locality:"strict" — resolveCanonicalJurisdiction (intake behavior unchanged).
   if (parsed.jurisdictionProvince && parsed.jurisdictionLocality) {
     try {
-      const canonical = await resolveCanonicalJurisdiction({
-        rawProvince: parsed.jurisdictionProvince,
-        rawLocality: parsed.jurisdictionLocality,
-      });
-      parsed.jurisdictionProvince = canonical.province.name;
-      parsed.jurisdictionLocality = canonical.locality.localityName;
+      const normalizedLoc = await normalizeLocationForWrite(
+        {
+          province: parsed.jurisdictionProvince,
+          provinceCode: null,
+          locality: parsed.jurisdictionLocality,
+          localityIndecId: null,
+          lat: null,
+          lng: null,
+          address: null,
+        },
+        { locality: "strict" },
+      );
+      parsed.jurisdictionProvince = normalizedLoc.province;
+      parsed.jurisdictionLocality = normalizedLoc.locality;
     } catch (err) {
       if (err instanceof JurisdictionValidationError) {
+        return { error: err.message };
+      }
+      if (err instanceof CoordError) {
         return { error: err.message };
       }
       throw err;

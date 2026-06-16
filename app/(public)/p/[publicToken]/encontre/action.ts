@@ -24,6 +24,7 @@ import { headers } from "next/headers";
 
 import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -93,19 +94,28 @@ export async function reportFinderInPossessionAction(
     return { ok: false, error: "Dejá al menos un medio de contacto (teléfono o email)." };
   }
 
-  if (
-    loc.lat === null ||
-    loc.lng === null ||
-    !Number.isFinite(loc.lat) ||
-    !Number.isFinite(loc.lng)
-  ) {
-    return { ok: false, error: "Marcá en el mapa dónde tenés a la mascota." };
+  // requireCoords:true + locality:"none" — coords required and range-checked; no locality
+  // lookup (finder possession behavior unchanged, now routed through the shared gate).
+  let normalizedLocObj: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLocObj = await normalizeLocationForWrite(loc, {
+      locality: "none",
+      requireCoords: true,
+    });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return {
+        ok: false,
+        error:
+          err.code === "COORD_REQUIRED"
+            ? "Marcá en el mapa dónde tenés a la mascota."
+            : "La ubicación está fuera de rango.",
+      };
+    }
+    throw err;
   }
-  const lat = loc.lat;
-  const lng = loc.lng;
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-    return { ok: false, error: "La ubicación está fuera de rango." };
-  }
+  const lat = normalizedLocObj.lat as number;
+  const lng = normalizedLocObj.lng as number;
 
   const VALID_CONDITIONS = ["bien", "herida", "asustada", "necesita_vet_urgente"] as const;
   if (!VALID_CONDITIONS.includes(petCondition as (typeof VALID_CONDITIONS)[number])) {

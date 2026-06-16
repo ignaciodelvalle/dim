@@ -40,12 +40,12 @@ import {
 import { signalWelfareReport } from "@/lib/authority";
 import { closeCase, openCase } from "@/lib/case-helpers";
 import { parseDateInput } from "@/lib/format";
-import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
-import {
-  JurisdictionValidationError,
-  resolveCanonicalJurisdiction,
-} from "@/lib/jurisdiction-validation";
 import { writePoint } from "@/lib/location";
+import {
+  CoordError,
+  JurisdictionValidationError,
+  normalizeLocationForWrite,
+} from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
@@ -802,27 +802,24 @@ export async function createWelfareReportAction(
   const subjectPetToken = String(formData.get("subjectPetToken") ?? "").trim() || null;
   const subjectDescription = String(formData.get("subjectDescription") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
-  const locationAddress = loc.address;
-  const provinceName = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
-  const jurisdictionProvince: string | null = provinceName;
-  const localityNameRaw = loc.locality ?? "";
-  let jurisdictionLocality: string | null = null;
-  if (provinceName && localityNameRaw) {
-    try {
-      const canonical = await resolveCanonicalJurisdiction({
-        rawProvince: provinceName,
-        rawLocality: localityNameRaw,
-      });
-      jurisdictionLocality = canonical.locality.localityName;
-    } catch (err) {
-      if (err instanceof JurisdictionValidationError) {
-        return { error: err.message };
-      }
-      throw err;
+  // locality:"strict" — resolveCanonicalJurisdiction (denuncia behavior unchanged).
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "strict" });
+  } catch (err) {
+    if (err instanceof JurisdictionValidationError) {
+      return { error: err.message };
     }
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
   }
-  const locationLatRaw = loc.lat !== null ? String(loc.lat) : "";
-  const locationLngRaw = loc.lng !== null ? String(loc.lng) : "";
+  const locationAddress = normalizedLoc.address;
+  const jurisdictionProvince: string | null = normalizedLoc.province;
+  const jurisdictionLocality: string | null = normalizedLoc.locality;
+  const locationLatRaw = normalizedLoc.lat !== null ? String(normalizedLoc.lat) : "";
+  const locationLngRaw = normalizedLoc.lng !== null ? String(normalizedLoc.lng) : "";
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const reporterContactEmail = String(formData.get("reporterContactEmail") ?? "").trim() || null;
   const reporterContactPhone = String(formData.get("reporterContactPhone") ?? "").trim() || null;
@@ -1091,27 +1088,24 @@ export async function createOrgWelfareReportAction(
   const subjectPetToken = String(formData.get("subjectPetToken") ?? "").trim() || null;
   const subjectDescription = String(formData.get("subjectDescription") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
-  const locationAddress = loc.address;
-  const provinceName = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
-  const jurisdictionProvince: string | null = provinceName;
-  const localityNameRaw = loc.locality ?? "";
-  let jurisdictionLocality: string | null = null;
-  if (provinceName && localityNameRaw) {
-    try {
-      const canonical = await resolveCanonicalJurisdiction({
-        rawProvince: provinceName,
-        rawLocality: localityNameRaw,
-      });
-      jurisdictionLocality = canonical.locality.localityName;
-    } catch (err) {
-      if (err instanceof JurisdictionValidationError) {
-        return { error: err.message };
-      }
-      throw err;
+  // locality:"strict" — resolveCanonicalJurisdiction (org welfare report behavior unchanged).
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "strict" });
+  } catch (err) {
+    if (err instanceof JurisdictionValidationError) {
+      return { error: err.message };
     }
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
   }
-  const locationLatRaw = loc.lat !== null ? String(loc.lat) : "";
-  const locationLngRaw = loc.lng !== null ? String(loc.lng) : "";
+  const locationAddress = normalizedLoc.address;
+  const jurisdictionProvince: string | null = normalizedLoc.province;
+  const jurisdictionLocality: string | null = normalizedLoc.locality;
+  const locationLatRaw = normalizedLoc.lat !== null ? String(normalizedLoc.lat) : "";
+  const locationLngRaw = normalizedLoc.lng !== null ? String(normalizedLoc.lng) : "";
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const observedSymptoms = String(formData.get("observedSymptoms") ?? "").trim() || null;
   const orgClientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;

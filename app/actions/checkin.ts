@@ -22,7 +22,7 @@ import {
 } from "@/db";
 import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { validateEventPayload } from "@/lib/event-schemas";
-import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
+import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { requirePetAccess } from "@/lib/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
@@ -66,8 +66,18 @@ export async function recordPostAdoptionCheckinAction(
   // ISO code landed in the JSONB payload and govt-dashboard aggregation that
   // filters on display names silently missed check-in events.
   const loc = parseLocationFromFormData(formData);
-  const eventJurisdictionProvince = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
-  const eventJurisdictionLocality = loc.locality;
+  // locality:"none" — canonicalize province only, no catalog lookup (checkin behavior unchanged).
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+  const eventJurisdictionProvince = normalizedLoc.province;
+  const eventJurisdictionLocality = normalizedLoc.locality;
 
   // Look up the most recent adoption_finalized event for this pet. The
   // related organization is denormalized from that payload so the check-in

@@ -28,6 +28,7 @@ import { headers } from "next/headers";
 import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -80,19 +81,25 @@ export async function reportPetSightingAction(
   const finderContact = rawFinderContact ? rawFinderContact.slice(0, 120) : null;
   const photoFile = formData.get("photo") instanceof File ? (formData.get("photo") as File) : null;
 
-  if (
-    loc.lat === null ||
-    loc.lng === null ||
-    !Number.isFinite(loc.lat) ||
-    !Number.isFinite(loc.lng)
-  ) {
-    return { ok: false, error: "Marcá un punto en el mapa para indicar dónde la viste." };
+  // requireCoords:true + locality:"none" — coords required and range-checked; no locality
+  // lookup (sighting behavior unchanged, now routed through the shared gate).
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none", requireCoords: true });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return {
+        ok: false,
+        error:
+          err.code === "COORD_REQUIRED"
+            ? "Marcá un punto en el mapa para indicar dónde la viste."
+            : "La ubicación está fuera de rango.",
+      };
+    }
+    throw err;
   }
-  const lat = loc.lat;
-  const lng = loc.lng;
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-    return { ok: false, error: "La ubicación está fuera de rango." };
-  }
+  const lat = normalizedLoc.lat as number;
+  const lng = normalizedLoc.lng as number;
 
   const [pet] = await db
     .select({ id: pets.id, name: pets.name, status: pets.status })

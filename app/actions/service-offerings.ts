@@ -30,7 +30,7 @@ import {
   timeSlots,
 } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
+import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { generateOfferingToken } from "@/lib/publicToken";
 import { CreateServiceOfferingInput } from "@/lib/scheduling-schemas";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -118,12 +118,29 @@ async function createServiceOfferingWriter(
   // agree on the INDEC spelling. When both fields are empty (vet provider
   // without operational scope yet), persist as null. When the lookup misses
   // (uncatalogued locality), we keep the trimmed input — tolerant variant.
-  const canonical = await tryResolveCanonicalJurisdiction({
-    rawProvince: province,
-    rawLocality: locality,
-  });
-  const canonicalProvince: string | null = canonical.province || null;
-  const canonicalLocality: string | null = canonical.locality || null;
+  // locality:"soft" — tryResolveCanonicalJurisdiction (service-offering behavior unchanged).
+  let normalized: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalized = await normalizeLocationForWrite(
+      {
+        province,
+        provinceCode: null,
+        locality,
+        localityIndecId: null,
+        lat: null,
+        lng: null,
+        address: null,
+      },
+      { locality: "soft" },
+    );
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+  const canonicalProvince: string | null = normalized.province || null;
+  const canonicalLocality: string | null = normalized.locality || null;
 
   const publicToken = await generateUniqueToken(
     serviceOfferings,
