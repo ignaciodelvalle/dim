@@ -1,14 +1,32 @@
 import type { Metadata, Viewport } from "next";
-import { Caveat, IBM_Plex_Mono, IBM_Plex_Sans, IBM_Plex_Serif } from "next/font/google";
+import {
+  Caveat,
+  Encode_Sans,
+  IBM_Plex_Mono,
+  IBM_Plex_Sans,
+  IBM_Plex_Serif,
+} from "next/font/google";
 
 import { Toaster } from "@/components/Toaster";
 import { BRANDING } from "@/lib/branding";
 
 import "./globals.css";
 
+// ---------- Encode Sans (gob.ar portals — the default --font-sans) ----------
+// Loaded via next/font/google (self-hosted by Next at build time, served from
+// /_next/static). Replaces the old @font-face that pointed at
+// /fonts/encode-sans/*.ttf — files that were never committed, so every page 404'd
+// on them and fell back to system fonts. Exposed as a CSS var wired to
+// --font-sans in globals.css.
+const encodeSans = Encode_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--encode-sans-font",
+  display: "swap",
+});
+
 // ---------- Libreta Nacional typefaces (IBM Plex family + Caveat) ----------
 // Exposed as CSS vars and wired into Tailwind @theme as --font-ln-* tokens.
-// The existing Encode Sans (gob portals) is self-hosted; it is NOT removed.
 
 const ibmPlexSerif = IBM_Plex_Serif({
   subsets: ["latin"],
@@ -68,7 +86,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es-AR" className={lnFontVars}>
+    <html lang="es-AR" className={`${encodeSans.variable} ${lnFontVars}`}>
       <body>
         {/* Skip-to-main — first focusable element; visible on keyboard focus (WCAG 2.4.1). */}
         <a

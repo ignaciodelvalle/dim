@@ -18,7 +18,16 @@
 import { BRANDING } from "@/lib/branding";
 import { lostBannerHeadline, lostFirstPersonLine, normalizePhoneForTel } from "@/lib/format";
 import { tattooLocationLabel } from "@/lib/lookups";
+import dynamic from "next/dynamic";
 import Link from "next/link";
+
+// Live mini-map of the last-seen point. Loaded via next/dynamic (maplibre-gl must
+// not run on the server) — same pattern as LostLastSeenCard (owner side).
+const LocationMap = dynamic(() => import("@/components/LocationMap"), {
+  loading: () => (
+    <div className="h-40 w-full animate-pulse rounded-xl border border-ln-line bg-ln-stripe" />
+  ),
+});
 
 interface Props {
   petName: string;
@@ -52,9 +61,9 @@ interface Props {
   tattooDescription?: string | null;
   /** Resolved public URL of the tattoo photo, or null if unavailable. */
   tattooPhotoUrl?: string | null;
-  /** Last seen lat/lng — when present, renders a "Ver en el mapa" link to
-   * Google Maps so a finder can navigate from where the pet was lost.
-   * Sprint 5 PR-041 / doc 10 §3 punto 1. */
+  /** Last seen lat/lng — when present, renders an inline MapLibre mini-map of
+   * the point plus an "Abrir en Google Maps" link so a finder can navigate from
+   * where the pet was lost. Sprint 5 PR-041 / doc 10 §3 punto 1. */
   lastSeenLat?: number | null;
   lastSeenLng?: number | null;
   /** Free-form lost description fields from the mark-lost event payload (spec §8.4).
@@ -88,10 +97,14 @@ export function LostPublicCredential({
   lostDescription = null,
 }: Props) {
   const tattooLocLabel = tattooLocationLabel(tattooLocation);
-  const mapHref =
-    lastSeenLat != null && lastSeenLng != null
-      ? `https://www.google.com/maps/search/?api=1&query=${lastSeenLat},${lastSeenLng}`
-      : null;
+  const hasLastSeenCoords =
+    lastSeenLat != null &&
+    lastSeenLng != null &&
+    Number.isFinite(lastSeenLat) &&
+    Number.isFinite(lastSeenLng);
+  const mapHref = hasLastSeenCoords
+    ? `https://www.google.com/maps/search/?api=1&query=${lastSeenLat},${lastSeenLng}`
+    : null;
   return (
     <main className="min-h-screen bg-[var(--color-ln-err-050)] px-4 py-6 ">
       <div className="mx-auto max-w-md space-y-4">
@@ -160,22 +173,30 @@ export function LostPublicCredential({
           )}
         </section>
 
-        {(lastSeenPlaceName || lastSeenLocality) && (
+        {(lastSeenPlaceName || lastSeenLocality || hasLastSeenCoords) && (
           <section className="rounded-2xl bg-ln-card p-4 shadow-sm ">
             <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute ">
               Última vez vista
             </p>
-            <p className="mt-1 text-sm font-medium text-ln-ink ">
-              {[lastSeenPlaceName, lastSeenLocality].filter(Boolean).join(" · ")}
-            </p>
-            <div className="mt-3 flex h-32 flex-col items-center justify-center gap-1 rounded-xl bg-gradient-to-br from-[var(--color-ln-ok-050)] to-ln-celeste/10  ">
-              <span aria-hidden="true" className="text-3xl">
-                📍
-              </span>
-              <span className="text-[10px] text-[var(--color-ln-mute)]">
-                Mapa disponible próximamente
-              </span>
-            </div>
+            {(lastSeenPlaceName || lastSeenLocality) && (
+              <p className="mt-1 text-sm font-medium text-ln-ink ">
+                {[lastSeenPlaceName, lastSeenLocality].filter(Boolean).join(" · ")}
+              </p>
+            )}
+            {hasLastSeenCoords ? (
+              <div className="mt-3 h-40 w-full overflow-hidden rounded-xl border border-ln-line">
+                <LocationMap lat={lastSeenLat as number} lng={lastSeenLng as number} />
+              </div>
+            ) : (
+              <div className="mt-3 flex h-32 flex-col items-center justify-center gap-1 rounded-xl bg-gradient-to-br from-[var(--color-ln-ok-050)] to-ln-celeste/10  ">
+                <span aria-hidden="true" className="text-3xl">
+                  📍
+                </span>
+                <span className="text-[10px] text-[var(--color-ln-mute)]">
+                  Sin punto exacto en el mapa
+                </span>
+              </div>
+            )}
             {mapHref && (
               <a
                 href={mapHref}
@@ -183,7 +204,7 @@ export function LostPublicCredential({
                 rel="noreferrer noopener"
                 className="mt-3 inline-block text-xs font-medium text-ln-ok  underline underline-offset-2 hover:text-ln-ok/80"
               >
-                Ver en el mapa ↗
+                Abrir en Google Maps ↗
               </a>
             )}
           </section>

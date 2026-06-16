@@ -12,53 +12,22 @@
    @theme so Tailwind utilities like font-ln-serif work everywhere. */
 
 /* ---- Fuentes oficiales (Encode Sans — gob portals) ------------------------ */
-
-@font-face {
-  font-family: "Encode Sans";
-  src: url("/fonts/encode-sans/EncodeSans-Regular.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Encode Sans";
-  src: url("/fonts/encode-sans/EncodeSans-Medium.ttf") format("truetype");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Encode Sans";
-  src: url("/fonts/encode-sans/EncodeSans-SemiBold.ttf") format("truetype");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Encode Sans";
-  src: url("/fonts/encode-sans/EncodeSans-Bold.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "icono-arg";
-  src: url("/fonts/icono-arg/icono-arg.woff2") format("woff2"),
-    url("/fonts/icono-arg/icono-arg.woff") format("woff");
-  font-weight: normal;
-  font-style: normal;
-  font-display: block;
-}
+/* Encode Sans is loaded via next/font/google in app/layout.tsx (self-hosted by
+   Next at build time) and exposed as the --encode-sans-font CSS var, wired to
+   --font-sans below. The previous @font-face blocks pointed at
+   /fonts/encode-sans/*.ttf — files that were never committed, so every page
+   404'd on them and fell back to system fonts. The old icono-arg webfont
+   @font-face was removed for the same reason: its files were never committed and
+   <Icon> renders lucide-react SVGs (components/Icon.tsx), so the family was dead. */
 
 /* ---- Tokens ---------------------------------------------------------------- */
 
 @theme {
   /* ---- Tipografía --------------------------------------------------------- */
 
-  /* Encode Sans — gob portals (self-hosted, unchanged) */
-  --font-sans: "Encode Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial,
-    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  /* Encode Sans — gob portals (loaded via next/font in app/layout.tsx) */
+  --font-sans: var(--encode-sans-font, "Encode Sans"), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
 
   /* Libreta Nacional font stack (CSS vars injected by next/font in layout.tsx) */
   --font-ln-serif: var(--a-serif-font, "IBM Plex Serif"), Georgia, serif;
@@ -316,22 +285,6 @@ h6 {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
   border-radius: 2px;
-}
-
-/* ---- Íconos oficiales (icono-arg) ----------------------------------------- */
-
-.iconArg {
-  font-family: "icono-arg", sans-serif !important;
-  speak: never;
-  font-style: normal;
-  font-weight: normal;
-  font-variant: normal;
-  text-transform: none;
-  line-height: 1;
-  display: inline-block;
-  vertical-align: middle;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ---- Utilidades de movimiento --------------------------------------------- */
