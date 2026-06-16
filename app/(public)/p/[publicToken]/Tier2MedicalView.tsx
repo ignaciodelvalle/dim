@@ -1,8 +1,9 @@
 // Tier 2 medical view — owner-opt-in widened public projection.
 //
-// Rendered on /p/[publicToken] only while pet.tier2PublicEnabledUntil
-// is in the future. Surfaces a curated medical summary on top of the
-// Tier 0 identity rollups the credential normally shows.
+// Rendered on /p/[publicToken] while the Tier 2 window is active — either a
+// bounded window (tier2PublicEnabledUntil in the future) or the permanent
+// "siempre" option (tier2PublicPermanent = true). Surfaces a curated medical
+// summary on top of the Tier 0 identity rollups the credential normally shows.
 //
 // Privacy boundary: name + photo + species + breed are already public
 // (Tier 0). This view adds vaccines vigentes, esterilización, medicación
@@ -19,8 +20,8 @@ import {
 } from "@/lib/permanent-conditions";
 
 interface Props {
-  /** ISO when the window closes; surfaced as a soft countdown. */
-  enabledUntil: Date;
+  /** When the bounded window closes. Null when permanent ("siempre" option). */
+  enabledUntil: Date | null;
   /** Per-vaccine snapshot — aggregate counts only (active, expired, dueSoon, missing). */
   vaccineSummary: {
     active: number;
@@ -53,13 +54,15 @@ export function Tier2MedicalView({
     return c;
   });
 
-  const untilLabel = enabledUntil.toLocaleString("es-AR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const untilLabel = enabledUntil
+    ? enabledUntil.toLocaleString("es-AR", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
 
   // Determine vaccine tone based on summary
   const vaccineTone: "ok" | "warn" | "danger" =
@@ -85,7 +88,13 @@ export function Tier2MedicalView({
         Resumen médico vigente
       </h2>
       <p className="m-0 mb-[12px] text-[11.5px] text-ln-mute">
-        Visible hasta el <strong className="text-ln-ink-2">{untilLabel}</strong>.
+        {untilLabel ? (
+          <>
+            Visible hasta el <strong className="text-ln-ink-2">{untilLabel}</strong>.
+          </>
+        ) : (
+          <strong className="text-ln-ink-2">Siempre visible</strong>
+        )}
       </p>
 
       {/* Aggregate stats grid */}
