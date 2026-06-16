@@ -37,7 +37,7 @@ const DURATION_CARDS: ReadonlyArray<{
     id: "siempre",
     title: "Siempre visible",
     description: "Útil para mascotas con condiciones crónicas. Podés revertirlo cuando quieras.",
-    enabled: false,
+    enabled: true,
   },
 ];
 
@@ -45,6 +45,9 @@ type Props = {
   petPublicToken: string;
   petName: string;
   isActive: boolean;
+  /** True when the permanent "siempre" option is active (no expiry). */
+  isPermanent: boolean;
+  /** The bounded window expiry. Null when inactive or when isPermanent is true. */
   activeUntil: Date | null;
   enableAction: (formData: FormData) => Promise<void>;
   revokeAction: () => Promise<void>;
@@ -53,6 +56,7 @@ type Props = {
 export function Tier2PublicView({
   petPublicToken,
   isActive,
+  isPermanent,
   activeUntil,
   enableAction,
   revokeAction,
@@ -73,9 +77,9 @@ export function Tier2PublicView({
         </strong>
       </div>
 
-      {isActive && activeUntil ? (
+      {isActive ? (
         <ActiveStatusCard
-          until={activeUntil}
+          until={isPermanent ? null : activeUntil}
           petPublicToken={petPublicToken}
           revokeAction={revokeAction}
         />
@@ -150,26 +154,35 @@ function ActiveStatusCard({
   petPublicToken,
   revokeAction,
 }: {
-  until: Date;
+  /** Bounded window expiry. Null when permanent ("siempre" option). */
+  until: Date | null;
   petPublicToken: string;
   revokeAction: () => Promise<void>;
 }) {
-  const fmt = until.toLocaleString("es-AR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const fmt = until
+    ? until.toLocaleString("es-AR", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
   return (
     <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-3">
       <div className="space-y-1">
         <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-ln-ok)]">
           Tier 2 activo
         </p>
-        <p className="text-sm font-medium text-[var(--color-ln-ink)]">
-          Hasta el <strong>{fmt}</strong>
-        </p>
+        {fmt ? (
+          <p className="text-sm font-medium text-[var(--color-ln-ink)]">
+            Hasta el <strong>{fmt}</strong>
+          </p>
+        ) : (
+          <p className="text-sm font-medium text-[var(--color-ln-ink)]">
+            <strong>Siempre visible</strong> — Activo de forma permanente
+          </p>
+        )}
         <p className="text-xs text-[var(--color-ln-ink-2)]">
           Quien escanee el QR ve identidad básica + vacunas vigentes, antiparasitario reciente,
           esterilización, condiciones permanentes y medicación activa.

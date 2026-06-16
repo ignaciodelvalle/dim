@@ -1,16 +1,19 @@
 "use server";
 
-// Tier 2 público temporal — owner-initiated opt-in window for the public
-// credential at /p/[publicToken]. While the window is open, the public
-// page renders a curated medical summary (vacunas vigentes,
-// esterilización, medicación activa, condiciones permanentes) on top of
-// the Tier 0 identity rollups it normally shows.
+// Tier 2 público — owner-initiated opt-in for the public credential at
+// /p/[publicToken]. While active, the public page renders a curated medical
+// summary (vacunas vigentes, esterilización, medicación activa, condiciones
+// permanentes) on top of the Tier 0 identity rollups it normally shows.
 //
-// The owner picks a window from the duration card picker. 24h / 7d / 30d are
-// expiring windows (set a future tier2PublicEnabledUntil). "siempre" (no expiry)
-// needs a dedicated permanent flag — since a null expiry reads as inactive on the
-// public page — and is tracked as a separate follow-up; this action accepts the
-// three bounded durations and falls back to 24h for anything unrecognized.
+// Duration options:
+//   24h / 7d / 30d — expiring windows (set tier2PublicEnabledUntil to a
+//                    future timestamp; tier2PublicPermanent stays false).
+//   siempre        — permanent / no-expiry (sets tier2PublicPermanent = true,
+//                    tier2PublicEnabledUntil = null). A dedicated boolean is
+//                    required because a null expiry reads as inactive on the
+//                    public page.
+//
+// Revocation always clears both fields.
 
 import { db, pets } from "@/db";
 import { requirePetAccess } from "@/lib/pet-access";
@@ -42,13 +45,21 @@ export async function enableTier2PublicAction(
   // Default to 24h when no/unknown duration is submitted (back-compat with any
   // caller that invokes the action without form data).
   const duration = String(formData?.get("duration") ?? "24h");
-  const windowMs = DURATION_MS[duration] ?? DAY_MS;
-  const until = new Date(Date.now() + windowMs);
 
-  await db
-    .update(pets)
-    .set({ tier2PublicEnabledUntil: until, updatedAt: new Date() })
-    .where(eq(pets.id, pet.id));
+  if (duration === "siempre") {
+    // Permanent — no expiry timestamp; activate via the dedicated boolean flag.
+    await db
+      .update(pets)
+      .set({ tier2PublicPermanent: true, tier2PublicEnabledUntil: null, updatedAt: new Date() })
+      .where(eq(pets.id, pet.id));
+  } else {
+    const windowMs = DURATION_MS[duration] ?? DAY_MS;
+    const until = new Date(Date.now() + windowMs);
+    await db
+      .update(pets)
+      .set({ tier2PublicPermanent: false, tier2PublicEnabledUntil: until, updatedAt: new Date() })
+      .where(eq(pets.id, pet.id));
+  }
 
   revalidatePath(`/mis-mascotas/${publicToken}`);
   revalidatePath(`/mis-mascotas/${publicToken}/mostrar-libreta`);
@@ -62,7 +73,7 @@ export async function revokeTier2PublicAction(publicToken: string): Promise<void
 
   await db
     .update(pets)
-    .set({ tier2PublicEnabledUntil: null, updatedAt: new Date() })
+    .set({ tier2PublicPermanent: false, tier2PublicEnabledUntil: null, updatedAt: new Date() })
     .where(eq(pets.id, pet.id));
 
   revalidatePath(`/mis-mascotas/${publicToken}`);
