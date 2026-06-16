@@ -211,12 +211,15 @@ describe("INV-1 (§2.7) — vaccine sums to animal jurisdiction, not vet jurisdi
 
     // Vet records a rabies vaccination. The payload must carry the ANIMAL's
     // jurisdiction (PROVINCE_A/LOCALITY_A), not the vet's location.
-    // Use "Rabia" (unaccented) so fetchRabiesCoverage's ILIKE '%rabi%' matches.
+    // Use the REAL canonical form name "Antirrábica" (accented) — that's what
+    // the vaccine datalist (lib/lookups.ts) stores. The coverage query must
+    // match it via the accent-aware regex; this guards the bug where ILIKE
+    // '%rabi%' silently missed accented "Antirrábica" and undercounted to zero.
     await insertVaccinationEvent({
       petId,
       recordedByUserId: vetUserId,
       authorRole: "vet",
-      vaccineName: "Rabia",
+      vaccineName: "Antirrábica",
       payloadProvince: PROVINCE_A,
       payloadLocality: LOCALITY_A,
       occurredAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
@@ -259,7 +262,7 @@ describe("INV-1 (§2.7) — vaccine sums to animal jurisdiction, not vet jurisdi
         and(
           eq(petEvents.petId, petId),
           eq(petEvents.eventType, "vaccination_administered"),
-          sql`(${petEvents.payload}->>'vaccine_name') ILIKE ${"%rabi%"}`,
+          sql`(${petEvents.payload}->>'vaccine_name') ~* '(antirr[áa]bica|rabies)'`,
           eq(pets.jurisdictionProvince, PROVINCE_A),
           eq(pets.jurisdictionLocality, LOCALITY_A),
         ),
@@ -625,8 +628,8 @@ describe("INV-5 (§2.13) — idempotent submit yields exactly one event and one 
       authorRole: "owner",
       authorVerified: false,
       payload: {
-        // Use unaccented name so ILIKE '%rabi%' matches in the countDistinct test.
-        vaccine_name: "Rabia",
+        // Real canonical form name (accented) — matched by the accent-aware regex.
+        vaccine_name: "Antirrábica",
         pet_jurisdiction_province: PROVINCE_A,
         pet_jurisdiction_locality: LOCALITY_A,
       },
@@ -649,7 +652,7 @@ describe("INV-5 (§2.13) — idempotent submit yields exactly one event and one 
       authorRole: "owner",
       authorVerified: false,
       payload: {
-        vaccine_name: "Rabia",
+        vaccine_name: "Antirrábica",
         pet_jurisdiction_province: PROVINCE_A,
         pet_jurisdiction_locality: LOCALITY_A,
       },
@@ -684,7 +687,7 @@ describe("INV-5 (§2.13) — idempotent submit yields exactly one event and one 
         and(
           eq(petEvents.petId, petId),
           eq(petEvents.eventType, "vaccination_administered"),
-          sql`(${petEvents.payload}->>'vaccine_name') ILIKE ${"%rabi%"}`,
+          sql`(${petEvents.payload}->>'vaccine_name') ~* '(antirr[áa]bica|rabies)'`,
           gte(petEvents.occurredAt, new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)),
         ),
       );
