@@ -4,7 +4,7 @@
 // Auth (requireCapability("bite.report")) handled by caller (actions.ts).
 //
 // Parity quirks:
-//   - Uses plain insertIncidentEvent (NOT idempotent) — asymmetry with owner path preserved.
+//   - Uses insertIncidentEventIdempotent (aligned with owner path in v1.0 fix/idempotency-guards).
 //   - reporter_role derived from orgTypeToReporterRole (domain/bite.ts).
 //   - Active owner notified inside tx; authority fan-out post-tx.
 //   - noRedirect=1 returns { ok, petToken } instead of triggering redirect.
@@ -53,13 +53,14 @@ export type ReportBiteFromOrgInput = {
   eventJurisdictionLocality: string | null;
   noRedirect: boolean;
   orgToken: string;
+  clientIdempotencyKey: string | null;
 };
 
 type Deps = {
   repo: Pick<
     SurveillanceRepository,
     | "findLatestRabiesVaccineEvent"
-    | "insertIncidentEvent"
+    | "insertIncidentEventIdempotent"
     | "insertObservationStarted"
     | "setObservationStatus"
     | "findActiveOwnership"
@@ -137,7 +138,7 @@ export async function reportBiteFromOrg(
         tx,
       );
 
-      // 3. Plain insert (org path — NOT idempotent, parity asymmetry preserved).
+      // 3. Idempotent insert (aligned with owner path — deduplicates on double-submit).
       const incidentPayload = validateEventPayload("incident_reported", {
         incident_type: "bite_inflicted",
         severity: input.severity,
@@ -156,7 +157,7 @@ export async function reportBiteFromOrg(
         jurisdiction_locality: input.eventJurisdictionLocality,
       });
 
-      const biteEvent = await repo.insertIncidentEvent(
+      const { event: biteEvent, wasNoop: biteNoop } = await repo.insertIncidentEventIdempotent(
         {
           petId: pet.id,
           eventType: "incident_reported",
@@ -166,9 +167,14 @@ export async function reportBiteFromOrg(
           ...eventAuthorship,
           payload: incidentPayload,
           caseId: caseRow.id,
-        } as Parameters<typeof repo.insertIncidentEvent>[0],
-        tx as Parameters<typeof repo.insertIncidentEvent>[1],
+          clientIdempotencyKey: input.clientIdempotencyKey,
+        } as Parameters<typeof repo.insertIncidentEventIdempotent>[0],
+        tx as Parameters<typeof repo.insertIncidentEventIdempotent>[1],
       );
+
+      // Idempotency: skip observation + notifications when the bite event
+      // already exists (same key — double-submit or retry).
+      if (biteNoop) return;
 
       // 4. Insert rabies_observation_started.
       const observationPayload = validateEventPayload("rabies_observation_started", {

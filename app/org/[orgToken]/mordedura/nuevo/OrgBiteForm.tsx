@@ -13,12 +13,13 @@
 // Cierre: SuccessScreen "Incidente registrado. Mascota en observación
 // antirrábica por 10 días" — replaces the previous redirect.
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnCheckbox, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import {
   type ReportBiteFromOrgFormState,
   reportBiteFromOrgAction,
@@ -45,6 +46,11 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
   const [step, setStep] = useState(1);
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<ReportBiteFromOrgFormState>({ error: null });
+  const { key: idempotencyKey, reset: resetIdempotencyKey } = useIdempotencyKey();
+  // Stable ref so the submit closure always reads the current key without
+  // capturing a stale value from the initial render.
+  const idempotencyKeyRef = useRef(idempotencyKey);
+  idempotencyKeyRef.current = idempotencyKey;
 
   // Controlled fields. Reuse FormData on submit.
   const [petPublicToken, setPetPublicToken] = useState("");
@@ -66,6 +72,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
   function submit() {
     setState({ error: null });
     const fd = new FormData();
+    fd.set("clientIdempotencyKey", idempotencyKeyRef.current);
     fd.set("petPublicToken", petPublicToken.trim());
     fd.set("occurredAt", occurredAt);
     if (locationDescription) fd.set("locationDescription", locationDescription);
@@ -84,6 +91,11 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
     fd.set("noRedirect", "1");
     startTransition(async () => {
       const result = await action({ error: null }, fd);
+      if (result.ok) {
+        // Reset the key so a subsequent use of this form (unlikely but safe)
+        // generates a new event rather than a no-op.
+        resetIdempotencyKey();
+      }
       setState(result);
     });
   }

@@ -386,3 +386,91 @@ describe("reportPetSightingAction — P0d payload fields", () => {
     expect(capturedAttachmentInsert).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Idempotency: duplicate clientIdempotencyKey → wasNoop=true → no second insert
+// ---------------------------------------------------------------------------
+//
+// These tests mock @/lib/event-idempotency directly so they are independent of
+// the DB layer. Pattern mirrors checkin and finder idempotency unit tests.
+
+describe("reportPetSightingAction — idempotency guard", () => {
+  // Track how many times insertEventIdempotent is called so we can assert
+  // the notification path is NOT reached on a noop.
+  const mockInsertEventIdempotent = vi.fn();
+
+  beforeEach(() => {
+    vi.resetModules();
+    buildMockDb();
+    mockEnforceRateLimit.mockResolvedValue(undefined);
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+    capturedPetEventInsert = null;
+    capturedNotificationInsert = null;
+    capturedAttachmentInsert = null;
+
+    // Override the idempotency helper so we can control wasNoop.
+    vi.doMock("@/lib/event-idempotency", () => ({
+      insertEventIdempotent: mockInsertEventIdempotent,
+    }));
+  });
+
+  it("returns ok:true and skips second insert when same clientIdempotencyKey is reused (wasNoop=true)", async () => {
+    const IDEMPOTENCY_KEY = "de305d54-75b4-431b-adb2-eb6b9e546014";
+
+    // Simulate conflict on the second DB call: wasNoop=true.
+    mockInsertEventIdempotent.mockResolvedValue({
+      event: { id: INSERTED_EVENT_ID },
+      wasNoop: true,
+    });
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    // Single call with wasNoop=true — simulates a duplicate submission.
+    const fd = makeFormData({ ...BASE_LOCATION, clientIdempotencyKey: IDEMPOTENCY_KEY });
+    const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    // insertEventIdempotent must have been called with the key.
+    expect(mockInsertEventIdempotent).toHaveBeenCalledWith(
+      expect.objectContaining({ clientIdempotencyKey: IDEMPOTENCY_KEY }),
+    );
+  });
+
+  it("skips notification insert when wasNoop=true", async () => {
+    mockInsertEventIdempotent.mockResolvedValue({
+      event: { id: INSERTED_EVENT_ID },
+      wasNoop: true,
+    });
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const fd = makeFormData({
+      ...BASE_LOCATION,
+      clientIdempotencyKey: "de305d54-75b4-431b-adb2-eb6b9e546014",
+    });
+    const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    // Noop path must NOT insert a notification.
+    expect(capturedNotificationInsert).toBeNull();
+  });
+
+  it("proceeds with normal insert and notification when clientIdempotencyKey is absent", async () => {
+    mockInsertEventIdempotent.mockResolvedValue({
+      event: { id: INSERTED_EVENT_ID },
+      wasNoop: false,
+    });
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const fd = makeFormData({ ...BASE_LOCATION }); // no clientIdempotencyKey
+    const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    expect(mockInsertEventIdempotent).toHaveBeenCalledWith(
+      expect.objectContaining({ clientIdempotencyKey: null }),
+    );
+    // Normal path inserts the notification.
+    expect(capturedNotificationInsert).not.toBeNull();
+  });
+});

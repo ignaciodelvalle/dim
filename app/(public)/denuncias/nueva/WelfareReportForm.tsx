@@ -10,6 +10,7 @@
 //
 // TODO(M-followup): build a dedicated org-side wizard and retire this form.
 
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 
@@ -87,6 +88,7 @@ export function WelfareReportForm({
   // actionRef) that are always current — so the first-render closure stays valid
   // across the component lifetime even as files are added/removed.
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
 
   function handleFilesSelected(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -136,6 +138,7 @@ export function WelfareReportForm({
 
   return (
     <form action={formAction} className="space-y-6">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       {isAnonymous && (
         <p className="text-sm text-ln-ink-2 bg-ln-stripe rounded-lg px-4 py-3">
           Estás denunciando de forma anónima. Si querés seguimiento, podés{" "}

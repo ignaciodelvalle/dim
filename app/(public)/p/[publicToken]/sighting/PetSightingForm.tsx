@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
+import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 
 import { type SightingActionState, reportPetSightingAction } from "@/app/actions/pet-sighting";
 
@@ -31,6 +32,7 @@ export function PetSightingForm({
 }) {
   const boundAction = reportPetSightingAction.bind(null, publicToken);
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
 
   if (state.ok) {
     return (
@@ -58,6 +60,7 @@ export function PetSightingForm({
 
   return (
     <form action={formAction} className="space-y-4" encType="multipart/form-data">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <LocationFields
         mode="l2"
         biasProvince={biasProvince}

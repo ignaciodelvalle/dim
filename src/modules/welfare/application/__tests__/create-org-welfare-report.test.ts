@@ -48,6 +48,7 @@ function makeRepo(
   | "insertAttachments"
   | "linkCase"
   | "insertPetEvent"
+  | "insertPetEventIdempotent"
   | "insertAudit"
   | "insertNotifications"
   | "findOpenOtherWelfareCasesForPet"
@@ -57,6 +58,7 @@ function makeRepo(
     insertAttachments: vi.fn().mockResolvedValue(undefined),
     linkCase: vi.fn().mockResolvedValue(undefined),
     insertPetEvent: vi.fn().mockResolvedValue(undefined),
+    insertPetEventIdempotent: vi.fn().mockResolvedValue({ wasNoop: false }),
     insertAudit: vi.fn().mockResolvedValue(undefined),
     insertNotifications: vi.fn().mockResolvedValue(undefined),
     findOpenOtherWelfareCasesForPet: vi.fn().mockResolvedValue([]),
@@ -67,6 +69,7 @@ function makeRepo(
     | "insertAttachments"
     | "linkCase"
     | "insertPetEvent"
+    | "insertPetEventIdempotent"
     | "insertAudit"
     | "insertNotifications"
     | "findOpenOtherWelfareCasesForPet"
@@ -126,6 +129,7 @@ const BASE_INPUT = {
   }>,
   uploadedPaths: ["welfare-evidence/c3d4e5f6-a7b8-4333-aced-333333333333/evidence.jpg"],
   orgMember: ORG_MEMBER,
+  clientIdempotencyKey: null as string | null,
 };
 
 // ---------------------------------------------------------------------------
