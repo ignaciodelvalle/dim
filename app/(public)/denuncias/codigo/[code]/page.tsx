@@ -116,16 +116,20 @@ export default async function WelfareReportByCodePage({
 
   return (
     <main className="p-6 bg-[var(--color-ln-paper)]">
-      {/* Print styles: hide nav chrome, show only the comprobante section */}
+      {/* Print styles: print the full comprobante (header + all report
+          sections + evidence). Hide only page chrome marked [data-print-hide]
+          (back link, the WebGL map which doesn't render in print) and the
+          download button (.print:hidden). The previous version whitelisted a
+          [data-comprobante] marker that only sat on the ephemeral success
+          banner, so the printed receipt came out blank / banner-only. */}
       <style
         // biome-ignore lint/security/noDangerouslySetInnerHtml: static print CSS, no user input
         dangerouslySetInnerHTML={{
           __html: `
 @media print {
   body > *:not(main) { display: none !important; }
-  main > div > *:not([data-comprobante]) { display: none !important; }
-  [data-comprobante] { display: block !important; }
-  [data-comprobante] * { color: #000 !important; border-color: #ccc !important; background: #fff !important; }
+  [data-print-hide] { display: none !important; }
+  main, main * { color: #000 !important; border-color: #ccc !important; background: #fff !important; }
 }
           `.trim(),
         }}
@@ -134,6 +138,7 @@ export default async function WelfareReportByCodePage({
         {/* Back link */}
         <Link
           href="/denuncias/buscar"
+          data-print-hide
           className="inline-block text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)] transition-colors no-underline"
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
@@ -142,10 +147,7 @@ export default async function WelfareReportByCodePage({
 
         {/* Fresh submission confirmation banner */}
         {nueva === "1" && (
-          <div
-            data-comprobante
-            className="rounded-[6px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-5 py-5 space-y-3"
-          >
+          <div className="rounded-[6px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-5 py-5 space-y-3">
             <p className="text-sm font-semibold text-[var(--color-ln-ok)]">
               Tu denuncia fue registrada.
             </p>
@@ -251,7 +253,12 @@ export default async function WelfareReportByCodePage({
               )}
               {locationPoint && (
                 <>
-                  <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
+                  {/* WebGL map doesn't render in print — hidden there; the
+                      coordinates below remain so the comprobante still records
+                      the exact point. */}
+                  <div data-print-hide>
+                    <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
+                  </div>
                   <p
                     className="text-xs text-[var(--color-ln-mute)]"
                     style={{ fontFamily: "var(--font-ln-mono)" }}
