@@ -626,9 +626,15 @@ describe("replaceMicrochipForUser — audit_log row written", () => {
     const rows = await db
       .select()
       .from(auditLog)
-      .where(and(eq(auditLog.actorUserId, ownerUserId), eq(auditLog.action, "microchip.replace")));
-    expect(rows.length).toBeGreaterThan(0);
-    const row = rows[rows.length - 1];
+      .where(
+        and(
+          eq(auditLog.actorUserId, ownerUserId),
+          eq(auditLog.action, "microchip.replace"),
+          sql`${auditLog.payload}->>'event_id' = ${result.eventId}`,
+        ),
+      );
+    expect(rows.length).toBe(1);
+    const row = rows[0];
     const payload = row.payload as Record<string, unknown>;
     expect(payload.event_id).toBe(result.eventId);
     expect(payload.target_pet_id).toBe(primaryPetId);

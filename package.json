@@ -31,7 +31,8 @@
     "backfill:eno": "node --conditions=react-server --import tsx scripts/backfill-eno-trigger.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",
@@ -53,6 +54,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@biomejs/biome": "^1.9.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.10.0",
