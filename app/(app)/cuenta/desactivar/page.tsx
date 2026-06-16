@@ -1,7 +1,7 @@
 // Desactivar cuenta — Libreta Nacional redesign.
 // GovtSelfDeactivateForm (client component) unchanged.
 
-import { and, count, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -42,29 +42,45 @@ export default async function DesactivarPage() {
     .from(govtAssignments)
     .where(and(eq(govtAssignments.userId, user.id), isNull(govtAssignments.revokedAt)));
 
-  const localitiesWithCoverage = await Promise.all(
-    myAssignments.map(async (a) => {
-      const [{ otherCount }] = await db
-        .select({ otherCount: count() })
-        .from(govtAssignments)
-        .innerJoin(profiles, eq(profiles.id, govtAssignments.userId))
-        .where(
-          and(
-            ne(govtAssignments.userId, user.id),
-            eq(govtAssignments.jurisdictionProvince, a.province),
-            eq(govtAssignments.jurisdictionLocality, a.locality),
-            isNull(govtAssignments.revokedAt),
-            isNull(profiles.deactivatedAt),
-          ),
-        );
+  // Single grouped aggregate instead of one COUNT per jurisdiction.
+  // Falls back to empty coverage counts when there are no assignments.
+  const coverageRows =
+    myAssignments.length > 0
+      ? await db
+          .select({
+            province: govtAssignments.jurisdictionProvince,
+            locality: govtAssignments.jurisdictionLocality,
+            otherCount: sql<number>`count(*)::int`,
+          })
+          .from(govtAssignments)
+          .innerJoin(profiles, eq(profiles.id, govtAssignments.userId))
+          .where(
+            and(
+              ne(govtAssignments.userId, user.id),
+              or(
+                ...myAssignments.map((a) =>
+                  and(
+                    eq(govtAssignments.jurisdictionProvince, a.province),
+                    eq(govtAssignments.jurisdictionLocality, a.locality),
+                  ),
+                ),
+              ),
+              isNull(govtAssignments.revokedAt),
+              isNull(profiles.deactivatedAt),
+            ),
+          )
+          .groupBy(govtAssignments.jurisdictionProvince, govtAssignments.jurisdictionLocality)
+      : [];
 
-      return {
-        province: a.province,
-        locality: a.locality,
-        otherActiveGovtCount: otherCount,
-      };
-    }),
+  const coverageMap = new Map(
+    coverageRows.map((r) => [`${r.province}||${r.locality}`, r.otherCount]),
   );
+
+  const localitiesWithCoverage = myAssignments.map((a) => ({
+    province: a.province,
+    locality: a.locality,
+    otherActiveGovtCount: coverageMap.get(`${a.province}||${a.locality}`) ?? 0,
+  }));
 
   return (
     <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">

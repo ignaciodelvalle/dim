@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { MapChoropleth } from "@/components/charts/MapChoropleth";
-import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
+import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -212,7 +212,7 @@ export default async function GobVigilanciaPage({
         <OpCard aria-labelledby={panelMapId}>
           <OpCardHead title={<span id={panelMapId}>Casos abiertos por jurisdicción</span>} />
           <OpCardBody>
-            <MapChoropleth data={choroplethData} />
+            <MapChoroplethDynamic data={choroplethData} />
           </OpCardBody>
         </OpCard>
 
@@ -254,7 +254,7 @@ export default async function GobVigilanciaPage({
           title={<span id={panelTrendId}>Tendencia de enfermedades reportables (12 meses)</span>}
         />
         <OpCardBody>
-          <TimeSeriesChart data={trendPoints} seriesLabel="Signals" />
+          <TimeSeriesChartDynamic data={trendPoints} seriesLabel="Signals" />
         </OpCardBody>
       </OpCard>
 

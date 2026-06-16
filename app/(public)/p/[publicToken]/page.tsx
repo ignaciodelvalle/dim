@@ -218,19 +218,44 @@ export default async function PublicCredentialPage({
   const tier2ActiveMedications: string[] = [];
   if (tier2Active) {
     const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
-    // Vacunación "vigente" v1: unique vaccine_name applied in the last 12
-    // months. Conservative — a future PR can wire computeVaccinationSummary
-    // (catalog interval-aware) once the libreta health-status helpers land.
-    const recentVaccines = await db
-      .select({ payload: petEvents.payload })
-      .from(petEvents)
-      .where(
-        and(
-          eq(petEvents.petId, pet.id),
-          eq(petEvents.eventType, "vaccination_administered"),
-          sql`${petEvents.occurredAt} >= ${oneYearAgo.toISOString()}`,
+    // Run all three tier2 queries concurrently — none depends on the others.
+    const [recentVaccines, sterilRows, medRows] = await Promise.all([
+      // Vacunación "vigente" v1: unique vaccine_name applied in the last 12
+      // months. Conservative — a future PR can wire computeVaccinationSummary
+      // (catalog interval-aware) once the libreta health-status helpers land.
+      db
+        .select({ payload: petEvents.payload })
+        .from(petEvents)
+        .where(
+          and(
+            eq(petEvents.petId, pet.id),
+            eq(petEvents.eventType, "vaccination_administered"),
+            sql`${petEvents.occurredAt} >= ${oneYearAgo.toISOString()}`,
+          ),
         ),
-      );
+      db
+        .select({ id: petEvents.id })
+        .from(petEvents)
+        .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "sterilization_performed")))
+        .limit(1),
+      // Active medications: started without a referencing stop. Same shape
+      // as computeMedicationsActive (lib/libreta-health-status.ts) but
+      // inlined to avoid coupling this page to that PR until both ship.
+      db
+        .select({
+          id: petEvents.id,
+          eventType: petEvents.eventType,
+          payload: petEvents.payload,
+        })
+        .from(petEvents)
+        .where(
+          and(
+            eq(petEvents.petId, pet.id),
+            sql`${petEvents.eventType} IN ('medication_started','medication_stopped')`,
+          ),
+        ),
+    ]);
+
     const seen = new Set<string>();
     for (const row of recentVaccines) {
       const name =
@@ -241,29 +266,8 @@ export default async function PublicCredentialPage({
     }
     tier2VaccineActive = seen.size;
 
-    const [steril] = await db
-      .select({ id: petEvents.id })
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "sterilization_performed")))
-      .limit(1);
-    tier2IsSterilized = !!steril;
+    tier2IsSterilized = sterilRows.length > 0;
 
-    // Active medications: started without a referencing stop. Same shape
-    // as computeMedicationsActive (lib/libreta-health-status.ts) but
-    // inlined to avoid coupling this page to that PR until both ship.
-    const medRows = await db
-      .select({
-        id: petEvents.id,
-        eventType: petEvents.eventType,
-        payload: petEvents.payload,
-      })
-      .from(petEvents)
-      .where(
-        and(
-          eq(petEvents.petId, pet.id),
-          sql`${petEvents.eventType} IN ('medication_started','medication_stopped')`,
-        ),
-      );
     const stoppedIds = new Set<string>();
     for (const r of medRows) {
       if (r.eventType !== "medication_stopped") continue;
@@ -641,7 +645,15 @@ export default async function PublicCredentialPage({
           {/* Photo */}
           {photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={photoUrl} alt={pet.name} className="block w-full aspect-[4/3] object-cover" />
+            <img
+              src={photoUrl}
+              alt={pet.name}
+              width={460}
+              height={345}
+              loading="eager"
+              decoding="sync"
+              className="block w-full aspect-[4/3] object-cover"
+            />
           ) : (
             <div
               className="grid w-full place-items-center aspect-[4/3]"
