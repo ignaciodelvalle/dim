@@ -6,6 +6,13 @@
 import { useState, useTransition } from "react";
 
 import type { AttendanceResult, DewormingPayload } from "@/app/actions/attendance";
+import {
+  OpFieldLabel,
+  OpFormAlert,
+  OpInput,
+  OpSelect,
+  OpSubmitButton,
+} from "@/components/ui/dashboard";
 
 type Props = {
   appointmentToken: string;
@@ -54,66 +61,35 @@ export function DewormingAttendanceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <p
-          role="alert"
-          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
-        >
-          {error}
-        </p>
-      )}
+      {error && <OpFormAlert>{error}</OpFormAlert>}
       <div>
-        <label htmlFor="dew-product" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <OpFieldLabel htmlFor="dew-product">
           Producto / antiparasitario <span className="text-ln-op-danger">*</span>
-        </label>
-        <input
+        </OpFieldLabel>
+        <OpInput
           id="dew-product"
           name="product"
           type="text"
           required
           placeholder="Ej: Nexgard, Milbemax"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div>
-        <label htmlFor="dew-type" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
-          Tipo de desparasitación
-        </label>
-        <select
-          id="dew-type"
-          name="type"
-          defaultValue="internal"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
-        >
+        <OpFieldLabel htmlFor="dew-type">Tipo de desparasitación</OpFieldLabel>
+        <OpSelect id="dew-type" name="type" defaultValue="internal">
           <option value="internal">Interna</option>
           <option value="external">Externa</option>
           <option value="both">Ambas</option>
-        </select>
+        </OpSelect>
       </div>
 
       <div>
-        <label
-          htmlFor="dew-next_due_at"
-          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
-        >
-          Próxima dosis (fecha)
-        </label>
-        <input
-          id="dew-next_due_at"
-          name="next_due_at"
-          type="date"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
-        />
+        <OpFieldLabel htmlFor="dew-next_due_at">Próxima dosis (fecha)</OpFieldLabel>
+        <OpInput id="dew-next_due_at" name="next_due_at" type="date" />
       </div>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full px-4 py-2 rounded-md bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {pending ? "Guardando…" : submitLabel}
-      </button>
+      <OpSubmitButton pending={pending}>{submitLabel}</OpSubmitButton>
     </form>
   );
 }
