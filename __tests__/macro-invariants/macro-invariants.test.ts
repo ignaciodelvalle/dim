@@ -211,11 +211,12 @@ describe("INV-1 (§2.7) — vaccine sums to animal jurisdiction, not vet jurisdi
 
     // Vet records a rabies vaccination. The payload must carry the ANIMAL's
     // jurisdiction (PROVINCE_A/LOCALITY_A), not the vet's location.
+    // Use "Rabia" (unaccented) so fetchRabiesCoverage's ILIKE '%rabi%' matches.
     await insertVaccinationEvent({
       petId,
       recordedByUserId: vetUserId,
       authorRole: "vet",
-      vaccineName: "Antirrábica",
+      vaccineName: "Rabia",
       payloadProvince: PROVINCE_A,
       payloadLocality: LOCALITY_A,
       occurredAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
@@ -601,7 +602,8 @@ describe("INV-4 (§2.2) — vet-authored clinical events are immutable (append-o
 describe("INV-5 (§2.13) — idempotent submit yields exactly one event and one projection effect", () => {
   const TOKEN = `MI-INV5-${Date.now()}`;
   let petId: string;
-  const IDEMPOTENCY_KEY = `macro-inv5-test-${Date.now()}`;
+  // Must be a valid UUID — pet_events.client_idempotency_key is a UUID column.
+  const IDEMPOTENCY_KEY = crypto.randomUUID();
   const VACCINE_OCCURRED_AT = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
 
   beforeAll(async () => {
@@ -623,7 +625,8 @@ describe("INV-5 (§2.13) — idempotent submit yields exactly one event and one 
       authorRole: "owner",
       authorVerified: false,
       payload: {
-        vaccine_name: "Antirrábica",
+        // Use unaccented name so ILIKE '%rabi%' matches in the countDistinct test.
+        vaccine_name: "Rabia",
         pet_jurisdiction_province: PROVINCE_A,
         pet_jurisdiction_locality: LOCALITY_A,
       },
@@ -646,7 +649,7 @@ describe("INV-5 (§2.13) — idempotent submit yields exactly one event and one 
       authorRole: "owner",
       authorVerified: false,
       payload: {
-        vaccine_name: "Antirrábica",
+        vaccine_name: "Rabia",
         pet_jurisdiction_province: PROVINCE_A,
         pet_jurisdiction_locality: LOCALITY_A,
       },
