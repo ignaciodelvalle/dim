@@ -153,6 +153,8 @@ function makeCreateFormData(overrides?: Record<string, string>): FormData {
   fd.append("name", "Luna");
   fd.append("species", "perro");
   fd.append("sex", "female");
+  fd.append("localityName", "La Plata");
+  fd.append("provinceCode", "AR-B");
   for (const [k, v] of Object.entries(overrides ?? {})) {
     fd.set(k, v);
   }

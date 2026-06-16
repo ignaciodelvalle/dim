@@ -84,6 +84,13 @@ export function parsePetForm(
   if (!name) return { parsed: null, error: "Falta el nombre." };
   if (!species) return { parsed: null, error: "Falta la especie." };
 
+  // Locality is required — pets must always have a jurisdiction.
+  // Existing pets without a locality are forced to set one on their next edit.
+  const localityNameRaw = String(formData.get("localityName") ?? "").trim();
+  if (!localityNameRaw) {
+    return { parsed: null, error: "LOCALITY_REQUIRED" };
+  }
+
   const sexRaw = String(formData.get("sex") ?? "unknown");
   const sex: "male" | "female" | "unknown" =
     sexRaw === "male" || sexRaw === "female" ? sexRaw : "unknown";
