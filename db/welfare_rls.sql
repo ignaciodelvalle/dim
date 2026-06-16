@@ -29,31 +29,68 @@ create policy "Reporter can read own welfare reports"
 -- No update / delete for now. Future govt portal will handle workflow
 -- transitions via service role with audit logging.
 
--- welfare_report_attachments — row-level access matches the parent report
+-- welfare_report_attachments — scoped to reporter identity of the parent report
+-- (migration 0099_welfare_attachments_rls_scope.sql)
 alter table public.welfare_report_attachments enable row level security;
 
+-- INSERT: reporters attach to their own report; admins for back-office tooling.
+-- Anon PostgREST INSERT is intentionally absent — the app inserts rows via
+-- Drizzle (BYPASSRLS), so this policy is defense-in-depth only.
 drop policy if exists "Anyone can insert welfare attachments" on public.welfare_report_attachments;
-create policy "Anyone can insert welfare attachments"
+drop policy if exists "Reporter can insert own welfare attachments" on public.welfare_report_attachments;
+create policy "Reporter can insert own welfare attachments"
   on public.welfare_report_attachments
   for insert
-  to anon, authenticated
-  with check (true);
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.welfare_reports wr
+      where wr.id = welfare_report_attachments.welfare_report_id
+        and wr.reporter_user_id = auth.uid()
+    )
+  );
 
--- NOTE: This RLS only governs queries via PostgREST (supabase-js client).
--- All Drizzle queries bypass it (direct DB connection). This is defense-in-depth.
--- The "unguessable path" model: any caller who knows the report id (via the
--- reference code lookup) can read its attachments — the 256-bit UUID entropy
--- in the report id makes the path effectively unreachable without the code link.
+drop policy if exists "Admin can insert welfare attachments" on public.welfare_report_attachments;
+create policy "Admin can insert welfare attachments"
+  on public.welfare_report_attachments
+  for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'admin'
+    )
+  );
+
+-- SELECT: reporter sees own attachments; admin sees all.
 drop policy if exists "Reporter can read own welfare attachments" on public.welfare_report_attachments;
 drop policy if exists "Welfare attachments readable when parent report exists" on public.welfare_report_attachments;
-create policy "Welfare attachments readable when parent report exists"
+drop policy if exists "Admin can read any welfare attachments" on public.welfare_report_attachments;
+create policy "Reporter can read own welfare attachments"
   on public.welfare_report_attachments
   for select
-  to anon, authenticated
+  to authenticated
   using (
     exists (
       select 1
       from public.welfare_reports wr
       where wr.id = welfare_report_attachments.welfare_report_id
+        and wr.reporter_user_id = auth.uid()
+    )
+  );
+
+create policy "Admin can read any welfare attachments"
+  on public.welfare_report_attachments
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'admin'
     )
   );
