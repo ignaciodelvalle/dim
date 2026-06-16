@@ -38,9 +38,12 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
       setClientError("Elegí la especie antes de continuar.");
       return;
     }
-    // LocationFields populates localityName via a hidden input on selection.
-    const localityValue = (form.elements.namedItem("localityName") as HTMLInputElement | null)
-      ?.value;
+    // Read localityName via FormData, exactly as the server does. We must NOT
+    // use form.elements.namedItem("localityName"): LocationFields renders both
+    // an input id="localityName" AND a hidden input name="localityName", so
+    // namedItem() returns a RadioNodeList (id+name collision) whose .value is
+    // empty — which previously blocked submit even with a locality selected.
+    const localityValue = String(new FormData(form).get("localityName") ?? "").trim();
     if (!localityValue) {
       e.preventDefault();
       setClientError("Seleccioná la localidad antes de continuar.");
