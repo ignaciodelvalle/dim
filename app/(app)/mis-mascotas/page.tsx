@@ -128,12 +128,12 @@ export default async function MisMascotasPage({
       {/* ------------------------------------------------------------------ */}
       {activePets.length === 0 ? (
         <LnEmptyState
-          title="Todavía no tenés mascotas registradas."
-          description="Empezá registrando tu primera mascota."
+          title="No tenés mascotas registradas."
+          description="Cargá una mascota para verla acá."
           action={
             <Link href="/mis-mascotas/nueva">
               <LnButton variant="primary" size="sm">
-                Agregar tu primera mascota
+                Cargar una mascota
               </LnButton>
             </Link>
           }
