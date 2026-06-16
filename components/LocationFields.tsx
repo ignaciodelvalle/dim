@@ -287,7 +287,7 @@ export function LocationFields({
       {/* L1 — cross-province locality autocomplete, single input. */}
       {!isL2 && (
         <div className="space-y-1.5">
-          <label htmlFor="localityName" className="block text-sm font-medium text-ln-ink">
+          <label htmlFor="localityName-input" className="block text-sm font-medium text-ln-ink">
             Localidad
           </label>
           <LocalityPickerAcross
