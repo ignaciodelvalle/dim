@@ -1137,6 +1137,13 @@ export const petEvents = pgTable(
     authorOrganizationIdx: index("pet_events_author_organization_id_idx")
       .on(table.authorOrganizationId)
       .where(sql`${table.authorOrganizationId} IS NOT NULL`),
+    // Data-integrity: lat and lng must be stored together or not at all
+    // (migration 0100). NOT VALID on first apply — validate once data confirmed
+    // clean. Mirrors organizations_coordinates_pair_check.
+    locationPairCheck: check(
+      "pet_events_location_pair_check",
+      sql`(${table.locationLat} IS NULL) = (${table.locationLng} IS NULL)`,
+    ),
   }),
 );
 
@@ -1515,6 +1522,13 @@ export const welfareReports = pgTable(
     welfareReportsOrgInterventionStatusCheck: check(
       "welfare_reports_org_intervention_status_check",
       sql`${table.orgInterventionStatus} is null or ${table.orgInterventionStatus} in ('tomado', 'devuelto')`,
+    ),
+    // Data-integrity: lat and lng must be stored together or not at all
+    // (migration 0100). NOT VALID on first apply — validate once data confirmed
+    // clean. Mirrors organizations_coordinates_pair_check.
+    locationPairCheck: check(
+      "welfare_reports_location_pair_check",
+      sql`(${table.locationLat} IS NULL) = (${table.locationLng} IS NULL)`,
     ),
   }),
 );
