@@ -198,7 +198,9 @@ export default async function CuentaPage() {
                 <span className="text-[13px] text-[var(--color-ln-ink-2)]">
                   Matrícula M.N. {profile.matriculaNumber}
                   {profile.matriculaJurisdiccion && ` (${profile.matriculaJurisdiccion})`}{" "}
-                  {profile.matriculaVerified ? "verificada" : "— pendiente de verificación"}
+                  {profile.matriculaVerified
+                    ? "verificada"
+                    : "— reportada al colegio / autoridad jurisdiccional — pendiente de validación"}
                 </span>
               </div>
             ) : profile.role === "vet" ? (
