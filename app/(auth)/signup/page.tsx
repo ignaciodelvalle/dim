@@ -45,7 +45,7 @@ export default async function SignupPage({
           <p className="text-sm text-[var(--color-ln-ink-2)]">
             {intent === "apply"
               ? "Para postularte a adoptar necesitás una cuenta en MiMAR. Es gratis y toma un minuto."
-              : "Empezá la libreta digital de tu mascota"}
+              : "Creá la libreta digital de tu mascota"}
           </p>
         </div>
         <SignupForm intent={intent} returnTo={returnTo} />
