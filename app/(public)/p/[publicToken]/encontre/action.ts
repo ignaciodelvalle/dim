@@ -67,6 +67,12 @@ export async function reportFinderInPossessionAction(
   const rawFinderName = String(formData.get("finderName") ?? "").trim();
   const rawFinderPhone = String(formData.get("finderPhone") ?? "").trim();
   const rawFinderEmail = String(formData.get("finderEmail") ?? "").trim();
+  // Exact point (L2): the finder drops a pin so the owner knows where to pick up.
+  // localityName/provinceName are still emitted by LocationFields (derived from the
+  // pin's reverse geocode) and kept as human-readable context — but the required
+  // location is now the coordinate pair, not a locality string.
+  const latRaw = String(formData.get("locationLat") ?? "").trim();
+  const lngRaw = String(formData.get("locationLng") ?? "").trim();
   const localityName = String(formData.get("localityName") ?? "").trim();
   const provinceCode = String(formData.get("provinceCode") ?? "").trim();
   const provinceName = String(formData.get("provinceName") ?? "").trim();
@@ -87,8 +93,13 @@ export async function reportFinderInPossessionAction(
     return { ok: false, error: "Dejá al menos un medio de contacto (teléfono o email)." };
   }
 
-  if (!localityName) {
-    return { ok: false, error: "Indicá dónde tenés a la mascota." };
+  const lat = latRaw ? Number.parseFloat(latRaw) : Number.NaN;
+  const lng = lngRaw ? Number.parseFloat(lngRaw) : Number.NaN;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return { ok: false, error: "Marcá en el mapa dónde tenés a la mascota." };
+  }
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return { ok: false, error: "La ubicación está fuera de rango." };
   }
 
   const VALID_CONDITIONS = ["bien", "herida", "asustada", "necesita_vet_urgente"] as const;
@@ -228,7 +239,12 @@ export async function reportFinderInPossessionAction(
   // canKeepUntil, canKeepIndefinite, message) alongside the base note_added fields.
   // validateEventPayload returns the parsed value (with payload_version filled in);
   // that returned object — not the raw input — is persisted to the JSONB column.
-  const noteText = `${finderName} tiene a ${pet.name}. Condición: ${petCondition}. Ubicación: ${localityName}${provinceName ? `, ${provinceName}` : ""}.`;
+  // Human-readable location: prefer the reverse-geocoded locality/province; fall
+  // back to the raw coordinates when the pin didn't resolve to a place name.
+  const locationLabel =
+    [localityName, provinceName].filter(Boolean).join(", ") ||
+    `el punto marcado (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+  const noteText = `${finderName} tiene a ${pet.name}. Condición: ${petCondition}. Ubicación: ${locationLabel}.`;
   const payload = validateEventPayload("note_added", {
     category: "otro" as const,
     text: noteText,
@@ -258,6 +274,8 @@ export async function reportFinderInPossessionAction(
       authorRole: "finder",
       authorVerified,
       payload,
+      locationLat: lat.toString(),
+      locationLng: lng.toString(),
       caseId: openCase?.id ?? null,
     })
     .returning({ id: petEvents.id });
@@ -278,7 +296,7 @@ export async function reportFinderInPossessionAction(
   }
 
   // Notification to owner.
-  const locationDisplay = provinceName ? `${localityName}, ${provinceName}` : localityName;
+  const locationDisplay = locationLabel;
 
   const contactDisplay =
     finderPhone && finderEmail

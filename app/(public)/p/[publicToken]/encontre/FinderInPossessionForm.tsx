@@ -194,13 +194,19 @@ export function FinderInPossessionForm({
           </div>
         </fieldset>
 
-        {/* Current location — L1 */}
+        {/* Current location — exact point (L2). A finder in possession needs to
+            tell the owner WHERE to pick the pet up; a pin is far more useful than
+            a locality. Mirrors the sighting flow. */}
         <div className="space-y-1.5">
           <p className={labelClass}>¿Dónde la tenés ahora?{requiredMark}</p>
+          <p className="text-xs text-[var(--color-ln-faint)]">
+            Marcá el punto exacto en el mapa así el dueño/a sabe dónde encontrarte.
+          </p>
           <LocationFields
-            mode="l1"
+            mode="l2"
             biasProvince={biasProvince}
             biasLocality={biasLocality}
+            useMyLocationVariant="primary"
             allowAnonymous
           />
         </div>
