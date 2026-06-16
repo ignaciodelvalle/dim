@@ -23,6 +23,9 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
   const inputClass =
     "w-full px-3 py-2 rounded-lg border border-ln-warn bg-ln-card text-ln-ink text-sm focus:outline-none focus:ring-2 focus:ring-ln-warn focus:border-transparent";
 
+  // B-2: stable id for the error paragraph so required inputs can reference it
+  const errorId = "found-pet-form-error";
+
   return (
     <form action={formAction} className="space-y-3">
       <div className="space-y-1">
@@ -35,6 +38,7 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
           type="text"
           required
           placeholder="Nombre y apellido"
+          aria-describedby={state.error ? errorId : undefined}
           className={inputClass}
         />
       </div>
@@ -49,6 +53,7 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
           type="text"
           required
           placeholder="Teléfono o email"
+          aria-describedby={state.error ? errorId : undefined}
           className={inputClass}
         />
       </div>
@@ -66,8 +71,9 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
         />
       </div>
 
+      {/* B-2: stable id so required inputs above can reference via aria-describedby */}
       {state.error && (
-        <p className="text-xs text-ln-err" role="alert">
+        <p id={errorId} className="text-xs text-ln-err" role="alert">
           {state.error}
         </p>
       )}

@@ -17,6 +17,12 @@ export type LnWizardShellProps = {
   /** Optional cancel handler. When provided, a "Cancelar y volver" button is
    * rendered next to the back arrow (top right). */
   onCancel?: () => void;
+  /**
+   * B-8: Optional id for the <main> element so the skip-to-main link
+   * ("#main-content") can land on the wizard's content area.
+   * Pass id="main-content" on the first (and only active) shell instance.
+   */
+  mainId?: string;
   children: React.ReactNode;
 };
 
@@ -26,6 +32,7 @@ export function LnWizardShell({
   stepLabels,
   onBack,
   onCancel,
+  mainId,
   children,
 }: LnWizardShellProps) {
   // Progress percent — (currentStep - 1) / totalSteps so step 1 renders as 0%
@@ -84,7 +91,9 @@ export function LnWizardShell({
         />
       </div>
 
-      <main className="flex-1 px-4 pt-8 pb-32 max-w-md mx-auto w-full">{children}</main>
+      <main id={mainId} className="flex-1 px-4 pt-8 pb-32 max-w-md mx-auto w-full">
+        {children}
+      </main>
     </div>
   );
 }

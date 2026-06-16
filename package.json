@@ -56,8 +56,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
+    "@axe-core/playwright": "^4.11.3",
     "@biomejs/biome": "^1.9.0",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.10.0",
     "@types/qrcode": "^1.5.6",

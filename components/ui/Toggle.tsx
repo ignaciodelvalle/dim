@@ -46,6 +46,11 @@ export function LnToggle({
     );
   }
 
+  // B-4: click/key handlers removed from the non-semantic div.
+  // The inner <button role="switch"> (Track) already handles all interaction.
+  // The div is kept purely for layout; pointer-events on the div are benign but
+  // the div is not in the tab order and has no role, so removing the handlers
+  // avoids the "interactive element without role" a11y violation.
   return (
     <div
       className={[
@@ -54,13 +59,6 @@ export function LnToggle({
       ]
         .filter(Boolean)
         .join(" ")}
-      onClick={() => onChange(!checked)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onChange(!checked);
-        }
-      }}
     >
       <Track checked={checked} trackOn={trackOn} onChange={onChange} label={label} />
       <div className="min-w-0 flex-1">

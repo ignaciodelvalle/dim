@@ -1,7 +1,8 @@
 "use client";
 
 import { getDrawerWidth } from "@/lib/sheet-helpers";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
+import { useEffect } from "react";
 import { Drawer } from "vaul";
 
 export type { SheetSize } from "@/lib/sheet-helpers";
@@ -22,6 +23,8 @@ export type SheetSide = "bottom" | "right";
  * Accessibility:
  *  - `title` renders as a visually styled heading + Drawer.Title (screen reader).
  *  - Close button has aria-label="Cerrar".
+ *  - B-9: optional `triggerRef` — when provided, focus returns to that element on close
+ *    (mirrors ConfirmDialog.tsx pattern). Callers that don't pass it keep working as before.
  */
 
 export type SheetProps = {
@@ -31,11 +34,24 @@ export type SheetProps = {
   onClose: () => void;
   side?: SheetSide;
   size?: import("@/lib/sheet-helpers").SheetSize;
+  /**
+   * B-9: Ref to the element that triggered the sheet.
+   * When provided, focus returns to it after the sheet closes.
+   * Backward-compatible — callers that omit it keep existing behavior.
+   */
+  triggerRef?: RefObject<HTMLElement | null>;
   children: ReactNode;
 };
 
-export function Sheet({ id, title, open, onClose, size = "md", children }: SheetProps) {
+export function Sheet({ id, title, open, onClose, size = "md", triggerRef, children }: SheetProps) {
   const widthClass = getDrawerWidth(size);
+
+  // B-9: Return focus to the trigger element when the sheet closes.
+  useEffect(() => {
+    if (!open && triggerRef?.current) {
+      triggerRef.current.focus();
+    }
+  }, [open, triggerRef]);
 
   return (
     <Drawer.Root

@@ -115,7 +115,7 @@ export default async function WelfareReportByCodePage({
   const hasContact = report.reporterContactEmail || report.reporterContactPhone;
 
   return (
-    <main className="p-6 bg-[var(--color-ln-paper)]">
+    <main id="main-content" className="p-6 bg-[var(--color-ln-paper)]">
       {/* Print styles: print the full comprobante (header + all report
           sections + evidence). Hide only page chrome marked [data-print-hide]
           (back link, the WebGL map which doesn't render in print) and the

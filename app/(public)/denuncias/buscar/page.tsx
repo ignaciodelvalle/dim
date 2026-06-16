@@ -3,7 +3,7 @@ import { SearchForm } from "./SearchForm";
 
 export default function BuscarDenunciaPage() {
   return (
-    <main className="p-6 bg-[var(--color-ln-paper)]">
+    <main id="main-content" className="p-6 bg-[var(--color-ln-paper)]">
       <div className="max-w-md mx-auto pt-10 space-y-8">
         <header className="space-y-2">
           <Link
