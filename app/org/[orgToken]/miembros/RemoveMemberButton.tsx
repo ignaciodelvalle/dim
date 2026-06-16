@@ -3,8 +3,9 @@
 // RemoveMemberButton — confirms and calls removeMemberAction for a member row.
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { removeMemberAction } from "@/src/modules/organizations/actions";
 
 type Props = {
@@ -18,6 +19,7 @@ export function RemoveMemberButton({ organizationId, membershipId, displayName }
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   function handleRemove() {
     setError(null);
@@ -32,49 +34,32 @@ export function RemoveMemberButton({ organizationId, membershipId, displayName }
     });
   }
 
-  if (!confirming) {
-    return (
+  return (
+    <div className="flex flex-col gap-1">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setConfirming(true)}
         className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-[12px] font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white"
       >
         Quitar
       </button>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-1">
-      <p className="text-[12px] text-ln-op-mute">
-        ¿Quitar a <strong>{displayName}</strong> de la organización?
-      </p>
       {error && (
         <p className="text-[12px] text-ln-op-danger" role="alert">
           {error}
         </p>
       )}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={handleRemove}
-          disabled={pending}
-          className="rounded-[4px] bg-ln-op-danger px-3 py-[5px] text-[12px] font-medium text-white transition-colors disabled:opacity-60"
-        >
-          {pending ? "Quitando..." : "Confirmar"}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setConfirming(false);
-            setError(null);
-          }}
-          disabled={pending}
-          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
-        >
-          Cancelar
-        </button>
-      </div>
+      <ConfirmDialog
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        onConfirm={handleRemove}
+        title={`¿Quitar a ${displayName} de la organización?`}
+        description="Esta acción eliminará al miembro de la organización."
+        confirmLabel="Quitar"
+        tone="danger"
+        pending={pending}
+        triggerRef={triggerRef}
+      />
     </div>
   );
 }
