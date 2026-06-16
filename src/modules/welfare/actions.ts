@@ -46,6 +46,7 @@ import {
   resolveCanonicalJurisdiction,
 } from "@/lib/jurisdiction-validation";
 import { writePoint } from "@/lib/location";
+import { parseLocationFromFormData } from "@/lib/location-value";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -800,11 +801,11 @@ export async function createWelfareReportAction(
   const subjectKind = String(formData.get("subjectKind") ?? "").trim();
   const subjectPetToken = String(formData.get("subjectPetToken") ?? "").trim() || null;
   const subjectDescription = String(formData.get("subjectDescription") ?? "").trim() || null;
-  const locationAddress = String(formData.get("locationAddress") ?? "").trim() || null;
-  const provinceCodeRaw = String(formData.get("provinceCode") ?? "").trim();
-  const localityNameRaw = String(formData.get("localityName") ?? "").trim();
-  const provinceName = canonicalProvinceNameForStorage(provinceCodeRaw);
+  const loc = parseLocationFromFormData(formData);
+  const locationAddress = loc.address;
+  const provinceName = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
   const jurisdictionProvince: string | null = provinceName;
+  const localityNameRaw = loc.locality ?? "";
   let jurisdictionLocality: string | null = null;
   if (provinceName && localityNameRaw) {
     try {
@@ -820,8 +821,8 @@ export async function createWelfareReportAction(
       throw err;
     }
   }
-  const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
-  const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
+  const locationLatRaw = loc.lat !== null ? String(loc.lat) : "";
+  const locationLngRaw = loc.lng !== null ? String(loc.lng) : "";
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const reporterContactEmail = String(formData.get("reporterContactEmail") ?? "").trim() || null;
   const reporterContactPhone = String(formData.get("reporterContactPhone") ?? "").trim() || null;
@@ -1089,11 +1090,11 @@ export async function createOrgWelfareReportAction(
   const subjectKind = String(formData.get("subjectKind") ?? "").trim();
   const subjectPetToken = String(formData.get("subjectPetToken") ?? "").trim() || null;
   const subjectDescription = String(formData.get("subjectDescription") ?? "").trim() || null;
-  const locationAddress = String(formData.get("locationAddress") ?? "").trim() || null;
-  const provinceCodeRaw = String(formData.get("provinceCode") ?? "").trim();
-  const localityNameRaw = String(formData.get("localityName") ?? "").trim();
-  const provinceName = canonicalProvinceNameForStorage(provinceCodeRaw);
+  const loc = parseLocationFromFormData(formData);
+  const locationAddress = loc.address;
+  const provinceName = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
   const jurisdictionProvince: string | null = provinceName;
+  const localityNameRaw = loc.locality ?? "";
   let jurisdictionLocality: string | null = null;
   if (provinceName && localityNameRaw) {
     try {
@@ -1109,8 +1110,8 @@ export async function createOrgWelfareReportAction(
       throw err;
     }
   }
-  const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
-  const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
+  const locationLatRaw = loc.lat !== null ? String(loc.lat) : "";
+  const locationLngRaw = loc.lng !== null ? String(loc.lng) : "";
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const observedSymptoms = String(formData.get("observedSymptoms") ?? "").trim() || null;
   const orgClientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;

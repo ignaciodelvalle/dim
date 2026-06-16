@@ -32,6 +32,7 @@ import {
   JurisdictionValidationError,
   resolveCanonicalJurisdiction,
 } from "@/lib/jurisdiction-validation";
+import { parseLocationFromFormData } from "@/lib/location-value";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
 import { generatePublicToken } from "@/lib/publicToken";
@@ -76,6 +77,7 @@ type CustodyRole = "shelter_custody" | "owner";
 const CUSTODY_ROLES: readonly CustodyRole[] = ["shelter_custody", "owner"];
 
 function parseIntakeForm(formData: FormData) {
+  const loc = parseLocationFromFormData(formData);
   const name = String(formData.get("name") ?? "").trim();
   const species = String(formData.get("species") ?? "").trim();
   if (!name) return { parsed: null, error: "Falta el nombre (o un alias temporal)." };
@@ -141,9 +143,8 @@ function parseIntakeForm(formData: FormData) {
         ? String(formData.get("microchipCountryCode") ?? "").trim() || null
         : null,
       tattooCode,
-      jurisdictionProvince:
-        provinceByCode(String(formData.get("provinceCode") ?? "").trim())?.name ?? null,
-      jurisdictionLocality: String(formData.get("localityName") ?? "").trim() || null,
+      jurisdictionProvince: provinceByCode(loc.provinceCode ?? "")?.name ?? null,
+      jurisdictionLocality: loc.locality,
       intakeReason,
       intakeCondition: String(formData.get("intakeCondition") ?? "").trim() || null,
       rescueJurisdiction: String(formData.get("rescueJurisdiction") ?? "").trim() || null,

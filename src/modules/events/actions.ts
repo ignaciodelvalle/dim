@@ -38,6 +38,7 @@ import { findDrugByLabel } from "@/lib/drugs";
 import { checkboxOn } from "@/lib/form-checkbox";
 import { parseDateInput } from "@/lib/format";
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
+import { parseLocationFromFormData } from "@/lib/location-value";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
 import type { SupabaseServerClient } from "@/lib/pet-access";
 import { createClient } from "@/lib/supabase/server";
@@ -830,10 +831,9 @@ export async function createVetVisitAction(
   const clinic = String(formData.get("clinic") ?? "").trim() || null;
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
-  const eventJurisdictionProvince = canonicalProvinceNameForStorage(
-    String(formData.get("provinceCode") ?? ""),
-  );
-  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+  const loc = parseLocationFromFormData(formData);
+  const eventJurisdictionProvince = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
+  const eventJurisdictionLocality = loc.locality;
 
   if (!reason) return { error: "Falta el motivo de la visita." };
   if (!occurredAtRaw) return { error: "Falta la fecha." };
@@ -906,10 +906,9 @@ export async function createClinicalInfoAction(
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
-  const eventJurisdictionProvince = canonicalProvinceNameForStorage(
-    String(formData.get("provinceCode") ?? ""),
-  );
-  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+  const loc = parseLocationFromFormData(formData);
+  const eventJurisdictionProvince = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
+  const eventJurisdictionLocality = loc.locality;
 
   if (!(CLINICAL_SUB_KINDS as readonly string[]).includes(subKindRaw)) {
     return { error: "Tipo de información clínica inválido." };
