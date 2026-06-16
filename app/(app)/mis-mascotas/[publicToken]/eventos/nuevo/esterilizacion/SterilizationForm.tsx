@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
@@ -23,6 +23,12 @@ export function SterilizationForm({
   const [state, formAction, isPending] = useActionState(action, initialState);
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
+
+  // Controlled field state — preserves typed input on validation error.
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+  const [performedBy, setPerformedBy] = useState("");
+  const [clinic, setClinic] = useState("");
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   return (
     <>
@@ -59,7 +65,8 @@ export function SterilizationForm({
                 type="date"
                 required
                 mono
-                defaultValue={defaults?.occurredAt ?? today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -71,6 +78,8 @@ export function SterilizationForm({
                 id={id}
                 name="performedBy"
                 type="text"
+                value={performedBy}
+                onChange={(e) => setPerformedBy(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -82,6 +91,8 @@ export function SterilizationForm({
                 id={id}
                 name="clinic"
                 type="text"
+                value={clinic}
+                onChange={(e) => setClinic(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -93,7 +104,8 @@ export function SterilizationForm({
                 id={id}
                 name="notes"
                 rows={3}
-                defaultValue={defaults?.notes ?? ""}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />

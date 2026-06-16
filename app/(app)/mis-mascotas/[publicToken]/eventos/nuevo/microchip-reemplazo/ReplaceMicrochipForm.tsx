@@ -4,7 +4,7 @@ import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
 import type { EventFormState } from "@/src/modules/events/actions";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const initialState: EventFormState = { error: null };
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
@@ -27,6 +27,12 @@ export function ReplaceMicrochipForm({
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const today = new Date().toISOString().slice(0, 10);
+
+  // Controlled field state — preserves typed input on validation error.
+  const [newChipNumber, setNewChipNumber] = useState("");
+  const [replacedBy, setReplacedBy] = useState("");
+  const [replacedAt, setReplacedAt] = useState(today);
+  const [notes, setNotes] = useState("");
 
   return (
     <>
@@ -71,6 +77,8 @@ export function ReplaceMicrochipForm({
                 id={id}
                 name="newChipNumber"
                 type="text"
+                value={newChipNumber}
+                onChange={(e) => setNewChipNumber(e.target.value)}
                 placeholder="985141004321456"
                 aria-describedby={describedBy}
                 invalid={invalid}
@@ -84,6 +92,8 @@ export function ReplaceMicrochipForm({
                 id={id}
                 name="replacedBy"
                 type="text"
+                value={replacedBy}
+                onChange={(e) => setReplacedBy(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -97,7 +107,8 @@ export function ReplaceMicrochipForm({
                 type="date"
                 required
                 mono
-                defaultValue={today}
+                value={replacedAt}
+                onChange={(e) => setReplacedAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -110,6 +121,8 @@ export function ReplaceMicrochipForm({
                 name="notes"
                 rows={3}
                 maxLength={300}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />

@@ -143,6 +143,11 @@ function Step2({
   const [registry, setRegistry] = useState("");
   const today = new Date().toISOString().slice(0, 10);
 
+  // Controlled field state — preserves typed input on validation error.
+  const [registryId, setRegistryId] = useState("");
+  const [attestedAt, setAttestedAt] = useState(today);
+  const [notes, setNotes] = useState("");
+
   return (
     <>
       <LnSheetHeader
@@ -186,6 +191,8 @@ function Step2({
                 id={id}
                 name="registryId"
                 type="text"
+                value={registryId}
+                onChange={(e) => setRegistryId(e.target.value)}
                 placeholder="Si tenés el número a mano"
                 aria-describedby={describedBy}
                 invalid={invalid}
@@ -201,7 +208,8 @@ function Step2({
                 type="date"
                 required
                 mono
-                defaultValue={today}
+                value={attestedAt}
+                onChange={(e) => setAttestedAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -213,6 +221,8 @@ function Step2({
                 id={id}
                 name="notes"
                 rows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 placeholder="Detalles, si querés agregar"
                 aria-describedby={describedBy}
                 invalid={invalid}
