@@ -9,6 +9,13 @@
 import { useState, useTransition } from "react";
 
 import type { AttendanceResult, MicrochipPayload } from "@/app/actions/attendance";
+import {
+  OpFieldLabel,
+  OpFormAlert,
+  OpInput,
+  OpSelect,
+  OpSubmitButton,
+} from "@/components/ui/dashboard";
 
 type Props = {
   appointmentToken: string;
@@ -76,22 +83,12 @@ export function MicrochipAttendanceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <p
-          role="alert"
-          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
-        >
-          {error}
-        </p>
-      )}
+      {error && <OpFormAlert>{error}</OpFormAlert>}
       <div>
-        <label
-          htmlFor="chip-chip_number"
-          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
-        >
+        <OpFieldLabel htmlFor="chip-chip_number">
           Número de microchip <span className="text-ln-op-danger">*</span>
-        </label>
-        <input
+        </OpFieldLabel>
+        <OpInput
           id="chip-chip_number"
           name="chip_number"
           type="text"
@@ -100,72 +97,43 @@ export function MicrochipAttendanceForm({
           pattern="\d{15}"
           maxLength={15}
           placeholder="15 dígitos ISO 11784/11785"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label
-            htmlFor="chip-country_code"
-            className="block text-xs font-medium text-ln-op-ink-2 mb-1"
-          >
-            Código de país (ISO)
-          </label>
-          <input
+          <OpFieldLabel htmlFor="chip-country_code">Código de país (ISO)</OpFieldLabel>
+          <OpInput
             id="chip-country_code"
             name="country_code"
             type="text"
             defaultValue={DEFAULT_COUNTRY_CODE}
             placeholder="858 (Argentina)"
-            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
           />
         </div>
         <div>
-          <label
-            htmlFor="chip-location_on_body"
-            className="block text-xs font-medium text-ln-op-ink-2 mb-1"
-          >
-            Ubicación de implante
-          </label>
-          <select
-            id="chip-location_on_body"
-            name="location_on_body"
-            defaultValue=""
-            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
-          >
+          <OpFieldLabel htmlFor="chip-location_on_body">Ubicación de implante</OpFieldLabel>
+          <OpSelect id="chip-location_on_body" name="location_on_body" defaultValue="">
             {LOCATION_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
             ))}
-          </select>
+          </OpSelect>
         </div>
       </div>
 
       <div>
-        <label
-          htmlFor="chip-implanted_by"
-          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
-        >
-          Implantado por
-        </label>
-        <input
+        <OpFieldLabel htmlFor="chip-implanted_by">Implantado por</OpFieldLabel>
+        <OpInput
           id="chip-implanted_by"
           name="implanted_by"
           type="text"
           placeholder="Nombre del profesional (opcional)"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full px-4 py-2 rounded-md bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {pending ? "Guardando…" : submitLabel}
-      </button>
+      <OpSubmitButton pending={pending}>{submitLabel}</OpSubmitButton>
     </form>
   );
 }
