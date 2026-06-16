@@ -129,12 +129,12 @@ export default async function IntakePage({
       {activeTab === "cola" ? (
         intakeRows.length === 0 ? (
           <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-            Todavía no registraste ningún ingreso.{" "}
+            No hay ingresos registrados.{" "}
             <Link
               href={`/org/${orgToken}/intake?tab=registrar`}
               className="text-ln-op-azul hover:underline no-underline"
             >
-              Registrar el primero
+              Registrar ingreso
             </Link>
           </p>
         ) : (

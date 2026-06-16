@@ -76,7 +76,7 @@ export default async function MisTurnosPage() {
           </h1>
           <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
             {rows.length === 0
-              ? "Todavía no tenés turnos reservados."
+              ? "No hay turnos reservados."
               : `${rows.length} turno${rows.length === 1 ? "" : "s"} en total.`}
           </p>
         </div>
@@ -90,7 +90,7 @@ export default async function MisTurnosPage() {
       {rows.length === 0 && (
         <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
           <p className="text-[13px] text-[var(--color-ln-mute)]">
-            Reservá tu primer turno buscando un servicio disponible.
+            Buscá un servicio disponible para reservar un turno.
           </p>
         </div>
       )}
