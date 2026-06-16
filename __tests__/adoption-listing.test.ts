@@ -174,6 +174,30 @@ describe("queryAdoptionListing — filters", () => {
     expect(items.some((i) => i.name === "AL-Cat")).toBe(true);
     expect(items.every((i) => i.species === "cat")).toBe(true);
   });
+
+  // Accent-parity: unaccented searchQuery must find a pet whose name
+  // contains diacritics. PostgreSQL ILIKE folds case but NOT diacritics;
+  // unaccent() on both column and pattern is required for this to work.
+  it("searchQuery finds pet with accented name via unaccented term", async () => {
+    await insertPet({ name: "Léón" });
+    const { items } = await queryAdoptionListing(
+      { organizationToken: ORG_TOKEN, searchQuery: "leon" },
+      null,
+      50,
+    );
+    expect(items.some((i) => i.name === "Léón")).toBe(true);
+  });
+
+  it("searchQuery wildcard chars are escaped and do not act as patterns", async () => {
+    await insertPet({ name: "AL-WildcardSafe" });
+    const { items } = await queryAdoptionListing(
+      { organizationToken: ORG_TOKEN, searchQuery: "%" },
+      null,
+      50,
+    );
+    // "%" as a literal — must not match everything.
+    expect(items.some((i) => i.name === "AL-WildcardSafe")).toBe(false);
+  });
 });
 
 describe("parseSearchParams / buildSearchParams", () => {

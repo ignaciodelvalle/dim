@@ -609,6 +609,25 @@ describe("fetchLostPets", () => {
     expect(names).not.toContain("UnderscorePetA");
     expect(names).not.toContain("UnderscorePetB");
   });
+
+  // Accent-parity: unaccented q must find a pet whose name contains diacritics.
+  // PostgreSQL ILIKE folds case but NOT diacritics; unaccent() on both column
+  // and pattern is required for "gonzalez" to find "González".
+  it("q filter matches accented pet name via unaccented query", async () => {
+    const prov = "Entre Ríos";
+    const loc = "Paraná";
+    const pet = await insertFixturePet({
+      name: "Ñoño",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await markLost(pet, 1);
+
+    const r = await fetchLostPets({ role: "admin" }, [], { q: "nono" });
+    const names = r.map((p) => p.petName);
+    expect(names).toContain("Ñoño");
+  });
 });
 
 // ============================================================================
