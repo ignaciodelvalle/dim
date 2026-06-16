@@ -377,8 +377,11 @@ jobs:
         # $GITHUB_ENV and also alias ANON_KEY → NEXT_PUBLIC_SUPABASE_ANON_KEY
         # (the CLI uses a raw name; Next.js reads the NEXT_PUBLIC_* form).
         run: |
-          STATUS_ENV=$(pnpm exec supabase status -o env 2>&1)
-          echo "$STATUS_ENV" >> "$GITHUB_ENV"
+          # 2>/dev/null drops the pnpm "[WARN] ..." stderr line; grep keeps only
+          # KEY=VALUE lines so nothing non-env pollutes $GITHUB_ENV (the warning
+          # line previously broke the file command with "Invalid format").
+          STATUS_ENV=$(pnpm exec supabase status -o env 2>/dev/null)
+          echo "$STATUS_ENV" | grep -E '^[A-Z_][A-Z0-9_]*=' >> "$GITHUB_ENV"
           ANON=$(echo "$STATUS_ENV" | grep '^ANON_KEY=' | cut -d= -f2-)
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON}" >> "$GITHUB_ENV"
 
