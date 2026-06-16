@@ -25,13 +25,13 @@ const DURATION_CARDS: ReadonlyArray<{
     id: "7d",
     title: "7 días",
     description: "Tránsito, cuidador temporal, escapadas de fin de semana.",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "30d",
     title: "30 días",
     description: "Internación, viaje largo, mudanza.",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "siempre",
@@ -46,7 +46,7 @@ type Props = {
   petName: string;
   isActive: boolean;
   activeUntil: Date | null;
-  enableAction: () => Promise<void>;
+  enableAction: (formData: FormData) => Promise<void>;
   revokeAction: () => Promise<void>;
 };
 
@@ -86,7 +86,7 @@ export function Tier2PublicView({
   );
 }
 
-function EnableForm({ enableAction }: { enableAction: () => Promise<void> }) {
+function EnableForm({ enableAction }: { enableAction: (formData: FormData) => Promise<void> }) {
   return (
     <form action={enableAction} className="space-y-4">
       <fieldset className="space-y-2">
@@ -135,7 +135,7 @@ function EnableForm({ enableAction }: { enableAction: () => Promise<void> }) {
         type="submit"
         className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-ok)] hover:opacity-90 text-white font-medium"
       >
-        Habilitar Tier 2 por 24 horas
+        Habilitar Tier 2
       </button>
 
       <p className="text-xs text-[var(--color-ln-mute)] text-center">
