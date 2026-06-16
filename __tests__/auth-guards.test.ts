@@ -1,0 +1,338 @@
+// Unit tests for page-level auth guards in lib/auth-guards.ts.
+//
+// Strategy:
+//   - Mock @/lib/supabase/server so createClient().auth.getUser() is controllable.
+//   - Mock @/lib/request-cache so getProfileCached / getJurisdictionsCached /
+//     getOrgMembershipCached return deterministic rows.
+//   - Mock next/navigation so redirect() and notFound() are captured rather than
+//     throwing control-flow exceptions (we still rethrow to mirror Next semantics,
+//     but we can spy on the target).
+//
+// All tests are pure mock-based — no DB, no Supabase instance required.
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// ---------------------------------------------------------------------------
+// Mock: next/navigation
+// redirect() in Next.js throws NEXT_REDIRECT; we mirror that here so code
+// after redirect() is unreachable, but we can spy on the destination.
+// notFound() also throws; capture it the same way.
+// ---------------------------------------------------------------------------
+
+const mockRedirect = vi.fn((path: string): never => {
+  throw new Error(`NEXT_REDIRECT:${path}`);
+});
+const mockNotFound = vi.fn((): never => {
+  throw new Error("NEXT_NOT_FOUND");
+});
+
+vi.mock("next/navigation", () => ({
+  redirect: (path: string) => mockRedirect(path),
+  notFound: () => mockNotFound(),
+}));
+
+// ---------------------------------------------------------------------------
+// Mock: @/lib/supabase/server
+// ---------------------------------------------------------------------------
+
+const mockGetUser = vi.fn();
+const mockSupabaseClient = { auth: { getUser: () => mockGetUser() } };
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(async () => mockSupabaseClient),
+}));
+
+// ---------------------------------------------------------------------------
+// Mock: @/lib/request-cache
+// ---------------------------------------------------------------------------
+
+const mockGetProfileCached = vi.fn();
+const mockGetJurisdictionsCached = vi.fn();
+const mockGetOrgMembershipCached = vi.fn();
+
+vi.mock("@/lib/request-cache", () => ({
+  getProfileCached: (...args: unknown[]) => mockGetProfileCached(...args),
+  getJurisdictionsCached: (...args: unknown[]) => mockGetJurisdictionsCached(...args),
+  getOrgMembershipCached: (...args: unknown[]) => mockGetOrgMembershipCached(...args),
+}));
+
+// ---------------------------------------------------------------------------
+// Import guards AFTER mocks are hoisted
+// ---------------------------------------------------------------------------
+
+import {
+  requireAdminOrGovtOrRedirect,
+  requireAdminOrRedirect,
+  requireOrgAccessByToken,
+  requireUserOrRedirect,
+} from "@/lib/auth-guards";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function userSession(id = "user-001", email = "user@dim-test.local") {
+  return { data: { user: { id, email } }, error: null };
+}
+
+function noSession() {
+  return { data: { user: null }, error: null };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  // Default: no session (safest default — each test sets what it needs)
+  mockGetUser.mockResolvedValue(noSession());
+});
+
+// ---------------------------------------------------------------------------
+// requireUserOrRedirect
+// ---------------------------------------------------------------------------
+
+describe("requireUserOrRedirect", () => {
+  it("redirects to /login when there is no session", async () => {
+    mockGetUser.mockResolvedValue(noSession());
+    await expect(requireUserOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/login");
+    expect(mockRedirect).toHaveBeenCalledWith("/login");
+  });
+
+  it("returns the supabase client and user when a session exists", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-abc", "alice@dim.local"));
+    const result = await requireUserOrRedirect();
+    expect(result.user.id).toBe("user-abc");
+    expect(result.user.email).toBe("alice@dim.local");
+    expect(result.supabase).toBe(mockSupabaseClient);
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// requireAdminOrGovtOrRedirect
+// ---------------------------------------------------------------------------
+
+describe("requireAdminOrGovtOrRedirect", () => {
+  it("redirects to /login when no session", async () => {
+    mockGetUser.mockResolvedValue(noSession());
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/login");
+    expect(mockRedirect).toHaveBeenCalledWith("/login");
+  });
+
+  it("redirects to /mis-mascotas when role is owner", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-owner"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-owner",
+      role: "owner",
+      displayName: "Owner User",
+      accountType: "personal",
+      deactivatedAt: null,
+    });
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/mis-mascotas");
+    expect(mockRedirect).toHaveBeenCalledWith("/mis-mascotas");
+  });
+
+  it("redirects to /mis-mascotas when role is vet", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-vet"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-vet",
+      role: "vet",
+      displayName: "Vet User",
+      accountType: "personal",
+      deactivatedAt: null,
+    });
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/mis-mascotas");
+  });
+
+  it("redirects to /mis-mascotas when profile is null (profile not found)", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-noprofile"));
+    mockGetProfileCached.mockResolvedValue(null);
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/mis-mascotas");
+  });
+
+  it("passes for role=admin and returns empty jurisdictions", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-admin"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-admin",
+      role: "admin",
+      displayName: "Admin User",
+      accountType: "institutional",
+      deactivatedAt: null,
+    });
+    const result = await requireAdminOrGovtOrRedirect();
+    expect(result.profile.role).toBe("admin");
+    expect(result.jurisdictions).toEqual([]);
+    expect(mockGetJurisdictionsCached).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("passes for role=govt and returns jurisdiction tuples", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-govt"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-govt",
+      role: "govt",
+      displayName: "Govt User",
+      accountType: "institutional",
+      deactivatedAt: null,
+    });
+    mockGetJurisdictionsCached.mockResolvedValue([
+      { province: "Buenos Aires", locality: "La Plata" },
+    ]);
+    const result = await requireAdminOrGovtOrRedirect();
+    expect(result.profile.role).toBe("govt");
+    expect(result.jurisdictions).toEqual([{ province: "Buenos Aires", locality: "La Plata" }]);
+    expect(mockGetJurisdictionsCached).toHaveBeenCalledWith("user-govt");
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// requireAdminOrRedirect
+// ---------------------------------------------------------------------------
+
+describe("requireAdminOrRedirect", () => {
+  it("redirects to /login when no session", async () => {
+    mockGetUser.mockResolvedValue(noSession());
+    await expect(requireAdminOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/login");
+  });
+
+  it("redirects to / when profile is null", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-noprofile"));
+    mockGetProfileCached.mockResolvedValue(null);
+    await expect(requireAdminOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(mockRedirect).toHaveBeenCalledWith("/");
+  });
+
+  it("redirects to / when role is owner", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-owner"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-owner",
+      role: "owner",
+      displayName: "Owner",
+      accountType: "personal",
+      deactivatedAt: null,
+    });
+    await expect(requireAdminOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+  });
+
+  it("redirects to / when role is govt (not admin)", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-govt"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-govt",
+      role: "govt",
+      displayName: "Govt",
+      accountType: "institutional",
+      deactivatedAt: null,
+    });
+    await expect(requireAdminOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+  });
+
+  it("redirects to / when role=admin but accountType is personal (not institutional)", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-personal-admin"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-personal-admin",
+      role: "admin",
+      displayName: "Personal Admin",
+      accountType: "personal",
+      deactivatedAt: null,
+    });
+    await expect(requireAdminOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+  });
+
+  it("redirects to / when admin is deactivated", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-deactivated-admin"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-deactivated-admin",
+      role: "admin",
+      displayName: "Deactivated Admin",
+      accountType: "institutional",
+      deactivatedAt: new Date("2026-01-01"),
+    });
+    await expect(requireAdminOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+  });
+
+  it("passes for an active institutional admin", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-admin-ok"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-admin-ok",
+      role: "admin",
+      displayName: "Active Admin",
+      accountType: "institutional",
+      deactivatedAt: null,
+    });
+    const result = await requireAdminOrRedirect();
+    expect(result.profile.id).toBe("user-admin-ok");
+    expect(result.profile.role).toBe("admin");
+    expect(result.profile.accountType).toBe("institutional");
+    expect(result.profile.deactivatedAt).toBeNull();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// requireOrgAccessByToken
+// ---------------------------------------------------------------------------
+
+describe("requireOrgAccessByToken", () => {
+  const ORG_TOKEN = "ORG-GUARD-TEST-001";
+  const ORG_ID = "org-guard-0000-0000-000000000001";
+  const USER_ID = "user-org-00-0000-000000000001";
+
+  const FAKE_ORG = {
+    id: ORG_ID,
+    publicToken: ORG_TOKEN,
+    name: "Test Org",
+    createdAt: new Date("2026-01-01"),
+  };
+
+  const FAKE_MEMBERSHIP = {
+    id: "mem-guard-0000-0000-000000000001",
+    userId: USER_ID,
+    organizationId: ORG_ID,
+    role: "admin",
+    joinedAt: new Date("2026-01-02"),
+  };
+
+  it("redirects to /login when no session", async () => {
+    mockGetUser.mockResolvedValue(noSession());
+    await expect(requireOrgAccessByToken(ORG_TOKEN)).rejects.toThrow("NEXT_REDIRECT:/login");
+  });
+
+  it("calls notFound() when the org does not exist or user has no membership", async () => {
+    mockGetUser.mockResolvedValue(userSession(USER_ID));
+    mockGetOrgMembershipCached.mockResolvedValue(null);
+    await expect(requireOrgAccessByToken(ORG_TOKEN)).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(mockNotFound).toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("does not leak whether the org exists vs the user lacking membership (notFound either way)", async () => {
+    // Decision D4: no information leakage — both cases produce notFound().
+    mockGetUser.mockResolvedValue(userSession("user-other"));
+    mockGetOrgMembershipCached.mockResolvedValue(null);
+    await expect(requireOrgAccessByToken(ORG_TOKEN)).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(mockNotFound).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes and returns org + membership when membership row exists", async () => {
+    mockGetUser.mockResolvedValue(userSession(USER_ID));
+    mockGetOrgMembershipCached.mockResolvedValue({
+      organization: FAKE_ORG,
+      membership: FAKE_MEMBERSHIP,
+    });
+    const result = await requireOrgAccessByToken(ORG_TOKEN);
+    expect(result.user.id).toBe(USER_ID);
+    expect(result.organization.id).toBe(ORG_ID);
+    expect(result.membership.role).toBe("admin");
+    expect(mockRedirect).not.toHaveBeenCalled();
+    expect(mockNotFound).not.toHaveBeenCalled();
+  });
+
+  it("passes orgToken and userId to getOrgMembershipCached", async () => {
+    mockGetUser.mockResolvedValue(userSession(USER_ID));
+    mockGetOrgMembershipCached.mockResolvedValue({
+      organization: FAKE_ORG,
+      membership: FAKE_MEMBERSHIP,
+    });
+    await requireOrgAccessByToken(ORG_TOKEN);
+    expect(mockGetOrgMembershipCached).toHaveBeenCalledWith(ORG_TOKEN, USER_ID);
+  });
+});
