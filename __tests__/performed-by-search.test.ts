@@ -14,6 +14,9 @@ let orgClinicBaId: string;
 let orgUnverifiedId: string;
 let vetVerifiedId: string;
 let vetUnverifiedId: string;
+// Accent-parity fixtures: accented names searched with unaccented queries.
+let orgAccentedId: string;
+let vetAccentedId: string;
 
 beforeAll(async () => {
   // Cleanup any leftover fixtures from prior runs.
@@ -87,14 +90,42 @@ beforeAll(async () => {
       matriculaVerified: false,
     })
     .onConflictDoNothing({ target: profiles.id });
+
+  // Accent-parity fixtures: names with diacritics must be found by
+  // queries typed without them (unaccent() on both sides).
+  const [orgAccented] = await db
+    .insert(organizations)
+    .values({
+      publicToken: "DIM-PB-ACC",
+      legalName: `Clínica González ${SUFFIX} SRL`,
+      displayName: `González ${SUFFIX}`,
+      orgType: "clinic",
+      email: "gonzalez-pb@dim-test.local",
+      verified: true,
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Palermo",
+    })
+    .returning();
+  orgAccentedId = orgAccented.id;
+
+  vetAccentedId = "00000000-0000-0000-0000-00000000ab03";
+  await db
+    .insert(profiles)
+    .values({
+      id: vetAccentedId,
+      displayName: `Dra. Sofía Ramírez ${SUFFIX}`,
+      role: "vet",
+      matriculaVerified: true,
+    })
+    .onConflictDoNothing({ target: profiles.id });
 });
 
 afterAll(async () => {
   await db.execute(sql`DELETE FROM organizations WHERE id IN (
-    ${orgClinicCabaId}::uuid, ${orgClinicBaId}::uuid, ${orgUnverifiedId}::uuid
+    ${orgClinicCabaId}::uuid, ${orgClinicBaId}::uuid, ${orgUnverifiedId}::uuid, ${orgAccentedId}::uuid
   )`);
   await db.execute(sql`DELETE FROM profiles WHERE id IN (
-    ${vetVerifiedId}::uuid, ${vetUnverifiedId}::uuid
+    ${vetVerifiedId}::uuid, ${vetUnverifiedId}::uuid, ${vetAccentedId}::uuid
   )`);
 });
 
@@ -145,5 +176,20 @@ describe("searchVetsAndClinics", () => {
     const kinds = new Set(results.map((r) => r.kind));
     expect(kinds.has("organization")).toBe(true);
     expect(kinds.has("profile")).toBe(true);
+  });
+
+  // Accent-parity: unaccented query must find accented display names.
+  // PostgreSQL ILIKE folds case but NOT diacritics; unaccent() on both
+  // sides is required for "gonzalez" to match "González".
+  it("finds accented org displayName via unaccented query", async () => {
+    const results = await searchVetsAndClinics(`gonzalez ${SUFFIX}`);
+    const orgIds = results.filter((r) => r.kind === "organization").map((r) => r.id);
+    expect(orgIds).toContain(orgAccentedId);
+  });
+
+  it("finds accented vet displayName via unaccented query", async () => {
+    const results = await searchVetsAndClinics(`sofia ramirez ${SUFFIX}`);
+    const profIds = results.filter((r) => r.kind === "profile").map((r) => r.id);
+    expect(profIds).toContain(vetAccentedId);
   });
 });

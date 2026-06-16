@@ -16,10 +16,11 @@
 //
 // Admin: universal scope (no predicate — same as before).
 
-import { and, eq, ilike, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 
 import { db, organizations, ownerships, pets, profiles } from "@/db";
 import type { AdminOrGovtJurisdiction } from "@/lib/auth-guards";
+import { likeContains } from "@/lib/like-helpers";
 
 export type UserSearchResult = {
   id: string;
@@ -119,10 +120,12 @@ export async function searchUsers(
     return rows;
   }
 
-  const pattern = `%${trimmed}%`;
+  const pattern = likeContains(trimmed);
+  // Use unaccent() on both sides so "gonzalez" finds "González" (Postgres
+  // ILIKE folds case but NOT diacritics). Wildcard-safe via likeContains().
   const textPredicate = or(
-    ilike(profiles.displayName, pattern),
-    ilike(profiles.dniNumber, pattern),
+    sql`unaccent(${profiles.displayName}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
+    sql`unaccent(${profiles.dniNumber}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
   );
   const whereClause =
     scopeConditions.length > 0 ? and(textPredicate, ...scopeConditions) : textPredicate;
@@ -159,11 +162,15 @@ export async function searchOrganizations(
     return { items: [], truncated: false };
 
   const trimmed = query.trim();
+  const orgPattern = likeContains(trimmed);
+  // Use unaccent() on both sides for accent-insensitive matching; likeContains
+  // escapes % and _ so user input cannot inject wildcards. CUIT is digits-only
+  // so unaccent is a no-op there, but the escaping still matters.
   const textPredicate = trimmed
     ? or(
-        ilike(organizations.displayName, `%${trimmed}%`),
-        ilike(organizations.legalName, `%${trimmed}%`),
-        ilike(organizations.cuit, `%${trimmed}%`),
+        sql`unaccent(${organizations.displayName}) ILIKE unaccent(${orgPattern}) ESCAPE '\'`,
+        sql`unaccent(${organizations.legalName}) ILIKE unaccent(${orgPattern}) ESCAPE '\'`,
+        sql`unaccent(${organizations.cuit}) ILIKE unaccent(${orgPattern}) ESCAPE '\'`,
       )
     : undefined;
 

@@ -8,9 +8,10 @@
 // from here; everything else continues to import from
 // `@/lib/adoption-listing`.
 
-import { and, desc, eq, ilike, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 
 import { attachments, db, organizations, ownerships, pets } from "@/db";
+import { likeContains } from "@/lib/like-helpers";
 
 import type {
   AdoptionListingCursor,
@@ -95,8 +96,15 @@ export async function queryAdoptionListing(
     conditions.push(eq(organizations.publicToken, filters.organizationToken));
   }
   if (filters.searchQuery) {
-    const pattern = `%${filters.searchQuery}%`;
-    conditions.push(or(ilike(pets.name, pattern), ilike(pets.breed, pattern)));
+    const pattern = likeContains(filters.searchQuery);
+    // unaccent() on both sides: "labrador" finds "Labràdor", etc.
+    // likeContains() escapes % and _ to prevent wildcard injection.
+    conditions.push(
+      or(
+        sql`unaccent(${pets.name}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
+        sql`unaccent(${pets.breed}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
+      ),
+    );
   }
 
   // Keyset cursor.
