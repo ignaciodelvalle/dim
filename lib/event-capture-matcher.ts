@@ -56,6 +56,21 @@ type Pattern = {
 // IMPORTANT: order matters. More specific patterns must come BEFORE
 // catch-alls so "le di antirrábica" matches vacuna and not nota.
 const PATTERNS: Pattern[] = [
+  // Programar vacuna — must come BEFORE the generic vacuna pattern so
+  // "programar una vacuna" doesn't land on vaccination_administered.
+  //
+  // WP-5: management flow.
+  {
+    eventType: "vaccination_administered",
+    triggers: [
+      /programar\s+(?:una?\s+)?vacuna/i,
+      /recordatorio\s+(?:de\s+)?vacuna/i,
+      /agendar\s+(?:una?\s+)?vacuna/i,
+    ],
+    confidence: "medium",
+    routeOverride: "/vacunas/programar",
+  },
+
   // Vacuna — recognized by the vaccine name itself or generic "vacuna".
   {
     eventType: "vaccination_administered",
@@ -105,7 +120,24 @@ const PATTERNS: Pattern[] = [
     confidence: "high",
   },
 
-  // Microchip.
+  // Microchip reemplazo — must come BEFORE generic microchip so "reemplazaron
+  // el chip" does not land on microchip_implanted.
+  //
+  // WP-4: new coverage block.
+  {
+    eventType: "microchip_replaced",
+    triggers: [
+      /reemplaz(?:aron|ó)\s+(?:el\s+)?(?:microchip|chip)/i,
+      /cambiaron\s+(?:el\s+)?(?:microchip|chip)/i,
+      /(?:microchip|chip)\s+(?:dañado|ilegible|no\s+funciona)/i,
+      /le\s+pusieron\s+(?:un\s+)?(?:otro|nuevo)\s+(?:microchip|chip)/i,
+      /microchip[\s-]reemplazo/i,
+    ],
+    confidence: "medium",
+    routeOverride: "/eventos/nuevo/microchip-reemplazo",
+  },
+
+  // Microchip implant (new chip, first time).
   {
     eventType: "microchip_implanted",
     triggers: [/microchip/i, /\bchip\b/i],
@@ -114,6 +146,16 @@ const PATTERNS: Pattern[] = [
       { slot: "chipNumber", pattern: /\b(\d{15})\b/ },
     ],
     confidence: "high",
+  },
+
+  // Tatuaje — identification tattoo event.
+  //
+  // WP-4: new coverage block.
+  {
+    eventType: "tattoo_recorded",
+    triggers: [/tatu[a-z]*\b/i, /\btat[uú]/i, /código\s+(?:de\s+)?tatuaje/i],
+    confidence: "medium",
+    routeOverride: "/eventos/nuevo/tatuaje",
   },
 
   // Esterilización.
@@ -136,6 +178,8 @@ const PATTERNS: Pattern[] = [
   // BEFORE the pregnancy patterns; triggers require pet/escape context so they
   // don't swallow symptoms ("perdió el apetito/peso/pelo") or "perdió el
   // embarazo". Confidence "medium" → the UI asks to confirm.
+  //
+  // WP-2: added Rioplatense colloquialisms for lost pet.
   {
     eventType: "status_changed",
     triggers: [
@@ -145,11 +189,23 @@ const PATTERNS: Pattern[] = [
       /no\s+(?:lo|la)\s+(?:encuentro|puedo\s+encontrar)/i,
       /\bdesaparec[ií]\w*/i,
       /marcar?\s+(?:como\s+)?perdid[oa]/i,
+      // WP-2 Rioplatense lost colloquialisms
+      /no\s+aparece(?=\s|[.,;:!?]|$)/i,
+      /sali[óo]\s+y\s+no\s+volvi[óo]/i,
+      /no\s+lleg[óo](?=\s|[.,;:!?]|$)/i,
+      /\blo\s+busco\b/i,
+      /\bla\s+busco\b/i,
     ],
     confidence: "medium",
     routeOverride: "?sheet=marcar-perdida",
   },
+
   // Found — the pet reappeared.
+  //
+  // WP-1: added bare "volvió", "lo recuperé", "está en casa".
+  // WP-2: added "lo encontramos", "lo devolvieron", "apareció en el barrio",
+  //        "está de vuelta".
+  // Diacritic rule: "volvió" and "está" end in accented vowels — use lookahead.
   {
     eventType: "status_changed",
     triggers: [
@@ -158,6 +214,15 @@ const PATTERNS: Pattern[] = [
       /volvi[óo]\s+(?:a\s+)?casa/i,
       /ya\s+est[áa]\s+(?:de\s+vuelta|en\s+casa)/i,
       /marcar?\s+(?:como\s+)?encontrad[oa]/i,
+      // WP-1 additions
+      /volvi[óo](?=\s|[.,;:!?]|$)/i,
+      /(?:lo|la)\s+recuper[eé]/i,
+      /est[áa]\s+en\s+casa(?=\s|[.,;:!?]|$)/i,
+      // WP-2 Rioplatense found colloquialisms
+      /(?:lo|la)\s+encontramos/i,
+      /(?:lo|la)\s+devolvieron/i,
+      /apareci[óo]\s+en\s+el\s+barrio/i,
+      /est[áa]\s+de\s+vuelta(?=\s|[.,;:!?]|$)/i,
     ],
     confidence: "medium",
     routeOverride: "?sheet=marcar-encontrada",
@@ -208,6 +273,8 @@ const PATTERNS: Pattern[] = [
 
   // Síntoma — vómitos, diarrea, fiebre, tos, etc. The catalog has 30+
   // symptoms; slot fill requires LLM so we just trigger the form.
+  //
+  // WP-3: added Rioplatense symptom colloquialisms.
   {
     eventType: "symptom_observed",
     triggers: [
@@ -222,6 +289,12 @@ const PATTERNS: Pattern[] = [
       /letarg/i,
       /decaid[ao]/i,
       /s[íi]ntoma/i,
+      // WP-3 colloquialisms
+      /est[áa]\s+descompuest[oa]/i,
+      /no\s+quiere\s+comer/i,
+      /se\s+rasca(?=\s|[.,;:!?]|$)/i,
+      /est[áa]\s+mal(?=\s|[.,;:!?]|$)/i,
+      /panza\s+hinchada/i,
     ],
     confidence: "medium",
   },
@@ -243,6 +316,8 @@ const PATTERNS: Pattern[] = [
 
   // Medicación inicio vs fin. The trigger order disambiguates — "termina"
   // / "termin[éo]" / "deja" point to stopped; otherwise default to started.
+  //
+  // WP-3: added medication stopped colloquialisms.
   {
     eventType: "medication_stopped",
     triggers: [
@@ -251,30 +326,46 @@ const PATTERNS: Pattern[] = [
       /termin[éo]\s+.{0,15}(?:medicaci[óo]n|tratamient)/i,
       /\bdej[éo]\s+.{0,15}(?:medic|pastilla|tratamient)/i,
       /\bfin\s+(?:del|de\s+la)\s+tratamient/i,
+      // WP-3 colloquialisms
+      /complet[óo]\s+(?:el\s+)?tratamiento/i,
+      /terminamos\s+.{0,15}(?:medicaci[óo]n|pastilla|tratamient)/i,
+      /se\s+terminaron\s+(?:las\s+)?pastillas/i,
+      /suspendi[óo]\s+(?:el\s+|la\s+)?(?:medicaci[óo]n|pastilla|tratamient)/i,
     ],
     confidence: "medium",
   },
+
+  // WP-1 fix: expanded connector group to include `un|una` so "empecé un
+  // tratamiento" matches. Previously only el|la|con were accepted.
+  // WP-3: added more medication-started colloquialisms.
   {
     eventType: "medication_started",
     triggers: [
-      /empec[éo]\s+(?:el|la|con)?\s*(?:medicaci[óo]n|tratamient|pastilla|jarabe)/i,
+      /empec[éo]\s+(?:el|la|con|un|una)?\s*(?:medicaci[óo]n|tratamient|pastilla|jarabe)/i,
       /\bmedicaci[óo]n\b/i,
       /\bantibiot/i,
       /\bjarabe\b/i,
       /\bpastill/i,
+      // WP-3 colloquialisms
+      /le\s+recetar(?:on|ó)/i,
+      /empezamos\s+(?:el|la|con|un|una)?\s*(?:medicaci[óo]n|tratamient|pastilla|jarabe)/i,
+      /est[áa]\s+tomando\s+(?:medicaci[óo]n|pastilla|jarabe|tratamient)/i,
     ],
     confidence: "medium",
   },
 
   // Clínico — catch-all médico que no es síntoma puntual.
+  //
+  // WP-1 fix: "/\branalisis\b/i" and "/\branálisis\b/i" were typos — the
+  // spurious `r` prefix made them unmatchable. Replaced with the correct
+  // Spanish word "análisis".
   {
     eventType: "clinical_info_logged",
     triggers: [
       /\bcl[íi]nic[oa]\b/i,
       /\bdiagn[óo]stic/i,
       /\bestudio\b/i,
-      /\branalisis\b/i,
-      /\branálisis\b/i,
+      /\ban[áa]lisis\b/i,
       /\becograf/i,
       /\bradiograf/i,
     ],
@@ -286,6 +377,56 @@ const PATTERNS: Pattern[] = [
     eventType: "post_adoption_checkin",
     triggers: [/check[\s-]?in/i, /seguimient.*adopci[óo]n/i, /control.*post.?adopci[óo]n/i],
     confidence: "medium",
+  },
+
+  // Management flows — WP-5. These are profile-action sheets, not event-log
+  // forms. Positioned AFTER all event patterns so they don't hijack event
+  // phrases. Uses routeOverride to bypass the registry deeplink.
+  {
+    eventType: "status_changed",
+    triggers: [/compartir\s+(?:la\s+)?libreta/i, /compartir\s+historial/i],
+    confidence: "medium",
+    routeOverride: "?sheet=compartir-libreta",
+  },
+  {
+    eventType: "status_changed",
+    triggers: [
+      /transferir\s+(?:la\s+)?mascota/i,
+      /cambiar\s+(?:el\s+)?due[ñn]o/i,
+      /ceder\s+(?:la\s+)?mascota/i,
+    ],
+    confidence: "medium",
+    routeOverride: "?sheet=transferir-mascota",
+  },
+  {
+    eventType: "status_changed",
+    triggers: [
+      /editar\s+(?:la\s+)?mascota/i,
+      /actualizar\s+(?:los?\s+)?datos/i,
+      /cambiar\s+(?:los?\s+)?datos/i,
+    ],
+    confidence: "medium",
+    routeOverride: "?sheet=editar-mascota",
+  },
+  {
+    eventType: "status_changed",
+    triggers: [
+      /mostrar\s+(?:la\s+)?libreta\s+(?:p[uú]blica|m[eé]dica)/i,
+      /libreta\s+p[uú]blica/i,
+      /vista\s+p[uú]blica/i,
+    ],
+    confidence: "medium",
+    routeOverride: "?sheet=mostrar-tier2",
+  },
+  {
+    eventType: "status_changed",
+    triggers: [
+      /buscar(?:le)?\s+(?:un\s+)?hogar/i,
+      /dar\s+(?:en\s+)?adopci[óo]n/i,
+      /en\s+(?:busca\s+de\s+)?adopci[óo]n/i,
+    ],
+    confidence: "medium",
+    routeOverride: "/buscar-hogar",
   },
 
   // Nota — final catch-all si nada anterior pegó pero el texto parece
