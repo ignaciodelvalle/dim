@@ -34,48 +34,51 @@ const PET_NAME = `E2EPet-${Date.now()}`;
 // (or stubbing searchLocalitiesAction) before re-enabling. The create-pet
 // happy path is meanwhile covered deterministically by the pets unit tests and
 // the macro-invariant integration tests.
-test.fixme("owner creates a pet with location and it appears in /mis-mascotas", async ({ page }) => {
-  // -- Log in -----------------------------------------------------------
-  await page.goto("/login");
-  await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
-  await page.getByLabel(/contraseña/i).fill(OWNER_PASSWORD);
-  await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  await page.waitForURL(/\/inicio/, { timeout: 15_000 });
+test.fixme(
+  "owner creates a pet with location and it appears in /mis-mascotas",
+  async ({ page }) => {
+    // -- Log in -----------------------------------------------------------
+    await page.goto("/login");
+    await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
+    await page.getByLabel(/contraseña/i).fill(OWNER_PASSWORD);
+    await page.getByRole("button", { name: /iniciar sesión/i }).click();
+    await page.waitForURL(/\/inicio/, { timeout: 15_000 });
 
-  // -- Navigate to new-pet form -----------------------------------------
-  await page.goto("/mis-mascotas/nueva");
-  await expect(page.getByRole("heading", { name: /nueva mascota/i })).toBeVisible();
+    // -- Navigate to new-pet form -----------------------------------------
+    await page.goto("/mis-mascotas/nueva");
+    await expect(page.getByRole("heading", { name: /nueva mascota/i })).toBeVisible();
 
-  // -- Name -------------------------------------------------------------
-  await page.getByLabel(/nombre/i).fill(PET_NAME);
+    // -- Name -------------------------------------------------------------
+    await page.getByLabel(/nombre/i).fill(PET_NAME);
 
-  // -- Species: click the "Perro/a" chip --------------------------------
-  await page.getByRole("button", { name: /perro\/a/i }).click();
+    // -- Species: click the "Perro/a" chip --------------------------------
+    await page.getByRole("button", { name: /perro\/a/i }).click();
 
-  // -- Sex: pick "Macho" radio ------------------------------------------
-  await page.getByRole("radio", { name: /macho/i }).check();
+    // -- Sex: pick "Macho" radio ------------------------------------------
+    await page.getByRole("radio", { name: /macho/i }).check();
 
-  // -- Location: type a locality and pick the first autocomplete result --
-  // LocalityPickerAcross renders an LnInput with placeholder "Ej: Palermo…".
-  // Results are rendered as <ul><li><button> — NOT ARIA option/listbox.
-  const localityInput = page.locator('input[placeholder*="Palermo" i]').first();
-  await localityInput.fill("Palermo");
+    // -- Location: type a locality and pick the first autocomplete result --
+    // LocalityPickerAcross renders an LnInput with placeholder "Ej: Palermo…".
+    // Results are rendered as <ul><li><button> — NOT ARIA option/listbox.
+    const localityInput = page.locator('input[placeholder*="Palermo" i]').first();
+    await localityInput.fill("Palermo");
 
-  // The component debounces and hits the server action. Wait for the dropdown
-  // list to appear, then click the first suggestion button inside it.
-  const dropdown = page.locator("ul").filter({ has: page.locator("li button") });
-  await dropdown.waitFor({ state: "visible", timeout: 12_000 });
-  await dropdown.locator("li button").first().click();
+    // The component debounces and hits the server action. Wait for the dropdown
+    // list to appear, then click the first suggestion button inside it.
+    const dropdown = page.locator("ul").filter({ has: page.locator("li button") });
+    await dropdown.waitFor({ state: "visible", timeout: 12_000 });
+    await dropdown.locator("li button").first().click();
 
-  // -- Submit -----------------------------------------------------------
-  await page.getByRole("button", { name: /crear mascota/i }).click();
+    // -- Submit -----------------------------------------------------------
+    await page.getByRole("button", { name: /crear mascota/i }).click();
 
-  // After successful create the app redirects to /mis-mascotas (or the new
-  // pet's profile). Either way, /mis-mascotas/nueva should no longer be shown.
-  await page.waitForURL(/\/mis-mascotas/, { timeout: 20_000 });
+    // After successful create the app redirects to /mis-mascotas (or the new
+    // pet's profile). Either way, /mis-mascotas/nueva should no longer be shown.
+    await page.waitForURL(/\/mis-mascotas/, { timeout: 20_000 });
 
-  // -- Assert pet is visible in the list --------------------------------
-  // Navigate to the list explicitly in case we landed on the pet profile.
-  await page.goto("/mis-mascotas");
-  await expect(page.getByText(PET_NAME)).toBeVisible({ timeout: 10_000 });
-});
+    // -- Assert pet is visible in the list --------------------------------
+    // Navigate to the list explicitly in case we landed on the pet profile.
+    await page.goto("/mis-mascotas");
+    await expect(page.getByText(PET_NAME)).toBeVisible({ timeout: 10_000 });
+  },
+);
