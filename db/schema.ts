@@ -572,6 +572,10 @@ export const pets = pgTable(
     // +24h in v1), cleared by revokeTier2PublicAction or naturally by
     // expiration. Owner contact / address / notes are never exposed.
     tier2PublicEnabledUntil: timestamp("tier2_public_enabled_until", { withTimezone: true }),
+    // Permanent (no-expiry) Tier 2 flag for the "siempre visible" option.
+    // Active when true, regardless of tier2PublicEnabledUntil.
+    // Cleared by revokeTier2PublicAction together with tier2PublicEnabledUntil.
+    tier2PublicPermanent: boolean("tier2_public_permanent").notNull().default(false),
     // External legal custody proceedings flag. Set true by
     // custody_dispute_raised events (admin or govt initiated), unset by
     // custody_dispute_resolved. Features that should respect the flag

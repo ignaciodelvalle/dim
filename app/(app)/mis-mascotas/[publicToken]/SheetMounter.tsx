@@ -72,6 +72,8 @@ type Props = {
   species: string;
   /** ISO string of pet.tier2PublicEnabledUntil — null when not set. */
   tier2PublicEnabledUntil: string | null;
+  /** Whether the permanent "siempre" option is active (tier2PublicPermanent column). */
+  tier2PublicPermanent: boolean;
   /** Data required by MarkLostForm. Null when pet is not active (already lost or deceased). */
   markLostData: MarkLostData | null;
   /** Data required by the editar-mascota sheet. Always set. */
@@ -88,6 +90,7 @@ export function SheetMounter({
   petName,
   species,
   tier2PublicEnabledUntil,
+  tier2PublicPermanent,
   markLostData,
   editPetData,
   petStatus,
@@ -175,7 +178,7 @@ export function SheetMounter({
   if (sheet === "mostrar-tier2") {
     const now = new Date();
     const activeUntilDate = tier2PublicEnabledUntil ? new Date(tier2PublicEnabledUntil) : null;
-    const isActive = !!activeUntilDate && activeUntilDate > now;
+    const isActive = tier2PublicPermanent || (!!activeUntilDate && activeUntilDate > now);
     const enable = enableTier2PublicAction.bind(null, petToken);
     const revoke = revokeTier2PublicAction.bind(null, petToken);
     return (
@@ -184,7 +187,8 @@ export function SheetMounter({
           petPublicToken={petToken}
           petName={petName}
           isActive={isActive}
-          activeUntil={isActive ? activeUntilDate : null}
+          isPermanent={tier2PublicPermanent}
+          activeUntil={isActive && !tier2PublicPermanent ? activeUntilDate : null}
           enableAction={enable}
           revokeAction={revoke}
         />

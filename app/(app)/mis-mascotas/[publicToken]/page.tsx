@@ -1331,6 +1331,7 @@ export default async function PetDetailPage({
         tier2PublicEnabledUntil={
           pet.tier2PublicEnabledUntil ? new Date(pet.tier2PublicEnabledUntil).toISOString() : null
         }
+        tier2PublicPermanent={pet.tier2PublicPermanent}
         markLostData={
           pet.status === "active"
             ? {
