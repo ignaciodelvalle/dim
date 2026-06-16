@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
@@ -24,11 +25,19 @@ export function VetVisitForm({
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
 
+  // Controlled field state
+  const [reason, setReason] = useState("");
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+  const [diagnosis, setDiagnosis] = useState("");
+  const [vetName, setVetName] = useState("");
+  const [clinic, setClinic] = useState("");
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
+
   return (
     <>
       <LnSheetHeader
         tone="azul"
-        icon="🏥"
+        icon={<Icon name="vet" decorative />}
         title="Visita veterinaria"
         subtitle="Libreta sanitaria oficial"
       />
@@ -43,6 +52,8 @@ export function VetVisitForm({
                 type="text"
                 required
                 placeholder="Control general, urgencia, vacunación..."
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -56,7 +67,8 @@ export function VetVisitForm({
                 type="date"
                 required
                 mono
-                defaultValue={defaults?.occurredAt ?? today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -68,6 +80,8 @@ export function VetVisitForm({
                 id={id}
                 name="diagnosis"
                 type="text"
+                value={diagnosis}
+                onChange={(e) => setDiagnosis(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -79,6 +93,8 @@ export function VetVisitForm({
                 id={id}
                 name="vetName"
                 type="text"
+                value={vetName}
+                onChange={(e) => setVetName(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -90,6 +106,8 @@ export function VetVisitForm({
                 id={id}
                 name="clinic"
                 type="text"
+                value={clinic}
+                onChange={(e) => setClinic(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -101,7 +119,8 @@ export function VetVisitForm({
                 id={id}
                 name="notes"
                 rows={3}
-                defaultValue={defaults?.notes ?? ""}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />

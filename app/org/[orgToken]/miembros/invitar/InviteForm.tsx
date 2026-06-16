@@ -4,6 +4,7 @@
 
 import { useState, useTransition } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LnButton } from "@/components/ui/Button";
 import { LnCheckbox, LnField, LnInput, LnSelect } from "@/components/ui/Field";
 import { OpCallout } from "@/components/ui/dashboard";
@@ -62,7 +63,7 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
         <OpCallout
           title="Invitación creada"
           body="Compartí este link con la persona que querés sumar al equipo."
-          icon="✓"
+          icon={<Icon name="check-circle" decorative />}
         />
         <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
           <p className="break-all font-ln-mono text-[12px] text-ln-op-ink">{inviteUrl}</p>

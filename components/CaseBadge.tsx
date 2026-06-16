@@ -6,22 +6,23 @@
 
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import type { CaseStatus } from "@/db";
 import { type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 const KIND_ICON: Record<CaseKind, string> = {
-  bite_incident: "🐾",
-  lost_pet_episode: "🧭",
-  welfare_denuncia: "🚨",
-  adoption_listing: "🏠",
-  adoption_application: "📨",
-  custody_dispute: "⚖️",
-  foster_placement: "🤝",
-  custody_episode: "📋",
-  custody_transfer_handshake: "↔️",
-  foster_proposal: "💬",
-  outbreak_investigation: "🦠",
-  microchip_remediation: "🛠️",
+  bite_incident: "mordedura",
+  lost_pet_episode: "perdida",
+  welfare_denuncia: "denuncia",
+  adoption_listing: "casa",
+  adoption_application: "solicitud",
+  custody_dispute: "disputa",
+  foster_placement: "trato",
+  custody_episode: "custodia",
+  custody_transfer_handshake: "transferencia",
+  foster_proposal: "propuesta",
+  outbreak_investigation: "brote",
+  microchip_remediation: "reparacion",
 };
 
 const STATUS_STYLES: Record<CaseStatus, { label: string; classes: string }> = {
@@ -58,7 +59,7 @@ export function CaseBadge({ publicCode, caseKind, status, size = "md" }: Props) 
       href={`/casos/${publicCode}`}
       className={`inline-flex items-center rounded-full bg-ln-card ring-1 ring-ln-line transition hover:bg-ln-stripe    ${sizeClasses}`}
     >
-      <span aria-hidden>{KIND_ICON[caseKind]}</span>
+      <Icon name={KIND_ICON[caseKind]} size="sm" decorative />
       <span className="font-mono font-semibold text-ln-ink ">{publicCode}</span>
       <span className="text-ln-mute ">·</span>
       <span className="text-ln-ink ">{caseKindLabel(caseKind)}</span>

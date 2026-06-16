@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
@@ -23,11 +24,17 @@ export function DewormingForm({
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
 
+  // Controlled field state — preserves typed input on validation error.
+  const [product, setProduct] = useState(defaults?.product ?? "");
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+  const [nextDueAt, setNextDueAt] = useState("");
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
+
   return (
     <>
       <LnSheetHeader
         tone="verde"
-        icon="💊"
+        icon={<Icon name="medicacion" decorative />}
         title="Registrar antiparasitario"
         subtitle="Libreta sanitaria oficial"
       />
@@ -41,7 +48,8 @@ export function DewormingForm({
                 name="product"
                 type="text"
                 required
-                defaultValue={defaults?.product ?? undefined}
+                value={product}
+                onChange={(e) => setProduct(e.target.value)}
                 placeholder="Frontline, Advocate, Milbemax..."
                 aria-describedby={describedBy}
                 invalid={invalid}
@@ -75,7 +83,8 @@ export function DewormingForm({
                 type="date"
                 required
                 mono
-                defaultValue={defaults?.occurredAt ?? today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -88,6 +97,8 @@ export function DewormingForm({
                 name="nextDueAt"
                 type="date"
                 mono
+                value={nextDueAt}
+                onChange={(e) => setNextDueAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -99,7 +110,8 @@ export function DewormingForm({
                 id={id}
                 name="notes"
                 rows={3}
-                defaultValue={defaults?.notes ?? ""}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />

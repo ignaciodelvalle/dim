@@ -118,7 +118,7 @@ export default async function DisputeDetailPage({
           href="/gob/disputas"
           className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4"
         >
-          {"<-"} Volver a la lista
+          {"←"} Volver a la lista
         </Link>
         <div className="flex items-center gap-3">
           <h1 className="text-[22px] font-semibold text-ln-op-ink">{pet.name}</h1>

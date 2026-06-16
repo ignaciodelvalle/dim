@@ -98,7 +98,7 @@ const toneTopBorder: Record<LnSheetTone, string> = {
   azul: "border-t-[var(--color-ln-azul)]",
   verde: "border-t-[var(--color-ln-ok)]",
   warn: "border-t-[var(--color-ln-warn)]",
-  violeta: "border-t-[#6b4ea8]",
+  violeta: "border-t-[var(--color-ln-violeta)]",
   seal: "border-t-[var(--color-ln-seal)]",
 };
 
@@ -106,7 +106,8 @@ const toneIconColors: Record<LnSheetTone, string> = {
   azul: "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)] border-[var(--color-ln-celeste-100)]",
   verde: "bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)] border-[var(--color-ln-ok-100)]",
   warn: "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] border-[var(--color-ln-warn-100)]",
-  violeta: "bg-[#f0ecf8] text-[#6b4ea8] border-[#ddd2f0]",
+  violeta:
+    "bg-[var(--color-ln-violeta-050)] text-[var(--color-ln-violeta)] border-[var(--color-ln-violeta-100)]",
   seal: "bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)] border-[var(--color-ln-err-100)]",
 };
 

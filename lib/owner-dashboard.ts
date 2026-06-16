@@ -865,8 +865,12 @@ async function fetchActiveRemindersBase(
   petIdFilter?: string,
 ): Promise<ActiveReminderRow[]> {
   const now = new Date();
-  const windowEnd = new Date(now.getTime() + 14 * MS_PER_DAY);
 
+  // Decision D4: count ALL pending reminders with no future cap.
+  // The previous 14-day windowEnd guard caused the dashboard KPI count
+  // to diverge from the drilldown list (which linked to the pet's full
+  // pending-reminder list). Removing the cap makes every count consistent
+  // with what the linked surface actually shows.
   const rows = await db
     .select({
       reminderId: reminders.id,
@@ -886,7 +890,6 @@ async function fetchActiveRemindersBase(
         eq(reminders.reminderType, "vaccine"),
         isNull(reminders.completedAt),
         or(isNull(reminders.snoozedUntil), lte(reminders.snoozedUntil, now)),
-        lte(reminders.dueAt, windowEnd),
         ...(petIdFilter ? [eq(reminders.petId, petIdFilter)] : []),
       ),
     );
@@ -917,10 +920,13 @@ async function fetchActiveRemindersBase(
 }
 
 /**
- * Active vaccine reminders for an owner. Excludes:
+ * Active vaccine reminders for an owner (COUNT-ALL, decision D4). Excludes:
  *  - reminders with completedAt set,
- *  - reminders with snoozedUntil > now,
- *  - reminders whose dueAt is more than 14 days in the future (matches cron window).
+ *  - reminders with snoozedUntil > now.
+ *
+ * No future cap is applied: all pending reminders are returned regardless of
+ * how far ahead their dueAt falls. This keeps the dashboard KPI count
+ * consistent with the per-pet drilldown list it links to.
  *
  * Ordered by variant priority: overdue_critical → overdue → due_soon → upcoming.
  * Within a variant, oldest dueAt first.
@@ -930,7 +936,8 @@ export async function fetchActiveReminders(userId: string): Promise<ActiveRemind
 }
 
 /**
- * Same as fetchActiveReminders but scoped to a single pet. Used by PetReminders.
+ * Same as fetchActiveReminders (COUNT-ALL, no future cap) but scoped to a single pet.
+ * Used by PetReminders on the pet detail page.
  */
 export async function fetchActiveRemindersForPet(
   userId: string,
@@ -1267,6 +1274,40 @@ function humanizeApprovalRequestType(type: string): string {
     default:
       return `Solicitud de aprobación (${type})`;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Count helpers for /cuenta/transitos hub badges
+// ---------------------------------------------------------------------------
+
+/**
+ * Count pending foster proposals for a volunteer user.
+ * Used by the /cuenta/transitos hub to show a badge on the Propuestas card.
+ */
+export async function countPendingFosterProposals(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(fosterProposals)
+    .where(and(eq(fosterProposals.volunteerUserId, userId), eq(fosterProposals.status, "pending")));
+  return row?.n ?? 0;
+}
+
+/**
+ * Count active foster ownerships (role = 'foster', endedAt IS NULL).
+ * Used by the /cuenta/transitos hub to show a badge on the Tránsitos activos card.
+ */
+export async function countActiveFosterOwnerships(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.ownerUserId, userId),
+        eq(ownerships.role, "foster"),
+        isNull(ownerships.endedAt),
+      ),
+    );
+  return row?.n ?? 0;
 }
 
 // ---------------------------------------------------------------------------

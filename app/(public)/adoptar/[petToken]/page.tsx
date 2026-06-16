@@ -467,7 +467,7 @@ export default async function AdoptarFichaPage({
               detail={isSterilized ? undefined : undefined}
             />
             <HealthRow
-              label="Microchip miMAR"
+              label="Microchip MiMAR"
               ok={hasMicrochip}
               detail={microchipMasked ?? undefined}
             />

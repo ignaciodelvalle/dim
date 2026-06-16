@@ -54,10 +54,10 @@ export default async function TransitosActivosPage() {
     <div className="mx-auto max-w-3xl px-[32px] py-[28px] pb-[48px]">
       {/* Back */}
       <Link
-        href="/cuenta"
+        href="/cuenta/transitos"
         className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
-        ← Mi cuenta
+        ← Tránsitos
       </Link>
 
       {/* Header */}

@@ -10,14 +10,17 @@
 
 import Link from "next/link";
 
-import { type CaseRow, CasesWidget } from "@/components/CasesWidget";
+import { CasesWidget, adaptWorkflow } from "@/components/CasesWidget";
 import { EventCatcher, type EventCatcherPet, type PetState } from "@/components/EventCatcher";
+import { LnButton } from "@/components/ui/Button";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { BRANDING } from "@/lib/branding";
 import { speciesLabel } from "@/lib/format";
-import type { DashboardPet, WorkflowItem, WorkflowKind } from "@/lib/owner-dashboard";
+import type { DashboardPet } from "@/lib/owner-dashboard";
 import {
   fetchActiveReminders,
   fetchOpenWorkflows,
@@ -54,34 +57,8 @@ function adaptPet(p: DashboardPet): EventCatcherPet {
   };
 }
 
-const WORKFLOW_KIND_ICON: Record<WorkflowKind, string> = {
-  pet_lost: "🧭",
-  welfare_report_open: "🚨",
-  welfare_report_closed: "🚨",
-  adoption_application_pending: "📨",
-  adoption_application_resolved: "📨",
-  foster_proposal_pending: "🏠",
-  foster_proposal_resolved: "🏠",
-  custody_transfer_pending: "🤝",
-  custody_dispute_open: "⚖️",
-  approval_request_pending: "📋",
-  approval_request_decided: "📋",
-  bite_observation_open: "🦷",
-  dangerous_breed_pending_attestation: "⚠️",
-  case_generic_open: "📁",
-};
-
-function adaptWorkflow(w: WorkflowItem): CaseRow {
-  return {
-    id: w.id,
-    title: w.title,
-    subtitle: w.subtitle ?? "",
-    ctaUrl: w.ctaUrl,
-    since: w.since,
-    severity: w.severity === "urgent" ? "danger" : w.severity,
-    icon: WORKFLOW_KIND_ICON[w.kind],
-  };
-}
+// WORKFLOW_KIND_ICON + adaptWorkflow live in components/CasesWidget.tsx
+// (shared by /inicio and /cuenta/casos).
 
 /** Map DB pet status to LnPetStatus for registry rows. */
 function toLnStatus(status: string): "ok" | "lost" {
@@ -178,8 +155,22 @@ export default async function InicioPage() {
       <div className="mb-[24px] overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] border-t-[3px] border-t-[var(--color-ln-azul)] bg-[var(--color-ln-card)] shadow-[0_1px_0_rgba(0,0,0,.02)]">
         {/* Card header */}
         <div className="relative flex items-center gap-[12px] px-[18px] pb-[12px] pt-[16px]">
-          <div className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[8px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[18px] text-[var(--color-ln-azul)]">
-            ✏️
+          <div className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[8px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]">
+            {/* pencil/edit glyph */}
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="m-0 font-[var(--font-ln-serif)] text-[17px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
@@ -197,7 +188,7 @@ export default async function InicioPage() {
             <span className="text-center">
               ASIENTO
               <br />
-              miMAR
+              {BRANDING.appName}
             </span>
           </div>
         </div>
@@ -242,17 +233,16 @@ export default async function InicioPage() {
               ))}
             </LnRegistry>
           ) : (
-            <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[24px] text-center">
-              <p className="text-[13px] text-[var(--color-ln-mute)]">
-                Todavía no cargaste ninguna mascota.
-              </p>
-              <Link
-                href="/mis-mascotas/nueva"
-                className="mt-[10px] inline-block rounded-[3px] bg-[var(--color-ln-azul)] px-[14px] py-[8px] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
-              >
-                Agregar mi primera mascota
-              </Link>
-            </div>
+            <LnEmptyState
+              title="No tenés mascotas registradas."
+              action={
+                <Link href="/mis-mascotas/nueva">
+                  <LnButton variant="primary" size="sm">
+                    Cargar una mascota
+                  </LnButton>
+                </Link>
+              }
+            />
           )}
         </div>
 
@@ -299,7 +289,7 @@ export default async function InicioPage() {
           )}
 
           {/* Casos abiertos — CasesWidget has its own card frame */}
-          {cases.length > 0 && <CasesWidget cases={cases} />}
+          {cases.length > 0 && <CasesWidget cases={cases} historyHref="/cuenta/casos" />}
         </div>
       </div>
 
@@ -312,7 +302,7 @@ export default async function InicioPage() {
         >
           + Denunciar maltrato animal
         </Link>
-        <span>miMAR · Registro Nacional de Mascotas</span>
+        <span>{BRANDING.appName} · Registro Nacional de Mascotas</span>
       </div>
     </div>
   );

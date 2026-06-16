@@ -513,21 +513,16 @@ export default async function PublicCredentialPage({
   const ageLabel = ageYears !== null ? `${ageYears} año${ageYears === 1 ? "" : "s"}` : null;
 
   return (
-    <main
-      id="main-content"
-      className="min-h-screen"
-      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
-    >
+    <main id="main-content" className="min-h-screen bg-ln-paper font-[var(--font-ln-sans)]">
       <ScanLogger publicToken={publicToken} />
 
       {/* Guilloché band — LN security stripe */}
       <div
         aria-hidden="true"
-        className="h-[4px] flex-shrink-0"
+        className="h-[4px] flex-shrink-0 opacity-90"
         style={{
           background:
             "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
-          opacity: 0.9,
         }}
       />
 
@@ -541,48 +536,17 @@ export default async function PublicCredentialPage({
           <div
             role="alert"
             data-section="emergency-banner"
-            className="sticky top-0 z-30 -mx-[16px] mb-[16px] md:static md:mx-0 md:mb-[16px] md:rounded-[4px]"
-            style={{
-              background: "var(--color-ln-err-050)",
-              borderBottom: "1px solid var(--color-ln-err-100)",
-              padding: "13px 18px",
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 11,
-            }}
+            className="sticky top-0 z-30 -mx-[16px] mb-[16px] flex items-start gap-[11px] border-b border-ln-err-100 bg-ln-err-050 px-[18px] py-[13px] md:static md:mx-0 md:mb-[16px] md:rounded-[4px]"
           >
             {/* Heartbeat icon */}
-            <span
-              aria-hidden="true"
-              style={{
-                fontSize: 18,
-                color: "var(--color-ln-seal)",
-                flexShrink: 0,
-                marginTop: 1,
-              }}
-            >
+            <span aria-hidden="true" className="mt-[1px] flex-shrink-0 text-[18px] text-ln-seal">
               ♥
             </span>
             <div>
-              <p
-                style={{
-                  fontFamily: "var(--font-ln-serif)",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: "var(--color-ln-ink)",
-                  margin: 0,
-                }}
-              >
+              <p className="m-0 font-[var(--font-ln-serif)] text-[14px] font-semibold text-ln-ink">
                 Alerta médica
               </p>
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "var(--color-ln-ink-2)",
-                  marginTop: 2,
-                  lineHeight: 1.45,
-                }}
-              >
+              <p className="mt-[2px] text-[12px] leading-[1.45] text-ln-ink-2">
                 Esta mascota requiere atención médica. Contactá al dueño escaneando el QR.
               </p>
             </div>
@@ -594,36 +558,20 @@ export default async function PublicCredentialPage({
           <div
             role="alert"
             data-section="custody-disclaimer"
-            className="mb-[16px] rounded-[4px]"
-            style={{
-              background: "var(--color-ln-warn-050)",
-              border: "1px solid var(--color-ln-warn-100)",
-              borderLeft: "3px solid var(--color-ln-warn)",
-              padding: "12px 16px",
-            }}
+            className="mb-[16px] rounded-[4px] border border-ln-warn-100 border-l-[3px] border-l-ln-warn bg-ln-warn-050 px-[16px] py-[12px]"
           >
-            <p
-              style={{
-                fontFamily: "var(--font-ln-mono)",
-                fontSize: 9.5,
-                letterSpacing: ".1em",
-                textTransform: "uppercase",
-                color: "var(--color-ln-warn)",
-                fontWeight: 600,
-                marginBottom: 4,
-              }}
-            >
+            <p className="mb-[4px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-warn">
               Custodia oficial
             </p>
-            <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--color-ln-ink)", margin: 0 }}>
+            <p className="m-0 text-[13.5px] font-semibold text-ln-ink">
               Esta mascota está bajo custodia oficial.
             </p>
             {openCustodyEpisode?.authorityName && (
-              <p style={{ fontSize: 12, color: "var(--color-ln-ink-2)", marginTop: 4 }}>
+              <p className="mt-[4px] text-[12px] text-ln-ink-2">
                 Autoridad a cargo: {openCustodyEpisode.authorityName}
               </p>
             )}
-            <p style={{ fontSize: 11.5, color: "var(--color-ln-mute)", marginTop: 4 }}>
+            <p className="mt-[4px] text-[11.5px] text-ln-mute">
               Comunicate con la autoridad sanitaria competente para más información.
             </p>
           </div>
@@ -650,91 +598,37 @@ export default async function PublicCredentialPage({
         {/* ------------------------------------------------------------------ */}
         {/* CREDENTIAL CARD                                                     */}
         {/* ------------------------------------------------------------------ */}
-        <div
-          className="overflow-hidden rounded-[10px]"
-          style={{
-            background: "var(--color-ln-card)",
-            border: "1px solid var(--color-ln-line-strong)",
-            boxShadow: "0 6px 18px rgba(20,40,60,.08)",
-          }}
-        >
+        <div className="overflow-hidden rounded-[10px] border border-ln-line-strong bg-ln-card shadow-[0_6px_18px_rgba(20,40,60,.08)]">
           {/* Guilloché top band */}
           <div
             aria-hidden="true"
+            className="h-[8px]"
             style={{
-              height: 8,
               background:
                 "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
             }}
           />
 
           {/* Official header row: crest + brand + tier chip */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "10px 16px",
-              borderBottom: "1px solid var(--color-ln-line-2)",
-            }}
-          >
+          <div className="flex items-center gap-[8px] border-b border-ln-line-2 px-[16px] py-[10px]">
             {/* Crest circle */}
             <div
               aria-hidden="true"
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: "50%",
-                border: "1.5px solid var(--color-ln-azul)",
-                color: "var(--color-ln-azul)",
-                display: "grid",
-                placeItems: "center",
-                fontFamily: "var(--font-ln-serif)",
-                fontWeight: 600,
-                fontSize: 12,
-                background: "var(--color-ln-celeste-050)",
-                flexShrink: 0,
-              }}
+              className="grid h-[26px] w-[26px] flex-shrink-0 place-items-center rounded-full border-[1.5px] border-ln-azul bg-ln-celeste-050 font-[var(--font-ln-serif)] text-[12px] font-semibold text-ln-azul"
             >
               m
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <span
-                style={{
-                  fontFamily: "var(--font-ln-serif)",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "var(--color-ln-ink)",
-                }}
-              >
-                miMAR
+            <div className="min-w-0 flex-1">
+              <span className="font-[var(--font-ln-serif)] text-[13px] font-semibold text-ln-ink">
+                MiMAR
               </span>
-              <span
-                style={{
-                  fontFamily: "var(--font-ln-mono)",
-                  fontSize: 8,
-                  letterSpacing: ".14em",
-                  textTransform: "uppercase",
-                  color: "var(--color-ln-mute)",
-                  display: "block",
-                }}
-              >
+              <span className="block font-[var(--font-ln-mono)] text-[8px] uppercase tracking-[.14em] text-ln-mute">
                 Credencial pública
               </span>
             </div>
             {/* Tier chip */}
             <span
-              style={{
-                fontFamily: "var(--font-ln-mono)",
-                fontSize: 9,
-                fontWeight: 600,
-                letterSpacing: ".08em",
-                color: tier2Active ? "var(--color-ln-ok)" : "var(--color-ln-azul)",
-                background: tier2Active ? "var(--color-ln-ok-050)" : "var(--color-ln-celeste-050)",
-                border: `1px solid ${tier2Active ? "var(--color-ln-ok-100)" : "var(--color-ln-celeste-100)"}`,
-                padding: "3px 8px",
-                borderRadius: 999,
-              }}
+              className={`rounded-full border px-[8px] py-[3px] font-[var(--font-ln-mono)] text-[9px] font-semibold tracking-[.08em] ${tier2Active ? "border-ln-ok-100 bg-ln-ok-050 text-ln-ok" : "border-ln-celeste-100 bg-ln-celeste-050 text-ln-azul"}`}
             >
               {tier2Active ? "TIER 2 · MÉDICO" : "TIER 0 · IDENTIDAD"}
             </span>
@@ -742,65 +636,32 @@ export default async function PublicCredentialPage({
 
           {/* Photo */}
           {photoUrl ? (
-            <img
-              src={photoUrl}
-              alt={pet.name}
-              style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover", display: "block" }}
-            />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={photoUrl} alt={pet.name} className="block w-full aspect-[4/3] object-cover" />
           ) : (
             <div
+              className="grid w-full place-items-center aspect-[4/3]"
               style={{
-                width: "100%",
-                aspectRatio: "4/3",
-                display: "grid",
-                placeItems: "center",
                 background: "repeating-linear-gradient(135deg,#e7e2d6 0 11px,#f1eee5 11px 22px)",
               }}
             >
-              <span
-                style={{
-                  fontFamily: "var(--font-ln-serif)",
-                  fontSize: 56,
-                  fontWeight: 600,
-                  color: "var(--color-ln-mute)",
-                }}
-              >
+              <span className="font-[var(--font-ln-serif)] text-[56px] font-semibold text-ln-mute">
                 {pet.name.charAt(0).toUpperCase()}
               </span>
             </div>
           )}
 
           {/* Name bar */}
-          <div style={{ padding: "15px 16px 12px" }}>
-            <div
-              style={{
-                fontFamily: "var(--font-ln-serif)",
-                fontWeight: 600,
-                fontSize: 27,
-                letterSpacing: "-.02em",
-                lineHeight: 1,
-                color: "var(--color-ln-ink)",
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-              }}
-            >
+          <div className="px-[16px] pt-[15px] pb-[12px]">
+            <div className="flex items-center gap-[9px] font-[var(--font-ln-serif)] text-[27px] font-semibold leading-none tracking-[-0.02em] text-ln-ink">
               {pet.name}
               {/* Status dot */}
               <span
                 aria-hidden="true"
-                style={{
-                  width: 11,
-                  height: 11,
-                  borderRadius: "50%",
-                  background: "var(--color-ln-ok)",
-                  boxShadow: "0 0 0 3px #e8f3ec",
-                  display: "inline-block",
-                  flexShrink: 0,
-                }}
+                className="inline-block h-[11px] w-[11px] flex-shrink-0 rounded-full bg-ln-ok shadow-[0_0_0_3px_#e8f3ec]"
               />
             </div>
-            <p style={{ fontSize: 13, color: "var(--color-ln-ink-2)", marginTop: 5 }}>
+            <p className="mt-[5px] text-[13px] text-ln-ink-2">
               {breedLine}
               {ageLabel && ` · ${ageLabel}`}
             </p>
@@ -808,21 +669,7 @@ export default async function PublicCredentialPage({
 
           {/* Tier 2 enabled notice */}
           {tier2Active && tier2EnabledUntil && (
-            <div
-              style={{
-                padding: "10px 16px",
-                background: "var(--color-ln-celeste-050)",
-                borderTop: "1px solid var(--color-ln-celeste-100)",
-                fontFamily: "var(--font-ln-mono)",
-                fontSize: 10,
-                color: "var(--color-ln-azul-700)",
-                letterSpacing: ".02em",
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-                lineHeight: 1.5,
-              }}
-            >
+            <div className="flex items-center gap-[7px] border-t border-ln-celeste-100 bg-ln-celeste-050 px-[16px] py-[10px] font-[var(--font-ln-mono)] text-[10px] leading-[1.5] tracking-[.02em] text-ln-azul-700">
               <span aria-hidden="true">🔓</span>
               {`El dueño habilitó la libreta médica hasta el ${tier2EnabledUntil.toLocaleString("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`}
             </div>
@@ -830,7 +677,7 @@ export default async function PublicCredentialPage({
 
           {/* Tier 2 medical summary */}
           {tier2Active && tier2EnabledUntil && (
-            <div style={{ borderTop: "1px solid var(--color-ln-line-2)" }}>
+            <div className="border-t border-ln-line-2">
               <Tier2MedicalView
                 enabledUntil={tier2EnabledUntil}
                 vaccineSummary={{
@@ -848,32 +695,11 @@ export default async function PublicCredentialPage({
           )}
 
           {/* Identity section */}
-          <div
-            style={{
-              padding: "13px 16px",
-              borderTop: "1px solid var(--color-ln-line-2)",
-            }}
-          >
-            <p
-              style={{
-                fontFamily: "var(--font-ln-mono)",
-                fontSize: 9.5,
-                letterSpacing: ".1em",
-                textTransform: "uppercase",
-                color: "var(--color-ln-mute)",
-                fontWeight: 600,
-                marginBottom: 9,
-              }}
-            >
+          <div className="border-t border-ln-line-2 px-[16px] py-[13px]">
+            <p className="mb-[9px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-mute">
               Identidad registrada
             </p>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "11px 14px",
-              }}
-            >
+            <div className="grid grid-cols-2 gap-x-[14px] gap-y-[11px]">
               <CredField label="Credencial" value={statusLabel(pet.status)} mono={false} />
               <CredField
                 label="Vacunación"
@@ -888,25 +714,8 @@ export default async function PublicCredentialPage({
 
           {/* A.4: Vaccination confidence badge */}
           {showVaccinationConfidence && latestVaccinationTier && (
-            <div
-              style={{
-                padding: "10px 16px",
-                borderTop: "1px solid var(--color-ln-line-2)",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: "var(--font-ln-mono)",
-                  fontSize: 9.5,
-                  letterSpacing: ".08em",
-                  textTransform: "uppercase",
-                  color: "var(--color-ln-mute)",
-                  fontWeight: 600,
-                }}
-              >
+            <div className="flex items-center gap-[8px] border-t border-ln-line-2 px-[16px] py-[10px]">
+              <span className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.08em] text-ln-mute">
                 Vacunación:
               </span>
               <ConfidenceBadge tier={latestVaccinationTier} />
@@ -917,52 +726,22 @@ export default async function PublicCredentialPage({
           {showOriginOrg && originOrg && (
             <div
               data-section="origin-org-badge"
-              style={{
-                padding: "12px 16px",
-                borderTop: "1px solid var(--color-ln-line-2)",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-              }}
+              className="flex items-center gap-[10px] border-t border-ln-line-2 px-[16px] py-[12px]"
             >
               {originOrg.avatarUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={originOrg.avatarUrl}
                   alt=""
                   aria-hidden="true"
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                    flexShrink: 0,
-                  }}
+                  className="h-[28px] w-[28px] flex-shrink-0 rounded-full object-cover"
                 />
               )}
-              <div style={{ minWidth: 0 }}>
-                <p
-                  style={{
-                    fontFamily: "var(--font-ln-mono)",
-                    fontSize: 9,
-                    letterSpacing: ".06em",
-                    textTransform: "uppercase",
-                    color: "var(--color-ln-mute)",
-                    margin: 0,
-                  }}
-                >
+              <div className="min-w-0">
+                <p className="m-0 font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.06em] text-ln-mute">
                   Refugio de origen
                 </p>
-                <p
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: "var(--color-ln-ink)",
-                    margin: 0,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
+                <p className="m-0 truncate text-[13px] font-medium text-ln-ink">
                   {originOrg.displayName}
                 </p>
               </div>
@@ -970,80 +749,33 @@ export default async function PublicCredentialPage({
           )}
 
           {/* "Found this pet?" action area */}
-          <div
-            style={{
-              padding: "14px 16px",
-              background: "var(--color-ln-stripe)",
-              borderTop: "1px solid var(--color-ln-line)",
-            }}
-          >
+          <div className="border-t border-ln-line bg-ln-stripe px-[16px] py-[14px]">
             <details className="group">
-              <summary
-                style={{
-                  listStyle: "none",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  userSelect: "none",
-                }}
-              >
+              <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-[12px]">
                 <div>
-                  <p
-                    style={{
-                      fontFamily: "var(--font-ln-serif)",
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "var(--color-ln-ink)",
-                      margin: 0,
-                    }}
-                  >
+                  <p className="m-0 font-[var(--font-ln-serif)] text-[14px] font-semibold text-ln-ink">
                     ¿Encontraste a esta mascota?
                   </p>
-                  <p
-                    style={{
-                      fontSize: 11.5,
-                      color: "var(--color-ln-mute)",
-                      margin: "2px 0 0",
-                    }}
-                  >
+                  <p className="mt-[2px] text-[11.5px] text-ln-mute">
                     Tocá acá para avisarle al dueño.
                   </p>
                 </div>
                 <span
                   aria-hidden="true"
-                  className="group-open:rotate-90 transition-transform"
-                  style={{ color: "var(--color-ln-mute)", fontSize: 18, flexShrink: 0 }}
+                  className="flex-shrink-0 text-[18px] text-ln-mute transition-transform group-open:rotate-90"
                 >
                   ›
                 </span>
               </summary>
-              <div
-                style={{
-                  paddingTop: 14,
-                  marginTop: 12,
-                  borderTop: "1px solid var(--color-ln-line)",
-                }}
-              >
+              <div className="mt-[12px] border-t border-ln-line pt-[14px]">
                 <FoundPetForm publicToken={publicToken} />
               </div>
             </details>
           </div>
 
           {/* Credential footer */}
-          <div
-            style={{
-              padding: "12px 16px",
-              textAlign: "center",
-              fontFamily: "var(--font-ln-mono)",
-              fontSize: 9.5,
-              color: "var(--color-ln-faint)",
-              letterSpacing: ".02em",
-              lineHeight: 1.7,
-            }}
-          >
-            CREDENCIAL PÚBLICA · miMAR · Registro Nacional de Mascotas
+          <div className="px-[16px] py-[12px] text-center font-[var(--font-ln-mono)] text-[9.5px] leading-[1.7] tracking-[.02em] text-ln-faint">
+            CREDENCIAL PÚBLICA · MiMAR · Registro Nacional de Mascotas
             <br />
             {pet.publicToken.toUpperCase()} · República Argentina
           </div>
@@ -1064,24 +796,13 @@ function ThrottleNotice() {
   return (
     <main
       id="main-content"
-      className="min-h-screen flex items-center justify-center"
-      style={{ background: "var(--color-ln-paper)", fontFamily: "var(--font-ln-sans)" }}
+      className="flex min-h-screen items-center justify-center bg-ln-paper font-[var(--font-ln-sans)]"
     >
-      <div
-        className="mx-auto max-w-[400px] px-[24px] py-[48px] text-center"
-        style={{ color: "var(--color-ln-ink)" }}
-      >
-        <p
-          style={{
-            fontFamily: "var(--font-ln-serif)",
-            fontSize: 18,
-            fontWeight: 600,
-            marginBottom: 12,
-          }}
-        >
+      <div className="mx-auto max-w-[400px] px-[24px] py-[48px] text-center text-ln-ink">
+        <p className="mb-[12px] font-[var(--font-ln-serif)] text-[18px] font-semibold">
           Demasiadas consultas
         </p>
-        <p style={{ fontSize: 14, color: "var(--color-ln-ink-2)", lineHeight: 1.6 }}>
+        <p className="text-[14px] leading-[1.6] text-ln-ink-2">
           Estás realizando demasiadas consultas desde esta conexión. Esperá unos minutos y volvé a
           intentarlo.
         </p>
@@ -1105,27 +826,15 @@ function CredField({
 }) {
   return (
     <div>
-      <p
-        style={{
-          fontFamily: "var(--font-ln-mono)",
-          fontSize: 9,
-          letterSpacing: ".06em",
-          textTransform: "uppercase",
-          color: "var(--color-ln-faint)",
-          margin: 0,
-        }}
-      >
+      <p className="m-0 font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.06em] text-ln-faint">
         {label}
       </p>
       <p
-        style={{
-          fontSize: mono ? 12 : 13.5,
-          fontFamily: mono ? "var(--font-ln-mono)" : "var(--font-ln-sans)",
-          fontWeight: 500,
-          color: "var(--color-ln-ink)",
-          marginTop: 1,
-          overflowWrap: "break-word",
-        }}
+        className={`mt-[1px] break-words font-medium text-ln-ink ${
+          mono
+            ? "font-[var(--font-ln-mono)] text-[12px]"
+            : "font-[var(--font-ln-sans)] text-[13.5px]"
+        }`}
       >
         {value}
       </p>
@@ -1141,55 +850,21 @@ function ServiceDogBanner({ rabiesAtRisk }: { rabiesAtRisk: boolean }) {
   return (
     <section
       aria-label="Banner de acceso — perro de asistencia"
-      className="mb-[16px] rounded-[4px]"
-      style={{
-        background: "var(--color-ln-celeste-050)",
-        border: "1px solid var(--color-ln-celeste-100)",
-        borderLeft: "3px solid var(--color-ln-azul)",
-        padding: "14px 16px",
-      }}
+      className="mb-[16px] rounded-[4px] border border-ln-celeste-100 border-l-[3px] border-l-ln-azul bg-ln-celeste-050 px-[16px] py-[14px]"
     >
-      <p
-        style={{
-          fontFamily: "var(--font-ln-mono)",
-          fontSize: 9.5,
-          letterSpacing: ".1em",
-          textTransform: "uppercase",
-          color: "var(--color-ln-azul)",
-          fontWeight: 600,
-          marginBottom: 6,
-        }}
-      >
+      <p className="mb-[6px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-azul">
         Perro de Asistencia
       </p>
-      <p
-        style={{
-          fontFamily: "var(--font-ln-serif)",
-          fontSize: 14,
-          fontWeight: 600,
-          color: "var(--color-ln-ink)",
-          lineHeight: 1.45,
-          marginBottom: 6,
-        }}
-      >
+      <p className="mb-[6px] font-[var(--font-ln-serif)] text-[14px] font-semibold leading-[1.45] text-ln-ink">
         Esta persona tiene derecho a ingresar, deambular y permanecer con su perro en este
         establecimiento, espacio privado de acceso público y transporte público.
       </p>
-      <p style={{ fontSize: 11.5, color: "var(--color-ln-ink-2)" }}>
-        Marco legal:{" "}
-        <strong style={{ color: "var(--color-ln-ink)" }}>Arts. 1 y 7, Ley 26.858</strong> · Reg.
-        Decreto 792/2019 · Credencial RUPGA vigente (Res. ANDIS 2588/2022).
+      <p className="text-[11.5px] text-ln-ink-2">
+        Marco legal: <strong className="text-ln-ink">Arts. 1 y 7, Ley 26.858</strong> · Reg. Decreto
+        792/2019 · Credencial RUPGA vigente (Res. ANDIS 2588/2022).
       </p>
       {rabiesAtRisk && (
-        <p
-          style={{
-            fontSize: 11.5,
-            color: "var(--color-ln-warn)",
-            borderTop: "1px solid var(--color-ln-celeste-100)",
-            paddingTop: 10,
-            marginTop: 10,
-          }}
-        >
+        <p className="mt-[10px] border-t border-ln-celeste-100 pt-[10px] text-[11.5px] text-ln-warn">
           Aviso: la vacunación antirrábica figura vencida en el registro. La credencial requiere
           mantener la vacunación al día (Art. 8, Ley 26.858).
         </p>
@@ -1213,49 +888,21 @@ function PermanentConditionsBanner({
   if (safe.length === 0) return null;
   const hasOther = safe.includes("otra");
   return (
-    <section
-      className="mb-[16px] rounded-[4px]"
-      style={{
-        background: "var(--color-ln-celeste-050)",
-        border: "1px solid var(--color-ln-celeste-100)",
-        borderLeft: "3px solid var(--color-ln-azul)",
-        padding: "12px 16px",
-      }}
-    >
-      <p
-        style={{
-          fontFamily: "var(--font-ln-mono)",
-          fontSize: 9.5,
-          letterSpacing: ".1em",
-          textTransform: "uppercase",
-          color: "var(--color-ln-azul)",
-          fontWeight: 600,
-          marginBottom: 8,
-        }}
-      >
+    <section className="mb-[16px] rounded-[4px] border border-ln-celeste-100 border-l-[3px] border-l-ln-azul bg-ln-celeste-050 px-[16px] py-[12px]">
+      <p className="mb-[8px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-azul">
         Necesidades especiales
       </p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      <div className="flex flex-wrap gap-[6px]">
         {safe.map((code) => (
           <span
             key={code}
-            style={{
-              display: "inline-flex",
-              padding: "4px 10px",
-              borderRadius: 999,
-              fontSize: 12,
-              fontWeight: 600,
-              background: "var(--color-ln-azul)",
-              color: "#fff",
-            }}
+            className="inline-flex rounded-full bg-ln-azul px-[10px] py-[4px] text-[12px] font-semibold text-white"
           >
             {permanentConditionShortLabel(code)}
           </span>
         ))}
       </div>
-      {hasOther && other && (
-        <p style={{ fontSize: 12, color: "var(--color-ln-ink-2)", marginTop: 6 }}>{other}</p>
-      )}
+      {hasOther && other && <p className="mt-[6px] text-[12px] text-ln-ink-2">{other}</p>}
     </section>
   );
 }

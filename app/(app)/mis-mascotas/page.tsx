@@ -8,8 +8,10 @@
 // (reclamar, postulaciones, transferencias) are all preserved unchanged.
 
 import { ActionLinkCard } from "@/components/ActionLinkCard";
+import { LnBadge } from "@/components/ui/Badge";
 import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnPetPhoto, LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { LnStatusFlag } from "@/components/ui/StatusFlag";
 import { attachments, db, ownerships, pets } from "@/db";
@@ -125,7 +127,17 @@ export default async function MisMascotasPage({
       {/* Active pets registry                                                */}
       {/* ------------------------------------------------------------------ */}
       {activePets.length === 0 ? (
-        <EmptyState />
+        <LnEmptyState
+          title="No tenés mascotas registradas."
+          description="Cargá una mascota para verla acá."
+          action={
+            <Link href="/mis-mascotas/nueva">
+              <LnButton variant="primary" size="sm">
+                Cargar una mascota
+              </LnButton>
+            </Link>
+          }
+        />
       ) : (
         <LnRegistry className="mb-[32px]">
           {activePets.map(({ pet, photo, ownershipRole }) => {
@@ -148,13 +160,7 @@ export default async function MisMascotasPage({
                 photoSrc={petPhotoUrl(photo?.storagePath) ?? undefined}
                 photoSize={72}
                 href={`/mis-mascotas/${pet.publicToken}`}
-                nextLine={
-                  isTransit ? (
-                    <span className="rounded-full border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
-                      En tránsito
-                    </span>
-                  ) : undefined
-                }
+                nextLine={isTransit ? <LnBadge variant="warning">En tránsito</LnBadge> : undefined}
               />
             );
           })}
@@ -224,22 +230,6 @@ export default async function MisMascotasPage({
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function EmptyState() {
-  return (
-    <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
-      <p className="text-[13px] text-[var(--color-ln-mute)]">
-        Empezá registrando tu primera mascota.
-      </p>
-      <Link
-        href="/mis-mascotas/nueva"
-        className="mt-[14px] inline-block rounded-[3px] bg-[var(--color-ln-azul)] px-[16px] py-[9px] text-[13px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
-      >
-        Agregar tu primera mascota
-      </Link>
-    </div>
-  );
-}
-
 function MemorialRow({
   name,
   breed,
@@ -276,7 +266,7 @@ function MemorialRow({
 
       {/* Info */}
       <div className="min-w-0">
-        <span className="font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[#5d5240]">
+        <span className="font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-memorial-sepia)]">
           {name}
         </span>
         {breed && <p className="mt-[2px] text-[12.5px] text-[var(--color-ln-mute)]">{breed}</p>}

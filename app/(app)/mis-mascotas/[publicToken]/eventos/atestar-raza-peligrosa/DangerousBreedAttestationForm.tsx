@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetHeader } from "@/components/ui/Sheet";
 import type { EventFormState } from "@/src/modules/events/actions";
@@ -65,7 +66,7 @@ function Step1({ onContinue }: { onContinue: () => void }) {
     <>
       <LnSheetHeader
         tone="warn"
-        icon="⚠️"
+        icon={<Icon name="alerta" decorative />}
         title="Atestar raza peligrosa"
         subtitle="Paso 1 de 2 · Información legal"
       />
@@ -142,11 +143,16 @@ function Step2({
   const [registry, setRegistry] = useState("");
   const today = new Date().toISOString().slice(0, 10);
 
+  // Controlled field state — preserves typed input on validation error.
+  const [registryId, setRegistryId] = useState("");
+  const [attestedAt, setAttestedAt] = useState(today);
+  const [notes, setNotes] = useState("");
+
   return (
     <>
       <LnSheetHeader
         tone="warn"
-        icon="⚠️"
+        icon={<Icon name="alerta" decorative />}
         title="Atestar raza peligrosa"
         subtitle="Paso 2 de 2 · Datos del registro"
       />
@@ -185,6 +191,8 @@ function Step2({
                 id={id}
                 name="registryId"
                 type="text"
+                value={registryId}
+                onChange={(e) => setRegistryId(e.target.value)}
                 placeholder="Si tenés el número a mano"
                 aria-describedby={describedBy}
                 invalid={invalid}
@@ -200,7 +208,8 @@ function Step2({
                 type="date"
                 required
                 mono
-                defaultValue={today}
+                value={attestedAt}
+                onChange={(e) => setAttestedAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -212,6 +221,8 @@ function Step2({
                 id={id}
                 name="notes"
                 rows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 placeholder="Detalles, si querés agregar"
                 aria-describedby={describedBy}
                 invalid={invalid}

@@ -6,6 +6,7 @@ import {
   completeIdentityAction,
   signupAction,
 } from "@/app/actions/auth";
+import { LocationFields } from "@/components/LocationFields";
 import { LnCheckbox, LnInput } from "@/components/ui/Field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -43,6 +44,13 @@ export function SignupForm({
     completeIdentityAction,
     initialIdentityState,
   );
+
+  // Controlled field state — step 1
+  const [email, setEmail] = useState("");
+
+  // Controlled field state — step 2
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
 
   // Step 1 → step 2 transition.
   useEffect(() => {
@@ -84,6 +92,8 @@ export function SignupForm({
             label="Nombre"
             autoComplete="given-name"
             required
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
           />
           <Field
             id="lastName"
@@ -92,6 +102,8 @@ export function SignupForm({
             label="Apellido"
             autoComplete="family-name"
             required
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
           />
           <Field
             id="dni"
@@ -103,6 +115,16 @@ export function SignupForm({
             hint="Podés agregarlo después desde tu cuenta."
             placeholder="Ej: 34567890"
           />
+
+          <div className="space-y-1.5">
+            <p className="block text-sm font-medium text-[var(--color-ln-ink)]">
+              Localidad <span className="font-normal text-[var(--color-ln-mute)]">(opcional)</span>
+            </p>
+            <LocationFields mode="l1" />
+            <p className="text-xs text-[var(--color-ln-mute)]">
+              Ayuda a las campañas regionales de salud animal.
+            </p>
+          </div>
 
           {identityState.error && (
             <p className="text-sm text-[var(--color-ln-err)]" role="alert">
@@ -139,6 +161,8 @@ export function SignupForm({
             label="Correo electrónico"
             autoComplete="email"
             required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
           <Field
             id="password"
@@ -227,6 +251,8 @@ function Field({
   hint,
   inputMode,
   placeholder,
+  value,
+  onChange,
 }: {
   id: string;
   name: string;
@@ -238,6 +264,8 @@ function Field({
   hint?: string;
   inputMode?: React.InputHTMLAttributes<HTMLInputElement>["inputMode"];
   placeholder?: string;
+  value?: string;
+  onChange?: React.ChangeEventHandler<HTMLInputElement>;
 }) {
   return (
     <div className="space-y-1.5">
@@ -253,6 +281,8 @@ function Field({
         minLength={minLength}
         inputMode={inputMode}
         placeholder={placeholder}
+        value={value}
+        onChange={onChange}
       />
       {hint && <p className="text-xs text-[var(--color-ln-mute)]">{hint}</p>}
     </div>

@@ -109,12 +109,12 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
   if (visiblePets.length === 0) {
     return (
       <section className="rounded-2xl border border-dashed border-ln-line-strong p-6 text-center text-sm text-ln-mute">
-        <p className="mb-3">Todavía no cargaste ninguna mascota.</p>
+        <p className="mb-3">No tenés mascotas registradas.</p>
         <a
           href="/mis-mascotas/nueva"
           className="inline-block rounded-full bg-ln-azul px-5 py-2 text-sm font-semibold text-white hover:bg-ln-azul-700"
         >
-          Agregar mi primera mascota
+          Cargar una mascota
         </a>
       </section>
     );

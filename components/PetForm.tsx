@@ -5,13 +5,17 @@
 // prop — present means edit, absent means create. The action prop is bound
 // at the call site so the form doesn't need to know which it's calling.
 //
-// Redesigned with Libreta Nacional design system (blue accordions, §11 handoff).
-// Server action, useActionState wiring, field names, and submit logic: untouched.
+// Field layout (edit path — 3-tier redesign):
+//   TOP tier      — most-used fields everyone fills: name, species, sex, color, photo, location.
+//   "Otros"       — collapsible <details> block: breed, weight, age, foods, allergies,
+//                   training, acquisition, insurance, microchip.
+//   Sensitive     — gated behind a ConfirmDialog warn before revealing:
+//                   permanent conditions + public disclosure toggles.
 
 import { LnChip, LnChipGroup } from "@/components/ui/Chip";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnSelect } from "@/components/ui/Field";
-import { LnSheetAccordion } from "@/components/ui/Sheet";
 import { LnToggle } from "@/components/ui/Toggle";
 import type { Pet } from "@/db";
 import { provinceByName } from "@/lib/ar-provincias";
@@ -31,7 +35,7 @@ import {
   permanentConditionLabel,
 } from "@/lib/permanent-conditions";
 import type { NewPetFormState } from "@/src/modules/pets/domain/types";
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import { LocationFields } from "./LocationFields";
 
 const initialState: NewPetFormState = { error: null };
@@ -106,6 +110,31 @@ export function PetForm({
     existingPet?.emergencyInfoVisible ?? false,
   );
 
+  // Sensitive section gate — user must confirm before editing conditions/toggles.
+  const [sensitiveUnlocked, setSensitiveUnlocked] = useState<boolean>(false);
+  const [sensitiveDialogOpen, setSensitiveDialogOpen] = useState<boolean>(false);
+  const sensitiveButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Controlled field state — preserves typed input on validation error.
+  const [name, setName] = useState<string>(existingPet?.name ?? "");
+  const [color, setColor] = useState<string>(existingPet?.color ?? "");
+  const [trainingLevel, setTrainingLevel] = useState<string>(existingPet?.trainingLevel ?? "");
+  const [acquisitionMethod, setAcquisitionMethod] = useState<string>(
+    existingPet?.acquisitionMethod ?? "",
+  );
+  const [insuranceCompany, setInsuranceCompany] = useState<string>(
+    existingPet?.insuranceCompany ?? "",
+  );
+  const [insurancePolicyNumber, setInsurancePolicyNumber] = useState<string>(
+    existingPet?.insurancePolicyNumber ?? "",
+  );
+  const [favouriteFoodsOther, setFavouriteFoodsOther] = useState<string>(
+    (existingPet?.favouriteFoods ?? []).filter((v) => !new Set(COMMON_FOODS).has(v)).join(", "),
+  );
+  const [knownAllergiesOther, setKnownAllergiesOther] = useState<string>(
+    (existingPet?.knownAllergies ?? []).filter((v) => !new Set(COMMON_ALLERGIES).has(v)).join(", "),
+  );
+
   function toggleCondition(code: PermanentCondition) {
     setConditions((prev) => {
       const next = new Set(prev);
@@ -141,388 +170,307 @@ export function PetForm({
     }
   }
 
-  // Determine which accordions are "complete" (have data filled in).
-  const basicComplete = !!(species && (existingPet?.name || !isEdit));
-  // ARCH-S: chip presence now from canonical prop, not pets.microchipId.
-  const identComplete = !!(breed || existingCanonicalChip?.code);
-  const healthComplete = !!(selectedAllergies.length || selectedFoods.length || conditions.size);
-
   return (
     <form action={formAction} className="flex flex-col gap-[10px]">
       {hiddenFields &&
-        Object.entries(hiddenFields).map(([name, value]) => (
-          <input key={name} type="hidden" name={name} value={value} />
+        Object.entries(hiddenFields).map(([key, value]) => (
+          <input key={key} type="hidden" name={key} value={value} />
         ))}
 
       {/* Custody toggle — only on create, not compact */}
       {!compact && !isEdit && <CustodyKindToggle value={custodyKind} onChange={setCustodyKind} />}
 
-      {/* Photo — always visible above the accordions */}
+      {/* ── TOP TIER — most-used, everyone fills ──────────────── */}
+
+      {/* Photo — always visible */}
       <LnPhotoField onFileChange={handlePhotoChange} preview={photoPreview} />
 
-      {/* ── 01 Lo básico ─────────────────────────────────── */}
-      <LnSheetAccordion num="01" title="Lo básico" defaultOpen complete={basicComplete}>
-        <div className="flex flex-col gap-[12px]">
-          <LnField label="Nombre" required>
-            {({ id, describedBy, invalid }) => (
-              <LnInput
-                id={id}
-                name="name"
-                type="text"
-                required
-                autoComplete="off"
-                defaultValue={existingPet?.name}
-                aria-describedby={describedBy}
-                invalid={invalid}
-              />
-            )}
-          </LnField>
+      {/* Name */}
+      <LnField label="Nombre" required>
+        {({ id, describedBy, invalid }) => (
+          <LnInput
+            id={id}
+            name="name"
+            type="text"
+            required
+            autoComplete="off"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </LnField>
 
-          <input type="hidden" name="species" value={species} />
-          <LnField label="Especie" required>
-            {({ id, describedBy, invalid }) => (
-              <LnSelect
-                id={id}
-                name="speciesGroup"
-                required
-                value={speciesGroup}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  if (next === "dog" || next === "cat") {
-                    setSpecies(next);
-                  } else if (next === "other") {
-                    setSpecies("");
-                  } else {
-                    setSpecies("");
-                  }
-                  setBreed("");
-                }}
-                aria-describedby={describedBy}
-                invalid={invalid}
-              >
-                <option value="">Elegí una</option>
-                <option value="dog">Perro</option>
-                <option value="cat">Gato</option>
-                <option value="other">Otra</option>
-              </LnSelect>
+      {/* Species */}
+      <input type="hidden" name="species" value={species} />
+      <LnField label="Especie" required>
+        {({ id, describedBy, invalid }) => (
+          <LnSelect
+            id={id}
+            name="speciesGroup"
+            required
+            value={speciesGroup}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (next === "dog" || next === "cat") {
+                setSpecies(next);
+              } else if (next === "other") {
+                setSpecies("");
+              } else {
+                setSpecies("");
+              }
+              setBreed("");
+            }}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            <option value="">Elegí una</option>
+            <option value="dog">Perro</option>
+            <option value="cat">Gato</option>
+            <option value="other">Otra</option>
+          </LnSelect>
+        )}
+      </LnField>
+      {speciesGroup === "other" && (
+        <LnField label='Tipo de "Otra"' required>
+          {({ id, describedBy, invalid }) => (
+            <LnSelect
+              id={id}
+              name="speciesSubgroup"
+              required
+              value={subSpecies}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSpecies(next === "other_unlisted" ? "other" : next);
+                setBreed("");
+              }}
+              aria-describedby={describedBy}
+              invalid={invalid}
+            >
+              <option value="">Elegí una</option>
+              <option value="rabbit">Conejo</option>
+              <option value="guinea_pig">Cobayo</option>
+              <option value="ferret">Hurón</option>
+              <option value="other_unlisted">Otro / no listado</option>
+            </LnSelect>
+          )}
+        </LnField>
+      )}
+
+      {/* Sex */}
+      <LnField label="Sexo" required>
+        {({ id, describedBy, invalid }) => (
+          <LnSelect
+            id={id}
+            name="sex"
+            required
+            defaultValue={existingPet?.sex ?? "unknown"}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          >
+            <option value="unknown">No sé</option>
+            <option value="male">Macho</option>
+            <option value="female">Hembra</option>
+          </LnSelect>
+        )}
+      </LnField>
+
+      {/* Color / marks */}
+      <LnField label="Color / marcas">
+        {({ id, describedBy }) => (
+          <LnInput
+            id={id}
+            name="color"
+            type="text"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            aria-describedby={describedBy}
+          />
+        )}
+      </LnField>
+
+      {/* Location — REQUIRED in the full (non-compact) form */}
+      {!compact && (
+        <div className="flex flex-col gap-[6px]">
+          <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+            Localidad{" "}
+            <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
+              *
+            </span>
+          </p>
+          <LocationFields
+            mode="l1"
+            defaultValue={{
+              provinceCode: provinceByName(existingPet?.jurisdictionProvince)?.code ?? null,
+              localityName: existingPet?.jurisdictionLocality ?? null,
+            }}
+          />
+          <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+            Requerido. Ayuda a las campañas regionales de salud animal.
+          </p>
+        </div>
+      )}
+
+      {/* ── "OTROS" COLLAPSIBLE SECTION ───────────────────────── */}
+      {!compact && (
+        <details className="group rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-[8px] px-[14px] py-[12px] text-[12px] font-semibold text-[var(--color-ln-ink-2)] select-none">
+            <span>Otros datos</span>
+            <span
+              aria-hidden="true"
+              className="text-[var(--color-ln-faint)] transition-transform group-open:rotate-180"
+            >
+              ▾
+            </span>
+          </summary>
+          <div className="flex flex-col gap-[12px] border-t border-[var(--color-ln-line)] px-[14px] py-[12px]">
+            {/* Breed */}
+            <LnField label="Raza">
+              {({ id, describedBy }) => (
+                <LnInput
+                  id={id}
+                  name="breed"
+                  type="text"
+                  list="breed-options"
+                  value={breed}
+                  onChange={(e) => setBreed(e.target.value)}
+                  placeholder={species ? "Empezá a tipear o elegí…" : "Elegí especie primero"}
+                  disabled={!species}
+                  aria-describedby={describedBy}
+                />
+              )}
+            </LnField>
+            <datalist id="breed-options">
+              {breedOptions.map((b) => (
+                <option key={b} value={b} />
+              ))}
+            </datalist>
+
+            {breedIsDangerous && (
+              <LnCallout tone="warn" title="Raza potencialmente peligrosa">
+                Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078, Ley
+                Provincial 14.107). Registrate en el registro provincial correspondiente.
+              </LnCallout>
             )}
-          </LnField>
-          {speciesGroup === "other" && (
-            <LnField label='Tipo de "Otra"' required>
+
+            {/* Estimated weight */}
+            <LnField label="Peso estimado" hint="En kilogramos.">
+              {({ id, describedBy }) => (
+                <LnWeightInput
+                  id={id}
+                  name="estimatedWeightKg"
+                  defaultValue={existingPet?.estimatedWeightKg ?? undefined}
+                  aria-describedby={describedBy}
+                />
+              )}
+            </LnField>
+
+            {/* Age */}
+            <LnAgeFields defaultYears={initialAge.years} defaultMonths={initialAge.months} />
+
+            {/* Favourite foods */}
+            <div className="flex flex-col gap-[6px]">
+              <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+                Comidas favoritas
+              </p>
+              {selectedFoods.map((f) => (
+                <input key={f} type="hidden" name="favouriteFoods" value={f} />
+              ))}
+              <LnChipGroup
+                items={COMMON_FOODS.map((f) => ({ key: f, label: f }))}
+                selected={selectedFoods}
+                onChange={setSelectedFoods}
+              />
+              <LnInput
+                name="favouriteFoodsOther"
+                type="text"
+                placeholder="Otros (separá por coma si querés varios)"
+                value={favouriteFoodsOther}
+                onChange={(e) => setFavouriteFoodsOther(e.target.value)}
+              />
+            </div>
+
+            {/* Known allergies */}
+            <div className="flex flex-col gap-[6px]">
+              <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+                Alergias conocidas
+              </p>
+              {selectedAllergies.map((a) => (
+                <input key={a} type="hidden" name="knownAllergies" value={a} />
+              ))}
+              <LnChipGroup
+                items={COMMON_ALLERGIES.map((a) => ({
+                  key: a,
+                  label: a,
+                  tone: "rojo" as const,
+                }))}
+                selected={selectedAllergies}
+                onChange={setSelectedAllergies}
+              />
+              <LnInput
+                name="knownAllergiesOther"
+                type="text"
+                placeholder="Otros (separá por coma si querés varios)"
+                value={knownAllergiesOther}
+                onChange={(e) => setKnownAllergiesOther(e.target.value)}
+              />
+            </div>
+
+            {/* Training level */}
+            <LnField label="Nivel de entrenamiento">
               {({ id, describedBy, invalid }) => (
                 <LnSelect
                   id={id}
-                  name="speciesSubgroup"
-                  required
-                  value={subSpecies}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setSpecies(next === "other_unlisted" ? "other" : next);
-                    setBreed("");
-                  }}
+                  name="trainingLevel"
+                  value={trainingLevel}
+                  onChange={(e) => setTrainingLevel(e.target.value)}
                   aria-describedby={describedBy}
                   invalid={invalid}
                 >
-                  <option value="">Elegí una</option>
-                  <option value="rabbit">Conejo</option>
-                  <option value="guinea_pig">Cobayo</option>
-                  <option value="ferret">Hurón</option>
-                  <option value="other_unlisted">Otro / no listado</option>
+                  <option value="">No especificar</option>
+                  {TRAINING_LEVELS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
                 </LnSelect>
               )}
             </LnField>
-          )}
 
-          <LnField label="Sexo" required>
-            {({ id, describedBy, invalid }) => (
-              <LnSelect
-                id={id}
-                name="sex"
-                required
-                defaultValue={existingPet?.sex ?? "unknown"}
-                aria-describedby={describedBy}
-                invalid={invalid}
-              >
-                <option value="unknown">No sé</option>
-                <option value="male">Macho</option>
-                <option value="female">Hembra</option>
-              </LnSelect>
-            )}
-          </LnField>
-
-          <LnAgeFields defaultYears={initialAge.years} defaultMonths={initialAge.months} />
-
-          <LnField label="Color / marcas">
-            {({ id, describedBy }) => (
-              <LnInput
-                id={id}
-                name="color"
-                type="text"
-                defaultValue={existingPet?.color ?? undefined}
-                aria-describedby={describedBy}
-              />
-            )}
-          </LnField>
-        </div>
-      </LnSheetAccordion>
-
-      {!compact && (
-        <>
-          {/* ── 02 Identificación y raza ──────────────────────── */}
-          <LnSheetAccordion
-            num="02"
-            title="Identificación y raza"
-            defaultOpen={isEdit && !!existingPet?.breed}
-            complete={identComplete}
-          >
-            <div className="flex flex-col gap-[12px]">
-              <LnField label="Raza">
-                {({ id, describedBy }) => (
-                  <LnInput
-                    id={id}
-                    name="breed"
-                    type="text"
-                    list="breed-options"
-                    value={breed}
-                    onChange={(e) => setBreed(e.target.value)}
-                    placeholder={species ? "Empezá a tipear o elegí…" : "Elegí especie primero"}
-                    disabled={!species}
-                    aria-describedby={describedBy}
-                  />
-                )}
-              </LnField>
-              <datalist id="breed-options">
-                {breedOptions.map((b) => (
-                  <option key={b} value={b} />
-                ))}
-              </datalist>
-
-              {breedIsDangerous && (
-                <LnCallout tone="warn" title="Raza potencialmente peligrosa">
-                  Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078,
-                  Ley Provincial 14.107). Registrate en el registro provincial correspondiente.
-                </LnCallout>
+            {/* Acquisition method */}
+            <LnField
+              label={
+                isEdit
+                  ? `¿Cómo llegó ${existingPet?.name ?? "tu mascota"}?`
+                  : "¿Cómo te encontraste con esta mascota?"
+              }
+            >
+              {({ id, describedBy, invalid }) => (
+                <LnSelect
+                  id={id}
+                  name="acquisitionMethod"
+                  value={acquisitionMethod}
+                  onChange={(e) => setAcquisitionMethod(e.target.value)}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                >
+                  <option value="">No especificar</option>
+                  <option value="adopted">Adoptado/a</option>
+                  <option value="purchased">Comprado/a</option>
+                  <option value="found_stray">Encontrado/a en la calle</option>
+                  <option value="gift">Regalado/a</option>
+                  <option value="born_in_litter">Nacido/a en casa (camada propia)</option>
+                  <option value="other">Otro</option>
+                </LnSelect>
               )}
+            </LnField>
 
-              <LnField
-                label={
-                  isEdit
-                    ? `¿Cómo llegó ${existingPet?.name ?? "tu mascota"}?`
-                    : "¿Cómo te encontraste con esta mascota?"
-                }
-              >
-                {({ id, describedBy, invalid }) => (
-                  <LnSelect
-                    id={id}
-                    name="acquisitionMethod"
-                    defaultValue={existingPet?.acquisitionMethod ?? ""}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                  >
-                    <option value="">No especificar</option>
-                    <option value="adopted">Adoptado/a</option>
-                    <option value="purchased">Comprado/a</option>
-                    <option value="found_stray">Encontrado/a en la calle</option>
-                    <option value="gift">Regalado/a</option>
-                    <option value="born_in_litter">Nacido/a en casa (camada propia)</option>
-                    <option value="other">Otro</option>
-                  </LnSelect>
-                )}
-              </LnField>
-
-              <MicrochipBlock existingCanonicalChip={existingCanonicalChip} />
-            </div>
-          </LnSheetAccordion>
-
-          {/* ── 03 Salud y vida diaria ───────────────────────── */}
-          <LnSheetAccordion num="03" title="Salud y vida diaria" complete={healthComplete}>
-            <div className="flex flex-col gap-[12px]">
-              <LnField label="Peso estimado" hint="En kilogramos.">
-                {({ id, describedBy }) => (
-                  <LnInput
-                    id={id}
-                    name="estimatedWeightKg"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    defaultValue={existingPet?.estimatedWeightKg ?? undefined}
-                    aria-describedby={describedBy}
-                  />
-                )}
-              </LnField>
-
-              <div className="flex flex-col gap-[6px]">
-                <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
-                  Comidas favoritas
-                </p>
-                {/* Hidden multi-value inputs for selected foods */}
-                {selectedFoods.map((f) => (
-                  <input key={f} type="hidden" name="favouriteFoods" value={f} />
-                ))}
-                <LnChipGroup
-                  items={COMMON_FOODS.map((f) => ({ key: f, label: f }))}
-                  selected={selectedFoods}
-                  onChange={setSelectedFoods}
-                />
-                <LnInput
-                  name="favouriteFoodsOther"
-                  type="text"
-                  placeholder="Otros (separá por coma si querés varios)"
-                  defaultValue={(existingPet?.favouriteFoods ?? [])
-                    .filter((v) => !new Set(COMMON_FOODS).has(v))
-                    .join(", ")}
-                />
-              </div>
-
-              <div className="flex flex-col gap-[6px]">
-                <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
-                  Alergias conocidas
-                </p>
-                {selectedAllergies.map((a) => (
-                  <input key={a} type="hidden" name="knownAllergies" value={a} />
-                ))}
-                <LnChipGroup
-                  items={COMMON_ALLERGIES.map((a) => ({ key: a, label: a, tone: "rojo" as const }))}
-                  selected={selectedAllergies}
-                  onChange={setSelectedAllergies}
-                />
-                <LnInput
-                  name="knownAllergiesOther"
-                  type="text"
-                  placeholder="Otros (separá por coma si querés varios)"
-                  defaultValue={(existingPet?.knownAllergies ?? [])
-                    .filter((v) => !new Set(COMMON_ALLERGIES).has(v))
-                    .join(", ")}
-                />
-              </div>
-
-              <LnField label="Nivel de entrenamiento">
-                {({ id, describedBy, invalid }) => (
-                  <LnSelect
-                    id={id}
-                    name="trainingLevel"
-                    defaultValue={existingPet?.trainingLevel ?? ""}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                  >
-                    <option value="">No especificar</option>
-                    {TRAINING_LEVELS.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </LnSelect>
-                )}
-              </LnField>
-            </div>
-          </LnSheetAccordion>
-
-          {/* ── 04 Condiciones permanentes ───────────────────── */}
-          <LnSheetAccordion
-            num="04"
-            title="Condiciones permanentes"
-            defaultOpen={isEdit && conditions.size > 0}
-            complete={conditions.size > 0}
-          >
-            <div className="flex flex-col gap-[12px]">
-              <p className="text-[12px] text-[var(--color-ln-mute)]">
-                Marcá si tu mascota convive con alguna condición de por vida (sentidos, motora,
-                médica).
+            {/* Insurance */}
+            <div className="flex flex-col gap-[10px] border-t border-[var(--color-ln-line-2)] pt-[12px]">
+              <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+                Seguro de mascota
               </p>
-              <input
-                type="hidden"
-                name="permanentConditions"
-                value={Array.from(conditions).join(",")}
-              />
-              <div className="flex flex-col gap-[10px]">
-                {PERMANENT_CONDITION_GROUPS.map((group) => {
-                  const codes = PERMANENT_CONDITIONS.filter(
-                    (c) => permanentConditionGroup(c) === group.id,
-                  );
-                  if (codes.length === 0) return null;
-                  return (
-                    <div key={group.id} className="flex flex-col gap-[6px]">
-                      <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-faint)]">
-                        {group.label}
-                      </p>
-                      <div className="flex flex-wrap gap-[6px]">
-                        {codes.map((code) => (
-                          <LnChip
-                            key={code}
-                            selected={conditions.has(code)}
-                            onChange={() => toggleCondition(code)}
-                          >
-                            {permanentConditionLabel(code)}
-                          </LnChip>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {conditions.has("otra") && (
-                <LnField label="Especificá la condición" required>
-                  {({ id, describedBy, invalid }) => (
-                    <LnInput
-                      id={id}
-                      name="permanentConditionsOther"
-                      type="text"
-                      required
-                      maxLength={120}
-                      value={conditionsOther}
-                      onChange={(e) => setConditionsOther(e.target.value)}
-                      aria-describedby={describedBy}
-                      invalid={invalid}
-                    />
-                  )}
-                </LnField>
-              )}
-              {!conditions.has("otra") && (
-                <input type="hidden" name="permanentConditionsOther" value="" />
-              )}
-              <LnToggle
-                variant="azul"
-                checked={discloseConditions}
-                onChange={(v) => {
-                  setDiscloseConditions(v);
-                }}
-                label="Compartir estas condiciones en superficies públicas"
-                description="Cuando está marcado, se muestran en la credencial pública y en /adoptar si el refugio publica al pet."
-              />
-              <input
-                type="hidden"
-                name="discloseConditionsPublicly"
-                value={discloseConditions ? "true" : ""}
-              />
-            </div>
-          </LnSheetAccordion>
-
-          {/* ── 05 Credencial pública ────────────────────────── */}
-          <LnSheetAccordion
-            num="05"
-            title="Credencial pública"
-            defaultOpen={isEdit && !!existingPet?.emergencyInfoVisible}
-            complete={emergencyInfoVisible}
-          >
-            <div className="flex flex-col gap-[10px]">
-              <LnToggle
-                variant="azul"
-                checked={emergencyInfoVisible}
-                onChange={(v) => setEmergencyInfoVisible(v)}
-                label="Mostrar aviso de emergencia médica en la credencial pública"
-                description="Aparece en la página pública sin revelar tu nombre ni datos sensibles."
-              />
-              <input
-                type="hidden"
-                name="emergencyInfoVisible"
-                value={emergencyInfoVisible ? "true" : ""}
-              />
-            </div>
-          </LnSheetAccordion>
-
-          {/* Remaining sections (seguro, documentos, dispositivos, ubicación) */}
-          <LnSheetAccordion num="06" title="Seguro de mascota">
-            <div className="flex flex-col gap-[12px]">
               <LnField label="Compañía">
                 {({ id, describedBy }) => (
                   <LnInput
@@ -531,7 +479,8 @@ export function PetForm({
                     type="text"
                     list="insurance-companies"
                     placeholder="Buscar o tipear…"
-                    defaultValue={existingPet?.insuranceCompany ?? undefined}
+                    value={insuranceCompany}
+                    onChange={(e) => setInsuranceCompany(e.target.value)}
                     aria-describedby={describedBy}
                   />
                 )}
@@ -548,29 +497,93 @@ export function PetForm({
                     name="insurancePolicyNumber"
                     type="text"
                     mono
-                    defaultValue={existingPet?.insurancePolicyNumber ?? undefined}
+                    value={insurancePolicyNumber}
+                    onChange={(e) => setInsurancePolicyNumber(e.target.value)}
                     aria-describedby={describedBy}
                   />
                 )}
               </LnField>
             </div>
-          </LnSheetAccordion>
 
-          <LnSheetAccordion num="07" title="Ubicación">
-            <div className="flex flex-col gap-[12px]">
-              <p className="text-[12px] text-[var(--color-ln-mute)]">
-                Ayuda a las campañas de salud animal regionales.
-              </p>
-              <LocationFields
-                mode="l1"
-                defaultValue={{
-                  provinceCode: provinceByName(existingPet?.jurisdictionProvince)?.code ?? null,
-                  localityName: existingPet?.jurisdictionLocality ?? null,
-                }}
-              />
-            </div>
-          </LnSheetAccordion>
-        </>
+            {/* Microchip */}
+            <MicrochipBlock existingCanonicalChip={existingCanonicalChip} />
+          </div>
+        </details>
+      )}
+
+      {/* ── SENSITIVE SECTION — gated behind ConfirmDialog ────── */}
+      {!compact && (
+        <div className="flex flex-col gap-[10px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-[14px]">
+          <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+            Condiciones sensibles
+          </p>
+
+          {/* Hidden inputs always submitted so existing values are preserved even when section is locked */}
+          <input
+            type="hidden"
+            name="permanentConditions"
+            value={Array.from(conditions).join(",")}
+          />
+          {!conditions.has("otra") && (
+            <input type="hidden" name="permanentConditionsOther" value="" />
+          )}
+          <input
+            type="hidden"
+            name="discloseConditionsPublicly"
+            value={discloseConditions ? "true" : ""}
+          />
+          <input
+            type="hidden"
+            name="emergencyInfoVisible"
+            value={emergencyInfoVisible ? "true" : ""}
+          />
+
+          {!sensitiveUnlocked ? (
+            <>
+              {(conditions.size > 0 || emergencyInfoVisible) && (
+                <p className="text-[12px] text-[var(--color-ln-mute)]">
+                  {conditions.size > 0
+                    ? `${conditions.size} condición${conditions.size > 1 ? "es" : ""} registrada${conditions.size > 1 ? "s" : ""}.`
+                    : "Aviso de emergencia médica activo."}
+                </p>
+              )}
+              <button
+                ref={sensitiveButtonRef}
+                type="button"
+                onClick={() => setSensitiveDialogOpen(true)}
+                className="self-start rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[12px] py-[8px] text-[12px] font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+              >
+                Editar condiciones sensibles
+              </button>
+            </>
+          ) : (
+            <SensitiveFields
+              conditions={conditions}
+              conditionsOther={conditionsOther}
+              discloseConditions={discloseConditions}
+              emergencyInfoVisible={emergencyInfoVisible}
+              onToggleCondition={toggleCondition}
+              onConditionsOtherChange={setConditionsOther}
+              onDiscloseChange={setDiscloseConditions}
+              onEmergencyChange={setEmergencyInfoVisible}
+            />
+          )}
+
+          <ConfirmDialog
+            open={sensitiveDialogOpen}
+            onClose={() => setSensitiveDialogOpen(false)}
+            onConfirm={() => {
+              setSensitiveUnlocked(true);
+              setSensitiveDialogOpen(false);
+            }}
+            title="Editar condiciones sensibles"
+            description="Vas a editar condiciones de salud permanentes (como amputaciones o epilepsia). Asegurate de que la información sea correcta antes de guardar."
+            confirmLabel="Entendido, editar"
+            cancelLabel="Cancelar"
+            tone="warn"
+            triggerRef={sensitiveButtonRef}
+          />
+        </div>
       )}
 
       {state.error && (
@@ -607,6 +620,93 @@ export function PetForm({
         )}
       </button>
     </form>
+  );
+}
+
+// ============================================================================
+// Sensitive fields — rendered after user confirms via ConfirmDialog
+// ============================================================================
+
+function SensitiveFields({
+  conditions,
+  conditionsOther,
+  discloseConditions,
+  emergencyInfoVisible,
+  onToggleCondition,
+  onConditionsOtherChange,
+  onDiscloseChange,
+  onEmergencyChange,
+}: {
+  conditions: Set<PermanentCondition>;
+  conditionsOther: string;
+  discloseConditions: boolean;
+  emergencyInfoVisible: boolean;
+  onToggleCondition: (c: PermanentCondition) => void;
+  onConditionsOtherChange: (v: string) => void;
+  onDiscloseChange: (v: boolean) => void;
+  onEmergencyChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-[12px]">
+      <p className="text-[12px] text-[var(--color-ln-mute)]">
+        Marcá si tu mascota convive con alguna condición de por vida (sentidos, motora, médica).
+      </p>
+      <div className="flex flex-col gap-[10px]">
+        {PERMANENT_CONDITION_GROUPS.map((group) => {
+          const codes = PERMANENT_CONDITIONS.filter((c) => permanentConditionGroup(c) === group.id);
+          if (codes.length === 0) return null;
+          return (
+            <div key={group.id} className="flex flex-col gap-[6px]">
+              <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-faint)]">
+                {group.label}
+              </p>
+              <div className="flex flex-wrap gap-[6px]">
+                {codes.map((code) => (
+                  <LnChip
+                    key={code}
+                    selected={conditions.has(code)}
+                    onChange={() => onToggleCondition(code)}
+                  >
+                    {permanentConditionLabel(code)}
+                  </LnChip>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {conditions.has("otra") && (
+        <LnField label="Especificá la condición" required>
+          {({ id, describedBy, invalid }) => (
+            <LnInput
+              id={id}
+              name="permanentConditionsOther"
+              type="text"
+              required
+              maxLength={120}
+              value={conditionsOther}
+              onChange={(e) => onConditionsOtherChange(e.target.value)}
+              aria-describedby={describedBy}
+              invalid={invalid}
+            />
+          )}
+        </LnField>
+      )}
+      <LnToggle
+        variant="azul"
+        checked={discloseConditions}
+        onChange={onDiscloseChange}
+        label="Compartir estas condiciones en superficies públicas"
+        description="Cuando está marcado, se muestran en la credencial pública y en /adoptar si el refugio publica al pet."
+      />
+      <LnToggle
+        variant="azul"
+        checked={emergencyInfoVisible}
+        onChange={onEmergencyChange}
+        label="Mostrar aviso de emergencia médica en la credencial pública"
+        description="Aparece en la página pública sin revelar tu nombre ni datos sensibles."
+      />
+    </div>
   );
 }
 
@@ -706,6 +806,8 @@ function LnAgeFields({
   defaultYears: number | null;
   defaultMonths: number | null;
 }) {
+  const [years, setYears] = useState<string>(defaultYears != null ? String(defaultYears) : "");
+  const [months, setMonths] = useState<string>(defaultMonths != null ? String(defaultMonths) : "");
   return (
     <div className="flex flex-col gap-[6px]">
       <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
@@ -719,7 +821,8 @@ function LnAgeFields({
           min="0"
           max="40"
           placeholder="Años"
-          defaultValue={defaultYears ?? undefined}
+          value={years}
+          onChange={(e) => setYears(e.target.value)}
         />
         <LnInput
           id="ageMonths"
@@ -728,7 +831,8 @@ function LnAgeFields({
           min="0"
           max="11"
           placeholder="Meses"
-          defaultValue={defaultMonths ?? undefined}
+          value={months}
+          onChange={(e) => setMonths(e.target.value)}
         />
       </div>
       <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
@@ -738,12 +842,52 @@ function LnAgeFields({
   );
 }
 
+function LnWeightInput({
+  id,
+  name,
+  defaultValue,
+  "aria-describedby": describedBy,
+}: {
+  id: string;
+  name: string;
+  defaultValue?: number | string;
+  "aria-describedby"?: string;
+}) {
+  const [value, setValue] = useState<string>(defaultValue != null ? String(defaultValue) : "");
+  return (
+    <LnInput
+      id={id}
+      name={name}
+      type="number"
+      step="0.1"
+      min="0"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      aria-describedby={describedBy}
+    />
+  );
+}
+
 function MicrochipBlock({
   existingCanonicalChip,
 }: {
   // ARCH-S: canonical chip data replaces dropped pets.microchipId* columns.
   existingCanonicalChip?: ExistingCanonicalChip | null;
 }) {
+  const [microchipId, setMicrochipId] = useState<string>(existingCanonicalChip?.code ?? "");
+  const [microchipCountryCode, setMicrochipCountryCode] = useState<string>(
+    existingCanonicalChip?.isoCountryCode ?? "858",
+  );
+  const [microchipImplantedAt, setMicrochipImplantedAt] = useState<string>(
+    existingCanonicalChip?.recordedAt ?? "",
+  );
+  const [microchipImplantedBy, setMicrochipImplantedBy] = useState<string>(
+    existingCanonicalChip?.recordedByLabel ?? "",
+  );
+  const [microchipLocation, setMicrochipLocation] = useState<string>(
+    existingCanonicalChip?.implantationSite ?? "",
+  );
+
   return (
     <div className="flex flex-col gap-[10px] border-t border-[var(--color-ln-line-2)] pt-[12px]">
       <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
@@ -757,7 +901,8 @@ function MicrochipBlock({
             type="text"
             mono
             autoComplete="off"
-            defaultValue={existingCanonicalChip?.code ?? undefined}
+            value={microchipId}
+            onChange={(e) => setMicrochipId(e.target.value)}
             aria-describedby={describedBy}
           />
         )}
@@ -769,7 +914,8 @@ function MicrochipBlock({
             name="microchipCountryCode"
             type="text"
             mono
-            defaultValue={existingCanonicalChip?.isoCountryCode ?? "858"}
+            value={microchipCountryCode}
+            onChange={(e) => setMicrochipCountryCode(e.target.value)}
             aria-describedby={describedBy}
           />
         )}
@@ -781,7 +927,8 @@ function MicrochipBlock({
             name="microchipImplantedAt"
             type="date"
             mono
-            defaultValue={existingCanonicalChip?.recordedAt ?? undefined}
+            value={microchipImplantedAt}
+            onChange={(e) => setMicrochipImplantedAt(e.target.value)}
             aria-describedby={describedBy}
           />
         )}
@@ -792,7 +939,8 @@ function MicrochipBlock({
             id={id}
             name="microchipImplantedBy"
             type="text"
-            defaultValue={existingCanonicalChip?.recordedByLabel ?? undefined}
+            value={microchipImplantedBy}
+            onChange={(e) => setMicrochipImplantedBy(e.target.value)}
             aria-describedby={describedBy}
           />
         )}
@@ -802,7 +950,8 @@ function MicrochipBlock({
           <LnSelect
             id={id}
             name="microchipLocation"
-            defaultValue={existingCanonicalChip?.implantationSite ?? ""}
+            value={microchipLocation}
+            onChange={(e) => setMicrochipLocation(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           >

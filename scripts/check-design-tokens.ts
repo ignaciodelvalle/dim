@@ -54,11 +54,8 @@ const ARBITRARY_HEX =
 
 // Allowlist: hex values with no direct token equivalent that are intentionally left as-is.
 // Each entry must include a justification comment.
-const ARBITRARY_HEX_ALLOWLIST = new Set([
-  // #5d5240 — warm sepia brown used for memorial section text in mis-mascotas.
-  // Falls between ln-ink-2 (#3c4b55, cooler) and ln-mute (#6e7b84, neutral).
-  // No ln-* token covers warm-brown text; needs a dedicated token (future PR).
-  "text-[#5d5240]",
+const ARBITRARY_HEX_ALLOWLIST = new Set<string>([
+  // (empty — all previously allowlisted hex values now have ln-* tokens)
 ]);
 
 let hits = 0;

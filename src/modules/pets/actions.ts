@@ -75,7 +75,13 @@ export async function createPetAction(
   if (!user) return { error: "Sesión expirada. Iniciá sesión de nuevo." };
 
   const parseResult = parsePetForm(formData);
-  if (parseResult.error !== null) return { error: parseResult.error };
+  if (parseResult.error !== null) {
+    const msg =
+      parseResult.error === "LOCALITY_REQUIRED"
+        ? "Seleccioná la localidad antes de continuar."
+        : parseResult.error;
+    return { error: msg };
+  }
   // Safe: parseResult.error === null implies parsed is non-null (discriminated union).
   const parsed = parseResult.parsed as NonNullable<typeof parseResult.parsed>;
 
@@ -203,7 +209,13 @@ export async function updatePetAction(
   const existingCanonicalIds = await fetchActiveIdentifications(existingPet.id);
 
   const parseResult = parsePetForm(formData);
-  if (parseResult.error !== null) return { error: parseResult.error };
+  if (parseResult.error !== null) {
+    const msg =
+      parseResult.error === "LOCALITY_REQUIRED"
+        ? "Seleccioná la localidad antes de continuar."
+        : parseResult.error;
+    return { error: msg };
+  }
   // Safe: parseResult.error === null implies parsed is non-null (discriminated union).
   const parsed = parseResult.parsed as NonNullable<typeof parseResult.parsed>;
 

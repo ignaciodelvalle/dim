@@ -93,15 +93,39 @@
   --color-ln-warn: #96600e; /* darkened from #b0771a — 5.28:1 on white (was 3.82:1, WCAG AA fail) */
   --color-ln-err: #c0392b;
   --color-ln-rosa: #b5497e;
+  --color-ln-violeta: #6b4ea8; /* medication / violeta tone */
 
   /* Status tint surfaces — bg/border pairs for ok/warn/err/seal callouts */
   --color-ln-ok-050: #eef6f0; /* ok tint bg */
   --color-ln-ok-100: #c8e2d2; /* ok tint border */
+  --color-ln-ok-bg: #e8f3ec; /* ok status flag bg (slightly warmer than ok-050) */
   --color-ln-warn-025: #fdf6ea; /* warn soft tint bg (due-soon, callout) */
   --color-ln-warn-050: #fdf2e0; /* warn tint bg */
   --color-ln-warn-100: #f0dcb4; /* warn tint border */
   --color-ln-err-050: #fbe9e6; /* err/seal tint bg */
   --color-ln-err-100: #f1c6bf; /* err/seal tint border */
+  --color-ln-err-bg: #fcefed; /* err vstamp over bg (slightly lighter than err-050) */
+
+  /* Violeta tints — medication category */
+  --color-ln-violeta-050: #f0ecf8; /* violeta tint bg */
+  --color-ln-violeta-100: #ddd2f0; /* violeta tint border */
+
+  /* Rosa tints — pregnancy / rosa category */
+  --color-ln-rosa-050: #fbe8f2; /* rosa sheet icon bg */
+  --color-ln-rosa-100: #efbdd8; /* rosa sheet icon border */
+  --color-ln-rosa-bg: #fbe9f1; /* rosa status flag bg */
+  --color-ln-rosa-bd: #f1c8dd; /* rosa status flag border */
+
+  /* Memorial / sepia scale — deceased pet views */
+  --color-ln-memorial-bg: #faf8f3; /* memorial page canvas (near-paper, warm) */
+  --color-ln-memorial-ink: #2a2018; /* deep warm heading text */
+  --color-ln-memorial: #7a6a50; /* memorial body text / death event dot */
+  --color-ln-memorial-faint: #c0b89a; /* separator dots in memorial links */
+  --color-ln-memorial-sepia: #5d5240; /* warm-brown text (between ink-2 and mute) */
+  --color-ln-memorial-chip-bg: #f0ead9; /* "En memoria" chip background */
+  --color-ln-memorial-chip-bd: #e0d4b8; /* "En memoria" chip border */
+  --color-ln-memorial-chip-text: #6a5a3f; /* "En memoria" chip text */
+  --color-ln-memorial-note: #b0771a; /* note_added event in memorial timeline (pre-WCAG warn shade) */
 
   /* Legacy Poncho token names, REPOINTED to the Libreta Nacional palette.
      The class names (bg-gob-primary, text-gob-text, etc.) are kept so the

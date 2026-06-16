@@ -1,5 +1,6 @@
 "use client";
 
+import { BRANDING } from "@/lib/branding";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -56,7 +57,7 @@ export function LnOwnerNav({ displayName, unreadCount }: Props) {
 
   return (
     <LnMastheadWithBell
-      wordmark="miMAR"
+      wordmark={BRANDING.appName}
       wordmarkSub="MI MASCOTA ARGENTINA"
       crest="m"
       nav={nav}
@@ -131,7 +132,9 @@ function LnOwnerMobileDrawer({
               m
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="font-[var(--font-ln-serif)] text-[15px] font-semibold">miMAR</span>
+              <span className="font-[var(--font-ln-serif)] text-[15px] font-semibold">
+                {BRANDING.appName}
+              </span>
               <span className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[0.2em] text-[var(--color-ln-celeste)]">
                 MI MASCOTA ARGENTINA
               </span>

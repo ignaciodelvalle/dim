@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import type { CheckinFormState } from "@/app/actions/checkin";
+import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnTextarea } from "@/components/ui/Field";
 import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
@@ -25,7 +26,12 @@ export function CheckinForm({
 
   return (
     <>
-      <LnSheetHeader tone="azul" icon="📍" title="Check-in" subtitle="Libreta sanitaria oficial" />
+      <LnSheetHeader
+        tone="azul"
+        icon={<Icon name="checkin" decorative />}
+        title="Check-in"
+        subtitle="Libreta sanitaria oficial"
+      />
       <LnSheetBody>
         <form id={FORM_ID} action={formAction} className="contents">
           <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />

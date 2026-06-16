@@ -36,7 +36,7 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 
-vi.mock("@/app/p/[publicToken]/encontre/action", () => ({
+vi.mock("@/app/(public)/p/[publicToken]/encontre/action", () => ({
   reportFinderInPossessionAction: vi.fn(),
 }));
 
@@ -61,7 +61,7 @@ vi.mock("@/components/LocationFields", () => ({
   }) => React.createElement("div", { "data-testid": "location-fields", "data-mode": mode }),
 }));
 
-import { FinderInPossessionForm } from "@/app/p/[publicToken]/encontre/FinderInPossessionForm";
+import { FinderInPossessionForm } from "@/app/(public)/p/[publicToken]/encontre/FinderInPossessionForm";
 
 function render(node: React.ReactElement): string {
   return renderToStaticMarkup(node);
