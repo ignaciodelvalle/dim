@@ -8,8 +8,8 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db, organizationMemberships, profiles } from "@/db";
 import { pgError } from "@/lib/db-errors";
-import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import { LEGAL_VERSION } from "@/lib/legal-version";
+import { normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
@@ -111,11 +111,12 @@ export async function completeIdentityAction(
   }
 
   // Location — optional. LocationFields (l1 mode) submits provinceCode (ISO)
-  // + localityName. canonicalProvinceNameForStorage normalizes the ISO code to
-  // the canonical province display name stored in all other jurisdiction columns.
+  // + localityName. locality:"none" canonicalizes the ISO code to the canonical
+  // province display name; no locality catalog lookup (auth behavior unchanged).
   const loc = parseLocationFromFormData(formData);
-  const jurisdictionProvince = canonicalProvinceNameForStorage(loc.provinceCode ?? "") ?? null;
-  const jurisdictionLocality = loc.locality;
+  const normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  const jurisdictionProvince = normalizedLoc.province;
+  const jurisdictionLocality = normalizedLoc.locality;
 
   const supabase = await createClient();
   const {

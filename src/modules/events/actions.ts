@@ -37,7 +37,7 @@ import { findDisease } from "@/lib/diseases";
 import { findDrugByLabel } from "@/lib/drugs";
 import { checkboxOn } from "@/lib/form-checkbox";
 import { parseDateInput } from "@/lib/format";
-import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
+import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
 import type { SupabaseServerClient } from "@/lib/pet-access";
@@ -832,8 +832,10 @@ export async function createVetVisitAction(
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
-  const eventJurisdictionProvince = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
-  const eventJurisdictionLocality = loc.locality;
+  // locality:"none" — canonicalize province only (vet_visit behavior unchanged).
+  const normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  const eventJurisdictionProvince = normalizedLoc.province;
+  const eventJurisdictionLocality = normalizedLoc.locality;
 
   if (!reason) return { error: "Falta el motivo de la visita." };
   if (!occurredAtRaw) return { error: "Falta la fecha." };
@@ -907,8 +909,10 @@ export async function createClinicalInfoAction(
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
-  const eventJurisdictionProvince = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
-  const eventJurisdictionLocality = loc.locality;
+  // locality:"none" — canonicalize province only (clinical_info behavior unchanged).
+  const normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  const eventJurisdictionProvince = normalizedLoc.province;
+  const eventJurisdictionLocality = normalizedLoc.locality;
 
   if (!(CLINICAL_SUB_KINDS as readonly string[]).includes(subKindRaw)) {
     return { error: "Tipo de información clínica inválido." };
@@ -1232,11 +1236,17 @@ export async function setPetLostAction(
   const locationLatRaw = String(formData.get("locationLat") ?? "").trim() || null;
   const locationLngRaw = String(formData.get("locationLng") ?? "").trim() || null;
 
+  // Validate coords through the gate.
+  // - isFinite check preserved from before P2 (user error message unchanged).
+  // - STEP 3 hardening: also reject out-of-range coords (previously not checked).
   if (locationLatRaw && locationLngRaw) {
-    const lat = Number.parseFloat(locationLatRaw);
-    const lng = Number.parseFloat(locationLngRaw);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    const latNum = Number.parseFloat(locationLatRaw);
+    const lngNum = Number.parseFloat(locationLngRaw);
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
       return { error: "Coordenadas inválidas. Tocá el mapa de nuevo para marcar el punto." };
+    }
+    if (latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
+      return { error: "La ubicación está fuera de rango." };
     }
   }
 
