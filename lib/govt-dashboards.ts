@@ -275,16 +275,18 @@ export async function fetchLostPets(
     // Match pet name or active owner's display name.
     // Use sql template for the OR to keep strict TypeScript happy (or() has an
     // undefined return when invoked with zero args; this variant always has two).
+    // unaccent() on both column and pattern so "gonzalez" finds "González";
+    // likeContains() already escapes % and _ (wildcard injection safe).
     conditions.push(
       sql`(
-        ${pets.name} ILIKE ${pattern} ESCAPE '\'
+        unaccent(${pets.name}) ILIKE unaccent(${pattern}) ESCAPE '\'
         OR EXISTS (
           SELECT 1 FROM ownerships o_q
           JOIN profiles pr_q ON pr_q.id = o_q.owner_user_id
           WHERE o_q.pet_id = ${pets.id}
             AND o_q.role = 'owner'
             AND o_q.ended_at IS NULL
-            AND pr_q.display_name ILIKE ${pattern} ESCAPE '\'
+            AND unaccent(pr_q.display_name) ILIKE unaccent(${pattern}) ESCAPE '\'
         )
       )`,
     );

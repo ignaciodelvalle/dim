@@ -14,9 +14,10 @@
 //   - All other matches still appear — jurisdiction is "priority but
 //     not filter" (PB7), because real cross-jurisdiction visits exist.
 
-import { and, eq, ilike, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { db, organizations, profiles } from "@/db";
+import { likeContains } from "@/lib/like-helpers";
 
 export type PerformedBySuggestion =
   | {
@@ -55,7 +56,7 @@ export async function searchVetsAndClinics(
   const q = query.trim();
   if (q.length < MIN_QUERY_LEN) return [];
   const cap = Math.min(limit, MAX_LIMIT);
-  const pattern = `%${q}%`;
+  const pattern = likeContains(q);
 
   const [orgRows, profileRows] = await Promise.all([
     db
@@ -73,7 +74,9 @@ export async function searchVetsAndClinics(
         and(
           eq(organizations.verified, true),
           inArray(organizations.orgType, [...ELIGIBLE_ORG_TYPES]),
-          ilike(organizations.displayName, pattern),
+          // unaccent() on both sides: "gonzalez" finds "González".
+          // likeContains() escapes % and _ to prevent wildcard injection.
+          sql`unaccent(${organizations.displayName}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
         ),
       )
       .limit(cap),
@@ -90,7 +93,7 @@ export async function searchVetsAndClinics(
         and(
           eq(profiles.role, "vet"),
           eq(profiles.matriculaVerified, true),
-          ilike(profiles.displayName, pattern),
+          sql`unaccent(${profiles.displayName}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
         ),
       )
       .limit(cap),
