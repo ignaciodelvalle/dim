@@ -373,10 +373,14 @@ jobs:
         run: pnpm db:bootstrap
 
       - name: Extract Supabase env vars for runtime
-        # `supabase status -o env` emits KEY=VALUE lines; source them into
-        # $GITHUB_ENV so the build + start steps pick up the real ANON_KEY.
+        # `supabase status -o env` emits ANON_KEY/API_URL/etc. Write them to
+        # $GITHUB_ENV and also alias ANON_KEY → NEXT_PUBLIC_SUPABASE_ANON_KEY
+        # (the CLI uses a raw name; Next.js reads the NEXT_PUBLIC_* form).
         run: |
-          pnpm exec supabase status -o env >> "$GITHUB_ENV"
+          STATUS_ENV=$(pnpm exec supabase status -o env 2>&1)
+          echo "$STATUS_ENV" >> "$GITHUB_ENV"
+          ANON=$(echo "$STATUS_ENV" | grep '^ANON_KEY=' | cut -d= -f2-)
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON}" >> "$GITHUB_ENV"
 
       - name: Build Next.js app
         # The build step needs env vars to resolve module-level reads; the
@@ -384,17 +388,19 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
         run: pnpm build
 
       - name: Run Playwright e2e suite
         # NEXT_BUILT=1 tells playwright.config.ts to skip `pnpm build` in the
         # webServer command (build already ran in the previous step).
-        # The real ANON_KEY is already in $GITHUB_ENV from the `supabase status`
-        # step; Next.js reads NEXT_PUBLIC_* at runtime from process.env.
+        # NEXT_PUBLIC_SUPABASE_ANON_KEY is set via ${{ env.* }} from the
+        # extract step above; the webServer (`next start`) reads it at runtime.
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
           PORT: "3333"
           NEXT_BUILT: "1"
