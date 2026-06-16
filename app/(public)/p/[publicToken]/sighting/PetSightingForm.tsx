@@ -63,7 +63,12 @@ export function PetSightingForm({
 
   return (
     <form action={formAction} className="space-y-4" encType="multipart/form-data">
-      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
+      <input
+        type="hidden"
+        name="clientIdempotencyKey"
+        value={idempotencyKey}
+        suppressHydrationWarning
+      />
       <LocationFields
         mode="l2"
         biasProvince={biasProvince}

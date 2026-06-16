@@ -103,7 +103,7 @@ describe("createWelfareReportAction — anon rate-limit gate", () => {
     );
   });
 
-  it("authenticated user: enforceRateLimit NOT called (auth skips rate-limit)", async () => {
+  it("authenticated user: enforceRateLimit called with the per-user soft cap", async () => {
     const { createClient } = await import("@/lib/supabase/server");
     vi.mocked(createClient).mockResolvedValue({
       auth: {
@@ -121,7 +121,14 @@ describe("createWelfareReportAction — anon rate-limit gate", () => {
 
     await createWelfareReportAction({ error: null }, fd);
 
-    expect(rateLimit.enforceRateLimit).not.toHaveBeenCalled();
+    // Authenticated submissions now get a soft per-user rate limit (Track A
+    // hardening — previously an unbounded bypass). It must use the per-user
+    // key (user id), NOT the anonymous IP key.
+    expect(rateLimit.enforceRateLimit).toHaveBeenCalledWith(
+      "welfare_auth",
+      "user-123",
+      expect.objectContaining({ maxPerHour: 10 }),
+    );
   });
 });
 
