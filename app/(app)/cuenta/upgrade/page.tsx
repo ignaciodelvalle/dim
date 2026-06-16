@@ -1,11 +1,9 @@
 // Tu rol en MiMAR — Libreta Nacional redesign.
-// Data fetching, VetUpgradeForm, OrgCreateForm all unchanged.
 
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import { LnCallout } from "@/components/ui/DocElements";
 import { approvalRequests, db, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -66,23 +64,6 @@ export default async function UpgradePage() {
         </p>
       </div>
 
-      {/* DNI prereq banner */}
-      {!profile?.dniVerified && (
-        <div className="mb-[24px]">
-          {/* DNI declaration is self-declared (trust-on-input) — "declarar" avoids overclaiming
-              identity assurance until the Mi Argentina integration lands. */}
-          <LnCallout tone="warn" title="Te falta declarar tu DNI">
-            Necesitás declarar tu número de DNI antes de enviar cualquier solicitud de rol.{" "}
-            <a
-              href="/cuenta/verificar-dni?next=/cuenta/upgrade"
-              className="text-[var(--color-ln-azul)] no-underline hover:underline"
-            >
-              Declarar ahora →
-            </a>
-          </LnCallout>
-        </div>
-      )}
-
       <div className="flex flex-col gap-[20px]">
         {/* Card A — Profesional veterinario */}
         <LnCard>
@@ -139,10 +120,10 @@ export default async function UpgradePage() {
                         Corregí los datos y volvé a enviar.
                       </p>
                     </div>
-                    <VetUpgradeForm />
+                    <VetUpgradeForm dniVerified={profile?.dniVerified ?? false} />
                   </>
                 ) : (
-                  <VetUpgradeForm />
+                  <VetUpgradeForm dniVerified={profile?.dniVerified ?? false} />
                 )}
               </>
             )}
@@ -175,7 +156,7 @@ export default async function UpgradePage() {
                 </span>
               </Link>
             ) : (
-              <OrgCreateForm />
+              <OrgCreateForm dniVerified={profile?.dniVerified ?? false} />
             )}
           </LnCardBody>
         </LnCard>
