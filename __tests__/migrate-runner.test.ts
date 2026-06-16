@@ -140,6 +140,7 @@ describe("parseArgs", () => {
   it("defaults to forward-apply with no flags", () => {
     expect(parseArgs([])).toEqual({
       status: false,
+      check: false,
       dryRun: false,
       baseline: false,
       strict: false,
@@ -151,6 +152,11 @@ describe("parseArgs", () => {
     expect(cli.status).toBe(true);
     expect(cli.dryRun).toBe(true);
     expect(cli.strict).toBe(true);
+  });
+
+  it("parses --check", () => {
+    expect(parseArgs(["--check"]).check).toBe(true);
+    expect(parseArgs([]).check).toBe(false);
   });
 
   it("parses --baseline with an optional upTo positional", () => {
@@ -290,6 +296,25 @@ describe("migrate runner e2e (local DB, scratch dir + table)", { timeout: 30_000
     expect(res.stdout).toContain("Applied        : 1");
     expect(res.stdout).toContain("Pending        : 1");
     expect(res.stdout).toContain("0001_e2e.sql");
+  });
+
+  it("--check exits 6 when migrations are pending, 0 when up to date (deploy gate)", async () => {
+    writeFileSync(path.join(dir, "0000_e2e.sql"), "select 1;\n");
+    writeFileSync(path.join(dir, "0001_e2e.sql"), "select 1;\n");
+    // Baseline only the first, leaving the second pending.
+    expect(runMigrate(["--baseline", "0000_e2e.sql"], dir).status).toBe(0);
+
+    // Pending => the gate must fail loudly so a deploy aborts.
+    const behind = runMigrate(["--check"], dir);
+    expect(behind.status).toBe(6);
+    expect(behind.stdout).toContain("Pending        : 1");
+    expect(behind.stderr).toContain("pending against this database");
+
+    // Once everything is applied, the gate passes.
+    expect(runMigrate(["--baseline"], dir).status).toBe(0);
+    const upToDate = runMigrate(["--check"], dir);
+    expect(upToDate.status, upToDate.stderr).toBe(0);
+    expect(upToDate.stdout).toContain("Pending        : 0");
   });
 
   it("fails fast on a broken migration and reports the file", async () => {
