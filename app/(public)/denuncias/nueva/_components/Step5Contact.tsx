@@ -131,10 +131,11 @@ export function Step5Contact({
 
       {/* Mode cards */}
       <div className="space-y-3">
-        {/* Anonymous card */}
+        {/* Anonymous card — B-5: aria-pressed reflects selection state */}
         <button
           type="button"
           onClick={() => onContactModeChange("anonymous")}
+          aria-pressed={contactMode === "anonymous"}
           className={`w-full text-left rounded-[6px] border px-4 py-3.5 transition-colors ${
             contactMode === "anonymous"
               ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)]"
@@ -164,10 +165,11 @@ export function Step5Contact({
           </span>
         </button>
 
-        {/* With contact card */}
+        {/* With contact card — B-5: aria-pressed reflects selection state */}
         <button
           type="button"
           onClick={() => onContactModeChange("with_contact")}
+          aria-pressed={contactMode === "with_contact"}
           className={`w-full text-left rounded-[6px] border px-4 py-3.5 transition-colors ${
             contactMode === "with_contact"
               ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)]"
@@ -277,8 +279,13 @@ export function Step5Contact({
         </p>
 
         {/* File input — cleared after each selection to allow incremental adds */}
+        {/* B-1: explicit label for the file input */}
+        <label htmlFor="evidenceFiles" className="sr-only">
+          Adjuntar fotos o videos como evidencia (opcional)
+        </label>
         <input
           ref={fileInputRef}
+          id="evidenceFiles"
           type="file"
           multiple
           accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif"

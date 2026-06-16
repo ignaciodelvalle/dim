@@ -58,6 +58,9 @@ export function PetSightingForm({
 
   const todayLocalIso = new Date().toISOString().slice(0, 16);
 
+  // B-2: stable id for the error paragraph so inputs can reference it via aria-describedby
+  const errorId = "sighting-form-error";
+
   return (
     <form action={formAction} className="space-y-4" encType="multipart/form-data">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
@@ -81,6 +84,7 @@ export function PetSightingForm({
           name="sightedAt"
           type="datetime-local"
           defaultValue={todayLocalIso}
+          aria-describedby={state.error ? errorId : undefined}
           className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
       </div>
@@ -108,7 +112,12 @@ export function PetSightingForm({
           📷 ¿Le sacaste foto? (opcional)
         </summary>
         <div className="p-4 border-t border-[var(--color-ln-line)] space-y-2">
+          {/* B-1: explicit label for the file input */}
+          <label htmlFor="photo" className="sr-only">
+            Foto de la mascota (opcional)
+          </label>
           <input
+            id="photo"
             type="file"
             name="photo"
             accept="image/*"
@@ -165,8 +174,9 @@ export function PetSightingForm({
         </div>
       </details>
 
+      {/* B-2: stable id so inputs above can reference it via aria-describedby */}
       {state.error && (
-        <p className="text-xs text-[var(--color-ln-seal)]" role="alert">
+        <p id={errorId} className="text-xs text-[var(--color-ln-seal)]" role="alert">
           {state.error}
         </p>
       )}

@@ -53,6 +53,9 @@ export function FinderInPossessionForm({
   const [clientError, setClientError] = useState<string | null>(null);
   const [canKeepIndefinite, setCanKeepIndefinite] = useState(false);
 
+  // B-2: stable id for the error paragraph so required inputs can reference it
+  const errorId = "finder-possession-form-error";
+
   // Controlled field state — preserves typed input on validation error.
   const [finderName, setFinderName] = useState(prefill?.name ?? "");
   const [finderPhone, setFinderPhone] = useState(prefill?.phone ?? "");
@@ -146,6 +149,7 @@ export function FinderInPossessionForm({
             value={finderName}
             onChange={(e) => setFinderName(e.target.value)}
             placeholder="Nombre y apellido"
+            aria-describedby={(clientError ?? state.error) ? errorId : undefined}
             className={inputClass}
           />
         </div>
@@ -171,6 +175,7 @@ export function FinderInPossessionForm({
               value={finderPhone}
               onChange={(e) => setFinderPhone(e.target.value)}
               placeholder="11-1234-5678"
+              aria-describedby={(clientError ?? state.error) ? errorId : undefined}
               className={inputClass}
             />
           </div>
@@ -189,6 +194,7 @@ export function FinderInPossessionForm({
               value={finderEmail}
               onChange={(e) => setFinderEmail(e.target.value)}
               placeholder="vos@ejemplo.com"
+              aria-describedby={(clientError ?? state.error) ? errorId : undefined}
               className={inputClass}
             />
           </div>
@@ -295,7 +301,12 @@ export function FinderInPossessionForm({
             📷 ¿Le sacás una foto ahora para confirmar? (opcional)
           </summary>
           <div className="p-4 border-t border-[var(--color-ln-line)] space-y-2">
+            {/* B-1: explicit label for the file input */}
+            <label htmlFor="photoNow" className="sr-only">
+              Foto actual de la mascota (opcional)
+            </label>
             <input
+              id="photoNow"
               type="file"
               name="photoNow"
               accept="image/*"
@@ -308,9 +319,9 @@ export function FinderInPossessionForm({
           </div>
         </details>
 
-        {/* Error display */}
+        {/* B-2: stable id so required inputs above can reference via aria-describedby */}
         {(clientError ?? state.error) && (
-          <p className="text-xs text-[var(--color-ln-seal)]" role="alert">
+          <p id={errorId} className="text-xs text-[var(--color-ln-seal)]" role="alert">
             {clientError ?? state.error}
           </p>
         )}

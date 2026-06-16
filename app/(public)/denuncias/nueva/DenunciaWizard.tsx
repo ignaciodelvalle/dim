@@ -300,6 +300,7 @@ export function DenunciaWizard() {
           totalSteps={TOTAL_STEPS}
           stepLabels={STEP_LABELS}
           onBack={undefined}
+          mainId="main-content"
         >
           <Step1Kind
             selected={wizState.kind}
@@ -322,6 +323,7 @@ export function DenunciaWizard() {
           totalSteps={TOTAL_STEPS}
           stepLabels={STEP_LABELS}
           onBack={goBack}
+          mainId="main-content"
         >
           <Step2Severity
             selected={wizState.severity}
@@ -340,9 +342,11 @@ export function DenunciaWizard() {
 
       {/* Step 3 stays mounted after first visit (step >= 3) so LocationFields'
           uncontrolled inputs remain in the DOM for reading at submit time.
-          It's visually hidden when not the active step via aria-hidden + hidden class. */}
+          It's visually hidden when not the active step via aria-hidden + hidden class.
+          B-3: inert is added when step > 3 so keyboard focus cannot reach offscreen inputs. */}
       <div
         aria-hidden={step !== 3}
+        inert={step > 3 ? true : undefined}
         className={step < 3 ? "hidden" : undefined}
         style={
           step > 3
@@ -361,6 +365,7 @@ export function DenunciaWizard() {
           totalSteps={TOTAL_STEPS}
           stepLabels={STEP_LABELS}
           onBack={goBack}
+          mainId="main-content"
         >
           <Step3Where
             when={wizState.when}
@@ -389,6 +394,7 @@ export function DenunciaWizard() {
           totalSteps={TOTAL_STEPS}
           stepLabels={STEP_LABELS}
           onBack={goBack}
+          mainId="main-content"
         >
           <Step4Subject
             subjectKind={wizState.subjectKind}
@@ -427,6 +433,7 @@ export function DenunciaWizard() {
           totalSteps={TOTAL_STEPS}
           stepLabels={STEP_LABELS}
           onBack={goBack}
+          mainId="main-content"
         >
           <Step5Contact
             contactMode={wizState.contactMode}

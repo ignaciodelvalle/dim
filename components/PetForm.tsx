@@ -382,10 +382,12 @@ export function PetForm({
                 selected={selectedFoods}
                 onChange={setSelectedFoods}
               />
+              {/* B-7: aria-label provides accessible name for the unlabeled free-text input */}
               <LnInput
                 name="favouriteFoodsOther"
                 type="text"
                 placeholder="Otros (separá por coma si querés varios)"
+                aria-label="Otras comidas favoritas (separadas por coma)"
                 value={favouriteFoodsOther}
                 onChange={(e) => setFavouriteFoodsOther(e.target.value)}
               />
@@ -408,10 +410,12 @@ export function PetForm({
                 selected={selectedAllergies}
                 onChange={setSelectedAllergies}
               />
+              {/* B-7: aria-label provides accessible name for the unlabeled free-text input */}
               <LnInput
                 name="knownAllergiesOther"
                 type="text"
                 placeholder="Otros (separá por coma si querés varios)"
+                aria-label="Otras alergias conocidas (separadas por coma)"
                 value={knownAllergiesOther}
                 onChange={(e) => setKnownAllergiesOther(e.target.value)}
               />
@@ -814,6 +818,7 @@ function LnAgeFields({
         Edad aproximada
       </p>
       <div className="grid grid-cols-2 gap-[10px]">
+        {/* B-6: aria-label so each input has an accessible name independent of id/label wiring */}
         <LnInput
           id="ageYears"
           name="ageYears"
@@ -821,6 +826,7 @@ function LnAgeFields({
           min="0"
           max="40"
           placeholder="Años"
+          aria-label="Años de edad"
           value={years}
           onChange={(e) => setYears(e.target.value)}
         />
@@ -831,6 +837,7 @@ function LnAgeFields({
           min="0"
           max="11"
           placeholder="Meses"
+          aria-label="Meses de edad"
           value={months}
           onChange={(e) => setMonths(e.target.value)}
         />

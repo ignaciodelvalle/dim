@@ -12,7 +12,7 @@ import Link from "next/link";
  */
 export default function DenunciasPage() {
   return (
-    <main className="bg-[var(--color-ln-paper)]">
+    <main id="main-content" className="bg-[var(--color-ln-paper)]">
       <div className="mx-auto max-w-2xl px-4 py-12 md:px-6">
         {/* Header */}
         <header className="mb-10 space-y-3">

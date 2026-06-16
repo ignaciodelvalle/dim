@@ -106,7 +106,7 @@ export function LostPublicCredential({
     ? `https://www.google.com/maps/search/?api=1&query=${lastSeenLat},${lastSeenLng}`
     : null;
   return (
-    <main className="min-h-screen bg-[var(--color-ln-err-050)] px-4 py-6 ">
+    <main id="main-content" className="min-h-screen bg-[var(--color-ln-err-050)] px-4 py-6 ">
       <div className="mx-auto max-w-md space-y-4">
         {/* Urgent banner (sprint 5 PR-041 / doc 10 §3 punto 1) — surfaces the
             "perdida" state + how recent, in the lostUrgentBanner spec voice. */}
