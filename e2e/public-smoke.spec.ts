@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 /**
@@ -11,6 +12,12 @@ import { expect, test } from "@playwright/test";
  * This suite would have caught:
  *   - The /denuncias 404 (route missing).
  *   - A /p-style 500 (server crash before SSR completes).
+ *
+ * A11y check (WCAG 2.1 AA):
+ *   - /denuncias and /denuncias/buscar are checked with axe-core.
+ *   - /p/[token] is skipped because it requires a live database token;
+ *     testing that route with axe would require seeded data in CI and could
+ *     become flaky — test it manually or add a dedicated fixture-based spec.
  */
 
 const PUBLIC_ROUTES = [
@@ -38,5 +45,24 @@ for (const { path, landmark } of PUBLIC_ROUTES) {
 
     // 3. Page rendered a content landmark.
     await expect(page.locator(landmark).first()).toBeVisible();
+  });
+}
+
+// A11y checks on static public pages (no auth / no dynamic token required).
+// Scoped to WCAG 2.1 AA; color-contrast is excluded because design-token
+// contrast ratios are validated separately (P-1 in the a11y audit).
+const A11Y_ROUTES = ["/denuncias", "/denuncias/buscar"] as const;
+
+for (const path of A11Y_ROUTES) {
+  test(`a11y(axe) ${path} — WCAG 2.1 AA (no critical violations)`, async ({ page }) => {
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .disableRules(["color-contrast"]) // contrast validated via design tokens separately
+      .analyze();
+
+    expect(results.violations).toEqual([]);
   });
 }
