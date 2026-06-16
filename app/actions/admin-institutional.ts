@@ -28,7 +28,11 @@ import {
   canResetCredentials,
 } from "@/lib/institutional-scope";
 import type { ActorProfile } from "@/lib/institutional-scope";
-import { JurisdictionValidationError, normalizeLocationForWrite } from "@/lib/location-normalize";
+import {
+  CoordError,
+  JurisdictionValidationError,
+  normalizeLocationForWrite,
+} from "@/lib/location-normalize";
 import { validateMotivoAndAttachments } from "@/lib/revocation-validation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -150,6 +154,9 @@ export async function createInstitutionalAccountForAuthority(
       });
     } catch (err) {
       if (err instanceof JurisdictionValidationError) {
+        return { error: err.message };
+      }
+      if (err instanceof CoordError) {
         return { error: err.message };
       }
       throw err;
@@ -782,6 +789,7 @@ export async function assignGovtLocalityForAuthority(
     canonicalLocality = normalizedLoc.locality ?? rawLocality;
   } catch (err) {
     if (err instanceof JurisdictionValidationError) return { error: err.message };
+    if (err instanceof CoordError) return { error: err.message };
     throw err;
   }
 

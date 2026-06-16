@@ -9,7 +9,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { db, organizationMemberships, profiles } from "@/db";
 import { pgError } from "@/lib/db-errors";
 import { LEGAL_VERSION } from "@/lib/legal-version";
-import { normalizeLocationForWrite } from "@/lib/location-normalize";
+import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
@@ -114,7 +114,15 @@ export async function completeIdentityAction(
   // + localityName. locality:"none" canonicalizes the ISO code to the canonical
   // province display name; no locality catalog lookup (auth behavior unchanged).
   const loc = parseLocationFromFormData(formData);
-  const normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
   const jurisdictionProvince = normalizedLoc.province;
   const jurisdictionLocality = normalizedLoc.locality;
 

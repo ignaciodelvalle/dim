@@ -32,7 +32,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { notifyOutbreakInvestigationOpened } from "@/lib/authority";
 import { closeCase, escalateCase, openCase } from "@/lib/case-helpers";
 import { checkboxOn } from "@/lib/form-checkbox";
-import { normalizeLocationForWrite } from "@/lib/location-normalize";
+import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { requireAlivePetAccess } from "@/lib/pet-access";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -139,7 +139,15 @@ export async function reportBiteAction(
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
   // locality:"none" — canonicalize province only (bite report behavior unchanged).
-  const normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
   const eventJurisdictionProvince = normalizedLoc.province;
   const eventJurisdictionLocality = normalizedLoc.locality;
 
@@ -288,7 +296,15 @@ export async function reportBiteFromOrgAction(
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
   // locality:"none" — canonicalize province only (org bite report behavior unchanged).
-  const normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
   const eventJurisdictionProvince = normalizedLoc.province;
   const eventJurisdictionLocality = normalizedLoc.locality;
   const noRedirect = String(formData.get("noRedirect") ?? "") === "1";

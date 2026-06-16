@@ -22,7 +22,7 @@ import {
 } from "@/db";
 import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { validateEventPayload } from "@/lib/event-schemas";
-import { normalizeLocationForWrite } from "@/lib/location-normalize";
+import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { requirePetAccess } from "@/lib/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
@@ -67,7 +67,15 @@ export async function recordPostAdoptionCheckinAction(
   // filters on display names silently missed check-in events.
   const loc = parseLocationFromFormData(formData);
   // locality:"none" — canonicalize province only, no catalog lookup (checkin behavior unchanged).
-  const normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
   const eventJurisdictionProvince = normalizedLoc.province;
   const eventJurisdictionLocality = normalizedLoc.locality;
 

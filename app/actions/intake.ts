@@ -28,7 +28,11 @@ import { openCase } from "@/lib/case-helpers";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
-import { JurisdictionValidationError, normalizeLocationForWrite } from "@/lib/location-normalize";
+import {
+  CoordError,
+  JurisdictionValidationError,
+  normalizeLocationForWrite,
+} from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
@@ -188,6 +192,9 @@ export async function createIntakeAction(
       parsed.jurisdictionLocality = normalizedLoc.locality;
     } catch (err) {
       if (err instanceof JurisdictionValidationError) {
+        return { error: err.message };
+      }
+      if (err instanceof CoordError) {
         return { error: err.message };
       }
       throw err;

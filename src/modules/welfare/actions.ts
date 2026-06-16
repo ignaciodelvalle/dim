@@ -41,7 +41,11 @@ import { signalWelfareReport } from "@/lib/authority";
 import { closeCase, openCase } from "@/lib/case-helpers";
 import { parseDateInput } from "@/lib/format";
 import { writePoint } from "@/lib/location";
-import { JurisdictionValidationError, normalizeLocationForWrite } from "@/lib/location-normalize";
+import {
+  CoordError,
+  JurisdictionValidationError,
+  normalizeLocationForWrite,
+} from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
@@ -806,6 +810,9 @@ export async function createWelfareReportAction(
     if (err instanceof JurisdictionValidationError) {
       return { error: err.message };
     }
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
     throw err;
   }
   const locationAddress = normalizedLoc.address;
@@ -1087,6 +1094,9 @@ export async function createOrgWelfareReportAction(
     normalizedLoc = await normalizeLocationForWrite(loc, { locality: "strict" });
   } catch (err) {
     if (err instanceof JurisdictionValidationError) {
+      return { error: err.message };
+    }
+    if (err instanceof CoordError) {
       return { error: err.message };
     }
     throw err;

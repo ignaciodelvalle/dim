@@ -17,7 +17,7 @@
 //   The repo.upsertVolunteer method preserves this quirk — we just pass the
 //   canonicalProvince as a separate arg (used by INSERT branch only).
 
-import { normalizeLocationForWrite } from "@/lib/location-normalize";
+import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import type { UpsertFosterVolunteerInput } from "../domain/types";
 import {
   computeNewSlots,
@@ -74,18 +74,26 @@ export async function upsertFosterVolunteer(
 
   // 6. Compute canonical province for INSERT branch via the gate.
   // locality:"none" — province-only canonicalization (foster behavior unchanged).
-  const { province: canonicalProvince } = await normalizeLocationForWrite(
-    {
-      province: input.jurisdictionProvince ?? null,
-      provinceCode: null,
-      locality: null,
-      localityIndecId: null,
-      lat: null,
-      lng: null,
-      address: null,
-    },
-    { locality: "none" },
-  );
+  let canonicalProvince: string | null;
+  try {
+    ({ province: canonicalProvince } = await normalizeLocationForWrite(
+      {
+        province: input.jurisdictionProvince ?? null,
+        provinceCode: null,
+        locality: null,
+        localityIndecId: null,
+        lat: null,
+        lng: null,
+        address: null,
+      },
+      { locality: "none" },
+    ));
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { ok: false, error: err.message };
+    }
+    throw err;
+  }
 
   const now = new Date();
   let row: { id: string; availableSlots: number } | null = null;

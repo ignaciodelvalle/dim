@@ -833,7 +833,15 @@ export async function createVetVisitAction(
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
   // locality:"none" — canonicalize province only (vet_visit behavior unchanged).
-  const normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
   const eventJurisdictionProvince = normalizedLoc.province;
   const eventJurisdictionLocality = normalizedLoc.locality;
 
@@ -910,7 +918,15 @@ export async function createClinicalInfoAction(
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
   // locality:"none" — canonicalize province only (clinical_info behavior unchanged).
-  const normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
   const eventJurisdictionProvince = normalizedLoc.province;
   const eventJurisdictionLocality = normalizedLoc.locality;
 

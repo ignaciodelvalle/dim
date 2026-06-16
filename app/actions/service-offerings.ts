@@ -30,7 +30,7 @@ import {
   timeSlots,
 } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { normalizeLocationForWrite } from "@/lib/location-normalize";
+import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { generateOfferingToken } from "@/lib/publicToken";
 import { CreateServiceOfferingInput } from "@/lib/scheduling-schemas";
 import { findServiceKind } from "@/lib/service-kinds";
@@ -119,18 +119,26 @@ async function createServiceOfferingWriter(
   // without operational scope yet), persist as null. When the lookup misses
   // (uncatalogued locality), we keep the trimmed input — tolerant variant.
   // locality:"soft" — tryResolveCanonicalJurisdiction (service-offering behavior unchanged).
-  const normalized = await normalizeLocationForWrite(
-    {
-      province,
-      provinceCode: null,
-      locality,
-      localityIndecId: null,
-      lat: null,
-      lng: null,
-      address: null,
-    },
-    { locality: "soft" },
-  );
+  let normalized: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalized = await normalizeLocationForWrite(
+      {
+        province,
+        provinceCode: null,
+        locality,
+        localityIndecId: null,
+        lat: null,
+        lng: null,
+        address: null,
+      },
+      { locality: "soft" },
+    );
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
   const canonicalProvince: string | null = normalized.province || null;
   const canonicalLocality: string | null = normalized.locality || null;
 

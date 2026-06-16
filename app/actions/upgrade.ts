@@ -17,7 +17,11 @@ import { validateApprovalPayload } from "@/lib/approval-payloads";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { pgError } from "@/lib/db-errors";
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
-import { JurisdictionValidationError, normalizeLocationForWrite } from "@/lib/location-normalize";
+import {
+  CoordError,
+  JurisdictionValidationError,
+  normalizeLocationForWrite,
+} from "@/lib/location-normalize";
 import { generateApprovalRequestToken, generatePublicToken } from "@/lib/publicToken";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueToken } from "@/lib/unique-token";
@@ -186,6 +190,9 @@ export async function requestVetUpgradeForUser(
     opLocality = normalizedOp.locality ?? input.operationalLocality;
   } catch (err) {
     if (err instanceof JurisdictionValidationError) {
+      return { error: err.message };
+    }
+    if (err instanceof CoordError) {
       return { error: err.message };
     }
     throw err;
@@ -394,6 +401,9 @@ export async function createOrganizationForUser(
     locality = normalizedOrg.locality ?? input.jurisdictionLocality;
   } catch (err) {
     if (err instanceof JurisdictionValidationError) {
+      return { error: err.message };
+    }
+    if (err instanceof CoordError) {
       return { error: err.message };
     }
     throw err;
