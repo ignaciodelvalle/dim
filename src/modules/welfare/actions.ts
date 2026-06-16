@@ -813,6 +813,7 @@ export async function createWelfareReportAction(
   const dwellTimeMsRaw = String(formData.get("dwellTimeMs") ?? "").trim();
   const dwellTimeMs = dwellTimeMsRaw ? Number.parseInt(dwellTimeMsRaw, 10) : undefined;
   const honeypotValue = String(formData.get("_hp") ?? "");
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   // Validate
   if (!WELFARE_KINDS.includes(kind)) return { error: "Tipo de denuncia inválido." };
@@ -987,6 +988,7 @@ export async function createWelfareReportAction(
       reporterUserId: user?.id ?? null,
       dwellTimeMs: Number.isFinite(dwellTimeMs) ? dwellTimeMs : undefined,
       honeypotValue,
+      clientIdempotencyKey,
     },
     {
       repo,
@@ -1095,6 +1097,7 @@ export async function createOrgWelfareReportAction(
   const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const observedSymptoms = String(formData.get("observedSymptoms") ?? "").trim() || null;
+  const orgClientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   // Validate
   if (!WELFARE_KINDS.includes(kind)) return { error: "Tipo de denuncia inválido." };
@@ -1216,6 +1219,7 @@ export async function createOrgWelfareReportAction(
         memberRole: orgRow.memberRole,
       },
       orgToken,
+      clientIdempotencyKey: orgClientIdempotencyKey,
     },
     {
       repo,

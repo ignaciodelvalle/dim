@@ -26,6 +26,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
+import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -69,6 +70,8 @@ export async function reportPetSightingAction(
   const lngRaw = String(formData.get("locationLng") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const sightedAtIso = String(formData.get("sightedAt") ?? "").trim();
+
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   // P0d: optional finder identity + photo.
   const rawFinderName = String(formData.get("finderName") ?? "").trim();
@@ -162,25 +165,29 @@ export async function reportPetSightingAction(
     )
     .limit(1);
 
-  const [insertedEvent] = await db
-    .insert(petEvents)
-    .values({
-      petId: pet.id,
-      eventType: "note_added",
-      occurredAt,
-      recordedAt: new Date(),
-      recordedByUserId: null,
-      authorRole: "scanner",
-      authorVerified: false,
-      payload,
-      locationLat: lat.toString(),
-      locationLng: lng.toString(),
-      // Associate with the open case when available (pet is in active lost mode).
-      // caseId stays null if no open case exists (guard above already blocked
-      // non-lost pets, but we keep the null path for safety).
-      caseId: openCase?.id ?? null,
-    })
-    .returning({ id: petEvents.id });
+  const { event: insertedEvent, wasNoop } = await insertEventIdempotent({
+    petId: pet.id,
+    eventType: "note_added",
+    occurredAt,
+    recordedAt: new Date(),
+    recordedByUserId: null,
+    authorRole: "scanner",
+    authorVerified: false,
+    payload,
+    locationLat: lat.toString(),
+    locationLng: lng.toString(),
+    // Associate with the open case when available (pet is in active lost mode).
+    // caseId stays null if no open case exists (guard above already blocked
+    // non-lost pets, but we keep the null path for safety).
+    caseId: openCase?.id ?? null,
+    clientIdempotencyKey,
+  });
+
+  // Idempotency: a duplicate submission with the same key means the event was
+  // already recorded. Return ok without re-sending the notification.
+  if (wasNoop) {
+    return { ok: true, error: null };
+  }
 
   // P0g: also insert into the attachments table so the historial/eventos/EventTimeline
   // surfaces render the photo for free (they read attachments, not the payload JSONB).

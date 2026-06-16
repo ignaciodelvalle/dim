@@ -97,10 +97,15 @@ export type CreateWelfareReportInput = {
   reporterUserId: string | null;
   dwellTimeMs: number | undefined;
   honeypotValue: string;
+  /** Client-generated UUID for idempotency on the pet-event bridge inserts. */
+  clientIdempotencyKey: string | null;
 };
 
 type Deps = {
-  repo: Pick<WelfareRepository, "insertAttachments" | "linkCase" | "insertPetEvent" | "setFlagged">;
+  repo: Pick<
+    WelfareRepository,
+    "insertAttachments" | "linkCase" | "insertPetEvent" | "insertPetEventIdempotent" | "setFlagged"
+  >;
   openCase: (input: OpenCaseInput) => Promise<{ id: string; publicCode: string }>;
   computeFlagReasons: (input: ComputeFlagReasonsInput) => Promise<string[]>;
   signal: (input: {
@@ -148,6 +153,7 @@ export async function createWelfareReport(
     reporterUserId,
     dwellTimeMs,
     honeypotValue,
+    clientIdempotencyKey,
   } = input;
 
   // Derive roles from pre-resolved ownership
@@ -212,7 +218,7 @@ export async function createWelfareReport(
             reporter_role: reporterRole,
             description,
           });
-          await repo.insertPetEvent(
+          await repo.insertPetEventIdempotent(
             {
               petId: subjectPetId,
               eventType: "abandonment_reported",
@@ -224,8 +230,11 @@ export async function createWelfareReport(
               locationLat,
               locationLng,
               caseId: caseRow.id,
+              // The unique index is on (pet_id, event_type, client_idempotency_key),
+              // so the same key on different event_type values occupies distinct slots.
+              clientIdempotencyKey,
             },
-            tx as Parameters<typeof repo.insertPetEvent>[1],
+            tx as Parameters<typeof repo.insertPetEventIdempotent>[1],
           );
         } else if (bridgeKind === "maltreatment") {
           const payload = validateEventPayload("maltreatment_reported", {
@@ -235,7 +244,7 @@ export async function createWelfareReport(
             severity,
             kind,
           });
-          await repo.insertPetEvent(
+          await repo.insertPetEventIdempotent(
             {
               petId: subjectPetId,
               eventType: "maltreatment_reported",
@@ -247,8 +256,9 @@ export async function createWelfareReport(
               locationLat,
               locationLng,
               caseId: caseRow.id,
+              clientIdempotencyKey,
             },
-            tx as Parameters<typeof repo.insertPetEvent>[1],
+            tx as Parameters<typeof repo.insertPetEventIdempotent>[1],
           );
         }
 
@@ -263,7 +273,7 @@ export async function createWelfareReport(
             severity_self_assessed: null,
             onset_at: null,
           });
-          await repo.insertPetEvent(
+          await repo.insertPetEventIdempotent(
             {
               petId: subjectPetId,
               eventType: "symptom_observed",
@@ -275,8 +285,9 @@ export async function createWelfareReport(
               locationLat,
               locationLng,
               caseId: caseRow.id,
+              clientIdempotencyKey,
             },
-            tx as Parameters<typeof repo.insertPetEvent>[1],
+            tx as Parameters<typeof repo.insertPetEventIdempotent>[1],
           );
         }
       }

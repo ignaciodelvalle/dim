@@ -2,7 +2,8 @@
 // Spec scenarios: B (report-bite org path)
 // Strict TDD — tests written BEFORE implementation.
 //
-// KEY PARITY QUIRK: org path uses plain insertIncidentEvent (NOT idempotent).
+// KEY PARITY NOTE: org path was aligned to use insertIncidentEventIdempotent
+// in fix/idempotency-guards (v1.0 data-integrity fix).
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -15,7 +16,9 @@ const FAKE_OBS_ORG_ID = "a0000000-0000-4000-8000-000000000004";
 function makeRepo(overrides: Partial<Record<keyof SurveillanceRepository, unknown>> = {}) {
   return {
     findLatestRabiesVaccineEvent: vi.fn().mockResolvedValue(null),
-    insertIncidentEvent: vi.fn().mockResolvedValue({ id: FAKE_BITE_ORG_ID }),
+    insertIncidentEventIdempotent: vi
+      .fn()
+      .mockResolvedValue({ event: { id: FAKE_BITE_ORG_ID }, wasNoop: false }),
     insertObservationStarted: vi.fn().mockResolvedValue({ id: FAKE_OBS_ORG_ID }),
     setObservationStatus: vi.fn().mockResolvedValue(undefined),
     findActiveOwnership: vi.fn().mockResolvedValue(null),
@@ -67,6 +70,7 @@ const BASE_INPUT: ReportBiteFromOrgInput = {
   eventJurisdictionLocality: null,
   noRedirect: false,
   orgToken: "org-tok-1",
+  clientIdempotencyKey: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -80,21 +84,17 @@ describe("reportBiteFromOrg (org path)", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("uses plain insertIncidentEvent (NOT idempotent) — parity asymmetry preserved", async () => {
+  it("uses insertIncidentEventIdempotent (aligned with owner path)", async () => {
     const deps = makeDeps();
     await reportBiteFromOrg(BASE_INPUT, deps);
-    expect(deps.repo.insertIncidentEvent).toHaveBeenCalled();
-    // The idempotent variant should NOT be called
-    expect(
-      (deps.repo as unknown as { insertIncidentEventIdempotent?: unknown })
-        .insertIncidentEventIdempotent,
-    ).toBeUndefined();
+    expect(deps.repo.insertIncidentEventIdempotent).toHaveBeenCalled();
   });
 
   it("maps clinic orgType to reporter_role=vet", async () => {
     const deps = makeDeps();
     await reportBiteFromOrg(BASE_INPUT, deps);
-    const call = (deps.repo.insertIncidentEvent as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+    const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as {
       payload: Record<string, unknown>;
     };
     expect(call.payload.reporter_role).toBe("vet");
@@ -107,7 +107,8 @@ describe("reportBiteFromOrg (org path)", () => {
       organization: { ...BASE_INPUT.organization, orgType: "shelter" },
     };
     await reportBiteFromOrg(shelterInput, deps);
-    const call = (deps.repo.insertIncidentEvent as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+    const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as {
       payload: Record<string, unknown>;
     };
     expect(call.payload.reporter_role).toBe("shelter");
@@ -120,7 +121,8 @@ describe("reportBiteFromOrg (org path)", () => {
       organization: { ...BASE_INPUT.organization, orgType: "rescue_network" },
     };
     await reportBiteFromOrg(input, deps);
-    const call = (deps.repo.insertIncidentEvent as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+    const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as {
       payload: Record<string, unknown>;
     };
     expect(call.payload.reporter_role).toBe("shelter");
@@ -133,7 +135,8 @@ describe("reportBiteFromOrg (org path)", () => {
       organization: { ...BASE_INPUT.organization, orgType: "sanitary_authority" },
     };
     await reportBiteFromOrg(input, deps);
-    const call = (deps.repo.insertIncidentEvent as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+    const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as {
       payload: Record<string, unknown>;
     };
     expect(call.payload.reporter_role).toBe("govt");
@@ -146,7 +149,8 @@ describe("reportBiteFromOrg (org path)", () => {
       organization: { ...BASE_INPUT.organization, orgType: "random_type" },
     };
     await reportBiteFromOrg(input, deps);
-    const call = (deps.repo.insertIncidentEvent as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+    const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as {
       payload: Record<string, unknown>;
     };
     expect(call.payload.reporter_role).toBe("witness");

@@ -283,6 +283,7 @@ export async function reportBiteFromOrgAction(
   const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
   const injuriesSummary = String(formData.get("injuriesSummary") ?? "").trim() || null;
   const vetInvolved = checkboxOn(formData, "vetInvolved");
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
   const eventJurisdictionProvince = canonicalProvinceNameForStorage(
     String(formData.get("provinceCode") ?? ""),
   );
@@ -310,6 +311,7 @@ export async function reportBiteFromOrgAction(
       victimAgeEstimate,
       injuriesSummary,
       vetInvolved,
+      clientIdempotencyKey,
       eventJurisdictionProvince,
       eventJurisdictionLocality,
       noRedirect,

@@ -135,15 +135,8 @@ export default async function GobMaltratoDetailPage({
     const rows = await db
       .select({ id: profiles.id, displayName: profiles.displayName })
       .from(profiles)
-      .where(eq(profiles.id, actorIds[0]));
+      .where(inArray(profiles.id, actorIds));
     for (const r of rows) actorNames.set(r.id, r.displayName);
-    for (const actorId of actorIds.slice(1)) {
-      const more = await db
-        .select({ id: profiles.id, displayName: profiles.displayName })
-        .from(profiles)
-        .where(eq(profiles.id, actorId));
-      for (const r of more) actorNames.set(r.id, r.displayName);
-    }
   }
 
   // Resolve pet publicToken when the denuncia is about a registered pet,
