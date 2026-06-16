@@ -53,6 +53,13 @@ export function FinderInPossessionForm({
   const [clientError, setClientError] = useState<string | null>(null);
   const [canKeepIndefinite, setCanKeepIndefinite] = useState(false);
 
+  // Controlled field state — preserves typed input on validation error.
+  const [finderName, setFinderName] = useState(prefill?.name ?? "");
+  const [finderPhone, setFinderPhone] = useState(prefill?.phone ?? "");
+  const [finderEmail, setFinderEmail] = useState(prefill?.email ?? "");
+  const [canKeepUntil, setCanKeepUntil] = useState("");
+  const [message, setMessage] = useState("");
+
   if (state.ok) {
     return (
       <div className="space-y-4">
@@ -81,17 +88,14 @@ export function FinderInPossessionForm({
   const requiredMark = <span className="text-[var(--color-ln-seal)] ml-0.5">*</span>;
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    const fd = new FormData(e.currentTarget);
-    const phone = String(fd.get("finderPhone") ?? "").trim();
-    const email = String(fd.get("finderEmail") ?? "").trim();
+    const phone = finderPhone.trim();
+    const email = finderEmail.trim();
     if (!phone && !email) {
       e.preventDefault();
       setClientError("Dejá al menos un medio de contacto (teléfono o email).");
       return;
     }
-    const keepIndefinite = String(fd.get("canKeepIndefinite") ?? "") === "true";
-    const keepUntil = String(fd.get("canKeepUntil") ?? "").trim();
-    if (!keepIndefinite && !keepUntil) {
+    if (!canKeepIndefinite && !canKeepUntil.trim()) {
       e.preventDefault();
       setClientError(
         "Indicá hasta cuándo podés cuidarla o marcá que podés tenerla indefinidamente.",
@@ -139,7 +143,8 @@ export function FinderInPossessionForm({
             type="text"
             required
             maxLength={80}
-            defaultValue={prefill?.name ?? ""}
+            value={finderName}
+            onChange={(e) => setFinderName(e.target.value)}
             placeholder="Nombre y apellido"
             className={inputClass}
           />
@@ -163,7 +168,8 @@ export function FinderInPossessionForm({
               name="finderPhone"
               type="tel"
               maxLength={40}
-              defaultValue={prefill?.phone ?? ""}
+              value={finderPhone}
+              onChange={(e) => setFinderPhone(e.target.value)}
               placeholder="11-1234-5678"
               className={inputClass}
             />
@@ -180,7 +186,8 @@ export function FinderInPossessionForm({
               name="finderEmail"
               type="email"
               maxLength={120}
-              defaultValue={prefill?.email ?? ""}
+              value={finderEmail}
+              onChange={(e) => setFinderEmail(e.target.value)}
               placeholder="vos@ejemplo.com"
               className={inputClass}
             />
@@ -250,6 +257,8 @@ export function FinderInPossessionForm({
                 id="canKeepUntil"
                 name="canKeepUntil"
                 type="datetime-local"
+                value={canKeepUntil}
+                onChange={(e) => setCanKeepUntil(e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -267,6 +276,8 @@ export function FinderInPossessionForm({
             name="message"
             rows={3}
             maxLength={500}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
             placeholder="Lugar donde la encontraste, collar, comportamiento…"
             className={inputClass}
           />

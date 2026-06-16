@@ -5,7 +5,7 @@ import {
   type TransferCustodyFormState,
   transferCustodyAction,
 } from "@/src/modules/transfers/actions";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const initialState: TransferCustodyFormState = { error: null };
 
@@ -25,6 +25,9 @@ export function TransferCustodyForm({
 }) {
   const action = transferCustodyAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
+
+  // Controlled field state — preserves typed input on validation error.
+  const [notes, setNotes] = useState("");
 
   return (
     <form action={formAction} className="space-y-5">
@@ -98,6 +101,8 @@ export function TransferCustodyForm({
               rows={3}
               maxLength={500}
               placeholder="Motivo, condiciones especiales, contacto en el destino…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
               aria-describedby={describedBy}
               invalid={invalid}
             />
