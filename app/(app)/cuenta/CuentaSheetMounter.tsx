@@ -86,7 +86,7 @@ export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props)
         onClose={close}
         size="lg"
       >
-        <VetUpgradeForm />
+        <VetUpgradeForm dniVerified={dniVerified} />
       </Sheet>
     );
   }
