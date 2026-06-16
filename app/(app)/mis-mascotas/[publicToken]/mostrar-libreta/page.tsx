@@ -20,7 +20,8 @@ export default async function MostrarLibretaPage({
 
   const now = new Date();
   const activeUntil = pet.tier2PublicEnabledUntil ? new Date(pet.tier2PublicEnabledUntil) : null;
-  const isActive = !!activeUntil && activeUntil > now;
+  const isPermanent = pet.tier2PublicPermanent;
+  const isActive = isPermanent || (!!activeUntil && activeUntil > now);
 
   const enable = enableTier2PublicAction.bind(null, publicToken);
   const revoke = revokeTier2PublicAction.bind(null, publicToken);
@@ -50,7 +51,8 @@ export default async function MostrarLibretaPage({
         petPublicToken={pet.publicToken}
         petName={pet.name}
         isActive={isActive}
-        activeUntil={activeUntil}
+        isPermanent={isPermanent}
+        activeUntil={isActive && !isPermanent ? activeUntil : null}
         enableAction={enable}
         revokeAction={revoke}
       />

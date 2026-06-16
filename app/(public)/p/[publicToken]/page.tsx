@@ -203,14 +203,15 @@ export default async function PublicCredentialPage({
 
   const isUnderOfficialCustody = !!openCustodyEpisode;
 
-  // Tier 2 público temporal — owner-opt-in window. Active when the
-  // timestamp is in the future. The medical summary block fetches a tiny
-  // extra projection only when active so the default Tier 0 render stays
-  // cheap. See app/actions/tier2-public.ts + migration 0049.
+  // Tier 2 público — owner-opt-in. Active when either:
+  //   • tier2PublicPermanent is true ("siempre" option, no expiry), or
+  //   • tier2PublicEnabledUntil is a future timestamp (bounded window).
+  // See app/actions/tier2-public.ts + migrations 0049 / 0098.
   const tier2EnabledUntil = pet.tier2PublicEnabledUntil
     ? new Date(pet.tier2PublicEnabledUntil)
     : null;
-  const tier2Active = !!tier2EnabledUntil && tier2EnabledUntil > new Date();
+  const tier2Active =
+    pet.tier2PublicPermanent || (!!tier2EnabledUntil && tier2EnabledUntil > new Date());
 
   let tier2VaccineActive = 0;
   let tier2IsSterilized = false;
@@ -668,15 +669,19 @@ export default async function PublicCredentialPage({
           </div>
 
           {/* Tier 2 enabled notice */}
-          {tier2Active && tier2EnabledUntil && (
+          {tier2Active && (
             <div className="flex items-center gap-[7px] border-t border-ln-celeste-100 bg-ln-celeste-050 px-[16px] py-[10px] font-[var(--font-ln-mono)] text-[10px] leading-[1.5] tracking-[.02em] text-ln-azul-700">
               <span aria-hidden="true">🔓</span>
-              {`El dueño habilitó la libreta médica hasta el ${tier2EnabledUntil.toLocaleString("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`}
+              {pet.tier2PublicPermanent
+                ? "El dueño habilitó la libreta médica de forma permanente"
+                : tier2EnabledUntil
+                  ? `El dueño habilitó la libreta médica hasta el ${tier2EnabledUntil.toLocaleString("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`
+                  : null}
             </div>
           )}
 
           {/* Tier 2 medical summary */}
-          {tier2Active && tier2EnabledUntil && (
+          {tier2Active && (
             <div className="border-t border-ln-line-2">
               <Tier2MedicalView
                 enabledUntil={tier2EnabledUntil}

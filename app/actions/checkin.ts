@@ -22,6 +22,7 @@ import {
 } from "@/db";
 import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import { requirePetAccess } from "@/lib/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
@@ -59,7 +60,13 @@ export async function recordPostAdoptionCheckinAction(
   const notes = notesRaw || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
   // Per-event L1 (sprint 4 PR-034). Optional.
-  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
+  // Canonicalize the ISO provinceCode (e.g. "AR-C") to the display name ("CABA")
+  // that every other jurisdiction_province write stores. Without this, the raw
+  // ISO code landed in the JSONB payload and govt-dashboard aggregation that
+  // filters on display names silently missed check-in events.
+  const eventJurisdictionProvince = canonicalProvinceNameForStorage(
+    String(formData.get("provinceCode") ?? ""),
+  );
   const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
 
   // Look up the most recent adoption_finalized event for this pet. The
