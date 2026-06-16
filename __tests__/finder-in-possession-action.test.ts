@@ -29,6 +29,10 @@ const PREVIOUS_STATE = { ok: false as const, error: null };
 const BASE_FIELDS = {
   finderName: "Ana González",
   finderPhone: "11-5555-0001",
+  // Exact point is now the required location field. localityName/province are
+  // still emitted by LocationFields (L2 reverse geocode) and kept as context.
+  locationLat: "-34.92",
+  locationLng: "-57.95",
   localityName: "La Plata",
   petCondition: "bien",
 };
@@ -252,6 +256,10 @@ describe("reportFinderInPossessionAction — P0e", () => {
       provinceCode: null,
       provinceName: null,
     });
+    // Exact point persisted on the event row (columns, not payload) — this is
+    // what the owner-side map reads to show where the finder has the pet.
+    expect(capturedPetEventInsert?.locationLat).toBe("-34.92");
+    expect(capturedPetEventInsert?.locationLng).toBe("-57.95");
     expect(payload.petCondition).toBe("bien");
     expect(payload.canKeepIndefinite).toBe(true);
     expect(payload.canKeepUntil).toBeNull();
@@ -388,16 +396,18 @@ describe("reportFinderInPossessionAction — P0e", () => {
     expect(result.error).toContain("contacto");
   });
 
-  it("returns ok:false when locality is missing", async () => {
+  it("returns ok:false when the map point is missing", async () => {
     vi.resetModules();
     buildMockDb("lost");
 
     const { reportFinderInPossessionAction } = await import(
       "@/app/(public)/p/[publicToken]/encontre/action"
     );
+    // Has locality but NO lat/lng — the exact point is now the required field.
     const fd = makeFormData({
       finderName: "Ana",
       finderPhone: "1111",
+      localityName: "La Plata",
       petCondition: "bien",
       canKeepIndefinite: "true",
     });
@@ -418,6 +428,8 @@ describe("reportFinderInPossessionAction — P0e", () => {
     const fd = makeFormData({
       finderName: "Ana",
       finderPhone: "1111",
+      locationLat: "-34.92",
+      locationLng: "-57.95",
       localityName: "La Plata",
       petCondition: "bien",
       // no canKeepIndefinite or canKeepUntil
@@ -488,6 +500,8 @@ describe("reportFinderInPossessionAction — P0e", () => {
     const fd = makeFormData({
       finderName: "Carlos",
       finderPhone: "9999",
+      locationLat: "-32.95",
+      locationLng: "-60.66",
       localityName: "Rosario",
       petCondition: "necesita_vet_urgente",
       canKeepIndefinite: "true",
@@ -605,6 +619,8 @@ describe("reportFinderInPossessionAction — P0e", () => {
       finderName: "María",
       finderPhone: "11-1111-2222",
       finderEmail: "maria@test.com",
+      locationLat: "-34.92",
+      locationLng: "-57.95",
       localityName: "La Plata",
       petCondition: "bien",
       canKeepIndefinite: "true",

@@ -6,7 +6,7 @@
 //
 // Assertions focus on:
 //   - Required fields: finderName, finderPhone, finderEmail, petCondition
-//   - LocationFields is rendered (l1 mode — locality picker)
+//   - LocationFields is rendered (l2 mode — exact-point map picker)
 //   - canKeepIndefinite checkbox + canKeepUntil datetime-local
 //   - Photo file input in the collapsible group
 //   - Success state: thank-you message + back link
@@ -98,9 +98,10 @@ describe("<FinderInPossessionForm> — initial state (form render)", () => {
     expect(html).toContain('value="necesita_vet_urgente"');
   });
 
-  it("renders the location fields (L1 mode)", () => {
+  it("renders the location fields (L2 mode — exact point)", () => {
     const html = render(<FinderInPossessionForm {...BASE_PROPS} />);
     expect(html).toContain("location-fields");
+    expect(html).toContain('data-mode="l2"');
   });
 
   it("renders the canKeepIndefinite checkbox", () => {
