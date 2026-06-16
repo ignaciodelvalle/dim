@@ -23,6 +23,7 @@ import {
 import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
+import { parseLocationFromFormData } from "@/lib/location-value";
 import { requirePetAccess } from "@/lib/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
@@ -64,10 +65,9 @@ export async function recordPostAdoptionCheckinAction(
   // that every other jurisdiction_province write stores. Without this, the raw
   // ISO code landed in the JSONB payload and govt-dashboard aggregation that
   // filters on display names silently missed check-in events.
-  const eventJurisdictionProvince = canonicalProvinceNameForStorage(
-    String(formData.get("provinceCode") ?? ""),
-  );
-  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+  const loc = parseLocationFromFormData(formData);
+  const eventJurisdictionProvince = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
+  const eventJurisdictionLocality = loc.locality;
 
   // Look up the most recent adoption_finalized event for this pet. The
   // related organization is denormalized from that payload so the check-in

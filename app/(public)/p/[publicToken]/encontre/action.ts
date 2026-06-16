@@ -24,6 +24,7 @@ import { headers } from "next/headers";
 
 import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/event-schemas";
+import { parseLocationFromFormData } from "@/lib/location-value";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -71,11 +72,10 @@ export async function reportFinderInPossessionAction(
   // localityName/provinceName are still emitted by LocationFields (derived from the
   // pin's reverse geocode) and kept as human-readable context — but the required
   // location is now the coordinate pair, not a locality string.
-  const latRaw = String(formData.get("locationLat") ?? "").trim();
-  const lngRaw = String(formData.get("locationLng") ?? "").trim();
-  const localityName = String(formData.get("localityName") ?? "").trim();
-  const provinceCode = String(formData.get("provinceCode") ?? "").trim();
-  const provinceName = String(formData.get("provinceName") ?? "").trim();
+  const loc = parseLocationFromFormData(formData);
+  const localityName = loc.locality ?? "";
+  const provinceCode = loc.provinceCode ?? "";
+  const provinceName = loc.province ?? "";
   const petCondition = String(formData.get("petCondition") ?? "").trim();
   const canKeepUntilRaw = String(formData.get("canKeepUntil") ?? "").trim();
   const canKeepIndefinite = String(formData.get("canKeepIndefinite") ?? "") === "true";
@@ -93,11 +93,16 @@ export async function reportFinderInPossessionAction(
     return { ok: false, error: "Dejá al menos un medio de contacto (teléfono o email)." };
   }
 
-  const lat = latRaw ? Number.parseFloat(latRaw) : Number.NaN;
-  const lng = lngRaw ? Number.parseFloat(lngRaw) : Number.NaN;
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+  if (
+    loc.lat === null ||
+    loc.lng === null ||
+    !Number.isFinite(loc.lat) ||
+    !Number.isFinite(loc.lng)
+  ) {
     return { ok: false, error: "Marcá en el mapa dónde tenés a la mascota." };
   }
+  const lat = loc.lat;
+  const lng = loc.lng;
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
     return { ok: false, error: "La ubicación está fuera de rango." };
   }
