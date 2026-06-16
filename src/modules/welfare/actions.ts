@@ -757,7 +757,9 @@ export async function createWelfareReportAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Rate-limit anonymous submissions only. Auth users skip entirely.
+  // Rate-limit all submissions. Anonymous users get a tight IP-keyed cap;
+  // authenticated users get a generous per-user cap so flood attacks via
+  // accounts are still bounded.
   if (!user) {
     const hdrs = await headers();
     const ip = callerIp(hdrs);
@@ -765,6 +767,20 @@ export async function createWelfareReportAction(
       await enforceRateLimit("welfare_anon", ip, {
         maxPerMinute: 1,
         maxPerHour: 3,
+      });
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        return {
+          error:
+            "Estás enviando demasiadas denuncias seguidas. Esperá unos minutos y volvé a intentar. Si tenés muchos casos legítimos para reportar, considerá crear una cuenta.",
+        };
+      }
+      throw err;
+    }
+  } else {
+    try {
+      await enforceRateLimit("welfare_auth", user.id, {
+        maxPerHour: 10,
       });
     } catch (err) {
       if (err instanceof RateLimitError) {

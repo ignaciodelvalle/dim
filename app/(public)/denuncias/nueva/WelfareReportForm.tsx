@@ -138,7 +138,12 @@ export function WelfareReportForm({
 
   return (
     <form action={formAction} className="space-y-6">
-      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
+      <input
+        type="hidden"
+        name="clientIdempotencyKey"
+        value={idempotencyKey}
+        suppressHydrationWarning
+      />
       {isAnonymous && (
         <p className="text-sm text-ln-ink-2 bg-ln-stripe rounded-lg px-4 py-3">
           Estás denunciando de forma anónima. Si querés seguimiento, podés{" "}
