@@ -38,7 +38,10 @@ type Props = {
    * supplied, the input renders the locality name and the hidden inputs
    * carry the values directly until the user types something new. */
   defaultValue?: DefaultValue;
-  /** Optional ID, mostly for label association. */
+  /** Optional ID for the visible text input (label association).
+   * The hidden inputs use `name` for the wire contract; this id is
+   * intentionally suffixed with "-input" so it never collides with any
+   * hidden input's name in the same form namespace. */
   id?: string;
   /** Hidden-input base name. Defaults to "localityName" to match the wire
    * contract the actions already expect; the companion hiddens use suffixes
@@ -140,10 +143,15 @@ export function LocalityPickerAcross({
   const localityNameValue = selected?.localityName ?? query;
   const indecIdValue = selected?.indecId ?? defaultValue?.indecId ?? "";
 
+  // Decouple the visible-input id from the hidden-input name namespace.
+  // form.elements.namedItem("localityName") must resolve to the single hidden
+  // input, not collide with a same-named id on the visible input.
+  const visibleInputId = id ? `${id}-input` : undefined;
+
   return (
     <div className="relative">
       <LnInput
-        id={id}
+        id={visibleInputId}
         type="text"
         value={query}
         onChange={(e) => {
