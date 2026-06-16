@@ -271,7 +271,23 @@ export function SheetMounter({
   }
 
   if (sheet === "marcar-encontrada") {
-    if (petStatus !== "lost") return null; // flow only applies when pet is lost
+    // WP-6: instead of returning null (silent no-op) when the pet is not lost,
+    // render a lean friendly message so the user understands why the flow does
+    // not apply and can navigate back to the profile.
+    if (petStatus !== "lost") {
+      return (
+        <Sheet
+          id="marcar-encontrada"
+          title="Marcar como encontrada"
+          open
+          onClose={close}
+          side="right"
+          size="md"
+        >
+          <PetNotLostNotice petName={petName} petToken={petToken} onClose={close} />
+        </Sheet>
+      );
+    }
     const action = setPetFoundAction.bind(null, petToken);
     return (
       <Sheet
@@ -318,6 +334,35 @@ function MarkFoundConfirmation({
           Cancelar
         </LnButton>
       </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PetNotLostNotice — shown when marcar-encontrada is triggered but the pet
+// is not currently marked as lost (WP-6 no-op fix).
+// ---------------------------------------------------------------------------
+
+function PetNotLostNotice({
+  petName,
+  petToken,
+  onClose,
+}: {
+  petName: string;
+  petToken: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-[var(--color-ln-ink-2)]">
+        <strong>{petName}</strong> no figura como perdida, así que no hay nada que marcar como
+        encontrada.
+      </p>
+      <div className="flex gap-2">
+        <LnButton type="button" variant="ghost" onClick={onClose}>
+          Volver al perfil
+        </LnButton>
+      </div>
     </div>
   );
 }
