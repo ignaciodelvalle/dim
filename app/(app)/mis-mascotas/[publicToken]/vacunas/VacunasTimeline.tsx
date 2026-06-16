@@ -198,7 +198,7 @@ export function VacunasTimeline({
                   href={`/mis-mascotas/${petToken}/vacunas/programar`}
                   className="inline-block px-4 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
                 >
-                  Programar primera vacuna
+                  Programar vacuna
                 </Link>
               }
             />

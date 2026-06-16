@@ -267,7 +267,7 @@ export default async function MisPostulacionesPage({
       {applications.length === 0 ? (
         <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] px-[24px] py-[40px] text-center">
           <p className="font-[var(--font-ln-serif)] text-[16px] text-[var(--color-ln-ink-2)]">
-            Todavía no te postulaste para adoptar.
+            No hay postulaciones en tu historial.
           </p>
           <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
             Encontrá mascotas que buscan hogar y postulate con un click.

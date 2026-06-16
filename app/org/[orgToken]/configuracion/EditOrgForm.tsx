@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { LnAlert } from "@/components/ui/Alert";
 import { LnButton } from "@/components/ui/Button";
@@ -31,6 +31,17 @@ const initialState: UpdateOrgFormState = { error: null };
 export function EditOrgForm({ organization }: Props) {
   const [state, formAction, isPending] = useActionState(updateOrganizationAction, initialState);
 
+  // Controlled field state — preserves typed input on validation error.
+  const [displayName, setDisplayName] = useState(organization.displayName);
+  const [legalName, setLegalName] = useState(organization.legalName ?? "");
+  const [email, setEmail] = useState(organization.email ?? "");
+  const [phone, setPhone] = useState(organization.phone ?? "");
+  const [website, setWebsite] = useState(organization.website ?? "");
+  const [description, setDescription] = useState(organization.description ?? "");
+  const [personeriaJuridicaNumber, setPersoneriaJuridicaNumber] = useState(
+    organization.personeriaJuridicaNumber ?? "",
+  );
+
   return (
     <form action={formAction} className="space-y-5 max-w-xl">
       {/* Hidden field so the action knows which org to update */}
@@ -43,7 +54,8 @@ export function EditOrgForm({ organization }: Props) {
             name="displayName"
             type="text"
             required
-            defaultValue={organization.displayName}
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -59,7 +71,8 @@ export function EditOrgForm({ organization }: Props) {
             id={id}
             name="legalName"
             type="text"
-            defaultValue={organization.legalName ?? ""}
+            value={legalName}
+            onChange={(e) => setLegalName(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -72,7 +85,8 @@ export function EditOrgForm({ organization }: Props) {
             id={id}
             name="email"
             type="email"
-            defaultValue={organization.email ?? ""}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -85,7 +99,8 @@ export function EditOrgForm({ organization }: Props) {
             id={id}
             name="phone"
             type="tel"
-            defaultValue={organization.phone ?? ""}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -98,7 +113,8 @@ export function EditOrgForm({ organization }: Props) {
             id={id}
             name="website"
             type="url"
-            defaultValue={organization.website ?? ""}
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -111,7 +127,8 @@ export function EditOrgForm({ organization }: Props) {
             id={id}
             name="description"
             rows={4}
-            defaultValue={organization.description ?? ""}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             aria-describedby={describedBy}
             className="w-full rounded-[6px] border border-ln-op-line px-3 py-2 text-[13px] text-ln-op-ink bg-ln-op-card focus:outline-none focus:ring-1 focus:ring-ln-op-azul resize-y"
           />
@@ -124,7 +141,8 @@ export function EditOrgForm({ organization }: Props) {
             id={id}
             name="personeriaJuridicaNumber"
             type="text"
-            defaultValue={organization.personeriaJuridicaNumber ?? ""}
+            value={personeriaJuridicaNumber}
+            onChange={(e) => setPersoneriaJuridicaNumber(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />

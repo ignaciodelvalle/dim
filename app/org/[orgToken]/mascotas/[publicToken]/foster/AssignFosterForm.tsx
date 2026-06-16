@@ -2,7 +2,7 @@
 
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { type AssignFosterFormState, assignFosterAction } from "@/src/modules/foster/actions";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const initialState: AssignFosterFormState = { error: null };
 
@@ -32,6 +32,10 @@ export function AssignFosterForm({
 }) {
   const action = assignFosterAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
+
+  // Controlled field state — preserves typed input on validation error.
+  const [expectedWeeks, setExpectedWeeks] = useState("");
+  const [notes, setNotes] = useState("");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -72,6 +76,8 @@ export function AssignFosterForm({
             min={0}
             max={104}
             placeholder="Opcional"
+            value={expectedWeeks}
+            onChange={(e) => setExpectedWeeks(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -86,6 +92,8 @@ export function AssignFosterForm({
             rows={3}
             maxLength={500}
             placeholder="Medicación, dieta especial, comportamientos a tener en cuenta…"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
