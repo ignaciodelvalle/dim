@@ -12,7 +12,7 @@ export default defineConfig({
     // is idempotent enough that the dedupe test does its own teardown.
     fileParallelism: false,
     setupFiles: ["./__tests__/setup.ts"],
-    exclude: ["node_modules/**", ".claude/worktrees/**"],
+    exclude: ["node_modules/**", ".claude/worktrees/**", "e2e/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json"],
@@ -24,6 +24,7 @@ export default defineConfig({
         ".next/**",
         "db/migrations/**",
         "**/*.d.ts",
+        "e2e/**",
       ],
       // Branch-coverage thresholds are RATCHET FLOORS, not aspirational targets
       // (V1-9). The original targets (business-rules 90 / lib 70 / app/actions 75

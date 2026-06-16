@@ -321,3 +321,102 @@ jobs:
       - name: Stop Supabase local stack
         if: always()
         run: pnpm exec supabase stop --no-backup
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # The e2e suite runs the built Next.js app against the real Supabase local
+    # stack. It needs the same stack the vitest job uses — but the app also
+    # needs the real ANON_KEY at runtime (not a dummy), because the browser
+    # auth flow calls the GoTrue API directly with it.
+    #
+    # SUPABASE_SERVICE_ROLE_KEY is the deterministic local-stack secret —
+    # same as in the vitest job. NEXT_PUBLIC_SUPABASE_ANON_KEY is extracted
+    # from `supabase status` after the stack starts.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers (chromium only)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start Supabase local stack
+        # Same exclusions as the vitest job — e2e tests don't need studio,
+        # inbucket, imgproxy, edge-runtime, or realtime.
+        run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
+
+      - name: Bootstrap DB (schema + triggers + RLS + seeds)
+        # Bootstraps the full schema, triggers, RLS policies, reference data,
+        # and test users (owner@dim.test / Test1234! — see scripts/seed-test-users.ts).
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy_anon_key
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+        run: pnpm db:bootstrap
+
+      - name: Extract Supabase env vars for runtime
+        # `supabase status -o env` emits ANON_KEY/API_URL/etc. Write them to
+        # $GITHUB_ENV and also alias ANON_KEY → NEXT_PUBLIC_SUPABASE_ANON_KEY
+        # (the CLI uses a raw name; Next.js reads the NEXT_PUBLIC_* form).
+        run: |
+          # 2>/dev/null drops the pnpm "[WARN] ..." stderr line; grep keeps only
+          # KEY=VALUE lines so nothing non-env pollutes $GITHUB_ENV (the warning
+          # line previously broke the file command with "Invalid format").
+          STATUS_ENV=$(pnpm exec supabase status -o env 2>/dev/null)
+          echo "$STATUS_ENV" | grep -E '^[A-Z_][A-Z0-9_]*=' >> "$GITHUB_ENV"
+          ANON=$(echo "$STATUS_ENV" | grep '^ANON_KEY=' | cut -d= -f2-)
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON}" >> "$GITHUB_ENV"
+
+      - name: Build Next.js app
+        # The build step needs env vars to resolve module-level reads; the
+        # ANON_KEY extracted above is now available in the environment.
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+        run: pnpm build
+
+      - name: Run Playwright e2e suite
+        # NEXT_BUILT=1 tells playwright.config.ts to skip `pnpm build` in the
+        # webServer command (build already ran in the previous step).
+        # NEXT_PUBLIC_SUPABASE_ANON_KEY is set via ${{ env.* }} from the
+        # extract step above; the webServer (`next start`) reads it at runtime.
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+          PORT: "3333"
+          NEXT_BUILT: "1"
+        run: pnpm e2e
+
+      - name: Stop Supabase local stack
+        if: always()
+        run: pnpm exec supabase stop --no-backup
+
+      - name: Upload Playwright HTML report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

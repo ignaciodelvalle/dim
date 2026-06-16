@@ -80,6 +80,22 @@
       }
     },
     {
+      "include": ["e2e/**", "playwright.config.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
+          },
+          "complexity": {
+            "noForEach": "off"
+          },
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
       "include": ["app/_components/attendance-forms/**"],
       "linter": {
         "rules": {

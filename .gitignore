@@ -49,3 +49,8 @@ supabase/snippets/Untitled*.sql
 # design handoff reference (local only — source for the Libreta Nacional redesign, not production)
 design_handoff_*/
 install.cmd
+
+# playwright
+playwright-report/
+test-results/
+e2e/.auth/
