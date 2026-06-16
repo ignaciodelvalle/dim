@@ -151,6 +151,19 @@ export default async function AsistenciaPage({
                   Motivo de revocación: {serviceDog.revocationReason}
                 </p>
               )}
+              {serviceDog.credentialStatus === "pendiente_verificacion" && (
+                <p className="mt-[8px] text-[12.5px] leading-relaxed text-[var(--color-ln-warn)]">
+                  Reportado a RUPGA (ANDIS) — pendiente de sincronización y validación por la
+                  autoridad. La credencial no puede presentarse como vigente hasta que ANDIS la
+                  valide.
+                </p>
+              )}
+              {serviceDog.credentialStatus === "en_entrenamiento" && (
+                <p className="mt-[8px] text-[12.5px] leading-relaxed text-[var(--color-ln-ink-2)]">
+                  En entrenamiento. Una vez finalizado, enviá la solicitud de verificación para que
+                  RUPGA (ANDIS) valide la credencial.
+                </p>
+              )}
               {serviceDog.credentialStatus === "vigente" && (
                 <div className="mt-[8px]">
                   <p className="text-[12.5px] text-[var(--color-ln-ok)]">

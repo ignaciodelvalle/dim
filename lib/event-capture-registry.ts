@@ -120,6 +120,19 @@ export const EVENT_CAPTURE_REGISTRY: Partial<Record<EventType, EventCaptureEntry
     description: "El usuario registra información clínica de su mascota",
     prefillSlots: [],
   },
+  // WP-4: new entries for identification events previously missing from registry.
+  tattoo_recorded: {
+    route: "/eventos/nuevo/tatuaje",
+    description: "El usuario registra el tatuaje de identificación de su mascota",
+    // tattooCode matches TattooForm.tsx input name. recordedAt maps to occurredAt.
+    prefillSlots: ["tattooCode", "occurredAt", "notes"],
+  },
+  microchip_replaced: {
+    route: "/eventos/nuevo/microchip-reemplazo",
+    description: "El usuario registra el reemplazo del microchip de su mascota",
+    // newChipNumber matches ReplaceMicrochipForm.tsx input name.
+    prefillSlots: ["newChipNumber", "occurredAt", "notes"],
+  },
 };
 
 /**
