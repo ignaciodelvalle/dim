@@ -14,10 +14,12 @@ import { expect, test } from "@playwright/test";
  *   - A /p-style 500 (server crash before SSR completes).
  *
  * A11y check (WCAG 2.1 AA):
- *   - /denuncias and /denuncias/buscar are checked with axe-core.
- *   - /p/[token] is skipped because it requires a live database token;
- *     testing that route with axe would require seeded data in CI and could
- *     become flaky — test it manually or add a dedicated fixture-based spec.
+ *   - /denuncias and /denuncias/buscar are checked with axe-core (static).
+ *   - A public DYNAMIC pet page is covered via /adoptar/[token]: the test
+ *     discovers a real adoptable-pet link from the /adoptar listing (no
+ *     hardcoded DB token) and skips cleanly if none are seeded.
+ *   - /p/[token] (QR credential) is still not axe-tested directly — it isn't
+ *     linked from any public page, so it needs an authed token-discovery flow.
  */
 
 const PUBLIC_ROUTES = [
@@ -66,3 +68,32 @@ for (const path of A11Y_ROUTES) {
     expect(results.violations).toEqual([]);
   });
 }
+
+// A11y on a PUBLIC DYNAMIC pet page. /p/[token] (the QR credential) isn't
+// linked from any public page, so instead we cover the public adoption detail
+// /adoptar/[token]: discover a real adoptable-pet link from the /adoptar
+// listing (no hardcoded DB token), then axe it. Skips cleanly when no
+// adoptable pets are seeded so it never flakes on an empty DB.
+test("a11y(axe) /adoptar/[token] — public pet detail (WCAG 2.1 AA)", async ({ page }) => {
+  await page.goto("/adoptar");
+  await page.waitForLoadState("networkidle");
+
+  const petLink = page.locator('a[href^="/adoptar/"]').first();
+  test.skip(
+    (await petLink.count()) === 0,
+    "No adoptable pets seeded — skipping /adoptar/[token] a11y check.",
+  );
+
+  const href = await petLink.getAttribute("href");
+  expect(href).toBeTruthy();
+
+  await page.goto(href as string);
+  await page.waitForLoadState("networkidle");
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .disableRules(["color-contrast"])
+    .analyze();
+
+  expect(results.violations).toEqual([]);
+});
