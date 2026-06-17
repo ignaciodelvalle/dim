@@ -9,7 +9,8 @@
  *   Every pet's `name` starts with "PERF-" followed by a zero-padded
  *   six-digit index (e.g. "PERF-000042 Firulais"). Cleanup (--clean) keys
  *   off `name LIKE 'PERF-%'` on the `pets` table and cascades through FK-
- *   dependent tables in safe order: pet_events → cases → ownerships → pets.
+ *   dependent tables in safe order: custody_disputes → pet_events → cases →
+ *   ownerships → pets.
  *
  * ─── IDEMPOTENCY KEY ───────────────────────────────────────────────────────
  *   Deterministic publicToken: "PERF-<zero-padded-index>" (e.g. "PERF-000042").
@@ -28,6 +29,22 @@
  *   buildShowcasePayloads returns a Record<EventType, () => payload> asserted
  *   with `satisfies Record<EventType, () => Record<string, unknown>>` so
  *   TypeScript rejects any missing or extra event type at compile time.
+ *
+ * ─── STATE SHOWCASE ────────────────────────────────────────────────────────
+ *   buildStateShowcase() creates one deterministic PERF-STATE-* pet per every
+ *   possible pet state value so the product owner can see each state:
+ *     - pets.status: active, lost, deceased
+ *     - pets.pregnancyStatus: in_progress, completed_live_birth,
+ *       completed_stillbirth, completed_miscarriage, completed_termination
+ *     - pets.rabiesObservationStatus: in_progress, completed_negative,
+ *       completed_positive_rabies, completed_dead, completed_lost_to_followup
+ *     - ownerships.role: owner, co_owner, shelter_custody, foster, caretaker
+ *     - adoption listed (adoptionListedAt set, adoptionListingPausedAt null)
+ *     - adoption listing paused (both timestamps set)
+ *     - pets.inCustodyDispute = true (+ custody_disputes row + event)
+ *     - pets.potentiallyDangerousBreed = true (+ dangerous_breed_attested event)
+ *   Idempotency: publicToken = "PERF-STATE-<slug>" — re-runs skip existing.
+ *   --clean removes them along with all other PERF-tagged data.
  *
  * ─── CLI FLAGS ─────────────────────────────────────────────────────────────
  *   --count=N      Total pets to create (default 2000).
@@ -55,8 +72,8 @@
  *   pnpm seed:perf -- --clean --allow-remote   # staging cleanup
  *
  * Validated against a local Supabase stack (--count=20): 46 distinct event
- * types confirmed in the showcase cohort. Idempotent re-run and --clean
- * confirmed working.
+ * types confirmed in the showcase cohort. State showcase confirmed with all
+ * 20 state values present. Idempotent re-run and --clean confirmed working.
  */
 
 // ---------------------------------------------------------------------------
@@ -180,7 +197,15 @@ if (ALLOW_REMOTE && (!isLocalDb || !isLocalSupabase)) {
 
 const { createClient: createSdkClient } = await import("@supabase/supabase-js");
 const { eq, like, inArray, sql } = await import("drizzle-orm");
-const { db, pets, ownerships, petEvents, cases: casesTable, organizations } = await import("../db");
+const {
+  db,
+  pets,
+  ownerships,
+  petEvents,
+  cases: casesTable,
+  organizations,
+  custodyDisputes,
+} = await import("../db");
 const { writePoint } = await import("../lib/location");
 const { EVENT_TYPES } = await import("../db/schema");
 
@@ -472,11 +497,19 @@ async function runClean(): Promise<void> {
   for (let start = 0; start < perfPetIds.length; start += DEL_BATCH) {
     const batch = perfPetIds.slice(start, start + DEL_BATCH);
 
-    // FK-safe order: pet_events → cases → ownerships → pets, inside one tx so
-    // the append-only override (set_config is_local=true) covers the deletes.
+    // FK-safe order: custody_disputes → pet_events → cases → ownerships → pets,
+    // inside one tx so the append-only override (set_config is_local=true)
+    // covers the pet_event deletes.
+    //
+    // custody_disputes.raising_event_id → pet_events.id (ON DELETE CASCADE)
+    // but custody_disputes is also the referencing side for petEvents via
+    // raisingEventId — deleting custody_disputes first avoids ON DELETE RESTRICT
+    // issues if the DB version has that constraint direction. Safe to delete
+    // before petEvents regardless.
     await db.transaction(async (tx) => {
       await tx.execute(sql`select set_config('app.allow_event_mutation', 'true', true)`);
       await tx.execute(sql`select set_config('app.allow_event_mutation_actor', ${actorId}, true)`);
+      await tx.delete(custodyDisputes).where(inArray(custodyDisputes.petId, batch));
       await tx.delete(petEvents).where(inArray(petEvents.petId, batch));
       await tx.delete(casesTable).where(inArray(casesTable.primaryPetId, batch));
       await tx.delete(ownerships).where(inArray(ownerships.petId, batch));
@@ -961,7 +994,514 @@ function buildShowcaseEvents(
 }
 
 // ---------------------------------------------------------------------------
-// 11. Main seed loop
+// 11. State showcase — one pet per every possible pet state value
+// ---------------------------------------------------------------------------
+
+/**
+ * Descriptor for a single state-showcase pet.
+ * `token` is the publicToken (PERF-STATE-<slug>) used for idempotency.
+ * `label` is the human-readable name shown to the PO.
+ */
+interface StateSpec {
+  readonly token: string;
+  readonly label: string;
+  readonly petOverrides?: Partial<Record<string, unknown>>;
+  readonly ownershipOverride?: {
+    readonly ownerUserId?: string | null;
+    readonly ownerOrganizationId?: string | null;
+    readonly role: string;
+  };
+  /** Extra ownership rows beyond the primary one (e.g. co_owner secondary row). */
+  readonly extraOwnerships?: ReadonlyArray<{
+    readonly ownerUserId?: string | null;
+    readonly ownerOrganizationId?: string | null;
+    readonly role: string;
+  }>;
+  /** Extra events to emit after pet_registered. */
+  readonly extraEvents?: ReadonlyArray<{
+    readonly eventType: string;
+    readonly payload: Record<string, unknown>;
+  }>;
+  /** Whether to create a custody_disputes row for this pet. */
+  readonly withCustodyDispute?: boolean;
+}
+
+/**
+ * Build a "PERF-STATE-<slug>" publicToken from a slug string.
+ * Deterministic, URL-safe — re-runs skip existing tokens.
+ */
+function stateToken(slug: string): string {
+  return `PERF-STATE-${slug}`;
+}
+
+/**
+ * Insert a single pet_registered event and return the event id (needed by
+ * custody_dispute rows that require a raisingEventId FK).
+ */
+async function insertStateRegistered(
+  petId: string,
+  ownerUserId: string,
+  slug: string,
+): Promise<string> {
+  const [evt] = await db
+    .insert(petEvents)
+    .values({
+      petId,
+      eventType: "pet_registered",
+      occurredAt: new Date(Date.now() - 365 * 24 * 3600 * 1000),
+      recordedByUserId: ownerUserId,
+      authorRole: "owner",
+      authorVerified: false,
+      payload: { source: "seed-perf-state", slug },
+    })
+    .returning({ id: petEvents.id });
+  return evt.id;
+}
+
+/**
+ * Creates one deterministic PERF-STATE-* pet per possible state value.
+ * Idempotent: pets with matching publicToken are skipped.
+ * Runs once regardless of --count (state catalog is independent of volume).
+ *
+ * org-held roles (shelter_custody, foster) require seedOrgId to be present.
+ * When absent they are WARN-logged and skipped — the rest of the showcase runs.
+ */
+async function buildStateShowcase(ownerUserId: string, seedOrgId: string | null): Promise<void> {
+  log("STEP", "State showcase — creating one pet per state value");
+
+  const jur = { province: "CABA", locality: "Palermo" };
+  const now = new Date();
+  const past = (daysAgo: number) => new Date(now.getTime() - daysAgo * 24 * 3600 * 1000);
+
+  // ── Helper: insert a pet row with PERF-STATE-<slug> token ──────────────────
+  async function insertStatePet(
+    slug: string,
+    name: string,
+    overrides: Partial<Record<string, unknown>> = {},
+  ): Promise<{ id: string; isNew: boolean }> {
+    const token = stateToken(slug);
+
+    const [existing] = await db
+      .select({ id: pets.id })
+      .from(pets)
+      .where(eq(pets.publicToken, token))
+      .limit(1);
+
+    if (existing) {
+      log("SKIP", `  ${token} already exists`);
+      return { id: existing.id, isNew: false };
+    }
+
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: token,
+        species: "dog",
+        breed: "Mestizo",
+        name,
+        sex: "unknown",
+        dateOfBirth: past(365 * 3)
+          .toISOString()
+          .slice(0, 10),
+        birthDateIsEstimated: false,
+        status: "active",
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: jur.province,
+        jurisdictionLocality: jur.locality,
+        acquisitionMethod: "adopted",
+        potentiallyDangerousBreed: false,
+        emergencyInfoVisible: false,
+        ...(overrides as object),
+      } as Parameters<typeof db.insert>[0] extends { values: (v: infer V) => unknown } ? V : never)
+      .returning({ id: pets.id });
+
+    return { id: pet.id, isNew: true };
+  }
+
+  // ── 1. pets.status values ───────────────────────────────────────────────────
+
+  // status = active (baseline — already covered by volume pets but we make one explicit)
+  {
+    const slug = "status-active";
+    const { id, isNew } = await insertStatePet(slug, "PERF-STATE status (active)");
+    if (isNew) {
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      await insertStateRegistered(id, ownerUserId, slug);
+      log("OK", `  ${stateToken(slug)}: status=active`);
+    }
+  }
+
+  // status = lost → case row + status_changed event (mirrors volume path but no case coords)
+  {
+    const slug = "status-lost";
+    const { id, isNew } = await insertStatePet(slug, "PERF-STATE status (lost)", {
+      status: "lost",
+    });
+    if (isNew) {
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      await insertStateRegistered(id, ownerUserId, slug);
+      const caseCode = "PERF-STATE-CASE-LOST";
+      const [existingCase] = await db
+        .select({ id: casesTable.id })
+        .from(casesTable)
+        .where(eq(casesTable.publicCode, caseCode))
+        .limit(1);
+      if (!existingCase) {
+        await db.insert(casesTable).values({
+          publicCode: caseCode,
+          caseKind: "lost_pet_episode",
+          status: "open",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: id,
+          jurisdictionCountry: "AR",
+          jurisdictionProvince: jur.province,
+          jurisdictionLocality: jur.locality,
+          openedByUserId: ownerUserId,
+          openedReason: "auto: status_changed to lost (seed-perf-state)",
+        });
+      }
+      await db.insert(petEvents).values({
+        petId: id,
+        eventType: "status_changed",
+        occurredAt: past(30),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        authorVerified: false,
+        payload: {
+          from_status: "active",
+          to_status: "lost",
+          source: "seed-perf-state",
+          location_description: `${jur.locality}, ${jur.province}`,
+        },
+      });
+      log("OK", `  ${stateToken(slug)}: status=lost`);
+    }
+  }
+
+  // status = deceased → death_recorded event
+  {
+    const slug = "status-deceased";
+    const { id, isNew } = await insertStatePet(slug, "PERF-STATE status (deceased)", {
+      status: "deceased",
+      deceasedAt: past(10),
+    });
+    if (isNew) {
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      await insertStateRegistered(id, ownerUserId, slug);
+      await db.insert(petEvents).values({
+        petId: id,
+        eventType: "death_recorded",
+        occurredAt: past(10),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        authorVerified: false,
+        payload: {
+          source: "seed-perf-state",
+          cause: "natural",
+          cause_detail: "vejez (showcase state demo)",
+          confirmed_by_vet: false,
+          vet_name: null,
+          disposition_method: "owner_burial",
+          facility: null,
+          death_at_clinic: false,
+          vet_contacted_owner: "yes",
+          vet_decided_alone: null,
+          is_reportable: false,
+          during_rabies_observation: false,
+        },
+      });
+      log("OK", `  ${stateToken(slug)}: status=deceased`);
+    }
+  }
+
+  // ── 2. pregnancyStatus values ───────────────────────────────────────────────
+  const pregnancyValues = [
+    "in_progress",
+    "completed_live_birth",
+    "completed_stillbirth",
+    "completed_miscarriage",
+    "completed_termination",
+  ] as const;
+
+  for (const pv of pregnancyValues) {
+    const slug = `pregnancy-${pv.replace(/_/g, "-")}`;
+    const { id, isNew } = await insertStatePet(slug, `PERF-STATE pregnant (${pv})`, {
+      pregnancyStatus: pv,
+    });
+    if (isNew) {
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      await insertStateRegistered(id, ownerUserId, slug);
+      log("OK", `  ${stateToken(slug)}: pregnancyStatus=${pv}`);
+    }
+  }
+
+  // ── 3. rabiesObservationStatus values ───────────────────────────────────────
+  const rabiesValues = [
+    "in_progress",
+    "completed_negative",
+    "completed_positive_rabies",
+    "completed_dead",
+    "completed_lost_to_followup",
+  ] as const;
+
+  for (const rv of rabiesValues) {
+    const slug = `rabies-${rv.replace(/_/g, "-")}`;
+    const { id, isNew } = await insertStatePet(slug, `PERF-STATE rabies (${rv})`, {
+      rabiesObservationStatus: rv,
+    });
+    if (isNew) {
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      await insertStateRegistered(id, ownerUserId, slug);
+      await db.insert(petEvents).values({
+        petId: id,
+        eventType: "rabies_observation_started",
+        occurredAt: past(15),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        authorVerified: false,
+        payload: {
+          source: "seed-perf-state",
+          expected_end_at: past(5).toISOString().slice(0, 10),
+          isolation_facility: "Clínica estado showcase",
+          protocol: "Observación 10 días Ley 22.953",
+        },
+      });
+      log("OK", `  ${stateToken(slug)}: rabiesObservationStatus=${rv}`);
+    }
+  }
+
+  // ── 4. ownerships.role values ───────────────────────────────────────────────
+  // owner — straightforward personal ownership
+  {
+    const slug = "custody-owner";
+    const { id, isNew } = await insertStatePet(slug, "PERF-STATE custody (owner)");
+    if (isNew) {
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      await insertStateRegistered(id, ownerUserId, slug);
+      log("OK", `  ${stateToken(slug)}: ownership role=owner`);
+    }
+  }
+
+  // co_owner — primary owner row + co_owner secondary row (same user for seed simplicity)
+  {
+    const slug = "custody-co-owner";
+    const { id, isNew } = await insertStatePet(slug, "PERF-STATE custody (co_owner)");
+    if (isNew) {
+      // Primary owner row (required by ownerships_one_active_owner_per_pet)
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      // Secondary co_owner row — same user is acceptable for seed purposes
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "co_owner" });
+      await insertStateRegistered(id, ownerUserId, slug);
+      log("OK", `  ${stateToken(slug)}: ownership role=co_owner`);
+    }
+  }
+
+  // caretaker — primary owner row + caretaker secondary row
+  {
+    const slug = "custody-caretaker";
+    const { id, isNew } = await insertStatePet(slug, "PERF-STATE custody (caretaker)");
+    if (isNew) {
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "caretaker" });
+      await insertStateRegistered(id, ownerUserId, slug);
+      log("OK", `  ${stateToken(slug)}: ownership role=caretaker`);
+    }
+  }
+
+  // shelter_custody — org-held; skip with WARN if org absent
+  {
+    const slug = "custody-shelter";
+    if (!seedOrgId) {
+      log("WARN", `  SKIP ${stateToken(slug)}: seedOrgId absent — run pnpm seed:test first`);
+    } else {
+      const { id, isNew } = await insertStatePet(slug, "PERF-STATE custody (shelter_custody)");
+      if (isNew) {
+        await db.insert(ownerships).values({
+          petId: id,
+          ownerOrganizationId: seedOrgId,
+          role: "shelter_custody",
+        });
+        await insertStateRegistered(id, ownerUserId, slug);
+        log(
+          "OK",
+          `  ${stateToken(slug)}: ownership role=shelter_custody (org ${seedOrgId.slice(0, 8)}…)`,
+        );
+      }
+    }
+  }
+
+  // foster — org-held shelter_custody row + individual foster row
+  {
+    const slug = "custody-foster";
+    if (!seedOrgId) {
+      log("WARN", `  SKIP ${stateToken(slug)}: seedOrgId absent — run pnpm seed:test first`);
+    } else {
+      const { id, isNew } = await insertStatePet(slug, "PERF-STATE custody (foster)");
+      if (isNew) {
+        // Shelter custody held by org (the umbrella)
+        await db.insert(ownerships).values({
+          petId: id,
+          ownerOrganizationId: seedOrgId,
+          role: "shelter_custody",
+        });
+        // Foster row held by the individual user under the org umbrella
+        await db.insert(ownerships).values({ petId: id, ownerUserId, role: "foster" });
+        await insertStateRegistered(id, ownerUserId, slug);
+        log("OK", `  ${stateToken(slug)}: ownership role=foster`);
+      }
+    }
+  }
+
+  // ── 5. Adoption listing ─────────────────────────────────────────────────────
+  // The adoptionEligibilityConsistent CHECK requires: either both adoptionEligible
+  // and adoptionEligibilitySetAt are non-null, or both are null.
+  // The adoptionEligibilitySetByUserId is a FK to profiles.id; use ownerUserId.
+
+  // adoption listed (adoptionListedAt set, adoptionListingPausedAt null, adoptionEligible=true)
+  {
+    const slug = "adoption-listed";
+    const { id, isNew } = await insertStatePet(slug, "PERF-STATE adoption listed", {
+      adoptionEligible: true,
+      adoptionEligibilitySetAt: past(60),
+      adoptionEligibilitySetByUserId: ownerUserId,
+      adoptionListedAt: past(30),
+      adoptionListingPausedAt: null,
+      adoptionStory: "Perro de showcase — listado para adopción (estado demo)",
+    });
+    if (isNew) {
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      await insertStateRegistered(id, ownerUserId, slug);
+      await db.insert(petEvents).values({
+        petId: id,
+        eventType: "adoption_eligibility_set",
+        occurredAt: past(60),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        authorVerified: false,
+        payload: {
+          source: "seed-perf-state",
+          adoption_eligible: true,
+          set_by_user_id: ownerUserId,
+          reason: "evaluación completa — apta (showcase state demo)",
+        },
+      });
+      log("OK", `  ${stateToken(slug)}: adoptionListedAt set, paused=null`);
+    }
+  }
+
+  // adoption listing paused (both timestamps set)
+  {
+    const slug = "adoption-paused";
+    const { id, isNew } = await insertStatePet(slug, "PERF-STATE adoption listing paused", {
+      adoptionEligible: true,
+      adoptionEligibilitySetAt: past(90),
+      adoptionEligibilitySetByUserId: ownerUserId,
+      adoptionListedAt: past(60),
+      adoptionListingPausedAt: past(5),
+      adoptionStory: "Perro de showcase — listado pausado (estado demo)",
+    });
+    if (isNew) {
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      await insertStateRegistered(id, ownerUserId, slug);
+      log("OK", `  ${stateToken(slug)}: adoptionListedAt + adoptionListingPausedAt set`);
+    }
+  }
+
+  // ── 6. Custody dispute ──────────────────────────────────────────────────────
+  // custody_disputes requires:
+  //   - publicToken (unique)
+  //   - petId, raisedByUserId (nullable), raisedByRole (text CHECK owner|org|govt|admin)
+  //   - raisingEventId (FK → pet_events.id — NOT nullable)
+  //   - jurisdictionProvince, jurisdictionLocality (NOT NULL)
+  //   - status = 'open'
+  // The partial unique index custody_disputes_one_open_per_pet prevents > 1 open
+  // dispute per pet — we create exactly one.
+  {
+    const slug = "custody-dispute";
+    const { id, isNew } = await insertStatePet(slug, "PERF-STATE custody dispute", {
+      inCustodyDispute: true,
+    });
+    if (isNew) {
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      const registeredEvtId = await insertStateRegistered(id, ownerUserId, slug);
+
+      // custody_dispute_raised event
+      const [disputeEvt] = await db
+        .insert(petEvents)
+        .values({
+          petId: id,
+          eventType: "custody_dispute_raised",
+          occurredAt: past(7),
+          recordedByUserId: ownerUserId,
+          authorRole: "govt",
+          authorVerified: false,
+          payload: {
+            source: "seed-perf-state",
+            raised_by_role: "govt",
+            reason: "litigio ficticio (showcase state demo)",
+          },
+        })
+        .returning({ id: petEvents.id });
+
+      // custody_disputes row
+      try {
+        await db.insert(custodyDisputes).values({
+          publicToken: `${stateToken(slug)}-DISPUTE`,
+          petId: id,
+          raisedByUserId: ownerUserId,
+          raisedByRole: "govt",
+          raisingEventId: disputeEvt.id,
+          jurisdictionCountry: "AR",
+          jurisdictionProvince: jur.province,
+          jurisdictionLocality: jur.locality,
+          status: "open",
+        });
+        log("OK", `  ${stateToken(slug)}: inCustodyDispute=true + custody_disputes row`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log(
+          "WARN",
+          `  ${stateToken(slug)}: custody_disputes insert failed (${msg}) — flag + event only`,
+        );
+      }
+      // Suppress unused variable warning for registeredEvtId
+      void registeredEvtId;
+    }
+  }
+
+  // ── 7. Dangerous breed ──────────────────────────────────────────────────────
+  {
+    const slug = "dangerous-breed";
+    const { id, isNew } = await insertStatePet(slug, "PERF-STATE dangerous breed", {
+      potentiallyDangerousBreed: true,
+    });
+    if (isNew) {
+      await db.insert(ownerships).values({ petId: id, ownerUserId, role: "owner" });
+      await insertStateRegistered(id, ownerUserId, slug);
+      await db.insert(petEvents).values({
+        petId: id,
+        eventType: "dangerous_breed_attested",
+        occurredAt: past(20),
+        recordedByUserId: ownerUserId,
+        authorRole: "govt",
+        authorVerified: true,
+        payload: {
+          source: "seed-perf-state",
+          registry: "caba_4078",
+          registry_id: "PPP-CABA-STATE-SHOWCASE-001",
+          attested_at: past(20).toISOString().slice(0, 10),
+          attestor_dni_verified: true,
+        },
+      });
+      log("OK", `  ${stateToken(slug)}: potentiallyDangerousBreed=true`);
+    }
+  }
+
+  log("DONE", "State showcase complete");
+}
+
+// ---------------------------------------------------------------------------
+// 12. Main seed loop
 // ---------------------------------------------------------------------------
 
 async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<void> {
@@ -981,6 +1521,10 @@ async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<v
   log("INFO", `Lost    : ~${lostCount} (10%) → each gets a cases row`);
   log("INFO", `Coords  : ~${withCoordsCount} (50%) have lat/lng`);
   log("INFO", `Batches : ${Math.ceil(COUNT / BATCH_SIZE)} × ${BATCH_SIZE}`);
+
+  // State showcase runs once per seed run, regardless of --count.
+  // It creates deterministic PERF-STATE-* pets covering every state value.
+  await buildStateShowcase(ownerUserId, seedOrgId);
 
   let created = 0;
   let skipped = 0;
