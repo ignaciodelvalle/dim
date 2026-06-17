@@ -429,12 +429,15 @@ async function runClean(): Promise<void> {
   // sanctioned override is to set app.allow_event_mutation=true +
   // app.allow_event_mutation_actor=<uuid> in the SAME transaction; the trigger
   // then permits the delete and writes an audit_log row per deleted event.
-  const actorRows = (await db.execute(sql`select id from auth.users limit 1`)) as unknown as Array<{
+  // The actor MUST be a profiles.id — audit_log.actor_user_id FKs profiles,
+  // and some auth.users rows have no profile (so select from profiles, not
+  // auth.users, or the trigger's audit insert fails with a FK violation).
+  const actorRows = (await db.execute(sql`select id from profiles limit 1`)) as unknown as Array<{
     id: string;
   }>;
   const actorId = actorRows[0]?.id ?? null;
   if (!actorId) {
-    log("FAIL", "No auth user found to act as event-mutation override actor — aborting clean.");
+    log("FAIL", "No profile found to act as event-mutation override actor — aborting clean.");
     return;
   }
 
