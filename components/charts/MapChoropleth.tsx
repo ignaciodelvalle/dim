@@ -95,12 +95,26 @@ export function MapChoropleth({
     import("maplibre-gl").then(({ default: maplibregl, AttributionControl }) => {
       if (!mapContainer.current) return;
 
-      // v1 placeholder: demotiles MapLibre — ver E-D1. ARSAT es el proveedor objetivo (OF-1).
-      const STYLE_URL = "https://demotiles.maplibre.org/style.json";
+      // Interim base map: OpenStreetMap raster tiles via MapLibre, so the
+      // choropleth renders over real geography (provinces, localities, cities
+      // visible) instead of the low-detail demotiles placeholder. ARSAT remains
+      // the production tile provider (OF-1); this is still the single swap point.
+      const STYLE: maplibregl.StyleSpecification = {
+        version: 8,
+        sources: {
+          osm: {
+            type: "raster",
+            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution: "© OpenStreetMap contributors",
+          },
+        },
+        layers: [{ id: "osm-base", type: "raster", source: "osm" }],
+      };
 
       const map = new maplibregl.Map({
         container: mapContainer.current,
-        style: STYLE_URL,
+        style: STYLE,
         center,
         zoom,
         // La atribución se agrega manualmente para garantizar el cumplimiento OSM.
