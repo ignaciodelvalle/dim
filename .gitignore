@@ -54,3 +54,6 @@ install.cmd
 playwright-report/
 test-results/
 e2e/.auth/
+
+# vercel CLI (local project linkage + build cache — never commit)
+.vercel/
