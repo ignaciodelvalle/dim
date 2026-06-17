@@ -47,8 +47,8 @@
 
   --color-ln-ink: #1b2a33;
   --color-ln-ink-2: #3c4b55;
-  --color-ln-mute: #6e7b84;
-  --color-ln-faint: #9aa4ab;
+  --color-ln-mute: #616e77; /* darkened from #6e7b84 — 5.02:1 on ln-paper (was 4.16:1, WCAG AA-normal fail) */
+  --color-ln-faint: #67747d; /* darkened from #9aa4ab — 4.60:1 on ln-paper (was 2.54:1, WCAG AA fail at all sizes) */
 
   --color-ln-paper: #fbfaf5;
   --color-ln-card: #ffffff;
@@ -119,7 +119,7 @@
   /* Neutros → LN ink/line/paper scale */
   --color-gob-text: #1b2a33; /* → ln-ink */
   --color-gob-text-gray: #3c4b55; /* → ln-ink-2 */
-  --color-gob-text-muted: #6e7b84; /* → ln-mute */
+  --color-gob-text-muted: #616e77; /* → ln-mute (darkened for WCAG AA-normal) */
   --color-gob-border: #e4dfd3; /* → ln-line */
   --color-gob-border-strong: #cfc8b8; /* → ln-line-strong */
   --color-gob-surface: #ffffff; /* → ln-card */
@@ -128,7 +128,7 @@
   /* Generic semantic tokens consumed by the app — repointed to Libreta Nacional. */
   --color-background: #fbfaf5; /* → ln-paper */
   --color-foreground: #1b2a33; /* → ln-ink */
-  --color-muted: #6e7b84; /* → ln-mute */
+  --color-muted: #616e77; /* → ln-mute (darkened for WCAG AA-normal) */
   --color-muted-foreground: #3c4b55; /* → ln-ink-2 */
   --color-accent: #0e5a99; /* → ln-azul */
   --color-primary: #0e5a99; /* → ln-azul */
