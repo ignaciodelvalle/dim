@@ -102,13 +102,35 @@ export class OrgRepository {
         | "description"
         | "personeriaJuridicaNumber"
         | "tier0ShowOriginOrg"
+        // Coordinate columns: legacy (latitude/longitude) and canonical (locationLat/locationLng).
+        // When either coordinate family is written, both are kept in sync (dual-write, migration 0101).
+        | "latitude"
+        | "longitude"
+        | "locationLat"
+        | "locationLng"
       >
     > & { updatedAt?: Date },
     e: Exec = db,
   ): Promise<void> {
+    // Dual-write: if the legacy columns are being set, mirror to the canonical
+    // columns (and vice-versa) so both families stay in sync during the
+    // convergence window (P3 DEPLOY 1). Old columns are dropped in a later deploy.
+    const merged = { ...fields };
+    if (merged.latitude !== undefined && merged.locationLat === undefined) {
+      merged.locationLat = merged.latitude;
+    }
+    if (merged.longitude !== undefined && merged.locationLng === undefined) {
+      merged.locationLng = merged.longitude;
+    }
+    if (merged.locationLat !== undefined && merged.latitude === undefined) {
+      merged.latitude = merged.locationLat;
+    }
+    if (merged.locationLng !== undefined && merged.longitude === undefined) {
+      merged.longitude = merged.locationLng;
+    }
     await e
       .update(organizations)
-      .set({ ...fields, updatedAt: fields.updatedAt ?? new Date() })
+      .set({ ...merged, updatedAt: merged.updatedAt ?? new Date() })
       .where(eq(organizations.id, orgId));
   }
 

@@ -107,6 +107,11 @@ export class CasesRepository {
       primaryPetId: input.primaryPetId ?? null,
       primaryLocationLat: input.primaryLocationLat ?? null,
       primaryLocationLng: input.primaryLocationLng ?? null,
+      // Dual-write: canonical columns (migration 0101, P3 DEPLOY 1). Mirror the
+      // already-stringified primary_location_* values so reads can COALESCE(location_lat,
+      // primary_location_lat). Old columns kept — dropped in a later deploy.
+      locationLat: input.primaryLocationLat ?? null,
+      locationLng: input.primaryLocationLng ?? null,
       applicantUserId: input.applicantUserId ?? null,
       jurisdictionCountry: input.jurisdictionCountry ?? "AR",
       jurisdictionProvince: input.jurisdictionProvince ?? null,
