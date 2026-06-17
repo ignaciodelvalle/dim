@@ -395,10 +395,13 @@ async function findAuthUserIdByEmail(supabase: any, email: string): Promise<stri
 // ---------------------------------------------------------------------------
 
 async function findSeedOrgId(): Promise<string | null> {
+  // createOrganizationForUser (app/actions/upgrade.ts) strips dashes from the
+  // CUIT before storing, so seed-test-users' "30-99999999-9" lands as
+  // "30999999999". Look it up in that normalized form.
   const [org] = await db
     .select({ id: organizations.id })
     .from(organizations)
-    .where(eq(organizations.cuit, "30-99999999-9"))
+    .where(eq(organizations.cuit, "30999999999"))
     .limit(1);
   return org?.id ?? null;
 }
@@ -426,12 +429,15 @@ async function runClean(): Promise<void> {
   // sanctioned override is to set app.allow_event_mutation=true +
   // app.allow_event_mutation_actor=<uuid> in the SAME transaction; the trigger
   // then permits the delete and writes an audit_log row per deleted event.
-  const actorRows = (await db.execute(sql`select id from auth.users limit 1`)) as unknown as Array<{
+  // The actor MUST be a profiles.id — audit_log.actor_user_id FKs profiles,
+  // and some auth.users rows have no profile (so select from profiles, not
+  // auth.users, or the trigger's audit insert fails with a FK violation).
+  const actorRows = (await db.execute(sql`select id from profiles limit 1`)) as unknown as Array<{
     id: string;
   }>;
   const actorId = actorRows[0]?.id ?? null;
   if (!actorId) {
-    log("FAIL", "No auth user found to act as event-mutation override actor — aborting clean.");
+    log("FAIL", "No profile found to act as event-mutation override actor — aborting clean.");
     return;
   }
 
