@@ -104,7 +104,12 @@ jobs:
 
       - name: Audit dependencies (HIGH+)
         if: steps.skip-check.outputs.skip != 'true'
-        run: pnpm audit --audit-level=high
+        # GHSA-fx2h-pf6j-xcff (vite server.fs.deny bypass on Windows) is dev/test
+        # tooling only — vite ships via vitest + @vitejs/plugin-react, is NOT in
+        # the prod bundle, and the app never runs the vite dev server. Ignored by
+        # GHSA id so any NEW high/critical advisory still fails the gate.
+        # Remove once vitest / @vitejs/plugin-react pull vite >=8.0.16.
+        run: pnpm audit --audit-level=high --ignore GHSA-fx2h-pf6j-xcff
 
   migration-presence:
     name: Migration presence check
