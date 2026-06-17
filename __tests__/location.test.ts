@@ -2,12 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  CASE_PRIMARY_COLUMNS,
-  ORG_LEGACY_COLUMNS,
-  readPoint,
-  writePoint,
-} from "@/lib/location";
+import { CASE_PRIMARY_COLUMNS, ORG_LEGACY_COLUMNS, readPoint, writePoint } from "@/lib/location";
 
 describe("readPoint", () => {
   it("returns null for both-null rows", () => {

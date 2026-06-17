@@ -67,8 +67,12 @@ export async function queryOrgPublicProfile(orgToken: string): Promise<OrgPublic
       // COALESCE reads canonical column first, falling back to legacy column.
       // Output keys kept as latitude/longitude so OrgPublicProfile and consumers are
       // unchanged (P3 DEPLOY 1 — backward-compatible read switch).
-      latitude: sql<string | null>`coalesce(${organizations.locationLat}, ${organizations.latitude})`,
-      longitude: sql<string | null>`coalesce(${organizations.locationLng}, ${organizations.longitude})`,
+      latitude: sql<
+        string | null
+      >`coalesce(${organizations.locationLat}, ${organizations.latitude})`,
+      longitude: sql<
+        string | null
+      >`coalesce(${organizations.locationLng}, ${organizations.longitude})`,
       email: organizations.email,
       phone: organizations.phone,
       website: organizations.website,

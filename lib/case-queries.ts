@@ -57,8 +57,12 @@ const CASE_DETAIL_SELECT = {
   // COALESCE reads canonical column first, falling back to legacy column.
   // Output keys are kept as primaryLocationLat/primaryLocationLng so CaseDetail
   // and all consumers are unchanged (P3 DEPLOY 1 — backward-compatible read switch).
-  primaryLocationLat: sql<string | null>`coalesce(${cases.locationLat}, ${cases.primaryLocationLat})`,
-  primaryLocationLng: sql<string | null>`coalesce(${cases.locationLng}, ${cases.primaryLocationLng})`,
+  primaryLocationLat: sql<
+    string | null
+  >`coalesce(${cases.locationLat}, ${cases.primaryLocationLat})`,
+  primaryLocationLng: sql<
+    string | null
+  >`coalesce(${cases.locationLng}, ${cases.primaryLocationLng})`,
   jurisdictionCountry: cases.jurisdictionCountry,
   jurisdictionProvince: cases.jurisdictionProvince,
   jurisdictionLocality: cases.jurisdictionLocality,
