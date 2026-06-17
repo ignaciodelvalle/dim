@@ -6,6 +6,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { CaseBadge } from "@/components/CaseBadge";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listCasesForGovt } from "@/lib/case-queries";
@@ -50,13 +51,13 @@ export default async function GovtCasosPage({
       </header>
 
       {session.jurisdictions.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          No tenés jurisdicciones asignadas todavía.
-        </p>
+        <LnEmptyState
+          icon="usuarios"
+          title="No tenés jurisdicciones asignadas todavía."
+          description="Pedile a un administrador que te asigne una jurisdicción."
+        />
       ) : items.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          Sin casos en tu jurisdicción por ahora.
-        </p>
+        <LnEmptyState icon="solicitud" title="Sin casos en tu jurisdicción por ahora." />
       ) : (
         <OpCard>
           <OpCardHead title={`${items.length} caso${items.length === 1 ? "" : "s"}`} />
