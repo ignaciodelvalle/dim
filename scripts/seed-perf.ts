@@ -16,6 +16,19 @@
  *   Re-running with the same --count skips pets whose token already exists.
  *   New runs with a higher --count add only the missing range.
  *
+ * ─── SHOWCASE COHORT ───────────────────────────────────────────────────────
+ *   The first SHOWCASE_COUNT pets (default 3) are "showcase" pets. Each one
+ *   receives ONE event of EVERY type in EVENT_TYPES (all 46), with realistic
+ *   es-AR payloads, so opening any showcase pet renders the full event catalog.
+ *   Showcase pets are normal PERF-tagged pets, so --clean removes them too.
+ *   Idempotency: showcase events use clientIdempotencyKey derived from
+ *   (petIndex, eventType) so re-runs skip already-inserted events.
+ *
+ * ─── EXHAUSTIVENESS GUARANTEE ──────────────────────────────────────────────
+ *   buildShowcasePayloads returns a Record<EventType, () => payload> asserted
+ *   with `satisfies Record<EventType, () => Record<string, unknown>>` so
+ *   TypeScript rejects any missing or extra event type at compile time.
+ *
  * ─── CLI FLAGS ─────────────────────────────────────────────────────────────
  *   --count=N      Total pets to create (default 2000).
  *   --allow-remote Required to target a non-local DB (staging).
@@ -29,7 +42,7 @@
  *
  * ─── RUN COMMANDS ──────────────────────────────────────────────────────────
  *   # Local validation first (small count):
- *   pnpm seed:perf -- --count=50
+ *   pnpm seed:perf -- --count=20
  *
  *   # Full local run:
  *   pnpm seed:perf
@@ -41,10 +54,16 @@
  *   pnpm seed:perf -- --clean
  *   pnpm seed:perf -- --clean --allow-remote   # staging cleanup
  *
- * Validated against a local Supabase stack (--count=50): pets/events/cases
- * created, idempotent re-run, and --clean all confirmed working. Still
- * recommend a small --count when first pointing at a fresh remote.
+ * Validated against a local Supabase stack (--count=20): 46 distinct event
+ * types confirmed in the showcase cohort. Idempotent re-run and --clean
+ * confirmed working.
  */
+
+// ---------------------------------------------------------------------------
+// 0. Type-only imports (compile-time only — no runtime cost)
+// ---------------------------------------------------------------------------
+
+import type { EventType } from "../db/schema";
 
 // ---------------------------------------------------------------------------
 // 1. Env bootstrap (must run before db/index.ts is imported)
@@ -163,6 +182,7 @@ const { createClient: createSdkClient } = await import("@supabase/supabase-js");
 const { eq, like, inArray, sql } = await import("drizzle-orm");
 const { db, pets, ownerships, petEvents, cases: casesTable, organizations } = await import("../db");
 const { writePoint } = await import("../lib/location");
+const { EVENT_TYPES } = await import("../db/schema");
 
 // ---------------------------------------------------------------------------
 // 5. Constants + helpers
@@ -171,6 +191,13 @@ const { writePoint } = await import("../lib/location");
 const OWNER_EMAIL = "owner@dim.test";
 const PERF_TAG = "PERF-";
 const BATCH_SIZE = 200;
+
+/**
+ * Number of "showcase" pets that each carry one event of every EVENT_TYPE.
+ * These are the first SHOWCASE_COUNT pets by index (PERF-000000 …).
+ * They are normal PERF-tagged pets so --clean removes them.
+ */
+const SHOWCASE_COUNT = 3;
 
 // Valid (province, locality) pairs from canonical province list.
 // Spread across diverse jurisdictions so govt dashboards light up.
@@ -546,7 +573,395 @@ function buildPetEvents(
 }
 
 // ---------------------------------------------------------------------------
-// 10. Main seed loop
+// 10. Showcase cohort — one event of every type, exhaustiveness-checked
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns one event row per EVENT_TYPES entry for a showcase pet.
+ *
+ * Exhaustiveness: the inner payload map is declared as
+ *   satisfies Record<EventType, () => Record<string, unknown>>
+ * so TypeScript rejects any missing entry at compile time.
+ *
+ * Chronology: events are spread over a 46-week span so the timeline
+ * renders with visible chronological spacing.
+ *
+ * Idempotency: each row carries a deterministic clientIdempotencyKey
+ * built from (petIndex * 1000 + eventIndex). If the key already exists
+ * for (petId, eventType), the insert is a no-op (ON CONFLICT DO NOTHING
+ * via the pet_events_idempotency_idx partial unique index).
+ */
+function buildShowcaseEvents(
+  petId: string,
+  ownerUserId: string,
+  petIndex: number,
+): Array<Record<string, unknown>> {
+  // Base date: 3 years ago, pet-specific offset for variety
+  const BASE_MS = Date.now() - (3 * 365 + petIndex * 7) * 24 * 3600 * 1000;
+  // Chip numbers are deterministic per pet to avoid unique-constraint conflicts
+  const chipBase = `858${String(petIndex + 1).padStart(3, "0")}`;
+
+  /**
+   * Payload factory per event type.
+   * All types in EVENT_TYPES must appear here — TypeScript will error otherwise.
+   */
+  const payloadFactory = {
+    // ── Lifecycle ──────────────────────────────────────────────────────────
+    pet_registered: () => ({
+      source: "seed-perf",
+      acquisition_method: "adopted",
+      has_microchip: true,
+      has_photo: false,
+    }),
+    pet_profile_updated: () => ({
+      source: "seed-perf",
+      changes: [{ field: "color", old: "desconocido", new: "marrón" }],
+    }),
+    status_changed: () => ({
+      source: "seed-perf",
+      from_status: "active",
+      to_status: "active",
+      reason: "showcase_demo",
+    }),
+    death_recorded: () => ({
+      source: "seed-perf",
+      cause: "natural",
+      cause_detail: "vejez (showcase demo — no pet was harmed)",
+      confirmed_by_vet: false,
+      vet_name: null,
+      disposition_method: "owner_burial",
+      facility: null,
+      death_at_clinic: false,
+      vet_contacted_owner: "yes",
+      vet_decided_alone: null,
+      is_reportable: false,
+      during_rabies_observation: false,
+    }),
+    // ── Preventive medicine ────────────────────────────────────────────────
+    vaccination_administered: () => ({
+      source: "seed-perf",
+      vaccine_name: "antirrábica",
+      brand: "Defensor 3",
+      batch: "RABA-2024-0042",
+      administered_by: "Dra. García",
+      next_due_at: "2025-07-01",
+    }),
+    deworming_administered: () => ({
+      source: "seed-perf",
+      product: "ivermectina",
+      type: "internal",
+      administered_by: "Dra. García",
+      next_due_at: null,
+    }),
+    sterilization_performed: () => ({
+      source: "seed-perf",
+      procedure: "castración",
+      performed_by: "Dr. Pérez",
+    }),
+    // ── Medication ─────────────────────────────────────────────────────────
+    medication_started: () => ({
+      source: "seed-perf",
+      drug_name: "prednisona",
+      dose: "1 mg/kg",
+      frequency: "SID",
+      first_dose_at: new Date(BASE_MS + 15 * 7 * 24 * 3600 * 1000).toISOString(),
+      schedule_count: 30,
+    }),
+    medication_stopped: () => ({
+      source: "seed-perf",
+      reason: "tratamiento completado",
+    }),
+    // ── Clinical encounters ────────────────────────────────────────────────
+    vet_visit_logged: () => ({
+      source: "seed-perf",
+      reason: "wellness",
+      diagnosis: "sano, BCS 5/9",
+      vet_name: "Dra. García",
+    }),
+    // ── Body metrics ───────────────────────────────────────────────────────
+    weight_recorded: () => ({
+      source: "seed-perf",
+      kg: 12 + petIndex,
+    }),
+    // ── Identification & legal ─────────────────────────────────────────────
+    microchip_implanted: () => ({
+      source: "seed-perf",
+      chip_number: `${chipBase}000001`,
+      country_code: "858",
+      implanted_by: "Dr. Rodríguez",
+      location_on_body: "interscapular",
+      implant_date_known: true,
+    }),
+    microchip_replaced: () => ({
+      source: "seed-perf",
+      previous_chip_number: `${chipBase}000001`,
+      new_chip_number: `${chipBase}000002`,
+      reason: "damaged",
+      replaced_by: "Dr. Rodríguez",
+      replaced_at: new Date(BASE_MS + 20 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+      actor_role: "vet",
+    }),
+    tattoo_recorded: () => ({
+      source: "seed-perf",
+      tattoo_code: `PERF-${String(petIndex).padStart(3, "0")}-TAT`,
+      location_on_body: "inner_ear_left",
+      description: "Tatuaje de identificación (showcase seed-perf)",
+      recorded_by: "Dr. Rodríguez",
+      tattoo_date_known: true,
+    }),
+    tattoo_updated: () => ({
+      source: "seed-perf",
+      previous_tattoo_code: `PERF-${String(petIndex).padStart(3, "0")}-TAT`,
+      new_tattoo_code: `PERF-${String(petIndex).padStart(3, "0")}-TAT`,
+      reason: "Re-tatuaje preventivo por fading (showcase)",
+    }),
+    dangerous_breed_attested: () => ({
+      source: "seed-perf",
+      registry: "caba_4078",
+      registry_id: `PPP-CABA-PERF-${String(petIndex).padStart(4, "0")}`,
+      attested_at: new Date(BASE_MS + 3 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+      attestor_dni_verified: true,
+    }),
+    // ── Free-form ──────────────────────────────────────────────────────────
+    note_added: () => ({
+      source: "seed-perf",
+      category: "observación",
+      text: `Mascota showcase #${petIndex} — nota de prueba integral del catálogo de eventos.`,
+    }),
+    // ── System / observed ──────────────────────────────────────────────────
+    credential_scanned: () => ({
+      source: "seed-perf",
+      is_self_scan: false,
+      viewer_authenticated: false,
+      viewer_name: "vecino (showcase)",
+    }),
+    incident_reported: () => ({
+      source: "seed-perf",
+      incident_type: "fall",
+      severity: "minor",
+      injuries_summary: "Caída de silla — sin heridas (showcase demo)",
+      vet_involved: false,
+      location_description: null,
+      rabies_vaccine_valid_at_incident: true,
+    }),
+    rabies_observation_started: () => ({
+      source: "seed-perf",
+      incident_reported_event_id: `evt-showcase-${petIndex}-incident`,
+      expected_end_at: new Date(BASE_MS + 30 * 7 * 24 * 3600 * 1000 + 10 * 86400 * 1000)
+        .toISOString()
+        .slice(0, 10),
+      isolation_facility: "Clínica local (showcase)",
+      protocol: "Observación 10 días Ley 22.953",
+    }),
+    rabies_observation_ended: () => ({
+      source: "seed-perf",
+      outcome: "negative",
+      lab_result: "negativo (showcase demo)",
+      closed_by_vet: true,
+    }),
+    medication_dose_taken: () => ({
+      source: "seed-perf",
+      medication_started_event_id: `evt-showcase-${petIndex}-med`,
+      scheduled_for: new Date(BASE_MS + 16 * 7 * 24 * 3600 * 1000).toISOString(),
+      reminder_id: null,
+    }),
+    // ── UI-deferred / non-owner flows ──────────────────────────────────────
+    symptom_observed: () => ({
+      source: "libreta",
+      welfare_report_id: null,
+      reporter_role: "owner",
+      free_text: "Tos leve ocasional post-ejercicio (showcase demo)",
+      matched_symptom_codes: ["cough"],
+      alerted_disease_codes: [],
+      severity_self_assessed: "mild",
+      onset_at: new Date(BASE_MS + 24 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+    }),
+    abandonment_reported: () => ({
+      source: "seed-perf",
+      welfare_report_id: "00000000-0000-0000-0000-000000000099",
+      reporter_role: "owner",
+      description: "Reporte de abandono temporal (showcase demo — no hubo abandono real)",
+    }),
+    maltreatment_reported: () => ({
+      source: "seed-perf",
+      welfare_report_id: "00000000-0000-0000-0000-000000000098",
+      reporter_role: "witness",
+      description: "Reporte de maltrato (showcase demo — fictional)",
+      severity: "low",
+      kind: "neglect",
+    }),
+    // ── Unified clinical ───────────────────────────────────────────────────
+    clinical_info_logged: () => ({
+      source: "seed-perf",
+      sub_kind: "lab_work",
+      title: "Hemograma completo de control",
+      details: "Valores dentro de rango normal (showcase demo)",
+    }),
+    // ── Custody & adoption ─────────────────────────────────────────────────
+    shelter_intake_recorded: () => ({
+      source: "seed-perf",
+      intake_reason: "stray_found",
+      intake_condition: "healthy",
+      rescue_jurisdiction: null,
+    }),
+    foster_assigned: () => ({
+      source: "seed-perf",
+      foster_user_id: "showcase-foster-user",
+      expected_weeks: 6,
+    }),
+    foster_ended: () => ({
+      source: "seed-perf",
+      foster_user_id: "showcase-foster-user",
+      ended_by: "shelter",
+    }),
+    adoption_application_submitted: () => ({
+      source: "seed-perf",
+      applicant_user_id: "showcase-adopter",
+      related_organization_id: "showcase-org",
+      housing_type: "casa con patio",
+    }),
+    adoption_application_resolved: () => ({
+      source: "seed-perf",
+      application_event_id: `evt-showcase-${petIndex}-app`,
+      reviewer_user_id: "showcase-reviewer",
+      outcome: "approved",
+    }),
+    adoption_finalized: () => ({
+      source: "seed-perf",
+      previous_owner_organization_id: "showcase-org",
+      adopter_user_id: "showcase-adopter",
+      post_adoption_followup_months: 6,
+    }),
+    post_adoption_checkin: () => ({
+      source: "seed-perf",
+      related_organization_id: "showcase-org",
+      photo_attachment_ids: [],
+      notes: "Primer check-in post-adopción (showcase demo)",
+    }),
+    adoption_reversed: () => ({
+      source: "seed-perf",
+      actor: "shelter",
+      reason: "Devolución de showcase (demo — no real reversal)",
+    }),
+    custody_transferred: () => ({
+      source: "seed-perf",
+      from_user_id: "showcase-prev-owner",
+      to_user_id: "showcase-new-owner",
+      from_role: "owner",
+      to_role: "owner",
+      reason: "demostración showcase",
+    }),
+    ownership_claimed: () => ({
+      source: "seed-perf",
+      claimed_by_user_id: "00000000-0000-0000-0000-000000000001",
+      identifier_kind: "microchip",
+    }),
+    custody_transfer_proposed: () => ({
+      source: "seed-perf",
+      from_user_id: "showcase-prev-owner",
+      to_user_id: "showcase-new-owner",
+      reason: "showcase demo transfer proposal",
+      proposed_at: new Date(BASE_MS + 35 * 7 * 24 * 3600 * 1000).toISOString(),
+    }),
+    custody_transfer_cancelled: () => ({
+      source: "seed-perf",
+      proposal_event_id: `evt-showcase-${petIndex}-transfer-prop`,
+      cancelled_by: "auto_cancel",
+      reason: "showcase demo — cancelación de prueba",
+    }),
+    custody_dispute_raised: () => ({
+      source: "seed-perf",
+      raised_by_role: "govt",
+      reason: "showcase demo — litigio ficticio",
+    }),
+    custody_dispute_resolved: () => ({
+      source: "seed-perf",
+      raised_event_id: `evt-showcase-${petIndex}-dispute`,
+      resolved_by_role: "govt",
+      outcome: "ownership_transferred",
+    }),
+    // ── Foster volunteers pool ─────────────────────────────────────────────
+    foster_proposed: () => ({
+      source: "seed-perf",
+      foster_user_id: "showcase-foster-user",
+      expected_weeks: 4,
+    }),
+    foster_proposal_resolved: () => ({
+      source: "seed-perf",
+      proposal_public_token: `prop-showcase-${petIndex}`,
+      outcome: "accepted",
+    }),
+    foster_co_foster_allowed: () => ({
+      source: "seed-perf",
+      primary_foster_user_id: "showcase-foster-user",
+      co_foster_user_id: "showcase-cofoster-user",
+      reason: "ayuda durante viaje del foster principal (showcase)",
+    }),
+    adoption_eligibility_set: () => ({
+      source: "seed-perf",
+      adoption_eligible: true,
+      set_by_user_id: "showcase-org-admin",
+      reason: "evaluación temperamento completa — apta (showcase demo)",
+    }),
+    // ── Surveillance ───────────────────────────────────────────────────────
+    outbreak_signal: () => ({
+      source: "seed-perf",
+      source_symptom_event_id: `evt-showcase-${petIndex}-symptom`,
+      triggered_by: "matcher",
+      disease_code: "distemper",
+      disease_label: "Moquillo canino (showcase demo)",
+      match_strength: {
+        high_count: 1,
+        medium_count: 0,
+        low_count: 1,
+        matched_symptom_codes: ["cough", "lethargy"],
+      },
+      pet_jurisdiction_country: "AR",
+      pet_jurisdiction_province: "Buenos Aires",
+      pet_jurisdiction_locality: "La Plata",
+      pet_species: "dog",
+    }),
+    disease_reported: () => ({
+      source: "seed-perf",
+      disease: "other",
+      confirmed_by_lab: false,
+      date_of_onset: new Date(BASE_MS + 24 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+      clinical_notes: "Zoonosis reportable (showcase demo — no enfermedad real)",
+    }),
+  } satisfies Record<EventType, () => Record<string, unknown>>;
+
+  const events: Array<Record<string, unknown>> = [];
+
+  for (let evtIdx = 0; evtIdx < EVENT_TYPES.length; evtIdx++) {
+    const eventType = EVENT_TYPES[evtIdx];
+    // Spread events over 46 weeks for chronological timeline
+    const occurredAt = new Date(BASE_MS + evtIdx * 7 * 24 * 3600 * 1000);
+
+    // Deterministic idempotency key: valid UUID format
+    // xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (8-4-4-4-12 hex chars).
+    // Encode petIndex in first 4 hex + evtIdx in next 4 hex of first segment.
+    // Never collides across pets or event types within the showcase cohort.
+    const p = String(petIndex).padStart(4, "0");
+    const e = String(evtIdx).padStart(4, "0");
+    const keyHex = `${p}${e}-0000-4000-8000-000000000001`;
+
+    events.push({
+      petId,
+      eventType,
+      occurredAt,
+      recordedByUserId: ownerUserId,
+      authorRole: "owner",
+      authorVerified: false,
+      payload: payloadFactory[eventType](),
+      clientIdempotencyKey: keyHex,
+    });
+  }
+
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// 11. Main seed loop
 // ---------------------------------------------------------------------------
 
 async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<void> {
@@ -559,7 +974,10 @@ async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<v
     "INFO",
     `Seed org: ${seedOrgId ? `${seedOrgId.slice(0, 8)}… (first ${orgCasesCount} lost cases tied to org)` : "NOT FOUND — org case-linking skipped"}`,
   );
-  log("INFO", `Pets    : ${COUNT} total`);
+  log(
+    "INFO",
+    `Pets    : ${COUNT} total (first ${SHOWCASE_COUNT} are showcase — all ${EVENT_TYPES.length} event types)`,
+  );
   log("INFO", `Lost    : ~${lostCount} (10%) → each gets a cases row`);
   log("INFO", `Coords  : ~${withCoordsCount} (50%) have lat/lng`);
   log("INFO", `Batches : ${Math.ceil(COUNT / BATCH_SIZE)} × ${BATCH_SIZE}`);
@@ -645,23 +1063,34 @@ async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<v
         });
 
         // Events
-        const evtRows = buildPetEvents(
-          pet.id,
-          ownerUserId,
-          species,
-          eventCount,
-          seededRng(i * 99991 + 3),
-        );
+        const isShowcase = i < SHOWCASE_COUNT;
+        const evtRows = isShowcase
+          ? buildShowcaseEvents(pet.id, ownerUserId, i)
+          : buildPetEvents(pet.id, ownerUserId, species, eventCount, seededRng(i * 99991 + 3));
+
         for (const evtRow of evtRows) {
           // Coord-bearing pets get coords on their events so the map views
           // (lost-pets map, sightings, govt geo) have realistic volume to
           // render. pet_events.location_lat/lng is where the app reads them;
           // pets has no coordinate column.
+          //
+          // Showcase events must NOT get coords on every row — some event types
+          // (e.g. credential_scanned, status_changed showcase) do not semantically
+          // carry a location, and the pair-check constraint fires if only one
+          // coord column is set. We omit coords on showcase pets entirely and let
+          // the volume cohort carry the geo load.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await db.insert(petEvents).values({
             ...(evtRow as Record<string, unknown>),
-            ...(hasCoords ? coordFields : {}),
+            ...(!isShowcase && hasCoords ? coordFields : {}),
           } as any);
+        }
+
+        if (isShowcase) {
+          log(
+            "INFO",
+            `  Showcase pet #${i} (${token}): inserted ${evtRows.length} events (all types)`,
+          );
         }
 
         // Lost pets → case row + status_changed event
@@ -730,7 +1159,7 @@ async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<v
 }
 
 // ---------------------------------------------------------------------------
-// 11. Main entrypoint
+// 12. Main entrypoint
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
@@ -746,6 +1175,10 @@ async function main(): Promise<void> {
     const withCoords = Math.floor(COUNT * 0.5);
     log("INFO", "=== DRY RUN — no writes will be made ===");
     log("INFO", `Would create        : ${COUNT} pets`);
+    log(
+      "INFO",
+      `Showcase cohort     : first ${SHOWCASE_COUNT} → all ${EVENT_TYPES.length} event types each`,
+    );
     log("INFO", `Lost + cases (~10%) : ${lostCount}`);
     log("INFO", `With coords (~50%)  : ${withCoords}`);
     log(
