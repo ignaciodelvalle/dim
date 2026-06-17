@@ -19,7 +19,7 @@
     },
     {
       "path": "/api/cron/close-rabies-observations",
-      "schedule": "0 */12 * * *"
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/cron/close-stale-lost-episodes",
@@ -43,11 +43,11 @@
     },
     {
       "path": "/api/cron/drain-outbox",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/process-eno-queue",
-      "schedule": "0 * * * *"
+      "schedule": "0 7 * * *"
     },
     {
       "path": "/api/cron/expire-pet-transfers",
@@ -55,7 +55,7 @@
     },
     {
       "path": "/api/cron/expire-decomiso-handoffs",
-      "schedule": "0 */12 * * *"
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/cron/materialize-slots",
