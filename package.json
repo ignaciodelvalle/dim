@@ -29,6 +29,7 @@
     "rebuild:projections": "tsx scripts/rebuild-projections.ts",
     "seed:test": "tsx scripts/seed-test-users.ts",
     "seed:perf": "tsx scripts/seed-perf.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
     "materialize:slots": "tsx scripts/materialize-slots.ts",
     "close:rabies-observations": "tsx scripts/close-rabies-observations.ts",
     "backfill:eno": "node --conditions=react-server --import tsx scripts/backfill-eno-trigger.ts",

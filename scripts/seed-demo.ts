@@ -45,6 +45,10 @@ loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
 const STATS_ONLY = process.argv.includes("--stats");
+// --allow-remote opts out of the local-only guard so the demo storylines can be
+// seeded into a remote (e.g. staging) project. NODE_ENV=production stays hard-
+// blocked. The seed is idempotent (every entity upserts on a stable key).
+const ALLOW_REMOTE = process.argv.includes("--allow-remote");
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
@@ -62,11 +66,17 @@ if (!STATS_ONLY) {
     console.error("Refusing to seed: NODE_ENV=production.");
     process.exit(2);
   }
-  if (!isLocalUrl(SUPABASE_URL) || !isLocalUrl(DATABASE_URL)) {
+  const isLocal = isLocalUrl(SUPABASE_URL) && isLocalUrl(DATABASE_URL);
+  if (!isLocal && !ALLOW_REMOTE) {
     console.error(
-      `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local.`,
+      `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local. Re-run with --allow-remote to seed a remote (e.g. staging) project.`,
     );
     process.exit(2);
+  }
+  if (!isLocal && ALLOW_REMOTE) {
+    console.warn(
+      `WARNING: --allow-remote in effect — seeding the demo dataset into a REMOTE project (${SUPABASE_URL}).`,
+    );
   }
 }
 
