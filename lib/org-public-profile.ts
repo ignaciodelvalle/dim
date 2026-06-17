@@ -10,7 +10,7 @@
 // that are not (verified AND orgType in shelter/rescue_network). Caller
 // passes the null straight to notFound().
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { db, organizations, profiles } from "@/db";
 
@@ -64,8 +64,15 @@ export async function queryOrgPublicProfile(orgToken: string): Promise<OrgPublic
       jurisdictionProvince: organizations.jurisdictionProvince,
       jurisdictionLocality: organizations.jurisdictionLocality,
       discloseAddress: organizations.discloseAddress,
-      latitude: organizations.latitude,
-      longitude: organizations.longitude,
+      // COALESCE reads canonical column first, falling back to legacy column.
+      // Output keys kept as latitude/longitude so OrgPublicProfile and consumers are
+      // unchanged (P3 DEPLOY 1 — backward-compatible read switch).
+      latitude: sql<
+        string | null
+      >`coalesce(${organizations.locationLat}, ${organizations.latitude})`,
+      longitude: sql<
+        string | null
+      >`coalesce(${organizations.locationLng}, ${organizations.longitude})`,
       email: organizations.email,
       phone: organizations.phone,
       website: organizations.website,

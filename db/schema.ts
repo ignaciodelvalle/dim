@@ -777,6 +777,11 @@ export const organizations = pgTable(
     donationMethods: jsonb("donation_methods"),
     latitude: numeric("latitude", { precision: 9, scale: 6 }),
     longitude: numeric("longitude", { precision: 9, scale: 6 }),
+    // Canonical coordinate columns added in migration 0101 (P3 location convergence, DEPLOY 1).
+    // These converge from the legacy latitude/longitude (9,6) and are dual-written alongside them.
+    // Old columns kept for backward compatibility — dropped in a later deploy.
+    locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
+    locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdByUserId: uuid("created_by_user_id").references(() => profiles.id, {
@@ -793,6 +798,10 @@ export const organizations = pgTable(
     coordinatesPairCheck: check(
       "organizations_coordinates_pair_check",
       sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`,
+    ),
+    locationPairCheck: check(
+      "organizations_location_pair_check",
+      sql`(${table.locationLat} IS NULL) = (${table.locationLng} IS NULL)`,
     ),
     organizationsJurisdictionProvinceCanonical: check(
       "organizations_jurisdiction_province_canonical",
@@ -3065,6 +3074,11 @@ export const cases = pgTable(
     primaryPetId: uuid("primary_pet_id").references(() => pets.id, { onDelete: "cascade" }),
     primaryLocationLat: numeric("primary_location_lat", { precision: 10, scale: 7 }),
     primaryLocationLng: numeric("primary_location_lng", { precision: 10, scale: 7 }),
+    // Canonical coordinate columns added in migration 0101 (P3 location convergence, DEPLOY 1).
+    // Dual-written alongside primary_location_lat/lng; reads COALESCE(location_lat, primary_location_lat).
+    // Old columns kept for backward compatibility — dropped in a later deploy.
+    locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
+    locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
 
     // Used by adoption_application — write-once at open. No FK because
     // applications live as pet_events rows (no dedicated table).
@@ -3173,6 +3187,10 @@ export const cases = pgTable(
     casesJurisdictionProvinceCanonical: check(
       "cases_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
+    casesLocationPairCheck: check(
+      "cases_location_pair_check",
+      sql`(${table.locationLat} IS NULL) = (${table.locationLng} IS NULL)`,
     ),
   }),
 );
