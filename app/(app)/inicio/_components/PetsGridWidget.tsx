@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { PetCard } from "@/components/PetCard";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { Pet } from "@/db";
 import type { DashboardPet } from "@/lib/owner-dashboard";
 import { petPhotoUrl } from "@/lib/storage";
@@ -23,15 +24,18 @@ export function PetsGridWidget({ pets }: { pets: DashboardPet[] }) {
         <div className="flex items-baseline justify-between">
           <h2 className="text-lg font-medium text-[var(--color-ln-ink)]">Mis mascotas</h2>
         </div>
-        <div className="border border-dashed border-[var(--color-ln-line-strong)] rounded-xl p-8 text-center space-y-3">
-          <p className="text-sm text-[var(--color-ln-ink-2)]">No tenés mascotas registradas.</p>
-          <Link
-            href="/mis-mascotas/nueva"
-            className="inline-block px-4 py-2 rounded-lg bg-[var(--color-ln-azul)] text-white text-sm font-medium"
-          >
-            Cargar una mascota
-          </Link>
-        </div>
+        <LnEmptyState
+          variant="dashed"
+          title="Todavía no cargaste ninguna mascota."
+          action={
+            <Link
+              href="/mis-mascotas/nueva"
+              className="inline-block px-4 py-2 rounded-lg bg-[var(--color-ln-azul)] text-white text-sm font-medium"
+            >
+              Agregar mi primera mascota
+            </Link>
+          }
+        />
       </section>
     );
   }

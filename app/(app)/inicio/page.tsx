@@ -234,7 +234,8 @@ export default async function InicioPage() {
             </LnRegistry>
           ) : (
             <LnEmptyState
-              title="No tenés mascotas registradas."
+              variant="dashed"
+              title="Todavía no cargaste ninguna mascota."
               action={
                 <Link href="/mis-mascotas/nueva">
                   <LnButton variant="primary" size="sm">

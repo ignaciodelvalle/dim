@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { LnButton } from "@/components/ui/Button";
 import { LnCallout, LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, welfareReports } from "@/db";
 import { formatDateTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
@@ -88,14 +89,11 @@ export default async function MisDenunciasPage() {
       </div>
 
       {reports.length === 0 ? (
-        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] px-[24px] py-[40px] text-center">
-          <p className="font-[var(--font-ln-serif)] text-[16px] text-[var(--color-ln-ink-2)]">
-            No hay denuncias en tu historial.
-          </p>
-          <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
-            Podés reportar maltrato, abandono u otras situaciones de riesgo para animales.
-          </p>
-        </div>
+        <LnEmptyState
+          variant="dashed"
+          title="Aún no enviaste denuncias."
+          description="Podés reportar maltrato, abandono u otras situaciones de riesgo para animales."
+        />
       ) : (
         <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
           {reports.map((report) => (

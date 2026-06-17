@@ -7,6 +7,7 @@ import Link from "next/link";
 import { AppointmentCard } from "@/components/AppointmentCard";
 import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 
@@ -88,11 +89,10 @@ export default async function MisTurnosPage() {
       </div>
 
       {rows.length === 0 && (
-        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
-          <p className="text-[13px] text-[var(--color-ln-mute)]">
-            Buscá un servicio disponible para reservar un turno.
-          </p>
-        </div>
+        <LnEmptyState
+          variant="dashed"
+          title="Reservá tu primer turno buscando un servicio disponible."
+        />
       )}
 
       <div className="flex flex-col gap-[32px]">

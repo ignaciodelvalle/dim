@@ -4,6 +4,7 @@
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, organizationMemberships } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -79,21 +80,19 @@ export default async function MembershipsPage() {
 
       {/* Empty state */}
       {membershipCount === 0 && (
-        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
-          <p className="text-[13px] text-[var(--color-ln-mute)]">
-            No tenés membresías de ninguna organización todavía.
-          </p>
-          <p className="mt-[8px] text-[12.5px] text-[var(--color-ln-mute)]">
-            Si querés crear una clínica, refugio o red de rescate,{" "}
+        <LnEmptyState
+          variant="dashed"
+          title="No tenés membresías de ninguna organización todavía."
+          description="Si querés crear una clínica, refugio o red de rescate, pasate a veterinario/a desde tu cuenta."
+          action={
             <Link
               href="/cuenta/upgrade"
               className="text-[var(--color-ln-azul)] no-underline hover:underline"
             >
-              pasate a veterinario/a
-            </Link>{" "}
-            desde tu cuenta.
-          </p>
-        </div>
+              Pasate a veterinario/a
+            </Link>
+          }
+        />
       )}
 
       {/* Memberships list */}

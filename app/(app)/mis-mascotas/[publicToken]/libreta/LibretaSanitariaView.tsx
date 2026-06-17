@@ -8,6 +8,7 @@
 
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnVaccineLedger, type LnVaccineRow } from "@/components/ui/Ledger";
 import { eventPayloadSummary } from "@/lib/events";
 import { formatDate } from "@/lib/format";
@@ -373,16 +374,10 @@ function ChronologicalView({
 
 function EmptyLibreta() {
   return (
-    <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
-      <p
-        className="font-[var(--font-ln-mono)] text-[12px] uppercase tracking-[.06em]"
-        style={{ color: "var(--color-ln-mute)" }}
-      >
-        Todavía no hay registros en esta libreta.
-      </p>
-      <p className="mt-[6px] text-[13px]" style={{ color: "var(--color-ln-mute)" }}>
-        Cuando agregues una vacuna, un peso o una visita al vet, va a aparecer acá.
-      </p>
-    </div>
+    <LnEmptyState
+      variant="dashed"
+      title="Todavía no hay registros en esta libreta."
+      description="Cuando agregues una vacuna, un peso o una visita al vet, va a aparecer acá."
+    />
   );
 }

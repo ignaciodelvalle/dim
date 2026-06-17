@@ -6,6 +6,7 @@ import Link from "next/link";
 import { sql } from "drizzle-orm";
 
 import { LnCallout } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 
@@ -265,20 +266,19 @@ export default async function MisPostulacionesPage({
       )}
 
       {applications.length === 0 ? (
-        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] px-[24px] py-[40px] text-center">
-          <p className="font-[var(--font-ln-serif)] text-[16px] text-[var(--color-ln-ink-2)]">
-            No hay postulaciones en tu historial.
-          </p>
-          <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
-            Encontrá mascotas que buscan hogar y postulate con un click.
-          </p>
-          <Link
-            href="/adoptar"
-            className="mt-[16px] inline-flex items-center rounded-[4px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[16px] py-[8px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-ok)] no-underline hover:opacity-80 transition-opacity"
-          >
-            Ver mascotas en adopción
-          </Link>
-        </div>
+        <LnEmptyState
+          variant="dashed"
+          title="Todavía no te postulaste para adoptar."
+          description="Encontrá mascotas que buscan hogar y postulate con un click."
+          action={
+            <Link
+              href="/adoptar"
+              className="inline-flex items-center rounded-[4px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[16px] py-[8px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-ok)] no-underline hover:opacity-80 transition-opacity"
+            >
+              Ver mascotas en adopción
+            </Link>
+          }
+        />
       ) : (
         <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
           {applications.map((app) => {

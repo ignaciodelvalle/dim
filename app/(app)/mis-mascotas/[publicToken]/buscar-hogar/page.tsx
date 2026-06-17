@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LnCallout } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
   db,
   organizationCoverage,
@@ -124,21 +125,24 @@ export default async function BuscarHogarPage({
       </div>
 
       {coveringOrgs.length === 0 ? (
-        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] px-[20px] py-[32px] text-center">
-          <p className="text-[13px] text-[var(--color-ln-mute)]">
-            {province
+        <LnEmptyState
+          variant="dashed"
+          title={
+            province
               ? `No encontramos refugios verificados en ${locality ?? province} registrados en el sistema. Podés contactar organizaciones directamente o pedir al refugio que hoy tiene a ${pet.name} que busque un voluntario.`
-              : `${pet.name} no tiene provincia registrada. Editá el perfil para poder buscar organizaciones cercanas.`}
-          </p>
-          {!province && (
-            <Link
-              href={`/mis-mascotas/${publicToken}/editar`}
-              className="mt-[12px] inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
-            >
-              Editar mascota →
-            </Link>
-          )}
-        </div>
+              : `${pet.name} no tiene provincia registrada. Editá el perfil para poder buscar organizaciones cercanas.`
+          }
+          action={
+            !province ? (
+              <Link
+                href={`/mis-mascotas/${publicToken}/editar`}
+                className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+              >
+                Editar mascota →
+              </Link>
+            ) : undefined
+          }
+        />
       ) : (
         <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
           {coveringOrgs.map((org) => (

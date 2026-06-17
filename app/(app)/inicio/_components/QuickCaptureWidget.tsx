@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { DashboardPet } from "@/lib/owner-dashboard";
 import { petPhotoUrl } from "@/lib/storage";
 
@@ -16,9 +17,7 @@ export function QuickCaptureWidget({ pets }: { pets: DashboardPet[] }) {
     return (
       <section className="space-y-3">
         <h2 className="text-lg font-medium text-[var(--color-ln-ink)]">Captura rápida</h2>
-        <div className="border border-dashed border-[var(--color-ln-line-strong)] rounded-xl p-6 text-center text-sm text-[var(--color-ln-mute)]">
-          Cargá una mascota para empezar a anotar eventos.
-        </div>
+        <LnEmptyState variant="dashed" title="Cargá una mascota para empezar a anotar eventos." />
       </section>
     );
   }

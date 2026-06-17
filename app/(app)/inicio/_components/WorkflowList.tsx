@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { WorkflowItem } from "@/lib/owner-dashboard";
 
 // Shared list-of-workflow-items renderer. Used by both OpenWorkflows
@@ -30,11 +31,7 @@ function formatDate(d: Date): string {
 
 export function WorkflowList({ items, emptyCopy }: { items: WorkflowItem[]; emptyCopy: string }) {
   if (items.length === 0) {
-    return (
-      <div className="border border-dashed border-[var(--color-ln-line-strong)] rounded-xl p-6 text-center text-sm text-[var(--color-ln-mute)]">
-        {emptyCopy}
-      </div>
-    );
+    return <LnEmptyState variant="dashed" title={emptyCopy} />;
   }
   return (
     <ul className="space-y-2">
