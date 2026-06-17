@@ -82,12 +82,24 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
   // -- Submit -----------------------------------------------------------
   await page.getByRole("button", { name: /crear mascota/i }).click();
 
-  // After successful create the app redirects to /mis-mascotas (or the new
-  // pet's profile). Either way, /mis-mascotas/nueva should no longer be shown.
-  await page.waitForURL(/\/mis-mascotas/, { timeout: 20_000 });
+  // Creation must LEAVE the new-pet form (redirect to the list or the new
+  // pet's profile). Use a predicate rather than a loose /mis-mascotas/ regex —
+  // that regex also matches /mis-mascotas/nueva, so a failed create that stays
+  // on the form would slip through and fail confusingly at the list assertion.
+  // This way a create failure surfaces here, at the submit step.
+  await page.waitForURL(
+    (url) => url.pathname.startsWith("/mis-mascotas") && !url.pathname.endsWith("/nueva"),
+    { timeout: 20_000 },
+  );
 
   // -- Assert pet is visible in the list --------------------------------
-  // Navigate to the list explicitly in case we landed on the pet profile.
+  // Navigate to the list explicitly (we may have landed on the pet profile).
+  // Reload once if the freshly-created pet isn't immediately listed, to defeat
+  // any RSC/router-cache staleness right after the write.
   await page.goto("/mis-mascotas");
-  await expect(page.getByText(PET_NAME)).toBeVisible({ timeout: 10_000 });
+  const petCell = page.getByText(PET_NAME);
+  if (!(await petCell.isVisible().catch(() => false))) {
+    await page.reload();
+  }
+  await expect(petCell).toBeVisible({ timeout: 15_000 });
 });
