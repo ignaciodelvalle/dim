@@ -1,3 +1,4 @@
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { searchFosterVolunteers } from "@/src/modules/foster/actions";
@@ -163,9 +164,7 @@ export default async function VoluntariosPage({
       </form>
 
       {result.rows.length === 0 && (
-        <p className="py-8 text-center text-[13px] text-ln-op-mute">
-          No hay voluntarios que coincidan.
-        </p>
+        <LnEmptyState icon="usuarios" title="No hay voluntarios que coincidan." />
       )}
 
       <ul className="space-y-2">

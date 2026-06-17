@@ -15,6 +15,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { CaseBadge } from "@/components/CaseBadge";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { EventType } from "@/db/schema";
 import { canReadCase } from "@/lib/case-access";
 import { getNormativesForCase } from "@/lib/case-normatives";
@@ -255,9 +256,7 @@ export default async function CaseDetailPage({ params }: PageProps) {
           Línea de tiempo
         </h3>
         {detail.events.length === 0 ? (
-          <p className="text-[13px] text-[var(--color-ln-mute)]">
-            Todavía no hay eventos registrados en este caso.
-          </p>
+          <LnEmptyState icon="nota" title="Todavía no hay eventos registrados en este caso." />
         ) : (
           <ol className="space-y-3">
             {detail.events.map((e) => (

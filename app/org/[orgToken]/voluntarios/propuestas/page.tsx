@@ -1,3 +1,4 @@
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, fosterProposals, organizations, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { desc, eq } from "drizzle-orm";
@@ -90,7 +91,7 @@ export default async function OrgPropuestasPage({
       </div>
 
       {filtered.length === 0 ? (
-        <p className="py-8 text-center text-[13px] text-ln-op-mute">No hay propuestas.</p>
+        <LnEmptyState icon="propuesta" title="No hay propuestas." />
       ) : (
         <ul className="space-y-2">
           {filtered.map(({ proposal, pet, volunteer }) => (

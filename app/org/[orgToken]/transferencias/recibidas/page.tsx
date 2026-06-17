@@ -20,6 +20,7 @@
 import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { cases, db, organizations, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
@@ -189,9 +190,10 @@ export default async function OrgTransferenciasEntrantesPage({
       </nav>
 
       {allRows.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          No tenés propuestas de transferencia entrantes.
-        </p>
+        <LnEmptyState
+          icon="transferencia"
+          title="No tenés propuestas de transferencia entrantes."
+        />
       ) : (
         <OpCard>
           <OpCardBody className="p-0">

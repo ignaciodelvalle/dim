@@ -8,6 +8,7 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { db, organizationMemberships, pets, welfareReports } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
@@ -208,11 +209,14 @@ export default async function OrgMaltratoRecibidosPage({
       </p>
 
       {rows.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          {activeTab === "recibidos"
-            ? "Todavía no se derivó ninguna denuncia a esta organización."
-            : "Tu organización todavía no emitió denuncias profesionales."}
-        </p>
+        <LnEmptyState
+          icon="denuncia"
+          title={
+            activeTab === "recibidos"
+              ? "Todavía no se derivó ninguna denuncia a esta organización."
+              : "Tu organización todavía no emitió denuncias profesionales."
+          }
+        />
       ) : (
         <OpCard>
           <OpCardBody className="p-0">

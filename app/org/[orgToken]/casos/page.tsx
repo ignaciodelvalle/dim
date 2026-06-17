@@ -16,6 +16,7 @@
 import Link from "next/link";
 
 import { CaseBadge } from "@/components/CaseBadge";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { listCaseKindDistributionForOrg, listCasesForOrg } from "@/lib/case-queries";
@@ -113,11 +114,14 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
       )}
 
       {items.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          {presentKinds.length === 0 && !activeKind && !activeStatus
-            ? "Sin casos abiertos ni cerrados por ahora."
-            : "Ningún caso coincide con los filtros seleccionados."}
-        </p>
+        <LnEmptyState
+          icon="solicitud"
+          title={
+            presentKinds.length === 0 && !activeKind && !activeStatus
+              ? "Sin casos abiertos ni cerrados por ahora."
+              : "Ningún caso coincide con los filtros seleccionados."
+          }
+        />
       ) : (
         <OpCard>
           <OpCardHead

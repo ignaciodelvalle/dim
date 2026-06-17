@@ -7,6 +7,7 @@
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -45,10 +46,11 @@ export default async function GobServiciosPage() {
             </p>
             <h1 className="text-[22px] font-semibold text-ln-op-ink">Servicios pendientes</h1>
           </header>
-          <p className="text-[13px] text-ln-op-mute">
-            No tenes localidades asignadas. Contacta a un administrador para recibir cobertura
-            jurisdiccional.
-          </p>
+          <LnEmptyState
+            icon="usuarios"
+            title="Sin localidades asignadas"
+            description="No tenés localidades asignadas. Contactá a un administrador para recibir cobertura jurisdiccional."
+          />
         </div>
       );
     }
@@ -97,9 +99,10 @@ export default async function GobServiciosPage() {
       </header>
 
       {pendingOfferings.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute">
-          Cuando lleguen nuevas solicitudes vas a verlas aca.
-        </p>
+        <LnEmptyState
+          title="No hay servicios pendientes de revisión"
+          description="Cuando lleguen nuevas solicitudes vas a verlas acá."
+        />
       ) : (
         <ul className="space-y-2">
           {pendingOfferings.map(({ offering, org, provider }) => {

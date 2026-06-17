@@ -2,6 +2,7 @@
 // Server component — receives the pre-computed summary from the page.
 // `windowDays` labels the total column (the fetch window); defaults to 30.
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { DiseaseSummary } from "@/lib/govt-dashboards";
 
 export function DiseaseSummaryTable({
@@ -13,9 +14,10 @@ export function DiseaseSummaryTable({
 }) {
   if (summary.length === 0) {
     return (
-      <p className="text-[13px] text-ln-op-mute">
-        No hay señales en los últimos {windowDays} días en tu cobertura.
-      </p>
+      <LnEmptyState
+        icon="shield-check"
+        title={`No hay señales en los últimos ${windowDays} días en tu cobertura.`}
+      />
     );
   }
   return (

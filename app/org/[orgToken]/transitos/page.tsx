@@ -5,6 +5,7 @@
 import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { db, fosterProposals, organizationMemberships, ownerships, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
@@ -156,9 +157,7 @@ export default async function OrgTransitosPage({
       )}
 
       {activeTab === "historial" && fosters.length === 0 && (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          Todavía no hay tránsitos finalizados.
-        </p>
+        <LnEmptyState icon="huella" title="Todavía no hay tránsitos finalizados." />
       )}
 
       {fosters.length > 0 && activeTab === "activos" && (

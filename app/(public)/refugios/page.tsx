@@ -8,6 +8,8 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
+
 import { db, organizations } from "@/db";
 import { PROVINCES } from "@/lib/ar-provincias";
 
@@ -87,9 +89,7 @@ export default async function RefugiosIndexPage() {
         </header>
 
         {rows.length === 0 ? (
-          <p className="text-[14px] text-[var(--color-ln-mute)] py-10 text-center">
-            No hay refugios verificados registrados todavía.
-          </p>
+          <LnEmptyState icon="edificio" title="No hay refugios verificados registrados todavía." />
         ) : (
           <div className="space-y-10">
             {sortedProvinces.map((province) => {
