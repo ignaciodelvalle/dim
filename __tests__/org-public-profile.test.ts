@@ -13,7 +13,17 @@ const TOKEN_VERIFIED_SHELTER = "DIM-PUB-VFD1";
 const TOKEN_VERIFIED_RESCUE = "DIM-PUB-VFD2";
 const TOKEN_UNVERIFIED = "DIM-PUB-UNVF";
 const TOKEN_CLINIC = "DIM-PUB-CLIN";
-const ALL_TOKENS = [TOKEN_VERIFIED_SHELTER, TOKEN_VERIFIED_RESCUE, TOKEN_UNVERIFIED, TOKEN_CLINIC];
+// P3 COALESCE read fallback tokens
+const TOKEN_NEW_COLS = "DIM-PUB-NCL1"; // only location_lat/location_lng set
+const TOKEN_LEGACY_COLS = "DIM-PUB-LCL1"; // only latitude/longitude set (legacy shape)
+const ALL_TOKENS = [
+  TOKEN_VERIFIED_SHELTER,
+  TOKEN_VERIFIED_RESCUE,
+  TOKEN_UNVERIFIED,
+  TOKEN_CLINIC,
+  TOKEN_NEW_COLS,
+  TOKEN_LEGACY_COLS,
+];
 
 beforeAll(async () => {
   // Clean up any leftovers.
@@ -62,6 +72,32 @@ beforeAll(async () => {
       orgType: "clinic",
       email: "clin@dim-test.local",
       verified: true,
+    },
+    // P3 COALESCE read fallback fixture: only canonical columns set (new shape).
+    {
+      publicToken: TOKEN_NEW_COLS,
+      legalName: "Refugio Solo Canonico SRL",
+      displayName: "Solo Canonico",
+      orgType: "shelter",
+      email: "ncl1@dim-test.local",
+      verified: true,
+      discloseAddress: true,
+      // latitude/longitude left null — canonical columns only
+      locationLat: "-34.7000000",
+      locationLng: "-58.5000000",
+    },
+    // P3 COALESCE read fallback fixture: only legacy columns set (old shape).
+    {
+      publicToken: TOKEN_LEGACY_COLS,
+      legalName: "Refugio Solo Legacy SRL",
+      displayName: "Solo Legacy",
+      orgType: "shelter",
+      email: "lcl1@dim-test.local",
+      verified: true,
+      discloseAddress: true,
+      latitude: "-34.8000000",
+      longitude: "-58.6000000",
+      // locationLat/locationLng left null (legacy-only row, simulating pre-backfill state)
     },
   ]);
 });
@@ -126,5 +162,21 @@ describe("queryOrgPublicProfile — projection shape", () => {
   it("verifiedBy is null when verified_by_user_id is null (default)", async () => {
     const profile = await queryOrgPublicProfile(TOKEN_VERIFIED_SHELTER);
     expect(profile?.verifiedBy).toBeNull();
+  });
+});
+
+describe("queryOrgPublicProfile — P3 COALESCE read fallback (migration 0101)", () => {
+  it("projects lat/lng from canonical columns when only location_lat/location_lng are set", async () => {
+    const profile = await queryOrgPublicProfile(TOKEN_NEW_COLS);
+    expect(profile).not.toBeNull();
+    expect(profile?.latitude).toBeCloseTo(-34.7, 5);
+    expect(profile?.longitude).toBeCloseTo(-58.5, 5);
+  });
+
+  it("projects lat/lng from legacy columns when only latitude/longitude are set", async () => {
+    const profile = await queryOrgPublicProfile(TOKEN_LEGACY_COLS);
+    expect(profile).not.toBeNull();
+    expect(profile?.latitude).toBeCloseTo(-34.8, 5);
+    expect(profile?.longitude).toBeCloseTo(-58.6, 5);
   });
 });
