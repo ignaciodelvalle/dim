@@ -94,7 +94,7 @@ const warmSwatches: Swatch[] = [
     name: "ln-mute",
     varName: "--color-ln-mute",
     tailwindClass: "bg-ln-mute",
-    hex: "#6e7b84",
+    hex: "#616e77",
     onColor: "light",
     note: "Muted text",
   },
