@@ -47,6 +47,10 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const DATABASE_URL = process.env.DATABASE_URL ?? "";
 
 const isLocalUrl = (u: string) => u.includes("127.0.0.1") || u.includes("localhost");
+// --allow-remote opts out of the local-only guard so the test accounts can be
+// seeded into a remote (e.g. staging) project. NODE_ENV=production stays hard-
+// blocked regardless. This script is idempotent (skips already-existing users).
+const ALLOW_REMOTE = process.argv.slice(2).includes("--allow-remote");
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   console.error(
@@ -58,11 +62,17 @@ if (process.env.NODE_ENV === "production") {
   console.error("Refusing to seed: NODE_ENV=production.");
   process.exit(2);
 }
-if (!isLocalUrl(SUPABASE_URL) || !isLocalUrl(DATABASE_URL)) {
+const isLocal = isLocalUrl(SUPABASE_URL) && isLocalUrl(DATABASE_URL);
+if (!isLocal && !ALLOW_REMOTE) {
   console.error(
-    `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local.`,
+    `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local. Re-run with --allow-remote to seed a remote (e.g. staging) project.`,
   );
   process.exit(2);
+}
+if (!isLocal && ALLOW_REMOTE) {
+  console.warn(
+    `WARNING: --allow-remote in effect — seeding test users into a REMOTE project (${SUPABASE_URL}).`,
+  );
 }
 
 // ---------------------------------------------------------------------------
