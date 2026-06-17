@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { logoutAction } from "@/app/actions/auth";
 import { GOB_NAV } from "@/components/layout/nav-presets";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -41,9 +42,16 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
             Ir a Admin →
           </Link>
         )}
-        <Link href="/mis-mascotas" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
-          ← Salir
-        </Link>
+        {/* Logout — institutional roles are bounced out of /mis-mascotas and
+            /cuenta by the (app) layout, so the portal must own its sign-out. */}
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="cursor-pointer border-0 bg-transparent p-0 text-xs text-ln-op-mute hover:text-ln-op-ink"
+          >
+            Cerrar sesión →
+          </button>
+        </form>
       </div>
     </div>
   );
