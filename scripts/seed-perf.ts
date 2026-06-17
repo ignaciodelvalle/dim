@@ -395,10 +395,13 @@ async function findAuthUserIdByEmail(supabase: any, email: string): Promise<stri
 // ---------------------------------------------------------------------------
 
 async function findSeedOrgId(): Promise<string | null> {
+  // createOrganizationForUser (app/actions/upgrade.ts) strips dashes from the
+  // CUIT before storing, so seed-test-users' "30-99999999-9" lands as
+  // "30999999999". Look it up in that normalized form.
   const [org] = await db
     .select({ id: organizations.id })
     .from(organizations)
-    .where(eq(organizations.cuit, "30-99999999-9"))
+    .where(eq(organizations.cuit, "30999999999"))
     .limit(1);
   return org?.id ?? null;
 }
