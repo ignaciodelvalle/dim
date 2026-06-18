@@ -1,6 +1,10 @@
 // Role-specific nav presets for Sidebar and AppHeader.
 // Pure module — no side effects, no React, no async.
+// Gobierno and Admin nav use grouped NavSection[] (sections model).
+// Legacy flat exports (GOB_NAV / ADMIN_NAV) are preserved for existing
+// tests and callers that reference specific items by href.
 
+import type { NavSection } from "@/components/ui/dashboard";
 import type { NavItem } from "./HeaderNav";
 
 // ---------------------------------------------------------------------------
@@ -141,70 +145,124 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavItem
 
 // ---------------------------------------------------------------------------
 // Gobierno (/gob)
-// Preserves all top-level routes from app/gob/layout.tsx.
+// Sections model: grouped NavSection[]. GOB_NAV (flat) is derived from
+// GOB_NAV_SECTIONS and kept for backward compatibility with existing tests.
+// NOTE: /gob/mortalidad is intentionally absent — Item 2 not merged yet.
 // ---------------------------------------------------------------------------
 
-// Primary 7 match design spec (Panel · Cola · Vigilancia · Casos · Reglas · Catálogo · Histórico).
-// Additional routes kept for completeness; sidebar renders all items but the spec's 7
-// primaries are ordered first.
-export const GOB_NAV: NavItem[] = [
-  { href: "/gob", label: "Panel" },
-  { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
-  { href: "/gob/vigilancia", label: "Vigilancia", matchPrefix: "/gob/vigilancia" },
-  { href: "/gob/casos", label: "Casos", matchPrefix: "/gob/casos" },
-  { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
-  { href: "/gob/servicios", label: "Catálogo", matchPrefix: "/gob/servicios" },
-  { href: "/gob/historial", label: "Histórico", matchPrefix: "/gob/historial" },
-  { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
-  { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
+export const GOB_NAV_SECTIONS: NavSection[] = [
+  // Unlabeled — the Panel root link sits alone above the groups.
   {
-    href: "/gob/organizaciones",
-    label: "Organizaciones",
-    matchPrefix: "/gob/organizaciones",
+    label: "",
+    items: [{ href: "/gob", label: "Panel" }],
   },
-  { href: "/gob/perdidas", label: "Pérdidas", matchPrefix: "/gob/perdidas" },
-  { href: "/gob/disputas", label: "Disputas", matchPrefix: "/gob/disputas" },
-  { href: "/gob/maltrato", label: "Maltrato", matchPrefix: "/gob/maltrato" },
-  { href: "/gob/decomisos", label: "Decomisos", matchPrefix: "/gob/decomisos" },
+  {
+    label: "Vigilancia sanitaria",
+    items: [
+      { href: "/gob/vigilancia", label: "Vigilancia", matchPrefix: "/gob/vigilancia" },
+      { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
+    ],
+  },
+  {
+    label: "Casos y cumplimiento",
+    items: [
+      { href: "/gob/casos", label: "Casos", matchPrefix: "/gob/casos" },
+      { href: "/gob/maltrato", label: "Maltrato", matchPrefix: "/gob/maltrato" },
+      { href: "/gob/decomisos", label: "Decomisos", matchPrefix: "/gob/decomisos" },
+      { href: "/gob/disputas", label: "Disputas", matchPrefix: "/gob/disputas" },
+      { href: "/gob/perdidas", label: "Pérdidas", matchPrefix: "/gob/perdidas" },
+    ],
+  },
+  {
+    label: "Registro y aprobaciones",
+    items: [
+      { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
+      { href: "/gob/organizaciones", label: "Organizaciones", matchPrefix: "/gob/organizaciones" },
+      { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
+      { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
+    ],
+  },
+  {
+    label: "Referencia",
+    items: [
+      { href: "/gob/servicios", label: "Catálogo", matchPrefix: "/gob/servicios" },
+      { href: "/gob/historial", label: "Histórico", matchPrefix: "/gob/historial" },
+    ],
+  },
 ];
+
+/** Flat derived list — use where a NavItem[] is required (e.g. mobile drawer). */
+export const GOB_NAV_FLAT: NavItem[] = GOB_NAV_SECTIONS.flatMap((s) => s.items);
+
+/**
+ * Backward-compatible flat constant kept for existing tests and any caller
+ * that imports GOB_NAV directly.
+ */
+export const GOB_NAV: NavItem[] = GOB_NAV_FLAT;
 
 // ---------------------------------------------------------------------------
 // Admin (/admin)
-// Preserves all top-level routes from app/admin/layout.tsx.
-// The outbox badge is rendered separately in the meta-strip (not via NavItem)
-// because its value is async and context-dependent.
+// Sections model: grouped NavSection[]. ADMIN_NAV (flat) is derived from
+// ADMIN_NAV_SECTIONS and kept for backward compatibility.
+// The outbox badge is injected at runtime in app/admin/layout.tsx by mapping
+// over ADMIN_NAV_SECTIONS directly — not stored here.
 // ---------------------------------------------------------------------------
 
-export const ADMIN_NAV: NavItem[] = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/cola", label: "Cola", matchPrefix: "/admin/cola" },
-  { href: "/admin/usuarios", label: "Usuarios", matchPrefix: "/admin/usuarios" },
+export const ADMIN_NAV_SECTIONS: NavSection[] = [
+  // Unlabeled — the Dashboard root link sits alone above the groups.
   {
-    href: "/admin/organizaciones",
-    label: "Organizaciones",
-    matchPrefix: "/admin/organizaciones",
-  },
-  { href: "/admin/historial", label: "Historial", matchPrefix: "/admin/historial" },
-  { href: "/admin/auditoria", label: "Auditoría", matchPrefix: "/admin/auditoria" },
-  { href: "/admin/outbox", label: "Outbox", matchPrefix: "/admin/outbox" },
-  { href: "/admin/sistema", label: "Sistema", matchPrefix: "/admin/sistema" },
-  { href: "/admin/govts", label: "Govts", matchPrefix: "/admin/govts" },
-  { href: "/admin/admins", label: "Admins", matchPrefix: "/admin/admins" },
-  { href: "/admin/servicios", label: "Servicios", matchPrefix: "/admin/servicios" },
-  {
-    href: "/admin/observaciones",
-    label: "Observaciones",
-    matchPrefix: "/admin/observaciones",
+    label: "",
+    items: [{ href: "/admin", label: "Dashboard" }],
   },
   {
-    href: "/admin/moderacion",
-    label: "Moderación",
-    matchPrefix: "/admin/moderacion",
+    label: "Operaciones",
+    items: [
+      { href: "/admin/cola", label: "Cola", matchPrefix: "/admin/cola" },
+      { href: "/admin/casos", label: "Casos", matchPrefix: "/admin/casos" },
+      { href: "/admin/moderacion", label: "Moderación", matchPrefix: "/admin/moderacion" },
+      { href: "/admin/observaciones", label: "Observaciones", matchPrefix: "/admin/observaciones" },
+    ],
   },
-  { href: "/admin/casos", label: "Casos", matchPrefix: "/admin/casos" },
   {
-    href: "/admin/jurisdicciones",
-    label: "Jurisdicciones",
-    matchPrefix: "/admin/jurisdicciones",
+    label: "Confiabilidad",
+    items: [
+      { href: "/admin/sistema", label: "Sistema", matchPrefix: "/admin/sistema" },
+      { href: "/admin/outbox", label: "Outbox", matchPrefix: "/admin/outbox" },
+      { href: "/admin/auditoria", label: "Auditoría", matchPrefix: "/admin/auditoria" },
+    ],
+  },
+  {
+    label: "Identidad y acceso",
+    items: [
+      { href: "/admin/usuarios", label: "Usuarios", matchPrefix: "/admin/usuarios" },
+      { href: "/admin/govts", label: "Govts", matchPrefix: "/admin/govts" },
+      { href: "/admin/admins", label: "Admins", matchPrefix: "/admin/admins" },
+      {
+        href: "/admin/organizaciones",
+        label: "Organizaciones",
+        matchPrefix: "/admin/organizaciones",
+      },
+    ],
+  },
+  {
+    label: "Gobernanza",
+    items: [
+      {
+        href: "/admin/jurisdicciones",
+        label: "Jurisdicciones",
+        matchPrefix: "/admin/jurisdicciones",
+      },
+      { href: "/admin/historial", label: "Historial", matchPrefix: "/admin/historial" },
+      { href: "/admin/servicios", label: "Servicios", matchPrefix: "/admin/servicios" },
+    ],
   },
 ];
+
+/** Flat derived list — use where a NavItem[] is required (e.g. mobile drawer or badge injection). */
+export const ADMIN_NAV_FLAT: NavItem[] = ADMIN_NAV_SECTIONS.flatMap((s) => s.items);
+
+/**
+ * Backward-compatible flat constant kept for existing tests and any caller
+ * that imports ADMIN_NAV directly.
+ */
+export const ADMIN_NAV: NavItem[] = ADMIN_NAV_FLAT;
