@@ -11,6 +11,7 @@ import {
   OWNER_NAV,
   PUBLIC_NAV,
   buildOrgNav,
+  buildOrgNavFlat,
 } from "./nav-presets";
 
 const ALL_GATED_CAPS = new Set(["intake.create", "adoption.review", "capability.grant"]);
@@ -43,24 +44,57 @@ describe("PUBLIC_NAV", () => {
   });
 });
 
-describe("buildOrgNav", () => {
+describe("buildOrgNav (section structure)", () => {
+  it("returns an array of NavSection objects (not flat NavItem[])", () => {
+    const result = buildOrgNav("ORG-ABC");
+    expect(Array.isArray(result)).toBe(true);
+    // Each element must have a `label` string and `items` array (NavSection shape).
+    for (const section of result) {
+      expect(typeof section.label).toBe("string");
+      expect(Array.isArray(section.items)).toBe(true);
+    }
+  });
+
+  it("returns exactly 5 sections when all gated capabilities are granted", () => {
+    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    expect(sections).toHaveLength(5);
+  });
+
+  it("section labels are Operación, Animales, Adopciones, Casos, Administración (in order)", () => {
+    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    expect(sections.map((s) => s.label)).toEqual([
+      "Operación",
+      "Animales",
+      "Adopciones",
+      "Casos",
+      "Administración",
+    ]);
+  });
+
+  it("first section is Operación", () => {
+    const [first] = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    expect(first.label).toBe("Operación");
+  });
+});
+
+describe("buildOrgNavFlat", () => {
   it("produces 14 membership-only items when no capabilities are passed", () => {
-    expect(buildOrgNav("ORG-ABC")).toHaveLength(14);
+    expect(buildOrgNavFlat("ORG-ABC")).toHaveLength(14);
   });
 
   it("produces 17 items when all gated capabilities are granted", () => {
-    expect(buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS })).toHaveLength(17);
+    expect(buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS })).toHaveLength(17);
   });
 
   it("hides Ingresos, Check-ins and Permisos without their capabilities", () => {
-    const labels = buildOrgNav("ORG-ABC").map((i) => i.label);
+    const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
     expect(labels).not.toContain("Ingresos");
     expect(labels).not.toContain("Check-ins");
     expect(labels).not.toContain("Permisos");
   });
 
   it("shows each gated item only with its own capability", () => {
-    const intakeOnly = buildOrgNav("ORG-ABC", { granted: new Set(["intake.create"]) }).map(
+    const intakeOnly = buildOrgNavFlat("ORG-ABC", { granted: new Set(["intake.create"]) }).map(
       (i) => i.label,
     );
     expect(intakeOnly).toContain("Ingresos");
@@ -68,8 +102,8 @@ describe("buildOrgNav", () => {
     expect(intakeOnly).not.toContain("Permisos");
   });
 
-  it("contains the previously missing membership-level sections", () => {
-    const labels = buildOrgNav("ORG-ABC").map((i) => i.label);
+  it("contains the previously missing membership-level items", () => {
+    const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
     expect(labels).toContain("Tránsitos");
     expect(labels).toContain("Voluntarios");
     expect(labels).toContain("Transferencias");
@@ -78,52 +112,52 @@ describe("buildOrgNav", () => {
   });
 
   it("Mordeduras entry points to the report form (no index page under /mordedura)", () => {
-    const items = buildOrgNav("ORG-ABC");
+    const items = buildOrgNavFlat("ORG-ABC");
     const mordeduras = items.find((i) => i.label === "Mordeduras");
     expect(mordeduras?.href).toBe("/org/ORG-ABC/mordedura/nuevo");
     expect(mordeduras?.matchPrefix).toBe("/org/ORG-ABC/mordedura");
   });
 
   it("Permisos entry points to /admin/permisos and highlights the /admin segment", () => {
-    const items = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const items = buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS });
     const permisos = items.find((i) => i.label === "Permisos");
     expect(permisos?.href).toBe("/org/ORG-ABC/admin/permisos");
     expect(permisos?.matchPrefix).toBe("/org/ORG-ABC/admin");
   });
 
   it("does not leak requiredCapability into the returned NavItem objects", () => {
-    const items = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const items = buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS });
     for (const item of items) {
       expect("requiredCapability" in item).toBe(false);
     }
   });
 
   it("does not contain an equipo entry (broken nav — ADR-4: no roadmap signal → remove)", () => {
-    const hrefs = buildOrgNav("ORG-ABC").map((i) => i.href);
+    const hrefs = buildOrgNavFlat("ORG-ABC").map((i) => i.href);
     expect(hrefs).not.toContain("/org/ORG-ABC/equipo");
   });
 
   it("all hrefs start with /org/<orgToken>/... (or are the exact panel root)", () => {
-    const items = buildOrgNav("ORG-ABC");
+    const items = buildOrgNavFlat("ORG-ABC");
     for (const item of items) {
       expect(item.href).toMatch(/^\/org\/ORG-ABC/);
     }
   });
 
   it("uses the provided orgToken in every href", () => {
-    const items = buildOrgNav("MY-ORG-42");
+    const items = buildOrgNavFlat("MY-ORG-42");
     for (const item of items) {
       expect(item.href).toContain("MY-ORG-42");
     }
   });
 
   it("panel item href is exactly /org/<orgToken> (no trailing slash)", () => {
-    const [panel] = buildOrgNav("ORG-ABC");
+    const [panel] = buildOrgNavFlat("ORG-ABC");
     expect(panel.href).toBe("/org/ORG-ABC");
   });
 
   it("contains Agenda, Mascotas, Servicios, Operaciones, Miembros, Cobertura, Configuración, Maltrato entries", () => {
-    const labels = buildOrgNav("ORG-ABC").map((i) => i.label);
+    const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
     expect(labels).toContain("Agenda");
     expect(labels).toContain("Mascotas");
     expect(labels).toContain("Servicios");
@@ -135,28 +169,28 @@ describe("buildOrgNav", () => {
   });
 
   it("Cobertura entry points to /org/<orgToken>/cobertura", () => {
-    const items = buildOrgNav("ORG-ABC");
+    const items = buildOrgNavFlat("ORG-ABC");
     const cobertura = items.find((i) => i.label === "Cobertura");
     expect(cobertura).toBeDefined();
     expect(cobertura?.href).toBe("/org/ORG-ABC/cobertura");
   });
 
   it("Configuración entry points to /org/<orgToken>/configuracion", () => {
-    const items = buildOrgNav("ORG-ABC");
+    const items = buildOrgNavFlat("ORG-ABC");
     const config = items.find((i) => i.label === "Configuración");
     expect(config).toBeDefined();
     expect(config?.href).toBe("/org/ORG-ABC/configuracion");
   });
 
   it("Maltrato entry points to /org/<orgToken>/maltrato/recibidos", () => {
-    const items = buildOrgNav("ORG-ABC");
+    const items = buildOrgNavFlat("ORG-ABC");
     const maltrato = items.find((i) => i.label === "Maltrato");
     expect(maltrato).toBeDefined();
     expect(maltrato?.href).toBe("/org/ORG-ABC/maltrato/recibidos");
   });
 
   it("Maltrato entry matchPrefix covers /org/<orgToken>/maltrato (highlights both recibidos and nuevo)", () => {
-    const items = buildOrgNav("ORG-ABC");
+    const items = buildOrgNavFlat("ORG-ABC");
     const maltrato = items.find((i) => i.label === "Maltrato");
     expect(maltrato?.matchPrefix).toBe("/org/ORG-ABC/maltrato");
   });
@@ -403,5 +437,93 @@ describe("ADMIN_NAV_FLAT — derived flat list", () => {
     for (const href of ADMIN_HREF_SNAPSHOT) {
       expect(flatHrefs).toContain(href);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildOrgNav — grouped NavSection[] invariants (Item 1 PR2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Frozen href snapshot: the FULL set of org hrefs with ALL capabilities granted.
+ * Hard-coded so a dropped href shrinks the sections union but NOT this set —
+ * the invariant test genuinely catches membership regressions (non-tautological).
+ * 17 hrefs total (14 ungated + 3 gated).
+ */
+const ORG_HREF_SNAPSHOT = new Set([
+  "/org/ORG-ABC",
+  "/org/ORG-ABC/agenda",
+  "/org/ORG-ABC/intake",
+  "/org/ORG-ABC/transitos",
+  "/org/ORG-ABC/voluntarios",
+  "/org/ORG-ABC/mascotas",
+  "/org/ORG-ABC/transferencias",
+  "/org/ORG-ABC/adopciones",
+  "/org/ORG-ABC/checkins",
+  "/org/ORG-ABC/casos",
+  "/org/ORG-ABC/maltrato/recibidos",
+  "/org/ORG-ABC/mordedura/nuevo",
+  "/org/ORG-ABC/servicios",
+  "/org/ORG-ABC/miembros",
+  "/org/ORG-ABC/cobertura",
+  "/org/ORG-ABC/admin/permisos",
+  "/org/ORG-ABC/configuracion",
+]);
+
+describe("buildOrgNav — section invariants", () => {
+  it("no href is lost: every frozen-snapshot href appears in sections (snapshot ⊆ union)", () => {
+    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const sectionHrefs = new Set(sections.flatMap((s) => s.items.map((i) => i.href)));
+    for (const href of ORG_HREF_SNAPSHOT) {
+      expect(sectionHrefs).toContain(href);
+    }
+  });
+
+  it("no href is gained: sections contain only hrefs from the frozen snapshot (union ⊆ snapshot)", () => {
+    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const sectionHrefs = sections.flatMap((s) => s.items.map((i) => i.href));
+    for (const href of sectionHrefs) {
+      expect(ORG_HREF_SNAPSHOT).toContain(href);
+    }
+  });
+
+  it("no href is duplicated across sections", () => {
+    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const sectionHrefs = sections.flatMap((s) => s.items.map((i) => i.href));
+    const unique = new Set(sectionHrefs);
+    expect(sectionHrefs.length).toBe(unique.size);
+  });
+
+  it("with no capabilities, gated items (Ingresos, Check-ins, Permisos) are absent from all sections", () => {
+    const sections = buildOrgNav("ORG-ABC", { granted: new Set() });
+    const allItems = sections.flatMap((s) => s.items);
+    const labels = allItems.map((i) => i.label);
+    expect(labels).not.toContain("Ingresos");
+    expect(labels).not.toContain("Check-ins");
+    expect(labels).not.toContain("Permisos");
+  });
+
+  it("with no capabilities, sections that become empty are dropped", () => {
+    const sections = buildOrgNav("ORG-ABC", { granted: new Set() });
+    for (const section of sections) {
+      expect(section.items.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("with full grants, exactly 5 sections are present and in order", () => {
+    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    expect(sections.map((s) => s.label)).toEqual([
+      "Operación",
+      "Animales",
+      "Adopciones",
+      "Casos",
+      "Administración",
+    ]);
+  });
+
+  it("buildOrgNavFlat equals sections.flatMap(s => s.items) for full grants", () => {
+    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const flat = buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS });
+    expect(flat).toEqual(sections.flatMap((s) => s.items));
   });
 });

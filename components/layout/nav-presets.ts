@@ -1,8 +1,7 @@
 // Role-specific nav presets for Sidebar and AppHeader.
 // Pure module — no side effects, no React, no async.
-// Gobierno and Admin nav use grouped NavSection[] (sections model).
-// Legacy flat exports (GOB_NAV / ADMIN_NAV) are preserved for existing
-// tests and callers that reference specific items by href.
+// All three operator portals (gob, admin, org) use grouped NavSection[].
+// Flat derivations are kept for callers that still need NavItem[] (mobile drawer, link-integrity test).
 
 import type { NavSection } from "@/components/ui/dashboard";
 import type { NavItem } from "./HeaderNav";
@@ -35,6 +34,8 @@ export const OWNER_NAV: NavItem[] = [
 
 // ---------------------------------------------------------------------------
 // Org portal
+// Sections model: capability-filtered items partitioned into NavSection[].
+// Sections that end up empty after filtering are dropped.
 // ---------------------------------------------------------------------------
 
 export type OrgNavOptions = {
@@ -48,99 +49,152 @@ export type OrgNavOptions = {
 
 type OrgNavItem = NavItem & { requiredCapability?: string };
 
-export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavItem[] {
+/**
+ * Returns the org nav as grouped NavSection[].
+ * Sections are built after capability filtering, so any section left empty
+ * (all its items were gated and none were granted) is dropped entirely.
+ */
+export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSection[] {
   const granted = opts.granted ?? new Set<string>();
-  const items: OrgNavItem[] = [
-    { href: `/org/${orgToken}`, label: "Panel" },
+
+  // All candidate items with their section assignment and optional capability gate.
+  const allItems: Array<OrgNavItem & { section: string }> = [
+    // Operación
+    { href: `/org/${orgToken}`, label: "Panel", section: "Operación" },
     {
       href: `/org/${orgToken}/agenda`,
       label: "Agenda",
       matchPrefix: `/org/${orgToken}/agenda`,
-    },
-    {
-      href: `/org/${orgToken}/mascotas`,
-      label: "Mascotas",
-      matchPrefix: `/org/${orgToken}/mascotas`,
+      section: "Operación",
     },
     {
       href: `/org/${orgToken}/intake`,
       label: "Ingresos",
       matchPrefix: `/org/${orgToken}/intake`,
       requiredCapability: "intake.create",
+      section: "Operación",
     },
     {
       href: `/org/${orgToken}/transitos`,
       label: "Tránsitos",
       matchPrefix: `/org/${orgToken}/transitos`,
+      section: "Operación",
     },
     {
       href: `/org/${orgToken}/voluntarios`,
       label: "Voluntarios",
       matchPrefix: `/org/${orgToken}/voluntarios`,
+      section: "Operación",
+    },
+    // Animales
+    {
+      href: `/org/${orgToken}/mascotas`,
+      label: "Mascotas",
+      matchPrefix: `/org/${orgToken}/mascotas`,
+      section: "Animales",
     },
     {
       href: `/org/${orgToken}/transferencias`,
       label: "Transferencias",
       matchPrefix: `/org/${orgToken}/transferencias`,
+      section: "Animales",
+    },
+    // Adopciones
+    {
+      href: `/org/${orgToken}/adopciones`,
+      label: "Operaciones",
+      matchPrefix: `/org/${orgToken}/adopciones`,
+      section: "Adopciones",
     },
     {
       href: `/org/${orgToken}/checkins`,
       label: "Check-ins",
       matchPrefix: `/org/${orgToken}/checkins`,
       requiredCapability: "adoption.review",
+      section: "Adopciones",
     },
+    // Casos
     {
       href: `/org/${orgToken}/casos`,
       label: "Casos",
       matchPrefix: `/org/${orgToken}/casos`,
-    },
-    {
-      href: `/org/${orgToken}/servicios`,
-      label: "Servicios",
-      matchPrefix: `/org/${orgToken}/servicios`,
-    },
-    {
-      href: `/org/${orgToken}/adopciones`,
-      label: "Operaciones",
-      matchPrefix: `/org/${orgToken}/adopciones`,
-    },
-    {
-      href: `/org/${orgToken}/miembros`,
-      label: "Miembros",
-      matchPrefix: `/org/${orgToken}/miembros`,
-    },
-    {
-      href: `/org/${orgToken}/cobertura`,
-      label: "Cobertura",
-      matchPrefix: `/org/${orgToken}/cobertura`,
-    },
-    {
-      href: `/org/${orgToken}/configuracion`,
-      label: "Configuración",
-      matchPrefix: `/org/${orgToken}/configuracion`,
+      section: "Casos",
     },
     {
       href: `/org/${orgToken}/maltrato/recibidos`,
       label: "Maltrato",
       matchPrefix: `/org/${orgToken}/maltrato`,
+      section: "Casos",
     },
     {
       // No index page under /mordedura — the report form is the entry point.
       href: `/org/${orgToken}/mordedura/nuevo`,
       label: "Mordeduras",
       matchPrefix: `/org/${orgToken}/mordedura`,
+      section: "Casos",
+    },
+    // Administración
+    {
+      href: `/org/${orgToken}/servicios`,
+      label: "Servicios",
+      matchPrefix: `/org/${orgToken}/servicios`,
+      section: "Administración",
+    },
+    {
+      href: `/org/${orgToken}/miembros`,
+      label: "Miembros",
+      matchPrefix: `/org/${orgToken}/miembros`,
+      section: "Administración",
+    },
+    {
+      href: `/org/${orgToken}/cobertura`,
+      label: "Cobertura",
+      matchPrefix: `/org/${orgToken}/cobertura`,
+      section: "Administración",
     },
     {
       href: `/org/${orgToken}/admin/permisos`,
       label: "Permisos",
       matchPrefix: `/org/${orgToken}/admin`,
       requiredCapability: "capability.grant",
+      section: "Administración",
+    },
+    {
+      href: `/org/${orgToken}/configuracion`,
+      label: "Configuración",
+      matchPrefix: `/org/${orgToken}/configuracion`,
+      section: "Administración",
     },
   ];
 
-  return items
+  // Section order determines render order — must match the spec exactly.
+  const SECTION_ORDER = ["Operación", "Animales", "Adopciones", "Casos", "Administración"] as const;
+
+  // Filter by capability, then strip internal fields.
+  const filtered = allItems
     .filter((item) => !item.requiredCapability || granted.has(item.requiredCapability))
-    .map(({ requiredCapability: _requiredCapability, ...item }) => item);
+    .map(({ requiredCapability: _cap, section: _sec, ...item }) => ({ ...item, section: _sec }));
+
+  // Partition into sections, preserving order. Drop empty sections.
+  const sections: NavSection[] = [];
+  for (const sectionLabel of SECTION_ORDER) {
+    const items = filtered
+      .filter((item) => item.section === sectionLabel)
+      .map(({ section: _sec, ...item }) => item);
+    if (items.length > 0) {
+      sections.push({ label: sectionLabel, items });
+    }
+  }
+
+  return sections;
+}
+
+/**
+ * Flat derived list — use where NavItem[] is required
+ * (e.g. link-integrity tests, mobile drawer fallback).
+ */
+export function buildOrgNavFlat(orgToken: string, opts: OrgNavOptions = {}): NavItem[] {
+  return buildOrgNav(orgToken, opts).flatMap((s) => s.items);
 }
 
 // ---------------------------------------------------------------------------
