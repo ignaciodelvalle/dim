@@ -12,10 +12,9 @@
 // "back to my pets". `resolveShellNav` fixes that: the nav is chosen by auth
 // state, NOT by route-group. A public surface never replaces the role nav.
 //
-// Phase A note (strangler): this resolver is the decision core. The layouts are
-// NOT migrated yet — they keep using LnOwnerNav / AppHeader / OpShell. Wiring
-// happens in Phases B/C. Having the pure decision land first (with its tests)
-// makes the later layout cut mechanical and low-risk.
+// Phase D note (strangler complete): the legacy chromes (LnOwnerNav / AppHeader /
+// OpShell) are deleted in Phase D. All surfaces now render via AppShell. This
+// resolver is the single decision core consumed by every layout.
 
 import type { NavItem } from "@/components/layout/HeaderNav";
 import { ADMIN_NAV, GOB_NAV, OWNER_NAV, PUBLIC_NAV } from "@/components/layout/nav-presets";
