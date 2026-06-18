@@ -16,6 +16,7 @@ import {
   PROVINCE_ISO_MAP,
   computeDiseaseSummary,
   fetchCasesPerLocality,
+  fetchCasesPerSubregion,
   fetchSurveillanceSignals,
   fetchVigilanciaMetrics,
   fetchZoonosisTrend,
@@ -86,12 +87,18 @@ export default async function GobVigilanciaPage({
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const periodMatchesSummary = sp.period === "30d" || !sp.period;
 
-  const [metrics, signals30d, mapData, trend, signalsPeriod] = await Promise.all([
+  const [metrics, signals30d, mapData, trend, signalsPeriod, subregionData] = await Promise.all([
     fetchVigilanciaMetrics(actor, filteredJurisdictions),
     fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
     fetchCasesPerLocality(actor, filteredJurisdictions),
     fetchZoonosisTrend(actor, filteredJurisdictions, { since }),
     periodMatchesSummary ? null : fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
+    // When a province is selected, fetch department/barrio-level case counts.
+    // For the national view (no province), this is null and the choropleth
+    // stays at province level (no behavior change).
+    selectedProvinceIso
+      ? fetchCasesPerSubregion(actor, filteredJurisdictions, selectedProvinceIso)
+      : Promise.resolve(null),
   ]);
 
   const signals = signalsPeriod ?? signals30d;
@@ -114,11 +121,43 @@ export default async function GobVigilanciaPage({
     if (!row.code) continue;
     codeToCount.set(row.code, (codeToCount.get(row.code) ?? 0) + row.count);
   }
-  const choroplethData = Array.from(codeToCount.entries()).map(([code, value]) => ({
+  const provinceChoroplethData = Array.from(codeToCount.entries()).map(([code, value]) => ({
     code,
     value,
     label: `${value} caso${value !== 1 ? "s" : ""} abierto${value !== 1 ? "s" : ""}`,
   }));
+
+  // When a province is drilled into, build the sub-region choropleth.
+  //
+  // fetchCasesPerSubregion now returns the FULL sub-region set for the province
+  // (every department / every barrio, with 0-default counts). So:
+  //   - visibleCodes = every sub-region code → MapChoropleth filters the national
+  //     GeoJSON to ONLY those polygons and frames the viewport to that province.
+  //   - data = only sub-regions WITH cases (count > 0) → 0-case sub-regions fall
+  //     through to the missing-color (grey) branch instead of the lightest scale
+  //     color, so "no cases" reads as grey, not "few cases".
+  let choroplethData = provinceChoroplethData;
+  let mapGeojsonUrl: string | undefined = undefined;
+  let mapVisibleCodes: string[] | undefined = undefined;
+  let mapCardTitle = "Casos abiertos por jurisdicción";
+
+  if (selectedProvinceIso && subregionData !== null) {
+    mapVisibleCodes = subregionData.map((r) => r.code);
+    choroplethData = subregionData
+      .filter((r) => r.count > 0)
+      .map((r) => ({
+        code: r.code,
+        value: r.count,
+        label: `${r.name}: ${r.count} caso${r.count !== 1 ? "s" : ""}`,
+      }));
+    if (selectedProvinceIso === "AR-C") {
+      mapGeojsonUrl = "/geo/caba-barrios.geojson";
+      mapCardTitle = "Casos abiertos por barrio — CABA";
+    } else {
+      mapGeojsonUrl = "/geo/ar-departments.geojson";
+      mapCardTitle = `Casos abiertos por departamento — ${selectedProvinceObj?.name ?? ""}`;
+    }
+  }
 
   // Shape trend data for TimeSeriesChart.
   const trendPoints = trend
@@ -210,9 +249,14 @@ export default async function GobVigilanciaPage({
       {/* Map + signals panels side-by-side on desktop */}
       <div className="grid lg:grid-cols-2 gap-4">
         <OpCard aria-labelledby={panelMapId}>
-          <OpCardHead title={<span id={panelMapId}>Casos abiertos por jurisdicción</span>} />
+          <OpCardHead title={<span id={panelMapId}>{mapCardTitle}</span>} />
           <OpCardBody>
-            <MapChoroplethDynamic data={choroplethData} />
+            <MapChoroplethDynamic
+              data={choroplethData}
+              {...(mapGeojsonUrl ? { geojsonUrl: mapGeojsonUrl } : {})}
+              {...(mapVisibleCodes ? { visibleCodes: mapVisibleCodes } : {})}
+              fallbackTableLabel={mapCardTitle}
+            />
           </OpCardBody>
         </OpCard>
 
