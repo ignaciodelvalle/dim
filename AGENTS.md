@@ -229,8 +229,8 @@ DIM must be designed around — not against — the Argentine legal landscape fo
 
 | Law                              | Scope                                                                                  | What it implies for DIM                                                                                                              |
 | -------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **Ley CABA 4078 (2012)**         | Registro de perros potencialmente peligrosos (dangerous-breed registry, CABA owners). | A `potentially_dangerous_breed` flag on `pets` plus an attestation event for owner registration.                                     |
-| **Ley Provincial 14.107 (2010)** | Provincial dangerous-breed registry; **obligatory microchip identification**.          | Microchip data is a real legal artifact, not just a feature. Province-level aggregation matters; our `jurisdiction_province` covers this. |
+| **Ley CABA 4078 (2012)**         | Registro de perros potencialmente peligrosos (dangerous-breed registry, CABA owners). | A `potentially_dangerous_breed` flag on `pets` plus an attestation event for owner registration. **Now a *measured* compliance metric (C7), not just a data field**: `fetchDangerousBreedCompliance` reports attested / flagged by jurisdiction (graceful 0% until the attestation form ships). |
+| **Ley Provincial 14.107 (2010)** | Provincial dangerous-breed registry; **obligatory microchip identification**.          | Microchip data is a real legal artifact, not just a feature. Province-level aggregation matters; our `jurisdiction_province` covers this. **Now a *measured* compliance metric**: microchip penetration (C1) + ISO-validity (C2) report adoption of the legal chip mandate by jurisdiction (`lib/compliance-metrics.ts`). |
 | **Ley CABA 5470 (2015)**         | Cremation process for canines and felines in CABA.                                     | `death_recorded` event payload should carry a `disposition_method` field (`cremation` / `burial` / `other`) for traceability.        |
 | **Ley Nacional 14.346 (1954)**   | Malos tratos / actos de crueldad contra animales.                                      | `maltreatment_reported` events need to eventually feed real complaint pipelines (denuncia integration is downstream of UI).          |
 | **Ley Nacional 25.326 (2000)**   | Protección de Datos Personales. Arts. 4° (purpose), 14 (acceso), 16 (supresión).       | `purpose data_purpose` + `deleted_at` baseline on every PII table; export/erase RPCs (compliance PR 1) live at `/cuenta/privacidad`. |
@@ -683,6 +683,10 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - Mortality clusters — `death_recorded` events by cause and week, map overlay
 - Antibiotic / antimicrobial use density (AMR surveillance)
 - Sterilization rate trend by jurisdiction
+- **Microchip penetration (C1)** — chipped active pets / active pets, by jurisdiction (Ley Prov 14.107). `lib/compliance-metrics.ts → fetchMicrochipPenetration`; locality breakdown is k-anon suppressed. Surfaced on `/gob` Panel.
+- **ISO-validity rate (C2)** — chipped pets with well-formed decomposed ISO fields (`iso_country_code`/`iso_manufacturer_code`/`iso_national_id`) / all chipped (Res. SENASA 284/2024). `fetchIsoValidity`; surfaced on `/gob/usuarios` (Registro).
+- **Chip-fraud signal (C5)** — `microchip_replaced` grouped by `reason`, highlighting `fraud_detected` + `duplicate_detected`. A signal for human review, NOT an auto-classification. `fetchChipReplacementSignal`; surfaced as an `OpBreach` on `/gob/usuarios`.
+- **Dangerous-breed registry compliance (C7)** — PPP-flagged pets attested / all PPP-flagged (Ley CABA 4078 / Prov 14.107). `fetchDangerousBreedCompliance`. **Degrades gracefully**: until a `dangerous_breed_attested` writer-form exists the attested count is 0, so C7 reads an honest "registry adoption 0%" (a true signal, not a bug). Surfaced on `/gob` Panel.
 
 ### Public-health analyst (province / national, strategic)
 - Vaccination coverage trends over time, sliceable by jurisdiction
@@ -694,6 +698,8 @@ Build for **flexibility and big scope** — three audiences are intended consume
 ### Animal-welfare officer (case-driven)
 - Maltreatment / abandonment report queue with map and assignment workflow
 - Lost-pet hotspots (density maps from `status_changed → lost` events)
+- **Reunification rate (D4)** — lost episodes returned to `active` / all lost, plus median days-to-recovery (UK ~39% benchmark). `lib/compliance-metrics.ts → fetchReunificationRate`; period-aware, jurisdiction-scoped. Surfaced on `/gob/perdidas`.
+- **Seizures / decomisos (D5)** — `shelter_intake_recorded(intake_reason='seizure')` grouped by `seizure_motive`, by period (Ley 14.346 enforcement throughput). `fetchSeizures`; surfaced on `/gob/decomisos`.
 - Stray / found-pet sighting feed (anonymous `credential_scanned` events on unowned pets, when that flow exists)
 - Owner-of-record gaps — unmicrochipped pets in welfare cases
 - Case-management workflow: status, assignment, resolution, audit trail (itself an event stream)
