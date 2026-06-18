@@ -36,7 +36,7 @@ export default async function OrgLayout({
   // members holding the matching capability. The pages re-check defensively;
   // the nav filter is UX, not the security boundary.
   const granted = await getGrantedCapabilities(membership);
-  const orgNav = buildOrgNav(orgToken, { granted });
+  const orgNavSections = buildOrgNav(orgToken, { granted });
 
   // Right-side topbar actions: personal cross-portal links (owner portal + account).
   const actions = (
@@ -55,7 +55,7 @@ export default async function OrgLayout({
       variant="org"
       rail={
         <OpRail
-          nav={orgNav}
+          sections={orgNavSections}
           variant="org"
           brandSubtitle="Organización"
           user={{ name: displayName, role: "ORG" }}
@@ -71,7 +71,7 @@ export default async function OrgLayout({
             variant: "org",
           }}
           actions={actions}
-          mobileNav={orgNav}
+          mobileSections={orgNavSections}
           variant="org"
           brandSubtitle="Organización"
         />
