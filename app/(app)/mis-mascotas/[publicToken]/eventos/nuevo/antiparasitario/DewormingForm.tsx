@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
+import { useFormErrorFocus } from "@/lib/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { AttachmentField } from "../AttachmentField";
@@ -21,6 +22,7 @@ export function DewormingForm({
   defaults?: { product: string | null; occurredAt: string | null; notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -120,8 +122,10 @@ export function DewormingForm({
           <AttachmentField />
           {state.error && (
             <p
+              ref={errorRef}
               className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>

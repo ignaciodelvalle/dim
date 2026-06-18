@@ -188,7 +188,10 @@ export async function reportBiteAction(
   await flushNotifications(result.notifications as (typeof notifications.$inferInsert)[]);
 
   revalidatePath(`/mis-mascotas/${publicToken}`);
-  redirect(`/mis-mascotas/${publicToken}?evento=mordedura_reportada`);
+  // Wave 2 Item 9: trámite-style flows MUST end on SuccessScreen (Rule 4).
+  // Redirect to the dedicated success page so the owner sees the observation-
+  // period details and next steps, not a silent pet-profile redirect.
+  redirect(`/mis-mascotas/${publicToken}/eventos/nuevo/mordedura/exito`);
 }
 
 // ---------------------------------------------------------------------------

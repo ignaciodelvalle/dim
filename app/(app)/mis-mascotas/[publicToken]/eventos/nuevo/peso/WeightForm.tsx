@@ -48,6 +48,7 @@ export function WeightForm({
           <LnField label="Peso" required error={state.error ?? undefined}>
             {({ id, describedBy, invalid }) => (
               <LnSuffixWrap suffix="kg">
+                {/* Wave 2 Item 9: inputMode="decimal" + enterKeyHint="done" for mobile number pad */}
                 <LnInput
                   id={id}
                   name="kg"
@@ -55,6 +56,8 @@ export function WeightForm({
                   step="0.1"
                   min="0"
                   required
+                  inputMode="decimal"
+                  enterKeyHint="done"
                   defaultValue={defaults?.kg ?? undefined}
                   placeholder="Ej: 12.5"
                   aria-describedby={describedBy}

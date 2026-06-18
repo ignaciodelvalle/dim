@@ -6,6 +6,7 @@ import type { PregnancyFormState } from "@/app/actions/pregnancy";
 import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
+import { useFormErrorFocus } from "@/lib/use-form-error-focus";
 
 const initialState: PregnancyFormState = { error: null };
 type FormAction = (prev: PregnancyFormState, formData: FormData) => Promise<PregnancyFormState>;
@@ -23,6 +24,7 @@ type Outcome = (typeof OUTCOMES)[number]["value"];
 
 export function PregnancyEndedForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const [outcome, setOutcome] = useState<Outcome>("live_birth");
   const today = new Date().toISOString().slice(0, 10);
 
@@ -83,6 +85,7 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
           {outcome === "live_birth" && (
             <LnField label="Cantidad de crías nacidas vivas" required>
               {({ id, describedBy, invalid }) => (
+                // Wave 2 Item 9: inputMode="numeric" for whole-number birth count
                 <LnInput
                   id={id}
                   name="liveBirthsCount"
@@ -90,6 +93,8 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
                   min={1}
                   max={20}
                   required={outcome === "live_birth"}
+                  inputMode="numeric"
+                  enterKeyHint="done"
                   placeholder="1–20"
                   aria-describedby={describedBy}
                   invalid={invalid}
@@ -132,8 +137,10 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
 
           {state.error && (
             <p
+              ref={errorRef}
               className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>

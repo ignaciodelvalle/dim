@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnTextarea } from "@/components/ui/Field";
 import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
+import { useFormErrorFocus } from "@/lib/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import { AttachmentField } from "../AttachmentField";
 
@@ -22,6 +23,7 @@ export function CheckinForm({
   defaults?: { notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
 
   return (
@@ -54,8 +56,10 @@ export function CheckinForm({
           <AttachmentField />
           {state.error && (
             <p
+              ref={errorRef}
               className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>

@@ -5,6 +5,7 @@ import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { TATTOO_LOCATIONS } from "@/lib/lookups";
+import { useFormErrorFocus } from "@/lib/use-form-error-focus";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -14,6 +15,7 @@ const FORM_ID = "tattoo-form";
 
 export function TattooForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const today = new Date().toISOString().slice(0, 10);
   const [tattooCode, setTattooCode] = useState("");
   const [locationOnBody, setLocationOnBody] = useState("");
@@ -129,8 +131,10 @@ export function TattooForm({ action }: { action: FormAction }) {
           </LnField>
           {state.error && (
             <p
+              ref={errorRef}
               className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>

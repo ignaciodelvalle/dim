@@ -11,6 +11,7 @@ import {
   LnSubCard,
 } from "@/components/ui/Sheet";
 import { diseasesForSpecies, findDisease } from "@/lib/diseases";
+import { useFormErrorFocus } from "@/lib/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
@@ -74,6 +75,7 @@ export function DeathRecordForm({
   defaults?: { occurredAt: string | null; notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
   const [cause, setCause] = useState("");
@@ -383,8 +385,10 @@ export function DeathRecordForm({
           <AttachmentField />
           {state.error && (
             <p
+              ref={errorRef}
               className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>

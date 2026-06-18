@@ -10,6 +10,7 @@ import { LnField, LnInput, LnRow, LnSelect, LnTextarea } from "@/components/ui/F
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { type DrugDef, drugsForSpecies, findDrugByLabel } from "@/lib/drugs";
 import { FREQUENCY_LABELS } from "@/lib/medication-schedule";
+import { useFormErrorFocus } from "@/lib/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
@@ -33,6 +34,7 @@ export function MedicationStartForm({
   defaultOccurredAt?: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
 
   const now = new Date();
@@ -130,11 +132,14 @@ export function MedicationStartForm({
               }
             >
               {({ id, describedBy, invalid }) => (
+                // Wave 2 Item 9: inputMode="decimal" for numeric dose values on mobile
                 <LnInput
                   id={id}
                   name="dose"
                   type="text"
                   required
+                  inputMode="decimal"
+                  enterKeyHint="next"
                   value={doseValue}
                   onChange={(e) => setDoseValue(e.target.value)}
                   placeholder="10 mg/kg, 1 comp..."
@@ -177,6 +182,7 @@ export function MedicationStartForm({
               hint="Ingresá un valor entre 1 y 24 horas."
             >
               {({ id, describedBy, invalid }) => (
+                // Wave 2 Item 9: inputMode="numeric" for whole-number hours
                 <LnInput
                   id={id}
                   name="customHours"
@@ -184,6 +190,8 @@ export function MedicationStartForm({
                   min="1"
                   max="24"
                   required
+                  inputMode="numeric"
+                  enterKeyHint="next"
                   placeholder="Ej. 8"
                   value={customHours}
                   onChange={(e) => setCustomHours(e.target.value)}
@@ -219,12 +227,15 @@ export function MedicationStartForm({
             {/* Duration */}
             <LnField label="Duración (días)" hint="Sin duración: 14 días de recordatorios.">
               {({ id, describedBy }) => (
+                // Wave 2 Item 9: inputMode="numeric" for whole-number day count
                 <LnInput
                   id={id}
                   name="durationDays"
                   type="number"
                   min="1"
                   max="90"
+                  inputMode="numeric"
+                  enterKeyHint="next"
                   placeholder="Ej. 7"
                   value={durationDays}
                   onChange={(e) => setDurationDays(e.target.value)}
@@ -292,17 +303,20 @@ export function MedicationStartForm({
 
           {state.error && (
             <p
+              ref={errorRef}
               className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>
           )}
         </form>
       </LnSheetBody>
+      {/* Wave 2 Item 9: verb fix — Rule 2 requires object after verb */}
       <LnSheetFooter
         tone="violeta"
-        ctaLabel="Registrar inicio"
+        ctaLabel="Registrar inicio de medicación"
         formId={FORM_ID}
         isPending={isPending}
       />
