@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { logoutAction } from "@/app/actions/auth";
-import { GOB_NAV_FLAT, GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
+import { GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { getProfileCached } from "@/lib/request-cache";

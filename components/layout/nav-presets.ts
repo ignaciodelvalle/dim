@@ -166,7 +166,6 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
   {
     label: "Casos y cumplimiento",
     items: [
-      { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
       { href: "/gob/casos", label: "Casos", matchPrefix: "/gob/casos" },
       { href: "/gob/maltrato", label: "Maltrato", matchPrefix: "/gob/maltrato" },
       { href: "/gob/decomisos", label: "Decomisos", matchPrefix: "/gob/decomisos" },
@@ -177,6 +176,7 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
   {
     label: "Registro y aprobaciones",
     items: [
+      { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
       { href: "/gob/organizaciones", label: "Organizaciones", matchPrefix: "/gob/organizaciones" },
       { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
       { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
@@ -204,8 +204,8 @@ export const GOB_NAV: NavItem[] = GOB_NAV_FLAT;
 // Admin (/admin)
 // Sections model: grouped NavSection[]. ADMIN_NAV (flat) is derived from
 // ADMIN_NAV_SECTIONS and kept for backward compatibility.
-// The outbox badge is injected at runtime in app/admin/layout.tsx via
-// ADMIN_NAV_FLAT.map(...) — not stored here.
+// The outbox badge is injected at runtime in app/admin/layout.tsx by mapping
+// over ADMIN_NAV_SECTIONS directly — not stored here.
 // ---------------------------------------------------------------------------
 
 export const ADMIN_NAV_SECTIONS: NavSection[] = [

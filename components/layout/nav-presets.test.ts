@@ -254,8 +254,27 @@ describe("ADMIN_NAV — no route regression", () => {
 // GOB_NAV_SECTIONS — grouped nav invariants (Item 1 PR1)
 // ---------------------------------------------------------------------------
 
-/** Frozen href snapshot from GOB_NAV (the pre-sections baseline). */
-const GOB_HREF_SNAPSHOT = new Set(GOB_NAV.map((i) => i.href));
+/**
+ * Frozen href snapshot derived from the pre-refactor flat GOB_NAV on develop.
+ * Hard-coded so a dropped href shrinks the sections union but NOT this set,
+ * making the test genuinely catch membership regressions.
+ */
+const GOB_HREF_SNAPSHOT = new Set([
+  "/gob",
+  "/gob/cola",
+  "/gob/vigilancia",
+  "/gob/casos",
+  "/gob/reglas",
+  "/gob/servicios",
+  "/gob/historial",
+  "/gob/analytics",
+  "/gob/usuarios",
+  "/gob/organizaciones",
+  "/gob/perdidas",
+  "/gob/disputas",
+  "/gob/maltrato",
+  "/gob/decomisos",
+]);
 
 describe("GOB_NAV_SECTIONS — section invariants", () => {
   it("exports GOB_NAV_SECTIONS as a non-empty array", () => {
@@ -263,14 +282,14 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
     expect(GOB_NAV_SECTIONS.length).toBeGreaterThan(0);
   });
 
-  it("no href is lost: every GOB_NAV href appears in GOB_NAV_SECTIONS", () => {
-    const sectionHrefs = GOB_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+  it("no href is lost: every frozen-snapshot href appears in GOB_NAV_SECTIONS (snapshot ⊆ union)", () => {
+    const sectionHrefs = new Set(GOB_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href)));
     for (const href of GOB_HREF_SNAPSHOT) {
       expect(sectionHrefs).toContain(href);
     }
   });
 
-  it("no href is gained: GOB_NAV_SECTIONS contains only hrefs from GOB_NAV (except /gob/mortalidad omitted)", () => {
+  it("no href is gained: GOB_NAV_SECTIONS contains only hrefs from the frozen snapshot (union ⊆ snapshot)", () => {
     const sectionHrefs = GOB_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
     for (const href of sectionHrefs) {
       // /gob/mortalidad is explicitly excluded pending Item 2
@@ -318,8 +337,28 @@ describe("GOB_NAV_FLAT — derived flat list", () => {
 // ADMIN_NAV_SECTIONS — grouped nav invariants (Item 1 PR1)
 // ---------------------------------------------------------------------------
 
-/** Frozen href snapshot from ADMIN_NAV (the pre-sections baseline). */
-const ADMIN_HREF_SNAPSHOT = new Set(ADMIN_NAV.map((i) => i.href));
+/**
+ * Frozen href snapshot derived from the pre-refactor flat ADMIN_NAV on develop.
+ * Hard-coded so a dropped href shrinks the sections union but NOT this set,
+ * making the test genuinely catch membership regressions.
+ */
+const ADMIN_HREF_SNAPSHOT = new Set([
+  "/admin",
+  "/admin/cola",
+  "/admin/usuarios",
+  "/admin/organizaciones",
+  "/admin/historial",
+  "/admin/auditoria",
+  "/admin/outbox",
+  "/admin/sistema",
+  "/admin/govts",
+  "/admin/admins",
+  "/admin/servicios",
+  "/admin/observaciones",
+  "/admin/moderacion",
+  "/admin/casos",
+  "/admin/jurisdicciones",
+]);
 
 describe("ADMIN_NAV_SECTIONS — section invariants", () => {
   it("exports ADMIN_NAV_SECTIONS as a non-empty array", () => {
@@ -327,14 +366,14 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
     expect(ADMIN_NAV_SECTIONS.length).toBeGreaterThan(0);
   });
 
-  it("no href is lost: every ADMIN_NAV href appears in ADMIN_NAV_SECTIONS", () => {
-    const sectionHrefs = ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+  it("no href is lost: every frozen-snapshot href appears in ADMIN_NAV_SECTIONS (snapshot ⊆ union)", () => {
+    const sectionHrefs = new Set(ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href)));
     for (const href of ADMIN_HREF_SNAPSHOT) {
       expect(sectionHrefs).toContain(href);
     }
   });
 
-  it("no href is gained: ADMIN_NAV_SECTIONS contains only hrefs from ADMIN_NAV", () => {
+  it("no href is gained: ADMIN_NAV_SECTIONS contains only hrefs from the frozen snapshot (union ⊆ snapshot)", () => {
     const sectionHrefs = ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
     for (const href of sectionHrefs) {
       expect(ADMIN_HREF_SNAPSHOT).toContain(href);
