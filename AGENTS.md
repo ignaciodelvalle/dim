@@ -872,7 +872,7 @@ If you find yourself making a decision that breaks Mi Argentina alignment for sh
 
 ## Design rules (UI conventions)
 
-The trilogy-unification design critiques (2026-05-27) codified four cross-cutting UI conventions. They apply to every new form, surface, or copy edit. The migration completed with the handoff-fixes series (#455–#479); the originating plan lives at `docs/superpowers/plans/archive/2026-05-27-trilogy-unification-handoff.md`.
+The trilogy-unification design critiques (2026-05-27) codified the first four cross-cutting UI conventions; convention 5 (pet profile order) was added by the v2.1 reorder (2026-06-18). They apply to every new form, surface, or copy edit. The trilogy migration completed with the handoff-fixes series (#455–#479); the originating plan lives at `docs/superpowers/plans/archive/2026-05-27-trilogy-unification-handoff.md`.
 
 ### 1. Two levels of location capture (L1 / L2)
 
@@ -905,6 +905,17 @@ If a flow has only two screens (a form and a confirm), do not use the wizard —
 Denuncia, adoption application, intake, devolución, mordedura, and similar bureaucratic flows MUST end on `components/poncho/SuccessScreen` (PR-011 onward). The screen surfaces the confirmation code, a short description of what happens next, and 2–3 contextual actions. Silent redirects after the final submit are forbidden for these flows — the user must see the receipt.
 
 Lightweight inline edits (toggle, save profile field) keep their existing inline `<Toast>` confirmation; SuccessScreen is for full trámites only.
+
+### 5. Pet profile order: identity → alerts → actions → tabs
+
+Added by the pet-profile v2.1 reorder (2026-06-18, Item 6 of the metrics-IA handoff; spec `docs/superpowers/specs/2026-06-18-pet-profile-v21-reorder-and-action-consolidation-design.md`). The owner profile at `/mis-mascotas/[publicToken]` MUST present blocks in this order:
+
+1. **Identity first, always** — the hero (photo, name, species·breed, chip, jurisdiction, tags) is the first content block in every non-terminal state. No conditional banner precedes it.
+2. **Avisos in one prioritized strip** — conditional alerts (rabies, transit/custody, open cases, pregnancy) collapse into a single `<PetAlertStrip>` BELOW the hero, ordered by urgency (`urgent` → `warning` → `info`). The strip renders nothing when there are no alerts.
+3. **Actions, then tabs** — quick actions, then the tabbed timeline (Resumen · Libreta · Vacunas · Historial). Tabs are the timeline model; `/libreta`, `/historial`, `/vacunas` are permanent redirects to `?tab=…`.
+4. **Credentials and achievements live inside Resumen** — permanent credentials (PPP, perro de servicio) are credential cards in Resumen (section 03), not full-width banners. Achievements render last in Resumen, only when present.
+
+There is **one** way to annotate from the profile: `/anotar` is the single canonical capture hub (quick-capture box + the full category-grouped catalog). `/eventos/nuevo` is a permanent redirect to `/anotar`; do not add a second event catalog or a second "anotar" entry point. The `/eventos/nuevo/*` form sub-routes remain the URL-addressable form targets (see captura rápida below) — only the catalog index redirects.
 
 ### Drift policy
 

@@ -130,12 +130,24 @@ describe("deriveActionItems — conditional rules", () => {
     expect(orgAccess.map((a) => a.id)).not.toContain("service-dog");
   });
 
-  it("core actions always present (anotar, new-event, edit)", () => {
+  it("single annotate path: 'anotar' present, 'new-event' removed (Item 6, D7)", () => {
     const items = deriveActionItems(makeInput());
-    const ids = items.map((a) => a.id);
-    expect(ids).toContain("anotar");
-    expect(ids).toContain("new-event");
-    expect(ids).toContain("edit");
+    const anotar = items.find((a) => a.id === "anotar");
+
+    // The profile has exactly ONE way to annotate: /anotar (the canonical hub).
+    expect(anotar).toBeDefined();
+    expect(anotar?.href).toBe("/mis-mascotas/DIM-TEST-1/anotar");
+    // Verb + object per the four-verbs rule (AGENTS.md §Design rules #2).
+    expect(anotar?.label).toBe("Registrar evento");
+
+    // The duplicate "Todos los eventos" catalog entry (→ /eventos/nuevo) is gone;
+    // /eventos/nuevo now redirects to /anotar.
+    expect(items.map((a) => a.id)).not.toContain("new-event");
+  });
+
+  it("edit action always present", () => {
+    const items = deriveActionItems(makeInput());
+    expect(items.map((a) => a.id)).toContain("edit");
   });
 
   it("'Mostrar Libreta en la credencial' (Tier 2) rendered for active/lost, hidden for deceased", () => {

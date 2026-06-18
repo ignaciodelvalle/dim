@@ -1,34 +1,43 @@
-// Tests for the §4.9 section ordering in pet-profile v2.
+// Tests for the pet-profile section ordering.
+//
+// Updated for pet profile v2.1 (Item 6, 2026-06-18, spec
+// `2026-06-18-pet-profile-v21-reorder-and-action-consolidation-design.md`).
+// v2.1 reordered the profile: identity (hero) is ALWAYS first (D2); the
+// conditional avisos collapse into a single <PetAlertStrip> BELOW the hero
+// (D3); PPP + perro de servicio move from full-width banners above the hero to
+// credential cards INSIDE Resumen (section 03, D4); achievements render LAST in
+// Resumen (D5). The pre-v2.1 order (cases/ppp/service-dog above the hero,
+// achievements first) is gone.
 //
 // Two levels of guard:
 //
-//  1. Constant-level guard (original) — the SECTION_ORDER_V2 constant is
-//     defined with the correct sequence. Other code that imports the constant
-//     can use it as a ground truth.
+//  1. Constant-level guard — the SECTION_ORDER_V21 constant is the ground
+//     truth other code can import.
 //
-//  2. Source-level DOM guard (new) — reads the actual page.tsx source and
-//     extracts data-section="…" attribute positions. Asserts the sequence of
-//     attributes in the source matches SECTION_ORDER_V2 exactly.
-//     This catches any case where page.tsx is reordered without updating the
-//     constant (the two-file drift that the constant guard alone cannot catch).
+//  2. Source-level DOM guard — reads the actual page.tsx source and extracts
+//     data-section="…" attribute positions, asserting they match the constant.
+//     Catches a reorder of page.tsx that forgets to update the constant.
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// Authoritative §4.9 section order — matches design §5.
-// Each entry is the value of a data-section="…" attribute in page.tsx.
-const SECTION_ORDER_V2 = [
+// Authoritative v2.1 section order — matches spec §3.1.
+// Each entry is the value of a data-section="…" attribute in page.tsx, in
+// source order. Note: PPP/service-dog now sit INSIDE Resumen (after
+// upcoming-care, under the "credentials" group), and achievements is LAST.
+const SECTION_ORDER_V21 = [
   "back-link",
-  "cases",
-  "ppp-card",
-  "service-dog-card",
   "hero",
-  "achievements",
+  "cases",
   "current-state",
   "upcoming-care",
+  "credentials",
+  "ppp-card",
+  "service-dog-card",
   "health-timeline",
   "actions-menu",
+  "achievements",
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -42,42 +51,41 @@ function extractDataSectionsFromSource(filePath: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Constant-level guard (original tests — kept for backward compat)
+// Constant-level guard — v2.1 invariants
 // ---------------------------------------------------------------------------
 
-describe("§4.9 section order — constant guard (R-NEW-8)", () => {
-  it("back-link comes before cases", () => {
-    const idx = (id: string) => SECTION_ORDER_V2.indexOf(id as (typeof SECTION_ORDER_V2)[number]);
-    expect(idx("back-link")).toBeLessThan(idx("cases"));
+describe("pet-profile v2.1 section order — constant guard (Item 6)", () => {
+  const idx = (id: string) => SECTION_ORDER_V21.indexOf(id as (typeof SECTION_ORDER_V21)[number]);
+
+  it("hero is the FIRST content block (identity first — D2)", () => {
+    // back-link is chrome; hero is the first real content section, and it
+    // precedes every conditional aviso (cases) and every Resumen section.
+    expect(idx("back-link")).toBe(0);
+    expect(idx("hero")).toBe(1);
+    expect(idx("hero")).toBeLessThan(idx("cases"));
+    expect(idx("hero")).toBeLessThan(idx("current-state"));
   });
 
-  it("hero comes before achievements", () => {
-    const idx = (id: string) => SECTION_ORDER_V2.indexOf(id as (typeof SECTION_ORDER_V2)[number]);
-    expect(idx("hero")).toBeLessThan(idx("achievements"));
+  it("credentials (PPP + service-dog) live inside Resumen, after upcoming-care (D4)", () => {
+    expect(idx("upcoming-care")).toBeLessThan(idx("credentials"));
+    expect(idx("credentials")).toBeLessThan(idx("ppp-card"));
+    expect(idx("ppp-card")).toBeLessThan(idx("service-dog-card"));
+    // …and they are NOT above the hero anymore.
+    expect(idx("hero")).toBeLessThan(idx("ppp-card"));
+    expect(idx("hero")).toBeLessThan(idx("service-dog-card"));
   });
 
-  it("achievements comes before current-state", () => {
-    const idx = (id: string) => SECTION_ORDER_V2.indexOf(id as (typeof SECTION_ORDER_V2)[number]);
-    expect(idx("achievements")).toBeLessThan(idx("current-state"));
+  it("achievements renders LAST (D5)", () => {
+    const last = SECTION_ORDER_V21[SECTION_ORDER_V21.length - 1];
+    expect(last).toBe("achievements");
+    expect(idx("achievements")).toBeGreaterThan(idx("current-state"));
+    expect(idx("achievements")).toBeGreaterThan(idx("health-timeline"));
   });
 
-  it("current-state comes before upcoming-care", () => {
-    const idx = (id: string) => SECTION_ORDER_V2.indexOf(id as (typeof SECTION_ORDER_V2)[number]);
+  it("current-state → upcoming-care → health-timeline → actions-menu sequence holds", () => {
     expect(idx("current-state")).toBeLessThan(idx("upcoming-care"));
-  });
-
-  it("upcoming-care comes before health-timeline", () => {
-    const idx = (id: string) => SECTION_ORDER_V2.indexOf(id as (typeof SECTION_ORDER_V2)[number]);
     expect(idx("upcoming-care")).toBeLessThan(idx("health-timeline"));
-  });
-
-  it("health-timeline comes before actions-menu", () => {
-    const idx = (id: string) => SECTION_ORDER_V2.indexOf(id as (typeof SECTION_ORDER_V2)[number]);
     expect(idx("health-timeline")).toBeLessThan(idx("actions-menu"));
-  });
-
-  it("has exactly 10 sections in §4.9 order", () => {
-    expect(SECTION_ORDER_V2).toHaveLength(10);
   });
 });
 
@@ -85,12 +93,12 @@ describe("§4.9 section order — constant guard (R-NEW-8)", () => {
 // Source-level DOM guard — reads page.tsx data-section attributes in order
 // ---------------------------------------------------------------------------
 
-describe("§4.9 section order — source DOM guard (R-NEW-8 AC-A11)", () => {
+describe("pet-profile v2.1 section order — source DOM guard (Item 6)", () => {
   const PAGE_TSX = resolve(__dirname, "../app/(app)/mis-mascotas/[publicToken]/page.tsx");
 
-  it("page.tsx contains all §4.9 data-section attributes", () => {
+  it("page.tsx contains all v2.1 data-section attributes", () => {
     const found = extractDataSectionsFromSource(PAGE_TSX);
-    for (const section of SECTION_ORDER_V2) {
+    for (const section of SECTION_ORDER_V21) {
       expect(
         found,
         `data-section="${section}" not found in page.tsx — was the wrapper div removed?`,
@@ -98,22 +106,29 @@ describe("§4.9 section order — source DOM guard (R-NEW-8 AC-A11)", () => {
     }
   });
 
-  it("data-section attributes appear in page.tsx in the exact §4.9 spec order", () => {
+  it("data-section attributes appear in page.tsx in the exact v2.1 order", () => {
     const found = extractDataSectionsFromSource(PAGE_TSX);
-    // Filter to only the §4.9 sections (ignore any auxiliary data-section attrs).
-    const specSections = new Set(SECTION_ORDER_V2 as readonly string[]);
+    // Filter to only the v2.1 sections (ignore any auxiliary data-section attrs).
+    const specSections = new Set(SECTION_ORDER_V21 as readonly string[]);
     const filtered = found.filter((s) => specSections.has(s));
 
-    // Failure message is in the test description — biome/vitest types only
-    // accept 1 arg to toEqual.
-    expect(filtered).toEqual([...SECTION_ORDER_V2]);
+    expect(filtered).toEqual([...SECTION_ORDER_V21]);
   });
 
-  it("no §4.9 section appears more than once in page.tsx", () => {
+  it("no v2.1 section appears more than once in page.tsx", () => {
     const found = extractDataSectionsFromSource(PAGE_TSX);
-    const specSections = new Set(SECTION_ORDER_V2 as readonly string[]);
+    const specSections = new Set(SECTION_ORDER_V21 as readonly string[]);
     const filtered = found.filter((s) => specSections.has(s));
     const unique = new Set(filtered);
     expect(filtered.length).toBe(unique.size);
+  });
+
+  it("the hero data-section precedes the cases/ppp/service-dog sections in source (no banner-above-hero regression)", () => {
+    const found = extractDataSectionsFromSource(PAGE_TSX);
+    const heroPos = found.indexOf("hero");
+    expect(heroPos).toBeGreaterThanOrEqual(0);
+    for (const after of ["cases", "ppp-card", "service-dog-card", "achievements"]) {
+      expect(found.indexOf(after)).toBeGreaterThan(heroPos);
+    }
   });
 });
