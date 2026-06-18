@@ -196,7 +196,7 @@ if (ALLOW_REMOTE && (!isLocalDb || !isLocalSupabase)) {
 // ---------------------------------------------------------------------------
 
 const { createClient: createSdkClient } = await import("@supabase/supabase-js");
-const { eq, like, inArray, sql } = await import("drizzle-orm");
+const { eq, like, inArray, isNull, sql } = await import("drizzle-orm");
 const {
   db,
   pets,
@@ -205,6 +205,7 @@ const {
   cases: casesTable,
   organizations,
   custodyDisputes,
+  govtAssignments,
 } = await import("../db");
 const { writePoint } = await import("../lib/location");
 const { EVENT_TYPES } = await import("../db/schema");
@@ -1501,7 +1502,266 @@ async function buildStateShowcase(ownerUserId: string, seedOrgId: string | null)
 }
 
 // ---------------------------------------------------------------------------
-// 12. Main seed loop
+// 12. Outbreak clusters — open + recent outbreak_signal events per govt scope
+// ---------------------------------------------------------------------------
+//
+// For each seeded govt account (lucas@, govt@, govt-local@) resolves the live
+// govt_assignments rows (revoked_at IS NULL) and seeds a cluster of
+// outbreak_signal pet_events in those jurisdictions so the /gob/vigilancia
+// "brotes activos" counter is > 0.
+//
+// Disease clusters per account:
+//   - lucas@dim.test     : distemper cluster in Retiro + parvo cluster in Recoleta
+//   - govt@dim.test      : distemper cluster in Ushuaia
+//   - govt-local@dim.test: distemper cluster in La Plata
+//
+// Each cluster = 5 outbreak_signal events on 5 PERF-OUTBREAK-* pets.
+// Events are spread within the last 14 days (well within the 30-day window).
+// Payload mirrors the existing outbreak_signal shape + status:"open" for future
+// compatibility (the current query does NOT filter on status, but it's good data).
+//
+// Idempotency: PERF-OUTBREAK-<slug>-<n> publicToken on the pet.
+// Cleanup: keyed off pets.name LIKE 'PERF-%' — the existing --clean removes them.
+
+interface OutbreakClusterDef {
+  /** Slug used for pet publicToken: PERF-OUTBREAK-<slug>-<n> */
+  slug: string;
+  province: string;
+  locality: string;
+  diseaseCode: string;
+  diseaseLabel: string;
+  petSpecies: string;
+  /** Number of outbreak_signal events to emit (cluster size). */
+  size: number;
+}
+
+async function buildOutbreakClusters(ownerUserId: string): Promise<void> {
+  log("STEP", "Outbreak clusters — seeding open + recent outbreak_signal events per govt");
+
+  const supabase = createSdkClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // The three govt emails to cover.
+  const GOVT_EMAILS = ["lucas@dim.test", "govt@dim.test", "govt-local@dim.test"] as const;
+
+  // Disease configs we use for clusters.
+  const DISTEMPER = {
+    diseaseCode: "distemper",
+    diseaseLabel: "Moquillo canino",
+    petSpecies: "dog",
+  } as const;
+  const PARVO = {
+    diseaseCode: "parvovirus",
+    diseaseLabel: "Parvovirus canino",
+    petSpecies: "dog",
+  } as const;
+
+  // For each govt, resolve their live jurisdictions then pick cluster targets.
+  for (const email of GOVT_EMAILS) {
+    const govtUserId = await findAuthUserIdByEmail(supabase, email);
+    if (!govtUserId) {
+      log("WARN", `  ${email} not found in auth.users — skipping outbreak clusters`);
+      continue;
+    }
+
+    // Resolve live govt_assignments (revoked_at IS NULL) from profiles.id.
+    // govtAssignments.userId references profiles.id, not auth.users.id, so we
+    // use the Supabase-provided user id which is the same UUID in both tables.
+    const assignments = await db
+      .select({
+        province: govtAssignments.jurisdictionProvince,
+        locality: govtAssignments.jurisdictionLocality,
+      })
+      .from(govtAssignments)
+      .where(
+        sql`${govtAssignments.userId} = ${govtUserId}::uuid AND ${govtAssignments.revokedAt} IS NULL`,
+      );
+
+    if (assignments.length === 0) {
+      log("WARN", `  ${email} has no active govt_assignments — skipping`);
+      continue;
+    }
+
+    log("INFO", `  ${email}: ${assignments.length} jurisdictions`);
+
+    // Pick cluster targets from this govt's jurisdictions.
+    // We always emit at least one cluster (first locality); if there are 2+ we add a second.
+    const clusters: OutbreakClusterDef[] = [];
+
+    const first = assignments[0];
+    clusters.push({
+      slug: `${first.locality
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-]/g, "")}`,
+      province: first.province,
+      locality: first.locality,
+      ...DISTEMPER,
+      size: 5,
+    });
+
+    // Second cluster if there's another distinct locality.
+    if (assignments.length > 1) {
+      const second = assignments.find((a) => a.locality !== first.locality) ?? assignments[1];
+      clusters.push({
+        slug: `${second.locality
+          .toLowerCase()
+          .replace(/\s+/g, "-")
+          .replace(/[^a-z0-9-]/g, "")}-parvo`,
+        province: second.province,
+        locality: second.locality,
+        ...PARVO,
+        size: 4,
+      });
+    }
+
+    // Seed each cluster.
+    for (const cluster of clusters) {
+      await seedOutbreakCluster(cluster, ownerUserId, email);
+    }
+  }
+
+  log("DONE", "Outbreak clusters complete");
+}
+
+/**
+ * Seeds one outbreak cluster: creates PERF-OUTBREAK-* pets in the given
+ * jurisdiction and attaches outbreak_signal events within the last 14 days.
+ * Idempotent: skips pets whose publicToken already exists.
+ */
+async function seedOutbreakCluster(
+  cluster: OutbreakClusterDef,
+  ownerUserId: string,
+  govtEmail: string,
+): Promise<void> {
+  const now = Date.now();
+  // Spread events evenly across the last 14 days.
+  const WINDOW_MS = 14 * 24 * 3600 * 1000;
+
+  for (let n = 1; n <= cluster.size; n++) {
+    const token = `PERF-OUTBREAK-${cluster.slug}-${n}`;
+    const petName = `PERF-OUTBREAK ${cluster.locality} ${n}`;
+
+    // Idempotency: skip if pet already exists.
+    const [existing] = await db
+      .select({ id: pets.id })
+      .from(pets)
+      .where(eq(pets.publicToken, token))
+      .limit(1);
+
+    if (existing) {
+      log("SKIP", `  ${token} already exists`);
+      // Still verify the outbreak_signal event exists on it.
+      const [existingEvt] = await db
+        .select({ id: petEvents.id })
+        .from(petEvents)
+        .where(
+          sql`${petEvents.petId} = ${existing.id} AND ${petEvents.eventType} = 'outbreak_signal'`,
+        )
+        .limit(1);
+      if (!existingEvt) {
+        // Pet exists but event was cleaned — re-insert the event.
+        const occurredAt = new Date(now - ((n - 1) / cluster.size) * WINDOW_MS);
+        await insertOutbreakEvent(existing.id, ownerUserId, cluster, occurredAt);
+        log("OK", `  ${token}: re-inserted missing outbreak_signal event`);
+      }
+      continue;
+    }
+
+    // Create the PERF-tagged pet in the target jurisdiction.
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: token,
+        species: cluster.petSpecies,
+        breed: cluster.petSpecies === "dog" ? "Mestizo" : null,
+        name: petName,
+        sex: "unknown",
+        dateOfBirth: new Date(now - 3 * 365 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+        birthDateIsEstimated: true,
+        status: "active" as const,
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: cluster.province,
+        jurisdictionLocality: cluster.locality,
+        acquisitionMethod: "other",
+        potentiallyDangerousBreed: false,
+        emergencyInfoVisible: false,
+      })
+      .returning({ id: pets.id });
+
+    // Ownership.
+    await db.insert(ownerships).values({
+      petId: pet.id,
+      ownerUserId,
+      role: "owner",
+    });
+
+    // pet_registered event (required before other events by convention).
+    await db.insert(petEvents).values({
+      petId: pet.id,
+      eventType: "pet_registered",
+      occurredAt: new Date(now - WINDOW_MS - 24 * 3600 * 1000),
+      recordedByUserId: ownerUserId,
+      authorRole: "owner",
+      authorVerified: false,
+      payload: {
+        source: "seed-perf",
+        species: cluster.petSpecies,
+        govt_cluster: `${cluster.diseaseCode}/${cluster.locality}`,
+      },
+    });
+
+    // outbreak_signal event — recent, in this govt's jurisdiction.
+    // Spread evenly so signals arrive at different timestamps (looks like a real cluster).
+    const occurredAt = new Date(now - ((n - 1) / cluster.size) * WINDOW_MS);
+    await insertOutbreakEvent(pet.id, ownerUserId, cluster, occurredAt);
+
+    log(
+      "OK",
+      `  ${token} (${govtEmail}): ${cluster.diseaseCode} in ${cluster.locality}, ${cluster.province} — occurredAt ${occurredAt.toISOString().slice(0, 10)}`,
+    );
+  }
+}
+
+/** Inserts a single outbreak_signal pet_event with the full payload shape. */
+async function insertOutbreakEvent(
+  petId: string,
+  ownerUserId: string,
+  cluster: OutbreakClusterDef,
+  occurredAt: Date,
+): Promise<void> {
+  await db.insert(petEvents).values({
+    petId,
+    eventType: "outbreak_signal",
+    occurredAt,
+    recordedByUserId: ownerUserId,
+    authorRole: "owner",
+    authorVerified: false,
+    payload: {
+      source: "seed-perf",
+      triggered_by: "seed-outbreak-clusters",
+      disease_code: cluster.diseaseCode,
+      disease_label: cluster.diseaseLabel,
+      pet_species: cluster.petSpecies,
+      match_strength: {
+        high_count: 2,
+        medium_count: 1,
+        low_count: 0,
+        matched_symptom_codes: ["cough", "lethargy", "fever"],
+      },
+      pet_jurisdiction_country: "AR",
+      pet_jurisdiction_province: cluster.province,
+      pet_jurisdiction_locality: cluster.locality,
+      // Included for forward-compatibility — the current fetchVigilanciaMetrics
+      // query does NOT filter on status, but having it here is correct data hygiene.
+      status: "open",
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 13. Main seed loop
 // ---------------------------------------------------------------------------
 
 async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<void> {
@@ -1525,6 +1785,10 @@ async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<v
   // State showcase runs once per seed run, regardless of --count.
   // It creates deterministic PERF-STATE-* pets covering every state value.
   await buildStateShowcase(ownerUserId, seedOrgId);
+
+  // Outbreak clusters: seed open + recent outbreak_signal events per govt scope
+  // so /gob/vigilancia shows brotes activos > 0 for each seeded govt account.
+  await buildOutbreakClusters(ownerUserId);
 
   let created = 0;
   let skipped = 0;
@@ -1703,7 +1967,7 @@ async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<v
 }
 
 // ---------------------------------------------------------------------------
-// 12. Main entrypoint
+// 14. Main entrypoint
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
