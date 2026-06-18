@@ -4,55 +4,51 @@
 //   admin  → universal (no WHERE clause on jurisdiction)
 //   govt   → their assigned jurisdiction pairs only
 //
-// Scope clause pattern mirrors lib/govt-dashboards.ts.
+// All fetchers accept a ProjectionContext (actor + scope + period) built via
+// buildProjectionContext() from lib/metrics/. Scope and period primitives are
+// single-sourced there; k-anonymity suppression is enforced by
+// lib/metrics/anonymity.ts where applicable.
 
 import { and, count, countDistinct, gte, inArray, lt, not, sql, sum } from "drizzle-orm";
 import { eq } from "drizzle-orm";
 
 import { cases, db, jurisdictionsCensus, petEvents, pets, welfareReports } from "@/db";
+import {
+  type ProjectionContext,
+  dogsInScopeCondition,
+  petEventsScopeClause,
+  petsScopeClause,
+} from "@/lib/metrics";
 
-export type DashboardActor = { role: "admin" | "govt" };
-export type DashboardJurisdiction = { province: string; locality: string };
+// Re-export types so callers that import from this module don't need to change.
+export type { DashboardActor, DashboardJurisdiction, ProjectionContext } from "@/lib/metrics";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
-// Internal scope helpers
+// Internal scope helpers (table-specific — not in lib/metrics)
 // ---------------------------------------------------------------------------
 
-// Scope clause for pets rows (uses pets.jurisdictionProvince/Locality).
-function petsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
-  if (actor.role === "admin") return null;
-  if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) =>
-      sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
-  );
-  return sql.join(pairs, sql` OR `);
-}
-
-// Scope clause for pet_events rows — uses the JSONB payload fields that
-// vaccination_administered and incident_reported events store.
-// See: lib/govt-dashboards.ts → petEventsScopeClause (same pattern).
-function petEventsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
-  if (actor.role === "admin") return null;
-  if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) => sql`(
-      (${petEvents.payload}->>'pet_jurisdiction_province') = ${j.province}
-      AND (${petEvents.payload}->>'pet_jurisdiction_locality') = ${j.locality}
-    )`,
-  );
-  return sql.join(pairs, sql` OR `);
-}
-
 // Scope clause for cases rows (uses cases.jurisdictionProvince/Locality).
-function casesScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
-  if (actor.role === "admin") return null;
+function casesScopeClause(ctx: ProjectionContext) {
+  if (ctx.scope.kind === "global") return null;
+  const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
   const pairs = jurisdictions.map(
     (j) =>
       sql`(${cases.jurisdictionProvince} = ${j.province} AND ${cases.jurisdictionLocality} = ${j.locality})`,
+  );
+  return sql.join(pairs, sql` OR `);
+}
+
+// Scope clause for welfare_reports rows.
+function welfareReportsScopeClause(ctx: ProjectionContext) {
+  if (ctx.scope.kind === "global") return null;
+  const { jurisdictions } = ctx.scope;
+  if (jurisdictions.length === 0) return sql`false`;
+  const pairs = jurisdictions.map(
+    (j) =>
+      sql`(${welfareReports.jurisdictionProvince} = ${j.province} AND ${welfareReports.jurisdictionLocality} = ${j.locality})`,
   );
   return sql.join(pairs, sql` OR `);
 }
@@ -70,28 +66,15 @@ export type RabiesCoverageKpi = {
   partidos: number;
 };
 
-export async function fetchRabiesCoverage(
-  actor: DashboardActor,
-  jurisdictions: DashboardJurisdiction[],
-): Promise<RabiesCoverageKpi> {
-  if (actor.role === "govt" && jurisdictions.length === 0) {
+export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<RabiesCoverageKpi> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return { current: 0, target: 80, partidos: 0 };
   }
 
-  const since12m = new Date(Date.now() - 365 * DAY_MS);
+  const since12m = ctx.period.since;
 
-  const petsScope = petsScopeClause(actor, jurisdictions);
-  const eventsScope = petEventsScopeClause(actor, jurisdictions);
-
-  // Exclude deceased dogs from the denominator: a deceased pet can never be
-  // vaccinated, so including it deflates the coverage rate artificially.
-  // Mirrors the 'active', 'lost' scope used by fetchAnalyticsMetrics in
-  // lib/govt-dashboards.ts (totalConditions).
-  const dogsConditions = [
-    sql`${pets.species} = ${"dog"}`,
-    sql`${pets.status} IN ('active', 'lost')`,
-  ];
-  if (petsScope) dogsConditions.push(sql`(${petsScope})`);
+  const eventsScope = petEventsScopeClause(ctx);
+  const dogsCondition = dogsInScopeCondition(ctx);
 
   // Distinct dogs with a rabies vaccination event in scope, last 12 months.
   // vaccination_administered payload carries `vaccine_name`. Match the SAME
@@ -108,8 +91,8 @@ export async function fetchRabiesCoverage(
   ];
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
   // Scope to dogs only by joining pets.
-  if (actor.role === "govt") {
-    const pairs = jurisdictions.map(
+  if (ctx.scope.kind === "jurisdictions") {
+    const pairs = ctx.scope.jurisdictions.map(
       (j) =>
         sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
     );
@@ -119,10 +102,7 @@ export async function fetchRabiesCoverage(
 
   // Partidos: distinct localities with ≥1 dog in scope.
   const [dogsRows, vaccDogRows, partidosRows] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(pets)
-      .where(and(...dogsConditions)),
+    db.select({ n: count() }).from(pets).where(dogsCondition),
 
     // Distinct dog petIds with a qualifying rabies vax event (join pets to filter species).
     db
@@ -134,7 +114,7 @@ export async function fetchRabiesCoverage(
     db
       .select({ n: countDistinct(pets.jurisdictionLocality) })
       .from(pets)
-      .where(and(...dogsConditions)),
+      .where(dogsCondition),
   ]);
 
   const totalDogs = dogsRows[0]?.n ?? 0;
@@ -164,19 +144,16 @@ export type SterilizationKpi = {
   orgs: number;
 };
 
-export async function fetchSterilizationMetrics(
-  actor: DashboardActor,
-  jurisdictions: DashboardJurisdiction[],
-): Promise<SterilizationKpi> {
-  if (actor.role === "govt" && jurisdictions.length === 0) {
+export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise<SterilizationKpi> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return { count: 0, deltaPct: 0, orgs: 0 };
   }
 
-  const now = Date.now();
-  const since30d = new Date(now - 30 * DAY_MS);
-  const since60d = new Date(now - 60 * DAY_MS);
+  // ctx.period covers the last 30d window; compute the prior 30d window from until.
+  const since30d = ctx.period.since;
+  const since60d = new Date(ctx.period.until.getTime() - 60 * DAY_MS);
 
-  const scope = petEventsScopeClause(actor, jurisdictions);
+  const scope = petEventsScopeClause(ctx);
 
   const baseConditions = [eq(petEvents.eventType, "sterilization_performed")];
   if (scope) baseConditions.push(sql`(${scope})`);
@@ -238,13 +215,10 @@ export type BitesPer10kKpi = {
  * Falls back to 0 when the table is empty or a province has no census row;
  * callers must guard against division by zero before using the result.
  */
-async function fetchCensusPopulation(
-  actor: DashboardActor,
-  jurisdictions: DashboardJurisdiction[],
-): Promise<number> {
-  if (actor.role === "govt" && jurisdictions.length === 0) return 0;
+async function fetchCensusPopulation(ctx: ProjectionContext): Promise<number> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) return 0;
 
-  if (actor.role === "admin") {
+  if (ctx.scope.kind === "global") {
     // Sum the entire census table for the national total.
     const rows = await db
       .select({ total: sum(jurisdictionsCensus.population) })
@@ -253,7 +227,7 @@ async function fetchCensusPopulation(
   }
 
   // Scoped: deduplicate to unique province names, then sum those rows.
-  const uniqueProvinces = [...new Set(jurisdictions.map((j) => j.province))];
+  const uniqueProvinces = [...new Set(ctx.scope.jurisdictions.map((j) => j.province))];
   if (uniqueProvinces.length === 0) return 0;
 
   const rows = await db
@@ -264,19 +238,16 @@ async function fetchCensusPopulation(
   return Number(rows[0]?.total ?? 0);
 }
 
-export async function fetchBitesPer10k(
-  actor: DashboardActor,
-  jurisdictions: DashboardJurisdiction[],
-): Promise<BitesPer10kKpi> {
-  if (actor.role === "govt" && jurisdictions.length === 0) {
+export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer10kKpi> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return { rate: 0, delta: 0, reports: 0 };
   }
 
-  const now = Date.now();
-  const since12m = new Date(now - 365 * DAY_MS);
-  const since24m = new Date(now - 730 * DAY_MS);
+  const since12m = ctx.period.since;
+  // Prior 12m window: go back another 12m from the start of the current window.
+  const since24m = new Date(ctx.period.since.getTime() - 365 * DAY_MS);
 
-  const scope = petEventsScopeClause(actor, jurisdictions);
+  const scope = petEventsScopeClause(ctx);
 
   const baseConditions = [
     eq(petEvents.eventType, "incident_reported"),
@@ -300,7 +271,7 @@ export async function fetchBitesPer10k(
       .select({ n: count() })
       .from(petEvents)
       .where(and(...prevConditions)),
-    fetchCensusPopulation(actor, jurisdictions),
+    fetchCensusPopulation(ctx),
   ]);
 
   const reports = currentRows[0]?.n ?? 0;
@@ -345,22 +316,19 @@ export type ActiveZoonosisKpi = {
   deltaWeek: number;
 };
 
-export async function fetchActiveZoonosis(
-  actor: DashboardActor,
-  jurisdictions: DashboardJurisdiction[],
-): Promise<ActiveZoonosisKpi> {
-  if (actor.role === "govt" && jurisdictions.length === 0) {
+export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<ActiveZoonosisKpi> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return { count: 0, rabies: 0, lepto: 0, hidat: 0, deltaWeek: 0 };
   }
 
-  const now = Date.now();
+  const now = ctx.period.until.getTime();
   const since7d = new Date(now - 7 * DAY_MS);
   const since14d = new Date(now - 14 * DAY_MS);
   const since30d = new Date(now - 30 * DAY_MS);
 
-  const petsScope = petsScopeClause(actor, jurisdictions);
-  const eventsScope = petEventsScopeClause(actor, jurisdictions);
-  const casesScope = casesScopeClause(actor, jurisdictions);
+  const petsScope = petsScopeClause(ctx);
+  const eventsScope = petEventsScopeClause(ctx);
+  const casesScope = casesScopeClause(ctx);
 
   // Disease reports (handoff P4-3) — scoped + last 30 days, split by
   // the payload.disease discriminator.
@@ -483,18 +451,6 @@ export async function fetchActiveZoonosis(
 // Statuses considered "terminal" — excluded from the active count.
 const WELFARE_TERMINAL_STATUSES = ["closed", "duplicate"] as const;
 
-// Scope clause for welfare_reports rows — same pattern as
-// welfareReportsScopeClause in lib/govt-dashboards.ts.
-function welfareReportsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
-  if (actor.role === "admin") return null;
-  if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) =>
-      sql`(${welfareReports.jurisdictionProvince} = ${j.province} AND ${welfareReports.jurisdictionLocality} = ${j.locality})`,
-  );
-  return sql.join(pairs, sql` OR `);
-}
-
 export type OpenWelfareReportsKpi = {
   /** Count of welfare reports with a non-terminal status in scope. */
   count: number;
@@ -506,14 +462,13 @@ export type OpenWelfareReportsKpi = {
  * lib/govt-dashboards.ts.
  */
 export async function fetchOpenWelfareReportsCount(
-  actor: DashboardActor,
-  jurisdictions: DashboardJurisdiction[],
+  ctx: ProjectionContext,
 ): Promise<OpenWelfareReportsKpi> {
-  if (actor.role === "govt" && jurisdictions.length === 0) {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return { count: 0 };
   }
 
-  const scope = welfareReportsScopeClause(actor, jurisdictions);
+  const scope = welfareReportsScopeClause(ctx);
 
   const conditions = [not(inArray(welfareReports.status, [...WELFARE_TERMINAL_STATUSES]))];
   if (scope) conditions.push(sql`(${scope})`);

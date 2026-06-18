@@ -228,3 +228,75 @@ Each migration was independently **verified** against the deleted original for b
 - Remove the `lib/*` re-export shims once every importer is repointed (capabilities, case-helpers, eno-*, rabies-*, event-schemas, welfare-moderation).
 - `cases`: extract the read-model query repository (deferred WU).
 - A small number of pre-existing **flaky tests** (DB-state isolation under the full serial suite) predate this work and should be addressed separately.
+
+---
+
+## Pattern B — Population-level aggregate projections (`lib/metrics/`)
+
+> Introduced: metrics-IA Item 0. Canonical foundation for all government dashboard KPIs and charts.
+
+Hexagonal-lite governs the **per-pet event replay** path (Pattern A). A second, orthogonal pattern governs **population-level SQL aggregates** — dashboard KPIs such as vaccination coverage, bites per 10k inhabitants, and locality-grouped case counts. Call it **Pattern B**.
+
+### Why Pattern B is distinct
+
+Pattern A (per-pet event replay) is correct for a single animal's lifecycle but too slow for dashboard aggregates across an entire jurisdiction. Pattern B reads denormalized **pets.status** / **pets.species** columns and issues `COUNT()`/`GROUP BY` SQL directly. This is intentional (invariant D7): at population scale the columnar read is the right tool.
+
+Because Pattern B aggregates skip event replay, their boundary must be clearly owned:
+
+- **All Pattern-B fetchers share one authority on scope, denominators, and suppression.**
+- **Privacy enforcement (k-anonymity, k=5) is mandatory.** AGENTS.md §Aggregation has required it since the beginning; `lib/metrics/anonymity.ts` is now the enforcement boundary.
+
+### `lib/metrics/` structure
+
+```
+lib/metrics/
+├── types.ts        — Cell, SuppressedCells (branded), MetricResult<T>
+├── context.ts      — ProjectionContext, buildProjectionContext, ctxKey
+├── scope.ts        — petsScopeClause, petEventsScopeClause (single source)
+├── period.ts       — resolveAnalyticsPeriod re-export + windows factory
+├── population.ts   — activePetsCondition, dogsInScopeCondition (shared denominators)
+├── anonymity.ts    — suppressSmallCells (k=5 default), suppressedMetric
+├── cache.ts        — React.cache dedup: cachedActivePetCount, cachedDogCount
+└── index.ts        — barrel
+```
+
+### ProjectionContext
+
+Every Pattern-B fetcher takes a **single `ProjectionContext`** argument:
+
+```ts
+type ProjectionContext = {
+  actor:  DashboardActor;   // { role: 'admin' | 'govt' }
+  scope:  ProjectionScope;  // { kind: 'global' } | { kind: 'jurisdictions', jurisdictions[] }
+  period: AnalyticsPeriod;  // { since: Date, until: Date }
+};
+```
+
+Build it **once per page** via `buildProjectionContext(actor, jurisdictions, period)` and pass the same instance to every tile fetcher. This is what makes React.cache dedup work: `cachedActivePetCount(ctx)` and other memoized base-population queries use `ctxKey(ctx)` as the cache surrogate, so multiple tiles sharing the same scope+period issue only one DB round-trip per request.
+
+### K-anonymity invariant
+
+All locality-grouped outputs that expose counts per jurisdiction **must** pass through `suppressSmallCells`:
+
+```ts
+const { visible, suppressedCount } = suppressSmallCells(rows, {
+  count: (r) => r.count,
+  key: (r) => r.locality,
+  // rollup: (suppressed) => ({ locality: 'Otras localidades', count: suppressed.reduce(...) })
+});
+```
+
+`SuppressedCells` is a **branded type** — raw `Cell[]` is NOT assignable to it. The brand is applied only inside `suppressSmallCells`; you cannot accidentally skip suppression and still compile.
+
+### Dependency rule for Pattern B
+
+`lib/metrics/` is **infrastructure-adjacent**: it reads `@/db` (Drizzle) and must not be imported from `domain/` or `application/`. Fetchers in `lib/govt-home-kpis.ts` and `lib/govt-dashboards.ts` are the intended consumers. Items 2/3/4 of the metrics-IA umbrella build their new metric fetchers natively on these exports.
+
+### Testing Pattern B
+
+| Test kind | Location | Needs Postgres? |
+|---|---|---|
+| `suppressSmallCells` / `suppressedMetric` — pure | `lib/metrics/anonymity.test.ts` | no |
+| `resolveAnalyticsPeriod` / `windows` — pure | `lib/metrics/period.test.ts` | no |
+| Scope + population primitives — integration | `__tests__/metrics-scope.test.ts` | yes |
+| KPI fetchers (value-pinning) — integration | `__tests__/govt-home-kpis.test.ts` | yes |

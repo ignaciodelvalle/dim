@@ -21,6 +21,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { fetchRabiesCoverage } from "@/lib/govt-home-kpis";
+import { buildProjectionContext } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "../_helpers/db-overrides";
 import { expectDbError } from "../_helpers/expect-db-error";
 
@@ -247,9 +249,13 @@ describe("INV-1 (§2.7) — vaccine sums to animal jurisdiction, not vet jurisdi
 
   it("fetchRabiesCoverage counts the dog under PROVINCE_A (animal's jurisdiction)", async () => {
     // Scope to PROVINCE_A / LOCALITY_A — should find our vaccinated dog.
-    const kpiA = await fetchRabiesCoverage({ role: "govt" }, [
-      { province: PROVINCE_A, locality: LOCALITY_A },
-    ]);
+    const kpiA = await fetchRabiesCoverage(
+      buildProjectionContext(
+        { role: "govt" },
+        [{ province: PROVINCE_A, locality: LOCALITY_A }],
+        windows.trailing12m(),
+      ),
+    );
     // There is at least one vaccinated dog in scope (our fixture).
     expect(kpiA.current).toBeGreaterThan(0);
 
@@ -514,9 +520,13 @@ describe("INV-3 (§4.2/4.3) — death removes from active denominator, history p
     expect(denomCheck.n).toBe(0);
 
     // The KPI itself must not error.
-    const kpi = await fetchRabiesCoverage({ role: "govt" }, [
-      { province: PROVINCE_A, locality: LOCALITY_A },
-    ]);
+    const kpi = await fetchRabiesCoverage(
+      buildProjectionContext(
+        { role: "govt" },
+        [{ province: PROVINCE_A, locality: LOCALITY_A }],
+        windows.trailing12m(),
+      ),
+    );
     expect(kpi.current).toBeGreaterThanOrEqual(0);
     expect(kpi.target).toBe(80);
   });

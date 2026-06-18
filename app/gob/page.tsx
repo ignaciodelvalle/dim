@@ -29,6 +29,8 @@ import {
   fetchRabiesCoverage,
   fetchSterilizationMetrics,
 } from "@/lib/govt-home-kpis";
+import { buildProjectionContext } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 
 const ACTION_LABELS: Record<string, string> = {
   request_viewed: "Vio una solicitud",
@@ -115,6 +117,12 @@ export default async function GobiernoDashboardPage({
   const actor = { role: profile.role } as const;
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
+  // Build one ProjectionContext for all KPI tiles. Uses trailing-12m as the
+  // default window (the home dashboard has no period picker). Trailing-30d is
+  // passed to fetchSterilizationMetrics separately via ctx.period.since.
+  const ctx12m = buildProjectionContext(actor, filteredJurisdictions, windows.trailing12m());
+  const ctx30d = buildProjectionContext(actor, filteredJurisdictions, windows.trailing30d());
+
   const [
     pending,
     recentDecisions,
@@ -136,11 +144,11 @@ export default async function GobiernoDashboardPage({
       .where(and(eq(auditLog.actorUserId, user.id), gte(auditLog.performedAt, sevenDaysAgo)))
       .orderBy(desc(auditLog.performedAt))
       .limit(10),
-    fetchRabiesCoverage(actor, filteredJurisdictions),
-    fetchSterilizationMetrics(actor, filteredJurisdictions),
-    fetchBitesPer10k(actor, filteredJurisdictions),
-    fetchActiveZoonosis(actor, filteredJurisdictions),
-    fetchOpenWelfareReportsCount(actor, filteredJurisdictions),
+    fetchRabiesCoverage(ctx12m),
+    fetchSterilizationMetrics(ctx30d),
+    fetchBitesPer10k(ctx12m),
+    fetchActiveZoonosis(ctx12m),
+    fetchOpenWelfareReportsCount(ctx12m),
   ]);
 
   // --- Casos regulatorios (open/escalated, top 5) -------------------------

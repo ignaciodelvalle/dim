@@ -44,10 +44,17 @@ import {
 import { provinceByCode } from "@/lib/ar-provincias";
 import { findDisease } from "@/lib/diseases";
 import { likeContains } from "@/lib/like-helpers";
+import {
+  type DashboardActor,
+  type DashboardJurisdiction,
+  buildProjectionContext,
+  petEventsScopeClause as metricsPetEventsScopeClause,
+  petsScopeClause as metricsPetsScopeClause,
+} from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 
-export type DashboardActor = { role: "admin" | "govt" };
-
-export type DashboardJurisdiction = { province: string; locality: string };
+// Re-export so existing callers that import from this module don't need to change.
+export type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 
 export type SurveillanceFilters = {
   /** Inclusive lower bound for occurredAt. */
@@ -599,28 +606,18 @@ function casesScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdi
   return sql.join(pairs, sql` OR `);
 }
 
-// Build a scope clause for `pets` based on jurisdiction columns.
+// Thin adapters for the two scope helpers now canonical in lib/metrics/.
+// The period is not relevant for scope-only use — trailing12m is a valid placeholder.
 function petsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
-  if (actor.role === "admin") return null;
-  if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) =>
-      sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+  return metricsPetsScopeClause(
+    buildProjectionContext(actor, jurisdictions, windows.trailing12m()),
   );
-  return sql.join(pairs, sql` OR `);
 }
 
-// Build a scope clause for `pet_events` using the JSONB payload province/locality fields.
 function petEventsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
-  if (actor.role === "admin") return null;
-  if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) => sql`(
-      (${petEvents.payload}->>'pet_jurisdiction_province') = ${j.province}
-      AND (${petEvents.payload}->>'pet_jurisdiction_locality') = ${j.locality}
-    )`,
+  return metricsPetEventsScopeClause(
+    buildProjectionContext(actor, jurisdictions, windows.trailing12m()),
   );
-  return sql.join(pairs, sql` OR `);
 }
 
 export async function fetchVigilanciaMetrics(
