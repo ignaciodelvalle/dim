@@ -61,6 +61,16 @@ export type MapChoroplethProps = {
   className?: string;
   /** Descripción del contenido de la tabla de accesibilidad. */
   fallbackTableLabel?: string;
+  /**
+   * Optional whitelist of `feature.properties.code` values to render. When
+   * provided and non-empty, the GeoJSON is filtered to ONLY these features
+   * before being added as a source, and fitBounds frames ONLY those features.
+   * Use it to scope a national GeoJSON down to a single province's departments
+   * (or CABA's barrios) so the map renders and frames just that region.
+   * When omitted/empty, all features render and the viewport frames them all
+   * (national behavior — no regression).
+   */
+  visibleCodes?: string[];
 };
 
 // Colores para regiones sin datos en el array `data`.
@@ -75,6 +85,7 @@ export function MapChoropleth({
   height = 400,
   className = "",
   fallbackTableLabel = "Datos del mapa",
+  visibleCodes,
 }: MapChoroplethProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -83,13 +94,13 @@ export function MapChoropleth({
   // sin listar todas como dependencias — el mapa MapLibre se inicializa una única vez.
   // Las props son de solo lectura post-mount en v1; para soporte reactivo agregar un
   // efecto separado que llame a map.setStyle() / updateData() según cambios de props.
-  const initPropsRef = useRef({ geojsonUrl, data, colorScale, center, zoom });
-  initPropsRef.current = { geojsonUrl, data, colorScale, center, zoom };
+  const initPropsRef = useRef({ geojsonUrl, data, colorScale, center, zoom, visibleCodes });
+  initPropsRef.current = { geojsonUrl, data, colorScale, center, zoom, visibleCodes };
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
 
-    const { geojsonUrl, data, colorScale, center, zoom } = initPropsRef.current;
+    const { geojsonUrl, data, colorScale, center, zoom, visibleCodes } = initPropsRef.current;
 
     // Importación dinámica para evitar errores de SSR — MapLibre accede a `window`.
     import("maplibre-gl").then(({ default: maplibregl, AttributionControl }) => {
@@ -160,9 +171,21 @@ export function MapChoropleth({
           .then((geojson: GeoJSON.FeatureCollection) => {
             const dataMap = new Map(data.map((d) => [d.code, d]));
 
+            // Optional scoping: when visibleCodes is provided and non-empty,
+            // render ONLY those features (e.g. one province's departments). This
+            // keeps the component domain-agnostic — the caller decides the scope.
+            const visibleSet =
+              visibleCodes && visibleCodes.length > 0 ? new Set(visibleCodes) : null;
+            const sourceFeatures = visibleSet
+              ? geojson.features.filter((feature) => {
+                  const code = (feature.properties as Record<string, string>)?.code ?? "";
+                  return visibleSet.has(code);
+                })
+              : geojson.features;
+
             const enriched: GeoJSON.FeatureCollection = {
               ...geojson,
-              features: geojson.features.map((feature) => {
+              features: sourceFeatures.map((feature) => {
                 const code = (feature.properties as Record<string, string>)?.code ?? "";
                 const datum = dataMap.get(code);
                 return {
@@ -253,7 +276,9 @@ export function MapChoropleth({
                     [lngMin, latMin],
                     [lngMax, latMax],
                   ],
-                  { padding: 24, animate: false },
+                  // maxZoom caps how far a tiny extent (e.g. a single-department
+                  // province) zooms in, so it never lands at street level.
+                  { padding: 24, animate: false, maxZoom: 9 },
                 );
               }
             } catch {

@@ -10,6 +10,8 @@
 // active assignments.
 
 import {
+  type AnyColumn,
+  type SQL,
   and,
   count,
   countDistinct,
@@ -20,6 +22,7 @@ import {
   isNotNull,
   isNull,
   lt,
+  ne,
   not,
   or,
   sql,
@@ -749,22 +752,29 @@ export type SubregionCaseCount = {
 };
 
 /**
- * Open cases per sub-region within a selected province.
+ * Open cases per sub-region within a selected province — the FULL sub-region set.
+ *
+ * Returns EVERY sub-region of the province (not only those with cases), each with
+ * its open-case count (0 when there are none). This lets the caller frame and
+ * render the whole province: sub-regions with 0 cases render grey via the
+ * choropleth's missing-color branch.
  *
  * Branches on provinceIso:
  *
- * AR-C (CABA): Groups open cases by jurisdictionLocality (each locality = a barrio).
- *   The `code` is the normalized barrio key (same function used in caba-barrios.geojson)
- *   so it matches `feature.properties.code` exactly at choropleth render time.
+ * AR-C (CABA): one entry per barrio. `code` is the normalized barrio key (same
+ *   normalization as caba-barrios.geojson) so it matches `feature.properties.code`
+ *   exactly. The catch-all "Ciudad Autónoma de Buenos Aires" componente row is
+ *   excluded. Open CABA cases are counted per barrio (jurisdictionLocality).
  *
- * Non-CABA: JOINs open cases to ar_localities on (province_display_name, locality_name)
- *   to resolve the INDEC department_code, then groups by department_code.
- *   The province match uses the canonical display name returned by provinceByCode().
- *   Localities without a matching ar_localities row are silently dropped from the
- *   result — they have no polygon in ar-departments.geojson and can't be colored.
- *   NOTE: if a case's jurisdictionLocality doesn't match any ar_localities row for the
- *   province (e.g. free-text misspelling), it is excluded from the choropleth but is
- *   still counted in the province-level KPIs via fetchCasesPerLocality.
+ * Non-CABA: one entry per DISTINCT (department_code, department_name) in
+ *   ar_localities for the province (removed_at IS NULL). Open-case counting is
+ *   fan-out-safe: cases are first aggregated per normalized jurisdictionLocality,
+ *   then each locality is mapped to a SINGLE deterministic department (DISTINCT ON
+ *   normalized locality_name, ORDER BY department_name LIMIT 1 — same tiebreak as
+ *   localityByName), then locality counts are summed into departments. A case in an
+ *   ambiguous locality name (one name -> several departments) therefore counts toward
+ *   exactly ONE department, never N. Localities with no matching ar_localities row
+ *   contribute 0 to the choropleth but are still counted in fetchCasesPerLocality KPIs.
  *
  * Scope is enforced by casesScopeClause (same as all other cases fetchers).
  * Admin always sees all cases; govt sees only their assigned localities.
@@ -791,73 +801,130 @@ export async function fetchCasesPerSubregion(
   }
 
   if (provinceIso === "AR-C") {
-    // CABA: group open cases by jurisdictionLocality (= barrio name).
+    // CABA: count open cases per barrio, then emit the FULL set of 48 barrios
+    // (0-default), excluding the catch-all "Ciudad Autónoma de Buenos Aires".
     const conditions = [eq(cases.status, "open"), eq(cases.jurisdictionProvince, "CABA")];
     if (scope) conditions.push(sql`(${scope})`);
 
-    const rows = await db
-      .select({
-        locality: cases.jurisdictionLocality,
-        n: count(),
-      })
-      .from(cases)
-      .where(and(...conditions))
-      .groupBy(cases.jurisdictionLocality);
+    const [caseRows, barrioRows] = await Promise.all([
+      db
+        .select({ locality: cases.jurisdictionLocality, n: count() })
+        .from(cases)
+        .where(and(...conditions))
+        .groupBy(cases.jurisdictionLocality),
+      db
+        .select({ name: arLocalities.localityName })
+        .from(arLocalities)
+        .where(
+          and(
+            eq(arLocalities.provinceCode, "AR-C"),
+            isNull(arLocalities.removedAt),
+            ne(arLocalities.localityName, "Ciudad Autónoma de Buenos Aires"),
+          ),
+        ),
+    ]);
 
-    return rows
-      .filter((r) => r.locality !== null && r.locality !== "")
-      .map((r) => ({
-        code: normalizeBarrio(r.locality as string),
-        name: r.locality as string,
-        count: r.n,
-      }));
+    // Sum open-case counts per normalized barrio key.
+    const countByCode = new Map<string, number>();
+    for (const r of caseRows) {
+      if (!r.locality) continue;
+      const code = normalizeBarrio(r.locality);
+      countByCode.set(code, (countByCode.get(code) ?? 0) + r.n);
+    }
+
+    // Emit one entry per barrio with a 0-default count.
+    const byCode = new Map<string, SubregionCaseCount>();
+    for (const b of barrioRows) {
+      const code = normalizeBarrio(b.name);
+      if (byCode.has(code)) continue;
+      byCode.set(code, { code, name: b.name, count: countByCode.get(code) ?? 0 });
+    }
+    return [...byCode.values()];
   }
 
-  // Non-CABA: resolve department_code via ar_localities JOIN.
-  // The cases table stores the canonical province display name (e.g. "Córdoba"),
-  // while ar_localities uses the ISO code (e.g. "AR-X"). We bridge via
-  // provinceByCode(provinceIso).name → cases.jurisdictionProvince filter.
+  // Non-CABA: resolve the canonical province display name (cases store the
+  // display name, ar_localities stores the ISO code).
   const province = provinceByCode(provinceIso);
   if (!province) return [];
   const provinceDisplayName = province.name;
 
-  // WHERE conditions on the cases table only (ar_localities conditions go in the JOIN ON).
+  // Locality-name normalization in SQL — accent/case-folded, dots stripped,
+  // whitespace collapsed. Mirrors normalizeBarrio() / lib/ar-localidades normalize()
+  // so the cases side and the ar_localities side bucket identically.
+  function normNameSql(col: AnyColumn): SQL {
+    // Note: the regex pattern is "\s+" — the doubled backslash in the TS string
+    // literal produces a single backslash in the SQL sent to Postgres.
+    return sql`btrim(regexp_replace(lower(translate(unaccent(${col}), '.', '')), '\\s+', ' ', 'g'))`;
+  }
+
+  // 1. Full department set: every distinct (code, name) in the province.
+  //    Iterating in (code, name) order makes the first name per code deterministic.
+  const deptRows = await db
+    .select({ code: arLocalities.departmentCode, name: arLocalities.departmentName })
+    .from(arLocalities)
+    .where(
+      and(
+        eq(arLocalities.provinceCode, provinceIso),
+        isNull(arLocalities.removedAt),
+        isNotNull(arLocalities.departmentCode),
+      ),
+    )
+    .orderBy(arLocalities.departmentCode, arLocalities.departmentName);
+
+  const fullSet = new Map<string, SubregionCaseCount>();
+  for (const r of deptRows) {
+    if (!r.code) continue;
+    if (fullSet.has(r.code)) continue; // first name wins (alpha order) = deterministic
+    fullSet.set(r.code, { code: r.code, name: r.name ?? r.code, count: 0 });
+  }
+
+  // 2. Open-case counts aggregated per normalized jurisdictionLocality (scoped).
   const caseConditions = [
     eq(cases.status, "open"),
     eq(cases.jurisdictionProvince, provinceDisplayName),
   ];
   if (scope) caseConditions.push(sql`(${scope})`);
 
-  const rows = await db
-    .select({
-      departmentCode: arLocalities.departmentCode,
-      departmentName: arLocalities.departmentName,
-      n: count(),
-    })
+  const localityKey = normNameSql(cases.jurisdictionLocality);
+  const caseRows = await db
+    .select({ key: sql<string>`${localityKey}`, n: count() })
     .from(cases)
-    .innerJoin(
-      arLocalities,
+    .where(and(...caseConditions))
+    .groupBy(localityKey);
+
+  // 3. Map each normalized locality name -> a SINGLE deterministic department.
+  //    Iterating in (normalized name, department_name) order and keeping the
+  //    first row per key picks the alphabetically-first department — the same
+  //    tiebreak as localityByName — so an ambiguous name resolves to exactly one.
+  const arLocKey = normNameSql(arLocalities.localityName);
+  const mapRows = await db
+    .select({ key: sql<string>`${arLocKey}`, departmentCode: arLocalities.departmentCode })
+    .from(arLocalities)
+    .where(
       and(
-        // Province code on ar_localities side (ISO, e.g. "AR-X").
         eq(arLocalities.provinceCode, provinceIso),
-        // Case-insensitive match of locality name across both tables.
-        sql`lower(${cases.jurisdictionLocality}) = lower(${arLocalities.localityName})`,
-        // Only active (non-removed) localities.
         isNull(arLocalities.removedAt),
-        // Guard: non-CABA localities should always have a department_code.
         isNotNull(arLocalities.departmentCode),
       ),
     )
-    .where(and(...caseConditions))
-    .groupBy(arLocalities.departmentCode, arLocalities.departmentName);
+    .orderBy(arLocKey, arLocalities.departmentName);
 
-  return rows
-    .filter((r) => r.departmentCode !== null)
-    .map((r) => ({
-      code: r.departmentCode as string,
-      name: r.departmentName ?? r.departmentCode ?? "",
-      count: r.n,
-    }));
+  const deptByLocalityKey = new Map<string, string>();
+  for (const r of mapRows) {
+    if (!r.departmentCode) continue;
+    if (deptByLocalityKey.has(r.key)) continue; // first row wins = deterministic
+    deptByLocalityKey.set(r.key, r.departmentCode);
+  }
+
+  // 4. Sum each locality's open-case count into its single department.
+  for (const r of caseRows) {
+    const deptCode = deptByLocalityKey.get(r.key);
+    if (!deptCode) continue; // locality has no matching ar_localities row
+    const entry = fullSet.get(deptCode);
+    if (entry) entry.count += r.n;
+  }
+
+  return [...fullSet.values()];
 }
 
 // ============================================================================

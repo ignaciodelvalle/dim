@@ -87,35 +87,6 @@ export default async function GobVigilanciaPage({
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const periodMatchesSummary = sp.period === "30d" || !sp.period;
 
-  // INDEC 2-digit province codes used as department_code prefix in ar-departments.geojson.
-  // These allow filtering the national departments file to only the selected province's
-  // departments, so the map frames and colors only that province's sub-regions.
-  const PROVINCE_INDEC_PREFIX: Record<string, string> = {
-    "AR-B": "06",
-    "AR-K": "10",
-    "AR-X": "14",
-    "AR-W": "18",
-    "AR-H": "22",
-    "AR-U": "26",
-    "AR-E": "30",
-    "AR-P": "34",
-    "AR-Y": "38",
-    "AR-L": "42",
-    "AR-F": "46",
-    "AR-M": "50",
-    "AR-N": "54",
-    "AR-Q": "58",
-    "AR-R": "62",
-    "AR-A": "66",
-    "AR-J": "70",
-    "AR-D": "74",
-    "AR-Z": "78",
-    "AR-S": "82",
-    "AR-G": "86",
-    "AR-T": "90",
-    "AR-V": "94",
-  };
-
   const [metrics, signals30d, mapData, trend, signalsPeriod, subregionData] = await Promise.all([
     fetchVigilanciaMetrics(actor, filteredJurisdictions),
     fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
@@ -156,46 +127,33 @@ export default async function GobVigilanciaPage({
     label: `${value} caso${value !== 1 ? "s" : ""} abierto${value !== 1 ? "s" : ""}`,
   }));
 
-  // When a province is drilled into, build the sub-region choropleth data.
-  // For non-CABA: we augment the sub-region data with all province departments at
-  // value 0 so fitBounds frames the full province (not just the localities with cases).
-  // The GeoJSON lookup is by code prefix — departments starting with the 2-digit
-  // INDEC province code are guaranteed to belong to that province.
+  // When a province is drilled into, build the sub-region choropleth.
+  //
+  // fetchCasesPerSubregion now returns the FULL sub-region set for the province
+  // (every department / every barrio, with 0-default counts). So:
+  //   - visibleCodes = every sub-region code → MapChoropleth filters the national
+  //     GeoJSON to ONLY those polygons and frames the viewport to that province.
+  //   - data = only sub-regions WITH cases (count > 0) → 0-case sub-regions fall
+  //     through to the missing-color (grey) branch instead of the lightest scale
+  //     color, so "no cases" reads as grey, not "few cases".
   let choroplethData = provinceChoroplethData;
   let mapGeojsonUrl: string | undefined = undefined;
+  let mapVisibleCodes: string[] | undefined = undefined;
   let mapCardTitle = "Casos abiertos por jurisdicción";
 
   if (selectedProvinceIso && subregionData !== null) {
-    if (selectedProvinceIso === "AR-C") {
-      // CABA: barrio-level choropleth
-      choroplethData = subregionData.map((r) => ({
+    mapVisibleCodes = subregionData.map((r) => r.code);
+    choroplethData = subregionData
+      .filter((r) => r.count > 0)
+      .map((r) => ({
         code: r.code,
         value: r.count,
         label: `${r.name}: ${r.count} caso${r.count !== 1 ? "s" : ""}`,
       }));
+    if (selectedProvinceIso === "AR-C") {
       mapGeojsonUrl = "/geo/caba-barrios.geojson";
       mapCardTitle = "Casos abiertos por barrio — CABA";
     } else {
-      // Non-CABA: department-level choropleth using the national ar-departments.geojson.
-      // The GeoJSON contains all Argentine departments. We pass only the selected
-      // province's department codes in `data` so:
-      //   - Only those departments are colored (other provinces are grey).
-      //   - fitBounds in MapChoropleth frames the extent of the enriched features,
-      //     which covers the case-bearing departments of the selected province.
-      //
-      // Province isolation: department codes are 5-digit INDEC codes whose first 2
-      // digits identify the province (e.g. "06" = Buenos Aires). We filter `data`
-      // to codes starting with the province's INDEC prefix so out-of-province
-      // departments never appear colored, even if there are edge cases in the fetcher.
-      const provincePrefix = PROVINCE_INDEC_PREFIX[selectedProvinceIso];
-      const subregionChoro = subregionData.map((r) => ({
-        code: r.code,
-        value: r.count,
-        label: `${r.name}: ${r.count} caso${r.count !== 1 ? "s" : ""}`,
-      }));
-      choroplethData = provincePrefix
-        ? subregionChoro.filter((d) => d.code.startsWith(provincePrefix))
-        : subregionChoro;
       mapGeojsonUrl = "/geo/ar-departments.geojson";
       mapCardTitle = `Casos abiertos por departamento — ${selectedProvinceObj?.name ?? ""}`;
     }
@@ -296,6 +254,7 @@ export default async function GobVigilanciaPage({
             <MapChoroplethDynamic
               data={choroplethData}
               {...(mapGeojsonUrl ? { geojsonUrl: mapGeojsonUrl } : {})}
+              {...(mapVisibleCodes ? { visibleCodes: mapVisibleCodes } : {})}
               fallbackTableLabel={mapCardTitle}
             />
           </OpCardBody>
