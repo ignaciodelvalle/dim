@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { logoutAction } from "@/app/actions/auth";
-import { GOB_NAV } from "@/components/layout/nav-presets";
+import { GOB_NAV_FLAT, GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { getProfileCached } from "@/lib/request-cache";
@@ -61,7 +61,7 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
       variant="gob"
       rail={
         <OpRail
-          nav={GOB_NAV}
+          sections={GOB_NAV_SECTIONS}
           variant="gob"
           brandSubtitle="Gobierno"
           user={{
@@ -79,7 +79,7 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
             variant: profile.role === "admin" ? "superadmin" : "default",
           }}
           actions={actions}
-          mobileNav={GOB_NAV}
+          mobileSections={GOB_NAV_SECTIONS}
           variant="gob"
           brandSubtitle="Gobierno"
         />

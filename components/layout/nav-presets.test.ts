@@ -1,7 +1,17 @@
 // Unit tests for nav-presets — pure module, no React required.
 
 import { describe, expect, it } from "vitest";
-import { ADMIN_NAV, GOB_NAV, OWNER_NAV, PUBLIC_NAV, buildOrgNav } from "./nav-presets";
+import {
+  ADMIN_NAV,
+  ADMIN_NAV_FLAT,
+  ADMIN_NAV_SECTIONS,
+  GOB_NAV,
+  GOB_NAV_FLAT,
+  GOB_NAV_SECTIONS,
+  OWNER_NAV,
+  PUBLIC_NAV,
+  buildOrgNav,
+} from "./nav-presets";
 
 const ALL_GATED_CAPS = new Set(["intake.create", "adoption.review", "capability.grant"]);
 
@@ -237,5 +247,122 @@ describe("ADMIN_NAV — no route regression", () => {
 
   it("has at least 15 items (no silent drops)", () => {
     expect(ADMIN_NAV.length).toBeGreaterThanOrEqual(15);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GOB_NAV_SECTIONS — grouped nav invariants (Item 1 PR1)
+// ---------------------------------------------------------------------------
+
+/** Frozen href snapshot from GOB_NAV (the pre-sections baseline). */
+const GOB_HREF_SNAPSHOT = new Set(GOB_NAV.map((i) => i.href));
+
+describe("GOB_NAV_SECTIONS — section invariants", () => {
+  it("exports GOB_NAV_SECTIONS as a non-empty array", () => {
+    expect(Array.isArray(GOB_NAV_SECTIONS)).toBe(true);
+    expect(GOB_NAV_SECTIONS.length).toBeGreaterThan(0);
+  });
+
+  it("no href is lost: every GOB_NAV href appears in GOB_NAV_SECTIONS", () => {
+    const sectionHrefs = GOB_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    for (const href of GOB_HREF_SNAPSHOT) {
+      expect(sectionHrefs).toContain(href);
+    }
+  });
+
+  it("no href is gained: GOB_NAV_SECTIONS contains only hrefs from GOB_NAV (except /gob/mortalidad omitted)", () => {
+    const sectionHrefs = GOB_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    for (const href of sectionHrefs) {
+      // /gob/mortalidad is explicitly excluded pending Item 2
+      expect(href).not.toBe("/gob/mortalidad");
+      expect(GOB_HREF_SNAPSHOT).toContain(href);
+    }
+  });
+
+  it("no href is duplicated across sections", () => {
+    const sectionHrefs = GOB_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    const unique = new Set(sectionHrefs);
+    expect(sectionHrefs.length).toBe(unique.size);
+  });
+
+  it("first section is unlabeled (Panel)", () => {
+    expect(GOB_NAV_SECTIONS[0].label).toBe("");
+    expect(GOB_NAV_SECTIONS[0].items[0].href).toBe("/gob");
+  });
+
+  it('"Vigilancia sanitaria" section precedes "Casos y cumplimiento"', () => {
+    const labels = GOB_NAV_SECTIONS.map((s) => s.label);
+    const vigIdx = labels.indexOf("Vigilancia sanitaria");
+    const casosIdx = labels.indexOf("Casos y cumplimiento");
+    expect(vigIdx).toBeGreaterThanOrEqual(0);
+    expect(casosIdx).toBeGreaterThanOrEqual(0);
+    expect(vigIdx).toBeLessThan(casosIdx);
+  });
+});
+
+describe("GOB_NAV_FLAT — derived flat list", () => {
+  it("exports GOB_NAV_FLAT equal to GOB_NAV_SECTIONS.flatMap(s => s.items)", () => {
+    const derived = GOB_NAV_SECTIONS.flatMap((s) => s.items);
+    expect(GOB_NAV_FLAT).toEqual(derived);
+  });
+
+  it("GOB_NAV_FLAT preserves every href from GOB_NAV", () => {
+    const flatHrefs = new Set(GOB_NAV_FLAT.map((i) => i.href));
+    for (const href of GOB_HREF_SNAPSHOT) {
+      expect(flatHrefs).toContain(href);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADMIN_NAV_SECTIONS — grouped nav invariants (Item 1 PR1)
+// ---------------------------------------------------------------------------
+
+/** Frozen href snapshot from ADMIN_NAV (the pre-sections baseline). */
+const ADMIN_HREF_SNAPSHOT = new Set(ADMIN_NAV.map((i) => i.href));
+
+describe("ADMIN_NAV_SECTIONS — section invariants", () => {
+  it("exports ADMIN_NAV_SECTIONS as a non-empty array", () => {
+    expect(Array.isArray(ADMIN_NAV_SECTIONS)).toBe(true);
+    expect(ADMIN_NAV_SECTIONS.length).toBeGreaterThan(0);
+  });
+
+  it("no href is lost: every ADMIN_NAV href appears in ADMIN_NAV_SECTIONS", () => {
+    const sectionHrefs = ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    for (const href of ADMIN_HREF_SNAPSHOT) {
+      expect(sectionHrefs).toContain(href);
+    }
+  });
+
+  it("no href is gained: ADMIN_NAV_SECTIONS contains only hrefs from ADMIN_NAV", () => {
+    const sectionHrefs = ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    for (const href of sectionHrefs) {
+      expect(ADMIN_HREF_SNAPSHOT).toContain(href);
+    }
+  });
+
+  it("no href is duplicated across sections", () => {
+    const sectionHrefs = ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    const unique = new Set(sectionHrefs);
+    expect(sectionHrefs.length).toBe(unique.size);
+  });
+
+  it("first section is unlabeled (Dashboard) with href /admin", () => {
+    expect(ADMIN_NAV_SECTIONS[0].label).toBe("");
+    expect(ADMIN_NAV_SECTIONS[0].items[0].href).toBe("/admin");
+  });
+});
+
+describe("ADMIN_NAV_FLAT — derived flat list", () => {
+  it("exports ADMIN_NAV_FLAT equal to ADMIN_NAV_SECTIONS.flatMap(s => s.items)", () => {
+    const derived = ADMIN_NAV_SECTIONS.flatMap((s) => s.items);
+    expect(ADMIN_NAV_FLAT).toEqual(derived);
+  });
+
+  it("ADMIN_NAV_FLAT preserves every href from ADMIN_NAV", () => {
+    const flatHrefs = new Set(ADMIN_NAV_FLAT.map((i) => i.href));
+    for (const href of ADMIN_HREF_SNAPSHOT) {
+      expect(flatHrefs).toContain(href);
+    }
   });
 });

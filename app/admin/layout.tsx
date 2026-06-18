@@ -2,7 +2,8 @@ import { and, eq, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { logoutAction } from "@/app/actions/auth";
-import { ADMIN_NAV } from "@/components/layout/nav-presets";
+import { ADMIN_NAV_SECTIONS } from "@/components/layout/nav-presets";
+import type { NavSection } from "@/components/ui/dashboard";
 import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
@@ -32,13 +33,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const profileRow = await getProfileCached(profile.id);
   const displayName = profileRow?.displayName ?? "";
 
-  // Inject the breach badge on the outbox nav item.
-  const nav =
+  // Inject the breach badge on the outbox nav item in the sections structure.
+  const sections: NavSection[] =
     breachCount > 0
-      ? ADMIN_NAV.map((item) =>
-          item.href === "/admin/outbox" ? { ...item, badge: breachCount } : item,
-        )
-      : ADMIN_NAV;
+      ? ADMIN_NAV_SECTIONS.map((section) => ({
+          ...section,
+          items: section.items.map((item) =>
+            item.href === "/admin/outbox" ? { ...item, badge: breachCount } : item,
+          ),
+        }))
+      : ADMIN_NAV_SECTIONS;
 
   // Right-side actions: role + scope + cross-portal links.
   const actions = (
@@ -71,7 +75,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       variant="gob"
       rail={
         <OpRail
-          nav={nav}
+          sections={sections}
           variant="gob"
           brandSubtitle="Admin"
           user={{
@@ -89,7 +93,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             variant: "superadmin",
           }}
           actions={actions}
-          mobileNav={nav}
+          mobileSections={sections}
           variant="gob"
           brandSubtitle="Admin"
         />
