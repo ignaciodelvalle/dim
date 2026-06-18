@@ -5,11 +5,19 @@ import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynam
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCallout, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpBreach,
+  OpCallout,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpKpi,
+} from "@/components/ui/dashboard";
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { findDisease } from "@/lib/diseases";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
@@ -21,6 +29,8 @@ import {
   fetchVigilanciaMetrics,
   fetchZoonosisTrend,
 } from "@/lib/govt-dashboards";
+import { buildProjectionContext } from "@/lib/metrics";
+import { fetchSurveillanceCompliance } from "@/lib/surveillance-metrics";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
 
@@ -39,7 +49,8 @@ export default async function GobVigilanciaPage({
   const actor = { role: profile.role };
 
   const sp = await searchParams;
-  const { since } = resolveAnalyticsPeriod(sp);
+  const period = resolveAnalyticsPeriod(sp);
+  const { since } = period;
 
   // Resolve selected province ISO code (e.g. "AR-B") → ProvinceCode + canonical name.
   const selectedProvinceIso = sp.province ?? null;
@@ -87,19 +98,30 @@ export default async function GobVigilanciaPage({
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const periodMatchesSummary = sp.period === "30d" || !sp.period;
 
-  const [metrics, signals30d, mapData, trend, signalsPeriod, subregionData] = await Promise.all([
-    fetchVigilanciaMetrics(actor, filteredJurisdictions),
-    fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
-    fetchCasesPerLocality(actor, filteredJurisdictions),
-    fetchZoonosisTrend(actor, filteredJurisdictions, { since }),
-    periodMatchesSummary ? null : fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
-    // When a province is selected, fetch department/barrio-level case counts.
-    // For the national view (no province), this is null and the choropleth
-    // stays at province level (no behavior change).
-    selectedProvinceIso
-      ? fetchCasesPerSubregion(actor, filteredJurisdictions, selectedProvinceIso)
-      : Promise.resolve(null),
-  ]);
+  // Item 3 — surveillance compliance projections (ENO SLA A7, rabies 10-day
+  // compliance A8/A9, AMR density A12, reportable incidence + lab-confirmation
+  // A6/A10). Built on lib/metrics ProjectionContext (jurisdiction-scoped,
+  // period-aware, k-anonymity enforced). Server fetch; the cards below are
+  // presentational.
+  const complianceCtx = buildProjectionContext(actor, filteredJurisdictions, period);
+
+  const [metrics, signals30d, mapData, trend, signalsPeriod, subregionData, compliance] =
+    await Promise.all([
+      fetchVigilanciaMetrics(actor, filteredJurisdictions),
+      fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
+      fetchCasesPerLocality(actor, filteredJurisdictions),
+      fetchZoonosisTrend(actor, filteredJurisdictions, { since }),
+      periodMatchesSummary
+        ? null
+        : fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
+      // When a province is selected, fetch department/barrio-level case counts.
+      // For the national view (no province), this is null and the choropleth
+      // stays at province level (no behavior change).
+      selectedProvinceIso
+        ? fetchCasesPerSubregion(actor, filteredJurisdictions, selectedProvinceIso)
+        : Promise.resolve(null),
+      fetchSurveillanceCompliance(complianceCtx),
+    ]);
 
   const signals = signalsPeriod ?? signals30d;
   const summary = computeDiseaseSummary(signals30d);
@@ -168,6 +190,21 @@ export default async function GobVigilanciaPage({
   const panelSignalsId = "panel-signals-titulo";
   const panelTrendId = "panel-trend-titulo";
   const panelRabiesId = "panel-rabies-titulo";
+  const panelComplianceId = "panel-compliance-titulo";
+  const panelEnoId = "panel-eno-titulo";
+  const panelEnfId = "panel-enf-titulo";
+  const panelAmrId = "panel-amr-titulo";
+
+  // Item 3 presentational helpers — render a metric or an em-dash placeholder.
+  const { enoSla, rabiesCompliance, amrDensity, reportableIncidence } = compliance;
+  const pct = (v: number | null) => (v === null ? "—" : `${v}%`);
+  // byDisease.value is the branded SuppressedCells (Cell[]); the fetcher built
+  // each cell with the extra `confirmed` field, so widen via unknown.
+  const reportableCells = reportableIncidence.byDisease.value as unknown as ReadonlyArray<{
+    key: string;
+    count: number;
+    confirmed: number;
+  }>;
 
   return (
     <div className="space-y-6">
@@ -245,6 +282,194 @@ export default async function GobVigilanciaPage({
         <OpKpi label="Pets hoy" value={String(metrics.petsRegisteredToday)} />
         <OpKpi label="Vacunaciones (7d)" value={String(metrics.vaccinationsThisWeek)} tone="ok" />
       </section>
+
+      {/* Item 3 — compliance KPI row (A8 / A7 / A12) */}
+      <section
+        aria-label="Indicadores de cumplimiento sanitario"
+        className="grid grid-cols-2 md:grid-cols-3 gap-3"
+      >
+        <OpKpi
+          label="Cumplimiento observación 10d"
+          value={pct(rabiesCompliance.compliancePct)}
+          tone={
+            rabiesCompliance.openBreaches > 0
+              ? "danger"
+              : rabiesCompliance.compliancePct === null
+                ? "neutral"
+                : "ok"
+          }
+          sub={
+            rabiesCompliance.openBreaches > 0
+              ? `${rabiesCompliance.openBreaches} abierta(s) > 10 días`
+              : `${rabiesCompliance.closed} cerrada(s) en el período`
+          }
+        />
+        <OpKpi
+          label="SLA notificación ENO"
+          value={pct(enoSla.onTimePct)}
+          tone={enoSla.breachedOpen > 0 ? "warn" : enoSla.onTimePct === null ? "neutral" : "ok"}
+          sub={
+            enoSla.breachedOpen > 0
+              ? `${enoSla.breachedOpen} fuera de SLA`
+              : enoSla.medianLatencyHours !== null
+                ? `Mediana ${enoSla.medianLatencyHours} h`
+                : "Sin entregas en el período"
+          }
+        />
+        <OpKpi
+          label="Densidad ATM/AMR"
+          value={amrDensity.per1000 === null ? "—" : String(amrDensity.per1000)}
+          sub={
+            amrDensity.provisionalUnclassified > 0
+              ? `por 1.000 · ${amrDensity.provisionalUnclassified} sin clasificar (provisional)`
+              : "antimicrobianos por 1.000 pets activos"
+          }
+        />
+      </section>
+
+      {/* A9 — live breach banner: rabies observations open past the legal 10-day window. */}
+      {rabiesCompliance.openBreaches > 0 && (
+        <OpBreach
+          icon="⚠"
+          title={`${rabiesCompliance.openBreaches} observación(es) rábica(s) fuera del plazo legal de 10 días`}
+          detail={
+            <Link href="/admin/observaciones" className="underline">
+              Ver observaciones →
+            </Link>
+          }
+        />
+      )}
+
+      {/* Item 3 — compliance cards: legal compliance, ENO, diseases, AMR. */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <OpCard aria-labelledby={panelComplianceId}>
+          <OpCardHead
+            title={<span id={panelComplianceId}>Cumplimiento legal — observación rábica</span>}
+          />
+          <OpCardBody>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
+              <dt className="text-ln-op-mute">Cumplimiento 10 días (A8)</dt>
+              <dd className="text-right font-semibold text-ln-op-ink">
+                {pct(rabiesCompliance.compliancePct)}
+              </dd>
+              <dt className="text-ln-op-mute">Cerradas en el período</dt>
+              <dd className="text-right font-semibold text-ln-op-ink">
+                {rabiesCompliance.closedWithinWindow}/{rabiesCompliance.closed}
+              </dd>
+              <dt className="text-ln-op-mute">Abiertas &gt; 10 días (A9)</dt>
+              <dd
+                className={`text-right font-semibold ${
+                  rabiesCompliance.openBreaches > 0 ? "text-ln-op-danger" : "text-ln-op-ink"
+                }`}
+              >
+                {rabiesCompliance.openBreaches}
+              </dd>
+            </dl>
+          </OpCardBody>
+        </OpCard>
+
+        <OpCard aria-labelledby={panelEnoId}>
+          <OpCardHead
+            title={<span id={panelEnoId}>Notificación ENO (SLA del outbox)</span>}
+            actions={
+              <Link
+                href="/admin/outbox"
+                className="text-[12px] text-ln-op-azul hover:underline no-underline"
+              >
+                Ver outbox →
+              </Link>
+            }
+          />
+          <OpCardBody>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
+              <dt className="text-ln-op-mute">Entregadas en SLA (A7)</dt>
+              <dd className="text-right font-semibold text-ln-op-ink">{pct(enoSla.onTimePct)}</dd>
+              <dt className="text-ln-op-mute">Fuera de SLA (abiertas)</dt>
+              <dd
+                className={`text-right font-semibold ${
+                  enoSla.breachedOpen > 0 ? "text-ln-op-warn" : "text-ln-op-ink"
+                }`}
+              >
+                {enoSla.breachedOpen}
+              </dd>
+              <dt className="text-ln-op-mute">Mediana de latencia</dt>
+              <dd className="text-right font-semibold text-ln-op-ink">
+                {enoSla.medianLatencyHours === null ? "—" : `${enoSla.medianLatencyHours} h`}
+              </dd>
+            </dl>
+            <p className="mt-3 text-[11px] text-ln-op-mute">
+              Mide nuestra cola de notificación interna, no la entrega externa.
+            </p>
+          </OpCardBody>
+        </OpCard>
+
+        <OpCard aria-labelledby={panelEnfId}>
+          <OpCardHead
+            title={<span id={panelEnfId}>Enfermedades reportables (incidencia + lab)</span>}
+          />
+          <OpCardBody className="p-0">
+            <div className="flex items-baseline justify-between px-4 py-3 border-b border-ln-op-line-2">
+              <span className="text-[12px] text-ln-op-mute">Confirmación de laboratorio (A10)</span>
+              <span className="font-semibold text-ln-op-ink">
+                {pct(reportableIncidence.labConfirmationPct)}
+              </span>
+            </div>
+            {reportableCells.length === 0 ? (
+              <div className="px-4 py-3">
+                <LnEmptyState
+                  icon="shield-check"
+                  title="Sin enfermedades reportables en el período"
+                  description="No se registraron eventos reportables en el rango seleccionado."
+                />
+              </div>
+            ) : (
+              <ul className="px-4 py-2 text-[13px]">
+                {reportableCells.map((c) => (
+                  <li
+                    key={c.key}
+                    className="flex items-center justify-between border-b border-ln-op-line-2 py-1.5 last:border-0"
+                  >
+                    <span className="text-ln-op-ink">{findDisease(c.key)?.label ?? c.key}</span>
+                    <span className="text-ln-op-mute">
+                      {c.count} ({c.confirmed} lab)
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {reportableIncidence.byDisease.suppressedCount > 0 && (
+              <p className="px-4 pb-3 text-[11px] text-ln-op-mute">
+                {reportableIncidence.byDisease.suppressedCount} celda(s) ocultas por privacidad
+                (k-anonimato).
+              </p>
+            )}
+          </OpCardBody>
+        </OpCard>
+
+        <OpCard aria-labelledby={panelAmrId}>
+          <OpCardHead title={<span id={panelAmrId}>AMR — densidad de antimicrobianos</span>} />
+          <OpCardBody>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
+              <dt className="text-ln-op-mute">Densidad (A12)</dt>
+              <dd className="text-right font-semibold text-ln-op-ink">
+                {amrDensity.per1000 === null ? "—" : `${amrDensity.per1000} / 1.000 pets`}
+              </dd>
+              <dt className="text-ln-op-mute">Inicios antimicrobianos</dt>
+              <dd className="text-right font-semibold text-ln-op-ink">
+                {amrDensity.antimicrobialCount}
+              </dd>
+              <dt className="text-ln-op-mute">Pets activos (denominador)</dt>
+              <dd className="text-right font-semibold text-ln-op-ink">{amrDensity.activePets}</dd>
+            </dl>
+            {amrDensity.provisionalUnclassified > 0 && (
+              <p className="mt-3 text-[11px] text-ln-op-mute">
+                {amrDensity.provisionalUnclassified} evento(s) con fármaco sin clasificar — conteo
+                provisional (clasificación provisional), no incluido en la tasa.
+              </p>
+            )}
+          </OpCardBody>
+        </OpCard>
+      </div>
 
       {/* Map + signals panels side-by-side on desktop */}
       <div className="grid lg:grid-cols-2 gap-4">

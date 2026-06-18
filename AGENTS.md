@@ -681,15 +681,18 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - Vaccination coverage by barrio — % of registered pets with up-to-date core vaccines, overdue counts and approximate density
 - Active campaign performance — enrollments, completions, no-shows, geographic reach
 - Mortality clusters — `death_recorded` events by cause and week, map overlay
-- Antibiotic / antimicrobial use density (AMR surveillance)
+- Antibiotic / antimicrobial use density (AMR surveillance) — **A12**, antimicrobial `medication_started` per 1,000 active pets, `lib/surveillance-metrics.ts` `fetchAmrDensity` (classifier `isAntimicrobial` in `lib/drugs.ts`; uncatalogued codes shown as a provisional raw count, not folded into the rate)
+- 10-day rabies-observation compliance + breaches — **A8/A9**, `fetchRabiesObservationCompliance` (Ord. CABA 41.831 art. 9); open-past-10d observations surface as a live `OpBreach`
+- ENO-notification SLA — **A7**, `fetchEnoSla` over `event_notification_outbox` (`target_kind='eno_authority'`): on-time %, breached-row count, median latency. Measures OUR outbox pipeline, not external delivery
 - Sterilization rate trend by jurisdiction
 
 ### Public-health analyst (province / national, strategic)
 - Vaccination coverage trends over time, sliceable by jurisdiction
 - Zoonosis indicators — aggregated `symptom_observed` + `death_recorded` patterns flagged when anomalous
+- Reportable-disease incidence + lab-confirmation rate — **A6/A10**, `fetchReportableIncidence` over `disease_reported` + `death_recorded.is_reportable` (per-disease counts k-anonymity suppressed; lab-confirmation = `confirmed_by_lab` share)
 - Population dynamics — registrations vs deaths vs lost over time, by region
 - Cross-region comparison and ranking
-- AMR signal trends, multi-region
+- AMR signal trends, multi-region (**A12**, see Sanitary authority)
 
 ### Animal-welfare officer (case-driven)
 - Maltreatment / abandonment report queue with map and assignment workflow
@@ -743,7 +746,7 @@ Schema `ref.*` (compliance PR 3, migration 0060) ancla los vocabularios SENASA e
 
 Helpers en `lib/sanitary-vocab.ts`: `tipoEventoLabel`, `tipoEventoNorma`, `requiresLote`, `requiresVia`, `notificableEno`. El test `__tests__/sanitary-vocab.test.ts` pinea el TS mirror contra el DB seed en cada CI.
 
-`pet_events.notificable_eno=true` codes (vacunacion_antirrabica / observacion_antirrabica / mordedura_notificada) deberían disparar un row en `event_notification_outbox` con `target_kind='eno_authority'` — la integración auto-fire queda como follow-up.
+`pet_events.notificable_eno=true` codes (vacunacion_antirrabica / observacion_antirrabica / mordedura_notificada) deberían disparar un row en `event_notification_outbox` con `target_kind='eno_authority'` — la integración auto-fire queda como follow-up. La **latencia de ese outbox ya se mide** (metric **A7**, `lib/surveillance-metrics.ts` `fetchEnoSla`, superficie `/gob/vigilancia`): on-time %, filas en breach y mediana de latencia. El auto-fire sigue siendo follow-up; lo que se monitorea hoy es el SLA de nuestra cola, no la entrega externa.
 
 ## Feature inventory
 
