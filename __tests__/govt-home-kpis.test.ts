@@ -10,6 +10,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, jurisdictionsCensus, petEvents, pets } from "@/db";
 import { fetchBitesPer10k } from "@/lib/govt-home-kpis";
+import { buildProjectionContext } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
@@ -94,9 +96,12 @@ describe("fetchBitesPer10k — census denominator", () => {
     // Insert one bite event in the last 12 months.
     await insertBiteEvent(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
-    const kpi = await fetchBitesPer10k({ role: "govt" }, [
-      { province: TEST_PROVINCE, locality: TEST_LOCALITY },
-    ]);
+    const ctx = buildProjectionContext(
+      { role: "govt" },
+      [{ province: TEST_PROVINCE, locality: TEST_LOCALITY }],
+      windows.trailing12m(),
+    );
+    const kpi = await fetchBitesPer10k(ctx);
 
     // With 1 bite and SANTA_FE_CENSUS_POPULATION, the expected rate is:
     // round((1 / (SANTA_FE_CENSUS_POPULATION / 10_000)) * 10) / 10
@@ -116,10 +121,14 @@ describe("fetchBitesPer10k — census denominator", () => {
     // We temporarily delete the row, assert zero, then restore.
     await db.delete(jurisdictionsCensus).where(eq(jurisdictionsCensus.provinceName, TEST_PROVINCE));
 
+    const ctx = buildProjectionContext(
+      { role: "govt" },
+      [{ province: TEST_PROVINCE, locality: TEST_LOCALITY }],
+      windows.trailing12m(),
+    );
+
     try {
-      const kpi = await fetchBitesPer10k({ role: "govt" }, [
-        { province: TEST_PROVINCE, locality: TEST_LOCALITY },
-      ]);
+      const kpi = await fetchBitesPer10k(ctx);
       expect(kpi.rate).toBe(0);
       expect(kpi.delta).toBe(0);
     } finally {
@@ -137,7 +146,8 @@ describe("fetchBitesPer10k — census denominator", () => {
   });
 
   it("returns rate=0 for empty govt jurisdictions without hitting the DB", async () => {
-    const kpi = await fetchBitesPer10k({ role: "govt" }, []);
+    const ctx = buildProjectionContext({ role: "govt" }, [], windows.trailing12m());
+    const kpi = await fetchBitesPer10k(ctx);
     expect(kpi.rate).toBe(0);
     expect(kpi.delta).toBe(0);
     expect(kpi.reports).toBe(0);
@@ -149,7 +159,8 @@ describe("fetchBitesPer10k — census denominator", () => {
     // exact national total here (other fixtures may have bite events) but
     // we CAN assert that the rate is much smaller than it would be with
     // the old 3_000_000 heuristic, because the real national total is ~46M.
-    const kpi = await fetchBitesPer10k({ role: "admin" }, []);
+    const ctx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
+    const kpi = await fetchBitesPer10k(ctx);
     // A healthy DB with only our 1 fixture bite event should produce < 0.001.
     // Mainly asserting it doesn't throw and returns a non-negative number.
     expect(kpi.rate).toBeGreaterThanOrEqual(0);
