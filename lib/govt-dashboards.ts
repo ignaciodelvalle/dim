@@ -26,6 +26,7 @@ import {
 } from "drizzle-orm";
 
 import {
+  arLocalities,
   caseEvents,
   cases,
   db,
@@ -37,6 +38,7 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
+import { provinceByCode } from "@/lib/ar-provincias";
 import { findDisease } from "@/lib/diseases";
 import { likeContains } from "@/lib/like-helpers";
 
@@ -728,6 +730,132 @@ export async function fetchCasesPerLocality(
       province: r.province as string,
       locality: r.locality ?? "",
       code: PROVINCE_ISO_MAP[r.province as string] ?? "",
+      count: r.n,
+    }));
+}
+
+// ============================================================================
+
+export type SubregionCaseCount = {
+  /** Matches `feature.properties.code` in the sub-region GeoJSON:
+   *  - Non-CABA: 5-digit INDEC department_code (e.g. "06007")
+   *  - CABA: normalized barrio key (NFD-stripped, lowercase, e.g. "agronomia")
+   */
+  code: string;
+  /** Display name of the sub-region (department name or barrio name). */
+  name: string;
+  /** Count of open cases assigned to this sub-region. */
+  count: number;
+};
+
+/**
+ * Open cases per sub-region within a selected province.
+ *
+ * Branches on provinceIso:
+ *
+ * AR-C (CABA): Groups open cases by jurisdictionLocality (each locality = a barrio).
+ *   The `code` is the normalized barrio key (same function used in caba-barrios.geojson)
+ *   so it matches `feature.properties.code` exactly at choropleth render time.
+ *
+ * Non-CABA: JOINs open cases to ar_localities on (province_display_name, locality_name)
+ *   to resolve the INDEC department_code, then groups by department_code.
+ *   The province match uses the canonical display name returned by provinceByCode().
+ *   Localities without a matching ar_localities row are silently dropped from the
+ *   result — they have no polygon in ar-departments.geojson and can't be colored.
+ *   NOTE: if a case's jurisdictionLocality doesn't match any ar_localities row for the
+ *   province (e.g. free-text misspelling), it is excluded from the choropleth but is
+ *   still counted in the province-level KPIs via fetchCasesPerLocality.
+ *
+ * Scope is enforced by casesScopeClause (same as all other cases fetchers).
+ * Admin always sees all cases; govt sees only their assigned localities.
+ */
+export async function fetchCasesPerSubregion(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  provinceIso: string,
+): Promise<SubregionCaseCount[]> {
+  const scope = casesScopeClause(actor, jurisdictions);
+  // Govt with no assignments can never see any case.
+  if (scope !== null && jurisdictions.length === 0) return [];
+
+  // Normalize a string the same way lib/ar-localidades.ts does, so barrio
+  // codes computed here match those in caba-barrios.geojson at render time.
+  function normalizeBarrio(s: string): string {
+    return s
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .toLowerCase()
+      .replace(/\./g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  if (provinceIso === "AR-C") {
+    // CABA: group open cases by jurisdictionLocality (= barrio name).
+    const conditions = [eq(cases.status, "open"), eq(cases.jurisdictionProvince, "CABA")];
+    if (scope) conditions.push(sql`(${scope})`);
+
+    const rows = await db
+      .select({
+        locality: cases.jurisdictionLocality,
+        n: count(),
+      })
+      .from(cases)
+      .where(and(...conditions))
+      .groupBy(cases.jurisdictionLocality);
+
+    return rows
+      .filter((r) => r.locality !== null && r.locality !== "")
+      .map((r) => ({
+        code: normalizeBarrio(r.locality as string),
+        name: r.locality as string,
+        count: r.n,
+      }));
+  }
+
+  // Non-CABA: resolve department_code via ar_localities JOIN.
+  // The cases table stores the canonical province display name (e.g. "Córdoba"),
+  // while ar_localities uses the ISO code (e.g. "AR-X"). We bridge via
+  // provinceByCode(provinceIso).name → cases.jurisdictionProvince filter.
+  const province = provinceByCode(provinceIso);
+  if (!province) return [];
+  const provinceDisplayName = province.name;
+
+  // WHERE conditions on the cases table only (ar_localities conditions go in the JOIN ON).
+  const caseConditions = [
+    eq(cases.status, "open"),
+    eq(cases.jurisdictionProvince, provinceDisplayName),
+  ];
+  if (scope) caseConditions.push(sql`(${scope})`);
+
+  const rows = await db
+    .select({
+      departmentCode: arLocalities.departmentCode,
+      departmentName: arLocalities.departmentName,
+      n: count(),
+    })
+    .from(cases)
+    .innerJoin(
+      arLocalities,
+      and(
+        // Province code on ar_localities side (ISO, e.g. "AR-X").
+        eq(arLocalities.provinceCode, provinceIso),
+        // Case-insensitive match of locality name across both tables.
+        sql`lower(${cases.jurisdictionLocality}) = lower(${arLocalities.localityName})`,
+        // Only active (non-removed) localities.
+        isNull(arLocalities.removedAt),
+        // Guard: non-CABA localities should always have a department_code.
+        isNotNull(arLocalities.departmentCode),
+      ),
+    )
+    .where(and(...caseConditions))
+    .groupBy(arLocalities.departmentCode, arLocalities.departmentName);
+
+  return rows
+    .filter((r) => r.departmentCode !== null)
+    .map((r) => ({
+      code: r.departmentCode as string,
+      name: r.departmentName ?? r.departmentCode ?? "",
       count: r.n,
     }));
 }

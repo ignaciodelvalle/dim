@@ -205,6 +205,62 @@ export function MapChoropleth({
               },
             });
 
+            // Fit the viewport to the bounding box of the enriched FeatureCollection.
+            // This makes the map auto-frame whichever region the data covers —
+            // national provinces, a province's departments, or CABA barrios —
+            // without the component needing to know which level it's rendering.
+            // Falls back to the initial center/zoom if bbox computation fails.
+            try {
+              let lngMin = Number.POSITIVE_INFINITY;
+              let lngMax = Number.NEGATIVE_INFINITY;
+              let latMin = Number.POSITIVE_INFINITY;
+              let latMax = Number.NEGATIVE_INFINITY;
+
+              function walkCoords(coords: unknown): void {
+                if (!Array.isArray(coords)) return;
+                if (typeof coords[0] === "number") {
+                  // [lng, lat] pair
+                  const lng = coords[0];
+                  const lat = coords[1];
+                  if (lng < lngMin) lngMin = lng;
+                  if (lng > lngMax) lngMax = lng;
+                  if (lat < latMin) latMin = lat;
+                  if (lat > latMax) latMax = lat;
+                } else {
+                  for (const c of coords) walkCoords(c);
+                }
+              }
+
+              for (const feature of enriched.features) {
+                // GeometryCollection has no .coordinates — skip it safely.
+                const geom = feature.geometry;
+                if (geom && "coordinates" in geom) {
+                  walkCoords(geom.coordinates);
+                }
+              }
+
+              const validBbox =
+                Number.isFinite(lngMin) &&
+                Number.isFinite(lngMax) &&
+                Number.isFinite(latMin) &&
+                Number.isFinite(latMax) &&
+                lngMax > lngMin &&
+                latMax > latMin;
+
+              if (validBbox) {
+                map.fitBounds(
+                  [
+                    [lngMin, latMin],
+                    [lngMax, latMax],
+                  ],
+                  { padding: 24, animate: false },
+                );
+              }
+            } catch {
+              // Bbox computation failed — the initial center/zoom from the Map
+              // constructor is already applied, so this is a safe no-op.
+            }
+
             // Tooltip al hacer hover.
             const tooltip = new maplibregl.Popup({
               closeButton: false,
