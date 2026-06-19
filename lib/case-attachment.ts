@@ -349,6 +349,13 @@ export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
     mode: "requires-open",
     compatibleWith: ["bite_incident"],
   },
+
+  // ---------------------------------------------------------------------
+  // Correction by amendment (1) — Wave 2 Item 15 (2026-06-19)
+  // ---------------------------------------------------------------------
+  // event_amended is a correction pointer — not a clinical event and not
+  // a case event. It never opens or attaches to any case.
+  event_amended: { mode: "never", compatibleWith: [] },
 };
 
 // ---------------------------------------------------------------------------

@@ -485,7 +485,7 @@ The two never conflate. A leaked `publicToken` exposes Tier-0 (minimal). A leake
 
 The naming is not cosmetic. It is the conceptual surface that makes DIM legible to non-technical dueños, which is precisely what the North Star ("the data-collection layer must be valuable on its own to drive adoption") requires. Renaming this later would mean retraining users we already onboarded. Lock it now, before scale.
 
-## Event catalog — 44 types
+## Event catalog — 45 types
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
 
@@ -551,6 +551,12 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | `incident_reported`  | later  | `{ incident_type: bite_inflicted\|bite_suffered\|dog_attack\|fight\|traffic_accident\|fall\|poisoning\|escape\|other, severity?, injuries_summary?, vet_involved?, location_description?, victim_kind?, victim_contact_name?, victim_contact_phone?, victim_pet_id?, victim_age_estimate?, context?, rabies_vaccine_valid_at_incident?, reporter_role? }` — umbrella covers bite events (rabies observation flow filters by `payload->>'incident_type'='bite_inflicted'`). `dog_attack` is deprecated in favor of `bite_suffered`. Distinct from `maltreatment_reported` (incident is non-human-cruelty) |
 | `outbreak_signal`    | system | `{ source_symptom_event_id, disease_code, disease_label, match_strength: {high_count, medium_count, low_count, matched_symptom_codes}, pet_jurisdiction_country, pet_jurisdiction_province?, pet_jurisdiction_locality?, pet_species }` — emitted when `symptom_observed` triggers a reportable-disease match. Owner does not see this in the libreta |
 | `disease_reported`   | govt   | `{ disease: lepto\|hidatidosis\|other, confirmed_by_lab, date_of_onset, clinical_notes? }` — govt-side surveillance entry that feeds zoonosis KPIs and the ENO fanout. Not part of the libreta (handoff P4-3) |
+
+**Correction**
+
+| Type            | UI | Payload                                                                                                                                                                                                                                   |
+| --------------- | -- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `event_amended` | v1 | `{ target_event_id, reason: string\|null, changes: [{field, old, new}], actor_role: owner\|vet\|admin\|govt, actor_user_id? }` — **Principle #2 (built 2026-06-19, Wave 2 Item 15).** Immutable correction: references the original event, never mutates it. `changes` shape calcs `pet_profile_updated`; `actor_role/reason` calcs `microchip_replaced`. Amendable allowlist (D4): `vaccination_administered`, `deworming_administered`, `weight_recorded`, `vet_visit_logged`, `clinical_info_logged`, `medication_started`, `note_added`, `sterilization_performed`. NOT amendable: death, incidents, legal/forensic events (D4 in spec). Admin/govt amendments: `reason` mandatory ≥5 chars, `audit_log` row, owner notified (`notification_type='admin_event_amended'`). Amendment-of-amendment allowed — always references the ORIGINAL `target_event_id`. Projection: libreta applies latest amendment at render; original remains in `/historial`. NOT part of the libreta (pointer/audit artifact, not clinical entry). |
 
 **Schema-ready, requires non-owner reporting flow**
 
