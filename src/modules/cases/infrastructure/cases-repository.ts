@@ -30,8 +30,8 @@ export interface OpenCaseInput {
   kind: CaseKind;
   primarySubjectKind: "registered_pet" | "unowned_animal" | "location" | "general";
   primaryPetId?: string | null;
-  primaryLocationLat?: string | null;
-  primaryLocationLng?: string | null;
+  locationLat?: string | null;
+  locationLng?: string | null;
   applicantUserId?: string | null;
   jurisdictionCountry?: string;
   jurisdictionProvince?: string | null;
@@ -105,13 +105,14 @@ export class CasesRepository {
       status: "open",
       primarySubjectKind: input.primarySubjectKind,
       primaryPetId: input.primaryPetId ?? null,
-      primaryLocationLat: input.primaryLocationLat ?? null,
-      primaryLocationLng: input.primaryLocationLng ?? null,
-      // Dual-write: canonical columns (migration 0101, P3 DEPLOY 1). Mirror the
-      // already-stringified primary_location_* values so reads can COALESCE(location_lat,
-      // primary_location_lat). Old columns kept — dropped in a later deploy.
-      locationLat: input.primaryLocationLat ?? null,
-      locationLng: input.primaryLocationLng ?? null,
+      // Canonical write (P3 Phase B). Input arrives as locationLat/locationLng.
+      locationLat: input.locationLat ?? null,
+      locationLng: input.locationLng ?? null,
+      // cases_subject_location_consistency CHECK still references primary_location_lat/lng
+      // (constraint added in 0033, not updated in 0101). Mirror canonical to legacy so
+      // the constraint is satisfied until Phase C drops both columns and the constraint.
+      primaryLocationLat: input.locationLat ?? null,
+      primaryLocationLng: input.locationLng ?? null,
       applicantUserId: input.applicantUserId ?? null,
       jurisdictionCountry: input.jurisdictionCountry ?? "AR",
       jurisdictionProvince: input.jurisdictionProvince ?? null,
