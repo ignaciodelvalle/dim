@@ -58,8 +58,8 @@ type OpenCaseInput = {
   kind: string;
   primarySubjectKind: string;
   primaryPetId: string | null;
-  primaryLocationLat: string | null;
-  primaryLocationLng: string | null;
+  locationLat: string | null;
+  locationLng: string | null;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   openedByUserId: string;
@@ -190,8 +190,8 @@ export async function createOrgWelfareReport(
         kind: "welfare_denuncia",
         primarySubjectKind,
         primaryPetId: primarySubjectKind === "registered_pet" ? subjectPetId : null,
-        primaryLocationLat: primarySubjectKind === "location" ? locationLat : null,
-        primaryLocationLng: primarySubjectKind === "location" ? locationLng : null,
+        locationLat: primarySubjectKind === "location" ? locationLat : null,
+        locationLng: primarySubjectKind === "location" ? locationLng : null,
         jurisdictionProvince,
         jurisdictionLocality,
         openedByUserId: orgMember.userId,
