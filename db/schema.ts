@@ -782,7 +782,7 @@ export const organizations = pgTable(
     discloseAddress: boolean("disclose_address").notNull().default(true),
     donationMethods: jsonb("donation_methods"),
     // Canonical coordinate columns (P3 location convergence, DEPLOY 2).
-    // Legacy latitude/longitude numeric(9,6) dropped in migration 0102.
+    // Legacy latitude/longitude numeric(9,6) dropped in migration 0103.
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
     locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
     // Declared shelter capacity (Item 16 D1, migration 0102). All nullable — capacity is optional.
@@ -3088,7 +3088,7 @@ export const cases = pgTable(
     primarySubjectKind: text("primary_subject_kind").notNull().$type<CaseSubjectKind>(),
     primaryPetId: uuid("primary_pet_id").references(() => pets.id, { onDelete: "cascade" }),
     // Canonical coordinate columns (P3 location convergence, DEPLOY 2).
-    // Legacy primary_location_lat/lng dropped in migration 0102.
+    // Legacy primary_location_lat/lng dropped in migration 0103.
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
     locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
 

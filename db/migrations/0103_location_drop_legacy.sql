@@ -1,4 +1,4 @@
--- Migration 0102: location column convergence (DEPLOY 2 — contract phase, DESTRUCTIVE).
+-- Migration 0103: location column convergence (DEPLOY 2 — contract phase, DESTRUCTIVE).
 --
 -- Drops the legacy coordinate columns now that all code reads/writes only the
 -- canonical location_lat/location_lng numeric(10,7) columns added in 0101.
