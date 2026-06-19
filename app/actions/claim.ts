@@ -22,6 +22,7 @@
 
 import { db, notifications, ownerships, petEvents, profiles, reminders } from "@/db";
 import { matchesDbError } from "@/lib/db-errors";
+import { dniLast4, hashDni } from "@/lib/dni-hash";
 import { createClient } from "@/lib/supabase/server";
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -82,8 +83,12 @@ export async function claimStubProfileAction(
   // The current user's own profile (created by the handle_new_user trigger
   // at signup). Verify it doesn't already have a different DNI — claiming
   // overwrites a null DNI but never overrides an existing one.
+  // No DNI in plaintext (Wave 5 Item 25a): we compare and store via hash.
+  const dniHashValue = hashDni(dni);
+  const dniLast4Value = dniLast4(dni);
+
   const [currentProfile] = await db
-    .select({ id: profiles.id, dniNumber: profiles.dniNumber })
+    .select({ id: profiles.id, dniHash: profiles.dniHash })
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);
@@ -92,39 +97,38 @@ export async function claimStubProfileAction(
       error: "No encontramos tu perfil MiMAR. Volvé a iniciar sesión.",
     };
   }
-  if (currentProfile.dniNumber && currentProfile.dniNumber !== dni) {
+  if (currentProfile.dniHash && currentProfile.dniHash !== dniHashValue) {
     return {
       error: "Tu perfil ya tiene un DNI distinto registrado. Contactá soporte si es un error.",
     };
   }
 
-  // The stub: a profile with the same DNI that's NOT the current user. The
-  // partial-unique index `profiles_dni_unique_when_present` guarantees at
-  // most one match.
+  // The stub: a profile with the same dni_hash that's NOT the current user.
+  // The partial-unique index `profiles_dni_hash_unique` guarantees at most one match.
   const [stub] = await db
     .select({ id: profiles.id, displayName: profiles.displayName })
     .from(profiles)
-    .where(and(eq(profiles.dniNumber, dni), ne(profiles.id, user.id)))
+    .where(and(eq(profiles.dniHash, dniHashValue), ne(profiles.id, user.id)))
     .limit(1);
 
   if (!stub) {
-    // No stub found. If the user's own profile already has the DNI, this is
+    // No stub found. If the user's own profile already has the DNI hash, this is
     // a no-op success. Otherwise it's a genuine miss — no refugio has staged
     // an adoption for them.
-    if (currentProfile.dniNumber === dni) {
+    if (currentProfile.dniHash === dniHashValue) {
       return { error: null };
     }
-    // Set the DNI on the user's profile anyway — first-time Mi Argentina-
-    // style identity binding. Harmless if they're not awaiting a refugio.
+    // Set the DNI hash + last4 on the user's profile — first-time identity binding.
+    // Harmless if they're not awaiting a refugio.
     try {
       await db
         .update(profiles)
-        .set({ dniNumber: dni, dniVerified: false })
+        .set({ dniHash: dniHashValue, dniLast4: dniLast4Value, dniVerified: false })
         .where(eq(profiles.id, user.id));
     } catch (err) {
       // drizzle 0.45 wraps pg errors; matchesDbError walks the `.cause` chain to
       // the real constraint name (no longer on the top-level message).
-      if (matchesDbError(err, { constraint: /profiles_dni_unique_when_present/ })) {
+      if (matchesDbError(err, { constraint: /profiles_dni_hash_unique/ })) {
         return { error: "Ese DNI ya está en uso por otro perfil." };
       }
       const message = err instanceof Error ? err.message : "Error desconocido.";
@@ -207,7 +211,7 @@ export async function claimStubProfileAction(
 
       await tx
         .update(profiles)
-        .set({ dniNumber: dni, dniVerified: false })
+        .set({ dniHash: dniHashValue, dniLast4: dniLast4Value, dniVerified: false })
         .where(eq(profiles.id, user.id));
 
       const bodyParts: string[] = [];

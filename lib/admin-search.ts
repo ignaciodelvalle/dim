@@ -51,7 +51,13 @@ const SEARCH_LIMIT = 25;
 // Larger limit for the default (no-query) paginated listing.
 const DEFAULT_LIST_LIMIT = 50;
 
-// Look up users by display_name OR dni_number prefix.
+// Look up users by display_name.
+// Wave 5 Item 25a: DNI is no longer stored in plaintext — prefix search on
+// dni_number is removed. Searching by exact DNI now requires the full number
+// to compute its hash (hashDni(input)) and match against profiles.dni_hash.
+// That capability (exact-hash lookup) can be wired in a future item when the
+// admin search UX explicitly requests it.
+//
 // Empty query returns a default list ordered by role priority then display
 // name, limited to DEFAULT_LIST_LIMIT rows so the page is always useful on
 // landing without PII search intent.
@@ -121,12 +127,11 @@ export async function searchUsers(
   }
 
   const pattern = likeContains(trimmed);
-  // Use unaccent() on both sides so "gonzalez" finds "González" (Postgres
-  // ILIKE folds case but NOT diacritics). Wildcard-safe via likeContains().
-  const textPredicate = or(
-    sql`unaccent(${profiles.displayName}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
-    sql`unaccent(${profiles.dniNumber}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
-  );
+  // Use unaccent() so "gonzalez" finds "González" (Postgres ILIKE folds case
+  // but NOT diacritics). Wildcard-safe via likeContains().
+  // Wave 5 Item 25a: dni_number is gone — search by display_name only.
+  // Exact DNI lookup (future): hashDni(input) → WHERE dni_hash = <hash>.
+  const textPredicate = sql`unaccent(${profiles.displayName}) ILIKE unaccent(${pattern}) ESCAPE '\'`;
   const whereClause =
     scopeConditions.length > 0 ? and(textPredicate, ...scopeConditions) : textPredicate;
 

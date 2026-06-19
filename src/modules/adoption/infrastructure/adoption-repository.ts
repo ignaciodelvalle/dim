@@ -18,6 +18,7 @@ import {
   reminders,
 } from "@/db";
 import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
+import { dniLast4, hashDni } from "@/lib/dni-hash";
 import { validateEventPayload } from "@/lib/event-schemas";
 
 // ---------------------------------------------------------------------------
@@ -197,14 +198,15 @@ export const AdoptionRepository = {
   },
 
   /**
-   * Finds a profile by DNI number. Returns the profile id or null.
+   * Finds a profile by DNI (via hash — no plaintext comparison).
+   * Wave 5 Item 25a: equality matching uses HMAC-SHA256 hash, never plaintext.
    */
   async findStubAdopterByDni(dni: string, tx?: Tx): Promise<{ id: string } | null> {
     const client = tx ?? db;
     const [row] = await client
       .select({ id: profiles.id })
       .from(profiles)
-      .where(eq(profiles.dniNumber, dni))
+      .where(eq(profiles.dniHash, hashDni(dni)))
       .limit(1);
     return row ?? null;
   },
@@ -587,13 +589,14 @@ export const AdoptionRepository = {
       now,
     } = args;
 
-    // Stub profile insert.
+    // Stub profile insert. No plaintext DNI (Wave 5 Item 25a).
     if (isStubAdopter && dni) {
       await tx.insert(profiles).values({
         id: adopterUserId,
         displayName,
         phone,
-        dniNumber: dni,
+        dniHash: hashDni(dni),
+        dniLast4: dniLast4(dni),
         dniVerified: false,
         role: "owner",
       });

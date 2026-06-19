@@ -77,7 +77,7 @@ afterAll(async () => {
 });
 
 describe("verifyDniForUser", () => {
-  it("happy path: sets dni_number + dni_verified, inserts audit + notification", async () => {
+  it("happy path: sets dni_hash + dni_last4 + dni_verified (no plaintext), inserts audit + notification", async () => {
     // Derive a per-user DNI from userId slice to avoid collisions across test runs.
     const dni = userIdA.replace(/\D/g, "").slice(0, 8).padEnd(8, "1");
 
@@ -85,12 +85,19 @@ describe("verifyDniForUser", () => {
     expect(result.ok).toBe(true);
 
     const [profile] = await db
-      .select({ dniVerified: profiles.dniVerified, dniNumber: profiles.dniNumber })
+      .select({
+        dniVerified: profiles.dniVerified,
+        dniHash: profiles.dniHash,
+        dniLast4: profiles.dniLast4,
+      })
       .from(profiles)
       .where(eq(profiles.id, userIdA))
       .limit(1);
     expect(profile.dniVerified).toBe(true);
-    expect(profile.dniNumber).toBe(dni);
+    // Wave 5 Item 25a: hash matches, plaintext is never stored.
+    const { hashDni, dniLast4 } = await import("@/lib/dni-hash");
+    expect(profile.dniHash).toBe(hashDni(dni));
+    expect(profile.dniLast4).toBe(dniLast4(dni));
 
     // Audit log row
     const auditRows = await db

@@ -10,11 +10,22 @@
 -- notifications inbox on first login.
 --
 -- Reads from auth.users.raw_user_meta_data:
---   - display_name (optional)  → falls back to local-part of email
---   - user_role    (optional)  → falls back to 'owner' (the default for
---                                self-serve signups; vet/govt accounts are
---                                created via admin-driven flows that set this
---                                metadata explicitly).
+--   - display_name   (optional) → falls back to local-part of email
+--   - user_role      (optional) → falls back to 'owner' (the default for
+--                                 self-serve signups; vet/govt accounts are
+--                                 created via admin-driven flows that set this
+--                                 metadata explicitly).
+--
+-- TODO(25b): when Mi Argentina OIDC lands, wire additional metadata keys:
+--   - miarg_sub     → profiles.miarg_sub
+--   - dni_hash      → profiles.dni_hash  (pre-hashed by the OIDC callback)
+--   - dni_last4     → profiles.dni_last4
+--   - dni_verified  → profiles.dni_verified
+--   - identity_source → profiles.identity_source = 'miarg'
+-- The callback route (app/auth/miarg/callback/route.ts) will call
+-- upsertProfileFromMiArgClaims() which handles this directly — no trigger
+-- change required for the normal OIDC path. The trigger-path is for the
+-- rare case where Supabase Auth creates the row before the callback fires.
 
 create or replace function public.handle_new_user()
 returns trigger

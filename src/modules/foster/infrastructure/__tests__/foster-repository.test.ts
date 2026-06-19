@@ -11,6 +11,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { hashDni } from "@/lib/dni-hash";
+
 import {
   db,
   fosterProposals,
@@ -50,7 +52,7 @@ beforeAll(async () => {
   await db.insert(profiles).values({
     id: proposerUserId,
     displayName: "FosterRepo Proposer",
-    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
     dniVerified: false,
     role: "owner",
   });
@@ -88,7 +90,7 @@ beforeAll(async () => {
   await db.insert(profiles).values({
     id: volunteerUserId,
     displayName: "Test Volunteer",
-    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
     dniVerified: true,
     role: "owner",
     phone: "1112345678",

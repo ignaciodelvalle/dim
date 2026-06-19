@@ -53,7 +53,8 @@ export default async function CuentaPage() {
         displayName: profiles.displayName,
         avatarUrl: profiles.avatarUrl,
         accountType: profiles.accountType,
-        dniNumber: profiles.dniNumber,
+        // Wave 5 Item 25a: no plaintext DNI. Display uses dniLast4 only.
+        dniLast4: profiles.dniLast4,
         dniVerified: profiles.dniVerified,
         matriculaNumber: profiles.matriculaNumber,
         matriculaJurisdiccion: profiles.matriculaJurisdiccion,
@@ -172,15 +173,14 @@ export default async function CuentaPage() {
         <LnCardHead title="Verificaciones de identidad" />
         <LnCardBody>
           <div className="flex flex-col gap-[12px]">
-            {/* DNI */}
-            {profile.dniNumber ? (
+            {/* DNI — Wave 5 Item 25a: show last-4 only (no plaintext).
+                Full DNI is never stored; disambiguation via dniLast4. */}
+            {profile.dniLast4 ? (
               <div className="flex items-center gap-[10px]">
                 <VerificationBadge verified={profile.dniVerified} />
                 <span className="text-[13px] text-[var(--color-ln-ink-2)]">
                   DNI{" "}
-                  <span className="font-[var(--font-ln-mono)]">
-                    {profile.dniVerified ? `••••${profile.dniNumber.slice(-3)}` : profile.dniNumber}
-                  </span>{" "}
+                  <span className="font-[var(--font-ln-mono)]">{`••••${profile.dniLast4}`}</span>{" "}
                   {/* DNI verification is self-declared (trust-on-input) until the Mi Argentina
                       integration lands. Use "declarado" to avoid overclaiming identity assurance. */}
                   {profile.dniVerified ? "declarado" : "no declarado"}

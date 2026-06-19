@@ -8,6 +8,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { dniLast4, hashDni } from "@/lib/dni-hash";
+
 import {
   attachments,
   db,
@@ -47,7 +49,7 @@ beforeAll(async () => {
   await db.insert(profiles).values({
     id: actorUserId,
     displayName: "AdoptionRepo Actor",
-    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
     dniVerified: false,
     role: "owner",
   });
@@ -185,7 +187,7 @@ describe("AdoptionRepository.findActiveFoster", () => {
     await db.insert(profiles).values({
       id: fosterProfileId,
       displayName: "FosterTestUser",
-      dniNumber: `9${Math.floor(Math.random() * 9000000 + 1000000)}`,
+      dniHash: hashDni(`9${Math.floor(Math.random() * 9000000 + 1000000)}`),
       dniVerified: false,
       role: "owner",
     });
@@ -473,7 +475,7 @@ describe("W-2 parity: reminder description uses org displayName and pet name", (
         await tx.insert(profiles).values({
           id: adopterUserId,
           displayName: "Adopter W2 Test",
-          dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+          dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
           dniVerified: true,
           role: "owner",
         });

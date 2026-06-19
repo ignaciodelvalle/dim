@@ -16,6 +16,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { hashDni } from "@/lib/dni-hash";
+
 import { attachments, db, ownerships, petEvents, petIdentifications, pets, profiles } from "@/db";
 import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
 
@@ -87,7 +89,7 @@ beforeAll(async () => {
     await db.insert(profiles).values({
       id: userId,
       displayName: USER_TOKEN,
-      dniNumber: `9${Math.floor(Math.random() * 9000000 + 1000000)}`,
+      dniHash: hashDni(`9${Math.floor(Math.random() * 9000000 + 1000000)}`),
       dniVerified: false,
       role: "owner",
     });

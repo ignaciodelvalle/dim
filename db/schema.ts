@@ -393,9 +393,22 @@ export const profiles = pgTable(
     displayName: text("display_name").notNull(),
     phone: text("phone"),
     avatarUrl: text("avatar_url"),
-    // Mi Argentina-ready columns. Never required in v1.
-    dniNumber: text("dni_number"),
+    // Mi Argentina identity (Wave 5 Item 25a — migration 0106).
+    // No DNI in plaintext rule (Ley 25.326 / Mi Argentina premise).
+    //   miarg_sub       — opaque, stable subject ID from Mi Argentina OIDC.
+    //   identity_source — 'miarg' (verified via OIDC) | 'legacy' (form-verified).
+    //   dni_hash        — HMAC-SHA256(dni, pepper) hex. Equality matching only.
+    //                     Pepper in env/KMS, never in DB. See lib/dni-hash.ts.
+    //   dni_last4       — right(dni, 4). Human disambiguation in operator UI only.
+    //   dni_verified    — boolean flag (preserved from pre-25a schema).
+    //   dni_verified_at — when verification happened.
+    // TODO(25b): wire miarg_sub via Mi Argentina OIDC callback.
+    miargSub: text("miarg_sub"),
+    identitySource: text("identity_source").default("legacy").$type<"miarg" | "legacy">(),
+    dniHash: text("dni_hash"),
+    dniLast4: text("dni_last4"),
     dniVerified: boolean("dni_verified").notNull().default(false),
+    dniVerifiedAt: timestamp("dni_verified_at", { withTimezone: true }),
     // Vet professional license. Nullable; submitted via /cuenta/upgrade.
     // Admin manually flips role='vet' after verification. jurisdiccion is the
     // province/jurisdiction that issued the matricula — the registry to check.
@@ -456,9 +469,15 @@ export const profiles = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    dniUnique: uniqueIndex("profiles_dni_unique_when_present")
-      .on(table.dniNumber)
-      .where(sql`${table.dniNumber} IS NOT NULL`),
+    // Unique index on miarg_sub (partial — only when set). Added by migration 0106.
+    miargSubUnique: uniqueIndex("profiles_miarg_sub_unique")
+      .on(table.miargSub)
+      .where(sql`${table.miargSub} IS NOT NULL`),
+    // Unique index on dni_hash (partial — only when set). Replaces former
+    // profiles_dni_unique_when_present on dni_number. Added by migration 0106.
+    dniHashUnique: uniqueIndex("profiles_dni_hash_unique")
+      .on(table.dniHash)
+      .where(sql`${table.dniHash} IS NOT NULL`),
     matriculaUnique: uniqueIndex("profiles_matricula_unique_when_present")
       .on(table.matriculaNumber)
       .where(sql`${table.matriculaNumber} IS NOT NULL`),
@@ -485,7 +504,7 @@ export const profiles = pgTable(
     ),
     profilesInstitutionalNoPii: check(
       "profiles_institutional_no_pii",
-      sql`${table.accountType} = 'personal' or (${table.dniNumber} is null and ${table.matriculaNumber} is null and ${table.matriculaJurisdiccion} is null)`,
+      sql`${table.accountType} = 'personal' or (${table.dniHash} is null and ${table.matriculaNumber} is null and ${table.matriculaJurisdiccion} is null and ${table.miargSub} is null)`,
     ),
     // Added by migration 0097.
     profilesJurisdictionProvinceCanonical: check(

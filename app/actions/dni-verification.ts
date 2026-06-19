@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { auditLog, db, notifications, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { pgError } from "@/lib/db-errors";
+import { dniLast4, hashDni } from "@/lib/dni-hash";
 import { sanitizeNext } from "@/lib/dni-next";
 
 // ============================================================================
@@ -35,12 +36,9 @@ function isDniUniqueViolation(err: unknown): boolean {
   const info = pgError(err);
   if (!info || info.code !== "23505") return false;
   const constraint = info.constraint ?? "";
-  const columnName = typeof info.raw.column_name === "string" ? info.raw.column_name : "";
   const detail = typeof info.raw.detail === "string" ? info.raw.detail : "";
-  // The partial unique index is named profiles_dni_unique_when_present (schema.ts:303-305)
-  return (
-    constraint.includes("dni") || columnName === "dni_number" || detail.includes("(dni_number)")
-  );
+  // The partial unique index is named profiles_dni_hash_unique (migration 0106).
+  return constraint.includes("dni") || detail.includes("(dni_hash)");
 }
 
 // ============================================================================
@@ -48,16 +46,19 @@ function isDniUniqueViolation(err: unknown): boolean {
 // ============================================================================
 
 /**
- * Sets dni_number + dni_verified=true for `userId`.
+ * Sets dni_hash + dni_last4 + dni_verified=true for `userId`.
+ *
+ * No DNI in plaintext (Wave 5 Item 25a): the raw DNI is never persisted.
+ * Only the HMAC-SHA256 hash (lib/dni-hash.ts) and the last 4 digits are stored.
  *
  * - Short-circuits idempotently if the profile already has dni_verified=true.
  * - Catches 23505 on the partial unique index and returns a friendly error.
  * - Inserts one audit_log row (action: "dni_verified_self").
  * - Inserts one self-notification (notificationType: "profile_self_updated").
  *
- * TODO(mi-argentina): replace the direct DB write with a verified assertion
- * from the Mi Argentina OAuth callback. The outer shape (userId in, result out)
- * stays the same; only the trust source changes.
+ * TODO(25b): replace this direct DB write with a verified assertion from the
+ * Mi Argentina OAuth callback. The outer shape (userId in, result out) stays
+ * the same; only the trust source changes.
  */
 export async function verifyDniForUser(userId: string, rawDni: string): Promise<DniVerifyResult> {
   const { trimmed, error: formatError } = validateDni(rawDni);
@@ -75,11 +76,21 @@ export async function verifyDniForUser(userId: string, rawDni: string): Promise<
   // Idempotent short-circuit: already verified — nothing to do.
   if (profile.dniVerified) return { ok: true };
 
+  const dniHashValue = hashDni(trimmed);
+  const dniLast4Value = dniLast4(trimmed);
+
   try {
     await db.transaction(async (tx) => {
       await tx
         .update(profiles)
-        .set({ dniNumber: trimmed, dniVerified: true, updatedAt: new Date() })
+        .set({
+          dniHash: dniHashValue,
+          dniLast4: dniLast4Value,
+          dniVerified: true,
+          dniVerifiedAt: new Date(),
+          identitySource: "legacy",
+          updatedAt: new Date(),
+        })
         .where(eq(profiles.id, userId));
 
       await tx.insert(auditLog).values({

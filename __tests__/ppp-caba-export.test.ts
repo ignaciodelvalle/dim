@@ -6,6 +6,8 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { dniLast4, hashDni } from "@/lib/dni-hash";
+
 import { generatePppExportAction } from "@/app/actions/ppp-export-caba";
 import { auditLog, db, ownerships, pets, profiles } from "@/db";
 import * as authGuards from "@/lib/auth-guards";
@@ -137,7 +139,9 @@ beforeAll(async () => {
       displayName: "PPP Owner Test",
       role: "owner",
       accountType: "personal",
-      dniNumber: "31234567",
+      // Wave 5 Item 25a: hash + last4 only, no plaintext.
+      dniHash: hashDni("31234567"),
+      dniLast4: dniLast4("31234567"),
     })
     .onConflictDoNothing({ target: profiles.id });
 

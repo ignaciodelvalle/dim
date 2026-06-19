@@ -23,7 +23,7 @@ const initialIdentityState: IdentityFormState = { error: null };
 //
 // Step 2 (identity): nombre + apellido (required) + DNI (optional).
 //   completeIdentityAction updates profiles.display_name to the real name
-//   and stores dni_number unverified if provided.
+//   and stores dni_hash + dni_last4 (no plaintext DNI — Wave 5 Item 25a).
 //
 // returnTo / intent=apply branches: both used to skip the old pet step and
 // redirect after step 1. They now show step 2 (identity) first so that the
