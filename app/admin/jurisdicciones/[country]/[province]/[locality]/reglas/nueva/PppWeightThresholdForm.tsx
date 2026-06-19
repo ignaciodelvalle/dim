@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 
 import {
   type BusinessRuleFormState,
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
+import type { RuleImpactPreviewInput } from "@/app/actions/rule-impact-preview";
+import { RuleImpactBanner } from "@/components/admin/RuleImpactBanner";
 import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 
 const initialState: BusinessRuleFormState = { error: null };
@@ -38,6 +40,26 @@ export function PppWeightThresholdForm({
       : createBusinessRuleAction;
   const [state, formAction, isPending] = useActionState(action, initialState);
 
+  // Controlled state for the two fields that drive the impact preview.
+  const [kgRaw, setKgRaw] = useState<string>(initialKg !== null ? String(initialKg) : "");
+  const [appliesIfBreedNotPPP, setAppliesIfBreedNotPPP] = useState(initialAppliesIfBreedNotPPP);
+
+  // Build preview input — recomputed when kg or appliesIfBreedNotPPP changes.
+  const previewInput = useMemo<RuleImpactPreviewInput | null>(() => {
+    const parsed = kgRaw !== "" ? Number.parseFloat(kgRaw) : null;
+    const kg = parsed !== null && !Number.isNaN(parsed) && parsed >= 0 ? parsed : null;
+    // Only preview when there's a valid kg and the threshold applies broadly.
+    if (kg === null || !appliesIfBreedNotPPP) return null;
+    return {
+      ruleType: "ppp_weight_threshold",
+      kg,
+      appliesIfBreedNotPPP,
+      country,
+      province,
+      locality,
+    };
+  }, [kgRaw, appliesIfBreedNotPPP, country, province, locality]);
+
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="ruleType" value="ppp_weight_threshold" />
@@ -59,18 +81,26 @@ export function PppWeightThresholdForm({
             min={0}
             max={200}
             step="0.1"
-            defaultValue={initialKg ?? ""}
+            value={kgRaw}
+            onChange={(e) => setKgRaw(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
         )}
       </LnField>
 
-      <LnCheckbox name="appliesIfBreedNotPPP" defaultChecked={initialAppliesIfBreedNotPPP}>
+      <LnCheckbox
+        name="appliesIfBreedNotPPP"
+        checked={appliesIfBreedNotPPP}
+        onChange={(e) => setAppliesIfBreedNotPPP(e.target.checked)}
+      >
         Aplicar el threshold incluso a razas NO listadas en{" "}
         <span className="font-mono text-[11px]">ppp_breed_list</span>. Si esta desactivado, el
         threshold solo agrega una segunda condicion a las razas ya consideradas PPP.
       </LnCheckbox>
+
+      {/* Impact preview — shown before submission */}
+      <RuleImpactBanner input={previewInput} />
 
       <LnField label="Notas internas">
         {({ id, describedBy, invalid }) => (

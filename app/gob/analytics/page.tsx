@@ -6,6 +6,7 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
+import { fetchRegionRanking } from "@/lib/analytics-ranking";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -21,6 +22,7 @@ import {
 } from "@/lib/govt-dashboards";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
+import { RegionRankingTable } from "./_components/RegionRankingTable";
 
 export const dynamic = "force-dynamic";
 
@@ -89,13 +91,14 @@ export default async function GobAnalyticsPage({
 
   const { since } = resolveAnalyticsPeriod(sp);
 
-  const [metrics, acquisitionTrend, deathCauses, outbreakHistory, casesPerCapita] =
+  const [metrics, acquisitionTrend, deathCauses, outbreakHistory, casesPerCapita, regionRanking] =
     await Promise.all([
       fetchAnalyticsMetrics(actor, filteredJurisdictions, { since }),
       fetchAcquisitionTrend(actor, filteredJurisdictions, { since }),
       fetchDeathCauses(actor, filteredJurisdictions, { since }),
       fetchOutbreakHistory(actor, filteredJurisdictions),
       fetchCasesPerCapita(actor, filteredJurisdictions),
+      fetchRegionRanking(actor, filteredJurisdictions),
     ]);
 
   // Build allowedProvinces for <JurisdictionSwitcher>.
@@ -126,6 +129,7 @@ export default async function GobAnalyticsPage({
   const panelMapId = "panel-mapa-analytics-titulo";
   const panelDeathId = "panel-death-titulo";
   const panelOutbreakId = "panel-outbreak-titulo";
+  const panelRankingId = "panel-ranking-titulo";
 
   return (
     <div className="space-y-6">
@@ -211,7 +215,7 @@ export default async function GobAnalyticsPage({
         </OpCardBody>
       </OpCard>
 
-      {/* Geographic distribution -- cases as proxy for population. */}
+      {/* Geographic distribution + cross-region ranking */}
       <OpCard aria-labelledby={panelMapId}>
         <OpCardHead
           title={
@@ -227,6 +231,23 @@ export default async function GobAnalyticsPage({
           <MapChoroplethDynamic data={choroplethData} />
         </OpCardBody>
       </OpCard>
+
+      {/* Cross-region ranking table (Item 22) */}
+      {(regionRanking.top.length > 0 || regionRanking.bottom.length > 0) && (
+        <OpCard aria-labelledby={panelRankingId}>
+          <OpCardHead
+            title={
+              <span id={panelRankingId}>
+                Ranking por cobertura antirrábica{" "}
+                <span className="text-[11px] font-normal text-ln-op-mute">por provincia</span>
+              </span>
+            }
+          />
+          <OpCardBody>
+            <RegionRankingTable top={regionRanking.top} bottom={regionRanking.bottom} />
+          </OpCardBody>
+        </OpCard>
+      )}
 
       {/* Top 10 death causes -- v1: simple HTML/CSS bars (spec B.6 doesn't mandate recharts here) */}
       <OpCard aria-labelledby={panelDeathId}>
