@@ -1395,6 +1395,49 @@ const postAdoptionCheckin = z
 // the only writer is app/actions/libreta-share.ts.
 
 // ---------------------------------------------------------------------------
+// Correction by amendment (D1 — Wave 2 Item 15, 2026-06-19)
+// ---------------------------------------------------------------------------
+//
+// event_amended is the canonical correction mechanism (AGENTS.md core
+// principle #2). It references an original event; never mutates it.
+//
+// `changes` calcs `pet_profile_updated` shape — array of {field, old, new}.
+// `actor_role` + `actor_user_id` + `reason` calc `microchip_replaced`.
+//
+// Allowlist enforcement lives in lib/amendment.ts (AMENDABLE_EVENT_TYPES).
+// D5: admin/govt → reason mandatory (min 5 chars), audit logged, owner notified.
+// Amendment-of-amendment: allowed; always references the ORIGINAL target_event_id
+// so the chain is always one hop from the root event (auditable, not nested).
+const eventAmended = z
+  .object(
+    withVersion({
+      // UUID of the event being corrected. Immutable pointer; must be a valid
+      // pet_event row for the same pet. Validated server-side in the action.
+      target_event_id: z.string().uuid(),
+      // Human-readable reason for the correction. Required for admin/govt (D5);
+      // optional for owner/vet. Min 5 chars when provided.
+      reason: z.string().min(5).nullable(),
+      // Structured changelog — same shape as pet_profile_updated.changes.
+      // Each entry records ONE field change: field key, old value, new value.
+      changes: z
+        .array(
+          z.object({
+            field: z.string(),
+            old: z.unknown(),
+            new: z.unknown(),
+          }),
+        )
+        .min(1),
+      // Who performed the amendment — determines audit + notification path (D5).
+      actor_role: z.enum(["owner", "vet", "admin", "govt"]).default("owner"),
+      // UUID of the user performing the amendment. Optional: owner-path writes
+      // it automatically from the session; nullable for back-compat.
+      actor_user_id: z.string().uuid().nullable().optional(),
+    }),
+  )
+  .strict();
+
+// ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
 // `Partial<Record<EventType, ...>>` is intentional: a small allowlist of
@@ -1451,6 +1494,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   foster_proposal_resolved: fosterProposalResolved,
   foster_co_foster_allowed: fosterCoFosterAllowed,
   adoption_eligibility_set: adoptionEligibilitySet,
+  event_amended: eventAmended,
 };
 
 /**

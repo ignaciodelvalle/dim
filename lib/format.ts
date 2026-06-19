@@ -223,6 +223,8 @@ const EVENT_TYPE_LABELS = {
   // Surveillance
   outbreak_signal: "Señal de brote",
   disease_reported: "Enfermedad reportada",
+  // Correction by amendment — Wave 2 Item 15 (principle #2, 2026-06-19)
+  event_amended: "Corrección registrada",
 } satisfies Record<EventType, string>;
 
 export function eventTypeLabel(eventType: EventType): string {

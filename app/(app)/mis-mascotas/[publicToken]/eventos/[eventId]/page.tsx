@@ -5,6 +5,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { fetchLatestAmendmentsForEvents } from "@/app/actions/amendment";
+import { AmendedBadge } from "@/components/ui/AmendedBadge";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { attachments, db, petEvents } from "@/db";
 import type { EventType } from "@/db/schema";
@@ -16,6 +18,7 @@ import { requireOwnedPetByToken } from "@/lib/pets";
 import { eventAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { and, eq } from "drizzle-orm";
+import { AmendEventButton } from "./AmendEventButton";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
@@ -30,7 +33,7 @@ export default async function EventDetailPage({
 }) {
   const { publicToken, eventId } = await params;
   const session = await requireOwnedPetByToken(publicToken);
-  const { pet } = session;
+  const { pet, accessPath } = session;
 
   const [event] = await db
     .select()
@@ -63,6 +66,15 @@ export default async function EventDetailPage({
   >;
   const payloadEntries = Object.entries(payload).filter(([, v]) => v !== null && v !== undefined);
 
+  // D2 — Check for amendments on this event.
+  const amendmentsMap = await fetchLatestAmendmentsForEvents(pet.id, [event.id]);
+  const latestAmendment = amendmentsMap.get(event.id) ?? null;
+
+  // D3 — Capability gate: owner path can amend. Org-path (shelter) cannot
+  // amend owner events in v1 (spec says "whoever can write that event_type").
+  // Owner-path is always allowed per requireOwnedPetByToken.
+  const canAmend = accessPath === "owner";
+
   return (
     <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
       {/* Back */}
@@ -84,21 +96,34 @@ export default async function EventDetailPage({
         {summary.secondary && (
           <p className="mt-[4px] text-[13px] text-[var(--color-ln-mute)]">{summary.secondary}</p>
         )}
-        {/* Author chip */}
+        {/* Author chip + amended badge */}
         <div className="mt-[10px] flex flex-wrap items-center gap-[6px]">
           <AuthorChip role={event.authorRole} verified={event.authorVerified} />
+          {latestAmendment && (
+            <AmendedBadge
+              amendedAt={latestAmendment.occurredAt}
+              originalHref={`/mis-mascotas/${pet.publicToken}?tab=historial`}
+            />
+          )}
         </div>
       </div>
 
-      {/* Append-only banner */}
+      {/* Append-only banner + amend affordance */}
       <div
-        className="mb-[16px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[14px] py-[10px]"
+        className="mb-[16px] flex flex-col gap-[10px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[14px] py-[10px]"
         role="note"
       >
         <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
-          Este registro no se puede editar ni borrar — la libreta es un historial inmutable. Para
-          aclarar, agregá una nota al historial.
+          Este registro no se puede editar ni borrar — la libreta es un historial inmutable. Si hay
+          un dato incorrecto, podés registrar una corrección que queda acreditada en el historial.
         </p>
+        <AmendEventButton
+          eventId={event.id}
+          eventType={event.eventType}
+          currentPayload={payload}
+          canAmend={canAmend}
+          publicToken={publicToken}
+        />
       </div>
 
       <div className="flex flex-col gap-[16px]">
