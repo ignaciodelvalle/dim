@@ -285,4 +285,74 @@ export const RLS_MATRIX: RlsMatrix = {
       delete: deny("no DELETE policy"),
     },
   },
+
+  // ---------------------------------------------------------------------------
+  // pet_identifications — microchip / ISO / tattoo PII (Ley 25.326).
+  // SELECT: owner reads via ownerships join; admin reads all.
+  // All writes go through server actions (BYPASSRLS) — no PostgREST writes.
+  // Migration 0105 adds the permissive SELECT policies.
+  // ---------------------------------------------------------------------------
+  pet_identifications: {
+    anon: {
+      select: deny("anon has no session — no read policy matches"),
+      insert: deny("anon cannot insert identifications"),
+      update: deny("anon cannot mutate"),
+      delete: deny("anon cannot delete"),
+    },
+    owner: {
+      select: allow("owner reads identifications for own pets via ownerships join"),
+      insert: deny("inserts go through server actions (BYPASSRLS)"),
+      update: deny("updates go through server actions (BYPASSRLS)"),
+      delete: deny("deletes go through server actions (BYPASSRLS)"),
+    },
+    other_user: {
+      select: deny("non-owner without org membership sees zero rows"),
+      insert: deny("non-owner cannot write identifications"),
+      update: deny("non-owner cannot mutate"),
+      delete: deny("non-owner cannot delete"),
+    },
+    admin: {
+      select: allow("admin reads all identifications via profiles.role = admin policy"),
+      insert: deny("admin uses server actions"),
+      update: deny("admin uses server actions"),
+      delete: deny("admin uses server actions"),
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // pet_transfers — transfer offers: sender email, owner ids, optional note (PII).
+  // SELECT: sender (from_owner_id) and receiver (to_owner_id) read own rows;
+  //         admin reads all.
+  // All writes go through server actions (BYPASSRLS) — no PostgREST writes.
+  // Migration 0105 adds the permissive SELECT policies.
+  // ---------------------------------------------------------------------------
+  pet_transfers: {
+    anon: {
+      select: deny("anon has no session — no read policy matches"),
+      insert: deny("anon cannot initiate transfers"),
+      update: deny("anon cannot mutate"),
+      delete: deny("anon cannot delete"),
+    },
+    owner: {
+      // The owner@dim.test seed user is the from_owner of no transfer initially.
+      // The probe falls back to .select('*').limit(1) which will see 0 rows if
+      // none are scoped to this user — same deny outcome.
+      select: deny("owner has no fixture transfers seeded — zero rows from select probe"),
+      insert: deny("inserts go through server actions (BYPASSRLS)"),
+      update: deny("updates go through server actions (BYPASSRLS)"),
+      delete: deny("deletes go through server actions (BYPASSRLS)"),
+    },
+    other_user: {
+      select: deny("non-owner sees only their own transfers; no fixture row"),
+      insert: deny("non-owner cannot initiate transfers for another user"),
+      update: deny("non-owner cannot mutate"),
+      delete: deny("non-owner cannot delete"),
+    },
+    admin: {
+      select: deny("admin reads transfers via service role, not PostgREST (no fixture row)"),
+      insert: deny("admin uses server actions"),
+      update: deny("admin uses server actions"),
+      delete: deny("admin uses server actions"),
+    },
+  },
 };
