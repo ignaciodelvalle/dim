@@ -781,11 +781,8 @@ export const organizations = pgTable(
     logoStoragePath: text("logo_storage_path"),
     discloseAddress: boolean("disclose_address").notNull().default(true),
     donationMethods: jsonb("donation_methods"),
-    latitude: numeric("latitude", { precision: 9, scale: 6 }),
-    longitude: numeric("longitude", { precision: 9, scale: 6 }),
-    // Canonical coordinate columns added in migration 0101 (P3 location convergence, DEPLOY 1).
-    // These converge from the legacy latitude/longitude (9,6) and are dual-written alongside them.
-    // Old columns kept for backward compatibility — dropped in a later deploy.
+    // Canonical coordinate columns (P3 location convergence, DEPLOY 2).
+    // Legacy latitude/longitude numeric(9,6) dropped in migration 0103.
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
     locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
     // Declared shelter capacity (Item 16 D1, migration 0102). All nullable — capacity is optional.
@@ -807,10 +804,6 @@ export const organizations = pgTable(
     descriptionLengthCheck: check(
       "organizations_description_length_check",
       sql`${table.description} IS NULL OR length(${table.description}) <= 2000`,
-    ),
-    coordinatesPairCheck: check(
-      "organizations_coordinates_pair_check",
-      sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`,
     ),
     locationPairCheck: check(
       "organizations_location_pair_check",
@@ -3094,11 +3087,8 @@ export const cases = pgTable(
 
     primarySubjectKind: text("primary_subject_kind").notNull().$type<CaseSubjectKind>(),
     primaryPetId: uuid("primary_pet_id").references(() => pets.id, { onDelete: "cascade" }),
-    primaryLocationLat: numeric("primary_location_lat", { precision: 10, scale: 7 }),
-    primaryLocationLng: numeric("primary_location_lng", { precision: 10, scale: 7 }),
-    // Canonical coordinate columns added in migration 0101 (P3 location convergence, DEPLOY 1).
-    // Dual-written alongside primary_location_lat/lng; reads COALESCE(location_lat, primary_location_lat).
-    // Old columns kept for backward compatibility — dropped in a later deploy.
+    // Canonical coordinate columns (P3 location convergence, DEPLOY 2).
+    // Legacy primary_location_lat/lng dropped in migration 0103.
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
     locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
 
@@ -3192,7 +3182,7 @@ export const cases = pgTable(
     ),
     casesSubjectLocationConsistency: check(
       "cases_subject_location_consistency",
-      sql`(${table.primarySubjectKind} = 'location') = (${table.primaryLocationLat} is not null and ${table.primaryLocationLng} is not null)`,
+      sql`(${table.primarySubjectKind} = 'location') = (${table.locationLat} is not null and ${table.locationLng} is not null)`,
     ),
     casesMergedConsistency: check(
       "cases_merged_consistency",

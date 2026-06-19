@@ -1,10 +1,10 @@
-// DB-backed tests for the P3 location column convergence — Phase B (canonical-only).
+// DB-backed tests for the P3 location column convergence — Phase C (drop legacy columns).
 //
 // Validates:
-//   (a) cases canonical-only write — openCase with coordinates set writes ONLY
-//       location_lat / location_lng (canonical); primary_location_* is NOT written.
+//   (a) cases canonical-only write — openCase with coordinates writes ONLY
+//       location_lat / location_lng (canonical); legacy primary_location_* no longer exists.
 //   (b) cases canonical read — getCaseDetailByPublicCode reads location_lat/lng
-//       directly; primary_location_* column value is irrelevant (COALESCE removed).
+//       and projects them as primaryLocationLat/primaryLocationLng on the DTO.
 
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -36,18 +36,14 @@ afterAll(async () => {
 // (a) cases canonical-only write via openCase
 // ---------------------------------------------------------------------------
 
-// NOTE: cases_subject_location_consistency CHECK (added in migration 0033) still
-// references primary_location_lat/lng. Until Phase C drops that constraint alongside
-// the legacy columns, openCase mirrors canonical → legacy so the constraint is
-// satisfied. Callers pass locationLat/Lng; the repository handles the mirror.
-describe("cases canonical write (openCase) — Phase B", () => {
-  it("writes location_lat/lng from locationLat/locationLng input (canonical-first)", async () => {
+describe("cases canonical write (openCase) — Phase C", () => {
+  it("writes location_lat/lng from locationLat/locationLng input (canonical-only)", async () => {
     const row = await repo.openCase({
       kind: "bite_incident",
       primarySubjectKind: "location",
       locationLat: "-34.6083000",
       locationLng: "-58.3712000",
-      openedReason: "P3 Phase B canonical-write test -- bite incident at location",
+      openedReason: "P3 Phase C canonical-write test -- bite incident at location",
       jurisdictionProvince: "Buenos Aires",
       jurisdictionLocality: "La Plata",
     });
@@ -56,10 +52,6 @@ describe("cases canonical write (openCase) — Phase B", () => {
     // Canonical columns must be set from the input
     expect(row.locationLat).toBe("-34.6083000");
     expect(row.locationLng).toBe("-58.3712000");
-    // Legacy columns are mirrored from canonical to satisfy cases_subject_location_consistency
-    // CHECK (0033); will be null-allowed again only when Phase C drops the constraint.
-    expect(row.primaryLocationLat).toBe("-34.6083000");
-    expect(row.primaryLocationLng).toBe("-58.3712000");
 
     // Re-select to confirm persistence
     const [reloaded] = await db.select().from(cases).where(eq(cases.id, row.id)).limit(1);
@@ -67,18 +59,16 @@ describe("cases canonical write (openCase) — Phase B", () => {
     expect(reloaded.locationLng).toBe("-58.3712000");
   });
 
-  it("writes null to both column families when no coordinates are provided", async () => {
+  it("writes null to canonical columns when no coordinates are provided", async () => {
     const row = await repo.openCase({
       kind: "welfare_denuncia",
       primarySubjectKind: "unowned_animal",
-      openedReason: "P3 Phase B canonical-write test -- no coordinates",
+      openedReason: "P3 Phase C canonical-write test -- no coordinates",
     });
     insertedCaseIds.push(row.id);
 
     expect(row.locationLat).toBeNull();
     expect(row.locationLng).toBeNull();
-    expect(row.primaryLocationLat).toBeNull();
-    expect(row.primaryLocationLng).toBeNull();
   });
 });
 
@@ -86,10 +76,8 @@ describe("cases canonical write (openCase) — Phase B", () => {
 // (b) cases canonical read via getCaseDetailByPublicCode
 // ---------------------------------------------------------------------------
 
-describe("cases canonical read (getCaseDetailByPublicCode)", () => {
-  it("projects coordinates from canonical location_lat/lng columns (Phase B — direct canonical read)", async () => {
-    // primary_location_* must also be set to satisfy cases_subject_location_consistency CHECK.
-    // The read side sources from location_lat/lng directly (no COALESCE since Phase B).
+describe("cases canonical read (getCaseDetailByPublicCode) — Phase C", () => {
+  it("projects coordinates from canonical location_lat/lng columns", async () => {
     const [raw] = await db
       .insert(cases)
       .values({
@@ -99,9 +87,7 @@ describe("cases canonical read (getCaseDetailByPublicCode)", () => {
         primarySubjectKind: "location",
         locationLat: "-34.6000000",
         locationLng: "-58.2000000",
-        primaryLocationLat: "-34.6000000",
-        primaryLocationLng: "-58.2000000",
-        openedReason: "P3 Phase B canonical-read test -- canonical columns sourced directly",
+        openedReason: "P3 Phase C canonical-read test -- canonical columns sourced directly",
         jurisdictionProvince: "Buenos Aires",
         jurisdictionLocality: "La Plata",
       })
@@ -122,7 +108,7 @@ describe("cases canonical read (getCaseDetailByPublicCode)", () => {
         caseKind: "welfare_denuncia",
         status: "open",
         primarySubjectKind: "unowned_animal",
-        openedReason: "P3 Phase B canonical-read test -- no coordinates",
+        openedReason: "P3 Phase C canonical-read test -- no coordinates",
       })
       .returning();
     insertedCaseIds.push(raw.id);
