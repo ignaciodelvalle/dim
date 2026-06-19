@@ -12,6 +12,11 @@ export default defineConfig({
     // is idempotent enough that the dedupe test does its own teardown.
     fileParallelism: false,
     setupFiles: ["./__tests__/setup.ts"],
+    // globalSetup runs once in the main process (not per-file). Used to
+    // gracefully close the postgres.js pool after the full suite completes,
+    // preventing "Worker exited unexpectedly" errors that occur when open
+    // sockets are forcibly torn down by the process exit handler instead.
+    globalSetup: ["./__tests__/global-setup.ts"],
     exclude: ["node_modules/**", ".claude/worktrees/**", "e2e/**"],
     coverage: {
       provider: "v8",
