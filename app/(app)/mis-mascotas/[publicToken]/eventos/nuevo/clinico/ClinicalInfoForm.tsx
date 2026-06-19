@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
+import { useFormErrorFocus } from "@/lib/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { AttachmentField } from "../AttachmentField";
@@ -34,6 +35,7 @@ const TITLE_PLACEHOLDERS: Record<SubKind, string> = {
 
 export function ClinicalInfoForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
   const [subKind, setSubKind] = useState<SubKind>("lab_work");
   const today = new Date().toISOString().slice(0, 10);
@@ -150,17 +152,20 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
           <AttachmentField />
           {state.error && (
             <p
+              ref={errorRef}
               className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>
           )}
         </form>
       </LnSheetBody>
+      {/* Wave 2 Item 9: verb fix — Rule 2 requires "Registrar X" for logging an observable event */}
       <LnSheetFooter
         tone="azul"
-        ctaLabel="Guardar información clínica"
+        ctaLabel="Registrar información clínica"
         formId={FORM_ID}
         isPending={isPending}
       />

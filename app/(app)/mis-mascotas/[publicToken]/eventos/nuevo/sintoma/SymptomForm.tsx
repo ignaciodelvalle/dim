@@ -91,9 +91,10 @@ export function SymptomForm({
           </p>
         </form>
       </LnSheetBody>
+      {/* Wave 2 Item 9: verb fix — Rule 2 requires "Registrar X" with explicit object */}
       <LnSheetFooter
         tone="warn"
-        ctaLabel="Registrar en la libreta"
+        ctaLabel="Registrar síntoma"
         formId={FORM_ID}
         isPending={isPending}
       />

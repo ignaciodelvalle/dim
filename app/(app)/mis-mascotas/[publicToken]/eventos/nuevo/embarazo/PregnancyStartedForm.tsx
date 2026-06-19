@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
+import { useFormErrorFocus } from "@/lib/use-form-error-focus";
 
 const initialState: PregnancyFormState = { error: null };
 type FormAction = (prev: PregnancyFormState, formData: FormData) => Promise<PregnancyFormState>;
@@ -14,6 +15,7 @@ const FORM_ID = "pregnancy-started-form";
 
 export function PregnancyStartedForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const today = new Date().toISOString().slice(0, 10);
 
   const [occurredAt, setOccurredAt] = useState(today);
@@ -53,12 +55,15 @@ export function PregnancyStartedForm({ action }: { action: FormAction }) {
           <LnRow>
             <LnField label="Semanas al diagnóstico" hint="Si tu vet te dio una estimación.">
               {({ id, describedBy, invalid }) => (
+                // Wave 2 Item 9: inputMode="numeric" for whole-number weeks
                 <LnInput
                   id={id}
                   name="weeksAtDiagnosis"
                   type="number"
                   min={0}
                   max={12}
+                  inputMode="numeric"
+                  enterKeyHint="next"
                   placeholder="0–12"
                   value={weeksAtDiagnosis}
                   onChange={(e) => setWeeksAtDiagnosis(e.target.value)}
@@ -98,8 +103,10 @@ export function PregnancyStartedForm({ action }: { action: FormAction }) {
           </LnField>
           {state.error && (
             <p
+              ref={errorRef}
               className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>

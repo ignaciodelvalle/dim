@@ -9,6 +9,7 @@ import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { findVaccineByName, vaccinesForSpecies } from "@/lib/lookups";
+import { useFormErrorFocus } from "@/lib/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useMemo, useState } from "react";
@@ -35,6 +36,8 @@ export function VaccinationForm({
   defaults?: { occurredAt: string | null; notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // Wave 2 Item 9: focus error region on submit failure (mobile a11y)
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
   const vaccines = vaccinesForSpecies(species);
   const today = new Date().toISOString().slice(0, 10);
@@ -200,8 +203,11 @@ export function VaccinationForm({
 
           {state.error && (
             <p
+              ref={errorRef}
               className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
+              // Wave 2 Item 9: tabIndex={-1} makes the element programmatically focusable
+              tabIndex={-1}
             >
               {state.error}
             </p>
