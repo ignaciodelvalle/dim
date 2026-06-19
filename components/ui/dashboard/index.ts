@@ -17,6 +17,16 @@ export { OpStateBadge } from "./OpStateBadge";
 export { OpOmnibox } from "./OpOmnibox";
 export { OpBulkBar } from "./OpBulkBar";
 export type { OpBulkAction } from "./OpBulkBar";
+export { CaseStatusBadge } from "./CaseStatusBadge";
+export { CaseDetailShell } from "./CaseDetailShell";
+export type { CaseDetailShellProps, CaseParty, CaseSubjectDescriptor } from "./CaseDetailShell";
+export { CaseQueue } from "./CaseQueue";
+export type {
+  CaseQueueRow,
+  CaseQueueFilters,
+  CaseQueueBulkConfig,
+  CaseQueueProps,
+} from "./CaseQueue";
 export {
   OpFormAlert,
   OpFieldLabel,

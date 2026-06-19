@@ -10,22 +10,28 @@
 //
 // Access is gated via canReadCase. Outside parties get notFound() (not
 // 403) so case existence is never leaked.
+//
+// Wave 2 Item 12: now renders via CaseDetailShell for consistent
+// header, parties, normativa, and tabs.
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { CaseBadge } from "@/components/CaseBadge";
 import { LnEmptyState } from "@/components/ui/EmptyState";
+import {
+  CaseDetailShell,
+  type CaseParty,
+  type CaseSubjectDescriptor,
+} from "@/components/ui/dashboard/CaseDetailShell";
 import type { EventType } from "@/db/schema";
 import { canReadCase } from "@/lib/case-access";
 import { getNormativesForCase } from "@/lib/case-normatives";
 import { type CaseDetail, getCaseDetailByPublicCode } from "@/lib/case-queries";
 import { eventPayloadSummary } from "@/lib/events";
-import { eventTypeLabel, formatDate, formatDateTime, sexLabel, speciesLabel } from "@/lib/format";
+import { eventTypeLabel, formatDateTime, sexLabel, speciesLabel } from "@/lib/format";
 import { getJurisdictionsCached, getProfileCached } from "@/lib/request-cache";
 import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
-import { caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 // Reads auth cookies (viewer-dependent PII gating) — never statically cache.
 export const dynamic = "force-dynamic";
@@ -76,230 +82,138 @@ export default async function CaseDetailPage({ params }: PageProps) {
       ? `/p/${detail.pet.publicToken}`
       : null
     : computePetLink(detail, viewerRole ?? "owner");
+
   const photoUrl = detail.pet?.primaryPhotoStoragePath
     ? petPhotoUrl(detail.pet.primaryPhotoStoragePath)
     : null;
+
   const normatives = getNormativesForCase(detail.caseKind, {
     country: detail.jurisdictionCountry,
     province: detail.jurisdictionProvince ?? undefined,
     locality: detail.jurisdictionLocality ?? undefined,
   });
 
+  // Build parties list for CaseDetailShell.
+  const parties: CaseParty[] = [];
+  if (detail.openedByUser) {
+    parties.push({ role: "opener", name: detail.openedByUser.displayName });
+  }
+  if (detail.openedByOrganization) {
+    parties.push({
+      role: "organization",
+      name: detail.openedByOrganization.displayName,
+      orgPublicToken: detail.openedByOrganization.publicToken,
+    });
+  }
+  if (detail.closedByUser) {
+    parties.push({ role: "closer", name: detail.closedByUser.displayName });
+  }
+
+  // Build subject descriptor for CaseDetailShell.
+  let subject: CaseSubjectDescriptor | null = null;
+  if (detail.pet) {
+    subject = {
+      kind: "pet",
+      petName: detail.pet.name,
+      petSpecies: `${speciesLabel(detail.pet.species)} · ${sexLabel(detail.pet.sex)}`,
+      petHref: petLink,
+      petPhotoUrl: photoUrl,
+    };
+  } else {
+    subject = {
+      kind:
+        detail.primarySubjectKind === "unowned_animal"
+          ? "unowned_animal"
+          : detail.primarySubjectKind === "location"
+            ? "location"
+            : "general",
+      locationLabel:
+        detail.primarySubjectKind === "location"
+          ? detail.jurisdictionLocality
+            ? `${detail.jurisdictionLocality}, ${detail.jurisdictionProvince}`
+            : undefined
+          : undefined,
+    };
+  }
+
+  // Breadcrumb nav
+  const breadcrumb = (
+    <nav className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-ln-mute">
+      <Link href="/" className="hover:text-ln-ink-2 hover:underline">
+        Inicio
+      </Link>
+      <span className="mx-2">›</span>
+      <span>Casos</span>
+      <span className="mx-2">›</span>
+      <span className="text-ln-ink-2">{detail.publicCode}</span>
+    </nav>
+  );
+
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
-      {/* Breadcrumb */}
-      <nav className="mb-3 font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
-        <Link href="/" className="hover:text-[var(--color-ln-ink-2)] hover:underline">
-          Inicio
-        </Link>
-        <span className="mx-2">›</span>
-        <span>Casos</span>
-        <span className="mx-2">›</span>
-        <span className="text-[var(--color-ln-ink-2)]">{detail.publicCode}</span>
-      </nav>
-
-      {/* "Por qué es público" banner — only for anonymous viewers on public-kind cases.
-          Explains the transparency policy without revealing any PII. */}
+      {/* "Por qué es público" banner — only for anonymous viewers. */}
       {isPublic && <PublicTransparencyBanner caseKind={detail.caseKind} />}
 
-      {/* Header */}
-      <header className="mb-6">
-        <CaseBadge
-          publicCode={detail.publicCode}
-          caseKind={detail.caseKind}
-          status={detail.status}
-        />
-        <h1 className="mt-3 font-[var(--font-ln-serif)] text-[28px] font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)]">
-          {caseKindLabel(detail.caseKind)}
-        </h1>
-        <p className="mt-1 font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
-          Abierto el {formatDateTime(detail.openedAt)}
-          {detail.closedAt ? ` · Cerrado el ${formatDateTime(detail.closedAt)}` : ""}
-        </p>
-      </header>
-
-      {/* Pet card OR subject descriptor */}
-      {detail.pet ? (
-        <section className="mb-6 flex items-center gap-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-5">
-          {photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={photoUrl}
-              alt={detail.pet.name}
-              className="h-20 w-20 rounded-full object-cover ring-2 ring-[var(--color-ln-line-strong)]"
-            />
+      <CaseDetailShell
+        publicCode={detail.publicCode}
+        kind={detail.caseKind}
+        status={detail.status}
+        openedAt={detail.openedAt}
+        closedAt={detail.closedAt}
+        openedReason={detail.openedReason}
+        jurisdictionCountry={detail.jurisdictionCountry}
+        jurisdictionProvince={detail.jurisdictionProvince}
+        jurisdictionLocality={detail.jurisdictionLocality}
+        normatives={normatives}
+        parties={parties}
+        subject={subject}
+        isPublic={isPublic}
+        breadcrumb={breadcrumb}
+      >
+        {/* Timeline */}
+        <section>
+          <h2 className="mb-3 font-ln-serif text-[21px] font-semibold tracking-[-0.01em] text-ln-ink">
+            Línea de tiempo
+          </h2>
+          {detail.events.length === 0 ? (
+            <LnEmptyState icon="nota" title="Todavía no hay eventos registrados en este caso." />
           ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--color-ln-stripe)] text-3xl">
-              🐾
-            </div>
-          )}
-          <div className="flex-1">
-            <h2 className="font-[var(--font-ln-serif)] text-[20px] font-semibold text-[var(--color-ln-ink)]">
-              {detail.pet.name}
-            </h2>
-            <p className="text-[13px] text-[var(--color-ln-mute)]">
-              {speciesLabel(detail.pet.species)} · {sexLabel(detail.pet.sex)}
-            </p>
-          </div>
-          {petLink ? (
-            <Link
-              href={petLink}
-              className="inline-flex items-center rounded-[3px] bg-[var(--color-ln-azul)] px-4 py-2 text-[12.5px] font-semibold text-white no-underline transition-colors hover:bg-[var(--color-ln-azul-700)]"
-            >
-              Ver mascota →
-            </Link>
-          ) : null}
-        </section>
-      ) : (
-        <section className="mb-6 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-5">
-          <p className="text-[13px] text-[var(--color-ln-mute)]">
-            Sujeto:{" "}
-            {detail.primarySubjectKind === "unowned_animal"
-              ? "Animal sin identificar"
-              : detail.primarySubjectKind === "location"
-                ? `Ubicación específica${
-                    detail.jurisdictionLocality
-                      ? ` (${detail.jurisdictionLocality}, ${detail.jurisdictionProvince})`
-                      : ""
-                  }`
-                : "Caso general (sin sujeto identificado)"}
-          </p>
-        </section>
-      )}
-
-      {/* Actors + Normatives + Jurisdiction */}
-      <section className="mb-6 grid gap-4 md:grid-cols-3">
-        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4">
-          <h3 className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
-            Partes
-          </h3>
-          <ul className="mt-2 space-y-1 text-[13px]">
-            {/* Personal names redacted for the anonymous public view. Public
-                organizations stay visible — they're identifiable entities
-                already linked from /refugios/. */}
-            {!isPublic && detail.openedByUser ? (
-              <li className="text-[var(--color-ln-ink)]">
-                <span className="text-[var(--color-ln-mute)]">Abrió: </span>
-                {detail.openedByUser.displayName}
-              </li>
-            ) : null}
-            {detail.openedByOrganization ? (
-              <li className="text-[var(--color-ln-ink)]">
-                <span className="text-[var(--color-ln-mute)]">Organización: </span>
-                <Link
-                  href={`/refugios/${detail.openedByOrganization.publicToken}`}
-                  className="text-[var(--color-ln-azul)] no-underline hover:underline"
-                >
-                  {detail.openedByOrganization.displayName}
-                </Link>
-              </li>
-            ) : null}
-            {!isPublic && detail.closedByUser ? (
-              <li className="text-[var(--color-ln-ink)]">
-                <span className="text-[var(--color-ln-mute)]">Cerró: </span>
-                {detail.closedByUser.displayName}
-              </li>
-            ) : null}
-            {isPublic && !detail.openedByOrganization ? (
-              <li className="text-[var(--color-ln-mute)]">Datos de partes no disponibles</li>
-            ) : null}
-            {!isPublic && !detail.openedByUser && !detail.openedByOrganization ? (
-              <li className="text-[var(--color-ln-mute)]">Apertura automática del sistema</li>
-            ) : null}
-          </ul>
-        </div>
-        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4">
-          <h3 className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
-            Jurisdicción
-          </h3>
-          <p className="mt-2 text-[13px] text-[var(--color-ln-ink)]">
-            {detail.jurisdictionLocality && detail.jurisdictionProvince
-              ? `${detail.jurisdictionLocality}, ${detail.jurisdictionProvince}`
-              : (detail.jurisdictionProvince ?? "Sin especificar")}
-          </p>
-        </div>
-        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4">
-          <h3 className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
-            Normativa aplicable
-          </h3>
-          {normatives.length === 0 ? (
-            <p className="mt-2 text-[13px] text-[var(--color-ln-mute)]">
-              Sin norma específica catalogada
-            </p>
-          ) : (
-            <ul className="mt-2 space-y-1 text-[13px]">
-              {normatives.map((law) => (
-                <li key={law.id} className="text-[var(--color-ln-ink)]">
-                  <span className="font-medium">{law.label}</span>
-                  <span className="block text-[11px] text-[var(--color-ln-mute)]">{law.scope}</span>
+            <ol className="space-y-3">
+              {detail.events.map((e) => (
+                <li key={e.id} className="rounded-[4px] border border-ln-line bg-ln-card p-4">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[13.5px] font-medium text-ln-ink">
+                      {eventTypeLabel(e.eventType as EventType)}
+                    </span>
+                    <time className="font-ln-mono text-[10.5px] text-ln-mute">
+                      {formatDateTime(e.occurredAt)}
+                    </time>
+                  </div>
+                  {(() => {
+                    const summary = eventPayloadSummary(e.eventType, e.payload);
+                    const text = [summary.primary, summary.secondary].filter(Boolean).join(" · ");
+                    return text ? <p className="mt-1 text-[12.5px] text-ln-mute">{text}</p> : null;
+                  })()}
+                  {/* Internal notes hidden for anon: they're free-form and
+                      routinely contain PII (denouncer descriptions, internal
+                      org coordination, addresses). */}
+                  {!isPublic && e.notes ? (
+                    <p className="mt-2 rounded-[3px] bg-ln-stripe p-2 font-ln-mono text-[11px] text-ln-mute">
+                      {e.notes}
+                    </p>
+                  ) : null}
                 </li>
               ))}
-            </ul>
+            </ol>
           )}
-        </div>
-      </section>
-
-      {/* Opened reason — hidden for anon: free-text may contain PII
-          (denouncer descriptions, victim names, internal context). */}
-      {!isPublic && detail.openedReason ? (
-        <section className="mb-6 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-4">
-          <h3 className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
-            Motivo de apertura
-          </h3>
-          <p className="mt-2 text-[13px] text-[var(--color-ln-ink)]">{detail.openedReason}</p>
         </section>
-      ) : null}
-
-      {/* Timeline */}
-      <section>
-        <h3 className="mb-3 font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
-          Línea de tiempo
-        </h3>
-        {detail.events.length === 0 ? (
-          <LnEmptyState icon="nota" title="Todavía no hay eventos registrados en este caso." />
-        ) : (
-          <ol className="space-y-3">
-            {detail.events.map((e) => (
-              <li
-                key={e.id}
-                className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4"
-              >
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[13.5px] font-medium text-[var(--color-ln-ink)]">
-                    {eventTypeLabel(e.eventType as EventType)}
-                  </span>
-                  <time className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-                    {formatDateTime(e.occurredAt)}
-                  </time>
-                </div>
-                {(() => {
-                  const summary = eventPayloadSummary(e.eventType, e.payload);
-                  const text = [summary.primary, summary.secondary].filter(Boolean).join(" · ");
-                  return text ? (
-                    <p className="mt-1 text-[12.5px] text-[var(--color-ln-mute)]">{text}</p>
-                  ) : null;
-                })()}
-                {/* Internal notes hidden for anon: they're free-form and
-                    routinely contain PII (denouncer descriptions, internal
-                    org coordination, addresses). */}
-                {!isPublic && e.notes ? (
-                  <p className="mt-2 rounded-[3px] bg-[var(--color-ln-stripe)] p-2 font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
-                    {e.notes}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+      </CaseDetailShell>
     </main>
   );
 }
 
 // ---------------------------------------------------------------------------
 // PublicTransparencyBanner — explains why this case is publicly accessible.
-// Shown only to anonymous viewers (isPublic === true). Copy follows the warm
-// MiMAR tone; no PII is present in any branch.
 // ---------------------------------------------------------------------------
 
 function PublicTransparencyBanner({ caseKind }: { caseKind: string }) {
@@ -320,36 +234,27 @@ function PublicTransparencyBanner({ caseKind }: { caseKind: string }) {
   return (
     <div
       role="note"
-      className="mb-6 rounded-[4px] border px-[16px] py-[12px]"
+      className="mb-6 rounded-[4px] border border-ln-celeste-100 px-[16px] py-[12px]"
       style={{
         background: "var(--color-ln-celeste-050)",
-        borderColor: "var(--color-ln-celeste-100)",
         borderLeft: "3px solid var(--color-ln-azul)",
       }}
     >
-      <p
-        className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em]"
-        style={{ color: "var(--color-ln-azul)", marginBottom: 4 }}
-      >
+      <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-azul mb-1">
         ¿Por qué es público?
       </p>
-      <p className="text-[13px] leading-[1.5]" style={{ color: "var(--color-ln-ink-2)" }}>
-        {reason}
-      </p>
+      <p className="text-[13px] leading-[1.5] text-ln-ink-2">{reason}</p>
     </div>
   );
 }
 
 function computePetLink(detail: CaseDetail, role: string): string | null {
   if (!detail.pet) return null;
-  if (role === "admin" || role === "govt") {
-    // Both admin and govt land on the owner-facing detail for now —
-    // there's no admin-side pet page yet.
-    return `/mis-mascotas/${detail.pet.publicToken}`;
-  }
-  // Owner: standard pet profile.
+  // Both admin and govt land on the owner-facing detail for now —
+  // there's no admin-side pet page yet.
+  void role;
   return `/mis-mascotas/${detail.pet.publicToken}`;
 }
 
-// Suppress unused-import warning for redirect when noUnusedLocals is loose.
+// Suppress unused-import warning for redirect.
 void redirect;
