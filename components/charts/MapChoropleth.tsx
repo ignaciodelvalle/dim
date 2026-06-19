@@ -1,115 +1,229 @@
 "use client";
 
+import {
+  type GeoLevel,
+  type RawDatum,
+  departmentBelongsToProvince,
+  isCABA,
+  joinChoroplethData,
+} from "@/lib/geo-join";
+import { COLOR_NO_DATA, COLOR_SUPPRESSED, type ColorRamp, RAMP_BLUE } from "@/lib/viz-scales";
 import type maplibregl from "maplibre-gl";
-import { useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Mapa coroplético con tiles OpenStreetMap vía MapLibre GL JS.
+ * Mapa coroplético v2 — MapLibre GL JS con:
+ *  - Drill jerárquico: provincia → departamento → barrio (CABA).
+ *  - Cross-filter: selección persiste en searchParams (mismo patrón que PeriodPicker).
+ *  - Escala tokenizada: colorScale viene de lib/viz-scales.ts (no hex literal).
+ *  - Join robusto: normalizador por nivel, orphanData explícito, flag de supresión.
+ *  - A11y: <details> con tabla de datos; aria-label; teclado (Escape para volver).
  *
- * Renderiza un mapa con una capa de relleno por provincia, coloreada según los valores
- * en `data`. Las provincias sin datos en `data` se muestran en gris tenue.
- *
- * Decisión de tiles (E-D1):
- *  El estilo de tiles usa `https://demotiles.maplibre.org/style.json` como placeholder v1.
- *  ARSAT es el proveedor objetivo; integración pendiente del propietario (OF-1).
- *  Ver: docs/superpowers/plans/2026-05-21-pending-decisions-resolved.md §E-D1
- *
- * Atribución OSM:
- *  La atribución "© OpenStreetMap contributors" se muestra en la esquina inferior derecha
- *  de acuerdo a los términos de uso de OSM. Si el estilo demotiles ya la incluye,
- *  el control la muestra automáticamente; si no, se agrega explícitamente via AttributionControl.
- *
- * Accesibilidad:
- *  - El mapa tiene un aria-label descriptivo.
- *  - Un `<details>` con tabla de datos queda renderizado debajo del mapa para usuarios
- *    de lectores de pantalla o cuando el mapa no carga. Columnas: "Región" y "Valor".
- *
- * @example
- * ```tsx
- * <MapChoropleth
- *   data={[{ code: "AR-C", value: 250, label: "CABA" }]}
- *   colorScale={["#e0f0ff", "#005fa3"]}
- * />
- * ```
+ * Backward-compatible: los callers que no pasen `allowDrill` ni `level` obtienen
+ * el comportamiento v1 sin ningún cambio.
  */
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 export type ChoroplethRegionDatum = {
-  /** Código de región que coincide con la propiedad `code` del GeoJSON. Ej: "AR-C". */
+  /** Código de región — emparejado por normalizador de nivel con feature.properties.code. */
   code: string;
-  /** Valor numérico que determina la intensidad del color. */
+  /** Valor numérico que determina el color. */
   value: number;
-  /** Etiqueta opcional para el tooltip al hacer hover sobre la región. */
+  /** Etiqueta para tooltip y tabla a11y. */
   label?: string;
+  /** Celda suprimida por k-anonimato — se renderiza en COLOR_SUPPRESSED. */
+  suppressed?: boolean;
 };
 
 export type MapChoroplethProps = {
   /** URL del GeoJSON. Default "/geo/ar-provinces.geojson". */
   geojsonUrl?: string;
-  /** Datos de regiones — se emparejan con los features del GeoJSON por `code`. */
+  /** Datos de regiones — emparejados con features por `code` normalizado. */
   data: ChoroplethRegionDatum[];
   /**
-   * Escala de colores del valor mínimo al máximo.
-   * Default: rampa azul de un solo matiz.
+   * Nivel geográfico del GeoJSON provisto.
+   * Determina el normalizador de código. Default: "province".
    */
-  colorScale?: [string, string];
-  /** Centro del mapa [lng, lat]. Default: centroide aproximado de Argentina. */
+  level?: GeoLevel;
+  /**
+   * Ramp de colores [bajo, alto] — DEBE venir de lib/viz-scales.ts.
+   * Acepta tanto ColorRamp (readonly) como [string, string] mutable
+   * para compatibilidad con callers v1. Migrar a ColorRamp de viz-scales.ts.
+   * Default: RAMP_BLUE.
+   */
+  colorScale?: readonly [string, string] | [string, string];
+  /** Centro del mapa [lng, lat]. Default: centroide de Argentina. */
   center?: [number, number];
-  /** Nivel de zoom. Default 4 (cubre la mayor parte de Argentina). */
+  /** Zoom inicial. Default 4. */
   zoom?: number;
   /** Alto del mapa en px. Default 400. */
   height?: number;
   className?: string;
-  /** Descripción del contenido de la tabla de accesibilidad. */
+  /** Etiqueta de la tabla a11y. */
   fallbackTableLabel?: string;
   /**
-   * Optional whitelist of `feature.properties.code` values to render. When
-   * provided and non-empty, the GeoJSON is filtered to ONLY these features
-   * before being added as a source, and fitBounds frames ONLY those features.
-   * Use it to scope a national GeoJSON down to a single province's departments
-   * (or CABA's barrios) so the map renders and frames just that region.
-   * When omitted/empty, all features render and the viewport frames them all
-   * (national behavior — no regression).
+   * Whitelist de `feature.properties.code` a renderizar.
+   * Cuando se provee y es no-vacía, el GeoJSON se filtra antes de agregar
+   * la fuente. Viewport se ajusta solo a esas features.
    */
   visibleCodes?: string[];
+  /**
+   * Habilita el drill jerárquico interactivo.
+   * province → department (o barrio para CABA).
+   * Default: false (comportamiento v1).
+   */
+  allowDrill?: boolean;
+  /**
+   * Claves de searchParams para cross-filter.
+   * Al hacer click en una región actualiza el param del nivel activo,
+   * filtrando KPIs y charts de la página vía URL state.
+   * Si no se provee, el cross-filter está deshabilitado.
+   */
+  paramKeys?: {
+    province?: string;
+    department?: string;
+    barrio?: string;
+  };
 };
 
-// Colores para regiones sin datos en el array `data`.
-const MISSING_REGION_COLOR = "#e5e7eb";
+// ---------------------------------------------------------------------------
+// GeoJSON URL per level
+// ---------------------------------------------------------------------------
+
+const GEOJSON_BY_LEVEL: Record<GeoLevel, string> = {
+  province: "/geo/ar-provinces.geojson",
+  department: "/geo/ar-departments.geojson",
+  barrio: "/geo/caba-barrios.geojson",
+};
+
+const LEVEL_LABELS: Record<GeoLevel, string> = {
+  province: "Provincias",
+  department: "Departamentos",
+  barrio: "Barrios",
+};
+
+// ---------------------------------------------------------------------------
+// Internal drill state
+// ---------------------------------------------------------------------------
+
+type DrillCrumb = {
+  label: string;
+  level: GeoLevel;
+  geojsonUrl: string;
+  provinceIso?: string;
+};
+
+type DrillState = {
+  level: GeoLevel;
+  geojsonUrl: string;
+  breadcrumb: DrillCrumb[];
+  provinceIso?: string;
+};
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export function MapChoropleth({
-  geojsonUrl = "/geo/ar-provinces.geojson",
+  geojsonUrl,
   data,
-  colorScale = ["#bfdbfe", "#1d4ed8"],
+  level = "province",
+  colorScale = RAMP_BLUE,
   center = [-63.6167, -38.4161],
   zoom = 4,
   height = 400,
   className = "",
   fallbackTableLabel = "Datos del mapa",
   visibleCodes,
+  allowDrill = false,
+  paramKeys,
 }: MapChoroplethProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [drillState, setDrillState] = useState<DrillState>({
+    level,
+    geojsonUrl: geojsonUrl ?? GEOJSON_BY_LEVEL[level],
+    breadcrumb: [],
+  });
+
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
 
-  // Capturamos las props en un ref para poder accederlas desde el efecto de mount
-  // sin listar todas como dependencias — el mapa MapLibre se inicializa una única vez.
-  // Las props son de solo lectura post-mount en v1; para soporte reactivo agregar un
-  // efecto separado que llame a map.setStyle() / updateData() según cambios de props.
-  const initPropsRef = useRef({ geojsonUrl, data, colorScale, center, zoom, visibleCodes });
-  initPropsRef.current = { geojsonUrl, data, colorScale, center, zoom, visibleCodes };
+  // Refs so event handlers always see the latest state without re-mounting
+  const drillStateRef = useRef(drillState);
+  drillStateRef.current = drillState;
 
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
+  const paramKeysRef = useRef(paramKeys);
+  paramKeysRef.current = paramKeys;
+
+  // ---------------------------------------------------------------------------
+  // Cross-filter
+  // ---------------------------------------------------------------------------
+
+  const updateCrossFilter = useCallback(
+    (selectedCode: string, currentLevel: GeoLevel) => {
+      const keys = paramKeysRef.current;
+      if (!keys) return;
+      const key = keys[currentLevel];
+      if (!key) return;
+      const params = new URLSearchParams(searchParams.toString());
+      params.set(key, selectedCode);
+      router.replace(`?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Drill back
+  // ---------------------------------------------------------------------------
+
+  function handleDrillBack() {
+    setDrillState((prev) => {
+      if (prev.breadcrumb.length === 0) return prev;
+      const last = prev.breadcrumb[prev.breadcrumb.length - 1];
+      return {
+        level: last.level,
+        geojsonUrl: last.geojsonUrl,
+        provinceIso: last.provinceIso,
+        breadcrumb: prev.breadcrumb.slice(0, -1),
+      };
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Map init — re-runs when drill level/url changes
+  // ---------------------------------------------------------------------------
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: MapLibre map initializes once per drill level; data/center/zoom intentionally read from refs inside the effect to avoid full re-init on every prop change. Only re-init when the geographic level/url or drill context changes.
   useEffect(() => {
-    if (!mapContainer.current || mapRef.current) return;
+    if (!mapContainer.current) return;
 
-    const { geojsonUrl, data, colorScale, center, zoom, visibleCodes } = initPropsRef.current;
+    // Tear down previous map
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+    }
 
-    // Importación dinámica para evitar errores de SSR — MapLibre accede a `window`.
+    const {
+      level: curLevel,
+      geojsonUrl: curUrl,
+      provinceIso: curProvinceIso,
+    } = drillStateRef.current;
+    const curData = dataRef.current;
+
+    let cancelled = false;
+
     import("maplibre-gl").then(({ default: maplibregl, AttributionControl }) => {
-      if (!mapContainer.current) return;
+      if (cancelled || !mapContainer.current) return;
 
-      // Interim base map: OpenStreetMap raster tiles via MapLibre, so the
-      // choropleth renders over real geography (provinces, localities, cities
-      // visible) instead of the low-detail demotiles placeholder. ARSAT remains
-      // the production tile provider (OF-1); this is still the single swap point.
       const STYLE: maplibregl.StyleSpecification = {
         version: 8,
         sources: {
@@ -128,13 +242,11 @@ export function MapChoropleth({
         style: STYLE,
         center,
         zoom,
-        // La atribución se agrega manualmente para garantizar el cumplimiento OSM.
         attributionControl: false,
       });
 
       mapRef.current = map;
 
-      // Atribución OSM obligatoria en esquina inferior derecha (E-D1).
       map.addControl(
         new AttributionControl({
           customAttribution: "© OpenStreetMap contributors",
@@ -144,95 +256,126 @@ export function MapChoropleth({
       );
 
       map.on("load", () => {
-        const values = data.map((d) => d.value);
-        const minVal = values.length > 0 ? Math.min(...values) : 0;
-        const maxVal = values.length > 0 ? Math.max(...values) : 1;
+        if (cancelled) return;
 
-        // Construir expresión de interpolación lineal de color basada en el valor de cada feature.
-        // Se usa una propiedad inyectada "choropleth_value" que se setea en el source.
-        const matchExpression: maplibregl.ExpressionSpecification = [
-          "case",
-          ["has", "choropleth_value"],
-          [
-            "interpolate",
-            ["linear"],
-            ["get", "choropleth_value"],
-            minVal,
-            colorScale[0],
-            maxVal,
-            colorScale[1],
-          ] as maplibregl.ExpressionSpecification,
-          MISSING_REGION_COLOR,
-        ];
-
-        // Enriquecer el GeoJSON con los valores de `data` antes de cargarlo.
-        fetch(geojsonUrl)
+        fetch(curUrl)
           .then((r) => r.json())
           .then((geojson: GeoJSON.FeatureCollection) => {
-            const dataMap = new Map(data.map((d) => [d.code, d]));
+            if (cancelled) return;
 
-            // Optional scoping: when visibleCodes is provided and non-empty,
-            // render ONLY those features (e.g. one province's departments). This
-            // keeps the component domain-agnostic — the caller decides the scope.
-            const visibleSet =
-              visibleCodes && visibleCodes.length > 0 ? new Set(visibleCodes) : null;
-            const sourceFeatures = visibleSet
-              ? geojson.features.filter((feature) => {
-                  const code = (feature.properties as Record<string, string>)?.code ?? "";
-                  return visibleSet.has(code);
-                })
-              : geojson.features;
+            // Filter features by visibleCodes or province prefix
+            let sourceFeatures = geojson.features;
 
+            if (visibleCodes && visibleCodes.length > 0) {
+              const visibleSet = new Set(visibleCodes);
+              sourceFeatures = sourceFeatures.filter((f) => {
+                const code = String((f.properties as Record<string, string>)?.code ?? "");
+                return visibleSet.has(code);
+              });
+            } else if (curLevel === "department" && curProvinceIso) {
+              sourceFeatures = sourceFeatures.filter((f) => {
+                const code = String((f.properties as Record<string, string>)?.code ?? "");
+                return departmentBelongsToProvince(code, curProvinceIso);
+              });
+            }
+
+            // Robust join — exposes orphanData instead of silently dropping it
+            const rawData: RawDatum[] = curData.map((d) => ({
+              code: d.code,
+              value: d.value,
+              label: d.label,
+              suppressed: d.suppressed,
+            }));
+
+            const { features: joinedFeatures, orphanData } = joinChoroplethData(
+              sourceFeatures,
+              rawData,
+              curLevel,
+            );
+
+            if (orphanData.length > 0) {
+              console.warn(
+                `[MapChoropleth] ${orphanData.length} dato(s) sin feature matching en ${curUrl}:`,
+                orphanData.map((o) => o.code),
+              );
+            }
+
+            const values = joinedFeatures
+              .filter((f) => !f.missingData && !f.suppressed)
+              .map((f) => f.value ?? 0);
+            const minVal = values.length > 0 ? Math.min(...values) : 0;
+            const maxVal =
+              values.length > 0 && values.length > 1 ? Math.max(...values) : minVal + 1;
+
+            // Enrich GeoJSON features with choropleth metadata
             const enriched: GeoJSON.FeatureCollection = {
-              ...geojson,
-              features: sourceFeatures.map((feature) => {
-                const code = (feature.properties as Record<string, string>)?.code ?? "";
-                const datum = dataMap.get(code);
+              type: "FeatureCollection",
+              features: sourceFeatures.map((originalFeature, idx) => {
+                const joined = joinedFeatures[idx];
+                const extraProps: Record<string, unknown> = {};
+
+                if (joined && !joined.missingData) {
+                  extraProps.choropleth_value = joined.suppressed ? minVal : (joined.value ?? 0);
+                  extraProps.choropleth_label = joined.label ?? joined.code;
+                  extraProps.choropleth_suppressed = joined.suppressed ? "yes" : "no";
+                } else {
+                  extraProps.choropleth_missing = "yes";
+                }
+
                 return {
-                  ...feature,
-                  properties: {
-                    ...feature.properties,
-                    ...(datum
-                      ? {
-                          choropleth_value: datum.value,
-                          choropleth_label: datum.label ?? datum.code,
-                        }
-                      : {}),
-                  },
+                  ...originalFeature,
+                  properties: { ...originalFeature.properties, ...extraProps },
                 };
               }),
             };
 
-            map.addSource("provinces", {
-              type: "geojson",
-              data: enriched,
-            });
+            // MapLibre color expression:
+            // - suppressed: COLOR_SUPPRESSED
+            // - no data:    COLOR_NO_DATA
+            // - has data:   linear interpolation
+            const colorExpr: maplibregl.ExpressionSpecification = [
+              "case",
+              ["==", ["get", "choropleth_suppressed"], "yes"],
+              COLOR_SUPPRESSED,
+              ["has", "choropleth_value"],
+              [
+                "interpolate",
+                ["linear"],
+                ["get", "choropleth_value"],
+                minVal,
+                colorScale[0],
+                maxVal,
+                colorScale[1],
+              ] as maplibregl.ExpressionSpecification,
+              COLOR_NO_DATA,
+            ];
+
+            map.addSource("regions", { type: "geojson", data: enriched });
 
             map.addLayer({
-              id: "provinces-fill",
+              id: "regions-fill",
               type: "fill",
-              source: "provinces",
-              paint: {
-                "fill-color": matchExpression,
-                "fill-opacity": 0.75,
-              },
+              source: "regions",
+              paint: { "fill-color": colorExpr, "fill-opacity": 0.75 },
             });
 
             map.addLayer({
-              id: "provinces-outline",
+              id: "regions-outline",
               type: "line",
-              source: "provinces",
-              paint: {
-                "line-color": "#ffffff",
-                "line-width": 1,
-              },
+              source: "regions",
+              paint: { "line-color": "#ffffff", "line-width": 1 },
             });
 
-            // Fit the viewport to the bounding box of the enriched FeatureCollection.
-            // This makes the map auto-frame whichever region the data covers —
-            // national provinces, a province's departments, or CABA barrios —
-            // without the component needing to know which level it's rendering.
-            // Falls back to the initial center/zoom if bbox computation fails.
+            // Selection highlight layer (starts with no-match filter)
+            map.addLayer({
+              id: "regions-selected",
+              type: "line",
+              source: "regions",
+              filter: ["==", ["get", "code"], "__none__"],
+              paint: { "line-color": "#1d4ed8", "line-width": 3 },
+            });
+
+            // Auto-fit bounds
             try {
               let lngMin = Number.POSITIVE_INFINITY;
               let lngMax = Number.NEGATIVE_INFINITY;
@@ -242,9 +385,8 @@ export function MapChoropleth({
               function walkCoords(coords: unknown): void {
                 if (!Array.isArray(coords)) return;
                 if (typeof coords[0] === "number") {
-                  // [lng, lat] pair
-                  const lng = coords[0];
-                  const lat = coords[1];
+                  const lng = coords[0] as number;
+                  const lat = coords[1] as number;
                   if (lng < lngMin) lngMin = lng;
                   if (lng > lngMax) lngMax = lng;
                   if (lat < latMin) latMin = lat;
@@ -255,11 +397,8 @@ export function MapChoropleth({
               }
 
               for (const feature of enriched.features) {
-                // GeometryCollection has no .coordinates — skip it safely.
                 const geom = feature.geometry;
-                if (geom && "coordinates" in geom) {
-                  walkCoords(geom.coordinates);
-                }
+                if (geom && "coordinates" in geom) walkCoords(geom.coordinates);
               }
 
               const validBbox =
@@ -276,39 +415,78 @@ export function MapChoropleth({
                     [lngMin, latMin],
                     [lngMax, latMax],
                   ],
-                  // maxZoom caps how far a tiny extent (e.g. a single-department
-                  // province) zooms in, so it never lands at street level.
                   { padding: 24, animate: false, maxZoom: 9 },
                 );
               }
             } catch {
-              // Bbox computation failed — the initial center/zoom from the Map
-              // constructor is already applied, so this is a safe no-op.
+              // Bbox failed — initial center/zoom stays.
             }
 
-            // Tooltip al hacer hover.
-            const tooltip = new maplibregl.Popup({
-              closeButton: false,
-              closeOnClick: false,
-            });
+            // Tooltip
+            const tooltip = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
 
-            map.on("mousemove", "provinces-fill", (e) => {
+            map.on("mousemove", "regions-fill", (e) => {
               if (!e.features?.length) return;
               const props = e.features[0].properties as Record<string, string | number>;
               const labelText = props.choropleth_label ?? props.name ?? props.code ?? "";
-              const val = props.choropleth_value ?? "—";
-              map.getCanvas().style.cursor = "pointer";
+              const isSuppressed = props.choropleth_suppressed === "yes";
+              const isMissing = props.choropleth_missing === "yes";
+              const drillable = allowDrill && curLevel !== "barrio";
+
+              const valStr = isSuppressed
+                ? "Dato suprimido (privacidad k-anonimato)"
+                : isMissing
+                  ? "Sin datos"
+                  : String(props.choropleth_value ?? "—");
+
+              const drillHint = drillable
+                ? `<br/><em style="font-size:11px;color:#6b7280">Clic para ver detalle</em>`
+                : "";
+
+              map.getCanvas().style.cursor = drillable ? "pointer" : "default";
               tooltip
                 .setLngLat(e.lngLat)
                 .setHTML(
-                  `<div style="font-size:13px;padding:4px 8px"><strong>${labelText}</strong><br/>${val}</div>`,
+                  `<div style="font-size:13px;padding:4px 8px"><strong>${labelText}</strong><br/>${valStr}${drillHint}</div>`,
                 )
                 .addTo(map);
             });
 
-            map.on("mouseleave", "provinces-fill", () => {
+            map.on("mouseleave", "regions-fill", () => {
               map.getCanvas().style.cursor = "";
               tooltip.remove();
+            });
+
+            // Click — cross-filter + optional drill
+            map.on("click", "regions-fill", (e) => {
+              if (!e.features?.length) return;
+              const props = e.features[0].properties as Record<string, string>;
+              const clickedCode = String(props.code ?? "");
+              const clickedName = String(props.name ?? clickedCode);
+
+              // Highlight selection
+              map.setFilter("regions-selected", ["==", ["get", "code"], clickedCode]);
+
+              // Cross-filter via searchParams
+              updateCrossFilter(clickedCode, curLevel);
+
+              // Drill down
+              if (allowDrill && curLevel === "province") {
+                const nextLevel: GeoLevel = isCABA(clickedCode) ? "barrio" : "department";
+                setDrillState((prev) => ({
+                  level: nextLevel,
+                  geojsonUrl: GEOJSON_BY_LEVEL[nextLevel],
+                  provinceIso: clickedCode,
+                  breadcrumb: [
+                    ...prev.breadcrumb,
+                    {
+                      label: clickedName,
+                      level: "province",
+                      geojsonUrl: GEOJSON_BY_LEVEL.province,
+                    },
+                  ],
+                }));
+              }
             });
           })
           .catch((err) => {
@@ -318,14 +496,48 @@ export function MapChoropleth({
     });
 
     return () => {
+      cancelled = true;
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drillState.level, drillState.geojsonUrl, drillState.provinceIso, colorScale, allowDrill]);
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <div className={className}>
-      {/* Contenedor del mapa */}
+      {/* Breadcrumb + Volver */}
+      {allowDrill && drillState.breadcrumb.length > 0 && (
+        <nav aria-label="Nivel de mapa" className="mb-2 flex items-center gap-2 text-xs">
+          <button
+            type="button"
+            onClick={handleDrillBack}
+            className="text-ln-azul hover:underline font-medium"
+          >
+            ← Volver
+          </button>
+          <ol className="flex items-center gap-1 list-none m-0 p-0">
+            {drillState.breadcrumb.map((crumb, i) => (
+              <li
+                // biome-ignore lint/suspicious/noArrayIndexKey: breadcrumbs are positional
+                key={i}
+                className="flex items-center gap-1"
+              >
+                <span className="text-ln-ink-2">{crumb.label}</span>
+                <span className="text-ln-ink-3" aria-hidden="true">
+                  /
+                </span>
+              </li>
+            ))}
+            <li className="text-ln-ink font-medium">{LEVEL_LABELS[drillState.level]}</li>
+          </ol>
+        </nav>
+      )}
+
+      {/* Mapa */}
       <div
         ref={mapContainer}
         style={{ height }}
@@ -334,7 +546,25 @@ export function MapChoropleth({
         role="img"
       />
 
-      {/* Tabla de accesibilidad — siempre renderizada, oculta visualmente si se desea */}
+      {/* Leyenda de estados del mapa */}
+      <div className="mt-1 flex items-center gap-3 text-[10px] text-ln-ink-3">
+        <span className="flex items-center gap-1">
+          <span
+            className="inline-block w-3 h-3 rounded-sm border border-ln-line"
+            style={{ background: COLOR_NO_DATA }}
+          />
+          Sin datos
+        </span>
+        <span className="flex items-center gap-1">
+          <span
+            className="inline-block w-3 h-3 rounded-sm border border-ln-line"
+            style={{ background: COLOR_SUPPRESSED }}
+          />
+          Dato suprimido
+        </span>
+      </div>
+
+      {/* Tabla a11y */}
       <details className="mt-3 text-sm">
         <summary className="cursor-pointer text-ln-azul hover:underline text-xs font-medium">
           Ver datos
@@ -364,7 +594,7 @@ export function MapChoropleth({
                   {d.label ?? d.code}
                 </td>
                 <td className="border border-ln-line px-3 py-1.5 text-ln-ink tabular-nums">
-                  {d.value}
+                  {d.suppressed ? <span className="text-ln-op-mute">— (suprimido)</span> : d.value}
                 </td>
               </tr>
             ))}
