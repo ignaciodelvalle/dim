@@ -27,6 +27,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob",
   "/gob/cola",
   "/gob/vigilancia",
+  "/gob/mortalidad",
   "/gob/casos",
   "/gob/reglas",
   "/gob/servicios",
