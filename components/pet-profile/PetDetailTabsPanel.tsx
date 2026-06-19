@@ -33,6 +33,7 @@ import {
   getVacunasTabData,
 } from "@/app/actions/pet-tab-data";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ExportLibretaButton } from "./ExportLibretaButton";
 import { PetDetailTabs, type TabKey } from "./PetDetailTabs";
 
 // ---------------------------------------------------------------------------
@@ -140,13 +141,8 @@ function LibretaPanel({
       {/* LN Libreta footer */}
       <footer className="mt-[8px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)] print:block">
         <span>Asientos firmados digitalmente · inmutables</span>
-        <button
-          type="button"
-          className="cursor-pointer text-[var(--color-ln-azul)] normal-case no-underline hover:underline print:hidden"
-          onClick={() => window.print()}
-        >
-          Exportar libreta (PDF oficial)
-        </button>
+        {/* 14.3: server-side on-the-fly PDF export (replaces window.print). */}
+        <ExportLibretaButton petPublicToken={petPublicToken} />
         <span className="hidden print:block text-[var(--color-ln-mute)]">
           Generada por MiMAR · {new Date().toLocaleString("es-AR")}
         </span>
