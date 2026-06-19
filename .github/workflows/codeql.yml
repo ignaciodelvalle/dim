@@ -1,0 +1,45 @@
+# CodeQL static analysis (SAST) — Wave 5 Item 30.
+# Scans the JS/TS sources for security vulnerabilities and surfaces findings in
+# the repo's Security tab. CodeQL extracts JS/TS directly — no build step needed.
+#
+# Repo-settings prerequisite (owner-gated, one-time): enable Code scanning in
+# Settings → Code security and analysis. On a private repo this requires GitHub
+# Advanced Security. See SECURITY.md.
+name: CodeQL
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Weekly full scan (Mondays 04:23 UTC) to catch advisories in code that
+    # hasn't changed since the last push.
+    - cron: "23 4 * * 1"
+
+jobs:
+  analyze:
+    name: Analyze (JavaScript/TypeScript)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          # security-extended adds higher-recall security queries on top of the
+          # default set (more findings, slightly noisier — appropriate for a
+          # pre-government-integration hardening posture).
+          queries: security-extended
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
