@@ -2,9 +2,12 @@ import Link from "next/link";
 
 import { logPiiQueryForAuthority } from "@/app/actions/admin-proposals";
 import { BulkRevokeList } from "@/components/BulkRevokeList";
-import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import { OpBreach, OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { searchUsers } from "@/lib/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/compliance-metrics";
+import { buildProjectionContext } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 
 import { ProposeUserActions } from "./ProposeUserActions";
 import { RevokeUserActions } from "./RevokeUserActions";
@@ -34,6 +37,19 @@ export default async function UsuariosPage({
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const results = await searchUsers(query, { role: profile.role, jurisdictions });
 
+  // Registro & cumplimiento (Item 4): C2 ISO-validity (population-state) and C5
+  // chip-fraud signal (microchip_replaced flagged fraud/duplicate, last 12m).
+  // C5 surfaces replacements for HUMAN REVIEW only — it does not auto-classify.
+  const complianceCtx = buildProjectionContext(
+    { role: profile.role },
+    jurisdictions,
+    windows.trailing12m(),
+  );
+  const [isoValidity, chipSignal] = await Promise.all([
+    fetchIsoValidity(complianceCtx),
+    fetchChipReplacementSignal(complianceCtx),
+  ]);
+
   // Fire-and-forget pii_queried entry. Logging only happens when the user
   // typed a query — empty-query landings are not a PII read.
   if (query) {
@@ -52,6 +68,33 @@ export default async function UsuariosPage({
           audit log.
         </p>
       </header>
+
+      {/* C5 — chip-fraud signal (Item 4). Replacements flagged fraud/duplicate
+          route to human review. This is a SIGNAL, not an auto-classification. */}
+      {chipSignal.flaggedForReview > 0 && (
+        <OpBreach
+          title={`${chipSignal.flaggedForReview} reemplazo${chipSignal.flaggedForReview === 1 ? "" : "s"} de chip marcado${chipSignal.flaggedForReview === 1 ? "" : "s"} para revisión`}
+          detail={`${chipSignal.byReason.fraud_detected ?? 0} por fraude · ${chipSignal.byReason.duplicate_detected ?? 0} por duplicado · ${chipSignal.total} reemplazos en total (12m)`}
+        />
+      )}
+
+      {/* C2 — ISO-validity rate (Item 4, Res. SENASA 284/2024). */}
+      <section
+        aria-label="Registro y cumplimiento"
+        className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+      >
+        <OpKpi
+          label="Validez ISO de chips"
+          value={isoValidity.chipped === 0 ? "—" : `${isoValidity.ratePct}%`}
+          tone={isoValidity.chipped === 0 ? "neutral" : isoValidity.ratePct >= 80 ? "ok" : "warn"}
+          bar={isoValidity.chipped === 0 ? undefined : isoValidity.ratePct}
+          sub={
+            isoValidity.chipped === 0
+              ? "sin chips en cobertura"
+              : `${isoValidity.valid} de ${isoValidity.chipped} chips · ISO 11784/11785`
+          }
+        />
+      </section>
 
       <form action="/gob/usuarios" method="get" className="flex items-center gap-2">
         <input
