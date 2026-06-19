@@ -129,8 +129,8 @@ describe("runVaccineDueScan", () => {
     expect(n.severity).toBe("warning");
     expect(n.relatedEventId).toBe(eventId);
     expect(n.relatedPetId).toBe(petId);
-    expect(n.ctaLabel).toBe("Ver mascota");
-    expect(n.ctaUrl).toContain("/mis-mascotas/");
+    expect(n.ctaLabel).toBe("Registrar vacuna"); // 14.2: deep-link to vaccination form
+    expect(n.ctaUrl).toContain("/anotar?kind=vaccination_administered");
     // Body should be the time-aware computed message ("Lila tiene una vacuna
     // programada en 3 días."), NOT the generic reminder description. The
     // computed message reflects the scan moment; the description is

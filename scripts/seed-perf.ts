@@ -962,6 +962,16 @@ function buildShowcaseEvents(
       date_of_onset: new Date(BASE_MS + 24 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10),
       clinical_notes: "Zoonosis reportable (showcase demo — no enfermedad real)",
     }),
+    // event_amended — seed a correction of the first event (vaccination_administered).
+    // Uses a deterministic placeholder target_event_id for the seed script.
+    event_amended: () => ({
+      target_event_id: "00000000-0000-0000-0000-000000000001",
+      reason: "Corrección de demostración (seed-perf)",
+      changes: [
+        { field: "vaccine_name", old: "Antirrábica (demo)", new: "Antirrábica corregida (demo)" },
+      ],
+      actor_role: "owner",
+    }),
   } satisfies Record<EventType, () => Record<string, unknown>>;
 
   const events: Array<Record<string, unknown>> = [];

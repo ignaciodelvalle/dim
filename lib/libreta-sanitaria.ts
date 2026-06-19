@@ -92,6 +92,11 @@ export const NON_LIBRETA_EVENT_TYPES = [
   // Govt-side disease surveillance entry. Owner-visible only when payload says so
   // (D1 stigma model) and never as part of the libreta proper.
   "disease_reported",
+  // Correction by amendment — principle #2 / Wave 2 Item 15 (2026-06-19).
+  // The amendment event is a correction pointer, not a clinical entry. The
+  // PROJECTION (libreta view) applies the latest amendment to the original
+  // event's display value; this event_type itself is an admin/audit artifact.
+  "event_amended",
 ] as const satisfies readonly EventType[];
 
 const LIBRETA_SET: ReadonlySet<string> = new Set(LIBRETA_SANITARIA_EVENT_TYPES);

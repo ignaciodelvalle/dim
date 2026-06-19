@@ -1,41 +1,47 @@
-import Link from "next/link";
+// Govt custody-dispute list — migrated to CaseQueue (Wave 2 Item 12).
+//
+// Behaviour unchanged: admin sees all, govt scoped to their jurisdiction tuples.
+// The existing URL-tab filter (?tab=open|resolved) is preserved via CaseQueue's
+// status filter chips which map to the same search-param semantics.
+
 import { Suspense } from "react";
 
-import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
-import { OpCard, OpCardBody } from "@/components/ui/dashboard";
+import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { custodyDisputes, db, pets } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { desc, eq, ne } from "drizzle-orm";
 
-const TABS: UrlTabItem[] = [
-  { value: "open", label: "Abiertas" },
-  { value: "resolved", label: "Resueltas" },
-];
-
-function parseTab(raw: string | undefined): "open" | "resolved" {
-  return raw === "resolved" ? "resolved" : "open";
+function parseStatus(raw: string | undefined): "open" | "closed" | null {
+  if (raw === "open") return "open";
+  if (raw === "closed") return "closed";
+  return null;
 }
 
 export default async function GobDisputasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ status?: string }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const sp = await searchParams;
-  const activeTab = parseTab(sp.tab);
+  const activeStatus = parseStatus(sp.status);
 
-  // Fetch both statuses in one query; client-filter by jurisdiction below.
-  // "resolved" bucket includes both resolved + withdrawn rows.
+  // Fetch dispute rows filtered by active status (open vs. closed/resolved).
+  // "closed" maps to non-open statuses: resolved + withdrawn.
   const statusFilter =
-    activeTab === "open" ? eq(custodyDisputes.status, "open") : ne(custodyDisputes.status, "open");
+    activeStatus === "open"
+      ? eq(custodyDisputes.status, "open")
+      : activeStatus === "closed"
+        ? ne(custodyDisputes.status, "open")
+        : undefined;
 
-  const rows = await db
+  const query = db
     .select({ dispute: custodyDisputes, pet: pets })
     .from(custodyDisputes)
     .innerJoin(pets, eq(pets.id, custodyDisputes.petId))
-    .where(statusFilter)
     .orderBy(desc(custodyDisputes.createdAt));
+
+  const rows = statusFilter ? await query.where(statusFilter) : await query;
 
   // Admin sees all; govt is filtered to their jurisdiction tuples.
   const scoped =
@@ -49,11 +55,22 @@ export default async function GobDisputasPage({
           ),
         );
 
-  const STATUS_LABELS: Record<string, string> = {
-    open: "Abierta",
-    resolved: "Resuelta",
-    withdrawn: "Retirada",
-  };
+  // Map dispute rows → CaseQueueRow (CaseQueue's expected shape).
+  // custody_dispute status: "open" → CaseStatus "open"; others → "closed".
+  const queueRows: CaseQueueRow[] = scoped.map(({ dispute, pet }) => ({
+    id: dispute.id,
+    publicCode: dispute.publicToken,
+    caseKind: "custody_dispute" as const,
+    status: dispute.status === "open" ? "open" : "closed",
+    primaryPetName: pet.name,
+    primaryPetPublicToken: pet.publicToken,
+    jurisdictionProvince: dispute.jurisdictionProvince,
+    jurisdictionLocality: dispute.jurisdictionLocality,
+    openedAt: dispute.createdAt,
+    closedAt: dispute.resolvedAt ?? null,
+    // Dispute detail lives at its own route (uses publicToken, not publicCode).
+    detailHref: `/gob/disputas/${dispute.publicToken}`,
+  }));
 
   return (
     <div className="space-y-6">
@@ -70,49 +87,19 @@ export default async function GobDisputasPage({
       </header>
 
       <Suspense>
-        <UrlTabs paramKey="tab" defaultValue="open" tabs={TABS} aria-label="Filtrar disputas">
-          <UrlTabsContent value={activeTab}>
-            {scoped.length === 0 ? (
-              <p className="text-[13px] text-ln-op-mute pt-2">
-                {activeTab === "open"
-                  ? "No hay disputas abiertas."
-                  : "No hay disputas resueltas o retiradas."}
-              </p>
-            ) : (
-              <ul className="space-y-2 pt-2">
-                {scoped.map(({ dispute, pet }) => (
-                  <li key={dispute.id}>
-                    <OpCard>
-                      <OpCardBody className="p-0">
-                        <Link
-                          href={`/gob/disputas/${dispute.publicToken}`}
-                          className="block px-4 py-3 hover:bg-ln-op-stripe transition-colors no-underline"
-                        >
-                          <p className="text-[13px] font-medium text-ln-op-ink">
-                            {pet.name}{" "}
-                            <span className="text-ln-op-mute font-normal">({pet.species})</span>
-                          </p>
-                          <p className="text-[12px] text-ln-op-mute mt-0.5">
-                            {dispute.jurisdictionLocality}, {dispute.jurisdictionProvince} ·{" "}
-                            {STATUS_LABELS[dispute.status] ?? dispute.status}{" "}
-                            {new Date(dispute.createdAt).toLocaleDateString("es-AR", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </p>
-                          <p className="text-[10px] text-ln-op-faint font-mono mt-1">
-                            {dispute.publicToken}
-                          </p>
-                        </Link>
-                      </OpCardBody>
-                    </OpCard>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </UrlTabsContent>
-        </UrlTabs>
+        <CaseQueue
+          rows={queueRows}
+          filters={{ kind: "custody_dispute", status: activeStatus }}
+          filterBase="/gob/disputas"
+          caption="Cola de disputas de custodia"
+          emptyMessage={
+            activeStatus === "open"
+              ? "No hay disputas abiertas."
+              : activeStatus === "closed"
+                ? "No hay disputas resueltas o retiradas."
+                : "No hay disputas."
+          }
+        />
       </Suspense>
     </div>
   );

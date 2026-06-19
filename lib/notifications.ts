@@ -154,8 +154,11 @@ export async function runVaccineDueScan(
         // preserves backward compat with pre-C2 queries that filter by event.
         relatedReminderId: row.reminderId,
         relatedEventId: row.sourceEventId ?? undefined,
-        ctaLabel: "Ver mascota",
-        ctaUrl: `/mis-mascotas/${row.publicToken}`,
+        // 14.2 notice→action contract: deep-link directly to the vaccination
+        // form so the owner can act in one tap. The form pre-fills today's
+        // date; returnTo is not needed because SuccessScreen links back.
+        ctaLabel: "Registrar vacuna",
+        ctaUrl: `/mis-mascotas/${row.publicToken}/anotar?kind=vaccination_administered`,
       })
       .returning({ id: notifications.id });
     insertedNotificationIds.push(inserted.id);

@@ -366,6 +366,12 @@ export const EVENT_TYPES = [
   // (lepto | hidatidosis | other) so new zoonoses don't need a new
   // event_type entry. Powers /gob/* KPI tiles (handoff P4-3).
   "disease_reported",
+  // Correction by amendment — core principle #2 (2026-06-19).
+  // Immutable correction: references the original event, never edits it.
+  // Only events in AMENDABLE_EVENT_TYPES may be amended (D4).
+  // D5: admin/govt amendments are sensitive — reason required, audit logged,
+  // owner notified via notification_type='admin_event_amended'.
+  "event_amended",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -779,6 +785,13 @@ export const organizations = pgTable(
     // Legacy latitude/longitude numeric(9,6) dropped in migration 0102.
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
     locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
+    // Declared shelter capacity (Item 16 D1, migration 0102). All nullable — capacity is optional.
+    // Occupancy is always derived from active shelter_custody ownerships (lib/org-census.ts),
+    // never stored here. See docs/superpowers/specs/2026-06-18-wave3-org-ops-handoff.md §Item 16.
+    capacityDogs: integer("capacity_dogs"),
+    capacityCats: integer("capacity_cats"),
+    capacityOther: integer("capacity_other"),
+    capacityTotal: integer("capacity_total"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdByUserId: uuid("created_by_user_id").references(() => profiles.id, {
@@ -1993,6 +2006,15 @@ export const AUDIT_LOG_ACTIONS = [
   //   adopter_pii_viewed payload:
   //     { org_id, application_event_id, applicant_user_id, pet_id }
   "adopter_pii_viewed",
+  // Item 14.1: personal account self-deactivation (owner/vet). No coverage
+  // check needed (govt-only concern). Payload: { reason, role }.
+  "personal_self_deactivated",
+  // Wave 2 Item 15 — correction by amendment (principle #2, 2026-06-19).
+  // D5: admin/govt amendments are sensitive — emits this audit row with
+  // full amendment details (pet_id, target_event_id, amendment_event_id,
+  // reason, changes, actor_role). Payload: { pet_id, target_event_id,
+  // amendment_event_id, reason, changes, actor_role }.
+  "event_amended_sensitive",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 

@@ -167,19 +167,34 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
         ) : (
           <div className="overflow-x-auto rounded-[6px] border border-ln-op-line bg-ln-op-card">
             <table className="w-full text-[13px]">
+              <caption className="sr-only">
+                Zonas de cobertura de la organización por provincia y localidad
+              </caption>
               <thead>
                 <tr className="border-b border-ln-op-line bg-ln-op-stripe">
-                  <th className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute"
+                  >
                     Provincia
                   </th>
-                  <th className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute"
+                  >
                     Localidad
                   </th>
-                  <th className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute"
+                  >
                     Principal
                   </th>
                   {canManage && (
-                    <th className="px-4 py-3 text-right text-[12px] font-medium text-ln-op-mute">
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-right text-[12px] font-medium text-ln-op-mute"
+                    >
                       Acciones
                     </th>
                   )}

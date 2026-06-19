@@ -194,7 +194,9 @@ export async function createPetAction(
   await flushNotifications(result.notifications);
 
   const newPublicToken = (result.value as NonNullable<typeof result.value>).publicToken;
-  redirect(`/mis-mascotas/${newPublicToken}?recienCreado=true`);
+  // Onboarding aha: show the QR credential success screen (Item 13).
+  // The credencial page requires owner access and delivers the "aha" moment.
+  redirect(`/mis-mascotas/nueva/${newPublicToken}/credencial`);
 }
 
 // ---------------------------------------------------------------------------

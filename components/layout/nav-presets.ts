@@ -75,6 +75,13 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       section: "Operación",
     },
     {
+      href: `/org/${orgToken}/censo`,
+      label: "Censo",
+      matchPrefix: `/org/${orgToken}/censo`,
+      requiredCapability: "intake.create",
+      section: "Operación",
+    },
+    {
       href: `/org/${orgToken}/transitos`,
       label: "Tránsitos",
       matchPrefix: `/org/${orgToken}/transitos`,

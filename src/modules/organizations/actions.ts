@@ -125,6 +125,16 @@ export async function updateOrganizationAction(
   // Outer guard: redirect to /login if unauth; notFound() if no active membership.
   const { user } = await requireOrgAccessByToken(orgToken);
 
+  // Helper: parse an optional nullable integer from FormData.
+  // Empty string → null (clear the value). Not submitted → undefined (keep existing).
+  function parseCapacity(key: string): number | null | undefined {
+    if (!formData.has(key)) return undefined;
+    const raw = String(formData.get(key) ?? "").trim();
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? Math.round(n) : null;
+  }
+
   const result = await updateOrganization(
     {
       userId: user.id,
@@ -139,6 +149,12 @@ export async function updateOrganizationAction(
         personeriaJuridicaNumber:
           String(formData.get("personeriaJuridicaNumber") ?? "").trim() || null,
         tier0ShowOriginOrg: formData.get("tier0ShowOriginOrg") === "true",
+        // Shelter capacity (Item 16 D1). Only shelter orgs show the section,
+        // but the action accepts them from any org (the form gates by orgType).
+        capacityDogs: parseCapacity("capacityDogs"),
+        capacityCats: parseCapacity("capacityCats"),
+        capacityOther: parseCapacity("capacityOther"),
+        capacityTotal: parseCapacity("capacityTotal"),
       },
     },
     { repo },

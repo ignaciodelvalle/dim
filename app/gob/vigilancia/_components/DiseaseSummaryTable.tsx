@@ -23,12 +23,23 @@ export function DiseaseSummaryTable({
   return (
     <div className="overflow-x-auto rounded-[6px] border border-ln-op-line">
       <table className="min-w-full text-[13px]">
+        <caption className="sr-only">
+          Resumen de señales por enfermedad en los últimos {windowDays} días
+        </caption>
         <thead className="bg-ln-op-stripe">
           <tr className="text-left text-[10px] uppercase tracking-wider text-ln-op-mute">
-            <th className="px-4 py-2">Enfermedad</th>
-            <th className="px-3 py-2 text-right">24h</th>
-            <th className="px-3 py-2 text-right">7 días</th>
-            <th className="px-3 py-2 text-right">{windowDays} días</th>
+            <th scope="col" className="px-4 py-2">
+              Enfermedad
+            </th>
+            <th scope="col" className="px-3 py-2 text-right">
+              24h
+            </th>
+            <th scope="col" className="px-3 py-2 text-right">
+              7 días
+            </th>
+            <th scope="col" className="px-3 py-2 text-right">
+              {windowDays} días
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-ln-op-line-2">

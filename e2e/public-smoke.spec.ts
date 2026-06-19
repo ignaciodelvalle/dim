@@ -61,11 +61,23 @@ for (const { path, landmark } of PUBLIC_ROUTES) {
 // Scoped to WCAG 2.1 AA; color-contrast is excluded because design-token
 // contrast ratios are validated separately (P-1 in the a11y audit).
 //
+// Wave 2 Item 11 extends coverage to all high-exposure public surfaces
+// (Ley 26.653 applies to all government-facing web pages):
+//   /adoptar, /refugios, /casos, /libreta/compartir, /r/invite
+//   (previously only /denuncias and /denuncias/buscar were covered)
+//
 // `/refugios` was added when the public (public) layout migrated to AppShell
 // variant=citizen (Item 7, Phase C): it exercises the new citizen masthead +
 // footer chrome so the migration cannot regress a11y. (The home `/` lives at
 // app/page.tsx, outside the (public) group, and is not migrated by Phase C.)
-const A11Y_ROUTES = ["/refugios", "/denuncias", "/denuncias/buscar"] as const;
+const A11Y_ROUTES = [
+  "/refugios",
+  "/adoptar",
+  "/denuncias",
+  "/denuncias/buscar",
+  // /casos renders a search/listing landing — static, no DB token required.
+  "/casos",
+] as const;
 
 for (const path of A11Y_ROUTES) {
   test(`a11y(axe) ${path} — WCAG 2.1 AA (no critical violations)`, async ({ page }) => {
@@ -75,6 +87,40 @@ for (const path of A11Y_ROUTES) {
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .disableRules(["color-contrast"]) // contrast validated via design tokens separately
+      .analyze();
+
+    expect(results.violations).toEqual([]);
+  });
+}
+
+// A11y on token-gated public pages using a fake/nonexistent token.
+// When the token is invalid/expired, the page must render a friendly error state
+// (not a 500), and that error state must itself be axe-clean (Ley 26.653).
+for (const { path, description } of [
+  {
+    path: "/libreta/compartir/axe-test-invalid-token",
+    description: "/libreta/compartir/[shareToken] — expired/invalid state",
+  },
+  {
+    path: "/r/invite/axe-test-invalid-token",
+    description: "/r/invite/[token] — expired/invalid invite state",
+  },
+]) {
+  test(`a11y(axe) ${description} — WCAG 2.1 AA`, async ({ page }) => {
+    const response = await page.goto(path);
+
+    // Must not be a 500; an expired/invalid token renders a friendly UI.
+    // A 404 is also acceptable (some implementations throw notFound()).
+    expect(response?.status()).toBeLessThan(500);
+
+    await page.waitForLoadState("networkidle");
+
+    // Skip axe if the page returned a hard 404 (no content to audit).
+    if (response?.status() === 404) return;
+
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .disableRules(["color-contrast"])
       .analyze();
 
     expect(results.violations).toEqual([]);

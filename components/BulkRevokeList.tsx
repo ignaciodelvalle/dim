@@ -151,6 +151,7 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const evidenciaInputId = useId();
+  const modalHeadingId = useId();
 
   const motivoTrimmed = motivo.trim();
   const motivoValid = motivoTrimmed.length >= MOTIVO_MIN;
@@ -219,10 +220,11 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
       // biome-ignore lint/a11y/useSemanticElements: native <dialog> requires imperative showModal() which doesn't fit this controlled isOpen pattern; tracked as a follow-up to migrate to a Headless UI modal primitive.
       role="dialog"
       aria-modal="true"
+      aria-labelledby={modalHeadingId}
     >
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-ln-op-card p-6 shadow-xl">
         <header className="mb-4 flex items-baseline justify-between gap-3">
-          <h2 className="text-lg font-semibold text-ln-op-danger">
+          <h2 id={modalHeadingId} className="text-lg font-semibold text-ln-op-danger">
             Revocar {selectedItems.length} {targetKindLabel(targetKind, selectedItems.length)}
           </h2>
           <button

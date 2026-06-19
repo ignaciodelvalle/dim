@@ -1,10 +1,22 @@
-// Org portal landing — shows the active organization, the employee's role,
-// and the set of capabilities they currently hold. Non-admins can request any
-// non-granted capability inline; admins see a link to the approval queue.
+// Org portal landing — operations dashboard (Wave 3 Item 17).
+//
+// Layout:
+//   Header: org name + verification status
+//   OrgSetupChecklist (Wave 3 Item 19): guided first-run, auto-hides when complete
+//   KPI row (4): Ocupación · Ingresos (semana) · Disponibles · Adopciones en curso
+//   OpCard "Requieren acción": prioritized custody queue (overdue health / long-stay)
+//   OpCard "Pendientes": casos · transferencias · propuestas (existing 3 KPIs, demoted)
+//   Capability action cards
+//   Permissions table
+//
+// Spec: docs/superpowers/specs/2026-06-18-wave3-org-ops-handoff.md (Items 17, 19)
+// Depends on Item 16: lib/org-census.ts (fetchOrgCensus, computeOccupancyBreakdown)
 
 import { and, count, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
+import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import {
   OpBreach,
   OpCard,
@@ -20,8 +32,21 @@ import {
   db,
   fosterProposals,
   organizationCapabilityGrants,
+  organizationCoverage,
+  organizationMemberships,
+  serviceOfferings,
 } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/org-census";
+import {
+  actionReasonIcon,
+  actionReasonLabel,
+  fetchActiveAdoptions,
+  fetchAvailableForAdoption,
+  fetchIntakesLastWeek,
+  fetchRequiresAction,
+} from "@/lib/org-dashboard";
+import { deriveSetupSteps, isSetupComplete } from "@/lib/org-setup-checklist";
 import { getProfileCached } from "@/lib/request-cache";
 import { CAPABILITY_CATALOG } from "@/src/modules/organizations/domain/capabilities";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -76,6 +101,46 @@ const STATE_DOT: Record<CapabilityState["kind"], string> = {
   none: "bg-ln-op-line",
 };
 
+// ---------------------------------------------------------------------------
+// Occupancy KPI helpers (pure)
+// ---------------------------------------------------------------------------
+
+type OccupancyDisplay = {
+  value: string;
+  sub: string | null;
+  tone: "ok" | "warn" | "danger" | "neutral";
+};
+
+/**
+ * Derive display-safe occupancy value + tone from the occupancy breakdown.
+ * Reuses computeOccupancyBreakdown (Item 16) logic — no raw SQL here.
+ */
+function deriveOccupancyDisplay(
+  total: { count: number; capacity: number | null; pct: number | null; overCapacity: boolean },
+  noCapacityDeclared: boolean,
+): OccupancyDisplay {
+  if (total.count === 0 && noCapacityDeclared) {
+    return { value: "—", sub: "Sin animales aún", tone: "neutral" };
+  }
+  if (noCapacityDeclared) {
+    return {
+      value: String(total.count),
+      sub: "en custodia · sin capacidad declarada",
+      tone: "neutral",
+    };
+  }
+  const pct = total.pct ?? 0;
+  const tone: OccupancyDisplay["tone"] = total.overCapacity ? "danger" : pct >= 80 ? "warn" : "ok";
+  const sub = total.overCapacity
+    ? `Sobre capacidad (${total.count} / ${total.capacity ?? 0})`
+    : `${total.count} / ${total.capacity ?? 0} lugares`;
+  return { value: `${pct}%`, sub, tone };
+}
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
+
 export default async function OrgDashboardPage({
   params,
 }: {
@@ -84,7 +149,6 @@ export default async function OrgDashboardPage({
   const { orgToken } = await params;
   const { user, organization, membership } = await requireOrgAccessByToken(orgToken);
 
-  // getProfileCached is warmed by the org layout's call in the same render pass.
   const profile = await getProfileCached(user.id);
   const userRole = profile?.role ?? "owner";
 
@@ -95,10 +159,8 @@ export default async function OrgDashboardPage({
   const canIntake = granted.has("intake.create");
   const canReviewAdoptions = granted.has("adoption.review");
   const canAssignFoster = granted.has("foster.assign");
+  const isShelter = organization.orgType === "shelter";
 
-  // Load the most recent grant per capability for this membership so the row
-  // shows the current state (pending / denied / revoked) when there's no
-  // active approved grant. Admins skip this query — every capability is granted.
   const grantHistory = isAdmin
     ? []
     : await db
@@ -114,7 +176,7 @@ export default async function OrgDashboardPage({
 
   const stateByCapability = new Map<string, CapabilityState>();
   for (const row of grantHistory) {
-    if (stateByCapability.has(row.capability)) continue; // keep most-recent
+    if (stateByCapability.has(row.capability)) continue;
     if (row.status === "approved") {
       stateByCapability.set(row.capability, { kind: "granted" });
     } else if (row.status === "pending") {
@@ -131,44 +193,102 @@ export default async function OrgDashboardPage({
     return stateByCapability.get(capability) ?? { kind: "none" };
   }
 
-  // Sprint 5 PR-047 — surface live counts so admins land on the panel and
-  // immediately see what needs attention. Queries run in parallel.
-  //
-  // Note: the original plan included 'Check-ins pendientes' but the
-  // reminders table is owner-scoped (no organization_id column today), so
-  // counting checkins per-org would require joining against the adoption
-  // chain. Deferred — the existing 'Check-ins post-adopción' link in the
-  // capability grid below still surfaces the page.
-  const [openCasesRow, pendingTransfersRow, pendingFosterRow] = await Promise.all([
+  const canCreateServices = granted.has("service_offering.create");
+
+  // Setup checklist inputs (Item 19) — run in parallel with dashboard projections.
+  const [coverageCountRow, memberCountRow, servicesCountRow] = await Promise.all([
     db
       .select({ n: count() })
-      .from(cases)
-      .where(and(eq(cases.openedByOrganizationId, organization.id), eq(cases.status, "open"))),
+      .from(organizationCoverage)
+      .where(eq(organizationCoverage.organizationId, organization.id)),
     db
       .select({ n: count() })
-      .from(cases)
-      .where(
-        and(
-          eq(cases.caseKind, "custody_transfer_handshake"),
-          eq(cases.receiverOrganizationId, organization.id),
-          eq(cases.status, "open"),
-        ),
-      ),
-    db
-      .select({ n: count() })
-      .from(fosterProposals)
-      .where(
-        and(
-          eq(fosterProposals.organizationId, organization.id),
-          eq(fosterProposals.status, "pending"),
-        ),
-      ),
+      .from(organizationMemberships)
+      .where(eq(organizationMemberships.organizationId, organization.id)),
+    canCreateServices
+      ? db
+          .select({ n: count() })
+          .from(serviceOfferings)
+          .where(eq(serviceOfferings.organizationId, organization.id))
+      : Promise.resolve([{ n: 0 }]),
   ]);
-  const counts = {
+
+  const setupSteps = deriveSetupSteps({
+    orgType: organization.orgType,
+    hasCoverage: (coverageCountRow[0]?.n ?? 0) > 0,
+    memberCount: memberCountRow[0]?.n ?? 1,
+    canCreateServices,
+    hasServices: (servicesCountRow[0]?.n ?? 0) > 0,
+    hasCapacityDeclared:
+      organization.capacityDogs !== null ||
+      organization.capacityCats !== null ||
+      organization.capacityOther !== null ||
+      organization.capacityTotal !== null,
+    isVerified: organization.verified,
+  });
+
+  const showChecklist = !isSetupComplete(setupSteps);
+
+  // Dashboard projections — all run in parallel.
+  // Occupancy requires fetchOrgCensus + org capacity columns (Item 16).
+  const [openCasesRow, pendingTransfersRow, pendingFosterRow, census, actionItems] =
+    await Promise.all([
+      db
+        .select({ n: count() })
+        .from(cases)
+        .where(and(eq(cases.openedByOrganizationId, organization.id), eq(cases.status, "open"))),
+      db
+        .select({ n: count() })
+        .from(cases)
+        .where(
+          and(
+            eq(cases.caseKind, "custody_transfer_handshake"),
+            eq(cases.receiverOrganizationId, organization.id),
+            eq(cases.status, "open"),
+          ),
+        ),
+      db
+        .select({ n: count() })
+        .from(fosterProposals)
+        .where(
+          and(
+            eq(fosterProposals.organizationId, organization.id),
+            eq(fosterProposals.status, "pending"),
+          ),
+        ),
+      isShelter ? fetchOrgCensus(organization.id) : Promise.resolve(null),
+      isShelter ? fetchRequiresAction(organization.id) : Promise.resolve([]),
+    ]);
+
+  // Shelter-only KPIs run in parallel.
+  const [intakesLastWeek, availableForAdopt, activeAdoptions] = isShelter
+    ? await Promise.all([
+        fetchIntakesLastWeek(organization.id),
+        fetchAvailableForAdoption(organization.id),
+        fetchActiveAdoptions(organization.id),
+      ])
+    : [0, 0, 0];
+
+  const pendingCounts = {
     openCases: openCasesRow[0]?.n ?? 0,
     pendingTransfers: pendingTransfersRow[0]?.n ?? 0,
     pendingFosterProposals: pendingFosterRow[0]?.n ?? 0,
   };
+
+  // Occupancy breakdown — only meaningful for shelters with capacity columns.
+  const occupancyBreakdown =
+    isShelter && census !== null
+      ? computeOccupancyBreakdown(census, {
+          capacityDogs: organization.capacityDogs ?? null,
+          capacityCats: organization.capacityCats ?? null,
+          capacityOther: organization.capacityOther ?? null,
+          capacityTotal: organization.capacityTotal ?? null,
+        })
+      : null;
+
+  const occupancyDisplay = occupancyBreakdown
+    ? deriveOccupancyDisplay(occupancyBreakdown.total, occupancyBreakdown.noCapacityDeclared)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -207,28 +327,188 @@ export default async function OrgDashboardPage({
         )}
       </header>
 
-      {/* Sprint 5 PR-047 — live counts surface so admins see pending work
-          at a glance. Each KPI links to the surface that resolves it. */}
-      <section aria-label="Pendientes del refugio" className="grid grid-cols-3 gap-3">
-        <OpKpi
-          label="Casos abiertos"
-          value={counts.openCases}
-          tone={counts.openCases > 0 ? "warn" : "neutral"}
-          href={`/org/${orgToken}/casos`}
-        />
-        <OpKpi
-          label="Transferencias pendientes"
-          value={counts.pendingTransfers}
-          tone={counts.pendingTransfers > 0 ? "warn" : "neutral"}
-          href={`/org/${orgToken}/transferencias/recibidas`}
-        />
-        <OpKpi
-          label="Propuestas de tránsito"
-          value={counts.pendingFosterProposals}
-          tone={counts.pendingFosterProposals > 0 ? "warn" : "neutral"}
-          href={`/org/${orgToken}/voluntarios/propuestas`}
-        />
-      </section>
+      {/* Setup checklist (Item 19) — shown to admins until all steps complete. */}
+      {showChecklist && isAdmin && (
+        <OrgSetupChecklist steps={setupSteps} orgToken={orgToken} autoFocusFirst />
+      )}
+
+      {/* KPI row — shelter operations metrics (Item 17, shelters only) */}
+      {isShelter && (
+        <section
+          aria-label="Métricas de operación"
+          className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+        >
+          {/* Ocupación — from Item 16 occupancy projection */}
+          <OpKpi
+            label="Ocupación"
+            value={occupancyDisplay?.value ?? "—"}
+            tone={occupancyDisplay?.tone ?? "neutral"}
+            sub={occupancyDisplay?.sub ?? undefined}
+            href={`/org/${orgToken}/censo`}
+          />
+
+          {/* Ingresos (semana) */}
+          {intakesLastWeek === 0 ? (
+            <OpKpi
+              label="Ingresos (semana)"
+              value="—"
+              tone="neutral"
+              sub="Sin ingresos esta semana"
+            />
+          ) : (
+            <OpKpi
+              label="Ingresos (semana)"
+              value={intakesLastWeek}
+              tone="blue"
+              href={`/org/${orgToken}/intake`}
+            />
+          )}
+
+          {/* Disponibles para adopción */}
+          {availableForAdopt === 0 ? (
+            <OpKpi label="Disponibles" value="—" tone="neutral" sub="Sin animales disponibles" />
+          ) : (
+            <OpKpi
+              label="Disponibles"
+              value={availableForAdopt}
+              tone="ok"
+              sub="para adopción"
+              href={`/org/${orgToken}/mascotas`}
+            />
+          )}
+
+          {/* Adopciones en curso */}
+          {activeAdoptions === 0 ? (
+            <OpKpi
+              label="Adopciones en curso"
+              value="—"
+              tone="neutral"
+              sub="Sin postulaciones activas"
+            />
+          ) : (
+            <OpKpi
+              label="Adopciones en curso"
+              value={activeAdoptions}
+              tone="warn"
+              href={`/org/${orgToken}/adopciones`}
+            />
+          )}
+        </section>
+      )}
+
+      {/* OpCard "Requieren acción" — shelters only */}
+      {isShelter && (
+        <OpCard accent={actionItems.length > 0 ? "warn" : undefined}>
+          <OpCardHead
+            title="Requieren acción"
+            actions={
+              actionItems.length > 0 ? (
+                <Link
+                  href={`/org/${orgToken}/mascotas`}
+                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                >
+                  Ver todos →
+                </Link>
+              ) : undefined
+            }
+          />
+          <OpCardBody className={actionItems.length === 0 ? "p-0" : undefined}>
+            {actionItems.length === 0 ? (
+              /* Positive empty state — no bare 0-count (spec edge/a11y) */
+              <div className="flex items-center gap-3 px-4 py-5">
+                <Icon name="check-circle" size="md" className="text-ln-op-ok shrink-0" decorative />
+                <div>
+                  <p className="text-[13px] font-semibold text-ln-op-ink">Todo en orden</p>
+                  <p className="text-[12px] text-ln-op-mute">
+                    Ningún animal requiere atención inmediata.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <ul
+                aria-label="Animales que requieren atención"
+                className="divide-y divide-ln-op-line-2"
+              >
+                {actionItems.map((item) => (
+                  <li key={item.petId} className="flex items-start gap-3 px-4 py-3">
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <p className="text-[13px] font-semibold text-ln-op-ink truncate">
+                        <Link
+                          href={`/org/${orgToken}/mascotas/${item.petPublicToken}`}
+                          className="hover:underline no-underline text-ln-op-ink"
+                        >
+                          {item.petName}
+                        </Link>
+                      </p>
+                      {/* icon + text for each flag — never color-only (a11y Item 11 pattern) */}
+                      <ul className="flex flex-wrap gap-2" aria-label="Motivos">
+                        {item.reasons.map((reason) => (
+                          <li key={reason} className="flex items-center gap-1">
+                            <Icon
+                              name={actionReasonIcon(reason)}
+                              size="sm"
+                              className="text-ln-op-warn shrink-0"
+                              decorative
+                            />
+                            <span className="text-[11px] text-ln-op-warn font-medium">
+                              {actionReasonLabel(reason)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <span className="text-[11px] text-ln-op-mute whitespace-nowrap pt-0.5">
+                      {item.daysInCustody}d en custodia
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </OpCardBody>
+        </OpCard>
+      )}
+
+      {/* OpCard "Pendientes" — the original 3 KPIs, demoted to secondary card */}
+      <OpCard>
+        <OpCardHead title="Pendientes" />
+        <OpCardBody className="p-0">
+          <ul className="divide-y divide-ln-op-line-2">
+            <li className="flex items-center justify-between px-4 py-3">
+              <Link
+                href={`/org/${orgToken}/casos`}
+                className="text-[13px] text-ln-op-ink hover:underline no-underline"
+              >
+                Casos abiertos
+              </Link>
+              <OpPill tone={pendingCounts.openCases > 0 ? "open" : "neutral"}>
+                {pendingCounts.openCases}
+              </OpPill>
+            </li>
+            <li className="flex items-center justify-between px-4 py-3">
+              <Link
+                href={`/org/${orgToken}/transferencias/recibidas`}
+                className="text-[13px] text-ln-op-ink hover:underline no-underline"
+              >
+                Transferencias pendientes
+              </Link>
+              <OpPill tone={pendingCounts.pendingTransfers > 0 ? "open" : "neutral"}>
+                {pendingCounts.pendingTransfers}
+              </OpPill>
+            </li>
+            <li className="flex items-center justify-between px-4 py-3">
+              <Link
+                href={`/org/${orgToken}/voluntarios/propuestas`}
+                className="text-[13px] text-ln-op-ink hover:underline no-underline"
+              >
+                Propuestas de tránsito
+              </Link>
+              <OpPill tone={pendingCounts.pendingFosterProposals > 0 ? "open" : "neutral"}>
+                {pendingCounts.pendingFosterProposals}
+              </OpPill>
+            </li>
+          </ul>
+        </OpCardBody>
+      </OpCard>
 
       {/* Capability action cards */}
       {(canReadHeld || canIntake || canReviewAdoptions || canAssignFoster) && (

@@ -1,10 +1,15 @@
-// Cuenta hub — Libreta Nacional redesign.
+// Cuenta hub — Item 14.1 reorder.
 //
-// Layout: serif page title → identity card (avatar + name + email + role badges)
-//   → verifications section → privacy section → quick-actions list (LnRegRow style)
-//   → vet clinic banner → sheet mounter.
+// Layout: serif page title → identity card → verifications → privacy section
+//   → grouped action sections (Tu información / Rol y organizaciones /
+//     Privacidad y datos / Zona de riesgo) → logout → footer → sheet mounter.
 //
-// Data fetching, server actions, and CuentaSheetMounter are unchanged.
+// Changes from previous flat "01 Acciones" list:
+//   - Replaced single group with four named LnSectionHead groups.
+//   - Dropped Notificaciones + Mis denuncias (already in OWNER_NAV — no duplicates).
+//   - Added Zona de riesgo section visually separated (error border/bg) with
+//     DeactivateAccountDialog (ConfirmDialog + motivo, ≥ 5 chars).
+//   - Role/foster items appear per capabilities (owner, vet).
 
 import Link from "next/link";
 import { Suspense } from "react";
@@ -20,6 +25,7 @@ import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 
 import { CuentaSheetMounter } from "./CuentaSheetMounter";
+import { DeactivateAccountDialog } from "./_components/DeactivateAccountDialog";
 import { PrivacySection } from "./_components/PrivacySection";
 
 // Role display labels
@@ -103,6 +109,8 @@ export default async function CuentaPage() {
 
   const roleLabel = ROLE_LABELS[profile.role] ?? profile.role;
   const accountTypeLabel = ACCOUNT_TYPE_LABELS[profile.accountType] ?? profile.accountType;
+
+  const isPersonal = profile.accountType === "personal";
 
   return (
     <div className="mx-auto max-w-4xl px-[32px] py-[28px] pb-[48px]">
@@ -254,76 +262,120 @@ export default async function CuentaPage() {
         </div>
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Quick actions                                                         */}
-      {/* ------------------------------------------------------------------ */}
-      <LnSectionHead num="01" title="Acciones" className="mb-[16px]" />
+      {/* ================================================================== */}
+      {/* Grouped action sections (Item 14.1)                                 */}
+      {/* ================================================================== */}
 
-      <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+      {/* ------------------------------------------------------------------ */}
+      {/* 01 Tu información                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      <LnSectionHead num="01" title="Tu información" className="mb-[16px]" />
+
+      <div className="mb-[32px] overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
         <ActionRow
           href="?sheet=editar-perfil"
           label="Editar mi información"
           description="Nombre, teléfono y foto de perfil"
         />
-        <ActionRow
-          href="/notificaciones"
-          label="Notificaciones"
-          description="Avisos, alertas y novedades de tus mascotas"
-        />
-        <ActionRow
-          href="/denuncias/mias"
-          label="Mis denuncias"
-          description="Denuncias de bienestar animal que presentaste"
-        />
-        <ActionRow
-          href="/cuenta/memberships"
-          label="Mis organizaciones"
-          description="Refugios, clínicas y redes en las que participás"
-        />
-        <ActionRow
-          href="/cuenta/solicitudes"
-          label="Mis solicitudes"
-          description="Estado de tus solicitudes de rol"
-        />
-        {profile.role === "owner" && (
-          <ActionRow
-            href="/cuenta/upgrade"
-            label="Convertirme en profesional / organización"
-            description="Registrá tu matrícula veterinaria o creá una clínica, refugio u otra organización"
-          />
-        )}
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* 02 Rol y organizaciones                                              */}
+      {/* Shown only for personal accounts. Institutional accounts (govt/     */}
+      {/* admin) don't have org memberships or role transitions here.         */}
+      {/* ------------------------------------------------------------------ */}
+      {isPersonal && (
+        <>
+          <LnSectionHead num="02" title="Rol y organizaciones" className="mb-[16px]" />
+
+          <div className="mb-[32px] overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+            {profile.role === "owner" && (
+              <ActionRow
+                href="?sheet=solicitar-upgrade-vet"
+                label="Convertirme en profesional / organización"
+                description="Registrá tu matrícula veterinaria o creá una clínica, refugio u otra organización"
+              />
+            )}
+            {profile.role === "vet" && (
+              <ActionRow
+                href="/cuenta/crear-consultorio"
+                label="Crear consultorio"
+                description="Configurá tu consultorio veterinario para gestionar turnos y publicar servicios"
+              />
+            )}
+            <ActionRow
+              href="/cuenta/memberships"
+              label="Mis organizaciones"
+              description="Refugios, clínicas y redes en las que participás"
+            />
+            <ActionRow
+              href="/cuenta/solicitudes"
+              label="Mis solicitudes"
+              description="Estado de tus solicitudes de rol"
+            />
+            <ActionRow
+              href="/cuenta/transitos"
+              label="Tránsitos"
+              description="Hogar de tránsito, propuestas, tránsitos activos e historial"
+            />
+            {profile.role === "vet" && (
+              <ActionRow
+                href="?sheet=renunciar-rol"
+                label="Renunciar a rol veterinario"
+                description="Volvés a rol dueño/a"
+                danger
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* 03 Privacidad y datos                                                */}
+      {/* ------------------------------------------------------------------ */}
+      <LnSectionHead
+        num={isPersonal ? "03" : "02"}
+        title="Privacidad y datos"
+        className="mb-[16px]"
+      />
+
+      <div className="mb-[32px] overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
         <ActionRow
           href="/cuenta/privacidad"
           label="Privacidad y derechos"
           description="Descargar tus datos · Eliminar cuenta · Ley 25.326"
         />
-        {profile.role === "owner" && profile.accountType === "personal" && (
-          <ActionRow
-            href="/cuenta/transitos"
-            label="Tránsitos"
-            description="Hogar de tránsito, propuestas, tránsitos activos e historial"
-          />
-        )}
-        {profile.role === "vet" && (
-          <ActionRow
-            href="?sheet=renunciar-rol"
-            label="Renunciar a rol veterinario"
-            description="Volvés a rol dueño/a"
-            danger
-          />
-        )}
-        {profile.role === "govt" && profile.accountType === "institutional" && (
-          <ActionRow
-            href="/cuenta/desactivar"
-            label="Desactivar mi cuenta"
-            description="Desactiva tu cuenta de operador govt"
-            danger
-          />
-        )}
       </div>
 
+      {/* ------------------------------------------------------------------ */}
+      {/* Zona de riesgo — personal accounts only. Visually separated:        */}
+      {/* error-tone heading + border + bg. ConfirmDialog with mandatory       */}
+      {/* motivo (≥ 5 chars) gates irreversible deactivation.                 */}
+      {/* Govt deactivation lives at /cuenta/desactivar (coverage check).     */}
+      {/* ------------------------------------------------------------------ */}
+      {isPersonal && (
+        <section aria-labelledby="zona-riesgo-heading" className="mb-[32px]">
+          {/* Custom error-tone section heading — not using LnSectionHead      */}
+          {/* because we need the error color variant.                          */}
+          <div className="mb-[16px] flex items-baseline gap-[14px] border-b-2 border-[var(--color-ln-err)] pb-[10px]">
+            <span className="font-[var(--font-ln-mono)] text-[12px] font-semibold tracking-[.04em] text-[var(--color-ln-err)]">
+              04
+            </span>
+            <h2
+              id="zona-riesgo-heading"
+              className="m-0 font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em] text-[var(--color-ln-err)]"
+            >
+              Zona de riesgo
+            </h2>
+          </div>
+          <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-err)] bg-[var(--color-ln-err-050)]">
+            <DeactivateAccountDialog />
+          </div>
+        </section>
+      )}
+
       {/* Logout */}
-      <form action={logoutAction} className="mt-[28px]">
+      <form action={logoutAction} className="mt-[4px] mb-[28px]">
         <button
           type="submit"
           className="rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[16px] py-[9px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"

@@ -22,13 +22,26 @@ export function OutbreakHistoryTable({ rows }: Props) {
   return (
     <div className="overflow-x-auto rounded-[6px] border border-ln-op-line">
       <table className="min-w-full text-[13px]">
+        <caption className="sr-only">
+          Historial de brotes por enfermedad, localidad y período
+        </caption>
         <thead className="bg-ln-op-stripe">
           <tr className="text-left text-[11px] uppercase tracking-wider text-ln-op-mute">
-            <th className="px-4 py-2">Enfermedad</th>
-            <th className="px-3 py-2">Localidad</th>
-            <th className="px-3 py-2">Provincia</th>
-            <th className="px-3 py-2">Pico</th>
-            <th className="px-3 py-2 text-right">Signals</th>
+            <th scope="col" className="px-4 py-2">
+              Enfermedad
+            </th>
+            <th scope="col" className="px-3 py-2">
+              Localidad
+            </th>
+            <th scope="col" className="px-3 py-2">
+              Provincia
+            </th>
+            <th scope="col" className="px-3 py-2">
+              Pico
+            </th>
+            <th scope="col" className="px-3 py-2 text-right">
+              Signals
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-ln-op-line-2">

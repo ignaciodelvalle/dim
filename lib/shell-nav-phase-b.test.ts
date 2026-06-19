@@ -68,6 +68,7 @@ const ORG_HREF_SNAPSHOT = new Set([
   "/org/ORG-ABC/transitos",
   "/org/ORG-ABC/voluntarios",
   "/org/ORG-ABC/mascotas",
+  "/org/ORG-ABC/censo",
   "/org/ORG-ABC/transferencias",
   "/org/ORG-ABC/adopciones",
   "/org/ORG-ABC/checkins",

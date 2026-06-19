@@ -30,6 +30,7 @@ import {
 import { BULK_INELIGIBLE_REASONS } from "@/app/actions/bulk-vaccinate-types";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpStateBadge } from "@/components/ui/dashboard";
+import { OrgMascotasPipelineBoard } from "./OrgMascotasPipelineBoard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -160,6 +161,8 @@ export function OrgMascotasBulkList({
   const [lastResultType, setLastResultType] = useState<
     "vaccinate" | "eligibility" | "listing-publish" | "listing-unlist" | null
   >(null);
+  // View toggle: "list" (default) or "board" (pipeline).
+  const [view, setView] = useState<"list" | "board">("list");
 
   const fosteredSet = new Set(fosteredPetIds);
   const pendingProposalSet = new Set(pendingProposalPetIds);
@@ -199,175 +202,221 @@ export function OrgMascotasBulkList({
 
   return (
     <div className="space-y-3 pb-32">
-      {canBulkSelect && (
-        <div className="flex items-center gap-3 text-[12px] text-ln-op-mute">
+      {/* View toggle: Lista / Tablero */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        {canBulkSelect && view === "list" && (
+          <div className="flex items-center gap-3 text-[12px] text-ln-op-mute">
+            <button
+              type="button"
+              onClick={allSelected ? clear : selectAll}
+              className="underline hover:text-ln-op-ink"
+            >
+              {allSelected ? "Deseleccionar todo" : `Seleccionar todo (${cards.length})`}
+            </button>
+          </div>
+        )}
+        {!canBulkSelect && <div />}
+
+        <fieldset className="inline-flex rounded-[6px] border border-ln-op-line overflow-hidden text-[12px] p-0">
+          <legend className="sr-only">Vista</legend>
           <button
             type="button"
-            onClick={allSelected ? clear : selectAll}
-            className="underline hover:text-ln-op-ink"
+            onClick={() => setView("list")}
+            aria-pressed={view === "list"}
+            className={[
+              "px-3 py-1.5 font-medium transition-colors",
+              view === "list"
+                ? "bg-ln-op-azul text-white"
+                : "bg-ln-op-card text-ln-op-mute hover:text-ln-op-ink",
+            ].join(" ")}
           >
-            {allSelected ? "Deseleccionar todo" : `Seleccionar todo (${cards.length})`}
+            Lista
           </button>
-        </div>
+          <button
+            type="button"
+            onClick={() => setView("board")}
+            aria-pressed={view === "board"}
+            className={[
+              "px-3 py-1.5 font-medium transition-colors border-l border-ln-op-line",
+              view === "board"
+                ? "bg-ln-op-azul text-white"
+                : "bg-ln-op-card text-ln-op-mute hover:text-ln-op-ink",
+            ].join(" ")}
+          >
+            Tablero
+          </button>
+        </fieldset>
+      </div>
+
+      {/* Board view */}
+      {view === "board" && (
+        <OrgMascotasPipelineBoard
+          cards={cards}
+          fosteredPetIds={fosteredPetIds}
+          orgToken={orgToken}
+        />
       )}
 
-      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {cards.map((card) => {
-          const isSelected = selected.has(card.publicToken);
-          const badge = ROLE_BADGE[card.ownershipRole] ?? ROLE_BADGE.shelter_custody;
-          const ageInfo = card.dateOfBirth
-            ? `${card.birthDateIsEstimated ? "~" : ""}${calcAge(card.dateOfBirth)}`
-            : "edad desconocida";
-          const hasFoster = fosteredSet.has(card.petId);
-          const showFosterCta =
-            canAssignFoster && card.ownershipRole === "shelter_custody" && !hasFoster;
-          const showTransferCta =
-            canTransfer &&
-            (card.ownershipRole === "shelter_custody" || card.ownershipRole === "owner");
-          const hasPendingProposal = pendingProposalSet.has(card.petId);
-          const showReturnToOwnerCta =
-            canReturnToOwner &&
-            card.ownershipRole === "shelter_custody" &&
-            card.status === "lost" &&
-            !hasPendingProposal;
-          const anyCta =
-            showFosterCta ||
-            (canEndFoster && hasFoster) ||
-            (canFinalizeAdoption && card.ownershipRole === "shelter_custody") ||
-            showTransferCta ||
-            showReturnToOwnerCta;
+      {/* List view */}
+      {view === "list" && (
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {cards.map((card) => {
+            const isSelected = selected.has(card.publicToken);
+            const badge = ROLE_BADGE[card.ownershipRole] ?? ROLE_BADGE.shelter_custody;
+            const ageInfo = card.dateOfBirth
+              ? `${card.birthDateIsEstimated ? "~" : ""}${calcAge(card.dateOfBirth)}`
+              : "edad desconocida";
+            const hasFoster = fosteredSet.has(card.petId);
+            const showFosterCta =
+              canAssignFoster && card.ownershipRole === "shelter_custody" && !hasFoster;
+            const showTransferCta =
+              canTransfer &&
+              (card.ownershipRole === "shelter_custody" || card.ownershipRole === "owner");
+            const hasPendingProposal = pendingProposalSet.has(card.petId);
+            const showReturnToOwnerCta =
+              canReturnToOwner &&
+              card.ownershipRole === "shelter_custody" &&
+              card.status === "lost" &&
+              !hasPendingProposal;
+            const anyCta =
+              showFosterCta ||
+              (canEndFoster && hasFoster) ||
+              (canFinalizeAdoption && card.ownershipRole === "shelter_custody") ||
+              showTransferCta ||
+              showReturnToOwnerCta;
 
-          const adState = deriveAdoptionState(card);
+            const adState = deriveAdoptionState(card);
 
-          return (
-            <li
-              key={card.petId}
-              className={`rounded-[6px] border p-3 space-y-2 ${
-                isSelected
-                  ? "border-ln-op-azul bg-ln-op-blue-bg"
-                  : "border-ln-op-line bg-ln-op-card"
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                {canBulkSelect && (
-                  <LnCheckbox
-                    id={`row-${card.publicToken}`}
-                    checked={isSelected}
-                    onChange={() => toggle(card.publicToken)}
-                    aria-label={`Seleccionar ${card.name}`}
-                    className="mt-1 shrink-0"
-                  />
-                )}
-                <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
-                  <Link
-                    href={`/mis-mascotas/${card.publicToken}`}
-                    className="flex-1 min-w-0 hover:underline"
-                  >
-                    <p className="text-[14px] font-semibold text-ln-op-ink">{card.name}</p>
-                    <p className="text-[12px] text-ln-op-mute">
-                      {speciesLabel(card.species)}
-                      {card.breed ? ` · ${card.breed}` : ""}
-                      {card.color ? ` · ${card.color}` : ""}
-                    </p>
-                  </Link>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${badge.className}`}
+            return (
+              <li
+                key={card.petId}
+                className={`rounded-[6px] border p-3 space-y-2 ${
+                  isSelected
+                    ? "border-ln-op-azul bg-ln-op-blue-bg"
+                    : "border-ln-op-line bg-ln-op-card"
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  {canBulkSelect && (
+                    <LnCheckbox
+                      id={`row-${card.publicToken}`}
+                      checked={isSelected}
+                      onChange={() => toggle(card.publicToken)}
+                      aria-label={`Seleccionar ${card.name}`}
+                      className="mt-1 shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+                    <Link
+                      href={`/mis-mascotas/${card.publicToken}`}
+                      className="flex-1 min-w-0 hover:underline"
                     >
-                      {badge.label}
-                    </span>
-                    {hasFoster && card.ownershipRole === "shelter_custody" && (
+                      <p className="text-[14px] font-semibold text-ln-op-ink">{card.name}</p>
+                      <p className="text-[12px] text-ln-op-mute">
+                        {speciesLabel(card.species)}
+                        {card.breed ? ` · ${card.breed}` : ""}
+                        {card.color ? ` · ${card.color}` : ""}
+                      </p>
+                    </Link>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${ROLE_BADGE.foster.className}`}
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${badge.className}`}
                       >
-                        + tránsito
+                        {badge.label}
                       </span>
-                    )}
-                    {adState && <OpStateBadge state={adState} />}
+                      {hasFoster && card.ownershipRole === "shelter_custody" && (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${ROLE_BADGE.foster.className}`}
+                        >
+                          + tránsito
+                        </span>
+                      )}
+                      {adState && <OpStateBadge state={adState} />}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <p className="text-[12px] text-ln-op-mute">
-                {ageInfo} · ingreso{" "}
-                {new Date(card.startedAt).toLocaleDateString("es-AR", {
-                  dateStyle: "medium",
-                })}
-              </p>
-              <p className="text-[12px] text-ln-op-mute">
-                <code className="font-ln-mono">{card.publicToken}</code>
-              </p>
-              {anyCta && (
-                <div className="pt-1 flex flex-wrap gap-2">
-                  {showFosterCta && (
-                    <Link
-                      href={`/org/${orgToken}/mascotas/${card.publicToken}/foster`}
-                      className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
-                    >
-                      Asignar tránsito
-                    </Link>
-                  )}
-                  {canEndFoster && hasFoster && (
-                    <Link
-                      href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=fin-transito`}
-                      className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
-                    >
-                      Cerrar tránsito
-                    </Link>
-                  )}
-                  {canIntake && card.ownershipRole === "shelter_custody" && (
-                    <Link
-                      href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=elegibilidad`}
-                      className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
-                    >
-                      {card.adoptionEligible === true
-                        ? "Apta ✓"
-                        : card.adoptionEligible === false
-                          ? "NO apta"
-                          : "Elegibilidad"}
-                    </Link>
-                  )}
-                  {canManageAdoptionListing && card.ownershipRole === "shelter_custody" && (
-                    <Link
-                      href={`/org/${orgToken}/mascotas/${card.publicToken}/adoptar`}
-                      className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
-                    >
-                      {card.adoptionListedAt && !card.adoptionListingPausedAt
-                        ? "Publicada ✓"
-                        : card.adoptionListedAt && card.adoptionListingPausedAt
-                          ? "Pausada"
-                          : "Publicar"}
-                    </Link>
-                  )}
-                  {canFinalizeAdoption && card.ownershipRole === "shelter_custody" && (
-                    <Link
-                      href={`/org/${orgToken}/mascotas/${card.publicToken}/adoption`}
-                      className="inline-block text-[12px] px-2 py-1 rounded-[4px] bg-ln-op-ok text-white hover:opacity-90"
-                    >
-                      Finalizar adopción
-                    </Link>
-                  )}
-                  {showReturnToOwnerCta && (
-                    <Link
-                      href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=devolver-al-dueno`}
-                      className="inline-block text-[12px] px-2 py-1 rounded-[4px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
-                    >
-                      Devolver al dueño
-                    </Link>
-                  )}
-                  {showTransferCta && (
-                    <Link
-                      href={`/org/${orgToken}/mascotas/${card.publicToken}/transfer`}
-                      className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
-                    >
-                      Transferir
-                    </Link>
-                  )}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+                <p className="text-[12px] text-ln-op-mute">
+                  {ageInfo} · ingreso{" "}
+                  {new Date(card.startedAt).toLocaleDateString("es-AR", {
+                    dateStyle: "medium",
+                  })}
+                </p>
+                <p className="text-[12px] text-ln-op-mute">
+                  <code className="font-ln-mono">{card.publicToken}</code>
+                </p>
+                {anyCta && (
+                  <div className="pt-1 flex flex-wrap gap-2">
+                    {showFosterCta && (
+                      <Link
+                        href={`/org/${orgToken}/mascotas/${card.publicToken}/foster`}
+                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                      >
+                        Asignar tránsito
+                      </Link>
+                    )}
+                    {canEndFoster && hasFoster && (
+                      <Link
+                        href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=fin-transito`}
+                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                      >
+                        Cerrar tránsito
+                      </Link>
+                    )}
+                    {canIntake && card.ownershipRole === "shelter_custody" && (
+                      <Link
+                        href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=elegibilidad`}
+                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                      >
+                        {card.adoptionEligible === true
+                          ? "Apta ✓"
+                          : card.adoptionEligible === false
+                            ? "NO apta"
+                            : "Elegibilidad"}
+                      </Link>
+                    )}
+                    {canManageAdoptionListing && card.ownershipRole === "shelter_custody" && (
+                      <Link
+                        href={`/org/${orgToken}/mascotas/${card.publicToken}/adoptar`}
+                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                      >
+                        {card.adoptionListedAt && !card.adoptionListingPausedAt
+                          ? "Publicada ✓"
+                          : card.adoptionListedAt && card.adoptionListingPausedAt
+                            ? "Pausada"
+                            : "Publicar"}
+                      </Link>
+                    )}
+                    {canFinalizeAdoption && card.ownershipRole === "shelter_custody" && (
+                      <Link
+                        href={`/org/${orgToken}/mascotas/${card.publicToken}/adoption`}
+                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] bg-ln-op-ok text-white hover:opacity-90"
+                      >
+                        Finalizar adopción
+                      </Link>
+                    )}
+                    {showReturnToOwnerCta && (
+                      <Link
+                        href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=devolver-al-dueno`}
+                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
+                      >
+                        Devolver al dueño
+                      </Link>
+                    )}
+                    {showTransferCta && (
+                      <Link
+                        href={`/org/${orgToken}/mascotas/${card.publicToken}/transfer`}
+                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                      >
+                        Transferir
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {lastResult && (
         <ResultPanel
