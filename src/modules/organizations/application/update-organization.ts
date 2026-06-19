@@ -27,6 +27,11 @@ export type UpdateOrganizationFields = {
   description?: string | null;
   personeriaJuridicaNumber?: string | null;
   tier0ShowOriginOrg?: boolean;
+  // Shelter capacity (Item 16 D1). Nullable — org may leave them unset.
+  capacityDogs?: number | null;
+  capacityCats?: number | null;
+  capacityOther?: number | null;
+  capacityTotal?: number | null;
 };
 
 function validateFields(fields: UpdateOrganizationFields): string | null {
@@ -62,6 +67,22 @@ function validateFields(fields: UpdateOrganizationFields): string | null {
   }
   if (fields.personeriaJuridicaNumber && fields.personeriaJuridicaNumber.trim().length > 60) {
     return "El número de personería jurídica no puede tener más de 60 caracteres.";
+  }
+  // Capacity fields must be non-negative integers when provided.
+  for (const [key, val] of [
+    ["capacityDogs", fields.capacityDogs],
+    ["capacityCats", fields.capacityCats],
+    ["capacityOther", fields.capacityOther],
+    ["capacityTotal", fields.capacityTotal],
+  ] as const) {
+    if (val !== undefined && val !== null) {
+      if (!Number.isInteger(val) || val < 0) {
+        return `La capacidad (${key}) debe ser un número entero no negativo.`;
+      }
+      if (val > 99999) {
+        return `La capacidad (${key}) no puede superar 99 999.`;
+      }
+    }
   }
   return null;
 }
@@ -118,6 +139,11 @@ export async function updateOrganization(
     description: f.description?.trim() || null,
     personeriaJuridicaNumber: f.personeriaJuridicaNumber?.trim() || null,
     ...(f.tier0ShowOriginOrg !== undefined && { tier0ShowOriginOrg: f.tier0ShowOriginOrg }),
+    // Capacity columns (Item 16 D1) — undefined means "not submitted" (keep existing).
+    ...(f.capacityDogs !== undefined && { capacityDogs: f.capacityDogs }),
+    ...(f.capacityCats !== undefined && { capacityCats: f.capacityCats }),
+    ...(f.capacityOther !== undefined && { capacityOther: f.capacityOther }),
+    ...(f.capacityTotal !== undefined && { capacityTotal: f.capacityTotal }),
     updatedAt: new Date(),
   });
 
