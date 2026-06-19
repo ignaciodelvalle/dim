@@ -257,11 +257,18 @@ export default async function GobMortalidadPage({
             </p>
           ) : (
             <table className="w-full text-[13px]">
+              <caption className="sr-only">Causas de fallecimiento por semana ISO</caption>
               <thead>
                 <tr className="border-b border-ln-op-line-2 text-left text-ln-op-mute">
-                  <th className="px-4 py-2 font-medium">Semana ISO</th>
-                  <th className="px-4 py-2 font-medium">Causa</th>
-                  <th className="px-4 py-2 text-right font-medium">Muertes</th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Semana ISO
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Causa
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">
+                    Muertes
+                  </th>
                 </tr>
               </thead>
               <tbody>

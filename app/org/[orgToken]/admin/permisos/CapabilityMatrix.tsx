@@ -219,15 +219,25 @@ export function CapabilityMatrix({
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-max border-collapse text-[12px]">
+        <caption className="sr-only">Matriz de permisos por miembro y capacidad</caption>
         <thead>
           <tr className="border-b border-ln-op-line-2">
-            <th className="sticky left-0 z-10 min-w-[160px] bg-ln-op-card py-2 pr-3 text-left font-semibold text-ln-op-ink">
+            <th
+              scope="col"
+              className="sticky left-0 z-10 min-w-[160px] bg-ln-op-card py-2 pr-3 text-left font-semibold text-ln-op-ink"
+            >
               Miembro
             </th>
-            <th className="min-w-[60px] py-2 pr-2 text-left font-semibold text-ln-op-mute">Rol</th>
+            <th
+              scope="col"
+              className="min-w-[60px] py-2 pr-2 text-left font-semibold text-ln-op-mute"
+            >
+              Rol
+            </th>
             {columns.map((col) => (
               <th
                 key={col.capability}
+                scope="col"
                 title={col.capability}
                 className="min-w-[88px] px-2 py-2 text-center font-medium text-ln-op-mute"
               >

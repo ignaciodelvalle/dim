@@ -259,30 +259,57 @@ export default async function AdminOutboxPage({
         <OpCard>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
+              <caption className="sr-only">
+                Cola de notificaciones salientes con estado SLA, destino y acciones
+              </caption>
               <thead>
                 <tr className="border-b border-ln-op-line">
-                  <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                  >
                     SLA
                   </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                  >
                     Destino
                   </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                  >
                     Jurisdiccion
                   </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                  >
                     Evento origen
                   </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                  >
                     Intentos
                   </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                  >
                     Creado
                   </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                  >
                     SLA vence
                   </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                  >
                     Accion
                   </th>
                 </tr>

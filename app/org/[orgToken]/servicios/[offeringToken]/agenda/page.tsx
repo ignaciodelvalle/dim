@@ -111,22 +111,40 @@ export default async function AgendaPage({
             <OpCardBody className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full">
+                  <caption className="sr-only">
+                    Reglas de agenda: días, horario y período de vigencia
+                  </caption>
                   <thead className="bg-ln-op-stripe border-b border-ln-op-line">
                     <tr>
-                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                      <th
+                        scope="col"
+                        className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                      >
                         Días
                       </th>
-                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                      <th
+                        scope="col"
+                        className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                      >
                         Horario
                       </th>
-                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                      <th
+                        scope="col"
+                        className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                      >
                         Desde
                       </th>
-                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                      <th
+                        scope="col"
+                        className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                      >
                         Hasta
                       </th>
                       {canManage && (
-                        <th className="px-4 py-2 text-right text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                        <th
+                          scope="col"
+                          className="px-4 py-2 text-right text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                        >
                           Acción
                         </th>
                       )}

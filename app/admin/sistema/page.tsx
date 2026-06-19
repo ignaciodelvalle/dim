@@ -185,18 +185,33 @@ export default async function AdminSistemaPage() {
           <OpCard>
             <div className="overflow-x-auto">
               <table className="w-full">
+                <caption className="sr-only">
+                  Actividad de operadores govt: localidades asignadas, decisiones y última acción
+                </caption>
                 <thead>
                   <tr className="border-b border-ln-op-line">
-                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                    <th
+                      scope="col"
+                      className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    >
                       Govt
                     </th>
-                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                    <th
+                      scope="col"
+                      className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    >
                       Localidades
                     </th>
-                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                    <th
+                      scope="col"
+                      className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    >
                       Decisiones 30d
                     </th>
-                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                    <th
+                      scope="col"
+                      className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    >
                       Ultima accion
                     </th>
                   </tr>
