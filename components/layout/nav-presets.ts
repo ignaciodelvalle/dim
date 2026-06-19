@@ -223,6 +223,7 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
       { href: "/gob/mortalidad", label: "Mortalidad", matchPrefix: "/gob/mortalidad" },
       { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
       { href: "/gob/campañas", label: "Campañas", matchPrefix: "/gob/campañas" },
+      { href: "/gob/outreach", label: "Outreach", matchPrefix: "/gob/outreach" },
     ],
   },
   {
