@@ -104,6 +104,18 @@
           }
         }
       }
+    },
+    {
+      "include": ["components/ui/dashboard/OpOmnibox.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useSemanticElements": "off",
+            "useFocusableInteractive": "off",
+            "noNoninteractiveElementToInteractiveRole": "off"
+          }
+        }
+      }
     }
   ],
   "javascript": {

@@ -4,6 +4,7 @@ import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import { OpCrumbs } from "@/components/ui/dashboard/OpCrumbs";
+import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -92,6 +93,8 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
           />
           {/* Spacer */}
           <div className="flex-1" />
+          {/* Global search omnibox (Item 10) — operator jump-to-record + PII log. */}
+          <OpOmnibox />
           {/* Right: switcher + logout */}
           <div className="flex items-center gap-2">{topbarActions}</div>
         </header>

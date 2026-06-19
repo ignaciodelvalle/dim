@@ -923,6 +923,18 @@ Denuncia, adoption application, intake, devolución, mordedura, and similar bure
 
 Lightweight inline edits (toggle, save profile field) keep their existing inline `<Toast>` confirmation; SuccessScreen is for full trámites only.
 
+### 5. Operator action layer — omnibox + bulk-select (Wave 2 Item 10)
+
+Operator surfaces (`/gob/*`, `/admin/*`) get from an aggregate to a single record via the **omnibox**, and act on many records via the **bulk bar**. Both are jurisdiction-aware and PII-disciplined.
+
+- **Global search (`OpOmnibox`)** lives in the `OpTopbar` `actions` slot (mounted in `app/gob/layout.tsx` + `app/admin/layout.tsx`). Focus with `/` or ⌘K. It searches pets (name / DIM token / active microchip code), persons (name / DNI, via `searchUsers`) and cases (public code). Query is debounced 250ms; results are grouped by type and keyboard-navigable (`role="combobox"` + `aria-activedescendant`; dropdown `role="listbox"` + `role="option"`).
+  - **Scoping is non-negotiable:** scope comes from `requireAdminOrGovtOrRedirect()`. Admin = universal; govt = their assigned jurisdiction(s); **govt with zero assignments returns empty without a DB hit**. Pet scope is `pets.jurisdiction_province ∈ assignments`; cases by `(province, locality)`; persons delegate to the audited `searchUsers` semi-join. Logic in `lib/omnibox-search.ts`; auth + logging in `app/actions/omnibox-search.ts`.
+  - **Every non-empty query logs one `pii_queried` audit row** via `logPiiQueryForAuthority(..., "omnibox")` — same trail as `/gob/usuarios`. `surface` is a JSONB payload value, not a column; new surfaces never need a migration.
+  - Do NOT add a parallel search path that skips the scope or the log.
+- **Bulk-select (`OpBulkBar { count, actions[] }`)** is the generic sticky action bar. It owns no selection state and calls no server action — the queue holds the selected `Set` and each action supplies `onRun(reason)`. Hidden at `count === 0`; otherwise shows "N seleccionados" + actions + "Limpiar". `role="region" aria-label="Acciones en lote"`; count `aria-live="polite"`.
+  - **Selection state machine** is pure in `lib/bulk-select.ts` (`toggleSelection`, `toggleSelectPage`, `isPageFullySelected`, `isReasonValid`, `selectionSummary`) — keep selection logic there, not inlined in components.
+  - **Destructive actions require a reason whose minimum matches the actual server action** (`bulkRejectRequestsAction` ≥ 5; `bulkRevokeAction` ≥ 30 chars + ≥1 evidence attachment). The revoke flow keeps its evidence-upload modal — a reason-only `ConfirmDialog` cannot collect attachments. Never weaken these minimums in the UI.
+  - The header checkbox selects the **page**, not the whole query, for irreversible/notifying actions.
 ### 5. Pet profile order: identity → alerts → actions → tabs
 
 Added by the pet-profile v2.1 reorder (2026-06-18, Item 6 of the metrics-IA handoff; spec `docs/superpowers/specs/2026-06-18-pet-profile-v21-reorder-and-action-consolidation-design.md`). The owner profile at `/mis-mascotas/[publicToken]` MUST present blocks in this order:

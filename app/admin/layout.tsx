@@ -7,6 +7,7 @@ import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { ADMIN_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import type { NavSection } from "@/components/ui/dashboard";
 import { OpCrumbs } from "@/components/ui/dashboard/OpCrumbs";
+import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { db, eventNotificationOutbox } from "@/db";
@@ -103,6 +104,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <OpScopeChip code="SUPERADMIN" label="Universal" variant="superadmin" />
           {/* Spacer */}
           <div className="flex-1" />
+          {/* Global search omnibox (Item 10) — operator jump-to-record + PII log. */}
+          <OpOmnibox />
           {/* Right: switcher + logout */}
           <div className="flex items-center gap-2">{topbarActions}</div>
         </header>
