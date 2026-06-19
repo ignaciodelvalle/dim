@@ -1,0 +1,329 @@
+// /gob/mortalidad — Mortality & disposal dashboard (Item 2).
+//
+// Standalone, jurisdiction-scoped, period-aware govt screen surfacing the
+// disposal-traceability signal already captured by death_recorded (Ley CABA
+// 5470). Pure projection: all data comes from fetchMortalityDisposition over the
+// event log — no schema, no new event type (umbrella D1).
+//
+// Layout (Op* design system):
+//   KPI row     — total deaths · B3 traceable rate · B4 unknown rate · B9 reportable share
+//   OpBreach    — conditional, shown when B4 > 25% (low disposal traceability)
+//   Disposición — B2 bucket bars
+//   Contexto    — B7 splits (vet-confirmed / at-clinic / private crematorium)
+//   Causas      — B1 cause-by-week
+//   Distribución— B8 deaths by locality (k-anonymity suppressed)
+//
+// ProjectionContext is built once at this page boundary (like app/gob/page.tsx)
+// and passed to the single fetcher.
+
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { LnEmptyState } from "@/components/ui/EmptyState";
+import {
+  OpBreach,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpKpi,
+  OpKpiSm,
+} from "@/components/ui/dashboard";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import {
+  type DashboardJurisdiction,
+  GOB_ALL_PROVINCES,
+  PROVINCE_ISO_MAP,
+} from "@/lib/govt-dashboards";
+import { buildProjectionContext } from "@/lib/metrics";
+import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
+import { fetchMortalityDisposition } from "@/lib/mortality-metrics";
+
+export const dynamic = "force-dynamic";
+
+const UNKNOWN_DISPOSITION_BREACH_THRESHOLD = 25;
+
+const BUCKET_LABELS: Record<string, string> = {
+  cremation: "Cremación",
+  burial: "Sepultura / cementerio",
+  rendering: "Reciclaje sanitario",
+  other: "Otro / sin especificar",
+};
+
+export default async function GobMortalidadPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    period?: string;
+    from?: string;
+    to?: string;
+    province?: string;
+    locality?: string;
+  }>;
+}) {
+  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const actor = { role: profile.role } as const;
+
+  // Capability guard: analytics.read = admin OR (govt AND has assignments).
+  const hasAnalyticsRead =
+    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+
+  if (!hasAnalyticsRead) {
+    return (
+      <div className="space-y-6">
+        <LnEmptyState
+          icon="lock"
+          title="Sin acceso"
+          description="Tu rol no tiene acceso a mortalidad. Pedile al admin que te asigne capabilities."
+        />
+      </div>
+    );
+  }
+
+  const sp = await searchParams;
+
+  // Resolve selected province ISO code → Province object + localities list.
+  const selectedProvinceIso = sp.province ?? null;
+  const selectedLocalitySlug = sp.locality ?? null;
+  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
+
+  const localities =
+    selectedProvinceObj != null
+      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
+      : [];
+
+  const selectedLocalityRow =
+    selectedProvinceObj && selectedLocalitySlug
+      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
+      : null;
+
+  // Narrow jurisdictions to the selected filter; admin short-circuits in scope.
+  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
+  if (selectedProvinceObj && profile.role !== "admin") {
+    const provinceName = selectedProvinceObj.name;
+    if (selectedLocalityRow) {
+      filteredJurisdictions = jurisdictions.filter(
+        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
+      );
+    } else {
+      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
+    }
+  }
+
+  const period = resolveAnalyticsPeriod(sp);
+  const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
+  const m = await fetchMortalityDisposition(ctx);
+
+  const allowedProvinces =
+    profile.role === "admin"
+      ? GOB_ALL_PROVINCES
+      : Array.from(new Set(jurisdictions.map((j) => j.province)))
+          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
+          .filter((p) => p.code !== "");
+
+  const maxBucket = m.byBucket.reduce((acc, b) => Math.max(acc, b.count), 0);
+  const localityCells = m.byLocality.value;
+  const maxLocality = localityCells.reduce((acc, c) => Math.max(acc, c.count), 0);
+  const showBreach = m.unknownRate > UNKNOWN_DISPOSITION_BREACH_THRESHOLD;
+
+  const panelDispId = "panel-disposicion-titulo";
+  const panelCtxId = "panel-contexto-titulo";
+  const panelCauseId = "panel-causas-titulo";
+  const panelLocId = "panel-localidad-titulo";
+
+  return (
+    <div className="space-y-6">
+      {/* Page header */}
+      <header className="space-y-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Vigilancia sanitaria · Mortalidad y disposición
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Mortalidad y disposición</h1>
+        <p className="text-[13px] text-ln-op-mute">
+          Trazabilidad de la disposición final de fallecimientos (Ley CABA 5470) en tu cobertura.
+        </p>
+      </header>
+
+      {/* Filters row */}
+      <div className="grid md:grid-cols-2 gap-3">
+        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
+        <PeriodPicker defaultPreset="30d" />
+      </div>
+
+      {/* Conditional breach banner — low disposal traceability */}
+      {showBreach && (
+        <OpBreach
+          title="Baja trazabilidad de disposición"
+          detail={`${m.unknownRate}% de los fallecimientos no tienen método de disposición registrado (umbral ${UNKNOWN_DISPOSITION_BREACH_THRESHOLD}%).`}
+        />
+      )}
+
+      {/* KPI row */}
+      <section
+        aria-label="Indicadores de mortalidad"
+        className="grid grid-cols-2 md:grid-cols-4 gap-3"
+      >
+        <OpKpi
+          label="Muertes (período)"
+          value={m.total.toLocaleString("es-AR")}
+          sub="fallecimientos registrados"
+        />
+        <OpKpi
+          label="Trazabilidad de disposición"
+          value={`${m.traceableRate}%`}
+          tone={m.traceableRate >= 75 ? "ok" : m.traceableRate >= 50 ? "warn" : "danger"}
+          bar={m.traceableRate}
+          sub="método + instalación (B3 · Ley 5470)"
+        />
+        <OpKpi
+          label="Disposición desconocida"
+          value={`${m.unknownRate}%`}
+          tone={m.unknownRate > UNKNOWN_DISPOSITION_BREACH_THRESHOLD ? "danger" : "neutral"}
+          sub="sin método registrado (B4)"
+        />
+        <OpKpi
+          label="Muertes notificables"
+          value={`${m.reportableShare}%`}
+          tone={m.reportableShare > 0 ? "warn" : undefined}
+          sub="del total (B9)"
+        />
+      </section>
+
+      {/* Disposición — B2 bucket bars + Contexto — B7 splits */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <OpCard aria-labelledby={panelDispId}>
+          <OpCardHead title={<span id={panelDispId}>Disposición</span>} />
+          <OpCardBody>
+            {m.byBucket.length === 0 ? (
+              <LnEmptyState
+                icon="heart"
+                title="Sin datos de disposición"
+                description="No hay fallecimientos en el período seleccionado en tu cobertura."
+              />
+            ) : (
+              <ul className="space-y-2">
+                {m.byBucket.map((b) => (
+                  <li key={b.bucket} className="flex items-center gap-3">
+                    <span className="w-40 shrink-0 text-[13px] text-ln-op-ink">
+                      {BUCKET_LABELS[b.bucket] ?? b.bucket}
+                    </span>
+                    <div className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden">
+                      <div
+                        className="h-full rounded bg-ln-op-azul"
+                        style={{ width: maxBucket > 0 ? `${(b.count / maxBucket) * 100}%` : "0%" }}
+                      />
+                    </div>
+                    <span className="w-8 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
+                      {b.count}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </OpCardBody>
+        </OpCard>
+
+        <OpCard aria-labelledby={panelCtxId}>
+          <OpCardHead title={<span id={panelCtxId}>Contexto del fallecimiento</span>} />
+          <OpCardBody>
+            <div className="grid grid-cols-3 gap-3">
+              <OpKpiSm
+                label="Confirmado por vet"
+                value={`${m.contextSplits.vetConfirmedRate}%`}
+                sub="del total"
+              />
+              <OpKpiSm
+                label="En clínica"
+                value={`${m.contextSplits.deathAtClinicRate}%`}
+                sub="muertes en establecimiento"
+              />
+              <OpKpiSm
+                label="Crematorio privado"
+                value={`${m.contextSplits.privateCrematoriumRate}%`}
+                sub="derivación del propietario"
+              />
+            </div>
+          </OpCardBody>
+        </OpCard>
+      </div>
+
+      {/* Causas — B1 cause-by-week */}
+      <OpCard aria-labelledby={panelCauseId}>
+        <OpCardHead title={<span id={panelCauseId}>Causas por semana</span>} />
+        <OpCardBody className="p-0">
+          {m.byCauseWeek.length === 0 ? (
+            <p className="px-4 py-3 text-[13px] text-ln-op-mute">
+              No hay fallecimientos en el período seleccionado.
+            </p>
+          ) : (
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-ln-op-line-2 text-left text-ln-op-mute">
+                  <th className="px-4 py-2 font-medium">Semana ISO</th>
+                  <th className="px-4 py-2 font-medium">Causa</th>
+                  <th className="px-4 py-2 text-right font-medium">Muertes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {m.byCauseWeek.map((row) => (
+                  <tr
+                    key={`${row.week}-${row.cause}`}
+                    className="border-b border-ln-op-line-2 odd:bg-ln-op-stripe"
+                  >
+                    <td className="px-4 py-2 tabular-nums text-ln-op-ink">{row.week}</td>
+                    <td className="px-4 py-2 capitalize text-ln-op-ink">{row.cause}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-ln-op-ink">
+                      {row.count}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </OpCardBody>
+      </OpCard>
+
+      {/* Distribución — B8 deaths by locality (k-anonymity suppressed) */}
+      <OpCard aria-labelledby={panelLocId}>
+        <OpCardHead
+          title={<span id={panelLocId}>Distribución por localidad</span>}
+          actions={
+            m.byLocality.suppressedCount > 0 ? (
+              <span className="text-[12px] font-normal text-ln-op-mute">
+                {m.byLocality.suppressedCount}{" "}
+                {m.byLocality.suppressedCount === 1 ? "localidad oculta" : "localidades ocultas"}{" "}
+                (privacidad)
+              </span>
+            ) : null
+          }
+        />
+        <OpCardBody>
+          {localityCells.length === 0 ? (
+            <p className="text-[13px] text-ln-op-mute">
+              No hay localidades con fallecimientos visibles en el período.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {localityCells.map((c) => (
+                <li key={c.key} className="flex items-center gap-3">
+                  <span className="w-40 shrink-0 truncate text-[13px] text-ln-op-ink">{c.key}</span>
+                  <div className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden">
+                    <div
+                      className="h-full rounded bg-ln-op-azul"
+                      style={{
+                        width: maxLocality > 0 ? `${(c.count / maxLocality) * 100}%` : "0%",
+                      }}
+                    />
+                  </div>
+                  <span className="w-8 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
+                    {c.count}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </OpCardBody>
+      </OpCard>
+    </div>
+  );
+}

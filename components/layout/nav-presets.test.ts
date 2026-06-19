@@ -297,6 +297,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob",
   "/gob/cola",
   "/gob/vigilancia",
+  "/gob/mortalidad", // Item 2 — mortality & disposal dashboard
   "/gob/casos",
   "/gob/reglas",
   "/gob/servicios",
@@ -326,10 +327,13 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
   it("no href is gained: GOB_NAV_SECTIONS contains only hrefs from the frozen snapshot (union ⊆ snapshot)", () => {
     const sectionHrefs = GOB_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
     for (const href of sectionHrefs) {
-      // /gob/mortalidad is explicitly excluded pending Item 2
-      expect(href).not.toBe("/gob/mortalidad");
       expect(GOB_HREF_SNAPSHOT).toContain(href);
     }
+  });
+
+  it("includes /gob/mortalidad in the Vigilancia sanitaria section (Item 2)", () => {
+    const vigSection = GOB_NAV_SECTIONS.find((s) => s.label === "Vigilancia sanitaria");
+    expect(vigSection?.items.map((i) => i.href)).toContain("/gob/mortalidad");
   });
 
   it("no href is duplicated across sections", () => {

@@ -9,6 +9,13 @@ import { type NextRequest, NextResponse } from "next/server";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Expose the request pathname to server components via a request header.
+  // Server layouts (e.g. app/(public)/layout.tsx) cannot read usePathname(),
+  // so the unified AppShell decision (resolveShellNav, Item 7) needs the path
+  // at the layout boundary to pick the citizen vs landing chrome by route.
+  // This is additive and side-effect-free — it never alters routing.
+  request.headers.set("x-pathname", pathname);
+
   // Permanent redirect: /pro/* → /cuenta/memberships.
   // The /pro portal has been removed; vets now operate through /org/[orgToken].
   // This catches browser bookmarks and external links for 30-day grace.
