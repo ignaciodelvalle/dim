@@ -774,8 +774,8 @@ describe("runVaccineDueScan — notification metadata", () => {
     expect(n.category).toBe("health");
     expect(n.relatedReminderId).toBe(reminderId);
     expect(n.severity).toBe("info"); // upcoming → info
-    expect(n.ctaLabel).toBe("Ver mascota");
-    expect(n.ctaUrl).toContain("/mis-mascotas/");
+    expect(n.ctaLabel).toBe("Registrar vacuna"); // 14.2: deep-link to vaccination form
+    expect(n.ctaUrl).toContain("/anotar?kind=vaccination_administered");
   });
 });
 

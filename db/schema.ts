@@ -2000,6 +2000,9 @@ export const AUDIT_LOG_ACTIONS = [
   //   adopter_pii_viewed payload:
   //     { org_id, application_event_id, applicant_user_id, pet_id }
   "adopter_pii_viewed",
+  // Item 14.1: personal account self-deactivation (owner/vet). No coverage
+  // check needed (govt-only concern). Payload: { reason, role }.
+  "personal_self_deactivated",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
