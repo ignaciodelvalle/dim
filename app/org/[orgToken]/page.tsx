@@ -2,19 +2,21 @@
 //
 // Layout:
 //   Header: org name + verification status
+//   OrgSetupChecklist (Wave 3 Item 19): guided first-run, auto-hides when complete
 //   KPI row (4): Ocupación · Ingresos (semana) · Disponibles · Adopciones en curso
 //   OpCard "Requieren acción": prioritized custody queue (overdue health / long-stay)
 //   OpCard "Pendientes": casos · transferencias · propuestas (existing 3 KPIs, demoted)
 //   Capability action cards
 //   Permissions table
 //
-// Spec: docs/superpowers/specs/2026-06-18-wave3-org-ops-handoff.md (Item 17)
+// Spec: docs/superpowers/specs/2026-06-18-wave3-org-ops-handoff.md (Items 17, 19)
 // Depends on Item 16: lib/org-census.ts (fetchOrgCensus, computeOccupancyBreakdown)
 
 import { and, count, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
+import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import {
   OpBreach,
   OpCard,
@@ -30,6 +32,9 @@ import {
   db,
   fosterProposals,
   organizationCapabilityGrants,
+  organizationCoverage,
+  organizationMemberships,
+  serviceOfferings,
 } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/org-census";
@@ -41,6 +46,7 @@ import {
   fetchIntakesLastWeek,
   fetchRequiresAction,
 } from "@/lib/org-dashboard";
+import { deriveSetupSteps, isSetupComplete } from "@/lib/org-setup-checklist";
 import { getProfileCached } from "@/lib/request-cache";
 import { CAPABILITY_CATALOG } from "@/src/modules/organizations/domain/capabilities";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -187,6 +193,42 @@ export default async function OrgDashboardPage({
     return stateByCapability.get(capability) ?? { kind: "none" };
   }
 
+  const canCreateServices = granted.has("service_offering.create");
+
+  // Setup checklist inputs (Item 19) — run in parallel with dashboard projections.
+  const [coverageCountRow, memberCountRow, servicesCountRow] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(organizationCoverage)
+      .where(eq(organizationCoverage.organizationId, organization.id)),
+    db
+      .select({ n: count() })
+      .from(organizationMemberships)
+      .where(eq(organizationMemberships.organizationId, organization.id)),
+    canCreateServices
+      ? db
+          .select({ n: count() })
+          .from(serviceOfferings)
+          .where(eq(serviceOfferings.organizationId, organization.id))
+      : Promise.resolve([{ n: 0 }]),
+  ]);
+
+  const setupSteps = deriveSetupSteps({
+    orgType: organization.orgType,
+    hasCoverage: (coverageCountRow[0]?.n ?? 0) > 0,
+    memberCount: memberCountRow[0]?.n ?? 1,
+    canCreateServices,
+    hasServices: (servicesCountRow[0]?.n ?? 0) > 0,
+    hasCapacityDeclared:
+      organization.capacityDogs !== null ||
+      organization.capacityCats !== null ||
+      organization.capacityOther !== null ||
+      organization.capacityTotal !== null,
+    isVerified: organization.verified,
+  });
+
+  const showChecklist = !isSetupComplete(setupSteps);
+
   // Dashboard projections — all run in parallel.
   // Occupancy requires fetchOrgCensus + org capacity columns (Item 16).
   const [openCasesRow, pendingTransfersRow, pendingFosterRow, census, actionItems] =
@@ -284,6 +326,11 @@ export default async function OrgDashboardPage({
           />
         )}
       </header>
+
+      {/* Setup checklist (Item 19) — shown to admins until all steps complete. */}
+      {showChecklist && isAdmin && (
+        <OrgSetupChecklist steps={setupSteps} orgToken={orgToken} autoFocusFirst />
+      )}
 
       {/* KPI row — shelter operations metrics (Item 17, shelters only) */}
       {isShelter && (
