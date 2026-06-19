@@ -104,36 +104,79 @@ export async function queryLostListing(
   if (baseRows.length === 0) return { items: [], nextCursor: null };
 
   // Stage 2 — for every candidate pet, pull the latest status_changed event
-  // where to_status='lost'. That row carries markedLostAt + the location
-  // snapshot from the payload.
+  // where to_status='lost'. That row carries markedLostAt + (for pets that
+  // consent to location disclosure) the location snapshot from the payload.
+  //
+  // PII fix (Item 27): we split the query into two sets:
+  //   - disclosing pets  → fetch timestamp + location payload (owner opted in)
+  //   - non-disclosing pets → fetch timestamp ONLY, no payload columns
+  // This ensures pets with discloseLastLocationWhenLost=false never have their
+  // location data retrieved from Postgres at all, not merely redacted in JS.
   //
   // Prefer the canonical `location_description` key; fall back to the legacy
   // `last_known_location` for events written before the key rename (same
   // pattern as the public credential page at app/p/[publicToken]/page.tsx).
   const petIds = baseRows.map((r) => r.petId);
-  const eventRows = await db
-    .select({
-      petId: petEvents.petId,
-      occurredAt: petEvents.occurredAt,
-      payload: petEvents.payload,
-    })
-    .from(petEvents)
-    .where(
-      and(
-        inArray(petEvents.petId, petIds),
-        eq(petEvents.eventType, "status_changed"),
-        sql`(${petEvents.payload}->>'to_status') = 'lost'`,
-      ),
-    )
-    .orderBy(desc(petEvents.occurredAt));
+  const disclosingIds = baseRows.filter((r) => r.discloseLastLocationWhenLost).map((r) => r.petId);
+  const nonDisclosingIds = petIds.filter((id) => !disclosingIds.includes(id));
 
-  const latestLostByPet = new Map<string, { occurredAt: Date; payload: Record<string, unknown> }>();
-  for (const e of eventRows) {
+  // Fetch location-carrying events only for disclosing pets.
+  const disclosingEventRows =
+    disclosingIds.length > 0
+      ? await db
+          .select({
+            petId: petEvents.petId,
+            occurredAt: petEvents.occurredAt,
+            payload: petEvents.payload,
+          })
+          .from(petEvents)
+          .where(
+            and(
+              inArray(petEvents.petId, disclosingIds),
+              eq(petEvents.eventType, "status_changed"),
+              sql`(${petEvents.payload}->>'to_status') = 'lost'`,
+            ),
+          )
+          .orderBy(desc(petEvents.occurredAt))
+      : [];
+
+  // Fetch timestamp-only events for non-disclosing pets (no payload column).
+  const nonDisclosingEventRows =
+    nonDisclosingIds.length > 0
+      ? await db
+          .select({
+            petId: petEvents.petId,
+            occurredAt: petEvents.occurredAt,
+          })
+          .from(petEvents)
+          .where(
+            and(
+              inArray(petEvents.petId, nonDisclosingIds),
+              eq(petEvents.eventType, "status_changed"),
+              sql`(${petEvents.payload}->>'to_status') = 'lost'`,
+            ),
+          )
+          .orderBy(desc(petEvents.occurredAt))
+      : [];
+
+  // Merge into a unified map: disclosing pets get their location payload,
+  // non-disclosing pets get a null payload so location is never present.
+  const latestLostByPet = new Map<
+    string,
+    { occurredAt: Date; payload: Record<string, unknown> | null }
+  >();
+  for (const e of disclosingEventRows) {
     if (!latestLostByPet.has(e.petId)) {
       latestLostByPet.set(e.petId, {
         occurredAt: e.occurredAt,
         payload: (e.payload ?? {}) as Record<string, unknown>,
       });
+    }
+  }
+  for (const e of nonDisclosingEventRows) {
+    if (!latestLostByPet.has(e.petId)) {
+      // payload is intentionally null — location was never fetched (Item 27).
+      latestLostByPet.set(e.petId, { occurredAt: e.occurredAt, payload: null });
     }
   }
 
@@ -159,14 +202,20 @@ export async function queryLostListing(
 
     // location_description is the canonical key; last_known_location is
     // the legacy fallback (see public credential page for the same logic).
+    // For non-disclosing pets meta.payload is null (never fetched) so
+    // rawDescription evaluates to null without needing an explicit check.
     const rawDescription =
+      meta.payload !== null &&
       typeof meta.payload.location_description === "string" &&
       meta.payload.location_description.trim()
         ? meta.payload.location_description.trim()
-        : typeof meta.payload.last_known_location === "string" &&
+        : meta.payload !== null &&
+            typeof meta.payload.last_known_location === "string" &&
             meta.payload.last_known_location.trim()
           ? meta.payload.last_known_location.trim()
           : null;
+    // lastSeenDescription is null for non-disclosing pets because their
+    // payload was never fetched — rawDescription is already null.
     const lastSeenDescription = row.discloseLastLocationWhenLost ? rawDescription : null;
 
     allItems.push({
