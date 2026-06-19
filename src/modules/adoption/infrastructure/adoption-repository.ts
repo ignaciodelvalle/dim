@@ -130,7 +130,22 @@ type PetWithOrgResult = {
   org: OrgRow;
 } | null;
 
+// NOTE: ApplicationEventRow is intentionally NOT exported from the repository
+// public surface. Callers receive only the projected shape defined per method.
+// Keeping the raw row type internal prevents accidental PII leaks (the payload
+// carries applicant name/phone/address/DNI) across module boundaries.
 type ApplicationEventRow = typeof petEvents.$inferSelect;
+
+/**
+ * Projected application shape returned by findApplicationForReview.
+ * Contains only the fields the review/info-request callers need.
+ * The full event (including PII payload) stays in the immutable event log.
+ */
+type ApplicationReviewShape = {
+  id: string;
+  /** Extracted from payload — the only PII field callers legitimately need. */
+  applicantUserId: string | null;
+};
 
 // ---------------------------------------------------------------------------
 // Repository
@@ -414,17 +429,38 @@ export const AdoptionRepository = {
   },
 
   /**
-   * Loads a pending application for org-side review (approve/reject).
+   * Loads a pending application for org-side review (approve/reject/info-request).
    * Verifies the pet is under active shelter_custody of the given org.
+   *
+   * PII fix (Item 27): projects ONLY the fields callers need. The full event
+   * payload (which may contain applicant name/phone/address/DNI from the
+   * adoption_application_submitted event) is kept in the immutable event log
+   * but is never returned to callers. applicantUserId is the single PII field
+   * the review and notification flows legitimately require.
    */
   async findApplicationForReview(
     applicationEventId: string,
     organizationId: string,
     tx?: Tx,
-  ): Promise<{ application: ApplicationEventRow; pet: PetRow } | { error: string }> {
+  ): Promise<
+    | {
+        application: ApplicationReviewShape;
+        pet: { id: string; name: string; publicToken: string };
+      }
+    | { error: string }
+  > {
     const client = tx ?? db;
     const [row] = await client
-      .select({ application: petEvents, pet: pets })
+      .select({
+        applicationId: petEvents.id,
+        // Extract only applicant_user_id from the payload — the single field
+        // callers need for notification routing. Name/phone/address/DNI stay
+        // in the immutable event log and are never returned.
+        applicantUserId: sql<string | null>`${petEvents.payload}->>'applicant_user_id'`,
+        petId: pets.id,
+        petName: pets.name,
+        petPublicToken: pets.publicToken,
+      })
       .from(petEvents)
       .innerJoin(pets, eq(pets.id, petEvents.petId))
       .innerJoin(ownerships, eq(ownerships.petId, pets.id))
@@ -446,7 +482,7 @@ export const AdoptionRepository = {
     // Check: already resolved?
     const decided = await client.execute<{ id: string }>(sql`
       SELECT id FROM pet_events
-      WHERE pet_id = ${row.pet.id}
+      WHERE pet_id = ${row.petId}
         AND event_type = 'adoption_application_resolved'
         AND payload->>'application_event_id' = ${applicationEventId}
       LIMIT 1
@@ -458,7 +494,7 @@ export const AdoptionRepository = {
     // Check: pet already finalized?
     const finalized = await client.execute<{ id: string }>(sql`
       SELECT id FROM pet_events
-      WHERE pet_id = ${row.pet.id}
+      WHERE pet_id = ${row.petId}
         AND event_type = 'adoption_finalized'
       LIMIT 1
     `);
@@ -466,7 +502,10 @@ export const AdoptionRepository = {
       return { error: "Esta mascota ya fue adoptada — no es posible revisar postulaciones." };
     }
 
-    return { application: row.application, pet: row.pet };
+    return {
+      application: { id: row.applicationId, applicantUserId: row.applicantUserId },
+      pet: { id: row.petId, name: row.petName, publicToken: row.petPublicToken },
+    };
   },
 
   /**

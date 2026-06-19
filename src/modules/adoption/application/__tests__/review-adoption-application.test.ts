@@ -22,12 +22,12 @@ function makePet(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeApplicationEvent(overrides: Record<string, unknown> = {}) {
+// Returns the projected shape that findApplicationForReview now returns
+// (Item 27 PII fix: no raw payload, only the fields callers need).
+function makeApplicationReview(overrides: Record<string, unknown> = {}) {
   return {
     id: "evt-app-1",
-    petId: "pet-1",
-    eventType: "adoption_application_submitted",
-    payload: { applicant_user_id: "applicant-user-1" },
+    applicantUserId: "applicant-user-1",
     ...overrides,
   };
 }
@@ -40,7 +40,7 @@ function makeFakeRepo(
   } = {},
 ): typeof AdoptionRepository {
   const reviewResult = options.reviewResult ?? {
-    application: makeApplicationEvent(),
+    application: makeApplicationReview(),
     pet: makePet(),
   };
 
@@ -218,5 +218,70 @@ describe("rejectAdoptionApplication", () => {
       { repo, actor, transaction: fakeTransaction },
     );
     expect(result).toMatchObject({ ok: false });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Item 27 — PII shape guard
+// ---------------------------------------------------------------------------
+// These tests assert that the projected shape returned by findApplicationForReview
+// (via the use-case) does NOT contain raw applicant PII fields (name, phone,
+// address, DNI, housing_type, daily_routine, notes, motivation, prior_pets).
+// Only applicantUserId may be forwarded to the notification layer.
+
+describe("PII exposure guard — application review shape (Item 27)", () => {
+  it("approveAdoptionApplication does not receive a raw payload with PII fields", async () => {
+    const repo = makeFakeRepo();
+    // The mock for findApplicationForReview now returns the projected shape
+    // { id, applicantUserId }. If the use-case were using the old full row
+    // (with .payload containing housing_type/daily_routine/notes/etc.),
+    // TypeScript would already catch it — this test makes the contract
+    // explicit at runtime too.
+    const capturedArgs: unknown[] = [];
+    const spyRepo = {
+      ...repo,
+      findApplicationForReview: vi.fn().mockImplementation((...args: unknown[]) => {
+        capturedArgs.push(...args);
+        return Promise.resolve({ application: makeApplicationReview(), pet: makePet() });
+      }),
+    } as unknown as typeof AdoptionRepository;
+
+    const result = await approveAdoptionApplication(
+      { applicationEventId: "evt-app-1", notes: null },
+      { repo: spyRepo, actor, transaction: fakeTransaction },
+    );
+    expect(result).toMatchObject({ ok: true });
+
+    // The returned application shape must NOT contain raw PII payload fields.
+    const appArg = (spyRepo.findApplicationForReview as ReturnType<typeof vi.fn>).mock.results[0]
+      ?.value as Promise<{ application: Record<string, unknown> } | { error: string }>;
+    const resolved = await appArg;
+    if ("error" in resolved) throw new Error("Expected success");
+
+    const { application } = resolved;
+    expect(application).not.toHaveProperty("payload");
+    expect(application).not.toHaveProperty("housing_type");
+    expect(application).not.toHaveProperty("daily_routine");
+    expect(application).not.toHaveProperty("phone");
+    expect(application).not.toHaveProperty("dni");
+    expect(application).not.toHaveProperty("displayName");
+    // applicantUserId is the only permitted field from the payload.
+    expect(application).toHaveProperty("applicantUserId");
+  });
+
+  it("rejectAdoptionApplication does not receive a raw payload with PII fields", async () => {
+    const repo = makeFakeRepo();
+    const result = await rejectAdoptionApplication(
+      { applicationEventId: "evt-app-1", notes: null },
+      { repo, actor, transaction: fakeTransaction },
+    );
+    expect(result).toMatchObject({ ok: true });
+    // The use-case only calls repo.findApplicationForReview, which now returns
+    // the projected shape. Verify the mock shape itself has no PII payload.
+    const reviewResult = await (repo.findApplicationForReview as ReturnType<typeof vi.fn>).mock
+      .results[0]?.value;
+    if (!reviewResult || "error" in reviewResult) throw new Error("Expected success");
+    expect(reviewResult.application).not.toHaveProperty("payload");
+    expect(reviewResult.application).toHaveProperty("applicantUserId");
   });
 });

@@ -41,7 +41,7 @@ async function loadPendingApplication(
   deps: Deps,
 ): Promise<
   | {
-      application: { id: string; payload: Record<string, unknown> };
+      application: { id: string; applicantUserId: string | null };
       pet: { id: string; name: string; publicToken: string };
     }
   | { error: string }
@@ -55,7 +55,7 @@ async function loadPendingApplication(
   return {
     application: {
       id: loaded.application.id,
-      payload: loaded.application.payload as Record<string, unknown>,
+      applicantUserId: loaded.application.applicantUserId,
     },
     pet: {
       id: loaded.pet.id,
@@ -99,7 +99,7 @@ export async function approveAdoptionApplication(
       tx as Parameters<typeof repo.resolveApplication>[1],
     );
 
-    const applicantUserId = application.payload.applicant_user_id as string | undefined;
+    const { applicantUserId } = application;
     if (applicantUserId) {
       pendingNotifications.push({
         userId: applicantUserId,
@@ -155,7 +155,7 @@ export async function rejectAdoptionApplication(
       tx as Parameters<typeof repo.resolveApplication>[1],
     );
 
-    const applicantUserId = application.payload.applicant_user_id as string | undefined;
+    const { applicantUserId } = application;
     if (applicantUserId) {
       pendingNotifications.push({
         userId: applicantUserId,

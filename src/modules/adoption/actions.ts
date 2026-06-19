@@ -417,8 +417,9 @@ export async function requestInfoAdoptionApplicationAction(
   if ("error" in loaded) return { error: loaded.error };
 
   const { application, pet } = loaded;
-  const payload = application.payload as { applicant_user_id?: string };
-  const applicantUserId = payload.applicant_user_id;
+  // applicantUserId is the single PII field projected from the payload —
+  // the repository never returns the full raw payload (Item 27 PII fix).
+  const applicantUserId = application.applicantUserId;
 
   // Emit a lightweight note_added marker (kind=adoption_info_requested) so the
   // info request becomes a derivable lifecycle state — the applicant's list can
