@@ -282,17 +282,30 @@ export async function LostCockpit({
           </div>
         </div>
 
-        {/* Footer — link to the public credential a finder would see. */}
-        <div className="mt-[24px] text-center">
-          <Link
-            href={publicHref}
-            className="font-[var(--font-ln-sans)] text-[13px] font-semibold text-[var(--color-ln-azul)] no-underline hover:underline"
-          >
-            Ver credencial pública →
-          </Link>
-          <p className="mt-[4px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
-            Es lo que ve quien escanea el QR. Cuando lo marques como {foundParticiple(pet.sex)}{" "}
-            volvés acá automáticamente.
+        {/* Footer — the cockpit is the priority while lost, but it is NOT a
+              dead end (v2.1, spec §3 D9): the owner keeps full access to the
+              normal profile to log events / view the libreta. We surface both
+              the public credential (what a finder sees) and a link back to the
+              full profile. */}
+        <div className="mt-[24px] flex flex-col items-center gap-[6px] text-center">
+          <div className="flex flex-wrap items-center justify-center gap-x-[16px] gap-y-[6px]">
+            <Link
+              href={`/mis-mascotas/${pet.publicToken}?fromLost=1`}
+              data-section="full-profile-link"
+              className="font-[var(--font-ln-sans)] text-[13px] font-semibold text-[var(--color-ln-azul)] no-underline hover:underline"
+            >
+              Ver perfil completo →
+            </Link>
+            <Link
+              href={publicHref}
+              className="font-[var(--font-ln-sans)] text-[13px] font-semibold text-[var(--color-ln-azul)] no-underline hover:underline"
+            >
+              Ver credencial pública →
+            </Link>
+          </div>
+          <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+            Seguís pudiendo registrar eventos y ver la libreta. Cuando lo marques como{" "}
+            {foundParticiple(pet.sex)} volvés acá automáticamente.
           </p>
         </div>
       </div>

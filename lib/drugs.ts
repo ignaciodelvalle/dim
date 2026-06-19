@@ -300,3 +300,48 @@ export function findDrugByLabel(label: string): DrugDef | null {
   const target = label.trim().toLowerCase();
   return DRUG_CATALOG.find((d) => d.label.toLowerCase() === target) ?? null;
 }
+
+// ─── Antimicrobial classification (AMR surveillance, metric A12) ──────────────
+//
+// The AMR / antimicrobial-use-density metric needs to know whether a
+// `medication_started` event refers to an antimicrobial drug. The curated
+// DRUG_CATALOG is the single source of truth: today the only antimicrobial
+// category is "antibiotic". When the catalog grows to include other
+// antimicrobial classes (antifungals, antivirals, antiparasitics used for
+// AMR-relevant indications), add the categories to ANTIMICROBIAL_CATEGORIES.
+//
+// Classification confidence (umbrella §7): a `drug_code` present in the catalog
+// is classified deterministically (antibiotic → antimicrobial). A `drug_code`
+// NOT in the catalog is UNKNOWN, not "non-antimicrobial". Callers computing the
+// A12 density must keep unknown-code counts separate and label them as
+// "clasificación provisional" rather than folding them into a confident rate.
+
+/** DrugCategory values that count as antimicrobial for AMR surveillance. */
+export const ANTIMICROBIAL_CATEGORIES: readonly DrugCategory[] = ["antibiotic"];
+
+/**
+ * Returns true when the drug code is a KNOWN antimicrobial in the catalog.
+ *
+ * Returns false for:
+ *  - known non-antimicrobial drugs (e.g. "meloxicam"), and
+ *  - unknown / unclassifiable codes (null, empty, or not in the catalog).
+ *
+ * Because false conflates "known non-antimicrobial" with "unknown", callers
+ * that need to surface classification uncertainty (metric A12) should also use
+ * `isClassifiedDrug(code)` to detect unknown codes and report them as a
+ * provisional raw count instead of a rate.
+ */
+export function isAntimicrobial(code: string | null | undefined): boolean {
+  const drug = findDrug(code);
+  if (!drug) return false;
+  return ANTIMICROBIAL_CATEGORIES.includes(drug.category);
+}
+
+/**
+ * Returns true when the drug code exists in the curated catalog (i.e. its
+ * antimicrobial status can be classified confidently). Unknown codes return
+ * false so the AMR metric can route them to a provisional bucket.
+ */
+export function isClassifiedDrug(code: string | null | undefined): boolean {
+  return findDrug(code) !== null;
+}

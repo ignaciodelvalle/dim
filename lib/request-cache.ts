@@ -128,6 +128,38 @@ export const getOrgMembershipCached = cache(
 );
 
 // ---------------------------------------------------------------------------
+// Org memberships — citizen context-switcher enumeration (D6, Item 7)
+// ---------------------------------------------------------------------------
+
+export type CachedOrgMembershipSummary = { token: string; name: string };
+
+/**
+ * Cached enumeration of the orgs a user is an active member of, for the citizen
+ * context-switcher (D6). Returns the org public token + display name only —
+ * enough for the switcher to render "hop to org" destinations. Capability
+ * checks stay in the org layout; this is purely the membership list.
+ *
+ * One indexed read on organization_memberships (joined to organizations),
+ * filtered to active memberships (leftAt IS NULL). Memoized per request so the
+ * citizen masthead and any sibling consumer share a single round-trip.
+ */
+export const getOrgMembershipsCached = cache(
+  async (userId: string): Promise<CachedOrgMembershipSummary[]> => {
+    const rows = await db
+      .select({
+        token: organizations.publicToken,
+        name: organizations.displayName,
+      })
+      .from(organizationMemberships)
+      .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
+      .where(
+        and(eq(organizationMemberships.userId, userId), isNull(organizationMemberships.leftAt)),
+      );
+    return rows;
+  },
+);
+
+// ---------------------------------------------------------------------------
 // Unread notifications count — (app)/layout + /inicio share this
 // ---------------------------------------------------------------------------
 
