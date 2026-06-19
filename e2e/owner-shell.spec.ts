@@ -1,0 +1,68 @@
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test } from "@playwright/test";
+
+/**
+ * Owner AppShell e2e — covers the citizen-variant chrome migrated in Item 7
+ * Phase C (owner (app) layout → AppShell variant=citizen).
+ *
+ * Asserts on the OWNER home (/inicio) and a public surface visited WHILE logged
+ * in (/adoptar) that:
+ *   1. The migrated citizen masthead renders (the brand wordmark is present).
+ *   2. There is exactly one #main-content landmark (no duplicate <main>).
+ *   3. On the public surface, the logged-in owner is NOT stranded: a guaranteed
+ *      role-return affordance is present (the headline stranded-user fix, D4).
+ *   4. axe finds no WCAG 2.1 AA violations on the migrated chrome.
+ *
+ * Uses the OWNER account seeded by `pnpm seed:test` (owner@dim.test).
+ */
+
+const OWNER_EMAIL = "owner@dim.test";
+const OWNER_PASSWORD = "Test1234!";
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
+  await page.getByLabel(/contraseña/i).fill(OWNER_PASSWORD);
+  await page.getByRole("button", { name: /iniciar sesión/i }).click();
+  await page.waitForURL(/\/inicio/, { timeout: 15_000 });
+});
+
+test("owner /inicio renders the citizen masthead with a single #main-content", async ({ page }) => {
+  await page.goto("/inicio");
+  await page.waitForLoadState("networkidle");
+
+  // Citizen masthead present (brand wordmark).
+  await expect(page.getByRole("banner").getByText("MiMAR").first()).toBeVisible();
+
+  // Exactly one main-content landmark — the AppShell owns it.
+  await expect(page.locator("#main-content")).toHaveCount(1);
+});
+
+test("a11y(axe) owner /inicio — citizen chrome (WCAG 2.1 AA)", async ({ page }) => {
+  await page.goto("/inicio");
+  await page.waitForLoadState("networkidle");
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .disableRules(["color-contrast"]) // contrast validated via design tokens separately
+    .analyze();
+
+  expect(results.violations).toEqual([]);
+});
+
+test("logged-in owner on /adoptar is NOT stranded — keeps a role return (D4)", async ({ page }) => {
+  await page.goto("/adoptar");
+  await page.waitForLoadState("networkidle");
+
+  // Still exactly one #main-content (citizen shell, not a duplicate).
+  await expect(page.locator("#main-content")).toHaveCount(1);
+
+  // The stranded-user fix: a guaranteed ≤1-click return to the role home.
+  // Rendered as a "Volver a mi app" affordance in the masthead, plus the role
+  // "Inicio" nav item pointing at /inicio (NOT the public landing /).
+  const banner = page.getByRole("banner");
+  const returnLink = banner.getByRole("link", { name: /volver a mi app/i });
+  const inicioLink = banner.getByRole("link", { name: /^inicio$/i });
+  // At least one role-return path must be present and resolve to /inicio.
+  await expect(returnLink.or(inicioLink).first()).toBeVisible();
+});

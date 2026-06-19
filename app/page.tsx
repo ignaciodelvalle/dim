@@ -2,8 +2,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { AppFooter } from "@/components/layout/AppFooter";
-import { AppHeader } from "@/components/layout/AppHeader";
+import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
+import { AppShell } from "@/components/layout/AppShell";
 import { PUBLIC_NAV } from "@/components/layout/nav-presets";
 import { db, organizationMemberships, profiles } from "@/db";
 import { pathForRole, resolveVetLanding } from "@/lib/role-landing";
@@ -19,10 +19,8 @@ import { createClient } from "@/lib/supabase/server";
 //   - 3-step "how it works" explainer (kept from sprint 6 / doc 10 §6)
 //   - 4 theme blocks (credential, lost, denuncia, adopción)
 //   - Quiet links to /denuncias/nueva + /denuncias/buscar
-//   - AppFooter (institutional chrome — replaces the one-off footer)
-//
-// AppHeader + AppFooter are imported directly (not via (public) route group)
-// to avoid double-wrapping: app/page.tsx is NOT inside (public)/.
+//   - AppShell variant=citizen (Item 7 Phase D): replaces the direct AppHeader import.
+//     Logged-in users are redirected before they see this page; user is always null here.
 
 export default async function Home() {
   const supabase = await createClient();
@@ -61,10 +59,8 @@ export default async function Home() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-ln-paper">
-      <AppHeader nav={PUBLIC_NAV} />
-
-      <main className="flex flex-col flex-1">
+    <AppShell variant="citizen" masthead={<AppCitizenMasthead nav={PUBLIC_NAV} user={null} />}>
+      <div className="flex flex-col flex-1">
         {/* Hero */}
         <section className="flex-1 flex flex-col items-center justify-center p-8 pt-20">
           <div className="max-w-3xl text-center space-y-6">
@@ -272,10 +268,8 @@ export default async function Home() {
             anónimas no recopilan PII del denunciante.
           </p>
         </section>
-      </main>
-
-      <AppFooter />
-    </div>
+      </div>
+    </AppShell>
   );
 }
 

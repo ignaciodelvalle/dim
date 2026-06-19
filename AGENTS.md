@@ -846,7 +846,7 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Cron infra (CRON_SECRET + helper-lib + thin route) | `app/api/cron/*` |
 | ✅ | RLS aplicada en 7 core tables + welfare + organizations | `db/rls.sql`, `db/welfare_rls.sql`, `db/organizations_rls.sql` |
 | ✅ | RLS smoke test cross-account vía PostgREST | `pnpm rls:smoke` |
-| 🔵 | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D | `components/layout/AppShell.tsx` + `lib/shell-nav.ts` (auth-aware `resolveShellNav`). Phase A landed (foundation + `/r/invite` landing adoption); legacy `LnOwnerNav`/`AppHeader`/`OpShell` coexist until Phase D. Plan: `docs/superpowers/plans/2026-06-18-unified-app-shell.md` |
+| ✅ | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D complete | `components/layout/AppShell.tsx` + `lib/shell-nav.ts` (auth-aware `resolveShellNav`). All surfaces migrated; legacy `LnOwnerNav`/`AppHeader`/`OpShell` deleted (Phase D). Plan: `docs/superpowers/plans/2026-06-18-unified-app-shell.md` |
 | 🟢 | Localities catalog INDEC (catalog reference) | spec + plan listos |
 | ⚪ | Push notifications (iOS PWA limitations) | — |
 | ⚪ | Native mobile via React Native sharing data layer | — |
@@ -907,17 +907,20 @@ Denuncia, adoption application, intake, devolución, mordedura, and similar bure
 
 Lightweight inline edits (toggle, save profile field) keep their existing inline `<Toast>` confirmation; SuccessScreen is for full trámites only.
 
-### 5. `AppShell` is the single role-variant application chrome (Item 7, in migration)
+### 5. `AppShell` is the single role-variant application chrome (Item 7 — complete)
 
-The historical three chrome systems (`LnOwnerNav` owner masthead, `AppHeader` public header, `OpShell` operator rail) are being unified into one `components/layout/AppShell.tsx` with `variant: 'citizen' | 'operator' | 'landing'` (spec `docs/superpowers/specs/2026-06-18-unified-app-shell-design.md`, plan `docs/superpowers/plans/2026-06-18-unified-app-shell.md`). Conventions for any new chrome work:
+`components/layout/AppShell.tsx` is the **only** application chrome. The historical three chrome systems (`LnOwnerNav`, `AppHeader`, `OpShell`) have been deleted (Item 7, Phase D — PRs #630–#634). Do not reintroduce per-surface chrome wrappers.
 
-- **Nav source is `components/layout/nav-presets.ts`** — `OWNER_NAV`, `PUBLIC_NAV`, `GOB_NAV(_SECTIONS)`, `ADMIN_NAV(_SECTIONS)`, `buildOrgNav`. Do not reintroduce per-component nav literals (the legacy `LnOwnerNav.NAV_ITEMS` / `AppHeader.DEFAULT_NAV` are being deleted).
+- **Nav source is `components/layout/nav-presets.ts`** — `OWNER_NAV`, `PUBLIC_NAV`, `GOB_NAV(_SECTIONS)`, `ADMIN_NAV(_SECTIONS)`, `buildOrgNav`. Do not introduce per-component nav literals.
 - **The variant + nav decision is auth-aware, not route-group-based** — `lib/shell-nav.ts` `resolveShellNav(input)` is the single decision (pure, tested). Anonymous on a public surface → `citizen` + `PUBLIC_NAV`; a logged-in user on any surface (including public) keeps their **role** nav and a guaranteed ≤1-click return to the role home. A public surface must NEVER replace the role nav (fixes the stranded-logged-in-user dead-end).
-- **`landing` variant** wraps token-landing surfaces (`/p/[publicToken]`, `/libreta/compartir/[shareToken]`, `/r/invite/[token]`): minimal trust chrome (brand + Argentina stripe + "Credencial verificada por MiMAR"), no browse nav, no footer. This decision is auth-independent (a logged-in owner scanning a QR still sees minimal chrome, with a discreet "volver a mi app").
+- **Three variants:**
+  - `citizen` — top masthead with Argentina stripe + footer. Owner portal, public surfaces, marketing landing.
+  - `operator` — left navy rail + topbar, no stripe/footer. gob / admin / org portals.
+  - `landing` — minimal trust chrome for token-landing surfaces (`/p/[publicToken]`, `/libreta/compartir/[shareToken]`, `/r/invite/[token]`): brand + stripe + "Credencial verificada por MiMAR". Auth-independent; a logged-in owner gets a discreet "volver a mi app".
 - **"Inicio" is disambiguated**: the brand/logo → public landing `/`; the role "Inicio" nav item → the role home (`/inicio` for owner, the operator panel for gob/admin/org).
 - **`#main-content`** (skip-link target) is preserved in every variant — do not drop it.
 
-Migration is a strangler in 4 phases (A→D); during it the new `AppShell` coexists with the legacy chromes. Phase A landed the foundation (`AppShell` + `lib/shell-nav.ts` + the `landing` adoption on `/r/invite`); operators (B), citizen owner+public (C), and deletion of the old chromes (D) follow. Item 7 closes only at Phase D.
+Spec: `docs/superpowers/specs/2026-06-18-unified-app-shell-design.md`. Plan: `docs/superpowers/plans/2026-06-18-unified-app-shell.md`.
 
 ### Drift policy
 
