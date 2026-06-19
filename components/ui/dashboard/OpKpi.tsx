@@ -71,7 +71,7 @@ export function OpKpi({ label, value, tone = "neutral", delta, bar, sub, href }:
         </div>
       )}
 
-      {/* Delta */}
+      {/* Delta — arrow is aria-hidden; sr-only span announces direction for screen readers */}
       {delta && (
         <div
           className={[
@@ -79,7 +79,8 @@ export function OpKpi({ label, value, tone = "neutral", delta, bar, sub, href }:
             delta.up ? "text-ln-op-ok" : "text-ln-op-danger",
           ].join(" ")}
         >
-          <span>{delta.up ? "↑" : "↓"}</span>
+          <span aria-hidden="true">{delta.up ? "↑" : "↓"}</span>
+          <span className="sr-only">{delta.up ? "Sube:" : "Baja:"}</span>
           <span>{delta.text}</span>
         </div>
       )}
