@@ -21,12 +21,16 @@ export const dynamic = "force-dynamic";
 // each one can render the pet identity context (foto + nombre + raza) plus a
 // link back to the public profile per AGENTS.md "Design rules" rule #4 + doc 10
 // §3 punto 2 (sprint 5 PR-040).
+//
+// Item 24.2: expiresAtIso is included so ExpiredView can render the exact
+// date ("venció el {fecha}") per the spec.
 type TerminalPetContext = {
   name: string;
   species: string;
   publicToken: string;
   photoUrl: string | null;
   createdAtIso: string;
+  expiresAtIso: string | null;
 };
 
 export default async function PublicLibretaPage({
@@ -81,6 +85,7 @@ export default async function PublicLibretaPage({
     publicToken: pet.publicToken,
     photoUrl,
     createdAtIso: share.createdAt.toISOString(),
+    expiresAtIso: share.expiresAt ? share.expiresAt.toISOString() : null,
   };
 
   // PII-minimised owner first name: split on first whitespace, never expose full name.
@@ -214,6 +219,9 @@ export default async function PublicLibretaPage({
 // owner to request a fresh share link.
 // ---------------------------------------------------------------------------
 
+// Item 24.2: TerminalShell — dedicated state for expired / revoked / deceased
+// share tokens. Shows pet identity context plus a keyboard-operable CTA to
+// the public profile so the visitor can request a fresh link.
 function TerminalShell({
   title,
   description,
@@ -246,6 +254,8 @@ function TerminalShell({
           </span>
         </div>
 
+        {/* a11y: h1 is the first meaningful content; focus lands here
+            naturally since it's the page heading (no JS focus-trap needed). */}
         <div className="space-y-2">
           <h1 className="font-[var(--font-ln-serif)] text-[28px] font-semibold text-[var(--color-ln-ink)]">
             {title}
@@ -257,6 +267,7 @@ function TerminalShell({
           <p className="text-[13px] text-[var(--color-ln-mute)]">{description}</p>
         </div>
 
+        {/* Primary CTA — keyboard-operable Link with visible focus ring. */}
         <Link
           href={`/p/${context.publicToken}`}
           className="inline-block rounded-[3px] bg-[var(--color-ln-azul)] px-5 py-3 text-[13px] font-semibold text-white no-underline transition-colors hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
@@ -265,7 +276,7 @@ function TerminalShell({
         </Link>
 
         <p className="text-[11px] text-[var(--color-ln-mute)]">
-          Desde el perfil público podés escribirle a la dueña para pedir un acceso nuevo.
+          Desde el perfil público podés escribirle al dueño para pedir un acceso nuevo.
         </p>
       </div>
     </div>
@@ -275,18 +286,23 @@ function TerminalShell({
 function RevokedView({ context }: { context: TerminalPetContext }) {
   return (
     <TerminalShell
-      title="Este link fue revocado por la dueña"
-      description="Si necesitás un acceso nuevo, contactá a través del perfil público de la mascota."
+      title="Este enlace fue revocado por el dueño"
+      description="Si necesitás ver la libreta de nuevo, pedile al dueño que genere un nuevo enlace."
       context={context}
     />
   );
 }
 
 function ExpiredView({ context }: { context: TerminalPetContext }) {
+  // Item 24.2: show the exact expiry date per spec ("venció el {fecha}").
+  const expiryLabel = context.expiresAtIso
+    ? `venció el ${new Date(context.expiresAtIso).toLocaleDateString("es-AR")}`
+    : "ya venció";
+
   return (
     <TerminalShell
-      title="Este link expiró"
-      description="Era un compartido temporal y ya pasó su fecha. Pedile a la dueña un acceso nuevo a través del perfil público."
+      title="Este enlace venció"
+      description={`El enlace de la libreta ${expiryLabel}. Pedile al dueño uno nuevo.`}
       context={context}
     />
   );
