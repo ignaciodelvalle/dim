@@ -1,13 +1,19 @@
 import { and, eq, lt, sql } from "drizzle-orm";
-import Link from "next/link";
 
 import { logoutAction } from "@/app/actions/auth";
+import { AppShell } from "@/components/layout/AppShell";
+import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
+import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { ADMIN_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import type { NavSection } from "@/components/ui/dashboard";
-import { OpOmnibox, OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
+import { OpCrumbs } from "@/components/ui/dashboard/OpCrumbs";
+import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
+import { OpRail } from "@/components/ui/dashboard/OpRail";
+import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { db, eventNotificationOutbox } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { getProfileCached } from "@/lib/request-cache";
+import type { ShellSession } from "@/lib/shell-nav";
 
 // Gate the /admin/* segment. Admin-only — govt and everyone else gets sent
 // to / (root). Uses the strict requireAdminOrRedirect guard which also rejects
@@ -44,36 +50,39 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         }))
       : ADMIN_NAV_SECTIONS;
 
-  // Right-side actions: global search omnibox + role + scope + cross-portal links.
-  const actions = (
-    <div className="flex items-center gap-4 text-xs text-ln-op-mute">
-      <OpOmnibox />
-      <span>
+  // Build the session shape for the context switcher.
+  // Admin always holds govtAssignments (they can access /gob).
+  const switcherSession: ShellSession = {
+    role: profile.role,
+    displayName,
+    govtAssignments: true,
+  };
+
+  const topbarActions = (
+    <div className="flex items-center gap-3">
+      <span className="text-xs text-ln-op-mute">
         <span className="font-semibold text-ln-op-ink-2">{profile.role}</span>
         <span className="mx-1">·</span>
         Universal
       </span>
-      <div className="flex items-center gap-3">
-        <Link href="/gob" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
-          Ir a Gobierno →
-        </Link>
-        {/* Logout — institutional roles are bounced out of /mis-mascotas and
-            /cuenta by the (app) layout, so the portal must own its sign-out. */}
-        <form action={logoutAction}>
-          <button
-            type="submit"
-            className="cursor-pointer border-0 bg-transparent p-0 text-xs text-ln-op-mute hover:text-ln-op-ink"
-          >
-            Cerrar sesión →
-          </button>
-        </form>
-      </div>
+      {/* ContextSwitcher (D6): replaces the ad-hoc "Ir a Gobierno →" link. */}
+      <ContextSwitcher session={switcherSession} />
+      {/* Logout — institutional roles are bounced out of /mis-mascotas and
+          /cuenta by the (app) layout, so the portal must own its sign-out. */}
+      <form action={logoutAction}>
+        <button
+          type="submit"
+          className="cursor-pointer border-0 bg-transparent p-0 text-xs text-ln-op-mute hover:text-ln-op-ink"
+        >
+          Cerrar sesión →
+        </button>
+      </form>
     </div>
   );
 
   return (
-    <OpShell
-      variant="gob"
+    <AppShell
+      variant="operator"
       rail={
         <OpRail
           sections={sections}
@@ -86,21 +95,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         />
       }
       topbar={
-        <OpTopbar
-          crumbs={[{ label: "Panel" }]}
-          scope={{
-            code: "SUPERADMIN",
-            label: "Universal",
-            variant: "superadmin",
-          }}
-          actions={actions}
-          mobileSections={sections}
-          variant="gob"
-          brandSubtitle="Admin"
-        />
+        <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
+          {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
+          <AppShellDrawer sections={sections} variant="gob" brandSubtitle="Admin" />
+          {/* Left: breadcrumbs */}
+          <OpCrumbs items={[{ label: "Panel" }]} />
+          {/* Scope chip */}
+          <OpScopeChip code="SUPERADMIN" label="Universal" variant="superadmin" />
+          {/* Spacer */}
+          <div className="flex-1" />
+          {/* Global search omnibox (Item 10) — operator jump-to-record + PII log. */}
+          <OpOmnibox />
+          {/* Right: switcher + logout */}
+          <div className="flex items-center gap-2">{topbarActions}</div>
+        </header>
       }
     >
       {children}
-    </OpShell>
+    </AppShell>
   );
 }

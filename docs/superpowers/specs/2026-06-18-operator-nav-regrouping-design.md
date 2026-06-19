@@ -1,8 +1,8 @@
 # Operator nav regrouping (NavSection) — design spec
 
-> **Status:** 🟢 Ready for Claude Code · **Date:** 2026-06-18 · **Item 1 of the metrics-IA handoff**
+> **Status:** ✅ Implementado (#628, #629) · **Date:** 2026-06-18 · **Item 1 of the metrics-IA handoff**
 > · Umbrella: `2026-06-18-metrics-ia-handoff-design.md`
-> · **Nota de secuencia:** **Item 7 (unified app shell)** absorbe la *capa de render* de este item — tras Item 7, las `NavSection[]` que acá se definen las renderiza `AppShell variant=operator`, no `OpRailNav`. Este item sigue siendo la **fuente de datos** del nav operador. Si Item 1 mergea primero, sigue válido; ejecutar **Item 1 → Item 7**.
+> · **Nota de secuencia:** **Item 7 (unified app shell)** absorbe la *capa de render* de este item — tras Item 7 Phase D (#630–#634), las `NavSection[]` que acá se definen las renderiza `AppShell variant=operator`; `OpRail`/`OpRailNav` son el render bridge interno del shell. Este item sigue siendo la **fuente de datos** del nav operador.
 
 ## 1. Por qué este documento existe
 

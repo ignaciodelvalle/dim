@@ -90,6 +90,8 @@ export type LnSheetPageProps = {
   formId?: string;
   /** Whether the form is currently submitting */
   isPending?: boolean;
+  /** Override the pending-state label (default: "Registrando…") */
+  pendingLabel?: string;
   wide?: boolean;
   children: ReactNode;
 };
@@ -104,6 +106,7 @@ export function LnSheetPage({
   ctaLabel = "Guardar",
   formId,
   isPending = false,
+  pendingLabel,
   wide = false,
   children,
 }: LnSheetPageProps) {
@@ -124,6 +127,7 @@ export function LnSheetPage({
           ctaLabel={ctaLabel}
           formId={formId}
           isPending={isPending}
+          pendingLabel={pendingLabel}
           onCancel={onClose}
         />
       </LnSheetCard>
@@ -268,6 +272,12 @@ export type LnSheetFooterProps = {
   onCancel?: () => void;
   /** Render a custom CTA instead of the default submit button */
   customCta?: ReactNode;
+  /**
+   * Wave 2 Item 9: override the "Registrando…" pending label.
+   * Defaults to "Registrando…" for event-log forms.
+   * Pass "Guardando…" for profile-edit or other non-event contexts.
+   */
+  pendingLabel?: string;
 };
 
 export function LnSheetFooter({
@@ -277,9 +287,12 @@ export function LnSheetFooter({
   isPending = false,
   onCancel,
   customCta,
+  pendingLabel = "Registrando…",
 }: LnSheetFooterProps) {
   return (
-    <div className="flex items-center gap-[10px] border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
+    // Wave 2 Item 9: sticky footer so the primary CTA stays reachable with the
+    // thumb on mobile even with long forms.
+    <div className="sticky bottom-0 z-10 flex items-center gap-[10px] border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
       {onCancel && (
         <button
           type="button"
@@ -310,7 +323,7 @@ export function LnSheetFooter({
                 aria-hidden="true"
                 className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
               />
-              Guardando...
+              {pendingLabel}
             </>
           ) : (
             ctaLabel

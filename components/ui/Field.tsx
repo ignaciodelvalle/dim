@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * Wave 2 Item 9 — mobile hardening applied to all LN form primitives:
+ *  - font-size ≥ 16px on mobile (prevents iOS auto-zoom on focus)
+ *  - min-height 44px on interactive controls (WCAG 2.5.5 touch-target)
+ *  - inputMode / enterKeyHint forwarded from callers via standard HTML attrs
+ */
 import { type InputHTMLAttributes, type ReactNode, useId } from "react";
 
 /**
@@ -102,10 +108,13 @@ export function LnField({
 
 // ---------- Shared control base classes -----------------------------------
 
+// Wave 2 Item 9: text-[16px] on mobile prevents iOS Safari auto-zoom on focus;
+// sm:text-[13.5px] restores the design-system size on wider viewports.
+// min-h-[44px] ensures touch targets meet WCAG 2.5.5 (44×44 CSS px).
 const controlBase =
-  "w-full rounded-[4px] border border-[var(--color-ln-line-strong)] " +
+  "w-full min-h-[44px] rounded-[4px] border border-[var(--color-ln-line-strong)] " +
   "bg-[var(--color-ln-card)] px-[12px] py-[10px] " +
-  "font-[var(--font-ln-sans)] text-[13.5px] text-[var(--color-ln-ink)] " +
+  "font-[var(--font-ln-sans)] text-[16px] sm:text-[13.5px] text-[var(--color-ln-ink)] " +
   "placeholder:text-[var(--color-ln-faint)] outline-none " +
   "focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] " +
   "aria-[invalid=true]:border-[var(--color-ln-err)]";

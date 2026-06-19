@@ -1,4 +1,3 @@
-export { OpShell } from "./OpShell";
 export { OpRail } from "./OpRail";
 export { OpRailNav } from "./OpRailNav";
 export type { NavSection } from "./OpRailNav";

@@ -37,7 +37,8 @@ export default async function PetSightingPage({
 
   if (pet.status !== "lost") {
     return (
-      <main className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
+      // Landing shell (AppShell variant=landing) owns #main-content + min-height.
+      <div className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
         <div className="mx-auto max-w-md space-y-4 text-center">
           <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">
             Esta mascota no está perdida
@@ -52,12 +53,13 @@ export default async function PetSightingPage({
             Ver el perfil público
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[var(--color-ln-warn-050)] px-4 py-6">
+    // Landing shell (AppShell variant=landing) owns #main-content + min-height.
+    <div className="min-h-screen bg-[var(--color-ln-warn-050)] px-4 py-6">
       <div className="mx-auto max-w-md space-y-5">
         <header className="space-y-1">
           <Link
@@ -81,6 +83,6 @@ export default async function PetSightingPage({
           />
         </section>
       </div>
-    </main>
+    </div>
   );
 }

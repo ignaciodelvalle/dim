@@ -10,6 +10,7 @@ import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard
 import { listLocalitiesByProvince } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { fetchReunificationRate } from "@/lib/compliance-metrics";
 import {
   GOB_ALL_PROVINCES,
   type LostPetRow,
@@ -18,6 +19,7 @@ import {
   fetchLostPets,
   fetchPerdidasMetrics,
 } from "@/lib/govt-dashboards";
+import { buildProjectionContext } from "@/lib/metrics";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
 /**
@@ -118,6 +120,15 @@ export default async function GobPerdidasPage({
     noDisplayFilters ? { lostPets } : undefined,
   );
 
+  // D4 reunification rate (Item 4) — lost episodes returned to active within the
+  // selected period, plus median days-to-recovery. Period-aware: uses the same
+  // `since` window the page's filters use, jurisdiction-scoped via ProjectionContext.
+  const reunificationCtx = buildProjectionContext(actor, jurisdictions, {
+    since,
+    until: new Date(),
+  });
+  const reunification = await fetchReunificationRate(reunificationCtx);
+
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
   // Build allowedProvinces for <JurisdictionSwitcher>.
@@ -159,10 +170,10 @@ export default async function GobPerdidasPage({
         <PeriodPicker defaultPreset="30d" />
       </div>
 
-      {/* 3 KPI cards */}
+      {/* KPI cards — pérdidas (activas/recuperados/antigüedad) + reunificación (D4) */}
       <section
         aria-label="Indicadores de perdidas"
-        className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
       >
         <OpKpi
           label="Activas"
@@ -171,6 +182,18 @@ export default async function GobPerdidasPage({
         />
         <OpKpi label="Recuperados (30d)" value={String(metrics.recoveredMonth)} tone="ok" />
         <OpKpi label="Antiguedad media (dias)" value={String(metrics.avgDaysActive)} />
+        {/* D4 — reunification rate over the selected period (UK ~39% benchmark). */}
+        <OpKpi
+          label="Tasa de reunificación"
+          value={`${reunification.ratePct}%`}
+          tone={reunification.ratePct >= 39 ? "ok" : "warn"}
+          bar={reunification.ratePct}
+          sub={`${reunification.recovered} de ${reunification.lostEpisodes} episodios`}
+        />
+        <OpKpi
+          label="Mediana recuperación (días)"
+          value={String(reunification.medianDaysToRecovery)}
+        />
       </section>
 
       {/* Map panel */}

@@ -299,6 +299,43 @@ h6 {
   }
 }
 
+/* ---- Skeleton shimmer (Wave 2 Item 8) ------------------------------------- */
+/* Base: --color-ln-line / --color-ln-card for owner/public surfaces.
+ * Operator surfaces override via .op-surface wrapper or utility class swap.
+ * prefers-reduced-motion is handled globally above (animation collapses to
+ * 0.01ms, leaving a static placeholder). */
+
+@keyframes skeleton-sweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-ln-line) 0%,
+    var(--color-ln-card) 50%,
+    var(--color-ln-line) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.5s linear infinite;
+}
+
+.op-skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-ln-op-line) 0%,
+    var(--color-ln-op-card) 50%,
+    var(--color-ln-op-line) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.5s linear infinite;
+}
+
 /* ---- Mobile input zoom guard (sprint 6 PR-050) ---------------------------- *
  * iOS Safari zooms into any input whose computed font-size is below 16px when
  * it takes focus. That hijacks layout, breaks sticky CTAs, and traps users in
