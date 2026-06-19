@@ -12,13 +12,14 @@ import { ClaimForm } from "./ClaimForm";
 export default async function ClaimPage() {
   const { user } = await requireUserOrRedirect();
 
+  // Wave 5 Item 25a: check presence of dni_hash (no plaintext stored).
   const [profile] = await db
-    .select({ dniNumber: profiles.dniNumber })
+    .select({ dniHash: profiles.dniHash })
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);
 
-  const alreadyHasDni = !!profile?.dniNumber;
+  const alreadyHasDni = !!profile?.dniHash;
 
   return (
     <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">

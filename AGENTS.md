@@ -151,7 +151,7 @@ Schema for `business_rules` is deferred until the feature lands. The concept is 
 These are the invariants the schema and triggers enforce. The application layer assumes them and will not double-check:
 
 1. **Account type ↔ role match.** `profiles.account_type='personal'` ⟹ `role ∈ {owner, vet}`. `profiles.account_type='institutional'` ⟹ `role ∈ {govt, admin}`. CHECK constraint on `profiles`.
-2. **Institutional accounts have no personal-identity fields.** When `account_type='institutional'`, `dni_number IS NULL`, `dni_verified=false`, `matricula_number IS NULL`, `matricula_jurisdiccion IS NULL`, `matricula_verified=false`. CHECK constraint.
+2. **Institutional accounts have no personal-identity fields.** When `account_type='institutional'`, `dni_hash IS NULL`, `miarg_sub IS NULL`, `dni_verified=false`, `matricula_number IS NULL`, `matricula_jurisdiccion IS NULL`, `matricula_verified=false`. CHECK constraint (`profiles_institutional_no_pii`). Note: `dni_number` was dropped in migration 0106 (Wave 5 Item 25a).
 3. **Institutional accounts cannot own pets.** A trigger on `ownerships` rejects any INSERT or UPDATE that would tie an institutional account to a pet via `owner_user_id`. The trigger uses `errcode='restrict_violation'` and a clear Spanish message.
 4. **Last admin cannot be deactivated.** Server-action precondition counts `account_type='institutional' AND role='admin' AND deactivated_at IS NULL` and refuses if the deactivation would leave fewer than one.
 5. **Govt cannot self-deactivate if any locality is uncovered.** Server-action precondition checks coverage for every `govt_assignment` of the deactivating user.
@@ -809,6 +809,48 @@ own pets.
 **Ties Item 31:**  
 This section is the "scan privacy" entry for the consolidated "Privacidad y manejo de
 datos" checklist that Item 31 will build.
+
+## Identity model & DNI handling (Wave 5 Item 25a)
+
+**No DNI in plaintext rule** (Ley 25.326 / Mi Argentina premise, migration 0106):
+`profiles.dni_number` was dropped. The DNI is never stored in cleartext after
+migration 0106. The columns that replace it:
+
+| Column | Type | Purpose |
+|---|---|---|
+| `miarg_sub` | `text unique` | Opaque, stable subject ID from Mi Argentina OIDC |
+| `identity_source` | `'miarg' \| 'legacy'` | How identity was verified |
+| `dni_hash` | `text` (HMAC-SHA256 hex) | Equality matching only — see `lib/dni-hash.ts` |
+| `dni_last4` | `text(4)` | Human disambiguation in operator UI — NOT an identifier |
+| `dni_verified` | `bool` | Whether DNI has been verified |
+| `dni_verified_at` | `timestamptz` | When verification happened |
+
+**Pepper:** `DNI_HASH_PEPPER` env var (server-side only). Local/test default:
+`dim-test-pepper-v1`. Production value must be a secret in Vercel env — if
+leaked, the entire hash table can be reversed via rainbow table (Argentine DNI
+space is finite). Never commit the production pepper.
+
+**Where-clauses:** `WHERE dni_hash = hashDni(input)` — never `WHERE dni_number = input`.
+See `lib/dni-hash.ts` for `hashDni()` and `dniLast4()` helpers.
+
+**OIDC scaffold (Item 25a — stub only):**
+`lib/miarg-oidc.ts` defines the integration shape for Mi Argentina OIDC.
+`app/auth/miarg/callback/route.ts` is the callback route stub. Both are gated
+behind `isMiArgOidcEnabled()` — absent env vars → email/password flow unchanged.
+The real connection (token exchange, JWK verification) is Item 25b, gated on
+owner credentials. Every 25b TODO is marked `TODO(25b)`.
+
+**Institutional accounts** remain unchanged — no `miarg_sub`, no `dni_hash`.
+The `profiles_institutional_no_pii` CHECK now also excludes `miarg_sub`.
+
+**Checklist for any agent touching auth or profiles:**
+- Never write `dni_number` — that column is gone.
+- Never select or return raw DNI — use `dni_last4` for display, `dni_hash` for equality.
+- The `hashDni()` function in `lib/dni-hash.ts` is the canonical path.
+- `erase_subject_data()` (migration 0106) nulls `dni_hash`, `dni_last4`, `miarg_sub`.
+
+**Ties Item 31:** this section is the "identity + DNI" entry for the consolidated
+"Privacidad y manejo de datos" checklist that Item 31 will build.
 
 ## PII baseline & subject rights (Ley 25.326)
 

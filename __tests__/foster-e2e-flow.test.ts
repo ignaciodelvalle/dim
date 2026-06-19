@@ -17,6 +17,8 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { dniLast4, hashDni } from "@/lib/dni-hash";
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
@@ -150,7 +152,8 @@ beforeAll(async () => {
     .set({
       displayName: "FosterE2E Volunteer",
       phone: "+541112345678",
-      dniNumber: "10000001",
+      dniHash: hashDni("10000001"),
+      dniLast4: dniLast4("10000001"),
       dniVerified: true,
       role: "owner",
       accountType: "personal",

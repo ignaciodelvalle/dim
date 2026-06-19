@@ -78,6 +78,7 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import * as schemas from "../db/schema";
+import { dniLast4, hashDni } from "../lib/dni-hash";
 import { generateApprovalRequestToken, generatePublicToken } from "../lib/publicToken";
 import { generateReferenceCode } from "../src/modules/welfare/domain/reference-code";
 
@@ -318,7 +319,9 @@ async function seedCarlaVetUpgrade(): Promise<void> {
       accountType: "personal",
       role: "owner",
       displayName: "Dra. Carla Pérez",
-      dniNumber: "32145678",
+      // Wave 5 Item 25a: no plaintext DNI in seed — store hash + last4 only.
+      dniHash: hashDni("32145678"),
+      dniLast4: dniLast4("32145678"),
       dniVerified: true,
     });
     log("OK", "Profile de Carla creado con DNI verificado");

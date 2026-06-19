@@ -145,7 +145,9 @@ async function resetProfilePIIToFresh(userId: string, displayName: string) {
     .set({
       displayName,
       phone: "+5491100000000",
-      dniNumber: null,
+      // Wave 5 Item 25a: no plaintext DNI column.
+      dniHash: null,
+      dniLast4: null,
       // Seed the extended PII columns so the erase test can assert they are
       // nulled (V1-2 fix B). preferred_vet_* is third-party PII, avatar_url a
       // face photo, matricula_* professional-license PII.
@@ -397,7 +399,8 @@ describe("erase_subject_data RPC", () => {
       .select({
         displayName: profiles.displayName,
         phone: profiles.phone,
-        dniNumber: profiles.dniNumber,
+        // Wave 5 Item 25a: check hash is cleared, not plaintext DNI.
+        dniHash: profiles.dniHash,
         deletedAt: profiles.deletedAt,
         // V1-2 fix B: extended PII columns.
         preferredVetName: profiles.preferredVetName,
@@ -411,7 +414,7 @@ describe("erase_subject_data RPC", () => {
     expect(row.deletedAt).not.toBeNull();
     expect(row.displayName).toMatch(/^erased:/);
     expect(row.phone).toBeNull();
-    expect(row.dniNumber).toBeNull();
+    expect(row.dniHash).toBeNull();
     // Newly-covered profile PII columns are nulled.
     expect(row.preferredVetName).toBeNull();
     expect(row.preferredVetPhone).toBeNull();

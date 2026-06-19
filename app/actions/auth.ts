@@ -8,6 +8,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db, organizationMemberships, profiles } from "@/db";
 import { pgError } from "@/lib/db-errors";
+import { dniLast4, hashDni } from "@/lib/dni-hash";
 import { LEGAL_VERSION } from "@/lib/legal-version";
 import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
@@ -85,12 +86,11 @@ export type IdentityFormState = {
 // signupAction → supabase.auth.signUp in step 1).
 //
 // Updates profiles.display_name to "${firstName} ${lastName}".
-// Optionally stores profiles.dni_number (unverified — dniVerified stays false).
-// The existing /cuenta/verificar-dni flow handles full verification later.
-//
-// DNI uniqueness: the partial unique index profiles_dni_unique_when_present
-// enforces uniqueness only when the value is not null. A 23505 violation here
-// means another account already holds that DNI number — surface a friendly error.
+// When a DNI is provided: stores dni_hash + dni_last4 (never plaintext).
+// dniVerified stays false — full verification happens via verifyDniAction.
+// The partial unique index profiles_dni_hash_unique (migration 0106)
+// enforces uniqueness when the hash is not null. A 23505 violation here
+// means another account already holds that DNI — surface a friendly error.
 export async function completeIdentityAction(
   _previous: IdentityFormState,
   formData: FormData,
@@ -143,9 +143,10 @@ export async function completeIdentityAction(
       .update(profiles)
       .set({
         displayName,
-        // Store DNI as unverified. dniVerified stays false (its default).
-        // The /cuenta/verificar-dni flow sets dniVerified=true with audit trail.
-        ...(rawDni ? { dniNumber: rawDni } : {}),
+        // Store DNI hash + last4 (never plaintext — Wave 5 Item 25a).
+        // dniVerified stays false (default). The /cuenta/verificar-dni flow
+        // sets dniVerified=true with audit trail.
+        ...(rawDni ? { dniHash: hashDni(rawDni), dniLast4: dniLast4(rawDni) } : {}),
         // Persist user location when provided. Both columns are nullable so
         // omitting them (empty form) leaves the profile without location.
         ...(jurisdictionProvince !== null ? { jurisdictionProvince } : {}),
@@ -170,7 +171,7 @@ export async function completeIdentityAction(
     if (
       info?.code === "23505" &&
       ((info.constraint ?? "").includes("dni") ||
-        String(info.raw.detail ?? "").includes("dni_number"))
+        String(info.raw.detail ?? "").includes("dni_hash"))
     ) {
       return { error: "Ese DNI ya está registrado por otra cuenta." };
     }

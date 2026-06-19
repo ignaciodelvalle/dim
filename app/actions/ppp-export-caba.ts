@@ -86,7 +86,13 @@ export async function generatePppExportAction(
   // Load owner profile and canonical chip in parallel.
   const [ownerProfile, identifications] = await Promise.all([
     db
-      .select({ displayName: profiles.displayName, dniNumber: profiles.dniNumber })
+      .select({
+        displayName: profiles.displayName,
+        // Wave 5 Item 25a: no DNI in plaintext. PPP PDF shows last-4 only.
+        // If the legal form ever requires the full DNI, it must be fetched
+        // on-demand from Mi Argentina (see TODO 25b) — never from this DB.
+        dniLast4: profiles.dniLast4,
+      })
       .from(profiles)
       .where(eq(profiles.id, user.id))
       .limit(1)
@@ -112,7 +118,10 @@ export async function generatePppExportAction(
     petMicrochipId: identifications.microchip?.code ?? null,
     petPotentiallyDangerousBreed: ownerRow.petPotentiallyDangerousBreed,
     ownerDisplayName: ownerProfile?.displayName ?? "Propietario",
-    ownerDniNumber: ownerProfile?.dniNumber ?? null,
+    // Wave 5 Item 25a: PPP PDF now receives last-4 only (no plaintext DNI).
+    // TODO(25b): if RUPPPA requires the full DNI, fetch it on-demand from
+    // Mi Argentina claims — never store it.
+    ownerDniNumber: ownerProfile?.dniLast4 ? `••••${ownerProfile.dniLast4}` : null,
     ownerEmail,
     jurisdictionProvince: ownerRow.petJurisdictionProvince ?? CABA_PROVINCE,
     jurisdictionLocality: ownerRow.petJurisdictionLocality ?? null,

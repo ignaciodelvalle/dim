@@ -30,7 +30,8 @@ vi.mock("@/db", () => ({
     displayName: "profiles.displayName",
     role: "profiles.role",
     matriculaJurisdiccion: "profiles.matriculaJurisdiccion",
-    dniNumber: "profiles.dniNumber",
+    // Wave 5 Item 25a: no plaintext DNI — displayName search only.
+    dniHash: "profiles.dniHash",
   },
   ownerships: {
     ownerUserId: "ownerships.ownerUserId",
