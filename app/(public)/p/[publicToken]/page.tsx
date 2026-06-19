@@ -521,7 +521,8 @@ export default async function PublicCredentialPage({
   const ageLabel = ageYears !== null ? `${ageYears} año${ageYears === 1 ? "" : "s"}` : null;
 
   return (
-    <main id="main-content" className="min-h-screen bg-ln-paper font-[var(--font-ln-sans)]">
+    // Landing shell (AppShell variant=landing) owns #main-content + min-height.
+    <div className="min-h-screen bg-ln-paper font-[var(--font-ln-sans)]">
       <ScanLogger publicToken={publicToken} />
 
       {/* Guilloché band — LN security stripe */}
@@ -802,7 +803,7 @@ export default async function PublicCredentialPage({
         </div>
         {/* END CREDENTIAL CARD */}
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -814,10 +815,8 @@ export default async function PublicCredentialPage({
 
 function ThrottleNotice() {
   return (
-    <main
-      id="main-content"
-      className="flex min-h-screen items-center justify-center bg-ln-paper font-[var(--font-ln-sans)]"
-    >
+    // Landing shell (AppShell variant=landing) owns #main-content + min-height.
+    <div className="flex min-h-screen items-center justify-center bg-ln-paper font-[var(--font-ln-sans)]">
       <div className="mx-auto max-w-[400px] px-[24px] py-[48px] text-center text-ln-ink">
         <p className="mb-[12px] font-[var(--font-ln-serif)] text-[18px] font-semibold">
           Demasiadas consultas
@@ -827,7 +826,7 @@ function ThrottleNotice() {
           intentarlo.
         </p>
       </div>
-    </main>
+    </div>
   );
 }
 

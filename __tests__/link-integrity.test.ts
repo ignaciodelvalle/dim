@@ -14,7 +14,6 @@
  * 2. Collects every STATIC internal link path from:
  *    - components/layout/nav-presets.ts  → PUBLIC_NAV, OWNER_NAV, GOB_NAV,
  *                                          ADMIN_NAV, buildOrgNav (placeholder token)
- *    - components/layout/AppHeader.tsx   → DEFAULT_NAV constant
  *    - components/layout/AppFooter.tsx   → DEFAULT_COLUMNS constant
  *    - lib/event-capture-registry.ts     → entries whose route starts with "/"
  *                                          (prefixed with /mis-mascotas/[token])
@@ -203,12 +202,9 @@ function extractOrgNavHrefs(src: string): string[] {
 
 const orgNavHrefs = extractOrgNavHrefs(navPresetsSource);
 
-// ─── Source 2: AppHeader.tsx DEFAULT_NAV ─────────────────────────────────────
-
-const APP_HEADER_PATH = path.join(REPO_ROOT, "components/layout/AppHeader.tsx");
-const appHeaderHrefs = extractQuotedHrefs(fs.readFileSync(APP_HEADER_PATH, "utf8"));
-
-// ─── Source 3: AppFooter.tsx DEFAULT_COLUMNS ─────────────────────────────────
+// ─── Source 2: AppFooter.tsx DEFAULT_COLUMNS ─────────────────────────────────
+// Note: AppHeader (DEFAULT_NAV) was deleted in Item 7 Phase D. Its links
+// (/adoptar, /denuncias) are already covered by Source 5 (regex scan of app/).
 
 const APP_FOOTER_PATH = path.join(REPO_ROOT, "components/layout/AppFooter.tsx");
 const appFooterHrefs = extractQuotedHrefs(fs.readFileSync(APP_FOOTER_PATH, "utf8"));
@@ -256,7 +252,6 @@ for (const scanDir of SCAN_DIRS) {
 const allCollectedHrefs = [
   ...navPresetsHrefs,
   ...orgNavHrefs,
-  ...appHeaderHrefs,
   ...appFooterHrefs,
   ...eventCaptureHrefs,
   ...scannedHrefs,
@@ -274,7 +269,7 @@ describe("link-integrity: every static internal link resolves to a real route", 
   it("collects links from all expected sources (sanity check)", () => {
     expect(navPresetsHrefs.length).toBeGreaterThan(0);
     expect(orgNavHrefs.length).toBeGreaterThan(0);
-    expect(appHeaderHrefs.length).toBeGreaterThan(0);
+    // AppHeader (DEFAULT_NAV) deleted in Item 7 Phase D; links covered by scannedHrefs.
     expect(appFooterHrefs.length).toBeGreaterThan(0);
     expect(eventCaptureHrefs.length).toBeGreaterThan(0);
     expect(scannedHrefs.length).toBeGreaterThan(0);

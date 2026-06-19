@@ -658,7 +658,8 @@ When designing a new event with 3+ semantically-similar variants, prefer this um
 
 - `pet_registered.payload.acquisition_method` — `adopted | rescued | purchased | bred | gift | unknown`. Adoption/rescue is the growing modality per EAH 2018; surfacing it lets us measure that trend over time.
 - `pet_registered.payload.potentially_dangerous_breed` (boolean) — flips on the Ley CABA 4078 / Ley Prov 14.107 attestation requirement. Possibly a dedicated `dangerous_breed_attested` event for the legal record itself.
-- `death_recorded.payload.disposition_method` — `cremation | burial | rendering | unknown`, plus optional `facility` (the cremation center / vet clinic that handled the disposition). Ley CABA 5470 traceability.
+
+**Already built — `death_recorded.payload.disposition_method`** (`cremation_collective | cremation_individual_ashes | authorized_cemetery | owner_burial | household_waste | rendering | unknown`), plus optional `facility` (the cremation center / vet clinic that handled the disposition). Captured today by `DeathRecordForm`, normalized via `lib/disposition.ts`, and projected by `lib/mortality-metrics.ts` into the `/gob/mortalidad` dashboard (Ley CABA 5470 traceability). Read from the JSONB payload (`payload->>'disposition_method'`) — not denormalized to a column.
 
 ## Privacy tiers (the public surface)
 
@@ -684,6 +685,10 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - Antibiotic / antimicrobial use density (AMR surveillance) — **A12**, antimicrobial `medication_started` per 1,000 active pets, `lib/surveillance-metrics.ts` `fetchAmrDensity` (classifier `isAntimicrobial` in `lib/drugs.ts`; uncatalogued codes shown as a provisional raw count, not folded into the rate)
 - 10-day rabies-observation compliance + breaches — **A8/A9**, `fetchRabiesObservationCompliance` (Ord. CABA 41.831 art. 9); open-past-10d observations surface as a live `OpBreach`
 - ENO-notification SLA — **A7**, `fetchEnoSla` over `event_notification_outbox` (`target_kind='eno_authority'`): on-time %, breached-row count, median latency. Measures OUR outbox pipeline, not external delivery
+- Mortality clusters — `death_recorded` events by cause and week, by-locality breakdown (`/gob/mortalidad`, live; per-death geo heat layer deferred — payload carries no `location_point`)
+- Disposition mix & traceable-disposal rate (Ley CABA 5470) — `death_recorded.disposition_method` + `facility`, normalized into cremation/burial/rendering/other buckets; traceable-disposal rate = share of deaths with a known method AND a recorded facility; unknown-disposition rate as the compliance gap (`/gob/mortalidad`, live)
+- Reportable-death share — `death_recorded.is_reportable` + `disease_code` breakdown (`/gob/mortalidad`, live)
+- Antibiotic / antimicrobial use density (AMR surveillance)
 - Sterilization rate trend by jurisdiction
 
 ### Public-health analyst (province / national, strategic)
@@ -752,7 +757,7 @@ Helpers en `lib/sanitary-vocab.ts`: `tipoEventoLabel`, `tipoEventoNorma`, `requi
 
 Lectura rápida de qué hace DIM hoy, qué está spec'd y pendiente de ejecución, y qué queda como pregunta abierta. Es la respuesta canónica a "¿existe X?" antes de asumir o construir desde cero. Cuando una feature lande o cambie de status, actualizar esta tabla en el mismo PR.
 
-Leyenda: ✅ en producción · 🟢 spec + plan listos, pendiente de ejecutar · 🟡 spec only (falta plan) · ⚪ idea / open question.
+Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) · 🟢 spec + plan listos, pendiente de ejecutar · 🟡 spec only (falta plan) · ⚪ idea / open question.
 
 ### Owner-facing (PWA principal)
 
@@ -849,6 +854,7 @@ Leyenda: ✅ en producción · 🟢 spec + plan listos, pendiente de ejecutar ·
 | ✅ | Cron infra (CRON_SECRET + helper-lib + thin route) | `app/api/cron/*` |
 | ✅ | RLS aplicada en 7 core tables + welfare + organizations | `db/rls.sql`, `db/welfare_rls.sql`, `db/organizations_rls.sql` |
 | ✅ | RLS smoke test cross-account vía PostgREST | `pnpm rls:smoke` |
+| ✅ | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D complete | `components/layout/AppShell.tsx` + `lib/shell-nav.ts` (auth-aware `resolveShellNav`). All surfaces migrated; legacy `LnOwnerNav`/`AppHeader`/`OpShell` deleted (Phase D). Plan: `docs/superpowers/plans/2026-06-18-unified-app-shell.md` |
 | 🟢 | Localities catalog INDEC (catalog reference) | spec + plan listos |
 | ⚪ | Push notifications (iOS PWA limitations) | — |
 | ⚪ | Native mobile via React Native sharing data layer | — |
@@ -908,6 +914,21 @@ If a flow has only two screens (a form and a confirm), do not use the wizard —
 Denuncia, adoption application, intake, devolución, mordedura, and similar bureaucratic flows MUST end on `components/poncho/SuccessScreen` (PR-011 onward). The screen surfaces the confirmation code, a short description of what happens next, and 2–3 contextual actions. Silent redirects after the final submit are forbidden for these flows — the user must see the receipt.
 
 Lightweight inline edits (toggle, save profile field) keep their existing inline `<Toast>` confirmation; SuccessScreen is for full trámites only.
+
+### 5. `AppShell` is the single role-variant application chrome (Item 7 — complete)
+
+`components/layout/AppShell.tsx` is the **only** application chrome. The historical three chrome systems (`LnOwnerNav`, `AppHeader`, `OpShell`) have been deleted (Item 7, Phase D — PRs #630–#634). Do not reintroduce per-surface chrome wrappers.
+
+- **Nav source is `components/layout/nav-presets.ts`** — `OWNER_NAV`, `PUBLIC_NAV`, `GOB_NAV(_SECTIONS)`, `ADMIN_NAV(_SECTIONS)`, `buildOrgNav`. Do not introduce per-component nav literals.
+- **The variant + nav decision is auth-aware, not route-group-based** — `lib/shell-nav.ts` `resolveShellNav(input)` is the single decision (pure, tested). Anonymous on a public surface → `citizen` + `PUBLIC_NAV`; a logged-in user on any surface (including public) keeps their **role** nav and a guaranteed ≤1-click return to the role home. A public surface must NEVER replace the role nav (fixes the stranded-logged-in-user dead-end).
+- **Three variants:**
+  - `citizen` — top masthead with Argentina stripe + footer. Owner portal, public surfaces, marketing landing.
+  - `operator` — left navy rail + topbar, no stripe/footer. gob / admin / org portals.
+  - `landing` — minimal trust chrome for token-landing surfaces (`/p/[publicToken]`, `/libreta/compartir/[shareToken]`, `/r/invite/[token]`): brand + stripe + "Credencial verificada por MiMAR". Auth-independent; a logged-in owner gets a discreet "volver a mi app".
+- **"Inicio" is disambiguated**: the brand/logo → public landing `/`; the role "Inicio" nav item → the role home (`/inicio` for owner, the operator panel for gob/admin/org).
+- **`#main-content`** (skip-link target) is preserved in every variant — do not drop it.
+
+Spec: `docs/superpowers/specs/2026-06-18-unified-app-shell-design.md`. Plan: `docs/superpowers/plans/2026-06-18-unified-app-shell.md`.
 
 ### Drift policy
 

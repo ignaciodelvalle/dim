@@ -201,7 +201,6 @@ export function buildOrgNavFlat(orgToken: string, opts: OrgNavOptions = {}): Nav
 // Gobierno (/gob)
 // Sections model: grouped NavSection[]. GOB_NAV (flat) is derived from
 // GOB_NAV_SECTIONS and kept for backward compatibility with existing tests.
-// NOTE: /gob/mortalidad is intentionally absent — Item 2 not merged yet.
 // ---------------------------------------------------------------------------
 
 export const GOB_NAV_SECTIONS: NavSection[] = [
@@ -214,6 +213,7 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     label: "Vigilancia sanitaria",
     items: [
       { href: "/gob/vigilancia", label: "Vigilancia", matchPrefix: "/gob/vigilancia" },
+      { href: "/gob/mortalidad", label: "Mortalidad", matchPrefix: "/gob/mortalidad" },
       { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
     ],
   },
