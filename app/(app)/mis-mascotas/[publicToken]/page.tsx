@@ -1,35 +1,45 @@
 // ---------------------------------------------------------------------------
-// STRATEGY: Option B — Hybrid swap (Chunk J, 2026-05-21)
+// PET PROFILE v2.1 — reorder + action-hub consolidation (Item 6, 2026-06-18)
+// Spec: docs/superpowers/specs/2026-06-18-pet-profile-v21-reorder-and-action-consolidation-design.md
 //
-// v2 components used (PetProfileHero, PetEmergencyCard, PetHealthTimeline,
-// PetWeightChart, PetVaccineReminders, PetCredentialCard,
-// PetTrackingPlaceholder, PetTravelDocs):
-//   - Provide the new visual identity: hero ring, emergency card layout,
-//     health timeline with filter chips, sparkline weight chart, vaccine
-//     reminder surface, tracking placeholder, credential card, travel docs.
+// Screen order (normal/active state, spec §3.1):
+//   back-link → HERO (identity, ALWAYS first — D2) → <PetAlertStrip>
+//   (single prioritized aviso strip BELOW the hero — D3) → vitals →
+//   PetQuickActions → Tabs (Resumen · Libreta · Vacunas · Historial).
 //
-// Pre-v2 sections preserved:
+// Inside Resumen (left column): 01 Estado de salud → 02 Cuidados próximos →
+//   03 Credenciales (PPP + service-dog cards, only if applicable — D4) → the
+//   functional widgets → Logros LAST, only when present (D5).
+//
+// Avisos (rabies / transit / open-cases / pregnancy) no longer render as
+// separate full-width banners above the hero. They are grouped into
+// <PetAlertStrip> ordered by urgency (rabies urgent → transit warning →
+// open-cases warning → pregnancy info). PPP + perro de servicio are permanent
+// CREDENTIALS, not avisos, so they live as cards in Resumen section 03 — not
+// in the strip.
+//
+// Action hubs collapsed (D7): /anotar is the single canonical capture surface.
+// /eventos/nuevo (the duplicate catalog index) 308-redirects to /anotar; the
+// profile has ONE annotate entry ("Registrar evento" in PetActionsMenu →
+// /anotar). The /eventos/nuevo/* form SUB-routes are untouched.
+//
+// Preserved sections:
 //   - <PetReminders>         (C3) — vaccine reminders with Registrar/Eliminar
-//                                   actions. Kept instead of <PetVaccineReminders>
-//                                   because it has the server-action wiring that
-//                                   v2's component doesn't (deleteVaccineReminderAction).
+//                                   actions; THE canonical reminder surface. The
+//                                   old duplicate <PetVaccineReminders> (no
+//                                   server-action wiring) was deleted in v2.1 (D6).
 //   - <UpcomingAppointments> (C3) — confirmed vet appointments for this pet.
 //   - <MedicationDosesSection> — pending medication doses with "Marcar dada" action.
-//   - <PetOpenCasesSection>  (E) — open cases attached to this pet.
-//   - <PregnancyInProgressCard> — conditional card when pregnancyStatus='in_progress'.
-//   - <PpPCard>              — conditional PPP card for dangerous breeds.
-//   - <ServiceDogCredentialCard> — conditional service-dog card (Ley 26.858).
-//   - <AchievementsSection>  — pet achievements panel (kept; v2 plan explicitly
-//                               says "below the seven sections, only when applicable").
-//   - <RabiesObservationBanner> — inline alert while rabies observation is active.
-//   - <TransitBanner>        — shelter_custody / transit notice.
+//   - <PetOpenCasesSection>  (E) — open cases (now surfaced inside PetAlertStrip).
+//   - <PregnancyInProgressCard> — conditional (now inside PetAlertStrip, info tone).
+//   - <PpPCard>              — conditional PPP credential card (Resumen §03).
+//   - <ServiceDogCredentialCard> — conditional service-dog card (Ley 26.858, Resumen §03).
+//   - <AchievementsSection>  — pet achievements panel (rendered LAST in Resumen).
+//   - <RabiesObservationBanner> — alert while rabies observation is active (strip, urgent).
+//   - <TransitBanner>        — shelter_custody / transit notice (strip, warning).
 //   - <DeceasedView>         — early return for deceased pets.
-//   - Info grid + action buttons — compact meta grid + action row.
-//
-// v2 components NOT used:
-//   - <PetVaccineReminders>  — semantically equivalent to <PetReminders> but
-//                               lacks the Registrar/Eliminar server-action wiring.
-//                               <PetReminders> (C3) is the canonical surface.
+//   - <LostCockpit>          — early return for lost pets (keeps a "ver perfil
+//                               completo" link back to this profile — D9).
 //
 // Emergency contacts: <PetEmergencyCard> reads from profiles.preferred_vet_*
 //   and profiles.emergency_contact_* (migration 0042). Edited at /cuenta/editar
@@ -56,6 +66,7 @@ import { PpPCard } from "@/components/PpPCard";
 import { PppExportCabaButton } from "@/components/PppExportCabaButton";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { ServiceDogCredentialCard } from "@/components/ServiceDogCredentialCard";
+import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertStrip";
 import { PetCredentialCard } from "@/components/pet-profile/PetCredentialCard";
 import type { TabKey } from "@/components/pet-profile/PetDetailTabs";
 import { PetDetailTabsPanel } from "@/components/pet-profile/PetDetailTabsPanel";
@@ -573,6 +584,12 @@ export default async function PetDetailPage({
   const sp = await searchParams;
   const tabParam = typeof sp.tab === "string" ? sp.tab : undefined;
   const recienCreado = sp.recienCreado === "true";
+  // D9: when lost, the cockpit is shown by default, but it is not a dead end —
+  // the owner can open the normal profile via "ver perfil completo"
+  // (?fromLost=1), which bypasses the lost early-return below so they can keep
+  // logging events / viewing the libreta. Any tab=… param implies the same
+  // intent (the owner is navigating the profile's tabs).
+  const showFullProfileWhileLost = sp.fromLost === "1" || tabParam !== undefined;
 
   const access = await requirePetAccess(publicToken);
   if (!access.ok) notFound();
@@ -727,7 +744,11 @@ export default async function PetDetailPage({
   // EARLY RETURN for lost: show the lost cockpit instead of the normal sections.
   // Runs before the heavy fetchPetEventsForProfileV2 / weight / reminder queries
   // since those are irrelevant when the pet is lost.
-  if (pet.status === "lost") {
+  // D9: the cockpit is NOT a dead end. When the owner asks for the full profile
+  // (showFullProfileWhileLost: ?fromLost=1 or a tab=… deep link), we fall
+  // through to the normal profile so they can keep logging events / viewing the
+  // libreta while the pet remains lost. Org-path viewers always see the cockpit.
+  if (pet.status === "lost" && !(showFullProfileWhileLost && accessPath === "owner")) {
     // Fetch episode first so we can pass its caseId to the scan feed query.
     // This scopes sighting rows to the current episode and prevents cross-episode
     // pollution when a pet was lost→found→lost again.
@@ -956,9 +977,13 @@ export default async function PetDetailPage({
     .filter((e) => e.eventType === "medication_started")
     .map((e) => ({ ...e, attachmentUrl: null }));
 
-  // Build LnHero data from pet fields
-  // Note: pet.status is narrowed to "active" here (deceased + lost both have early returns above).
+  // Build LnHero data from pet fields.
+  // pet.status is "active" here, EXCEPT when the owner opened the full profile
+  // of a lost pet via ?fromLost=1 (D9) — the lost early-return is bypassed but
+  // the pet is still lost, so reflect that honestly in the hero ring. Deceased
+  // always early-returns above.
   const lnPetStatus: "ok" | "sick" | "lost" | "pregnant" = (() => {
+    if (pet.status === "lost") return "lost";
     if (pet.pregnancyStatus === "in_progress") return "pregnant";
     return "ok";
   })();
@@ -1020,61 +1045,9 @@ export default async function PetDetailPage({
         </div>
       )}
 
-      {isTransit && <TransitBanner petName={pet.name} petPublicToken={pet.publicToken} />}
-
-      {pet.rabiesObservationStatus === "in_progress" && (
-        <RabiesObservationBanner pet={pet} events={typedEvents} />
-      )}
-
-      {/* Open cases */}
-      <div data-section="cases" className="mb-[14px]">
-        <PetOpenCasesSection petId={pet.id} />
-      </div>
-
-      {/* Pregnancy card */}
-      {pregnancyCardData && (
-        <div className="mb-[14px]">
-          <PregnancyInProgressCard
-            petPublicToken={pet.publicToken}
-            pregnancyStartedAt={pregnancyCardData.startedAt}
-            weeksAtDiagnosis={pregnancyCardData.weeksAtDiagnosis}
-            expectedBirthAt={pregnancyCardData.expectedBirthAt}
-            lastClinicalAt={pregnancyCardData.lastClinicalAt}
-          />
-        </div>
-      )}
-
-      {/* PPP card */}
-      {pet.potentiallyDangerousBreed && (
-        <div data-section="ppp-card" className="mb-[14px]">
-          <PpPCard
-            petPublicToken={pet.publicToken}
-            breed={pet.breed}
-            events={typedEvents.map((e) => ({ ...e, attachmentUrl: null }))}
-            isTransit={isTransit}
-          />
-          {accessPath === "owner" &&
-            pet.jurisdictionProvince === "Ciudad Autónoma de Buenos Aires" && (
-              <PppExportCabaButton petPublicToken={pet.publicToken} />
-            )}
-        </div>
-      )}
-
-      {/* Service dog card */}
-      {serviceDogRow && serviceDogRow.credentialStatus === "vigente" && serviceDogRow.inService && (
-        <div data-section="service-dog-card" className="mb-[14px]">
-          <ServiceDogCredentialCard
-            petPublicToken={pet.publicToken}
-            petName={pet.name}
-            microchipId={canonicalIds.microchip?.code ?? null}
-            serviceDog={serviceDogRow}
-            photoUrl={photoUrl}
-          />
-        </div>
-      )}
-
       {/* ------------------------------------------------------------------ */}
-      {/* LN Hero                                                             */}
+      {/* LN Hero — identity ALWAYS first (v2.1, spec §3.1 / D2). No          */}
+      {/* conditional banner precedes it.                                     */}
       {/* ------------------------------------------------------------------ */}
       <div data-section="hero">
         <LnHero
@@ -1085,6 +1058,64 @@ export default async function PetDetailPage({
           tags={heroTags}
         />
       </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* PetAlertStrip — single prioritized aviso strip BELOW the hero       */}
+      {/* (v2.1, spec §3.2 / D3). Rabies(urgent) → transit(warning) →         */}
+      {/* open-cases(warning) → pregnancy(info). Empty → renders nothing.     */}
+      {/* PPP + service-dog are NOT here — they are permanent credentials and */}
+      {/* live inside Resumen (section 03).                                   */}
+      {/* ------------------------------------------------------------------ */}
+      <PetAlertStrip
+        alerts={(() => {
+          const alerts: PetAlert[] = [];
+          if (pet.rabiesObservationStatus === "in_progress") {
+            alerts.push({
+              id: "rabies",
+              tone: "urgent",
+              node: <RabiesObservationBanner pet={pet} events={typedEvents} />,
+            });
+          }
+          if (isTransit) {
+            alerts.push({
+              id: "transit",
+              tone: "warning",
+              node: <TransitBanner petName={pet.name} petPublicToken={pet.publicToken} />,
+            });
+          }
+          // Only add the open-cases alert when the pet actually has open/escalated
+          // cases, so the strip can be genuinely empty (D3). PetOpenCasesSection
+          // self-hides when empty, but gating here keeps the strip from rendering
+          // an empty wrapper. allCases is already fetched above (capped 50).
+          if (allCases.some((c) => c.status === "open" || c.status === "escalated")) {
+            alerts.push({
+              id: "open-cases",
+              tone: "warning",
+              node: (
+                <div data-section="cases">
+                  <PetOpenCasesSection petId={pet.id} />
+                </div>
+              ),
+            });
+          }
+          if (pregnancyCardData) {
+            alerts.push({
+              id: "pregnancy",
+              tone: "info",
+              node: (
+                <PregnancyInProgressCard
+                  petPublicToken={pet.publicToken}
+                  pregnancyStartedAt={pregnancyCardData.startedAt}
+                  weeksAtDiagnosis={pregnancyCardData.weeksAtDiagnosis}
+                  expectedBirthAt={pregnancyCardData.expectedBirthAt}
+                  lastClinicalAt={pregnancyCardData.lastClinicalAt}
+                />
+              ),
+            });
+          }
+          return alerts;
+        })()}
+      />
 
       {/* ------------------------------------------------------------------ */}
       {/* LN Vitals strip                                                     */}
@@ -1137,13 +1168,13 @@ export default async function PetDetailPage({
           isOwner={isOwner}
           resumenContent={
             <div className="grid gap-[24px] py-[20px] lg:grid-cols-[1fr_280px]">
-              {/* LEFT: health status + note + functional widgets */}
+              {/* LEFT: health status + note + functional widgets.
+                    v2.1 order (spec §3.1): 01 Estado de salud → 02 Cuidados
+                    próximos → 03 Credenciales (only if applicable) → … →
+                    Logros (last, only when present). Achievements moved to the
+                    end (D5); PPP/service-dog credentials moved here as cards
+                    (D4) instead of full-width banners above the hero. */}
               <div className="flex flex-col gap-[20px]">
-                {/* Achievements */}
-                <div data-section="achievements">
-                  <AchievementsSection earned={earnedAchievements} credentials={credentialChips} />
-                </div>
-
                 {/* Estado actual */}
                 <LnSectionHead num="01" title="Estado de salud" />
                 <div data-section="current-state">
@@ -1181,6 +1212,45 @@ export default async function PetDetailPage({
                     petToken={pet.publicToken}
                   />
                 </div>
+
+                {/* 03 Credenciales — PPP + perro de servicio as credential
+                      cards (v2.1, spec §3.1 sec 03 / D4). Only rendered when at
+                      least one applies. These used to be full-width banners
+                      above the hero; they are permanent credentials, not
+                      avisos, so they live here, not in the PetAlertStrip. */}
+                {(pet.potentiallyDangerousBreed ||
+                  (serviceDogRow?.credentialStatus === "vigente" && serviceDogRow.inService)) && (
+                  <div data-section="credentials" className="flex flex-col gap-[14px]">
+                    <LnSectionHead num="03" title="Credenciales" />
+                    {pet.potentiallyDangerousBreed && (
+                      <div data-section="ppp-card">
+                        <PpPCard
+                          petPublicToken={pet.publicToken}
+                          breed={pet.breed}
+                          events={typedEvents.map((e) => ({ ...e, attachmentUrl: null }))}
+                          isTransit={isTransit}
+                        />
+                        {accessPath === "owner" &&
+                          pet.jurisdictionProvince === "Ciudad Autónoma de Buenos Aires" && (
+                            <PppExportCabaButton petPublicToken={pet.publicToken} />
+                          )}
+                      </div>
+                    )}
+                    {serviceDogRow &&
+                      serviceDogRow.credentialStatus === "vigente" &&
+                      serviceDogRow.inService && (
+                        <div data-section="service-dog-card">
+                          <ServiceDogCredentialCard
+                            petPublicToken={pet.publicToken}
+                            petName={pet.name}
+                            microchipId={canonicalIds.microchip?.code ?? null}
+                            serviceDog={serviceDogRow}
+                            photoUrl={photoUrl}
+                          />
+                        </div>
+                      )}
+                  </div>
+                )}
 
                 {/* Health timeline */}
                 <div data-section="health-timeline">
@@ -1270,6 +1340,18 @@ export default async function PetDetailPage({
                   uploadHref={`/mis-mascotas/${pet.publicToken}/editar?section=docs`}
                   docs={[]}
                 />
+
+                {/* Logros — LAST in Resumen, only when there is something to
+                      show (v2.1, spec §3.1 / D5). Restores the original v2 plan
+                      order; it used to render FIRST, above health status. */}
+                {(earnedAchievements.length > 0 || credentialChips.length > 0) && (
+                  <div data-section="achievements">
+                    <AchievementsSection
+                      earned={earnedAchievements}
+                      credentials={credentialChips}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* RIGHT: Identificación + Sello card */}
