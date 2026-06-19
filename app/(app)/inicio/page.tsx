@@ -27,10 +27,12 @@ import {
   fetchPetsForOwner,
   fetchUpcomingAppointments,
 } from "@/lib/owner-dashboard";
+import { fetchPetHealthNudges } from "@/lib/owner-nudges";
 import { getProfileCached } from "@/lib/request-cache";
 import { petPhotoUrl } from "@/lib/storage";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
+import { PetHealthStatusStrip } from "./_components/PetHealthStatusStrip";
 import { RemindersSection } from "./_components/RemindersSection";
 
 export const dynamic = "force-dynamic";
@@ -75,12 +77,15 @@ export default async function InicioPage() {
 
   // getProfileCached is warmed by (app)/layout.tsx in the same render pass —
   // this is a memoized hit, not an extra DB round-trip.
-  const [profileRow, pets, openWf, appointments, reminders] = await Promise.all([
+  const [profileRow, pets, openWf, appointments, reminders, healthStatus] = await Promise.all([
     getProfileCached(user.id),
     fetchPetsForOwner(user.id),
     fetchOpenWorkflows(user.id),
     fetchUpcomingAppointments(user.id, 5),
     fetchActiveReminders(user.id),
+    // Item 5 — per-pet health-status nudges, derived from the owner's own
+    // events/reminders only (no surveillance/authority data).
+    fetchPetHealthNudges(user.id),
   ]);
   // Deactivated profiles greet generically — parity with the pre-cache query,
   // which filtered deactivated_at IS NULL.
@@ -249,6 +254,9 @@ export default async function InicioPage() {
 
         {/* RIGHT — stacked cards */}
         <div className="flex flex-col gap-[20px]">
+          {/* Estado sanitario — per-pet owner health-status nudges (Item 5) */}
+          <PetHealthStatusStrip pets={healthStatus} />
+
           {/* Vencimientos */}
           {reminders.length > 0 && (
             <LnCard>
