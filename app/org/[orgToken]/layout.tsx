@@ -10,8 +10,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { AppShell } from "@/components/layout/AppShell";
+import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { buildOrgNav } from "@/components/layout/nav-presets";
-import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
+import { OpRail } from "@/components/ui/dashboard/OpRail";
+import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { getProfileCached } from "@/lib/request-cache";
@@ -39,20 +42,26 @@ export default async function OrgLayout({
   const orgNavSections = buildOrgNav(orgToken, { granted });
 
   // Right-side topbar actions: personal cross-portal links (owner portal + account).
-  const actions = (
-    <div className="flex items-center gap-4 text-xs text-ln-op-mute">
-      <Link href="/cuenta" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
+  // ContextSwitcher is not added here: owner/vet with no additional org memberships
+  // returns an empty switcher. The explicit "Salir" escape preserves 1:1 parity
+  // with the previous layout until Phase C adds full org-membership enumeration.
+  const topbarActions = (
+    <div className="flex items-center gap-3">
+      <Link href="/cuenta" className="text-xs text-ln-op-mute no-underline hover:text-ln-op-ink">
         Mi cuenta
       </Link>
-      <Link href="/mis-mascotas" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
+      <Link
+        href="/mis-mascotas"
+        className="text-xs text-ln-op-mute no-underline hover:text-ln-op-ink"
+      >
         ← Salir
       </Link>
     </div>
   );
 
   return (
-    <OpShell
-      variant="org"
+    <AppShell
+      variant="operator"
       rail={
         <OpRail
           sections={orgNavSections}
@@ -62,22 +71,21 @@ export default async function OrgLayout({
         />
       }
       topbar={
-        <OpTopbar
-          crumbs={[{ label: "Panel" }]}
-          customCrumbs={<OrgBreadcrumbs orgToken={orgToken} />}
-          scope={{
-            code: "ORG",
-            label: organization.displayName,
-            variant: "org",
-          }}
-          actions={actions}
-          mobileSections={orgNavSections}
-          variant="org"
-          brandSubtitle="Organización"
-        />
+        <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
+          {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
+          <AppShellDrawer sections={orgNavSections} variant="org" brandSubtitle="Organización" />
+          {/* Left: org breadcrumbs (client component, uses usePathname) */}
+          <OrgBreadcrumbs orgToken={orgToken} />
+          {/* Scope chip */}
+          <OpScopeChip code="ORG" label={organization.displayName} variant="org" />
+          {/* Spacer */}
+          <div className="flex-1" />
+          {/* Right: actions */}
+          <div className="flex items-center gap-2">{topbarActions}</div>
+        </header>
       }
     >
       {children}
-    </OpShell>
+    </AppShell>
   );
 }

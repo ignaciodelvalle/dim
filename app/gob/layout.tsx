@@ -1,10 +1,14 @@
-import Link from "next/link";
-
 import { logoutAction } from "@/app/actions/auth";
+import { AppShell } from "@/components/layout/AppShell";
+import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
+import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
-import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
+import { OpCrumbs } from "@/components/ui/dashboard/OpCrumbs";
+import { OpRail } from "@/components/ui/dashboard/OpRail";
+import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { getProfileCached } from "@/lib/request-cache";
+import type { ShellSession } from "@/lib/shell-nav";
 
 // Gate the /gob/* segment. Both admin and govt can access this surface.
 // Admin has universal scope; govt is scoped to their assigned localities.
@@ -28,37 +32,41 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
   const profileRow = await getProfileCached(profile.id);
   const displayName = profileRow?.displayName ?? "";
 
-  // Right-side actions: role + scope + cross-portal links.
-  const actions = (
-    <div className="flex items-center gap-4 text-xs text-ln-op-mute">
-      <span>
+  // Build the session shape for the context switcher.
+  // admin visiting /gob always has govtAssignments (that is the prerequisite).
+  const switcherSession: ShellSession = {
+    role: profile.role,
+    displayName,
+    // An admin can always hop between /gob and /admin — govtAssignments=true.
+    // A govt user gets only the "volver a ciudadano" escape.
+    govtAssignments: profile.role === "admin",
+  };
+
+  const topbarActions = (
+    <div className="flex items-center gap-3">
+      <span className="text-xs text-ln-op-mute">
         <span className="font-semibold text-ln-op-ink-2">{profile.role}</span>
         <span className="mx-1">·</span>
         {scopeCode}
       </span>
-      <div className="flex items-center gap-3">
-        {profile.role === "admin" && (
-          <Link href="/admin" className="text-ln-op-mute no-underline hover:text-ln-op-ink">
-            Ir a Admin →
-          </Link>
-        )}
-        {/* Logout — institutional roles are bounced out of /mis-mascotas and
-            /cuenta by the (app) layout, so the portal must own its sign-out. */}
-        <form action={logoutAction}>
-          <button
-            type="submit"
-            className="cursor-pointer border-0 bg-transparent p-0 text-xs text-ln-op-mute hover:text-ln-op-ink"
-          >
-            Cerrar sesión →
-          </button>
-        </form>
-      </div>
+      {/* ContextSwitcher (D6): replaces the ad-hoc "Ir a Admin →" link. */}
+      <ContextSwitcher session={switcherSession} />
+      {/* Logout — institutional roles are bounced out of /mis-mascotas and
+          /cuenta by the (app) layout, so the portal must own its sign-out. */}
+      <form action={logoutAction}>
+        <button
+          type="submit"
+          className="cursor-pointer border-0 bg-transparent p-0 text-xs text-ln-op-mute hover:text-ln-op-ink"
+        >
+          Cerrar sesión →
+        </button>
+      </form>
     </div>
   );
 
   return (
-    <OpShell
-      variant="gob"
+    <AppShell
+      variant="operator"
       rail={
         <OpRail
           sections={GOB_NAV_SECTIONS}
@@ -71,21 +79,25 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
         />
       }
       topbar={
-        <OpTopbar
-          crumbs={[{ label: "Panel" }]}
-          scope={{
-            code: profile.role === "admin" ? "SUPERADMIN" : "GOB",
-            label: scopeCode,
-            variant: profile.role === "admin" ? "superadmin" : "default",
-          }}
-          actions={actions}
-          mobileSections={GOB_NAV_SECTIONS}
-          variant="gob"
-          brandSubtitle="Gobierno"
-        />
+        <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
+          {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
+          <AppShellDrawer sections={GOB_NAV_SECTIONS} variant="gob" brandSubtitle="Gobierno" />
+          {/* Left: breadcrumbs */}
+          <OpCrumbs items={[{ label: "Panel" }]} />
+          {/* Scope chip */}
+          <OpScopeChip
+            code={profile.role === "admin" ? "SUPERADMIN" : "GOB"}
+            label={scopeCode}
+            variant={profile.role === "admin" ? "superadmin" : "default"}
+          />
+          {/* Spacer */}
+          <div className="flex-1" />
+          {/* Right: switcher + logout */}
+          <div className="flex items-center gap-2">{topbarActions}</div>
+        </header>
       }
     >
       {children}
-    </OpShell>
+    </AppShell>
   );
 }

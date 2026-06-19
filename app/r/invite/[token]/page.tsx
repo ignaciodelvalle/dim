@@ -72,7 +72,7 @@ export default async function InviteAcceptPage({
           : "Esta invitación ya expiró.";
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
+      <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
         <div className="w-full max-w-sm space-y-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
           {/* warning glyph */}
           <span
@@ -106,7 +106,7 @@ export default async function InviteAcceptPage({
             Ir al inicio
           </a>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -124,7 +124,7 @@ export default async function InviteAcceptPage({
   // State 1: no session.
   if (!user) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
+      <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
         <div className="w-full max-w-sm space-y-5 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
           <div className="space-y-1 text-center">
             <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
@@ -160,7 +160,7 @@ export default async function InviteAcceptPage({
             .
           </p>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -170,7 +170,7 @@ export default async function InviteAcceptPage({
   // full invite email to whoever holds the token).
   if (invite.email.toLowerCase() !== sessionEmail) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
+      <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
         <div className="w-full max-w-sm space-y-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
           {/* lock glyph */}
           <span
@@ -207,13 +207,13 @@ export default async function InviteAcceptPage({
             Cambiar cuenta
           </a>
         </div>
-      </main>
+      </div>
     );
   }
 
   // State 3: session + email matches → show accept button.
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
+    <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm space-y-5 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
         <div className="space-y-1 text-center">
           <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
@@ -237,6 +237,6 @@ export default async function InviteAcceptPage({
           </a>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
