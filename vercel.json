@@ -68,6 +68,10 @@
     {
       "path": "/api/cron/data-lifecycle",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/purge-scan-events",
+      "schedule": "0 1 * * *"
     }
   ]
 }

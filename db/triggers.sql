@@ -70,14 +70,22 @@ create trigger on_auth_user_created
 -- rule to service_role and direct Drizzle connections — closing the gap
 -- named in AGENTS.md → Event sourcing → Known gaps.
 --
--- Escape hatch: set BOTH session-local flags in the same transaction:
+-- Escape hatch 1 (general): set BOTH session-local flags in the same transaction:
 --   set local app.allow_event_mutation = 'true';
 --   set local app.allow_event_mutation_actor = '<actor-uuid>';
--- When the escape hatch is active the trigger writes an `audit_log` row
+-- When this hatch is active the trigger writes an `audit_log` row
 -- (action='pet_events_mutation_override') with the operation, the affected
 -- pet_event_id, pet_id, event_type and occurred_at, attributed to the actor
 -- uuid. If the actor GUC is missing the mutation is refused — the escape
 -- hatch is unusable without accountability.
+--
+-- Escape hatch 2 (narrow — Wave 5 Item 28, scan retention):
+--   set local app.allow_scan_purge = 'true';
+-- Permits DELETE of credential_scanned events with author_role='scanner' that
+-- are older than 90 days (SCAN_RETENTION_DAYS). Writes an audit_log row per
+-- deleted row (action='scan_event_purged'). UPDATE is still blocked under
+-- this hatch. Any event that does not satisfy all three predicates (event_type,
+-- author_role, age) is refused. See migration 0104 for context.
 
 create or replace function public.enforce_pet_events_append_only()
 returns trigger
@@ -85,7 +93,11 @@ language plpgsql
 as $$
 declare
   override_actor uuid;
+  retention_days int := 90;
 begin
+  -- -------------------------------------------------------------------------
+  -- Path 1: general mutation escape hatch (pre-existing; unchanged).
+  -- -------------------------------------------------------------------------
   if current_setting('app.allow_event_mutation', true) = 'true' then
     override_actor := nullif(current_setting('app.allow_event_mutation_actor', true), '')::uuid;
     if override_actor is null then
@@ -108,6 +120,35 @@ begin
 
     return coalesce(new, old);
   end if;
+
+  -- -------------------------------------------------------------------------
+  -- Path 2: narrow scan-purge exception (Wave 5 Item 28).
+  -- DELETE only; scanner events only; older than retention window only.
+  -- -------------------------------------------------------------------------
+  if tg_op = 'DELETE'
+     and current_setting('app.allow_scan_purge', true) = 'true'
+     and old.author_role::text = 'scanner'
+     and old.event_type = 'credential_scanned'
+     and old.occurred_at < (now() - (retention_days || ' days')::interval)
+  then
+    insert into public.audit_log (actor_user_id, action, payload)
+    values (
+      null,
+      'scan_event_purged',
+      jsonb_build_object(
+        'pet_event_id', old.id,
+        'pet_id',       old.pet_id,
+        'occurred_at',  old.occurred_at,
+        'retention_days', retention_days
+      )
+    );
+
+    return old;
+  end if;
+
+  -- -------------------------------------------------------------------------
+  -- Default: block all other mutations.
+  -- -------------------------------------------------------------------------
   raise exception 'pet_events is append-only (AGENTS.md). % blocked.', tg_op
     using errcode = 'restrict_violation';
 end;
