@@ -733,6 +733,43 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - **Authorized actors (vet portal, gov portal, when they exist) see PII within their legitimate scope only**, gated by Postgres Row Level Security. The data layer enforces tier visibility, not just the app code.
 - **Owner-facing RLS lives in `db/rls.sql`.** It enables RLS on the seven core tables (`profiles`, `pets`, `ownerships`, `pet_events`, `reminders`, `attachments`, `notifications`) and locks every PostgREST read/write to the authenticated owner. `pet_events` has no UPDATE or DELETE policy — the append-only rule (`AGENTS.md → Core principles #2`) is enforced both by code discipline and by RLS. Apply via Supabase Studio (same pattern as `db/welfare_rls.sql` and `db/organizations_rls.sql`); do not use `pnpm db:push`, which would propose dropping unmodeled policies. Server-side reads via Drizzle bypass RLS by design — the public credential page at `/p/{public_token}` continues to work because its server component goes through Drizzle, not supabase-js. Verify the policies via `pnpm rls:smoke`, which runs two test accounts against PostgREST and asserts isolation end-to-end.
 
+## Scan privacy model (Wave 5 Item 28)
+
+When the public credential page `/p/[publicToken]` is viewed, `app/actions/scans.ts`
+inserts a `credential_scanned` event into `pet_events`.  The scan event has a strict
+privacy contract enforced at the insert site — **no IP address and no geolocation are
+ever stored** in the payload.  The payload contains only:
+- `is_self_scan: boolean` — `true` when the viewer is the current owner.
+- `viewer_authenticated: boolean` — `true` when the viewer is logged in.
+
+Author role assignment:
+- `author_role = 'owner'` — viewer is the pet's current owner (self-scan).
+- `author_role = 'scanner'` — viewer is anyone else (anonymous or authenticated non-owner).
+
+**Retention (TTL = 90 days, owner-approved):**  
+`credential_scanned` events with `author_role='scanner'` are purged after 90 days by
+the daily cron `/api/cron/purge-scan-events` (`lib/scan-retention.ts`).  Self-scan
+events (`author_role='owner'`) are NOT purged — they are part of the owner's own
+history.
+
+Append-only exception (migration 0104 + `db/triggers.sql`):  
+The `enforce_pet_events_append_only` trigger now includes a **narrow second path**
+(`app.allow_scan_purge = 'true'` session GUC) that permits DELETE exclusively for
+scanner events older than the TTL.  Every purged row produces an `audit_log` entry
+(action `scan_event_purged`).  The general mutation escape hatch
+(`app.allow_event_mutation`) is unaffected and still requires an accountable actor UUID.
+
+**Owner-dashboard impact:**  
+`lib/owner-nudges.ts` counts external scans within a `SCAN_ACTIVITY_WINDOW_DAYS = 90`
+window — intentionally aligned with the TTL.  After purge, the count remains accurate
+because the retained rows are exactly the rows the window sees.  The scan-activity
+nudge is informational only (never a surveillance signal) and derives from the owner's
+own pets.
+
+**Ties Item 31:**  
+This section is the "scan privacy" entry for the consolidated "Privacidad y manejo de
+datos" checklist that Item 31 will build.
+
 ## PII baseline & subject rights (Ley 25.326)
 
 Compliance PR 1 (2026-05-28) ancla las bases de la Ley 25.326 al schema:
