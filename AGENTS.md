@@ -264,6 +264,7 @@ None of these are blockers for v1. The data model accepts them without rework; t
 - `tier_0_show_branding` (bool, default false) — opt-in to appear on public credentials of pets in this org's custody / recent followup window
 - `jurisdiction_country` (default `'AR'`), `jurisdiction_province?`, `jurisdiction_locality?` — HQ location
 - `status` (enum: `active | suspended | dissolved`)
+- `capacity_dogs?`, `capacity_cats?`, `capacity_other?`, `capacity_total?` (integer NULL) — declared shelter capacity (Wave 3 Item 16, migration 0102). All nullable — capacity is optional. Occupancy is always derived from active `shelter_custody` ownerships via `lib/org-census.ts` (pure projection — see §Projections). Only editable by org admins in the `/configuracion` page "Capacidad" section, which is gated to `shelter | rescue_network` org types.
 - `created_at`, `updated_at`, `created_by_user_id`
 
 ### `OrganizationCoverage` — where the org operates

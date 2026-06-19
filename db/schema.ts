@@ -788,6 +788,13 @@ export const organizations = pgTable(
     // Old columns kept for backward compatibility — dropped in a later deploy.
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
     locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
+    // Declared shelter capacity (Item 16 D1, migration 0102). All nullable — capacity is optional.
+    // Occupancy is always derived from active shelter_custody ownerships (lib/org-census.ts),
+    // never stored here. See docs/superpowers/specs/2026-06-18-wave3-org-ops-handoff.md §Item 16.
+    capacityDogs: integer("capacity_dogs"),
+    capacityCats: integer("capacity_cats"),
+    capacityOther: integer("capacity_other"),
+    capacityTotal: integer("capacity_total"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdByUserId: uuid("created_by_user_id").references(() => profiles.id, {

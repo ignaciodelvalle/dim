@@ -82,8 +82,8 @@ describe("buildOrgNavFlat", () => {
     expect(buildOrgNavFlat("ORG-ABC")).toHaveLength(14);
   });
 
-  it("produces 17 items when all gated capabilities are granted", () => {
-    expect(buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS })).toHaveLength(17);
+  it("produces 18 items when all gated capabilities are granted", () => {
+    expect(buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS })).toHaveLength(18);
   });
 
   it("hides Ingresos, Check-ins and Permisos without their capabilities", () => {
@@ -452,7 +452,7 @@ describe("ADMIN_NAV_FLAT — derived flat list", () => {
  * Frozen href snapshot: the FULL set of org hrefs with ALL capabilities granted.
  * Hard-coded so a dropped href shrinks the sections union but NOT this set —
  * the invariant test genuinely catches membership regressions (non-tautological).
- * 17 hrefs total (14 ungated + 3 gated).
+ * 18 hrefs total (14 ungated + 4 gated).
  */
 const ORG_HREF_SNAPSHOT = new Set([
   "/org/ORG-ABC",
@@ -472,6 +472,7 @@ const ORG_HREF_SNAPSHOT = new Set([
   "/org/ORG-ABC/cobertura",
   "/org/ORG-ABC/admin/permisos",
   "/org/ORG-ABC/configuracion",
+  "/org/ORG-ABC/censo",
 ]);
 
 describe("buildOrgNav — section invariants", () => {

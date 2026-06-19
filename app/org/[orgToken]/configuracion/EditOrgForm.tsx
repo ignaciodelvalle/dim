@@ -11,6 +11,9 @@ import {
   updateOrganizationAction,
 } from "@/src/modules/organizations/actions";
 
+// Shelter and rescue_network org types show the capacity section (Item 16 D1).
+const SHELTER_TYPES = new Set<string>(["shelter", "rescue_network"]);
+
 type Props = {
   organization: Pick<
     Organization,
@@ -23,10 +26,21 @@ type Props = {
     | "description"
     | "personeriaJuridicaNumber"
     | "tier0ShowOriginOrg"
+    | "orgType"
+    // Capacity columns (Item 16 D1, migration 0102).
+    | "capacityDogs"
+    | "capacityCats"
+    | "capacityOther"
+    | "capacityTotal"
   >;
 };
 
 const initialState: UpdateOrgFormState = { error: null };
+
+function capacityStr(val: number | string | null | undefined): string {
+  if (val === null || val === undefined) return "";
+  return String(val);
+}
 
 export function EditOrgForm({ organization }: Props) {
   const [state, formAction, isPending] = useActionState(updateOrganizationAction, initialState);
@@ -41,6 +55,13 @@ export function EditOrgForm({ organization }: Props) {
   const [personeriaJuridicaNumber, setPersoneriaJuridicaNumber] = useState(
     organization.personeriaJuridicaNumber ?? "",
   );
+
+  // Capacity fields (shelters only).
+  const isShelter = SHELTER_TYPES.has(organization.orgType);
+  const [capacityDogs, setCapacityDogs] = useState(capacityStr(organization.capacityDogs));
+  const [capacityCats, setCapacityCats] = useState(capacityStr(organization.capacityCats));
+  const [capacityOther, setCapacityOther] = useState(capacityStr(organization.capacityOther));
+  const [capacityTotal, setCapacityTotal] = useState(capacityStr(organization.capacityTotal));
 
   return (
     <form action={formAction} className="space-y-5 max-w-xl">
@@ -162,6 +183,92 @@ export function EditOrgForm({ organization }: Props) {
           refugio de origen de la mascota.
         </p>
       </div>
+
+      {/* Shelter capacity section (Item 16 D1) — only for shelter / rescue_network orgs */}
+      {isShelter && (
+        <fieldset className="space-y-4 rounded-[6px] border border-ln-op-line p-4">
+          <legend className="px-1 text-[13px] font-semibold text-ln-op-ink">Capacidad</legend>
+          <p className="text-[12px] text-ln-op-mute -mt-2">
+            Declarar la capacidad te permite calcular tu ocupación y recibir alertas cuando estés
+            llegando al límite. Los campos son opcionales — podés completar solo los que
+            correspondan.
+          </p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <LnField label="Perros" hint="Capacidad máxima de perros.">
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  name="capacityDogs"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={99999}
+                  value={capacityDogs}
+                  onChange={(e) => setCapacityDogs(e.target.value)}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  placeholder="—"
+                />
+              )}
+            </LnField>
+
+            <LnField label="Gatos" hint="Capacidad máxima de gatos.">
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  name="capacityCats"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={99999}
+                  value={capacityCats}
+                  onChange={(e) => setCapacityCats(e.target.value)}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  placeholder="—"
+                />
+              )}
+            </LnField>
+
+            <LnField label="Otros" hint="Capacidad máxima de otras especies.">
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  name="capacityOther"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={99999}
+                  value={capacityOther}
+                  onChange={(e) => setCapacityOther(e.target.value)}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  placeholder="—"
+                />
+              )}
+            </LnField>
+
+            <LnField label="Total" hint="Capacidad máxima total (todas las especies).">
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  name="capacityTotal"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={99999}
+                  value={capacityTotal}
+                  onChange={(e) => setCapacityTotal(e.target.value)}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  placeholder="—"
+                />
+              )}
+            </LnField>
+          </div>
+        </fieldset>
+      )}
 
       {state.error && <LnAlert variant="danger">{state.error}</LnAlert>}
       {state.ok && <LnAlert variant="success">Cambios guardados correctamente.</LnAlert>}

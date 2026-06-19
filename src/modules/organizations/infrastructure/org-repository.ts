@@ -106,6 +106,11 @@ export class OrgRepository {
         // Legacy columns (latitude / longitude) stay in the DB until Phase C drop.
         | "locationLat"
         | "locationLng"
+        // Shelter capacity (Item 16 D1, migration 0102). Nullable — not set by non-shelter orgs.
+        | "capacityDogs"
+        | "capacityCats"
+        | "capacityOther"
+        | "capacityTotal"
       >
     > & { updatedAt?: Date },
     e: Exec = db,
