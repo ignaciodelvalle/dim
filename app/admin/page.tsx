@@ -62,6 +62,23 @@ export default async function AdminDashboardPage() {
         />
       </section>
 
+      {/* National analytics shortcut (Item 22) — admin sees all provinces */}
+      <OpCard>
+        <OpCardHead title="Analítica nacional" />
+        <OpCardBody>
+          <p className="text-[13px] text-ln-op-ink-2">
+            Vista de analytics con cobertura de todas las provincias. Ranking cross-region, mapa
+            nacional y métricas agregadas del sistema.
+          </p>
+          <Link
+            href="/gob/analytics"
+            className="mt-2 inline-block text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+          >
+            Ir a Analítica nacional {"→"}
+          </Link>
+        </OpCardBody>
+      </OpCard>
+
       {/* Callout: link to govt portal */}
       <OpCallout
         icon={<span>&#127970;</span>}

@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 
 import {
   type BusinessRuleFormState,
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
+import type { RuleImpactPreviewInput } from "@/app/actions/rule-impact-preview";
+import { RuleImpactBanner } from "@/components/admin/RuleImpactBanner";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { DOG_BREEDS, POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/breeds";
 
@@ -54,6 +56,18 @@ export function PppBreedListForm({
     setBreeds((prev) => [...prev, b]);
     setCustomBreed("");
   }
+
+  // Build preview input — recomputed when the breeds selection changes.
+  const previewInput = useMemo<RuleImpactPreviewInput | null>(() => {
+    if (breeds.length === 0) return null;
+    return {
+      ruleType: "ppp_breed_list",
+      breeds,
+      country,
+      province,
+      locality,
+    };
+  }, [breeds, country, province, locality]);
 
   return (
     <form action={formAction} className="space-y-5">
@@ -109,6 +123,9 @@ export function PppBreedListForm({
           </button>
         </div>
       </div>
+
+      {/* Impact preview — shown before submission */}
+      <RuleImpactBanner input={previewInput} />
 
       <LnField label="Notas internas (visible solo a admin/govt)">
         {({ id, describedBy, invalid }) => (
