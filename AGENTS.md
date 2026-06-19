@@ -731,6 +731,46 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - **PII never leaves the database in projections.** Owner names, phone numbers, exact addresses never appear in public or analyst views. `jurisdiction_locality` (barrio) is the smallest unit exposed publicly.
 - **k-anonymity for small cells — enforced.** Any aggregate that would expose fewer than `k` pets in a region (default `k=5`) is suppressed or rolled up to the next coarser jurisdiction level. Prevents accidental re-identification in sparse data. **Enforcement boundary: `lib/metrics/anonymity.ts` → `suppressSmallCells`.** The `SuppressedCells` branded type makes it a compile-time error to return a raw cell array without suppression.
 - **Authorized actors (vet portal, gov portal, when they exist) see PII within their legitimate scope only**, gated by Postgres Row Level Security. The data layer enforces tier visibility, not just the app code.
+### Authorization architecture (Wave 5 Item 26)
+
+DIM uses a **two-layer authorization model**. Understanding both layers is critical when adding new data paths or new tables.
+
+**Layer 1 — Server Actions (primary authz gate, mandatory):**
+Every mutation and every sensitive read goes through a Next.js Server Action
+backed by Drizzle ORM. Drizzle connects via `DATABASE_URL`, which resolves to
+a role with `BYPASSRLS` privilege (the `postgres` / `service_role` superuser).
+The action checks the session, the caller's role, and ownership before any SQL.
+This is the AUTHORITATIVE gate; it cannot be bypassed from the browser.
+Reference: `app/actions/`, `lib/`, any file ending in `Action` or `query*`.
+
+**Layer 2 — Postgres RLS (defense-in-depth backstop):**
+PostgREST (the supabase-js / publishable-key surface) is subject to PostgreSQL
+Row Level Security. If a Next.js vulnerability, a future direct-PostgREST
+integration, or a misconfigured supabase-js client is ever exposed, RLS is the
+last line of defense that keeps tenant data isolated at the DB level.
+
+Key invariant: **service-role and `postgres` connections bypass RLS by design**
+(`BYPASSRLS` privilege confirmed on both roles). Every Drizzle server-action
+query, the public `/p/[publicToken]` credential page, and all Tier-2 routes go
+through this BYPASSRLS connection — RLS never fires for these paths. Enabling
+or tightening an RLS policy CANNOT break the app. Enabling deny-all for
+PostgREST writes is always safe.
+
+RLS history and coverage:
+- All PII / tenant-scoped tables have RLS enabled (migration 0086, the
+  authoritative list is in `__tests__/rls/coverage.test.ts → RLS_REQUIRED`).
+- `__tests__/rls/matrix.test.ts` exercises SELECT via supabase-js (PostgREST)
+  for the role × table matrix (4 roles × 9 tables currently under test).
+- `pnpm rls:smoke` runs a cross-account smoke against a live local stack.
+- `e2e/cross-tenant-isolation.spec.ts` (Wave 5 Item 26) validates both the
+  action-edge authz and the PostgREST RLS layer end-to-end via Playwright.
+
+When adding a new PII or tenant-scoped table:
+1. Enable RLS in the migration (`ALTER TABLE … ENABLE ROW LEVEL SECURITY`).
+2. Add it to `RLS_REQUIRED` in `__tests__/rls/coverage.test.ts`.
+3. Add appropriate policies (or document it as intentional deny-all with a reason).
+4. If the table belongs to an owner, add it to the cross-tenant e2e probes.
+
 - **Owner-facing RLS lives in `db/rls.sql`.** It enables RLS on the seven core tables (`profiles`, `pets`, `ownerships`, `pet_events`, `reminders`, `attachments`, `notifications`) and locks every PostgREST read/write to the authenticated owner. `pet_events` has no UPDATE or DELETE policy — the append-only rule (`AGENTS.md → Core principles #2`) is enforced both by code discipline and by RLS. Apply via Supabase Studio (same pattern as `db/welfare_rls.sql` and `db/organizations_rls.sql`); do not use `pnpm db:push`, which would propose dropping unmodeled policies. Server-side reads via Drizzle bypass RLS by design — the public credential page at `/p/{public_token}` continues to work because its server component goes through Drizzle, not supabase-js. Verify the policies via `pnpm rls:smoke`, which runs two test accounts against PostgREST and asserts isolation end-to-end.
 
 ## Scan privacy model (Wave 5 Item 28)
@@ -904,8 +944,8 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Event sourcing hardening (Zod schemas estrictos + append-only triggers + validateEventPayload) | `lib/event-schemas.ts` + DB triggers |
 | ✅ | Bidirectional geocoding (text ↔ map pin via Nominatim/OSM) | `components/LocationFields` |
 | ✅ | Cron infra (CRON_SECRET + helper-lib + thin route) | `app/api/cron/*` |
-| ✅ | RLS aplicada en 7 core tables + welfare + organizations | `db/rls.sql`, `db/welfare_rls.sql`, `db/organizations_rls.sql` |
-| ✅ | RLS smoke test cross-account vía PostgREST | `pnpm rls:smoke` |
+| ✅ | RLS aplicada en todas las tablas PII/tenant (43 tablas) — authz model documentado (Wave 5 Item 26) | migrations 0086 + 0105; `__tests__/rls/coverage.test.ts`; `e2e/cross-tenant-isolation.spec.ts` |
+| ✅ | RLS smoke test cross-account vía PostgREST (extendido Item 26: pet_identifications, pet_transfers) | `pnpm rls:smoke` |
 | ✅ | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D complete | `components/layout/AppShell.tsx` + `lib/shell-nav.ts` (auth-aware `resolveShellNav`). All surfaces migrated; legacy `LnOwnerNav`/`AppHeader`/`OpShell` deleted (Phase D). Plan: `docs/superpowers/plans/2026-06-18-unified-app-shell.md` |
 | 🟢 | Localities catalog INDEC (catalog reference) | spec + plan listos |
 | ⚪ | Push notifications (iOS PWA limitations) | — |
