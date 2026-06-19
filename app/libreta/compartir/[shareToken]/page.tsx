@@ -110,7 +110,8 @@ export default async function PublicLibretaPage({
   const grouped = groupLibretaEvents(events);
 
   return (
-    <main className="min-h-screen bg-[var(--color-ln-paper)] p-6">
+    // Landing shell (AppShell variant=landing) owns #main-content + min-height.
+    <div className="bg-[var(--color-ln-paper)] p-6">
       <div className="mx-auto max-w-2xl space-y-6 pb-20 pt-6">
         {/* Vet login banner — encourages vets to sign in for full write access. */}
         <div
@@ -201,7 +202,7 @@ export default async function PublicLibretaPage({
 
         <ViewLogger shareToken={shareToken} />
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -226,7 +227,8 @@ function TerminalShell({
     context.species === "dog" ? "Canino" : context.species === "cat" ? "Felino" : "Mascota";
   const createdAt = new Date(context.createdAtIso).toLocaleDateString("es-AR");
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--color-ln-paper)] p-6">
+    // Landing shell owns #main-content + min-height; this is centered content.
+    <div className="flex min-h-[70vh] items-center justify-center bg-[var(--color-ln-paper)] p-6">
       <div className="w-full max-w-md space-y-5 text-center">
         <div className="mx-auto inline-block">
           <span className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-[var(--color-ln-stripe)] ring-4 ring-[var(--color-ln-line-strong)]">
@@ -266,7 +268,7 @@ function TerminalShell({
           Desde el perfil público podés escribirle a la dueña para pedir un acceso nuevo.
         </p>
       </div>
-    </main>
+    </div>
   );
 }
 
