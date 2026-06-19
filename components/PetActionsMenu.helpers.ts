@@ -26,20 +26,18 @@ export function deriveActionItems(input: PetActionsMenuInput): ActionItem[] {
   const { pet, accessPath, ownershipRole, hasPendingReturnProposal } = input;
   const items: ActionItem[] = [];
 
-  // "Anotar algo" — always visible for owner and org.
+  // "Registrar evento" — the single annotate entry point (Item 6, D7).
+  // /anotar is the one canonical capture hub: it carries the quick-capture box
+  // plus the full category-grouped catalog (ALL_CAPTURE_OPTIONS). The old
+  // second entry ("Todos los eventos" → /eventos/nuevo) was a duplicate catalog
+  // and is gone — /eventos/nuevo now 308-redirects to /anotar. The label uses a
+  // verb + object per the four-verbs rule (AGENTS.md §Design rules #2): "Anotar
+  // algo" was vague and objectless.
   items.push({
     id: "anotar",
-    label: "Anotar algo",
+    label: "Registrar evento",
     href: `/mis-mascotas/${pet.publicToken}/anotar`,
     variant: "primary",
-  });
-
-  // "Todos los eventos" — always.
-  items.push({
-    id: "new-event",
-    label: "Todos los eventos",
-    href: `/mis-mascotas/${pet.publicToken}/eventos/nuevo`,
-    variant: "default",
   });
 
   // "Editar mascota" — always. Opens the editar-mascota sheet; the

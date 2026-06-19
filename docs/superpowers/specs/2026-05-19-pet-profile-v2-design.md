@@ -10,6 +10,8 @@
 > **Versiones previas:** 1.0 — diseño inicial con achievements POC.
 >
 > **Depende de:** los specs cases-system (`2026-05-19-cases-event-attachment-design.md` + `2026-05-19-cases-lifecycles-design.md`) si se quiere mostrar "Casos abiertos" en el profile. Independiente del resto.
+>
+> **Cierre v2.1 (2026-06-18, Item 6 — `2026-06-18-pet-profile-v21-reorder-and-action-consolidation-design.md`):** dos puntos del v2 quedaron resueltos. (1) **Timeline = tab (cerrado).** El v2 spec proponía "sacar el timeline del perfil → vive en `/libreta` y `/historial`"; la implementación lo trajo de vuelta como pestaña y v2.1 lo ratifica: el timeline vive como tabs dentro del perfil (Resumen · Libreta · Vacunas · Historial), y `/libreta`, `/historial`, `/vacunas` son redirects permanentes a `?tab=…`. (2) **PPP + perro de servicio son credential cards dentro de Resumen** (sección 03), no banners full-width arriba del hero. El orden final del perfil es identidad (hero) → avisos (`PetAlertStrip` priorizado) → acciones → tabs; credenciales y logros dentro de Resumen.
 
 ---
 
