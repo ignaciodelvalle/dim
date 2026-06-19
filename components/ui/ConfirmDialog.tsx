@@ -49,6 +49,12 @@ export type ConfirmDialogProps = {
   pending?: boolean;
   /** Ref to the element that triggered the dialog — focus returns here on close. */
   triggerRef?: React.RefObject<HTMLElement | null>;
+  /**
+   * Optional extra content rendered between the description and the footer
+   * actions — e.g. a mandatory-reason textarea. The confirm button's enabled
+   * state is the caller's responsibility (gate `onConfirm` on validity).
+   */
+  children?: React.ReactNode;
 };
 
 export function ConfirmDialog({
@@ -62,6 +68,7 @@ export function ConfirmDialog({
   tone = "danger",
   pending = false,
   triggerRef,
+  children,
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useRef(`confirm-dialog-title-${Math.random().toString(36).slice(2)}`).current;
@@ -128,6 +135,9 @@ export function ConfirmDialog({
           </p>
         )}
       </div>
+
+      {/* Optional extra content (e.g. mandatory-reason textarea) */}
+      {children}
 
       {/* Footer actions */}
       <div className="flex gap-2 justify-end px-5 py-4 border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)]">

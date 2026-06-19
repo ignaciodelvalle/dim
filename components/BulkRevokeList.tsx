@@ -21,6 +21,8 @@ import { type BulkRevokeKind, bulkRevokeAction } from "@/app/actions/bulk-action
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { MOTIVO_MIN } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
+import { OpBulkBar } from "@/components/ui/dashboard";
+import { isPageFullySelected, toggleSelectPage, toggleSelection } from "@/lib/bulk-select";
 import { createClient } from "@/lib/supabase/client";
 
 export interface BulkRevokableItem {
@@ -45,19 +47,33 @@ export function BulkRevokeList({ items, targetKind, actorUserId }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
 
   function toggle(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelected((prev) => toggleSelection(prev, id));
   }
 
   const selectedItems = items.filter((i) => selected.has(i.id));
-  const hasSelection = selectedItems.length > 0;
+
+  // Header checkbox controls the revocable rows on the page only. "select all N
+  // in query" is intentionally out of scope here — every revoke needs shared
+  // evidence + a ≥30-char motivo, so a query-wide blind revoke would be unsafe.
+  const revocableIds = items.filter((i) => i.revocable).map((i) => i.id);
+  const allPageSelected = isPageFullySelected(selected, revocableIds);
+
+  function handleToggleSelectPage() {
+    setSelected((prev) => toggleSelectPage(prev, revocableIds));
+  }
 
   return (
     <>
+      {revocableIds.length > 0 && (
+        <div className="flex items-center gap-2 px-1">
+          <LnCheckbox
+            checked={allPageSelected}
+            onChange={handleToggleSelectPage}
+            aria-label="Seleccionar todas las filas revocables de esta página"
+          />
+          <span className="text-[12px] text-ln-op-mute">Seleccionar página</span>
+        </div>
+      )}
       <ul className="space-y-2">
         {items.map((item) => (
           <li key={item.id} className="rounded-lg border border-ln-op-line px-4 py-3">
@@ -78,30 +94,21 @@ export function BulkRevokeList({ items, targetKind, actorUserId }: Props) {
         ))}
       </ul>
 
-      {hasSelection && (
-        <div className="sticky bottom-4 z-30 mx-auto mt-6 flex max-w-3xl items-center justify-between gap-3 rounded-2xl border border-ln-op-danger bg-ln-op-card px-4 py-3 shadow-lg">
-          <span className="text-sm text-ln-op-ink-2">
-            {selectedItems.length} seleccionad{selectedItems.length === 1 ? "o" : "os"} para
-            revocación
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSelected(new Set())}
-              className="rounded-md px-3 py-1.5 text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe"
-            >
-              Limpiar
-            </button>
-            <button
-              type="button"
-              onClick={() => setModalOpen(true)}
-              className="rounded-md bg-ln-op-danger px-4 py-1.5 text-sm font-medium text-white hover:bg-ln-op-danger"
-            >
-              Revocar seleccionados →
-            </button>
-          </div>
-        </div>
-      )}
+      <OpBulkBar
+        count={selectedItems.length}
+        onClear={() => setSelected(new Set())}
+        actions={[
+          {
+            key: "revoke",
+            label: "Revocar seleccionados",
+            tone: "danger",
+            // Opens the evidence+motivo modal rather than a reason-only confirm:
+            // bulkRevokeAction requires ≥1 attachment + a ≥30-char motivo, which
+            // the generic ConfirmDialog reason field cannot collect.
+            onRun: () => setModalOpen(true),
+          },
+        ]}
+      />
 
       {modalOpen && (
         <BulkRevokeModal

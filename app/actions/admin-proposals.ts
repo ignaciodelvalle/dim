@@ -23,7 +23,9 @@ export async function logPiiQueryForAuthority(
   actorUserId: string,
   query: string,
   resultCount: number,
-  surface: "users" | "organizations",
+  // "omnibox" is the operator global-search surface (Wave 2 Item 10). It is a
+  // free-form JSONB payload value, not a schema column — no migration needed.
+  surface: "users" | "organizations" | "omnibox",
 ): Promise<void> {
   await db.insert(auditLog).values({
     actorUserId,

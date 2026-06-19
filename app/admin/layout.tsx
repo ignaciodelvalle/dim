@@ -4,7 +4,7 @@ import Link from "next/link";
 import { logoutAction } from "@/app/actions/auth";
 import { ADMIN_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import type { NavSection } from "@/components/ui/dashboard";
-import { OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
+import { OpOmnibox, OpRail, OpShell, OpTopbar } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { getProfileCached } from "@/lib/request-cache";
@@ -44,9 +44,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         }))
       : ADMIN_NAV_SECTIONS;
 
-  // Right-side actions: role + scope + cross-portal links.
+  // Right-side actions: global search omnibox + role + scope + cross-portal links.
   const actions = (
     <div className="flex items-center gap-4 text-xs text-ln-op-mute">
+      <OpOmnibox />
       <span>
         <span className="font-semibold text-ln-op-ink-2">{profile.role}</span>
         <span className="mx-1">·</span>

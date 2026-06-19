@@ -15,6 +15,9 @@ export { OpCard, OpCardHead, OpCardBody } from "./OpCard";
 export { OpBreach } from "./OpBreach";
 export { OpCallout } from "./OpCallout";
 export { OpStateBadge } from "./OpStateBadge";
+export { OpOmnibox } from "./OpOmnibox";
+export { OpBulkBar } from "./OpBulkBar";
+export type { OpBulkAction } from "./OpBulkBar";
 export {
   OpFormAlert,
   OpFieldLabel,
