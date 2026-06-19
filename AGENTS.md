@@ -999,6 +999,61 @@ If a new feature seems to need an exception, write the exception into the PR des
 
 - **Agente conversacional con LLM (deferred, future)** — Layer on top of the captura-rápida registry: same `EVENT_CAPTURE_REGISTRY` becomes tool definitions for Claude/GPT; the local matcher stays as offline fallback. **Forward-compat that holds today:** (a) every event-creation route is URL-addressable with query-param prefill — new event forms MUST accept their payload fields as `searchParams` and register their slots in `event-capture-registry.ts`. (b) Per-event-type Zod schemas (`lib/event-schemas.ts`, `validateEventPayload`) double as function-calling tool definitions — the same schema validates the human form submit and any future LLM structured output. (c) The slugs at `/mis-mascotas/[token]/eventos/nuevo/*` are public contract — rename before launch, freeze after. **Design principles when the LLM lands:** agent proposes, user confirms — never silent writes to `pet_events`; audio is not persisted (events are the source of truth, not the recording); the agent reads as well as writes — natural-language queries open filtered timeline projections, not a parallel chat surface. Legally-fraught events (`abandonment_reported`, `maltreatment_reported`, `dangerous_breed_attested`) are out of agent scope — those force the full manual flow with all disclaimers visible. LLM provider, hosting jurisdiction, voice (Web Speech API) and iOS PWA audio fallback TBD when implementation lands.
 
+## Test-runner conventions (Item 29 — Wave 5)
+
+These conventions were locked after fixing chronic worker-exit errors and suite
+instability (Item 29, 2026-06-19). Respect them to keep the suite green and fast.
+
+### DB connection pool
+
+`db/index.ts` applies a **test-mode pool cap** when `VITEST=true` or
+`NODE_ENV=test`:
+
+- `max: 3` — prevents exhausting the local Supabase limit (100 connections) across
+  a 220+ file suite.
+- `idle_timeout: 20 s` — returns connections quickly between files.
+- `max_lifetime: 60 s` — recycles long-lived connections.
+- `connect_timeout: 10 s` — fails fast when the local stack is not running.
+
+In production none of these apply; Supavisor/pgBouncer sits in front anyway.
+
+### Global teardown
+
+`__tests__/global-setup.ts` is registered as `globalSetup` in `vitest.config.ts`.
+Its `teardown()` drains the postgres.js pool via `db.$client.end()` after the
+full suite finishes. This prevents "Worker exited unexpectedly" errors from open
+sockets being forcibly torn down by the process exit handler.
+
+**Do not remove the `globalSetup` entry** — the worker-exit errors come back.
+
+### Pet-cache fitness sweep scoping
+
+`__tests__/pet-cache-rederivation.test.ts` Layer 1 sweeps only pets whose
+`publicToken LIKE 'DIM-%'` (seed pets created by `generatePublicToken()`). It
+does NOT sweep all pets in the DB — that makes the sweep state-dependent on
+other test files' cleanup and causes intermittent flakes. The fitness signal is
+preserved because seed pets go through the REAL writers.
+
+**Do not change the sweep back to `SELECT * FROM pets`** — the flake returns.
+
+### Pet-cache sweep: skip bootstrap pets from outside the sweep
+
+If bootstrap creates pets whose `publicToken` does not start with `DIM-`
+(e.g. direct INSERT with a synthetic token), the sweep ignores them by design.
+Use `generatePublicToken()` from `lib/publicToken.ts` for any seed pet whose
+cache fitness you want CI to enforce.
+
+### Migration idempotency
+
+Migration `0084_drop_legacy_chip_tattoo_columns.sql` now drops
+`pets_microchip_lookup_idx` (created by 0012) before dropping the
+`microchip_id` column. This makes the migration succeed cleanly on a fresh
+migration-order run (not just on a drizzle-kit-push-first bootstrap).
+
+All migrations use `IF EXISTS` / `IF NOT EXISTS` guards — do not remove them.
+
+---
+
 ## How Claude should work in this repo
 
 - **Always read this file first** in a new session.

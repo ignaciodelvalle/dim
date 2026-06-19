@@ -14,11 +14,20 @@
 --
 -- Dependent objects dropped first (IF EXISTS guards for idempotency):
 --   INDEX  pets_microchip_unique_when_present  (partial unique on microchip_id)
+--   INDEX  pets_microchip_lookup_idx           (non-unique lookup index from 0012)
 --   INDEX  pets_tattoo_code_idx               (partial index on tattoo_code)
 --   CHECK  pets_tattoo_location_valid         (tattoo_location enum guard)
 
 -- 1. Drop the partial unique index on microchip_id.
 DROP INDEX IF EXISTS pets_microchip_unique_when_present;
+
+-- 1b. Drop the non-unique lookup index on microchip_id created by 0012.
+--     Without this, the DROP COLUMN below fails with "other objects depend on it"
+--     when migrations are replayed on a fresh DB (migration-first order, not
+--     drizzle-kit-push-first). Added here (post-apply) rather than a new
+--     migration because the column no longer exists on already-bootstrapped DBs
+--     and the IF EXISTS guard makes this idempotent.
+DROP INDEX IF EXISTS pets_microchip_lookup_idx;
 
 -- 2. Drop the partial index on tattoo_code.
 DROP INDEX IF EXISTS pets_tattoo_code_idx;
