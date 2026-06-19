@@ -39,6 +39,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/disputas",
   "/gob/maltrato",
   "/gob/decomisos",
+  "/gob/campañas",
 ]);
 
 const ADMIN_HREF_SNAPSHOT = new Set([
@@ -107,8 +108,8 @@ describe("Phase B operator parity — gob", () => {
     expect(allHrefs.length).toBe(unique.size);
   });
 
-  it("has at least 14 items (matches GOB_HREF_SNAPSHOT cardinality)", () => {
-    expect(allHrefs.length).toBeGreaterThanOrEqual(14);
+  it("has at least 15 items (matches GOB_HREF_SNAPSHOT cardinality)", () => {
+    expect(allHrefs.length).toBeGreaterThanOrEqual(15);
   });
 
   it("sections form the expected structure (5 groups including 1 unlabeled)", () => {

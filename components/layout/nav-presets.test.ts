@@ -250,6 +250,10 @@ describe("GOB_NAV — no route regression", () => {
   it("contains /gob/analytics (wired to nav — was deferred in PR2)", () => {
     expect(hrefs).toContain("/gob/analytics");
   });
+
+  it("contains /gob/campañas (Item 20 — campaign performance)", () => {
+    expect(hrefs).toContain("/gob/campañas");
+  });
 });
 
 describe("ADMIN_NAV — no route regression", () => {
@@ -309,6 +313,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/disputas",
   "/gob/maltrato",
   "/gob/decomisos",
+  "/gob/campañas", // Item 20 — campaign performance
 ]);
 
 describe("GOB_NAV_SECTIONS — section invariants", () => {
