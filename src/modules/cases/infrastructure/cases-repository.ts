@@ -105,14 +105,10 @@ export class CasesRepository {
       status: "open",
       primarySubjectKind: input.primarySubjectKind,
       primaryPetId: input.primaryPetId ?? null,
-      // Canonical write (P3 Phase B). Input arrives as locationLat/locationLng.
+      // Canonical write (P3 Phase C). Legacy primary_location_lat/lng dropped in 0102.
+      // cases_subject_location_consistency now references location_lat/lng directly.
       locationLat: input.locationLat ?? null,
       locationLng: input.locationLng ?? null,
-      // cases_subject_location_consistency CHECK still references primary_location_lat/lng
-      // (constraint added in 0033, not updated in 0101). Mirror canonical to legacy so
-      // the constraint is satisfied until Phase C drops both columns and the constraint.
-      primaryLocationLat: input.locationLat ?? null,
-      primaryLocationLng: input.locationLng ?? null,
       applicantUserId: input.applicantUserId ?? null,
       jurisdictionCountry: input.jurisdictionCountry ?? "AR",
       jurisdictionProvince: input.jurisdictionProvince ?? null,
