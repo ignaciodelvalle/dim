@@ -24,6 +24,7 @@ The full design — principles, data model, event catalog, privacy tiers, dashbo
 | Owner portal | `/(app)` (e.g. `/inicio`, `/mis-mascotas`) | Pet owners + vets (personal accounts) | Live |
 | Org portal | `/org/[orgToken]` | Org members (shelter, clinic, rescue network, sanitary authority) — capability-scoped | Live |
 | Govt portal | `/gob` | Govt institutional accounts (jurisdiction-scoped) + admin | Live |
+| Mortality & disposal dashboard | `/gob/mortalidad` | Govt (jurisdiction-scoped) + admin — disposition mix, traceable-disposal rate, reportable-death share (Ley CABA 5470) | Live |
 | Meta-admin portal | `/admin` | Admin institutional accounts (universal scope) | Live |
 | Independent vet portal | `/pro` | Vets with `professional.provider` capability | Planned (not scaffolded) |
 | Public credential | `/p/[publicToken]` | Anyone (no auth) — Tier 0/1/2 | Live |
