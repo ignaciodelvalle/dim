@@ -14,12 +14,26 @@ import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { resolveGovtOrgForUser } from "@/app/actions/decomiso";
-import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { cases, db, organizations, pets } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/auth-guards";
+import { fetchSeizures } from "@/lib/compliance-metrics";
 import { formatDate } from "@/lib/format";
+import { buildProjectionContext } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 
 import { ReasignarButton } from "./_components/ReasignarButton";
+
+// Human-readable labels for the seizure_motive enum (event-schemas.ts).
+const SEIZURE_MOTIVE_LABELS: Record<string, string> = {
+  maltrato_fisico: "Maltrato físico",
+  abandono_extremo: "Abandono extremo",
+  acumulacion: "Acumulación",
+  trafico: "Tráfico",
+  sin_refugio_critico: "Sin refugio (crítico)",
+  pelea_de_perros: "Pelea de perros",
+  otro: "Otro",
+};
 
 // Phase label for a custody_episode case based on spec section 13.2
 function phaseLabel(status: string, receiverOrgId: string | null): string {
@@ -80,6 +94,16 @@ export default async function DecomisosDashboardPage() {
     .orderBy(desc(cases.openedAt))
     .limit(200);
 
+  // D5 seizures (Item 4) — shelter_intake_recorded(intake_reason='seizure')
+  // in the last 30 days, grouped by seizure_motive, jurisdiction-scoped.
+  // Admin sees universal scope; govt is scoped to their assigned jurisdictions.
+  const seizuresCtx = buildProjectionContext(
+    { role: session.profile.role },
+    session.jurisdictions,
+    windows.trailing30d(),
+  );
+  const seizures = await fetchSeizures(seizuresCtx);
+
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between">
@@ -101,6 +125,40 @@ export default async function DecomisosDashboardPage() {
           {"+ Nuevo decomiso"}
         </Link>
       </header>
+
+      {/* D5 — seizures this period (last 30d) + by-motive breakdown (Ley 14.346). */}
+      <section aria-label="Decomisos del período" className="space-y-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <OpKpi
+            label="Decomisos (30d)"
+            value={String(seizures.total)}
+            tone={seizures.total > 0 ? "warn" : "neutral"}
+            sub="incautaciones por Ley 14.346"
+          />
+        </div>
+        {seizures.byMotive.length > 0 && (
+          <OpCard>
+            <OpCardHead title="Decomisos por motivo (30d)" />
+            <OpCardBody className="p-0">
+              <ul className="divide-y divide-ln-op-line-2">
+                {seizures.byMotive.map((m) => (
+                  <li
+                    key={m.motive}
+                    className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
+                  >
+                    <span className="text-[13px] text-ln-op-ink">
+                      {SEIZURE_MOTIVE_LABELS[m.motive] ?? m.motive}
+                    </span>
+                    <span className="text-[13px] font-semibold text-ln-op-ink tabular-nums">
+                      {m.count}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </OpCardBody>
+          </OpCard>
+        )}
+      </section>
 
       {rows.length === 0 ? (
         <div className="rounded-[6px] border border-dashed border-ln-op-line p-12 text-center space-y-2">

@@ -21,6 +21,7 @@ import { listLocalitiesByProvince } from "@/lib/ar-localidades";
 import { PROVINCES, type ProvinceCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listOpenCasesForAdminPreview, listOpenCasesForGovtPreview } from "@/lib/case-queries";
+import { fetchDangerousBreedCompliance, fetchMicrochipPenetration } from "@/lib/compliance-metrics";
 import { formatDate } from "@/lib/format";
 import {
   fetchActiveZoonosis,
@@ -131,6 +132,8 @@ export default async function GobiernoDashboardPage({
     bitesPer10k,
     activeZoonosis,
     openWelfareReports,
+    microchipPenetration,
+    breedCompliance,
   ] = await Promise.all([
     // Dashboard preview — not a paginated surface: intentionally passes limit without cursor.
     fetchVisiblePendingRequests(profile, jurisdictions, undefined, { limit: 200 }),
@@ -149,6 +152,11 @@ export default async function GobiernoDashboardPage({
     fetchBitesPer10k(ctx12m),
     fetchActiveZoonosis(ctx12m),
     fetchOpenWelfareReportsCount(ctx12m),
+    // Item 4 compliance headline KPIs (C1 microchip penetration, C7 PPP registry).
+    // Penetration/compliance are population-state metrics ("now"); the 12m window
+    // is carried for ctx consistency but not used as a numerator filter.
+    fetchMicrochipPenetration(ctx12m),
+    fetchDangerousBreedCompliance(ctx12m),
   ]);
 
   // --- Casos regulatorios (open/escalated, top 5) -------------------------
@@ -254,6 +262,42 @@ export default async function GobiernoDashboardPage({
           tone="danger"
           sub={`${activeZoonosis.rabies} rabia · ${activeZoonosis.lepto} lepto · ${activeZoonosis.hidat} hidat.`}
           href="/gob/vigilancia"
+        />
+      </section>
+
+      {/* Compliance KPI strip (Item 4) — the two headline "¿se cumple la ley?"
+          numbers: microchip penetration (C1, Ley Prov 14.107) and PPP registry
+          compliance (C7, Ley CABA 4078 / Prov 14.107). C7 reads the honest
+          adoption rate — 0% until the attestation form ships is a real signal. */}
+      <section
+        aria-label="Indicadores de cumplimiento"
+        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+      >
+        <OpKpi
+          label="Penetración de microchip"
+          value={`${microchipPenetration.ratePct}%`}
+          tone={microchipPenetration.ratePct >= 80 ? "ok" : "warn"}
+          bar={microchipPenetration.ratePct}
+          sub={`${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas · Ley 14.107`}
+          href="/gob/analytics"
+        />
+        <OpKpi
+          label="Registro PPP"
+          value={breedCompliance.flaggedCount === 0 ? "—" : `${breedCompliance.ratePct}%`}
+          tone={
+            breedCompliance.flaggedCount === 0
+              ? "neutral"
+              : breedCompliance.ratePct >= 80
+                ? "ok"
+                : "warn"
+          }
+          bar={breedCompliance.flaggedCount === 0 ? undefined : breedCompliance.ratePct}
+          sub={
+            breedCompliance.flaggedCount === 0
+              ? "sin PPP en cobertura · Ley 4078"
+              : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas · Ley 4078`
+          }
+          href="/gob/analytics"
         />
       </section>
 

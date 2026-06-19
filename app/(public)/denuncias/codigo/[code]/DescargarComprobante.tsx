@@ -6,9 +6,14 @@
 // the lightest working option and produces a PDF on every platform that
 // supports print-to-PDF (all modern browsers + iOS Share sheet).
 
+import { deferPrint } from "@/lib/defer-print";
+
 export function DescargarComprobante() {
   function handlePrint() {
-    window.print();
+    // deferPrint schedules window.print() via setTimeout(0) so this handler
+    // returns immediately — the synchronous print-dialog block is no longer
+    // attributed to the interaction, removing the INP warning.
+    deferPrint();
   }
 
   return (

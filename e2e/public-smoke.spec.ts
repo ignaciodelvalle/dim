@@ -47,13 +47,25 @@ for (const { path, landmark } of PUBLIC_ROUTES) {
 
     // 3. Page rendered a content landmark.
     await expect(page.locator(landmark).first()).toBeVisible();
+
+    // 4. At most ONE #main-content landmark. The (public) layout migrated to
+    //    AppShell variant=citizen (Item 7, Phase C) which owns #main-content;
+    //    this guards against the duplicate-<main> regression where a page that
+    //    used to own its own <main> ends up wrapped by a shell that adds another
+    //    (the skip-link target must be unambiguous — WCAG 2.4.1).
+    expect(await page.locator("#main-content").count()).toBeLessThanOrEqual(1);
   });
 }
 
 // A11y checks on static public pages (no auth / no dynamic token required).
 // Scoped to WCAG 2.1 AA; color-contrast is excluded because design-token
 // contrast ratios are validated separately (P-1 in the a11y audit).
-const A11Y_ROUTES = ["/denuncias", "/denuncias/buscar"] as const;
+//
+// `/refugios` was added when the public (public) layout migrated to AppShell
+// variant=citizen (Item 7, Phase C): it exercises the new citizen masthead +
+// footer chrome so the migration cannot regress a11y. (The home `/` lives at
+// app/page.tsx, outside the (public) group, and is not migrated by Phase C.)
+const A11Y_ROUTES = ["/refugios", "/denuncias", "/denuncias/buscar"] as const;
 
 for (const path of A11Y_ROUTES) {
   test(`a11y(axe) ${path} — WCAG 2.1 AA (no critical violations)`, async ({ page }) => {

@@ -229,8 +229,8 @@ DIM must be designed around — not against — the Argentine legal landscape fo
 
 | Law                              | Scope                                                                                  | What it implies for DIM                                                                                                              |
 | -------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **Ley CABA 4078 (2012)**         | Registro de perros potencialmente peligrosos (dangerous-breed registry, CABA owners). | A `potentially_dangerous_breed` flag on `pets` plus an attestation event for owner registration.                                     |
-| **Ley Provincial 14.107 (2010)** | Provincial dangerous-breed registry; **obligatory microchip identification**.          | Microchip data is a real legal artifact, not just a feature. Province-level aggregation matters; our `jurisdiction_province` covers this. |
+| **Ley CABA 4078 (2012)**         | Registro de perros potencialmente peligrosos (dangerous-breed registry, CABA owners). | A `potentially_dangerous_breed` flag on `pets` plus an attestation event for owner registration. **Now a *measured* compliance metric (C7), not just a data field**: `fetchDangerousBreedCompliance` reports attested / flagged by jurisdiction (graceful 0% until the attestation form ships). |
+| **Ley Provincial 14.107 (2010)** | Provincial dangerous-breed registry; **obligatory microchip identification**.          | Microchip data is a real legal artifact, not just a feature. Province-level aggregation matters; our `jurisdiction_province` covers this. **Now a *measured* compliance metric**: microchip penetration (C1) + ISO-validity (C2) report adoption of the legal chip mandate by jurisdiction (`lib/compliance-metrics.ts`). |
 | **Ley CABA 5470 (2015)**         | Cremation process for canines and felines in CABA.                                     | `death_recorded` event payload should carry a `disposition_method` field (`cremation` / `burial` / `other`) for traceability.        |
 | **Ley Nacional 14.346 (1954)**   | Malos tratos / actos de crueldad contra animales.                                      | `maltreatment_reported` events need to eventually feed real complaint pipelines (denuncia integration is downstream of UI).          |
 | **Ley Nacional 25.326 (2000)**   | Protección de Datos Personales. Arts. 4° (purpose), 14 (acceso), 16 (supresión).       | `purpose data_purpose` + `deleted_at` baseline on every PII table; export/erase RPCs (compliance PR 1) live at `/cuenta/privacidad`. |
@@ -658,7 +658,8 @@ When designing a new event with 3+ semantically-similar variants, prefer this um
 
 - `pet_registered.payload.acquisition_method` — `adopted | rescued | purchased | bred | gift | unknown`. Adoption/rescue is the growing modality per EAH 2018; surfacing it lets us measure that trend over time.
 - `pet_registered.payload.potentially_dangerous_breed` (boolean) — flips on the Ley CABA 4078 / Ley Prov 14.107 attestation requirement. Possibly a dedicated `dangerous_breed_attested` event for the legal record itself.
-- `death_recorded.payload.disposition_method` — `cremation | burial | rendering | unknown`, plus optional `facility` (the cremation center / vet clinic that handled the disposition). Ley CABA 5470 traceability.
+
+**Already built — `death_recorded.payload.disposition_method`** (`cremation_collective | cremation_individual_ashes | authorized_cemetery | owner_burial | household_waste | rendering | unknown`), plus optional `facility` (the cremation center / vet clinic that handled the disposition). Captured today by `DeathRecordForm`, normalized via `lib/disposition.ts`, and projected by `lib/mortality-metrics.ts` into the `/gob/mortalidad` dashboard (Ley CABA 5470 traceability). Read from the JSONB payload (`payload->>'disposition_method'`) — not denormalized to a column.
 
 ## Privacy tiers (the public surface)
 
@@ -681,19 +682,32 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - Vaccination coverage by barrio — % of registered pets with up-to-date core vaccines, overdue counts and approximate density
 - Active campaign performance — enrollments, completions, no-shows, geographic reach
 - Mortality clusters — `death_recorded` events by cause and week, map overlay
+- Antibiotic / antimicrobial use density (AMR surveillance) — **A12**, antimicrobial `medication_started` per 1,000 active pets, `lib/surveillance-metrics.ts` `fetchAmrDensity` (classifier `isAntimicrobial` in `lib/drugs.ts`; uncatalogued codes shown as a provisional raw count, not folded into the rate)
+- 10-day rabies-observation compliance + breaches — **A8/A9**, `fetchRabiesObservationCompliance` (Ord. CABA 41.831 art. 9); open-past-10d observations surface as a live `OpBreach`
+- ENO-notification SLA — **A7**, `fetchEnoSla` over `event_notification_outbox` (`target_kind='eno_authority'`): on-time %, breached-row count, median latency. Measures OUR outbox pipeline, not external delivery
+- Mortality clusters — `death_recorded` events by cause and week, by-locality breakdown (`/gob/mortalidad`, live; per-death geo heat layer deferred — payload carries no `location_point`)
+- Disposition mix & traceable-disposal rate (Ley CABA 5470) — `death_recorded.disposition_method` + `facility`, normalized into cremation/burial/rendering/other buckets; traceable-disposal rate = share of deaths with a known method AND a recorded facility; unknown-disposition rate as the compliance gap (`/gob/mortalidad`, live)
+- Reportable-death share — `death_recorded.is_reportable` + `disease_code` breakdown (`/gob/mortalidad`, live)
 - Antibiotic / antimicrobial use density (AMR surveillance)
 - Sterilization rate trend by jurisdiction
+- **Microchip penetration (C1)** — chipped active pets / active pets, by jurisdiction (Ley Prov 14.107). `lib/compliance-metrics.ts → fetchMicrochipPenetration`; locality breakdown is k-anon suppressed. Surfaced on `/gob` Panel.
+- **ISO-validity rate (C2)** — chipped pets with well-formed decomposed ISO fields (`iso_country_code`/`iso_manufacturer_code`/`iso_national_id`) / all chipped (Res. SENASA 284/2024). `fetchIsoValidity`; surfaced on `/gob/usuarios` (Registro).
+- **Chip-fraud signal (C5)** — `microchip_replaced` grouped by `reason`, highlighting `fraud_detected` + `duplicate_detected`. A signal for human review, NOT an auto-classification. `fetchChipReplacementSignal`; surfaced as an `OpBreach` on `/gob/usuarios`.
+- **Dangerous-breed registry compliance (C7)** — PPP-flagged pets attested / all PPP-flagged (Ley CABA 4078 / Prov 14.107). `fetchDangerousBreedCompliance`. **Degrades gracefully**: until a `dangerous_breed_attested` writer-form exists the attested count is 0, so C7 reads an honest "registry adoption 0%" (a true signal, not a bug). Surfaced on `/gob` Panel.
 
 ### Public-health analyst (province / national, strategic)
 - Vaccination coverage trends over time, sliceable by jurisdiction
 - Zoonosis indicators — aggregated `symptom_observed` + `death_recorded` patterns flagged when anomalous
+- Reportable-disease incidence + lab-confirmation rate — **A6/A10**, `fetchReportableIncidence` over `disease_reported` + `death_recorded.is_reportable` (per-disease counts k-anonymity suppressed; lab-confirmation = `confirmed_by_lab` share)
 - Population dynamics — registrations vs deaths vs lost over time, by region
 - Cross-region comparison and ranking
-- AMR signal trends, multi-region
+- AMR signal trends, multi-region (**A12**, see Sanitary authority)
 
 ### Animal-welfare officer (case-driven)
 - Maltreatment / abandonment report queue with map and assignment workflow
 - Lost-pet hotspots (density maps from `status_changed → lost` events)
+- **Reunification rate (D4)** — lost episodes returned to `active` / all lost, plus median days-to-recovery (UK ~39% benchmark). `lib/compliance-metrics.ts → fetchReunificationRate`; period-aware, jurisdiction-scoped. Surfaced on `/gob/perdidas`.
+- **Seizures / decomisos (D5)** — `shelter_intake_recorded(intake_reason='seizure')` grouped by `seizure_motive`, by period (Ley 14.346 enforcement throughput). `fetchSeizures`; surfaced on `/gob/decomisos`.
 - Stray / found-pet sighting feed (anonymous `credential_scanned` events on unowned pets, when that flow exists)
 - Owner-of-record gaps — unmicrochipped pets in welfare cases
 - Case-management workflow: status, assignment, resolution, audit trail (itself an event stream)
@@ -743,13 +757,13 @@ Schema `ref.*` (compliance PR 3, migration 0060) ancla los vocabularios SENASA e
 
 Helpers en `lib/sanitary-vocab.ts`: `tipoEventoLabel`, `tipoEventoNorma`, `requiresLote`, `requiresVia`, `notificableEno`. El test `__tests__/sanitary-vocab.test.ts` pinea el TS mirror contra el DB seed en cada CI.
 
-`pet_events.notificable_eno=true` codes (vacunacion_antirrabica / observacion_antirrabica / mordedura_notificada) deberían disparar un row en `event_notification_outbox` con `target_kind='eno_authority'` — la integración auto-fire queda como follow-up.
+`pet_events.notificable_eno=true` codes (vacunacion_antirrabica / observacion_antirrabica / mordedura_notificada) deberían disparar un row en `event_notification_outbox` con `target_kind='eno_authority'` — la integración auto-fire queda como follow-up. La **latencia de ese outbox ya se mide** (metric **A7**, `lib/surveillance-metrics.ts` `fetchEnoSla`, superficie `/gob/vigilancia`): on-time %, filas en breach y mediana de latencia. El auto-fire sigue siendo follow-up; lo que se monitorea hoy es el SLA de nuestra cola, no la entrega externa.
 
 ## Feature inventory
 
 Lectura rápida de qué hace DIM hoy, qué está spec'd y pendiente de ejecución, y qué queda como pregunta abierta. Es la respuesta canónica a "¿existe X?" antes de asumir o construir desde cero. Cuando una feature lande o cambie de status, actualizar esta tabla en el mismo PR.
 
-Leyenda: ✅ en producción · 🟢 spec + plan listos, pendiente de ejecutar · 🟡 spec only (falta plan) · ⚪ idea / open question.
+Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) · 🟢 spec + plan listos, pendiente de ejecutar · 🟡 spec only (falta plan) · ⚪ idea / open question.
 
 ### Owner-facing (PWA principal)
 
@@ -768,6 +782,8 @@ Leyenda: ✅ en producción · 🟢 spec + plan listos, pendiente de ejecutar ·
 | ✅ | Vecino-en-tránsito (custody flow para vecino con stray) | `/mis-mascotas/nueva?custodyKind=transito` |
 | ✅ | Reservar turnos en campaigns/clinics, ver agenda propia | `/turnos/buscar` + `/mis-mascotas/[publicToken]/turnos` |
 | ✅ | Captura rápida (URL-prefill + matcher local sin LLM) | `/mis-mascotas/[publicToken]/anotar` + `lib/event-capture-registry.ts` |
+| ✅ | Dashboard `/inicio` (greeting, captura, mascotas, vencimientos, turnos, casos) | `/inicio` + `lib/owner-dashboard.ts` |
+| ✅ | Estado sanitario — nudges per-pet derivados de eventos propios (vacuna vencida, sin microchip, próximo recordatorio, scans de credencial, esterilización) | `/inicio` (card "Estado sanitario") + `lib/owner-nudges.ts` (Item 5, owner-data only — sin señales de vigilancia) |
 | 🟢 | Adoption listing público con filtros + postulación | `/adoptar` (spec v1.2, plan pendiente) |
 | 🟢 | Foster volunteers pool (pool global owner→refugio) | `/cuenta/ofrecerme-como-tránsito` + `/cuenta/transitos/*` (spec v1.4, plan listo) |
 
@@ -846,6 +862,7 @@ Leyenda: ✅ en producción · 🟢 spec + plan listos, pendiente de ejecutar ·
 | ✅ | Cron infra (CRON_SECRET + helper-lib + thin route) | `app/api/cron/*` |
 | ✅ | RLS aplicada en 7 core tables + welfare + organizations | `db/rls.sql`, `db/welfare_rls.sql`, `db/organizations_rls.sql` |
 | ✅ | RLS smoke test cross-account vía PostgREST | `pnpm rls:smoke` |
+| ✅ | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D complete | `components/layout/AppShell.tsx` + `lib/shell-nav.ts` (auth-aware `resolveShellNav`). All surfaces migrated; legacy `LnOwnerNav`/`AppHeader`/`OpShell` deleted (Phase D). Plan: `docs/superpowers/plans/2026-06-18-unified-app-shell.md` |
 | 🟢 | Localities catalog INDEC (catalog reference) | spec + plan listos |
 | ⚪ | Push notifications (iOS PWA limitations) | — |
 | ⚪ | Native mobile via React Native sharing data layer | — |
@@ -916,6 +933,20 @@ Added by the pet-profile v2.1 reorder (2026-06-18, Item 6 of the metrics-IA hand
 4. **Credentials and achievements live inside Resumen** — permanent credentials (PPP, perro de servicio) are credential cards in Resumen (section 03), not full-width banners. Achievements render last in Resumen, only when present.
 
 There is **one** way to annotate from the profile: `/anotar` is the single canonical capture hub (quick-capture box + the full category-grouped catalog). `/eventos/nuevo` is a permanent redirect to `/anotar`; do not add a second event catalog or a second "anotar" entry point. The `/eventos/nuevo/*` form sub-routes remain the URL-addressable form targets (see captura rápida below) — only the catalog index redirects.
+### 5. `AppShell` is the single role-variant application chrome (Item 7 — complete)
+
+`components/layout/AppShell.tsx` is the **only** application chrome. The historical three chrome systems (`LnOwnerNav`, `AppHeader`, `OpShell`) have been deleted (Item 7, Phase D — PRs #630–#634). Do not reintroduce per-surface chrome wrappers.
+
+- **Nav source is `components/layout/nav-presets.ts`** — `OWNER_NAV`, `PUBLIC_NAV`, `GOB_NAV(_SECTIONS)`, `ADMIN_NAV(_SECTIONS)`, `buildOrgNav`. Do not introduce per-component nav literals.
+- **The variant + nav decision is auth-aware, not route-group-based** — `lib/shell-nav.ts` `resolveShellNav(input)` is the single decision (pure, tested). Anonymous on a public surface → `citizen` + `PUBLIC_NAV`; a logged-in user on any surface (including public) keeps their **role** nav and a guaranteed ≤1-click return to the role home. A public surface must NEVER replace the role nav (fixes the stranded-logged-in-user dead-end).
+- **Three variants:**
+  - `citizen` — top masthead with Argentina stripe + footer. Owner portal, public surfaces, marketing landing.
+  - `operator` — left navy rail + topbar, no stripe/footer. gob / admin / org portals.
+  - `landing` — minimal trust chrome for token-landing surfaces (`/p/[publicToken]`, `/libreta/compartir/[shareToken]`, `/r/invite/[token]`): brand + stripe + "Credencial verificada por MiMAR". Auth-independent; a logged-in owner gets a discreet "volver a mi app".
+- **"Inicio" is disambiguated**: the brand/logo → public landing `/`; the role "Inicio" nav item → the role home (`/inicio` for owner, the operator panel for gob/admin/org).
+- **`#main-content`** (skip-link target) is preserved in every variant — do not drop it.
+
+Spec: `docs/superpowers/specs/2026-06-18-unified-app-shell-design.md`. Plan: `docs/superpowers/plans/2026-06-18-unified-app-shell.md`.
 
 ### Drift policy
 
