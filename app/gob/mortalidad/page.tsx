@@ -167,6 +167,11 @@ export default async function GobMortalidadPage({
           label="Muertes (período)"
           value={m.total.toLocaleString("es-AR")}
           sub="fallecimientos registrados"
+          info={{
+            definition:
+              "Total de eventos death_recorded registrados en el período y jurisdicción seleccionados.",
+            formula: "COUNT(death_recorded) en scope + período",
+          }}
         />
         <OpKpi
           label="Trazabilidad de disposición"
@@ -174,18 +179,37 @@ export default async function GobMortalidadPage({
           tone={m.traceableRate >= 75 ? "ok" : m.traceableRate >= 50 ? "warn" : "danger"}
           bar={m.traceableRate}
           sub="método + instalación (B3 · Ley 5470)"
+          info={{
+            definition:
+              "Porcentaje de fallecimientos con método de disposición conocido E instalación registrada. Mide el cumplimiento de trazabilidad exigido por la Ley CABA 5470.",
+            formula: "deaths con (disposition_method ≠ null/unknown) AND (facility ≠ '') / total",
+            caveat: "Umbral de alerta: < 75%. Valor < 50% se considera incumplimiento grave (B3).",
+          }}
         />
         <OpKpi
           label="Disposición desconocida"
           value={`${m.unknownRate}%`}
           tone={m.unknownRate > UNKNOWN_DISPOSITION_BREACH_THRESHOLD ? "danger" : "neutral"}
           sub="sin método registrado (B4)"
+          info={{
+            definition:
+              "Porcentaje de fallecimientos sin método de disposición registrado (campo disposition_method ausente o con valor 'unknown'). Es el complemento negativo de la trazabilidad (B4).",
+            formula: "deaths con (disposition_method IS NULL OR = 'unknown') / total",
+            caveat: `Se activa alerta visual cuando supera el ${UNKNOWN_DISPOSITION_BREACH_THRESHOLD}%.`,
+          }}
         />
         <OpKpi
           label="Muertes notificables"
           value={`${m.reportableShare}%`}
           tone={m.reportableShare > 0 ? "warn" : undefined}
           sub="del total (B9)"
+          info={{
+            definition:
+              "Porcentaje de fallecimientos que corresponden a enfermedades de notificación obligatoria (campo is_reportable = true). Un valor > 0 requiere notificación a la autoridad sanitaria (B9).",
+            formula: "deaths con (is_reportable = true) / total",
+            caveat:
+              "Cualquier valor > 0% activa una indicación de atención: esos fallecimientos requieren notificación ENO.",
+          }}
         />
       </section>
 
@@ -201,24 +225,50 @@ export default async function GobMortalidadPage({
                 description="No hay fallecimientos en el período seleccionado en tu cobertura."
               />
             ) : (
-              <ul className="space-y-2">
-                {m.byBucket.map((b) => (
-                  <li key={b.bucket} className="flex items-center gap-3">
-                    <span className="w-40 shrink-0 text-[13px] text-ln-op-ink">
-                      {BUCKET_LABELS[b.bucket] ?? b.bucket}
-                    </span>
-                    <div className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden">
-                      <div
-                        className="h-full rounded bg-ln-op-azul"
-                        style={{ width: maxBucket > 0 ? `${(b.count / maxBucket) * 100}%` : "0%" }}
-                      />
-                    </div>
-                    <span className="w-8 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
-                      {b.count}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <figure
+                role="img"
+                aria-label={`Disposición final de fallecimientos — ${m.byBucket.length} método${m.byBucket.length !== 1 ? "s" : ""}. Máximo: ${maxBucket} fallecimiento${maxBucket !== 1 ? "s" : ""}.`}
+              >
+                <figcaption className="sr-only">
+                  Gráfico de barras horizontales: distribución de fallecimientos por método de
+                  disposición final. Los valores representan conteo de fallecimientos registrados en
+                  el período seleccionado.
+                </figcaption>
+                <ul className="space-y-2" aria-label="Métodos de disposición">
+                  {m.byBucket.map((b) => {
+                    const pct = maxBucket > 0 ? (b.count / maxBucket) * 100 : 0;
+                    const label = BUCKET_LABELS[b.bucket] ?? b.bucket;
+                    return (
+                      <li
+                        key={b.bucket}
+                        className="flex items-center gap-3"
+                        aria-label={`${label}: ${b.count} fallecimiento${b.count !== 1 ? "s" : ""} (${Math.round(pct)}% del máximo)`}
+                      >
+                        <span className="w-40 shrink-0 text-[13px] text-ln-op-ink">{label}</span>
+                        <div
+                          className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
+                          aria-hidden="true"
+                        >
+                          <div
+                            className="h-full rounded bg-ln-op-azul"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span
+                          className="w-8 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                          aria-hidden="true"
+                        >
+                          {b.count}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="mt-1.5 text-[10px] text-ln-op-mute">
+                  Escala: 0 – {maxBucket} fallecimiento{maxBucket !== 1 ? "s" : ""} · cada barra
+                  representa el total en el período.
+                </p>
+              </figure>
             )}
           </OpCardBody>
         </OpCard>
@@ -310,24 +360,51 @@ export default async function GobMortalidadPage({
               No hay localidades con fallecimientos visibles en el período.
             </p>
           ) : (
-            <ul className="space-y-2">
-              {localityCells.map((c) => (
-                <li key={c.key} className="flex items-center gap-3">
-                  <span className="w-40 shrink-0 truncate text-[13px] text-ln-op-ink">{c.key}</span>
-                  <div className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden">
-                    <div
-                      className="h-full rounded bg-ln-op-azul"
-                      style={{
-                        width: maxLocality > 0 ? `${(c.count / maxLocality) * 100}%` : "0%",
-                      }}
-                    />
-                  </div>
-                  <span className="w-8 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
-                    {c.count}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <figure
+              role="img"
+              aria-label={`Fallecimientos por localidad — máximo: ${maxLocality} fallecimiento${maxLocality !== 1 ? "s" : ""}.`}
+            >
+              <figcaption className="sr-only">
+                Gráfico de barras horizontales: distribución de fallecimientos por localidad.
+                Localidades con menos de 5 fallecimientos están ocultas por privacidad
+                (k-anonimato).
+              </figcaption>
+              <ul className="space-y-2" aria-label="Fallecimientos por localidad">
+                {localityCells.map((c) => {
+                  const pct = maxLocality > 0 ? (c.count / maxLocality) * 100 : 0;
+                  return (
+                    <li
+                      key={c.key}
+                      className="flex items-center gap-3"
+                      aria-label={`${c.key}: ${c.count} fallecimiento${c.count !== 1 ? "s" : ""}`}
+                    >
+                      <span className="w-40 shrink-0 truncate text-[13px] text-ln-op-ink">
+                        {c.key}
+                      </span>
+                      <div
+                        className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
+                        aria-hidden="true"
+                      >
+                        <div
+                          className="h-full rounded bg-ln-op-azul"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span
+                        className="w-8 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                        aria-hidden="true"
+                      >
+                        {c.count}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="mt-1.5 text-[10px] text-ln-op-mute">
+                Escala: 0 – {maxLocality} fallecimiento{maxLocality !== 1 ? "s" : ""} · celdas &lt;
+                5 ocultas (k-anonimato).
+              </p>
+            </figure>
           )}
         </OpCardBody>
       </OpCard>

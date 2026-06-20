@@ -10,7 +10,7 @@ import {
 import { COLOR_NO_DATA, COLOR_SUPPRESSED, type ColorRamp, RAMP_BLUE } from "@/lib/viz-scales";
 import type maplibregl from "maplibre-gl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * Mapa coroplético v2 — MapLibre GL JS con:
@@ -88,6 +88,13 @@ export type MapChoroplethProps = {
     department?: string;
     barrio?: string;
   };
+  /**
+   * Human-readable label for the scale legend (e.g. "Casos abiertos").
+   * When provided, a gradient scale legend with the data min→max range
+   * is rendered below the map. Required for dashboards where the color
+   * encodes a quantitative variable.
+   */
+  scaleLabel?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -141,6 +148,7 @@ export function MapChoropleth({
   visibleCodes,
   allowDrill = false,
   paramKeys,
+  scaleLabel,
 }: MapChoroplethProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -504,6 +512,18 @@ export function MapChoropleth({
   }, [drillState.level, drillState.geojsonUrl, drillState.provinceIso, colorScale, allowDrill]);
 
   // ---------------------------------------------------------------------------
+  // Scale range for gradient legend — derived from non-suppressed data values.
+  // ---------------------------------------------------------------------------
+
+  const scaleBounds = useMemo(() => {
+    const values = data.filter((d) => !d.suppressed).map((d) => d.value);
+    if (values.length === 0) return null;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    return { min, max };
+  }, [data]);
+
+  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
@@ -546,23 +566,59 @@ export function MapChoropleth({
         role="img"
       />
 
-      {/* Leyenda de estados del mapa */}
-      <div className="mt-1 flex items-center gap-3 text-[10px] text-ln-ink-3">
-        <span className="flex items-center gap-1">
-          <span
-            className="inline-block w-3 h-3 rounded-sm border border-ln-line"
-            style={{ background: COLOR_NO_DATA }}
-          />
-          Sin datos
-        </span>
-        <span className="flex items-center gap-1">
-          <span
-            className="inline-block w-3 h-3 rounded-sm border border-ln-line"
-            style={{ background: COLOR_SUPPRESSED }}
-          />
-          Dato suprimido
-        </span>
-      </div>
+      {/* Leyenda del mapa */}
+      <figure
+        className="mt-2 space-y-1.5"
+        aria-label={`Leyenda: ${scaleLabel ?? fallbackTableLabel}`}
+      >
+        <figcaption className="sr-only">
+          {scaleLabel ?? fallbackTableLabel} — escala de colores y estados especiales del mapa
+        </figcaption>
+
+        {/* Gradient scale — only shown when we have data and a label */}
+        {scaleLabel && scaleBounds && scaleBounds.min !== scaleBounds.max && (
+          <div
+            role="img"
+            aria-label={`Escala de color para ${scaleLabel}: de ${scaleBounds.min} (mínimo) a ${scaleBounds.max} (máximo)`}
+          >
+            <p className="text-[10px] text-ln-ink-3 mb-0.5">{scaleLabel}</p>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] tabular-nums text-ln-ink-3">{scaleBounds.min}</span>
+              <div
+                className="h-2.5 flex-1 rounded-sm border border-ln-line"
+                style={{
+                  background: `linear-gradient(to right, ${colorScale[0]}, ${colorScale[1]})`,
+                }}
+                aria-hidden="true"
+              />
+              <span className="text-[10px] tabular-nums text-ln-ink-3">{scaleBounds.max}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Discrete swatches: no-data + suppressed */}
+        <ul
+          className="flex items-center gap-3 list-none m-0 p-0 text-[10px] text-ln-ink-3"
+          aria-label="Estados especiales"
+        >
+          <li className="flex items-center gap-1">
+            <span
+              className="inline-block w-3 h-3 rounded-sm border border-ln-line"
+              style={{ background: COLOR_NO_DATA }}
+              aria-hidden="true"
+            />
+            Sin datos
+          </li>
+          <li className="flex items-center gap-1">
+            <span
+              className="inline-block w-3 h-3 rounded-sm border border-ln-line"
+              style={{ background: COLOR_SUPPRESSED }}
+              aria-hidden="true"
+            />
+            Suprimido (privacidad)
+          </li>
+        </ul>
+      </figure>
 
       {/* Tabla a11y */}
       <details className="mt-3 text-sm">
