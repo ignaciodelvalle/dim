@@ -6,8 +6,8 @@
 // all coordinate/null/property handling lives here on top of the domain
 // geojson helpers.
 
-import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 import { featureCollection, pointFeature } from "@/src/modules/panorama/domain/geojson";
+import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 // --- perdidas (lost / sighting point layer) ---------------------------------
 
