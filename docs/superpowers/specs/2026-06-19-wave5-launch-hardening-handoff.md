@@ -128,7 +128,7 @@ La última corrida integración capturada **pasó las 159 pruebas (0 fallas)** p
 
 ---
 
-## Item 30 — Pipeline de seguridad en CI 🟡
+## Item 30 — Pipeline de seguridad en CI ✅ Implementado
 
 ### Overview
 `ci.yml` tiene gates buenos (lint, typecheck, build, dep-audit, migration-presence, schema-parity) pero **no** hay SAST, secret-scanning ni Dependabot; el deploy es manual por Vercel CLI. La integración con gobierno va a exigir pipeline de seguridad.
@@ -143,7 +143,7 @@ La última corrida integración capturada **pasó las 159 pruebas (0 fallas)** p
 
 ---
 
-## Item 31 — AGENTS.md slim + sección "Privacidad y manejo de datos" 🟡 (meta-handoff)
+## Item 31 — AGENTS.md slim + sección "Privacidad y manejo de datos" ✅ Implementado (`feat/wave5-item31-agents-slim`)
 
 ### Overview
 `AGENTS.md` (~100 KB) está bien estructurado pero es **demasiado grande para cargar entero** en el contexto de un agente — irónico para un repo cuyo propósito declarado es handoffs a Claude Code.

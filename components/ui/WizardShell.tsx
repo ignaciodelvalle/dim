@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 /**
  * LnWizardShell — generic multi-step wizard chrome (LN design system).
  *
@@ -18,9 +20,10 @@ export type LnWizardShellProps = {
    * rendered next to the back arrow (top right). */
   onCancel?: () => void;
   /**
-   * B-8: Optional id for the <main> element so the skip-to-main link
-   * ("#main-content") can land on the wizard's content area.
-   * Pass id="main-content" on the first (and only active) shell instance.
+   * @deprecated The AppShell already renders the `#main-content` <main> landmark
+   * that wraps this wizard. Rendering a second `id="main-content"` here produced
+   * a duplicate id AND a nested <main> landmark (invalid HTML + a11y violation).
+   * This prop is now ignored; the wizard content is a plain <div>.
    */
   mainId?: string;
   children: React.ReactNode;
@@ -32,13 +35,22 @@ export function LnWizardShell({
   stepLabels,
   onBack,
   onCancel,
-  mainId,
   children,
 }: LnWizardShellProps) {
   // Progress percent — (currentStep - 1) / totalSteps so step 1 renders as 0%
   // and the final step renders as (n-1)/n until submission completes.
   const progressPct = Math.round(((currentStep - 1) / totalSteps) * 100);
   const stepLabel = stepLabels?.[currentStep - 1];
+
+  // Reset scroll to the top on every step change. The AppShell's
+  // `<main id="main-content">` is the overflow-auto scroll container (so a tall
+  // step doesn't leave the next step scrolled past the top); window is the
+  // fallback for layouts that scroll the document instead.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: currentStep is the intentional trigger — the effect scrolls on every step change without reading its value.
+  useEffect(() => {
+    document.getElementById("main-content")?.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0 });
+  }, [currentStep]);
 
   return (
     <div className="bg-[var(--color-ln-card)] flex flex-col">
@@ -91,9 +103,10 @@ export function LnWizardShell({
         />
       </div>
 
-      <main id={mainId} className="flex-1 px-4 pt-8 pb-32 max-w-md mx-auto w-full">
-        {children}
-      </main>
+      {/* Plain <div>, NOT <main>: the AppShell already owns the #main-content
+          <main> landmark that wraps this wizard. A nested <main> + duplicate id
+          was invalid HTML and tripped the a11y / skip-link checks. */}
+      <div className="flex-1 px-4 pt-8 pb-32 max-w-md mx-auto w-full">{children}</div>
     </div>
   );
 }

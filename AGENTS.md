@@ -3,6 +3,90 @@
 > Context for AI agents (and humans) working on this project.
 > If you're a Claude session reading this for the first time, start here.
 
+## Slim index (always load this, ~1.5k tokens)
+
+Load this section every session. Load deep sections on demand via the anchors in the TOC below.
+
+### What this project is
+
+**DIM / MiMAR** — Argentina's digital pet credential system. Internal codename: **DIM** (stays in code, schema, tokens `DIM-XXXX-XXXX`, audit logs). User-facing brand: **MiMAR (Mi Mascota Argentina)**.
+
+Owner: **Ignacio Del Valle** (ignaciodelvalle2014@gmail.com) — non-technical. Claude writes the code; Ignacio drives product decisions and runs commands locally on Windows.
+
+Ultimate trajectory: **Mi Argentina integration** — federation with the Argentine government identity platform. Every architectural decision is filtered through whether it preserves or harms that path.
+
+### Invariants (never break these)
+
+1. **The pet is the credential** — globally-unique `DIM-XXXX-XXXX` public token that resolves to a QR-verifiable public page.
+2. **Events are append-only** — every fact about a pet's life is an immutable event. No event is ever edited or deleted. Corrections are new events.
+3. **Projections are first-class** — every view (owner timeline, public credential, vet record, govt dashboard) is `(events, filters) → view`. No view is source of truth.
+4. **Spanish UI, English code** — variable names, function names, comments in English. User-facing strings in Spanish (es-AR).
+5. **No DNI in plaintext** — `profiles.dni_number` was dropped (migration `0106_dni_less_identity.sql`). Use `lib/dni-hash.ts` `hashDni()` for equality, `dniLast4()` for display.
+6. **Mi Argentina alignment** — no design decision breaks the federation premise.
+
+### Where things live
+
+| What | Where |
+|---|---|
+| Domain specs & plans index | `docs/superpowers/README.md` |
+| Implementation plans | `docs/superpowers/plans/` |
+| 45 event types (`EVENT_TYPES` const) | `db/schema.ts` |
+| Per-event Zod schemas | `lib/event-schemas.ts` |
+| Libreta sanitaria event filter | `lib/libreta-sanitaria.ts` |
+| Metrics / projection primitives | `lib/metrics/` (context, scope, period, anonymity, population, cache) |
+| Supabase client helpers | `lib/supabase/` |
+| DNI hashing (no plaintext) | `lib/dni-hash.ts` |
+| RLS policies (owner tables) | `db/rls.sql`, `db/welfare_rls.sql`, `db/organizations_rls.sql` |
+| RLS coverage test | `__tests__/rls/coverage.test.ts` |
+| Scan retention / 90d TTL purge | `lib/scan-retention.ts` |
+| Server actions | `app/actions/` |
+| Nav presets + AppShell | `components/layout/nav-presets.ts`, `components/layout/AppShell.tsx` |
+| Legal framework (AR laws) | `docs/legal-framework-full.md` |
+| Privacy checklist (PII gate) | [§ Privacidad y manejo de datos](#privacidad-y-manejo-de-datos) |
+
+### The dependency rule
+
+**spec → plan → PR → flip README status.** Code descends from documents, not the other way around. If a change feels in tension with what's written, raise it before coding around it.
+
+### Event-design checklist
+
+Before writing a new event type, walk through `docs/event-design-checklist.md`. It covers: cross-cutting pattern, projection target, auto-close cron + idempotency, Zod schema + `schemaVersion`, libreta vs non-libreta, dashboard consumers, required test surface.
+
+### Deep sections (load on demand)
+
+| Section | Anchor | Load when… |
+|---|---|---|
+| What this is | [#what-this-is](#what-this-is) | Onboarding / brand rationale |
+| North Star | [#north-star](#north-star) | Prioritization / product decisions |
+| Project context (CABA data) | [#project-context-why-caba-why-now](#project-context-why-caba-why-now) | Dashboard / population features |
+| Core principles | [#core-principles-locked-do-not-relitigate](#core-principles-locked-do-not-relitigate) | Any design decision |
+| Stack | [#stack](#stack) | Tooling / dependency questions |
+| User roles & account types | [#user-roles--account-types](#user-roles--account-types) | Auth, role, institutional accounts |
+| Organizations | [#organizations](#organizations) | Org portal, shelter, clinic, foster |
+| Legal framework | [#legal-framework](#legal-framework) | Compliance, SENASA, Ley 25.326 |
+| Data model | [#data-model](#data-model) | Schema, new tables, migrations |
+| Libreta sanitaria | [#libreta-sanitaria](#libreta-sanitaria) | Medical events, UI surfaces |
+| Event catalog — 45 types | [#event-catalog--45-types](#event-catalog--45-types) | New event types, payload design |
+| Privacy tiers | [#privacy-tiers-the-public-surface](#privacy-tiers-the-public-surface) | Public credential, Tier 0/1/2 |
+| Dashboards & projections | [#dashboards--projections-the-consumers](#dashboards--projections-the-consumers) | Govt / analyst / welfare views |
+| Aggregation & privacy policy | [#aggregation--privacy-policy](#aggregation--privacy-policy) | k-anonymity, opt-in, PII rules |
+| Authorization architecture | [#authorization-architecture-wave-5-item-26](#authorization-architecture-wave-5-item-26) | Adding new data paths / RLS |
+| Scan privacy model | [#scan-privacy-model-wave-5-item-28](#scan-privacy-model-wave-5-item-28) | Scan events, TTL, audit |
+| Identity model & DNI handling | [#identity-model--dni-handling-wave-5-item-25a](#identity-model--dni-handling-wave-5-item-25a) | Auth, DNI, Mi Argentina OIDC |
+| PII baseline & subject rights | [#pii-baseline--subject-rights-ley-25326](#pii-baseline--subject-rights-ley-25326) | New PII tables, Ley 25.326 |
+| SENASA reference vocabularies | [#senasa-reference-vocabularies](#senasa-reference-vocabularies) | Vet events, compliance exports |
+| Feature inventory | [#feature-inventory](#feature-inventory) | "Does X exist?" before building |
+| Naming (DIM vs MiMAR) | [#naming](#naming) | Copy, brand, code identifiers |
+| Design rules (UI conventions) | [#design-rules-ui-conventions](#design-rules-ui-conventions) | Forms, buttons, chrome, a11y |
+| Open questions / future work | [#open-questions--future-work](#open-questions--future-work) | What is deferred / out of scope |
+| Test-runner conventions | [#test-runner-conventions-item-29--wave-5](#test-runner-conventions-item-29--wave-5) | Test suite setup, pool, teardown |
+| **Privacy checklist** | [#privacidad-y-manejo-de-datos](#privacidad-y-manejo-de-datos) | **Any public route, token, or PII field** |
+| How Claude should work | [#how-claude-should-work-in-this-repo](#how-claude-should-work-in-this-repo) | Working norms |
+
+> End of slim index. Deep sections follow.
+
+---
+
 ## What this is
 
 **DIM — Documento de Identificación para Mascotas.** Argentina's digital pet credential system. A reborn 2021 university project (UTN), reimagined for 2026.
@@ -1170,6 +1254,82 @@ Migration `0084_drop_legacy_chip_tattoo_columns.sql` now drops
 migration-order run (not just on a drizzle-kit-push-first bootstrap).
 
 All migrations use `IF EXISTS` / `IF NOT EXISTS` guards — do not remove them.
+
+---
+
+## Privacidad y manejo de datos
+
+**Per-task privacy gate:** before touching any public route, token, or PII field, verify each rule below applies correctly to the change. The enforcement file column is the canonical place to check or extend the rule.
+
+### 1. No DNI in plaintext
+
+Migration `0106_dni_less_identity.sql` dropped `profiles.dni_number`. The DNI is never stored in cleartext.
+
+| Rule | Enforcement |
+|---|---|
+| Equality matching → `WHERE dni_hash = hashDni(input)` | `lib/dni-hash.ts` → `hashDni()` |
+| Human disambiguation (operator UI only) → `dni_last4` | `lib/dni-hash.ts` → `dniLast4()` |
+| Subject erasure → nulls `dni_hash`, `dni_last4`, `miarg_sub` | `erase_subject_data()` (migration 0106) |
+| Institutional accounts → `dni_hash IS NULL` (CHECK enforced) | `profiles_institutional_no_pii` constraint |
+
+> **Production warning:** set `DNI_HASH_PEPPER` in Vercel env before real DNI data lands. The local/test default is `dim-test-pepper-v1`. If the pepper differs, every hash in the table mismatches — the DNI space is finite and reversible via rainbow table.
+
+### 2. RLS backstop for every new PII / tenant table
+
+| Step | Where |
+|---|---|
+| Enable RLS in the migration | `ALTER TABLE … ENABLE ROW LEVEL SECURITY` |
+| Add to coverage test | `__tests__/rls/coverage.test.ts` → `RLS_REQUIRED` |
+| Add appropriate policies (or document deny-all with reason) | `db/rls.sql` / `db/welfare_rls.sql` / `db/organizations_rls.sql` |
+| If the table belongs to an owner, add to cross-tenant e2e probes | `e2e/cross-tenant-isolation.spec.ts` |
+
+Service-role / `postgres` connections bypass RLS by design (`BYPASSRLS`). Enabling or tightening an RLS policy cannot break the app — Drizzle server-action queries go through the BYPASSRLS connection. RLS fires only for supabase-js / PostgREST (defense-in-depth backstop). See [§ Authorization architecture](#authorization-architecture-wave-5-item-26).
+
+### 3. Never return raw event payloads
+
+Project only the fields callers need; never return a raw `payload` JSONB blob.
+
+| Rule | Enforcement |
+|---|---|
+| Adoption review → return `{ id, applicantUserId }` only (Item 27) | `src/modules/adoption/infrastructure/adoption-repository.ts` |
+| Audit any new DB read for `payload->>` over-exposure | `grep -rn "payload->>"` before shipping |
+
+### 4. Privacy predicates in the query, not the render layer
+
+Push visibility decisions to SQL — do not fetch then redact in JS.
+
+| Rule | Enforcement |
+|---|---|
+| Lost-listing: location fetched only for pets with `discloseLastLocationWhenLost=true` (Item 27) | `src/modules/lost/infrastructure/lost-listing-read.ts` |
+| Welfare public comprobante: coarse coordinates for anonymous audience; exact + logged for authority — established contract per plan `2026-06-19-welfare-coordinates-precision.md` | `app/(public)/denuncias/codigo/[code]/page.tsx` (open PR) |
+
+### 5. Scan events — strict payload contract + 90-day TTL purge
+
+| Rule | Enforcement |
+|---|---|
+| Scan payload = `{ is_self_scan, viewer_authenticated }` only. No IP, no lat/lng. | `app/actions/scans.ts` |
+| `author_role='scanner'` events purged after 90 days | `lib/scan-retention.ts` + cron `/api/cron/purge-scan-events` |
+| Self-scans (`author_role='owner'`) are NOT purged — part of owner's own history | `lib/scan-retention.ts` |
+| Every purged row produces an `audit_log` entry (`action='scan_event_purged'`) | migration 0104 trigger |
+
+### 6. k-anonymity on all public aggregates
+
+Any jurisdiction-grouped aggregate returned to a public or analyst surface must pass through `suppressSmallCells` with `k=5`. The `SuppressedCells` branded type makes it a compile-time error to return a raw cell array without suppression.
+
+| Rule | Enforcement |
+|---|---|
+| `suppressSmallCells(rows, { k: 5 })` on every public aggregate | `lib/metrics/anonymity.ts` → `suppressSmallCells` |
+| Govt outreach pipelines log `pii_queried` per query | `lib/outreach-pipelines.ts` → `logOutreachPiiQuery` |
+
+### 7. Subject rights (Ley 25.326)
+
+| Right | Enforcement |
+|---|---|
+| Access (art. 14) — `export_subject_data(p_user_id)` RPC | migration 0059 |
+| Erasure (art. 16) — `erase_subject_data(p_user_id, p_reason)` RPC | migration 0059 (+ migration 0106 for `dni_hash`/`miarg_sub`) |
+| New PII tables → `pii.apply_baseline(tbl)` adds `purpose`, `deleted_at`, `retention_until` | schema `pii` helper |
+| Include new PII tables in `export_subject_data` | migration 0059 RPC |
+| `pet_events` is append-only by design → exempt from soft-delete | Core principle #2 |
 
 ---
 

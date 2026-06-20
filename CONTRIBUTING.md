@@ -22,7 +22,7 @@ If any of these fail, fix that first — they're the floor everything else build
 
 There is a lot of context in this repo. Read in this order:
 
-1. **[AGENTS.md](./AGENTS.md)** — the single source of truth for domain language, event-sourcing rules, RLS conventions, and "things every change must respect."
+1. **[AGENTS.md](./AGENTS.md)** — lectura obligatoria. Load the slim index at the top first (always-load, ~1.5k tokens), then follow the anchor links to the deep sections relevant to your task. Before touching a public route, a token, or a PII field, load the [§ Privacidad y manejo de datos](./AGENTS.md#privacidad-y-manejo-de-datos) section — it is the per-task privacy gate.
 2. **[docs/superpowers/README.md](./docs/superpowers/README.md)** — index of feature specs and plans. Browse the existing ones before designing anything new — the patterns you need have probably been argued through already.
 3. **The spec for the area you're working in** — anything under `docs/superpowers/specs/`. Each spec maps to a code area.
 
