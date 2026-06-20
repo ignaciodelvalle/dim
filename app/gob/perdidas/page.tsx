@@ -198,7 +198,7 @@ export default async function GobPerdidasPage({
 
       {/* Map panel */}
       <OpCard aria-labelledby={panelMapId}>
-        <OpCardHead title={<span id={panelMapId}>Episodios por jurisdiccion</span>} />
+        <OpCardHead title={<span id={panelMapId}>Episodios por jurisdicción</span>} />
         <OpCardBody>
           <MapChoropleth data={choroplethData} />
         </OpCardBody>

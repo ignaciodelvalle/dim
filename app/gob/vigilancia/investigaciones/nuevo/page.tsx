@@ -31,7 +31,7 @@ export default async function NuevaInvestigacionPage({
           Nueva investigacion de brote
         </h1>
         <p className="text-[13px] text-ln-op-mute mt-1">
-          Apertura manual. La jurisdiccion se toma de tu asignacion activa.
+          Apertura manual. La jurisdicción se toma de tu asignación activa.
         </p>
       </header>
 

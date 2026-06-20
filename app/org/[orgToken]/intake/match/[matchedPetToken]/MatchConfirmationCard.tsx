@@ -145,7 +145,7 @@ export function MatchConfirmationCard({
 
       <p className="text-[12px] text-ln-op-mute">
         Si es la misma mascota, se notificara al dueno/a para coordinar la devolucion. Si no es la
-        misma, esta accion queda registrada y podes continuar el ingreso normalmente.
+        misma, esta acción queda registrada y podes continuar el ingreso normalmente.
       </p>
     </div>
   );

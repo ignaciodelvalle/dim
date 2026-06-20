@@ -440,7 +440,7 @@ export function DecomisoForm({
             <div className="space-y-3">
               <p className="text-[12px] text-ln-op-mute">
                 Describe el animal. Se creara un registro en el sistema para este decomiso. La
-                jurisdiccion se asignara desde tu organizacion sanitaria.
+                jurisdicción se asignará desde tu organización sanitaria.
               </p>
 
               <div className="grid grid-cols-2 gap-3">

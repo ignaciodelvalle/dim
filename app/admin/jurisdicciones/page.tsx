@@ -41,7 +41,7 @@ export default async function AdminJurisdiccionesPage() {
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Jurisdicciones</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Configura reglas de negocio scope-aware por pais, provincia o localidad. Sin overrides
+          Configura reglas de negocio scope-aware por país, provincia o localidad. Sin overrides
           {" -> "}se usan los defaults nacionales.
         </p>
       </header>
@@ -49,7 +49,7 @@ export default async function AdminJurisdiccionesPage() {
       {/* Country-level */}
       <OpCard>
         <OpCardHead
-          title="AR (pais)"
+          title="AR (país)"
           actions={
             <span className="text-[12px] text-ln-op-mute">
               {countryWideCount} regla{countryWideCount === 1 ? "" : "s"}
