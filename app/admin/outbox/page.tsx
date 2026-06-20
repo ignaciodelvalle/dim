@@ -47,7 +47,7 @@ const BREACH_PILL_LABEL: Record<BreachCue, string> = {
 const TARGET_KIND_LABEL: Record<string, string> = {
   govt_webhook: "Webhook govt",
   eno_authority: "Autoridad ENO",
-  audit_export: "Exportacion auditoria",
+  audit_export: "Exportación auditoría",
   internal_dashboard: "Dashboard interno",
 };
 
@@ -173,7 +173,7 @@ export default async function AdminOutboxPage({
         <p className="text-[13px] text-ln-op-ink-2">
           {hasFilters
             ? `${rows.length} fila${rows.length === 1 ? "" : "s"} con los filtros aplicados.`
-            : `Ultimas ${rows.length} filas del outbox de eventos de notificacion ENO/govt.`}
+            : `Últimas ${rows.length} filas del outbox de eventos de notificación ENO/govt.`}
         </p>
       </header>
 
@@ -223,13 +223,18 @@ export default async function AdminOutboxPage({
           <option value="no">Solo dentro de SLA</option>
         </select>
 
-        <input
-          type="text"
+        <select
           name="province"
           defaultValue={filters.province ?? ""}
-          placeholder="Provincia (exacta)"
           className="text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        />
+        >
+          <option value="">Todas las provincias</option>
+          {PROVINCES.map((p) => (
+            <option key={p.code} value={p.name}>
+              {p.name}
+            </option>
+          ))}
+        </select>
 
         <button
           type="submit"

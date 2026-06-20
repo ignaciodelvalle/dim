@@ -183,7 +183,7 @@ export default async function AdminHistorialPage({
       <header className="space-y-1">
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Mi historial</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Ultimas {entries.length} acciones realizadas por{" "}
+          Últimas {entries.length} acciones realizadas por{" "}
           <span className="font-semibold">{actor?.displayName ?? user.id}</span>.
         </p>
       </header>

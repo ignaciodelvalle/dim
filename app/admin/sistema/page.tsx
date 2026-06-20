@@ -212,7 +212,7 @@ export default async function AdminSistemaPage() {
                       scope="col"
                       className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                     >
-                      Ultima accion
+                      Última acción
                     </th>
                   </tr>
                 </thead>

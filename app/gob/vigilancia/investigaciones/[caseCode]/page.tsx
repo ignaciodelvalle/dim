@@ -120,8 +120,8 @@ export default async function InvestigacionDetailPage({
 
       {/* PERSISTENT honesty banner — now points to the in-app audit action. */}
       <OpBreach
-        title="Notificacion externa no integrada"
-        detail="La notificacion obligatoria a SNVS/SENASA/zoonosis (Ley 15.465/60, Decreto 3640/64) no esta integrada en esta version: debe realizarse por los canales habituales de la jurisdiccion. Registrá acá cuándo y por qué canal notificaste para dejar el rastro de auditoría."
+        title="Notificación externa no integrada"
+        detail="La notificación obligatoria a SNVS/SENASA/zoonosis (Ley 15.465/60, Decreto 3640/64) no está integrada en esta versión: debe realizarse por los canales habituales de la jurisdicción. Registrá acá cuándo y por qué canal notificaste para dejar el rastro de auditoría."
         icon="⚠"
       />
 

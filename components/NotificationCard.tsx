@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { archiveNotificationAction, markNotificationReadAction } from "@/app/actions/notifications";
 import type { Notification, Pet } from "@/db";
-import { notificationSeverityLabel, relativeTime } from "@/lib/format";
+import { notificationSeverityLabel, notificationTypeLabel, relativeTime } from "@/lib/format";
 
 // Shared notification card. Used by /notificaciones (full list) and
 // /inicio (dashboard widget, top 5 unread). Server component because
@@ -37,7 +37,8 @@ export function NotificationCard({
               {notification.title}
             </h3>
             <p className="text-[11px] uppercase tracking-wider text-ln-mute ">
-              {notificationSeverityLabel(notification.severity)} · {notification.notificationType}
+              {notificationSeverityLabel(notification.severity)} {"·"}
+              {notificationTypeLabel(notification.notificationType)}
             </p>
           </div>
           <time className="text-xs text-ln-mute  shrink-0">

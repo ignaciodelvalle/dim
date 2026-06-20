@@ -28,7 +28,7 @@ import { retryOutboxRowAction } from "../actions";
 const TARGET_KIND_LABEL: Record<string, string> = {
   govt_webhook: "Webhook govt",
   eno_authority: "Autoridad ENO",
-  audit_export: "Exportacion auditoria",
+  audit_export: "Exportación auditoría",
   internal_dashboard: "Dashboard interno",
 };
 
@@ -248,10 +248,10 @@ export default async function AdminOutboxDetailPage({
           body={
             <span className="space-y-2 block">
               <span className="block">
-                Este boton no entrega la notificacion de forma sincronica. Resetea{" "}
+                Este botón no entrega la notificación de forma sincrónica. Resetea{" "}
                 <code className="font-mono text-[10px]">next_retry_at = now()</code> y{" "}
                 <code className="font-mono text-[10px]">status = pending</code> para que el cron de
-                drenaje lo procese en el proximo ciclo (maximo 5 min).
+                drenaje lo procese en el próximo ciclo (máximo 5 min).
               </span>
               <form
                 action={async () => {
@@ -273,7 +273,7 @@ export default async function AdminOutboxDetailPage({
 
       {row.status === "delivered" && (
         <p className="text-[13px] text-ln-op-ok font-semibold">
-          Esta fila ya fue entregada exitosamente. No se requiere accion.
+          Esta fila ya fue entregada exitosamente. No se requiere acción.
         </p>
       )}
     </div>

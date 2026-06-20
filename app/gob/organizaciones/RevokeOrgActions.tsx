@@ -195,11 +195,11 @@ function RevokeOrgForm({
   return (
     <div className="rounded-[6px] border border-ln-op-danger p-3 space-y-3 bg-ln-op-danger-bg">
       <p className="text-[10px] uppercase tracking-wider text-ln-op-danger">
-        Revocar verificacion — {org.displayName}
+        Revocar verificación — {org.displayName}
       </p>
       <p className="text-[10px] text-ln-op-danger">
-        La organizacion pasara a estado no verificado. Los campos verified_at y verified_by se
-        conservan como registro historico. El titular recibira una notificacion.
+        La organización pasará a estado no verificado. Los campos verified_at y verified_by se
+        conservan como registro histórico. El titular recibirá una notificación.
       </p>
 
       <MotivoField value={motivo} onChange={setMotivo} />
@@ -248,7 +248,7 @@ function RevokeOrgForm({
         onChange={(e) => setConfirm(e.target.checked)}
         labelClassName="text-xs! text-ln-op-danger!"
       >
-        Confirmo que quiero revocar la verificacion de {org.displayName}. Esta accion genera un
+        Confirmo que quiero revocar la verificación de {org.displayName}. Esta acción genera un
         registro permanente en el audit log.
       </LnCheckbox>
 

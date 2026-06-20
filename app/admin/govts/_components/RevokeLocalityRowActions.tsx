@@ -212,7 +212,7 @@ function RevokeLocalityForm({
         onChange={(e) => setConfirm(e.target.checked)}
         labelClassName="text-xs! text-ln-op-warn!"
       >
-        Confirmo que quiero revocar la localidad {localityLabel}. Esta accion genera un registro
+        Confirmo que quiero revocar la localidad {localityLabel}. Esta acción genera un registro
         permanente en el audit log.
       </LnCheckbox>
 

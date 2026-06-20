@@ -193,8 +193,8 @@ function RevokeVetForm({
         Revocar rol vet — {target.displayName}
       </p>
       <p className="text-[10px] text-ln-op-danger">
-        Esta accion es irreversible desde esta interfaz. El usuario quedarapor como dueno y recibira
-        una notificacion con el motivo.
+        Esta acción es irreversible desde esta interfaz. El usuario quedará como dueño y recibirá
+        una notificación con el motivo.
       </p>
 
       <MotivoField value={motivo} onChange={setMotivo} />
@@ -243,7 +243,7 @@ function RevokeVetForm({
         onChange={(e) => setConfirm(e.target.checked)}
         labelClassName="text-xs! text-ln-op-danger!"
       >
-        Confirmo que quiero revocar el rol veterinario de {target.displayName}. Esta accion genera
+        Confirmo que quiero revocar el rol veterinario de {target.displayName}. Esta acción genera
         un registro permanente en el audit log.
       </LnCheckbox>
 

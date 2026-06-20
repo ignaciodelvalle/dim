@@ -49,7 +49,7 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
     return (
       <div className="space-y-2">
         <p className="text-[12px] text-ln-op-ink-2">
-          Vas a aprobar este servicio. El proveedor recibira una notificacion.
+          Vas a aprobar este servicio. El proveedor recibirá una notificación.
         </p>
         <div className="flex items-center gap-2">
           <button
