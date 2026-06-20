@@ -249,6 +249,32 @@ export function relativeTime(value: Date | string | null | undefined): string {
   return formatDate(date);
 }
 
+/**
+ * Compact "hace Nd" formatter for operator-dense lists (e.g. outreach overdue
+ * tables) where the day count itself is the prioritisation signal.
+ *
+ * Guards against absurd outputs:
+ *  - null / NaN / epoch-sentinel (getTime() === 0, used for "no record") → "—"
+ *  - <= 0 days → "hoy"
+ *  - up to ~10 years → `hace Nd` (real overdue values stay legible: 400d, 900d…)
+ *  - beyond ~10 years → absolute date, NEVER `hace 20624d`
+ *
+ * The 10-year cap exists because anything larger can only be a bad/sentinel
+ * date, not a real "days since" value worth showing as a relative count.
+ */
+const RELATIVE_DAYS_ABSOLUTE_THRESHOLD = 3650; // ~10 years
+
+export function relativeDaysShort(value: Date | string | null | undefined): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  const t = date.getTime();
+  if (Number.isNaN(t) || t === 0) return "—";
+  const days = Math.floor((Date.now() - t) / 86_400_000);
+  if (days <= 0) return "hoy";
+  if (days <= RELATIVE_DAYS_ABSOLUTE_THRESHOLD) return `hace ${days}d`;
+  return formatDate(date);
+}
+
 export function notificationSeverityLabel(severity: string): string {
   switch (severity) {
     case "info":
