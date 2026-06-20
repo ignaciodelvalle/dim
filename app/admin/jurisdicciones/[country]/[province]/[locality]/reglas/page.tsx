@@ -28,6 +28,7 @@ const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
   ppp_breed_list: "Lista de razas PPP",
   ppp_weight_threshold: "Umbral de peso PPP",
   ppp_attestation_required_registries: "Registros de atestacion requeridos",
+  physical_credential_channels: "Canales de credencial fisica",
 };
 
 const RULE_TYPE_DESCRIPTION: Record<GovtBusinessRuleType, string> = {
@@ -35,6 +36,8 @@ const RULE_TYPE_DESCRIPTION: Record<GovtBusinessRuleType, string> = {
   ppp_weight_threshold: "Si el peso del animal por si solo dispara el status PPP, y a que kilos.",
   ppp_attestation_required_registries:
     "En que registros oficiales el dueno debe atestar a su mascota PPP.",
+  physical_credential_channels:
+    "Que canales de emision de credencial fisica estan habilitados (QR imprimible, placa grabada, NFC). Configuracion disponible proximamente.",
 };
 
 function decodeNullable(raw: string): string | null {

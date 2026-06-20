@@ -29,10 +29,23 @@ export interface PppAttestationRequiredRegistries {
   registries: PppAttestationRegistry[];
 }
 
+export interface PhysicalCredentialProvider {
+  enabled: boolean;
+  providerName?: string;
+  providerUrl?: string;
+}
+
+export interface PhysicalCredentialChannels {
+  printable_qr: boolean;
+  engraved_plate: PhysicalCredentialProvider;
+  nfc_tag: PhysicalCredentialProvider;
+}
+
 export interface BusinessRulePayloadByType {
   ppp_breed_list: PppBreedList;
   ppp_weight_threshold: PppWeightThreshold;
   ppp_attestation_required_registries: PppAttestationRequiredRegistries;
+  physical_credential_channels: PhysicalCredentialChannels;
 }
 
 export type BusinessRulePayload<T extends keyof BusinessRulePayloadByType> =
@@ -50,5 +63,10 @@ export const BUSINESS_RULES_DEFAULTS: {
   },
   ppp_attestation_required_registries: {
     registries: [],
+  },
+  physical_credential_channels: {
+    printable_qr: true,
+    engraved_plate: { enabled: false },
+    nfc_tag: { enabled: false },
   },
 };

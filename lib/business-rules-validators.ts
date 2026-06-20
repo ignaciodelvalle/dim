@@ -36,10 +36,30 @@ export const pppAttestationRequiredRegistriesSchema = z
   })
   .strict();
 
+const physicalCredentialProviderSchema = z
+  .object({
+    enabled: z.boolean(),
+    providerName: z.string().min(1).max(120).optional(),
+    providerUrl: z.string().url().max(300).optional(),
+  })
+  .strict()
+  .refine((p) => !p.enabled || (p.providerName != null && p.providerUrl != null), {
+    message: "Proveedor (nombre + URL) requerido cuando el canal está habilitado.",
+  });
+
+export const physicalCredentialChannelsSchema = z
+  .object({
+    printable_qr: z.boolean(),
+    engraved_plate: physicalCredentialProviderSchema,
+    nfc_tag: physicalCredentialProviderSchema,
+  })
+  .strict();
+
 export const BUSINESS_RULE_VALIDATORS: Record<GovtBusinessRuleType, z.ZodSchema> = {
   ppp_breed_list: pppBreedListSchema,
   ppp_weight_threshold: pppWeightThresholdSchema,
   ppp_attestation_required_registries: pppAttestationRequiredRegistriesSchema,
+  physical_credential_channels: physicalCredentialChannelsSchema,
 };
 
 export function validateRulePayload(

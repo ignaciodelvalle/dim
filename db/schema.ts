@@ -2093,6 +2093,7 @@ export const GOVT_BUSINESS_RULE_TYPES = [
   "ppp_breed_list",
   "ppp_weight_threshold",
   "ppp_attestation_required_registries",
+  "physical_credential_channels",
 ] as const;
 export type GovtBusinessRuleType = (typeof GOVT_BUSINESS_RULE_TYPES)[number];
 
@@ -2120,7 +2121,7 @@ export const govtBusinessRules = pgTable(
     ruleTypeIdx: index("govt_business_rules_rule_type_idx").on(table.ruleType),
     govtBusinessRulesRuleTypeValid: check(
       "govt_business_rules_rule_type_valid",
-      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries')`,
+      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries', 'physical_credential_channels')`,
     ),
     govtBusinessRulesJurisdictionProvinceCanonical: check(
       "govt_business_rules_jurisdiction_province_canonical",

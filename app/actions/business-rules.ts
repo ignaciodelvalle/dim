@@ -327,6 +327,26 @@ function parseRulePayloadFromForm(ruleType: GovtBusinessRuleType, formData: Form
       }));
       return { registries };
     }
+    case "physical_credential_channels": {
+      const printable_qr = formData.get("printable_qr") === "on";
+
+      function parseProvider(channel: string) {
+        const enabled = formData.get(`enabled_${channel}`) === "on";
+        const providerNameRaw = (formData.get(`provider_name_${channel}`) as string | null)?.trim();
+        const providerUrlRaw = (formData.get(`provider_url_${channel}`) as string | null)?.trim();
+        return {
+          enabled,
+          ...(providerNameRaw ? { providerName: providerNameRaw } : {}),
+          ...(providerUrlRaw ? { providerUrl: providerUrlRaw } : {}),
+        };
+      }
+
+      return {
+        printable_qr,
+        engraved_plate: parseProvider("engraved_plate"),
+        nfc_tag: parseProvider("nfc_tag"),
+      };
+    }
   }
 }
 

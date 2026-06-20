@@ -18,6 +18,7 @@ const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
   ppp_breed_list: "Lista de razas PPP",
   ppp_weight_threshold: "Umbral de peso PPP",
   ppp_attestation_required_registries: "Registros de atestacion requeridos",
+  physical_credential_channels: "Canales de credencial fisica",
 };
 
 const SOURCE_LABEL: Record<string, string> = {

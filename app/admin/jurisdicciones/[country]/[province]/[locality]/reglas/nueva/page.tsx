@@ -107,6 +107,9 @@ export default async function NewRulePage({
           initialNotes=""
         />
       )}
+      {ruleType === "physical_credential_channels" && (
+        <p className="text-[13px] text-ln-op-mute">Configuracion disponible proximamente.</p>
+      )}
     </div>
   );
 }
