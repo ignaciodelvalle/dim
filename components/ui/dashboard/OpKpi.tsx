@@ -75,6 +75,27 @@ type Props = {
 };
 
 // ---------------------------------------------------------------------------
+// Tone glyph + accessible label maps (WCAG 1.4.1 — color not sole means)
+//
+// Reuses the icon-per-state pattern from OpStateBadge.tsx.
+// Rendered only for warn/danger/ok tones; neutral/blue have no meaningful
+// non-chromatic state to convey and are left unchanged.
+// ---------------------------------------------------------------------------
+
+const TONE_ICONS: Partial<Record<Tone, string>> = {
+  danger: "⚠",
+  warn: "⚠",
+  ok: "●",
+};
+
+/** sr-only label appended after the icon so screen readers announce the state. */
+const TONE_LABELS: Partial<Record<Tone, string>> = {
+  danger: "Peligro",
+  warn: "Atención",
+  ok: "Normal",
+};
+
+// ---------------------------------------------------------------------------
 // Token maps
 // ---------------------------------------------------------------------------
 
@@ -217,8 +238,16 @@ export function OpKpi({
 
   const content = (
     <>
-      {/* Label + ⓘ */}
-      <div className="mb-2 flex items-center">
+      {/* Label + tone glyph + ⓘ */}
+      <div className="mb-2 flex items-center gap-1">
+        {TONE_ICONS[tone] && (
+          <>
+            <span aria-hidden="true" className="text-[11px] leading-none">
+              {TONE_ICONS[tone]}
+            </span>
+            <span className="sr-only">{TONE_LABELS[tone]}:</span>
+          </>
+        )}
         <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {label}
         </span>

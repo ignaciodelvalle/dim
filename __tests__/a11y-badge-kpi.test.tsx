@@ -77,9 +77,63 @@ describe("OpKpi delta — direction conveyed by text, not arrow alone (WCAG 1.4.
     expect(html).toContain("Baja:");
   });
 
-  it("does not render delta section when delta prop is omitted", () => {
-    const html = renderToStaticMarkup(<OpKpi label="Total" value={42} />);
-    // sr-only class should not appear when there is no delta.
+  it("does not render delta section when delta prop is omitted and tone is neutral", () => {
+    const html = renderToStaticMarkup(<OpKpi label="Total" value={42} tone="neutral" />);
+    // sr-only class should not appear when there is no delta and tone is neutral.
     expect(html).not.toContain("sr-only");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OpKpi tone — non-color state cue (UX 2.2, WCAG 1.4.1)
+// ---------------------------------------------------------------------------
+
+describe("OpKpi tone — non-color state cue (UX 2.2)", () => {
+  it("tone=danger renders a leading icon (aria-hidden) and an sr-only label", () => {
+    const html = renderToStaticMarkup(<OpKpi label="Cobertura" value="9%" tone="danger" />);
+    // Icon must be aria-hidden.
+    expect(html).toContain('aria-hidden="true"');
+    // sr-only accessible label for the danger tone.
+    expect(html).toContain("sr-only");
+    expect(html).toContain("Peligro");
+  });
+
+  it("tone=warn renders a leading icon (aria-hidden) and an sr-only label", () => {
+    const html = renderToStaticMarkup(<OpKpi label="Ocupación" value="72%" tone="warn" />);
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain("sr-only");
+    expect(html).toContain("Atención");
+  });
+
+  it("tone=ok renders a leading icon (aria-hidden) and an sr-only label", () => {
+    const html = renderToStaticMarkup(<OpKpi label="Vacunados" value="92%" tone="ok" />);
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain("sr-only");
+    expect(html).toContain("Normal");
+  });
+
+  it("tone=neutral (default) does NOT render a tone glyph or sr-only label", () => {
+    const html = renderToStaticMarkup(<OpKpi label="Total" value={42} />);
+    // With no tone and no delta, no sr-only should appear.
+    expect(html).not.toContain("sr-only");
+    // No Peligro/Atención/Normal text.
+    expect(html).not.toContain("Peligro");
+    expect(html).not.toContain("Atención");
+    expect(html).not.toContain("Normal");
+  });
+
+  it("tone=blue (non-state tone) does NOT render a tone glyph or sr-only label", () => {
+    const html = renderToStaticMarkup(<OpKpi label="Metric" value={5} tone="blue" />);
+    expect(html).not.toContain("sr-only");
+    expect(html).not.toContain("Peligro");
+    expect(html).not.toContain("Atención");
+    expect(html).not.toContain("Normal");
+  });
+
+  it("backward compat: tone-less OpKpi callers unchanged — no extra markup injected", () => {
+    const withTone = renderToStaticMarkup(<OpKpi label="Total" value={42} tone="neutral" />);
+    const withoutTone = renderToStaticMarkup(<OpKpi label="Total" value={42} />);
+    // Both neutral renders should be identical.
+    expect(withTone).toBe(withoutTone);
   });
 });

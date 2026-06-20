@@ -136,7 +136,7 @@ export function OpMobileDrawer({
                         href={item.href}
                         aria-current={active ? "page" : undefined}
                         className={[
-                          "flex min-h-9 items-center gap-2.5 rounded-[5px] px-[9px] py-[8px]",
+                          "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-[8px]",
                           "text-[12.5px] no-underline transition-colors -ml-0.5",
                           active
                             ? activeClasses

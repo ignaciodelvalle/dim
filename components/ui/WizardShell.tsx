@@ -60,12 +60,12 @@ export function LnWizardShell({
             type="button"
             onClick={onBack}
             aria-label="Paso anterior"
-            className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+            className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
           >
             ←
           </button>
         ) : (
-          <div className="w-9 h-9 flex-shrink-0" />
+          <div className="w-11 h-11 flex-shrink-0" />
         )}
 
         <div className="flex-1 min-w-0">

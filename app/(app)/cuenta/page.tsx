@@ -486,8 +486,13 @@ function ActionRow({
     >
       <div className="min-w-0">
         <p
-          className={`text-[13.5px] font-medium leading-tight ${danger ? "text-[var(--color-ln-err)]" : "text-[var(--color-ln-ink)]"}`}
+          className={`flex items-center gap-[6px] text-[13.5px] font-medium leading-tight ${danger ? "text-[var(--color-ln-err)]" : "text-[var(--color-ln-ink)]"}`}
         >
+          {danger && (
+            <span aria-hidden="true" className="text-[12px] leading-none">
+              ⚠
+            </span>
+          )}
           {label}
         </p>
         <p className="mt-[2px] text-[11.5px] text-[var(--color-ln-mute)]">{description}</p>

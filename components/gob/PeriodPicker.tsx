@@ -57,7 +57,7 @@ const PRESETS: PresetConfig[] = [
 const chipBase =
   "inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium border " +
   "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul focus-visible:ring-offset-1 " +
-  "min-h-9 cursor-pointer";
+  "min-h-11 cursor-pointer";
 
 const chipActive = "bg-ln-azul text-white border-ln-azul";
 const chipInactive =
