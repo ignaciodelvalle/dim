@@ -57,9 +57,11 @@ describe("GET /api/cron/drain-outbox", () => {
       select: txSelectMock,
     };
 
-    const transactionMock = vi.fn().mockImplementation(async (fn: (tx: typeof txObj) => unknown) => {
-      return fn(txObj);
-    });
+    const transactionMock = vi
+      .fn()
+      .mockImplementation(async (fn: (tx: typeof txObj) => unknown) => {
+        return fn(txObj);
+      });
 
     const dbMock = {
       insert: insertMock,

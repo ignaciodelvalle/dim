@@ -27,7 +27,12 @@ describe("GET /api/cron/business-rules-reeval", () => {
 
   function mockDeps(
     rows: { country: string; province: string | null; locality: string | null }[],
-    reEvalResult: { scanned: number; flippedToPpp: number; flippedToNonPpp: number; notified: number },
+    reEvalResult: {
+      scanned: number;
+      flippedToPpp: number;
+      flippedToNonPpp: number;
+      notified: number;
+    },
   ) {
     // Mock the drizzle chain: db.select().from().where() → rows
     const whereMock = vi.fn().mockResolvedValue(rows);

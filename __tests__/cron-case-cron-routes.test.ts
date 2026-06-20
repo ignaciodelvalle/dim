@@ -69,10 +69,9 @@ describe("GET /api/cron/close-followup-expired-adoptions", () => {
       closeFollowupExpiredAdoption: vi.fn(),
     }));
     const { GET } = await import("@/app/api/cron/close-followup-expired-adoptions/route");
-    const req = new Request(
-      "http://test.local/api/cron/close-followup-expired-adoptions",
-      { headers: {} },
-    );
+    const req = new Request("http://test.local/api/cron/close-followup-expired-adoptions", {
+      headers: {},
+    });
     const res = await GET(req as unknown as Parameters<typeof GET>[0]);
     return { res, runCaseCronMock };
   }
@@ -109,10 +108,9 @@ describe("GET /api/cron/close-followup-expired-adoptions", () => {
       closeFollowupExpiredAdoption: vi.fn(),
     }));
     const { GET } = await import("@/app/api/cron/close-followup-expired-adoptions/route");
-    const req = new Request(
-      "http://test.local/api/cron/close-followup-expired-adoptions",
-      { headers: {} },
-    );
+    const req = new Request("http://test.local/api/cron/close-followup-expired-adoptions", {
+      headers: {},
+    });
     const res = await GET(req as unknown as Parameters<typeof GET>[0]);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -148,10 +146,9 @@ describe("GET /api/cron/close-stale-lost-episodes", () => {
       closeStaleLostEpisode: vi.fn(),
     }));
     const { GET } = await import("@/app/api/cron/close-stale-lost-episodes/route");
-    const req = new Request(
-      "http://test.local/api/cron/close-stale-lost-episodes",
-      { headers: {} },
-    );
+    const req = new Request("http://test.local/api/cron/close-stale-lost-episodes", {
+      headers: {},
+    });
     const res = await GET(req as unknown as Parameters<typeof GET>[0]);
     return { res, runCaseCronMock };
   }
@@ -204,10 +201,7 @@ describe("GET /api/cron/escalate-stale-disputes", () => {
       escalateStaleDispute: vi.fn(),
     }));
     const { GET } = await import("@/app/api/cron/escalate-stale-disputes/route");
-    const req = new Request(
-      "http://test.local/api/cron/escalate-stale-disputes",
-      { headers: {} },
-    );
+    const req = new Request("http://test.local/api/cron/escalate-stale-disputes", { headers: {} });
     const res = await GET(req as unknown as Parameters<typeof GET>[0]);
     return { res, runCaseCronMock };
   }
@@ -260,10 +254,9 @@ describe("GET /api/cron/escalate-stale-welfare-cases", () => {
       escalateStaleWelfareCase: vi.fn(),
     }));
     const { GET } = await import("@/app/api/cron/escalate-stale-welfare-cases/route");
-    const req = new Request(
-      "http://test.local/api/cron/escalate-stale-welfare-cases",
-      { headers: {} },
-    );
+    const req = new Request("http://test.local/api/cron/escalate-stale-welfare-cases", {
+      headers: {},
+    });
     const res = await GET(req as unknown as Parameters<typeof GET>[0]);
     return { res, runCaseCronMock };
   }
@@ -312,10 +305,9 @@ describe("GET /api/cron/expire-cross-org-transfers", () => {
       },
     }));
     const { GET } = await import("@/app/api/cron/expire-cross-org-transfers/route");
-    const req = new Request(
-      "http://test.local/api/cron/expire-cross-org-transfers",
-      { headers: {} },
-    );
+    const req = new Request("http://test.local/api/cron/expire-cross-org-transfers", {
+      headers: {},
+    });
     const res = await GET(req as unknown as Parameters<typeof GET>[0]);
     return { res, runCaseCronMock };
   }

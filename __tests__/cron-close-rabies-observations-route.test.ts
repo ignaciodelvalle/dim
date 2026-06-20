@@ -54,9 +54,7 @@ describe("GET /api/cron/close-rabies-observations", () => {
   });
 
   it("returns 200 with helper stats when the secret matches via x-cron-secret", async () => {
-    const closeMock = vi
-      .fn()
-      .mockResolvedValue({ closed: 3, skipped: 1, errors: 0 });
+    const closeMock = vi.fn().mockResolvedValue({ closed: 3, skipped: 1, errors: 0 });
     vi.doMock("@/lib/rabies-observation-closer", () => ({
       closeEligibleRabiesObservations: closeMock,
     }));
@@ -81,9 +79,7 @@ describe("GET /api/cron/close-rabies-observations", () => {
 
   it("returns 500 with the error message when the helper throws", async () => {
     vi.doMock("@/lib/rabies-observation-closer", () => ({
-      closeEligibleRabiesObservations: vi
-        .fn()
-        .mockRejectedValue(new Error("db connection lost")),
+      closeEligibleRabiesObservations: vi.fn().mockRejectedValue(new Error("db connection lost")),
     }));
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await callRoute({ "x-cron-secret": "test-secret" });

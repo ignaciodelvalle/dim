@@ -53,9 +53,7 @@ describe("GET /api/cron/expire-pet-transfers", () => {
   });
 
   it("returns 200 with helper stats when the secret matches via x-cron-secret", async () => {
-    const expireMock = vi
-      .fn()
-      .mockResolvedValue({ candidates: 4, expired: 2, errors: 0 });
+    const expireMock = vi.fn().mockResolvedValue({ candidates: 4, expired: 2, errors: 0 });
     vi.doMock("@/src/modules/transfers/actions", () => ({
       expirePetTransfersAction: expireMock,
     }));

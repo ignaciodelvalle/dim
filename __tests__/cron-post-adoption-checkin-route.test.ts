@@ -98,9 +98,7 @@ describe("GET /api/cron/post-adoption-checkin", () => {
 
   it("returns 500 when the helper throws", async () => {
     vi.doMock("@/lib/notifications", () => ({
-      runPostAdoptionCheckinScan: vi
-        .fn()
-        .mockRejectedValue(new Error("checkin scan failed")),
+      runPostAdoptionCheckinScan: vi.fn().mockRejectedValue(new Error("checkin scan failed")),
       runVaccineDueScan: vi.fn(),
     }));
     const res = await callRoute({ "x-cron-secret": "test-secret" });
