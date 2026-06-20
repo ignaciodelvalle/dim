@@ -542,3 +542,30 @@ describe("buildOrgNav — section invariants", () => {
     expect(flat).toEqual(sections.flatMap((s) => s.items));
   });
 });
+
+// ---------------------------------------------------------------------------
+// UX 1.4 — label rename: /gob/historial "Histórico" → "Mi actividad"
+// Route is unchanged (href preserved); only the surface label is updated.
+// ---------------------------------------------------------------------------
+
+describe("UX 1.4 — gob /historial label rename", () => {
+  it("/gob/historial href is preserved in GOB_NAV (no route loss)", () => {
+    const hrefs = GOB_NAV.map((i) => i.href);
+    expect(hrefs).toContain("/gob/historial");
+  });
+
+  it('/gob/historial item label is "Mi actividad" (not "Histórico")', () => {
+    const allItems = GOB_NAV_SECTIONS.flatMap((s) => s.items);
+    const item = allItems.find((i) => i.href === "/gob/historial");
+    expect(item).toBeDefined();
+    expect(item?.label).toBe("Mi actividad");
+    expect(item?.label).not.toBe("Histórico");
+  });
+
+  it('/admin/historial retains its original "Historial" label (only gob label changed)', () => {
+    const allAdminItems = ADMIN_NAV_SECTIONS.flatMap((s) => s.items);
+    const item = allAdminItems.find((i) => i.href === "/admin/historial");
+    expect(item).toBeDefined();
+    expect(item?.label).toBe("Historial");
+  });
+});
