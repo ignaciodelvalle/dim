@@ -66,7 +66,7 @@ export default async function GobReglasPage() {
           Reglas que aplican a tu jurisdicción
         </h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Vista de solo lectura. La administracion de reglas la hace el admin nacional desde{" "}
+          Vista de solo lectura. La administración de reglas la hace el admin nacional desde{" "}
           <Link
             href="/admin/jurisdicciones"
             className="underline underline-offset-4 text-ln-op-azul"

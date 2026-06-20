@@ -47,7 +47,7 @@ export default async function AdminCasosPage({
 
       {items.length === 0 ? (
         <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          Sin casos registrados todavia.
+          Sin casos registrados todavía.
         </p>
       ) : (
         <ul className="space-y-2">

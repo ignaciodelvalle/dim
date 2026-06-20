@@ -110,6 +110,11 @@ describe("ACCENT_WORDS", () => {
     expect(bads).toContain("accion");
     expect(bads).toContain("jurisdiccion");
     expect(bads).toContain("auditoria");
+    expect(bads).toContain("administracion");
+    expect(bads).toContain("todavia");
+    expect(bads).toContain("aqui");
+    expect(bads).toContain("ademas");
+    expect(bads).toContain("despues");
   });
 
   describe("pais", () => {
@@ -189,6 +194,34 @@ describe("ACCENT_WORDS", () => {
     it("does NOT match 'auditoría' (correctly accented)", () => {
       entry.re.lastIndex = 0;
       expect("Ver el log de auditoría del sistema.").not.toMatch(entry.re);
+    });
+  });
+
+  describe("administracion", () => {
+    const entry = ACCENT_WORDS.find((w) => w.bad === "administracion")!;
+
+    it("matches 'administracion' as copy", () => {
+      entry.re.lastIndex = 0;
+      expect("La administracion de reglas la hace el admin.").toMatch(entry.re);
+    });
+
+    it("does NOT match accented 'administración'", () => {
+      entry.re.lastIndex = 0;
+      expect("La administración de reglas la hace el admin.").not.toMatch(entry.re);
+    });
+  });
+
+  describe("todavia", () => {
+    const entry = ACCENT_WORDS.find((w) => w.bad === "todavia")!;
+
+    it("matches 'todavia' as copy", () => {
+      entry.re.lastIndex = 0;
+      expect("Sin casos registrados todavia.").toMatch(entry.re);
+    });
+
+    it("does NOT match accented 'todavía'", () => {
+      entry.re.lastIndex = 0;
+      expect("Sin casos registrados todavía.").not.toMatch(entry.re);
     });
   });
 });

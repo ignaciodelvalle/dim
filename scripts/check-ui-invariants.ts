@@ -153,6 +153,12 @@ export const SCREAMING_ENUM_ALLOWLIST = new Set<string>([
 // Each entry: [unaccented, accented, regex]
 // Regex uses \b word boundaries and is case-sensitive.
 // We do NOT flag words inside URLs, hrefs, classNames, or code identifiers.
+// NOTE on word selection: only add words that are (a) real Spanish copy in the
+// repo and (b) very unlikely to be a code identifier. Identifiers in this
+// codebase are English (description, configuration, …), so adverbs/connectors
+// and Spanish-only nouns are safe; words that double as common variable/prop
+// names (descripcion, version, opcion, numero) are NOT added — they would
+// false-positive on JSX expressions like {descripcion}.
 export const ACCENT_WORDS: Array<{ bad: string; good: string; re: RegExp }> = [
   { bad: "Ultimas", good: "Últimas", re: /\bUltimas\b/g },
   { bad: "notificacion", good: "notificación", re: /\bnotificacion\b/g },
@@ -162,6 +168,12 @@ export const ACCENT_WORDS: Array<{ bad: string; good: string; re: RegExp }> = [
   { bad: "accion", good: "acción", re: /\baccion\b/g },
   { bad: "jurisdiccion", good: "jurisdicción", re: /\bjurisdiccion\b/g },
   { bad: "auditoria", good: "auditoría", re: /\bauditoria\b/g },
+  // Adverbs/connectors + administración — never identifiers in this codebase.
+  { bad: "administracion", good: "administración", re: /\badministracion\b/g },
+  { bad: "todavia", good: "todavía", re: /\btodavia\b/g },
+  { bad: "aqui", good: "aquí", re: /\baqui\b/g },
+  { bad: "ademas", good: "además", re: /\bademas\b/g },
+  { bad: "despues", good: "después", re: /\bdespues\b/g },
 ];
 
 // Lines that should be excluded from accent rule matching:
