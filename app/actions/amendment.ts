@@ -14,11 +14,7 @@
 // original target_event_id, so the chain stays one hop from the root event.
 
 import { auditLog, db, notifications, ownerships, petEvents, profiles } from "@/db";
-import {
-  ADMIN_AMENDMENT_NOTIFICATION_TYPE,
-  AMENDABLE_EVENT_TYPES,
-  isAmendableEventType,
-} from "@/lib/amendment";
+import { ADMIN_AMENDMENT_NOTIFICATION_TYPE, isAmendableEventType } from "@/lib/amendment";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { requireAlivePetAccess } from "@/lib/pet-access";
 import { and, eq, isNull } from "drizzle-orm";
