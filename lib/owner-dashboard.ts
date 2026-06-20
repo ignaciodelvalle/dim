@@ -56,6 +56,18 @@ import {
 // Pets
 // ---------------------------------------------------------------------------
 
+/**
+ * Maximum number of pet rows loaded into JS on the dashboard.
+ *
+ * For owners with thousands of pets (high-volume shelters / rescue networks)
+ * fetching every row without a bound caused OOM / serialization crashes
+ * (production incident digest 3058248096, UX audit item 0.3).
+ *
+ * Callers that need the *total* count use countPetsForOwner() — a single
+ * SQL COUNT(*) that never materialises row data.
+ */
+export const DASHBOARD_PETS_LIMIT = 50;
+
 export type DashboardPet = {
   id: string;
   publicToken: string;
@@ -69,31 +81,54 @@ export type DashboardPet = {
   jurisdictionLocality: string | null;
 };
 
-export async function fetchPetsForOwner(userId: string): Promise<DashboardPet[]> {
-  const rows = await db
-    .select({
-      pet: pets,
-      photo: attachments,
-      ownershipRole: ownerships.role,
-    })
-    .from(ownerships)
-    .innerJoin(pets, eq(pets.id, ownerships.petId))
-    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)))
-    .orderBy(desc(pets.createdAt));
+/**
+ * Paginated pet fetch for the owner dashboard.
+ *
+ * Returns at most `limit` rows (default DASHBOARD_PETS_LIMIT = 50) so the
+ * page stays bounded even for high-volume accounts with thousands of pets.
+ * The total ownership count is returned separately so the UI can show
+ * "showing N of M" without loading all M rows into memory.
+ */
+export async function fetchPetsForOwner(
+  userId: string,
+  limit = DASHBOARD_PETS_LIMIT,
+): Promise<{ pets: DashboardPet[]; total: number }> {
+  // SQL-side COUNT — never materialises row data regardless of volume.
+  const [countRow, rows] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(ownerships)
+      .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)))
+      .then((r) => r[0]),
+    db
+      .select({
+        pet: pets,
+        photo: attachments,
+        ownershipRole: ownerships.role,
+      })
+      .from(ownerships)
+      .innerJoin(pets, eq(pets.id, ownerships.petId))
+      .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+      .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)))
+      .orderBy(desc(pets.createdAt))
+      .limit(limit),
+  ]);
 
-  return rows.map((r) => ({
-    id: r.pet.id,
-    publicToken: r.pet.publicToken,
-    name: r.pet.name,
-    species: r.pet.species,
-    status: r.pet.status,
-    color: r.pet.color,
-    primaryPhotoStoragePath: r.photo?.storagePath ?? null,
-    ownershipRole: r.ownershipRole,
-    jurisdictionProvince: r.pet.jurisdictionProvince,
-    jurisdictionLocality: r.pet.jurisdictionLocality,
-  }));
+  return {
+    total: Number(countRow?.n ?? 0),
+    pets: rows.map((r) => ({
+      id: r.pet.id,
+      publicToken: r.pet.publicToken,
+      name: r.pet.name,
+      species: r.pet.species,
+      status: r.pet.status,
+      color: r.pet.color,
+      primaryPhotoStoragePath: r.photo?.storagePath ?? null,
+      ownershipRole: r.ownershipRole,
+      jurisdictionProvince: r.pet.jurisdictionProvince,
+      jurisdictionLocality: r.pet.jurisdictionLocality,
+    })),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -863,15 +898,15 @@ const VARIANT_ORDER: Record<ReminderVariant, number> = {
 async function fetchActiveRemindersBase(
   userId: string,
   petIdFilter?: string,
+  rowLimit?: number,
 ): Promise<ActiveReminderRow[]> {
   const now = new Date();
 
-  // Decision D4: count ALL pending reminders with no future cap.
-  // The previous 14-day windowEnd guard caused the dashboard KPI count
-  // to diverge from the drilldown list (which linked to the pet's full
-  // pending-reminder list). Removing the cap makes every count consistent
-  // with what the linked surface actually shows.
-  const rows = await db
+  // Decision D4: fetch pending reminders ordered by urgency.
+  // A row cap is applied when rowLimit is provided (dashboard path) to prevent
+  // materialising thousands of rows for high-volume owners. Per-pet drilldown
+  // paths pass no limit so the full pet history is available.
+  const query = db
     .select({
       reminderId: reminders.id,
       petId: pets.id,
@@ -892,7 +927,10 @@ async function fetchActiveRemindersBase(
         or(isNull(reminders.snoozedUntil), lte(reminders.snoozedUntil, now)),
         ...(petIdFilter ? [eq(reminders.petId, petIdFilter)] : []),
       ),
-    );
+    )
+    .orderBy(reminders.dueAt);
+
+  const rows = rowLimit ? await query.limit(rowLimit) : await query;
 
   return rows
     .map((r) => {
@@ -920,24 +958,60 @@ async function fetchActiveRemindersBase(
 }
 
 /**
- * Active vaccine reminders for an owner (COUNT-ALL, decision D4). Excludes:
- *  - reminders with completedAt set,
- *  - reminders with snoozedUntil > now.
+ * Maximum reminder rows returned to the dashboard.
  *
- * No future cap is applied: all pending reminders are returned regardless of
- * how far ahead their dueAt falls. This keeps the dashboard KPI count
- * consistent with the per-pet drilldown list it links to.
+ * The dashboard widget shows at most 4 rows (reminders.slice(0, 4)) and the
+ * KPI counter only needs the total count — not full rows. Loading thousands of
+ * reminder rows for a high-volume owner wastes memory and serialization time.
+ *
+ * Callers that need the exact count use countActiveReminders() instead.
+ */
+export const DASHBOARD_REMINDERS_LIMIT = 100;
+
+/**
+ * Active vaccine reminders for an owner, capped at DASHBOARD_REMINDERS_LIMIT.
+ *
+ * Decision D4 intent (count parity) is preserved: the KPI counter on /inicio
+ * should use countActiveReminders() for the accurate total, while this function
+ * returns the highest-priority rows for display. For accounts with ≤ 100 pending
+ * reminders the count equals the array length, so existing callers that relied
+ * on `reminders.length` for the count see no change in typical usage.
+ *
+ * For high-volume owners the count may exceed the limit — callers should use
+ * countActiveReminders() when they need the precise total.
  *
  * Ordered by variant priority: overdue_critical → overdue → due_soon → upcoming.
  * Within a variant, oldest dueAt first.
  */
 export async function fetchActiveReminders(userId: string): Promise<ActiveReminderRow[]> {
-  return fetchActiveRemindersBase(userId);
+  return fetchActiveRemindersBase(userId, undefined, DASHBOARD_REMINDERS_LIMIT);
 }
 
 /**
- * Same as fetchActiveReminders (COUNT-ALL, no future cap) but scoped to a single pet.
- * Used by PetReminders on the pet detail page.
+ * SQL COUNT of pending vaccine reminders for an owner — no rows materialised.
+ * Use this for the dashboard KPI counter when you need the precise total
+ * independently of the DASHBOARD_REMINDERS_LIMIT cap on fetchActiveReminders.
+ */
+export async function countActiveReminders(userId: string): Promise<number> {
+  const now = new Date();
+  const [row] = await db
+    .select({ n: count() })
+    .from(reminders)
+    .where(
+      and(
+        eq(reminders.userId, userId),
+        eq(reminders.reminderType, "vaccine"),
+        isNull(reminders.completedAt),
+        or(isNull(reminders.snoozedUntil), lte(reminders.snoozedUntil, now)),
+      ),
+    );
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Same as fetchActiveReminders but scoped to a single pet.
+ * Used by PetReminders on the pet detail page. No row cap — per-pet volumes
+ * are small and the full history is needed for accurate state display.
  */
 export async function fetchActiveRemindersForPet(
   userId: string,

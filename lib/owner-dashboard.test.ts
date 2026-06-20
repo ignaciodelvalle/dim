@@ -31,7 +31,7 @@ afterAll(() => {
 
 describe("owner-dashboard — empty user", () => {
   it("returns empty arrays for a user that owns nothing", async () => {
-    const [pets, appts, notifs, count, meds, open, prev, locs] = await Promise.all([
+    const [petsResult, appts, notifs, unreadCount, meds, open, prev, locs] = await Promise.all([
       fetchPetsForOwner(RANDOM_USER_ID),
       fetchUpcomingAppointments(RANDOM_USER_ID),
       fetchUnreadNotifications(RANDOM_USER_ID),
@@ -41,10 +41,12 @@ describe("owner-dashboard — empty user", () => {
       fetchPreviousWorkflows(RANDOM_USER_ID),
       fetchLivingPetLocalities(RANDOM_USER_ID),
     ]);
-    expect(pets).toEqual([]);
+    // fetchPetsForOwner now returns { pets, total } — both should be empty/zero.
+    expect(petsResult.pets).toEqual([]);
+    expect(petsResult.total).toBe(0);
     expect(appts).toEqual([]);
     expect(notifs).toEqual([]);
-    expect(count).toBe(0);
+    expect(unreadCount).toBe(0);
     expect(meds).toEqual([]);
     expect(open).toEqual([]);
     expect(prev).toEqual([]);

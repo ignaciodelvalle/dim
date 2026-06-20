@@ -77,16 +77,23 @@ export default async function InicioPage() {
 
   // getProfileCached is warmed by (app)/layout.tsx in the same render pass —
   // this is a memoized hit, not an extra DB round-trip.
-  const [profileRow, pets, openWf, appointments, reminders, healthStatus] = await Promise.all([
-    getProfileCached(user.id),
-    fetchPetsForOwner(user.id),
-    fetchOpenWorkflows(user.id),
-    fetchUpcomingAppointments(user.id, 5),
-    fetchActiveReminders(user.id),
-    // Item 5 — per-pet health-status nudges, derived from the owner's own
-    // events/reminders only (no surveillance/authority data).
-    fetchPetHealthNudges(user.id),
-  ]);
+  const [profileRow, petsResult, openWf, appointments, reminders, healthStatus] = await Promise.all(
+    [
+      getProfileCached(user.id),
+      // fetchPetsForOwner is bounded (DASHBOARD_PETS_LIMIT = 50) — petsResult.total
+      // carries the SQL COUNT so we can show "ver todas (N)" without loading all rows.
+      fetchPetsForOwner(user.id),
+      fetchOpenWorkflows(user.id),
+      fetchUpcomingAppointments(user.id, 5),
+      fetchActiveReminders(user.id),
+      // Item 5 — per-pet health-status nudges, derived from the owner's own
+      // events/reminders only (no surveillance/authority data).
+      fetchPetHealthNudges(user.id),
+    ],
+  );
+
+  const { pets, total: totalPets } = petsResult;
+
   // Deactivated profiles greet generically — parity with the pre-cache query,
   // which filtered deactivated_at IS NULL.
   const firstName =
@@ -97,7 +104,9 @@ export default async function InicioPage() {
   const eventCatcherPets = pets.map(adaptPet);
   const cases = openWf.map(adaptWorkflow);
 
-  // Visible pets for the registry (no deceased)
+  // Visible pets for the registry (no deceased).
+  // Note: `pets` is already bounded to DASHBOARD_PETS_LIMIT rows; totalPets
+  // is the full SQL count used in the "ver todas (N)" link.
   const registryPets = pets.filter((p) => p.status !== "deceased");
 
   // Today's date for the greeting datestamp
@@ -218,7 +227,7 @@ export default async function InicioPage() {
                 href="/mis-mascotas"
                 className="text-[var(--color-ln-azul)] no-underline hover:underline"
               >
-                {registryPets.length} inscripta{registryPets.length !== 1 ? "s" : ""} · ver todas →
+                {totalPets} inscripta{totalPets !== 1 ? "s" : ""} · ver todas →
               </Link>
             }
           />
