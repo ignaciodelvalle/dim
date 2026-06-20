@@ -1,27 +1,43 @@
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { PanoramaConsole } from "@/components/panorama/PanoramaConsole";
 import type { FeatureCollection, PanoramaLayer } from "@/src/modules/panorama/domain/types";
-import { SituationalMapDynamic } from "./SituationalMapDynamic";
 
 // ---------------------------------------------------------------------------
 // PanoramaShell — server component composing the situational console chrome:
-// header + scope chip + demo-data disclosure + the (client) map + a legend.
+// header + scope chip + unified filters (JurisdictionSwitcher + PeriodPicker) +
+// demo-data disclosure + the (client) multi-layer console (map + LayerPanel).
 //
 // Shared by /admin/panorama (universal scope) and /gob/panorama (jurisdiction
-// scope). Slice 1 renders a single active layer (perdidas); the LayerPanel and
-// viewport KPIs compose into this shell in later slices.
+// scope). The default layer (perdidas) is resolved server-side; the client
+// console fetches the other layers on toggle, threading the same filters.
 // ---------------------------------------------------------------------------
 
 type Props = {
   /** Human scope label, e.g. "Nacional · todas las provincias" or "Salta". */
   scopeLabel: string;
-  /** The active layer's registry entry (label + color for the legend). */
+  /** The default-on layer's registry entry (perdidas). */
   layer: PanoramaLayer;
-  /** Pre-scoped features for the active layer (resolved server-side). */
+  /** Pre-scoped features for the default layer (resolved server-side). */
   features: FeatureCollection;
+  /** Envelope for the default layer (surfaced in the LayerPanel). */
+  truncated?: boolean;
+  suppressedCount?: number;
+  /** Provinces the viewer may filter to (admin: all; govt: its own). */
+  allowedProvinces: Array<{ code: string; name: string }>;
+  /** Localities of the selected province (for the JurisdictionSwitcher). */
+  localities: Array<{ slug: string; name: string }>;
 };
 
-export function PanoramaShell({ scopeLabel, layer, features }: Props) {
-  const count = features.features.length;
-
+export function PanoramaShell({
+  scopeLabel,
+  layer,
+  features,
+  truncated = false,
+  suppressedCount = 0,
+  allowedProvinces,
+  localities,
+}: Props) {
   return (
     <div className="space-y-4">
       <header className="space-y-2">
@@ -41,32 +57,26 @@ export function PanoramaShell({ scopeLabel, layer, features }: Props) {
         </p>
       </header>
 
+      {/* Unified filters — scope + period drive the layers (same controls as the
+          dashboards). Changing them reloads the server render (default layer) and
+          the client re-fetches active layers with the new params. */}
+      <div className="space-y-3 rounded-[8px] border border-ln-op-line bg-ln-op-card/40 p-3">
+        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
+        <PeriodPicker defaultPreset="30d" />
+      </div>
+
       {/* Demo-data disclosure — this is a synthetic dataset (exec-gate credibility). */}
       <p className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-1.5 text-[11px] text-ln-op-ink-2">
         <span className="font-semibold">Datos de demostración.</span> El dataset cargado es
         sintético (densidad ponderada por Censo 2022); no representa casos reales.
       </p>
 
-      <SituationalMapDynamic
-        features={features}
-        color={layer.color}
-        label={`Mapa: ${layer.label}`}
+      <PanoramaConsole
+        defaultLayerId={layer.id}
+        defaultFeatures={features}
+        defaultTruncated={truncated}
+        defaultSuppressedCount={suppressedCount}
       />
-
-      {/* Legend — the active layer (Slice 1). Becomes the LayerPanel in Slice 2. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-ln-op-ink-2">
-        <span className="inline-flex items-center gap-1.5">
-          <span
-            className="inline-block h-3 w-3 rounded-full border border-ln-op-line"
-            style={{ background: layer.color }}
-            aria-hidden="true"
-          />
-          {layer.label}
-        </span>
-        <span className="tabular-nums text-ln-op-mute">
-          {count.toLocaleString("es-AR")} {count === 1 ? "punto" : "puntos"}
-        </span>
-      </div>
     </div>
   );
 }

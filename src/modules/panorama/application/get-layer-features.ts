@@ -1,19 +1,54 @@
 // Panorama application use-case: resolve a layer's GeoJSON FeatureCollection.
 //
-// F1 implements the "perdidas" layer by REUSING the existing tested, scope-aware
-// lib/govt-dashboards.fetchLostPets — the jurisdiction scope guard is INHERITED
-// from tested code, not re-implemented here. The (actor, jurisdictions) pair is
-// resolved at the action/route boundary (auth); this use-case never widens
-// scope. Other v1 layers (declared in the domain registry) return an empty
-// collection until their F2 loaders land, keeping the API uniform.
+// Slice 1 (F1) implemented ONLY "perdidas" by REUSING the tested, scope-aware
+// lib/govt-dashboards.fetchLostPets. Slice 2 (F2) adds the remaining 7 layers,
+// each backed by a scope-aware reader in infrastructure/repository.ts. The
+// (actor, jurisdictions) pair is resolved at the action/route boundary (auth);
+// this use-case never widens scope.
+//
+// Return shape carries an envelope ({ truncated, suppressedCount }) so the
+// LayerPanel can surface the per-layer 2.000 cap and k-anon suppression count.
 
 import { type LostPetRow, fetchLostPets } from "@/lib/govt-dashboards";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 
+import {
+  type ChoroplethRows,
+  type LayerRows,
+  loadBiteEvents,
+  loadDecomisos,
+  loadDenunciaCentroids,
+  loadMortality,
+  loadOutbreakSignals,
+  loadRabiesCoverage,
+  loadShelters,
+} from "@/src/modules/panorama/infrastructure/repository";
+
 import type { FeatureCollection, LayerId } from "@/src/modules/panorama/domain/types";
-import { type LostPointRow, buildPerdidasFeatures } from "./build-features";
+import {
+  type LostPointRow,
+  buildChoroplethFeatures,
+  buildDecomisosFeatures,
+  buildDenunciasFeatures,
+  buildMordedurasFeatures,
+  buildPerdidasFeatures,
+  buildRefugiosFeatures,
+  buildZoonosisFeatures,
+} from "./build-features";
 
 export type LayerPeriod = { since: Date };
+
+/**
+ * The use-case result. `features` is the GeoJSON the map plots; the envelope
+ * fields are surfaced by the LayerPanel:
+ *  - `truncated`       — the per-layer 2.000 cap clipped the result.
+ *  - `suppressedCount` — choropleth cells hidden by k-anon (k=5); 0 otherwise.
+ */
+export type LayerFeaturesResult = {
+  features: FeatureCollection;
+  truncated: boolean;
+  suppressedCount: number;
+};
 
 /** Adapt a scoped LostPetRow to the pure transform's row contract. */
 function lostPetToPointRow(p: LostPetRow): LostPointRow {
@@ -28,12 +63,32 @@ function lostPetToPointRow(p: LostPetRow): LostPointRow {
   };
 }
 
+const empty = (): LayerFeaturesResult => ({
+  features: { type: "FeatureCollection", features: [] },
+  truncated: false,
+  suppressedCount: 0,
+});
+
+/** Wrap a point-layer reader result into the use-case envelope. */
+function pointResult<Row>(rows: LayerRows<Row>, features: FeatureCollection): LayerFeaturesResult {
+  return { features, truncated: rows.truncated, suppressedCount: 0 };
+}
+
+/** Wrap a choropleth reader result into the use-case envelope. */
+function choroplethResult(rows: ChoroplethRows): LayerFeaturesResult {
+  return {
+    features: buildChoroplethFeatures(rows.cells),
+    truncated: rows.truncated,
+    suppressedCount: rows.suppressedCount,
+  };
+}
+
 export async function getLayerFeatures(
   layer: LayerId,
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   period: LayerPeriod,
-): Promise<FeatureCollection> {
+): Promise<LayerFeaturesResult> {
   switch (layer) {
     case "perdidas": {
       // Scope + period enforced inside fetchLostPets (tested). status="lost"
@@ -42,11 +97,42 @@ export async function getLayerFeatures(
         since: period.since,
         status: "lost",
       });
-      return buildPerdidasFeatures(rows.map(lostPetToPointRow));
+      return {
+        features: buildPerdidasFeatures(rows.map(lostPetToPointRow)),
+        truncated: false,
+        suppressedCount: 0,
+      };
+    }
+    case "mordeduras": {
+      const r = await loadBiteEvents(actor, jurisdictions, period.since);
+      return pointResult(r, buildMordedurasFeatures(r.rows));
+    }
+    case "denuncias": {
+      const r = await loadDenunciaCentroids(actor, jurisdictions, period.since);
+      return pointResult(r, buildDenunciasFeatures(r.rows));
+    }
+    case "zoonosis": {
+      const r = await loadOutbreakSignals(actor, jurisdictions, period.since);
+      return pointResult(r, buildZoonosisFeatures(r.rows));
+    }
+    case "refugios": {
+      // Shelters have no time dimension — period is not applied.
+      const r = await loadShelters(actor, jurisdictions);
+      return pointResult(r, buildRefugiosFeatures(r.rows));
+    }
+    case "decomisos": {
+      const r = await loadDecomisos(actor, jurisdictions, period.since);
+      return pointResult(r, buildDecomisosFeatures(r.rows));
+    }
+    case "cobertura": {
+      const r = await loadRabiesCoverage(actor, jurisdictions);
+      return choroplethResult(r);
+    }
+    case "mortalidad": {
+      const r = await loadMortality(actor, jurisdictions);
+      return choroplethResult(r);
     }
     default:
-      // F2 layers (mordeduras, denuncias, zoonosis, refugios, decomisos,
-      // cobertura, mortalidad) are declared in the registry but not yet loaded.
-      return { type: "FeatureCollection", features: [] };
+      return empty();
   }
 }
