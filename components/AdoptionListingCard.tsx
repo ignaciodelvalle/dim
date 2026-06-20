@@ -49,9 +49,16 @@ export function AdoptionListingCard({
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
   const isNew = Date.now() - new Date(item.adoptionListedAt).getTime() < SEVEN_DAYS_MS;
 
+  const petHref = `/adoptar/${item.petPublicToken}`;
+
   return (
-    <li className="rounded-xl border border-ln-line overflow-hidden bg-ln-card hover:shadow-lg transition-shadow">
-      <Link href={`/adoptar/${item.petPublicToken}`} className="block">
+    <li className="rounded-xl border border-ln-line overflow-hidden bg-ln-card hover:shadow-lg transition-shadow relative">
+      {/* Single anchor covering the image + name area — no nested anchors.
+          The org publisher link below is positioned above this via z-index. */}
+      <Link
+        href={petHref}
+        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul"
+      >
         <div className="aspect-square bg-ln-stripe relative">
           {photoUrl ? (
             <img
@@ -108,19 +115,21 @@ export function AdoptionListingCard({
           {variant === "default" && item.adoptionStory && (
             <p className="text-xs text-ln-ink-2 line-clamp-3">{item.adoptionStory}</p>
           )}
-          {showPublisher && (
-            <p className="text-[11px] text-ln-mute pt-1 border-t border-ln-stripe">
-              Publica:{" "}
-              <Link
-                href={`/refugios/${item.orgPublicToken}`}
-                className="underline hover:text-ln-ink"
-              >
-                {item.orgDisplayName}
-              </Link>
-            </p>
-          )}
+          {/* Publisher slot: empty placeholder keeps card height consistent when
+              showPublisher is false and prevents layout shift. */}
+          {showPublisher && <div className="pt-1 border-t border-ln-stripe" />}
         </div>
       </Link>
+      {/* Publisher link — rendered outside the card anchor so it is never
+          nested inside another <a>. Positioned at the bottom of the card. */}
+      {showPublisher && (
+        <p className="text-[11px] text-ln-mute px-4 pb-4 -mt-2 relative z-10">
+          Publica:{" "}
+          <Link href={`/refugios/${item.orgPublicToken}`} className="underline hover:text-ln-ink">
+            {item.orgDisplayName}
+          </Link>
+        </p>
+      )}
     </li>
   );
 }

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function AccesibilidadPage() {
   return (
-    <main id="main-content" className="min-h-screen bg-[var(--color-ln-paper)]">
+    <div className="min-h-screen bg-[var(--color-ln-paper)]">
       <div className="mx-auto max-w-2xl px-6 py-16 space-y-6">
         <h1
           className="text-[30px] font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
@@ -32,6 +32,6 @@ export default function AccesibilidadPage() {
           ← Volver al inicio
         </Link>
       </div>
-    </main>
+    </div>
   );
 }

@@ -88,14 +88,14 @@ export function BiteForm({
             <LocationFields mode="l1" />
           </LnSheetAccordion>
 
-          {/* Victim kind — pill radio group */}
-          <div className="flex flex-col gap-[6px]">
-            <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+          {/* Victim kind — pill radio group wrapped in fieldset for SR grouping */}
+          <fieldset className="flex flex-col gap-[6px] border-0 m-0 p-0">
+            <legend className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)] mb-[6px]">
               ¿A quién mordió {petName}?{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
               </span>
-            </p>
+            </legend>
             <div className="grid grid-cols-3 gap-[6px]">
               {(
                 [
@@ -120,13 +120,14 @@ export function BiteForm({
                     value={opt.value}
                     checked={victimKind === opt.value}
                     onChange={() => setVictimKind(opt.value)}
+                    aria-required="true"
                     className="sr-only"
                   />
                   {opt.label}
                 </label>
               ))}
             </div>
-          </div>
+          </fieldset>
 
           {victimKind === "human" && (
             <LnSubCard heading="Datos de la persona (opcionales)">

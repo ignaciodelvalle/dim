@@ -53,54 +53,57 @@ export function Step1Kind({ selected, onSelect }: Step1KindProps) {
         </p>
       </div>
 
-      <ul className="space-y-2">
-        {WELFARE_REPORT_KINDS.map((kind) => {
-          const isSelected = selected === kind;
-          return (
-            <li key={kind}>
-              <label
-                className={`flex items-center gap-3 rounded-[6px] border px-4 py-3.5 cursor-pointer transition-colors ${
-                  isSelected
-                    ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)]"
-                    : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:border-[var(--color-ln-line-strong)]"
-                }`}
-              >
-                {/* Visually hidden radio — semantics carried by the label */}
-                <input
-                  type="radio"
-                  name="kindCard"
-                  value={kind}
-                  checked={isSelected}
-                  onChange={() => onSelect(kind)}
-                  className="sr-only"
-                />
-                <span
-                  className="text-xl leading-none flex-shrink-0 w-6 text-center"
-                  aria-hidden="true"
-                >
-                  {KIND_ICONS[kind]}
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-semibold text-[var(--color-ln-ink)]">
-                    {welfareReportKindLabel(kind)}
-                  </span>
-                  <span className="block text-xs text-[var(--color-ln-mute)] mt-0.5">
-                    {KIND_DESCRIPTIONS[kind]}
-                  </span>
-                </span>
-                <span
-                  className={`flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 ml-auto ${
+      <fieldset className="border-0 m-0 p-0">
+        <legend className="sr-only">Tipo de situación (obligatorio)</legend>
+        <ul className="space-y-2">
+          {WELFARE_REPORT_KINDS.map((kind) => {
+            const isSelected = selected === kind;
+            return (
+              <li key={kind}>
+                <label
+                  className={`flex items-center gap-3 rounded-[6px] border px-4 py-3.5 cursor-pointer transition-colors ${
                     isSelected
-                      ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] shadow-[inset_0_0_0_3px_white]"
-                      : "border-[var(--color-ln-line-strong)]"
+                      ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)]"
+                      : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:border-[var(--color-ln-line-strong)]"
                   }`}
-                  aria-hidden="true"
-                />
-              </label>
-            </li>
-          );
-        })}
-      </ul>
+                >
+                  {/* Visually hidden radio — semantics carried by the label */}
+                  <input
+                    type="radio"
+                    name="kindCard"
+                    value={kind}
+                    checked={isSelected}
+                    onChange={() => onSelect(kind)}
+                    className="sr-only"
+                  />
+                  <span
+                    className="text-xl leading-none flex-shrink-0 w-6 text-center"
+                    aria-hidden="true"
+                  >
+                    {KIND_ICONS[kind]}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-semibold text-[var(--color-ln-ink)]">
+                      {welfareReportKindLabel(kind)}
+                    </span>
+                    <span className="block text-xs text-[var(--color-ln-mute)] mt-0.5">
+                      {KIND_DESCRIPTIONS[kind]}
+                    </span>
+                  </span>
+                  <span
+                    className={`flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 ml-auto ${
+                      isSelected
+                        ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] shadow-[inset_0_0_0_3px_white]"
+                        : "border-[var(--color-ln-line-strong)]"
+                    }`}
+                    aria-hidden="true"
+                  />
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </fieldset>
     </section>
   );
 }

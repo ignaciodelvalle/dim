@@ -118,7 +118,7 @@ export default async function WelfareReportByCodePage({
   const hasContact = report.reporterContactEmail || report.reporterContactPhone;
 
   return (
-    <main id="main-content" className="p-6 bg-[var(--color-ln-paper)]">
+    <div id="comprobante-root" className="p-6 bg-[var(--color-ln-paper)]">
       {/* Print styles: print the full comprobante (header + all report
           sections + evidence). Hide only page chrome marked [data-print-hide]
           (back link, the WebGL map which doesn't render in print) and the
@@ -130,9 +130,9 @@ export default async function WelfareReportByCodePage({
         dangerouslySetInnerHTML={{
           __html: `
 @media print {
-  body > *:not(main) { display: none !important; }
+  body > *:not(main):not(#comprobante-root) { display: none !important; }
   [data-print-hide] { display: none !important; }
-  main, main * { color: #000 !important; border-color: #ccc !important; background: #fff !important; }
+  #comprobante-root, #comprobante-root * { color: #000 !important; border-color: #ccc !important; background: #fff !important; }
 }
           `.trim(),
         }}
@@ -339,6 +339,6 @@ export default async function WelfareReportByCodePage({
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }
