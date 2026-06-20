@@ -44,6 +44,46 @@ describe("geocodeAddress — forward", () => {
     expect(r[0].locality).toBe("Palermo");
   });
 
+  it("for CABA points, prefers the barrio (suburb) over the city-level 'Buenos Aires'", async () => {
+    // OSM returns the city-level name in `address.city` for any CABA point; the
+    // barrio is in `suburb`. The INDEC catalog has no "Buenos Aires" locality
+    // under CABA (only the 48 barrios), so we must pick the barrio — otherwise
+    // strict canonical validation throws "localidad Buenos Aires no existe".
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        {
+          lat: "-34.588",
+          lon: "-58.430",
+          display_name: "Av. Santa Fe, Palermo, CABA",
+          address: {
+            state: "Ciudad Autónoma de Buenos Aires",
+            city: "Buenos Aires",
+            suburb: "Palermo",
+          },
+        },
+      ],
+    });
+    const r = await geocodeAddress("Santa Fe");
+    expect(r[0].locality).toBe("Palermo");
+  });
+
+  it("non-CABA keeps city precedence (suburb does not override city)", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        {
+          lat: "-31.42",
+          lon: "-64.18",
+          display_name: "Centro, Córdoba",
+          address: { state: "Córdoba", city: "Córdoba", suburb: "Centro" },
+        },
+      ],
+    });
+    const r = await geocodeAddress("Centro");
+    expect(r[0].locality).toBe("Córdoba");
+  });
+
   it("falls through address fields city → town → suburb → village → hamlet", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,

@@ -68,6 +68,23 @@ export function __resetRateLimitForTests(): void {
 
 function pickLocality(address: Record<string, string | undefined> | undefined): string | null {
   if (!address) return null;
+  // CABA special case: OSM returns the city-level name ("Buenos Aires") in
+  // `address.city` for every point inside CABA, but the INDEC catalog holds CABA
+  // as its 48 *barrios* (Palermo, Caballito, …), not "Buenos Aires". Prefer the
+  // barrio (`suburb` / `city_district`) so the locality matches the catalog
+  // instead of failing canonical validation on the denuncia/lost forms.
+  const state = address.state ?? "";
+  if (/ciudad aut[oó]noma de buenos aires|^\s*caba\s*$/i.test(state)) {
+    return (
+      address.suburb ??
+      address.city_district ??
+      address.city ??
+      address.town ??
+      address.village ??
+      address.hamlet ??
+      null
+    );
+  }
   return (
     address.city ?? address.town ?? address.suburb ?? address.village ?? address.hamlet ?? null
   );

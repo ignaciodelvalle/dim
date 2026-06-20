@@ -802,10 +802,15 @@ export async function createWelfareReportAction(
   const subjectPetToken = String(formData.get("subjectPetToken") ?? "").trim() || null;
   const subjectDescription = String(formData.get("subjectDescription") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
-  // locality:"strict" — resolveCanonicalJurisdiction (denuncia behavior unchanged).
+  // locality:"soft" — a public, anonymous maltrato report must NEVER hard-block
+  // because the geocoder returned a locality that isn't in the INDEC catalog
+  // (e.g. a CABA point, or a town OSM names differently). Soft passes the raw
+  // locality through (localityCanonical=false) instead of throwing; the authority
+  // still routes by province + coords + address. Exact CABA barrios resolve via
+  // the CABA-aware pickLocality in lib/geocoding.ts.
   let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
   try {
-    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "strict" });
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "soft" });
   } catch (err) {
     if (err instanceof JurisdictionValidationError) {
       return { error: err.message };
@@ -1088,10 +1093,12 @@ export async function createOrgWelfareReportAction(
   const subjectPetToken = String(formData.get("subjectPetToken") ?? "").trim() || null;
   const subjectDescription = String(formData.get("subjectDescription") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
-  // locality:"strict" — resolveCanonicalJurisdiction (org welfare report behavior unchanged).
+  // locality:"soft" — same rationale as the public report: never hard-block an
+  // org welfare report on a geocoder locality that isn't catalog-canonical. Soft
+  // passes raw locality through; routing uses province + coords + address.
   let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
   try {
-    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "strict" });
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "soft" });
   } catch (err) {
     if (err instanceof JurisdictionValidationError) {
       return { error: err.message };
