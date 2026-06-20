@@ -34,7 +34,8 @@ const DEFAULT_COLUMNS: Column[] = [
       { href: "/acerca", label: "Acerca de MiMAR" },
       { href: "/ayuda", label: "Ayuda" },
       { href: "/accesibilidad", label: "Accesibilidad" },
-      { href: "/sugerencias", label: "Hacer una sugerencia" },
+      // /sugerencias — no feedback channel exists yet; link hidden to avoid dead end.
+      // Restore once a real submission mechanism is implemented.
     ],
   },
   {
