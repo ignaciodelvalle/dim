@@ -5,6 +5,7 @@ export { OpTopbar } from "./OpTopbar";
 export { OpCrumbs } from "./OpCrumbs";
 export type { CrumbItem } from "./OpCrumbs";
 export { OrgBreadcrumbs } from "./OrgBreadcrumbs";
+export { OperatorBreadcrumbs } from "./OperatorBreadcrumbs";
 export { OpScopeChip } from "./OpScopeChip";
 export { OpMobileDrawer } from "./OpMobileDrawer";
 export { OpKpi, OpKpiSm } from "./OpKpi";
