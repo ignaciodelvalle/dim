@@ -26,9 +26,30 @@ import { useCallback, useState } from "react";
 import { CaseStatusBadge } from "@/components/ui/dashboard/CaseStatusBadge";
 import { type OpBulkAction, OpBulkBar } from "@/components/ui/dashboard/OpBulkBar";
 import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
+import { OpPill } from "@/components/ui/dashboard/OpPill";
 import type { CaseStatus } from "@/db/schema";
 import { formatDate } from "@/lib/format";
 import { type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
+
+// ---------------------------------------------------------------------------
+// SLA / age helpers (exported for testability)
+// ---------------------------------------------------------------------------
+
+/**
+ * Open cases pending for longer than this many days are considered SLA-breached.
+ * Visual-only: no auto-close occurs. 14 days aligns with the typical org
+ * review window for escalated/unresolved cases.
+ */
+export const CASE_SLA_WARNING_DAYS = 14;
+
+/**
+ * Returns the number of whole days elapsed since the case was opened (floored).
+ * Accepts a Date so callers from server components pass Date objects directly.
+ */
+export function ageCaseDays(openedAt: Date): number {
+  const diffMs = Date.now() - openedAt.getTime();
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -284,7 +305,16 @@ export function CaseQueue({
                         : (row.jurisdictionProvince ?? "—")}
                     </td>
                     <td className="px-3 py-2 text-ln-op-mute">
-                      <time dateTime={row.openedAt.toISOString()}>{formatDate(row.openedAt)}</time>
+                      <div className="flex flex-col gap-1">
+                        <time dateTime={row.openedAt.toISOString()}>
+                          {formatDate(row.openedAt)}
+                        </time>
+                        {/* SLA badge: only shown on non-closed cases past the warning threshold */}
+                        {row.closedAt === null &&
+                          ageCaseDays(row.openedAt) >= CASE_SLA_WARNING_DAYS && (
+                            <OpPill tone="escalated">{ageCaseDays(row.openedAt)}d</OpPill>
+                          )}
+                      </div>
                     </td>
                   </tr>
                 );
