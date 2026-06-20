@@ -35,7 +35,14 @@ export function PetActionsMenu(props: PetActionsMenuInput) {
               href={item.href}
               className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition-colors ${VARIANT_CLASSES[item.variant]}`}
             >
-              <span>{item.label}</span>
+              <span className="flex items-center gap-2">
+                {item.variant === "danger" && (
+                  <span aria-hidden="true" className="text-[13px] leading-none">
+                    ⚠
+                  </span>
+                )}
+                {item.label}
+              </span>
               <span aria-hidden className="shrink-0 text-xs opacity-60">
                 →
               </span>
