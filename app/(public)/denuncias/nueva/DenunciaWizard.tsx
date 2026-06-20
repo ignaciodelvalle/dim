@@ -30,12 +30,21 @@
 //             attachment entries (evidence files appended from WizardState.evidenceFiles)
 //
 // Anti-spam: honeypot field included. Dwell-time measured from mount to submit.
+//
+// UX 3.2 item 3:
+//   - Steps 1–2 now require an explicit "Continuar" button to advance; selecting an
+//     option alone no longer auto-advances (mis-tap risk on a sensitive form).
+//   - Autosave: in-progress answers are persisted to localStorage after each change.
+//     Contact details (email/phone) are NEVER persisted — the denuncia is anonymous.
+//     The draft is cleared on successful submit.
+//   - beforeunload warning fires when there is unsaved progress.
 
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { clearDraft, restoreDraft, saveDraft } from "@/lib/denuncia-autosave";
 import { createWelfareReportAction } from "@/src/modules/welfare/actions";
 import type { WelfareReportKind } from "@/src/modules/welfare/domain/types";
 
@@ -105,6 +114,55 @@ export function DenunciaWizard() {
   // here so the wizard owns the start-of-flow timestamp; serialized into
   // FormData on submit.
   const mountedAt = useRef<number>(Date.now());
+
+  // UX 3.2 item 3 — Restore draft from localStorage on first mount.
+  // Contact fields are intentionally excluded from autosave (see denuncia-autosave.ts).
+  useEffect(() => {
+    const draft = restoreDraft();
+    if (!draft) return;
+    setStep(Math.min(draft.step, TOTAL_STEPS));
+    setWizState((prev) => ({
+      ...prev,
+      kind: (draft.step1.kind as WelfareReportKind | null) ?? null,
+      severity: (draft.step2.severity as WizardSeverity | null) ?? null,
+      description: draft.step3.description ?? "",
+      when: (draft.step3.when as WhenOption | null) ?? null,
+    }));
+  }, []);
+
+  // UX 3.2 item 3 — Autosave to localStorage whenever relevant state changes.
+  // Contact email/phone are NEVER saved here (anonymous flow — those fields stay ephemeral).
+  useEffect(() => {
+    // Only autosave while the form is in-progress (no successCode yet)
+    if (successCode) return;
+    saveDraft({
+      step,
+      step1: { kind: wizState.kind },
+      step2: { severity: wizState.severity },
+      step3: { description: wizState.description, when: wizState.when },
+    });
+  }, [step, wizState.kind, wizState.severity, wizState.description, wizState.when, successCode]);
+
+  // UX 3.2 item 3 — beforeunload warning when the reporter has entered any data.
+  useEffect(() => {
+    const hasDirtyData = !!(
+      wizState.kind ||
+      wizState.severity ||
+      wizState.description.trim() ||
+      wizState.when
+    );
+    if (!hasDirtyData || successCode) return;
+
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault();
+      // Modern browsers show their own generic message; setting returnValue
+      // is required for compat with some older user agents.
+      e.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [wizState.kind, wizState.severity, wizState.description, wizState.when, successCode]);
 
   function updateState(patch: Partial<WizardState>) {
     setWizState((prev) => ({ ...prev, ...patch }));
@@ -250,9 +308,10 @@ export function DenunciaWizard() {
       }
     } catch (err) {
       // Next.js redirect() throws an internal error the router intercepts.
-      // Rethrow so navigation succeeds.
+      // On a successful redirect: clear autosave then rethrow so navigation succeeds.
       const digest = (err as { digest?: string }).digest ?? "";
       if (digest.startsWith("NEXT_REDIRECT")) {
+        clearDraft();
         throw err;
       }
       setSubmitError(
@@ -293,7 +352,9 @@ export function DenunciaWizard() {
         style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px" }}
       />
 
-      {/* Steps 1 and 2 are pure state — rendered conditionally, no uncontrolled DOM inputs */}
+      {/* Steps 1 and 2 are pure state — rendered conditionally, no uncontrolled DOM inputs.
+          UX 3.2 item 3: selecting an option no longer auto-advances; an explicit
+          "Continuar" button is required so reporters don't mis-tap past a step. */}
       {step === 1 && (
         <LnWizardShell
           currentStep={1}
@@ -302,18 +363,21 @@ export function DenunciaWizard() {
           onBack={undefined}
           mainId="main-content"
         >
-          <Step1Kind
-            selected={wizState.kind}
-            onSelect={(kind) => {
-              updateState({ kind });
-              setStep(2);
-            }}
-          />
+          <Step1Kind selected={wizState.kind} onSelect={(kind) => updateState({ kind })} />
           {stepError && (
             <p className="mt-4 text-sm text-[var(--color-ln-seal)] text-center" role="alert">
               {stepError}
             </p>
           )}
+          <div className="mt-8">
+            <button
+              type="button"
+              onClick={validateAndAdvance}
+              className="w-full px-4 py-[13px] rounded-[6px] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
+            >
+              Continuar →
+            </button>
+          </div>
         </LnWizardShell>
       )}
 
@@ -327,16 +391,22 @@ export function DenunciaWizard() {
         >
           <Step2Severity
             selected={wizState.severity}
-            onSelect={(severity) => {
-              updateState({ severity });
-              setStep(3);
-            }}
+            onSelect={(severity) => updateState({ severity })}
           />
           {stepError && (
             <p className="mt-4 text-sm text-[var(--color-ln-seal)] text-center" role="alert">
               {stepError}
             </p>
           )}
+          <div className="mt-8">
+            <button
+              type="button"
+              onClick={validateAndAdvance}
+              className="w-full px-4 py-[13px] rounded-[6px] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
+            >
+              Continuar →
+            </button>
+          </div>
         </LnWizardShell>
       )}
 

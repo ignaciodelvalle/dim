@@ -6,6 +6,10 @@
 //   "moderado"       → "medium"
 //   "sospecha"       → "low"
 // Per plan: the three buttons use human language, not the enum labels.
+//
+// UX 3.2 item 1: when "grave_urgente" is selected, an emergency off-ramp
+// callout is shown directing the reporter to call 911 for immediate danger.
+// The async report flow still proceeds — this is a safety net, not a blocker.
 
 export type WizardSeverity = "grave_urgente" | "moderado" | "sospecha";
 
@@ -114,6 +118,30 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
           })}
         </ul>
       </fieldset>
+
+      {/* UX 3.2 item 1 — Emergency off-ramp for grave/urgent severity.
+          Shown ONLY when the reporter selects "grave_urgente". The async
+          report flow still proceeds — this callout is an additional safety
+          net so the reporter does not wait passively for an async system
+          when an animal is in immediate danger.
+          911 is the AR-wide emergency number (police + ambulance + fire). */}
+      {selected === "grave_urgente" && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="rounded-[6px] border-2 border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-4 py-4 space-y-2"
+        >
+          <p className="text-sm font-bold text-[var(--color-ln-seal)]">
+            ⚠️ Si el animal está en peligro inmediato, llamá al{" "}
+            <strong className="text-[var(--color-ln-seal)]">911</strong> ahora.
+          </p>
+          <p className="text-xs text-[var(--color-ln-seal)] leading-relaxed">
+            El 911 (emergencias) puede intervenir de forma inmediata. También podés comunicarte con
+            el organismo de bienestar animal de tu municipio o provincia. Esta denuncia digital
+            queda registrada como respaldo, pero no reemplaza la intervención urgente presencial.
+          </p>
+        </div>
+      )}
 
       <p className="text-xs text-[var(--color-ln-mute)] text-center pt-2">
         No importa cuál elijas — todas las denuncias son revisadas por el equipo.
