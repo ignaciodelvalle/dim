@@ -99,7 +99,7 @@ export default async function AdminAuditoriaPage({
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Auditoria global</h1>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Auditoría global</h1>
         <p className="text-[13px] text-ln-op-ink-2">
           Últimas {entries.length} entradas del registro de auditoría (todas las acciones de
           autoridad).

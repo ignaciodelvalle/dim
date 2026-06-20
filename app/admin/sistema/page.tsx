@@ -38,7 +38,7 @@ export default async function AdminSistemaPage() {
           Admin {"·"} Sistema
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Salud del sistema</h1>
-        <p className="text-[13px] text-ln-op-ink-2">Metricas operativas en vivo. Solo admin.</p>
+        <p className="text-[13px] text-ln-op-ink-2">Métricas operativas en vivo. Solo admin.</p>
       </header>
 
       {/* Top KPIs */}
@@ -50,7 +50,7 @@ export default async function AdminSistemaPage() {
           tone={queue.pendingTotal > 0 ? "warn" : "neutral"}
           sub={
             queue.oldestPendingDaysAgo != null
-              ? `Mas vieja: ${queue.oldestPendingDaysAgo}d`
+              ? `Más vieja: ${queue.oldestPendingDaysAgo}d`
               : undefined
           }
         />
@@ -79,7 +79,7 @@ export default async function AdminSistemaPage() {
           <OpCardHead title="Cola de aprobaciones" />
           <OpCardBody>
             <StatRow label="Pendientes" value={queue.pendingTotal} />
-            <StatRow label="Mas vieja (dias)" value={queue.oldestPendingDaysAgo ?? "—"} />
+            <StatRow label="Más vieja (días)" value={queue.oldestPendingDaysAgo ?? "—"} />
             <StatRow
               label="14d+ / 30d+ / 60d+"
               value={`${queue.pending14dPlus} / ${queue.pending30dPlus} / ${queue.pending60dPlus}`}

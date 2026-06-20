@@ -13,7 +13,7 @@ export default async function NewGovtPage() {
             Crear cuenta gobierno
           </h1>
           <p className="text-[12px] text-ln-op-ink-2 mt-1">
-            El operador recibira un magic link de acceso unico.
+            El operador recibirá un magic link de acceso único.
           </p>
         </header>
 
