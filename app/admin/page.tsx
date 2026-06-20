@@ -29,7 +29,7 @@ export default async function AdminDashboardPage() {
 
       {/* Live system metrics — spec AC3 (audit-internal-roles-pages PR5) */}
       <section aria-label="Estado del sistema" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <OpKpi label="Usuarios personales" value={users.totalPersonal} />
+        <OpKpi label="Usuarios personales" value={users.totalPersonal} href="/admin/usuarios" />
         <OpKpi
           label="Solicitudes pendientes"
           value={queue.pendingTotal}
@@ -39,12 +39,14 @@ export default async function AdminDashboardPage() {
               ? `Más vieja: ${queue.oldestPendingDaysAgo}d`
               : undefined
           }
+          href="/admin/cola"
         />
         <OpKpi
           label="Decisiones (ultimos 7d)"
           value={decisions.approved7d + decisions.rejected7d}
           tone="ok"
           sub={`${decisions.approved7d} aprobadas · ${decisions.rejected7d} rechazadas`}
+          href="/admin/auditoria"
         />
       </section>
 
