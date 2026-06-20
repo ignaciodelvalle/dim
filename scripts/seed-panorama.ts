@@ -141,9 +141,7 @@ const {
 } = await import("../db");
 const { writePoint } = await import("../lib/location");
 const { PROVINCES } = await import("../lib/ar-provincias");
-const { generateReferenceCode } = await import(
-  "../src/modules/welfare/domain/reference-code"
-);
+const { generateReferenceCode } = await import("../src/modules/welfare/domain/reference-code");
 
 // ---------------------------------------------------------------------------
 // 5. Constants + helpers
@@ -235,10 +233,38 @@ function panoName(i: number, baseName: string): string {
 // ---------------------------------------------------------------------------
 
 const PET_NAMES = [
-  "Firulais", "Luna", "Max", "Michi", "Toto", "Bella", "Rocky", "Coco",
-  "Nala", "Simba", "Atún", "Milo", "Lola", "Toby", "Nina", "Thor",
-  "Kira", "Bruno", "Canela", "Pipo", "Mia", "Luca", "Duna", "Rex",
-  "Laika", "Pancho", "Mora", "Perla", "Fido", "Kiara", "Zeus", "Apolo",
+  "Firulais",
+  "Luna",
+  "Max",
+  "Michi",
+  "Toto",
+  "Bella",
+  "Rocky",
+  "Coco",
+  "Nala",
+  "Simba",
+  "Atún",
+  "Milo",
+  "Lola",
+  "Toby",
+  "Nina",
+  "Thor",
+  "Kira",
+  "Bruno",
+  "Canela",
+  "Pipo",
+  "Mia",
+  "Luca",
+  "Duna",
+  "Rex",
+  "Laika",
+  "Pancho",
+  "Mora",
+  "Perla",
+  "Fido",
+  "Kiara",
+  "Zeus",
+  "Apolo",
 ] as const;
 
 const SPECIES_DIST = [
@@ -256,30 +282,30 @@ const SEXES = ["male", "female", "unknown"] as const;
  * Values represent % of pets in that province with a vaccination event.
  */
 const PROVINCE_COVERAGE: Record<string, { vacc: number; chip: number }> = {
-  "Buenos Aires":         { vacc: 0.45, chip: 0.15 },
-  "CABA":                 { vacc: 0.40, chip: 0.12 },
-  "Córdoba":              { vacc: 0.35, chip: 0.10 },
-  "Santa Fe":             { vacc: 0.32, chip: 0.09 },
-  "Mendoza":              { vacc: 0.28, chip: 0.08 },
-  "Tucumán":              { vacc: 0.20, chip: 0.06 },
-  "Salta":                { vacc: 0.15, chip: 0.04 },
-  "Entre Ríos":           { vacc: 0.25, chip: 0.07 },
-  "Misiones":             { vacc: 0.18, chip: 0.05 },
-  "Chaco":                { vacc: 0.12, chip: 0.03 },
-  "Corrientes":           { vacc: 0.14, chip: 0.04 },
-  "Jujuy":                { vacc: 0.10, chip: 0.03 },
-  "Río Negro":            { vacc: 0.22, chip: 0.07 },
-  "Neuquén":              { vacc: 0.24, chip: 0.07 },
-  "Formosa":              { vacc: 0.08, chip: 0.02 },
-  "San Juan":             { vacc: 0.18, chip: 0.05 },
-  "San Luis":             { vacc: 0.19, chip: 0.05 },
-  "Catamarca":            { vacc: 0.11, chip: 0.03 },
-  "La Pampa":             { vacc: 0.21, chip: 0.06 },
-  "La Rioja":             { vacc: 0.10, chip: 0.03 },
-  "Santiago del Estero":  { vacc: 0.09, chip: 0.02 },
-  "Chubut":               { vacc: 0.20, chip: 0.06 },
-  "Santa Cruz":           { vacc: 0.17, chip: 0.05 },
-  "Tierra del Fuego":     { vacc: 0.30, chip: 0.09 },
+  "Buenos Aires": { vacc: 0.45, chip: 0.15 },
+  CABA: { vacc: 0.4, chip: 0.12 },
+  Córdoba: { vacc: 0.35, chip: 0.1 },
+  "Santa Fe": { vacc: 0.32, chip: 0.09 },
+  Mendoza: { vacc: 0.28, chip: 0.08 },
+  Tucumán: { vacc: 0.2, chip: 0.06 },
+  Salta: { vacc: 0.15, chip: 0.04 },
+  "Entre Ríos": { vacc: 0.25, chip: 0.07 },
+  Misiones: { vacc: 0.18, chip: 0.05 },
+  Chaco: { vacc: 0.12, chip: 0.03 },
+  Corrientes: { vacc: 0.14, chip: 0.04 },
+  Jujuy: { vacc: 0.1, chip: 0.03 },
+  "Río Negro": { vacc: 0.22, chip: 0.07 },
+  Neuquén: { vacc: 0.24, chip: 0.07 },
+  Formosa: { vacc: 0.08, chip: 0.02 },
+  "San Juan": { vacc: 0.18, chip: 0.05 },
+  "San Luis": { vacc: 0.19, chip: 0.05 },
+  Catamarca: { vacc: 0.11, chip: 0.03 },
+  "La Pampa": { vacc: 0.21, chip: 0.06 },
+  "La Rioja": { vacc: 0.1, chip: 0.03 },
+  "Santiago del Estero": { vacc: 0.09, chip: 0.02 },
+  Chubut: { vacc: 0.2, chip: 0.06 },
+  "Santa Cruz": { vacc: 0.17, chip: 0.05 },
+  "Tierra del Fuego": { vacc: 0.3, chip: 0.09 },
 };
 
 /**
@@ -397,9 +423,7 @@ const WELFARE_SEVERITIES = [
 // 5c. Province → ISO code map (for ar_localities lookup)
 // ---------------------------------------------------------------------------
 
-const PROVINCE_TO_CODE = new Map<string, string>(
-  PROVINCES.map((p) => [p.name, p.code]),
-);
+const PROVINCE_TO_CODE = new Map<string, string>(PROVINCES.map((p) => [p.name, p.code]));
 
 // ---------------------------------------------------------------------------
 // 6. Load reference data from DB (localities + census)
@@ -499,7 +523,7 @@ function pickLocality(
   const totalMetroWeight = metroAnchors.reduce((s, a) => s + a.weight, 0);
 
   // 70% metro, 30% rural
-  if (metroAnchors.length > 0 && rng() < 0.70) {
+  if (metroAnchors.length > 0 && rng() < 0.7) {
     // Pick a metro anchor weighted by its share
     let r = rng() * totalMetroWeight;
     for (const anchor of metroAnchors) {
@@ -522,7 +546,11 @@ function pickLocality(
  * Apply gaussian geo jitter to a coordinate (simulate per-pet location
  * variance from the locality centroid). Urban radius ≈ 0.02°, rural ≈ 0.08°.
  */
-function jitteredCoord(lat: number, lng: number, radiusDeg = 0.03): {
+function jitteredCoord(
+  lat: number,
+  lng: number,
+  radiusDeg = 0.03,
+): {
   lat: number;
   lng: number;
 } {
@@ -595,9 +623,7 @@ const SEED_ORGS: ReadonlyArray<{
   },
 ];
 
-async function seedOrganizations(
-  localitiesByCode: Map<string, LocalityRow[]>,
-): Promise<PanoOrg[]> {
+async function seedOrganizations(localitiesByCode: Map<string, LocalityRow[]>): Promise<PanoOrg[]> {
   log("STEP", "Seeding PANO organizations…");
 
   const result: PanoOrg[] = [];
@@ -614,14 +640,21 @@ async function seedOrganizations(
 
     const code = PROVINCE_TO_CODE.get(spec.province);
     const locs = code ? (localitiesByCode.get(code) ?? []) : [];
-    const loc = locs.find((l) => l.localityName.toLowerCase() === spec.locality.toLowerCase()) ?? locs[0];
+    const loc =
+      locs.find((l) => l.localityName.toLowerCase() === spec.locality.toLowerCase()) ?? locs[0];
 
     const lat = loc ? loc.lat + gaussianJitter(0.01) : -34.6;
     const lng = loc ? loc.lng + gaussianJitter(0.01) : -58.4;
 
     if (existing.length > 0) {
       log("SKIP", `  Org ${token} already exists`);
-      result.push({ id: existing[0].id, provinceName: spec.province, locality: spec.locality, lat, lng });
+      result.push({
+        id: existing[0].id,
+        provinceName: spec.province,
+        locality: spec.locality,
+        lat,
+        lng,
+      });
       continue;
     }
 
@@ -642,7 +675,13 @@ async function seedOrganizations(
       .returning({ id: organizations.id });
 
     log("OK", `  Created org ${token}`);
-    result.push({ id: inserted.id, provinceName: spec.province, locality: spec.locality, lat, lng });
+    result.push({
+      id: inserted.id,
+      provinceName: spec.province,
+      locality: spec.locality,
+      lat,
+      lng,
+    });
   }
 
   return result;
@@ -657,9 +696,9 @@ async function seedOrganizations(
 
 async function findOrCreateSeedOwnerProfileId(): Promise<string> {
   // Try to find owner@dim.test in profiles via display_name heuristic
-  const rows = await db.execute(
+  const rows = (await db.execute(
     sql`SELECT id FROM profiles WHERE display_name = 'PANO-Seed-Owner' LIMIT 1`,
-  ) as unknown as Array<{ id: string }>;
+  )) as unknown as Array<{ id: string }>;
 
   if (rows.length > 0) return rows[0].id;
 
@@ -667,9 +706,9 @@ async function findOrCreateSeedOwnerProfileId(): Promise<string> {
   // one derived from the seed tag so idempotent re-runs don't create duplicates.
   const deterministicId = "00000000-4e41-4154-b000-000000000001";
 
-  const exists = await db.execute(
+  const exists = (await db.execute(
     sql`SELECT id FROM profiles WHERE id = ${deterministicId} LIMIT 1`,
-  ) as unknown as Array<{ id: string }>;
+  )) as unknown as Array<{ id: string }>;
 
   if (exists.length > 0) return deterministicId;
 
@@ -706,9 +745,9 @@ async function runClean(): Promise<void> {
   log("INFO", `Found ${panoPets.length} PANO-tagged pets`);
 
   if (panoPets.length > 0) {
-    const actorRows = (await db.execute(
-      sql`SELECT id FROM profiles LIMIT 1`,
-    )) as unknown as Array<{ id: string }>;
+    const actorRows = (await db.execute(sql`SELECT id FROM profiles LIMIT 1`)) as unknown as Array<{
+      id: string;
+    }>;
     const actorId = actorRows[0]?.id ?? null;
 
     if (!actorId) {
@@ -760,9 +799,7 @@ async function runClean(): Promise<void> {
   log("OK", `  Deleted PANO welfare reports (${JSON.stringify(deletedWelfare)})`);
 
   // 10d. PANO synthetic owner profile
-  await db.execute(
-    sql`DELETE FROM profiles WHERE display_name = 'PANO-Seed-Owner'`,
-  );
+  await db.execute(sql`DELETE FROM profiles WHERE display_name = 'PANO-Seed-Owner'`);
 
   log("DONE", "Clean complete");
 }
@@ -790,7 +827,10 @@ async function seedWelfareReports(
     let prov = census[census.length - 1];
     for (const c of census) {
       popR -= c.population;
-      if (popR <= 0) { prov = c; break; }
+      if (popR <= 0) {
+        prov = c;
+        break;
+      }
     }
 
     const loc = pickLocality(prov.provinceName, localitiesByCode);
@@ -798,8 +838,12 @@ async function seedWelfareReports(
       ? jitteredCoord(loc.lat, loc.lng, 0.05)
       : { lat: -34.6 + gaussianJitter(2), lng: -58.4 + gaussianJitter(4) };
 
-    const kindEntry = pickWeighted(WELFARE_KINDS as unknown as Array<{ kind: string; weight: number }>);
-    const severityEntry = pickWeighted(WELFARE_SEVERITIES as unknown as Array<{ severity: string; weight: number }>);
+    const kindEntry = pickWeighted(
+      WELFARE_KINDS as unknown as Array<{ kind: string; weight: number }>,
+    );
+    const severityEntry = pickWeighted(
+      WELFARE_SEVERITIES as unknown as Array<{ severity: string; weight: number }>,
+    );
 
     const referenceCode = generateReferenceCode();
     const occurredAt = randomWindowDate();
@@ -938,7 +982,10 @@ async function seedPets(
     const provinceName = censusProv.provinceName;
     const provinceCount = Math.max(1, Math.round(censusProv.population * PETS_PER_CAPITA * SCALE));
 
-    log("INFO", `  ${provinceName}: ${provinceCount} pets (pop ${censusProv.population.toLocaleString()})`);
+    log(
+      "INFO",
+      `  ${provinceName}: ${provinceCount} pets (pop ${censusProv.population.toLocaleString()})`,
+    );
 
     // Collect pet rows for this province
     const petRows: Array<Record<string, unknown>> = [];
@@ -1031,7 +1078,7 @@ async function seedPets(
       // ~2% of pets belong to a shelter org (if available)
       const useShelterOrg = shelterOrgs.length > 0 && rng() < 0.02;
       const shelterOrg = useShelterOrg
-        ? shelterOrgs.find((o) => o.provinceName === meta.provinceName) ?? shelterOrgs[0]
+        ? (shelterOrgs.find((o) => o.provinceName === meta.provinceName) ?? shelterOrgs[0])
         : null;
 
       if (shelterOrg) {
@@ -1095,7 +1142,12 @@ async function seedPets(
             cause_detail: null,
             confirmed_by_vet: rng() < 0.4,
             vet_name: null,
-            disposition_method: pick(["owner_burial", "cremation", "authorized_cemetery", "unknown"]),
+            disposition_method: pick([
+              "owner_burial",
+              "cremation",
+              "authorized_cemetery",
+              "unknown",
+            ]),
             // Institutional disposals carry a facility → traceable (B3). Without
             // any facilities the traceability KPI read a misleading 0% (D4).
             facility: rng() < 0.45 ? "Establecimiento habilitado (seed)" : null,
@@ -1305,7 +1357,14 @@ async function seedSetPieces(
         });
       }
 
-      await insertSetPiecePet("Salta", saltaLoc?.localityName ?? "Salta", baseLat, baseLng, extraEvents, isDeath ? "deceased" : "active");
+      await insertSetPiecePet(
+        "Salta",
+        saltaLoc?.localityName ?? "Salta",
+        baseLat,
+        baseLng,
+        extraEvents,
+        isDeath ? "deceased" : "active",
+      );
     }
   }
 
@@ -1337,7 +1396,9 @@ async function seedSetPieces(
               source: "seed-panorama-setpiece",
               disease: pick(["lepto", "hidatidosis", "other"]),
               confirmed_by_lab: k === 0,
-              date_of_onset: new Date(occurredAt.getTime() - 3 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+              date_of_onset: new Date(occurredAt.getTime() - 3 * 24 * 3600 * 1000)
+                .toISOString()
+                .slice(0, 10),
               clinical_notes: `Zoonosis cluster La Plata #${k + 1} (seed-panorama)`,
             },
             ...writePoint(jitteredCoord(baseLat, baseLng, 0.01)),
@@ -1357,7 +1418,8 @@ async function seedSetPieces(
 
     for (let k = 0; k < 8; k++) {
       const locality = hotspotLocalities[k % hotspotLocalities.length];
-      const loc = locs.find((l) => l.localityName.toLowerCase() === locality.toLowerCase()) ?? locs[0];
+      const loc =
+        locs.find((l) => l.localityName.toLowerCase() === locality.toLowerCase()) ?? locs[0];
       const baseLat = loc?.lat ?? -34.72;
       const baseLng = loc?.lng ?? -58.26;
 
@@ -1389,12 +1451,13 @@ async function seedSetPieces(
 
   // --- 14d. Small localities (<5 pets) for k-anon suppression demo ---
   {
-    const smallLocalities: Array<{ province: string; locality: string; lat: number; lng: number }> = [
-      { province: "Tierra del Fuego", locality: "Tolhuin", lat: -54.5, lng: -67.19 },
-      { province: "Santa Cruz", locality: "Caleta Olivia", lat: -46.44, lng: -67.52 },
-      { province: "La Pampa", locality: "General Pico", lat: -35.66, lng: -63.75 },
-      { province: "Catamarca", locality: "Andalgalá", lat: -27.59, lng: -66.3 },
-    ];
+    const smallLocalities: Array<{ province: string; locality: string; lat: number; lng: number }> =
+      [
+        { province: "Tierra del Fuego", locality: "Tolhuin", lat: -54.5, lng: -67.19 },
+        { province: "Santa Cruz", locality: "Caleta Olivia", lat: -46.44, lng: -67.52 },
+        { province: "La Pampa", locality: "General Pico", lat: -35.66, lng: -63.75 },
+        { province: "Catamarca", locality: "Andalgalá", lat: -27.59, lng: -66.3 },
+      ];
 
     log("INFO", "  Set-piece: small localities for k-anon suppression");
 
@@ -1426,7 +1489,9 @@ async function seedBiteEvents(
   const sample = await db
     .select({ id: petEvents.petId, petId: petEvents.petId })
     .from(petEvents)
-    .where(sql`${petEvents.eventType} = 'pet_registered' AND ${petEvents.payload}->>'source' = 'seed-panorama'`)
+    .where(
+      sql`${petEvents.eventType} = 'pet_registered' AND ${petEvents.payload}->>'source' = 'seed-panorama'`,
+    )
     .limit(biteCount * 3);
 
   if (sample.length === 0) {
@@ -1447,7 +1512,10 @@ async function seedBiteEvents(
     let prov = census[census.length - 1];
     for (const c of census) {
       popR -= c.population;
-      if (popR <= 0) { prov = c; break; }
+      if (popR <= 0) {
+        prov = c;
+        break;
+      }
     }
     const loc = pickLocality(prov.provinceName, localitiesByCode);
     const { lat, lng } = loc
@@ -1502,7 +1570,10 @@ async function main(): Promise<void> {
     log("INFO", "DRY RUN — no writes. Estimating counts:");
     // Print what we would do
     const censusMock = PROVINCES.map((p) => ({ provinceName: p.name, population: 1_000_000 }));
-    const total = censusMock.reduce((s, c) => s + Math.round(c.population * PETS_PER_CAPITA * SCALE), 0);
+    const total = censusMock.reduce(
+      (s, c) => s + Math.round(c.population * PETS_PER_CAPITA * SCALE),
+      0,
+    );
     log("INFO", `  Would insert ~${total} pets (with mock 1M pop each province)`);
     process.exit(0);
   }
@@ -1552,7 +1623,7 @@ async function main(): Promise<void> {
   // Seed bite/incident events (~200 national)
   const biteCount = Math.round(totalPets * 0.004);
   const insertedBites = await seedBiteEvents(ownerUserId, census, localitiesByCode, biteCount);
-  eventCounts["incident_reported"] = (eventCounts["incident_reported"] ?? 0) + insertedBites;
+  eventCounts.incident_reported = (eventCounts.incident_reported ?? 0) + insertedBites;
 
   // Seed welfare reports (~300 national)
   const welfareCount = Math.round(totalPets * 0.006);
@@ -1574,7 +1645,13 @@ async function main(): Promise<void> {
   }
 }
 
-await main().catch((err: unknown) => {
-  console.error("[FAIL]", err);
-  process.exit(1);
-});
+// postgres-js keeps idle pool connections open, so the process does NOT exit
+// on its own once main() resolves — without this it hangs indefinitely AFTER a
+// fully successful seed (looks like a stall but the data is already committed).
+// Force a clean exit, mirroring the explicit process.exit calls above.
+await main()
+  .then(() => process.exit(0))
+  .catch((err: unknown) => {
+    console.error("[FAIL]", err);
+    process.exit(1);
+  });
