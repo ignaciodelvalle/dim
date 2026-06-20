@@ -66,7 +66,7 @@ export default async function RefugiosIndexPage() {
   });
 
   return (
-    <main id="main-content" className="min-h-screen bg-[var(--color-ln-paper)]">
+    <div className="min-h-screen bg-[var(--color-ln-paper)]">
       <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
         {/* Header */}
         <header className="space-y-2">
@@ -131,6 +131,6 @@ export default async function RefugiosIndexPage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }

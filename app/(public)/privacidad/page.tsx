@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function PrivacidadPage() {
   return (
-    <main id="main-content" className="bg-[var(--color-ln-paper)]">
+    <div className="bg-[var(--color-ln-paper)]">
       <div className="max-w-2xl mx-auto px-6 py-12 space-y-10">
         <header className="space-y-2">
           <h1
@@ -108,6 +108,6 @@ export default function PrivacidadPage() {
           </p>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

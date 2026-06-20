@@ -265,8 +265,13 @@ function PetChipRow({
     chipRefs.current.get(nextPet.id)?.focus();
   }
 
+  // Use <div role="radiogroup"> instead of <ul role="radiogroup"> to avoid
+  // the axe "listitem parent role is not list" violation (UX 2.4 / item 5):
+  // assigning role="radiogroup" to a <ul> removes its implicit list role,
+  // making the <li> children invalid. Using <div> is semantically correct and
+  // allows us to keep the scroll-snap layout with <div> chip wrappers.
   return (
-    <ul
+    <div
       role="radiogroup"
       aria-label="Mascota"
       onKeyDown={onChipRowKey}
@@ -286,7 +291,7 @@ function PetChipRow({
           }}
         />
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -316,7 +321,7 @@ function PetChip({
   }
 
   return (
-    <li className="shrink-0" style={{ scrollSnapAlign: "start" }}>
+    <div className="shrink-0" style={{ scrollSnapAlign: "start" }}>
       <button
         ref={buttonRef}
         type="button"
@@ -363,6 +368,6 @@ function PetChip({
           </span>
         )}
       </button>
-    </li>
+    </div>
   );
 }

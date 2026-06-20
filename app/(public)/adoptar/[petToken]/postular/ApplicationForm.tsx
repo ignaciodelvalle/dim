@@ -8,7 +8,7 @@
 //   4. Tu día a día — dailyRoutine + notes textareas (optional).
 //   5. Confirmar — consent checkbox + privacy modal + summary recap.
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
@@ -100,62 +100,71 @@ function StepQuestion({
 
 function RadioCard<T extends string>({
   name,
+  groupLabel,
   options,
   value,
   onChange,
+  required,
 }: {
   name: string;
+  /** Accessible group label for the fieldset legend (visually hidden). */
+  groupLabel: string;
   options: Array<{ value: T; label: string }>;
   value: T | "";
   onChange: (v: T) => void;
+  required?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-[8px]">
-      {options.map((opt) => (
-        <label
-          key={opt.value}
-          className="flex items-center gap-[10px] rounded-[5px] border px-[12px] py-[10px] text-[13px] cursor-pointer"
-          style={
-            value === opt.value
-              ? {
-                  borderColor: "var(--color-ln-azul)",
-                  background: "var(--color-ln-celeste-050)",
-                  color: "var(--color-ln-ink)",
-                }
-              : {
-                  borderColor: "var(--color-ln-line)",
-                  background: "var(--color-ln-card)",
-                  color: "var(--color-ln-ink)",
-                }
-          }
-        >
-          <input
-            type="radio"
-            name={name}
-            value={opt.value}
-            checked={value === opt.value}
-            onChange={() => onChange(opt.value)}
-            className="sr-only"
-          />
-          <span
-            className="flex-shrink-0 w-[16px] h-[16px] rounded-full border-2"
+    <fieldset className="border-0 m-0 p-0">
+      <legend className="sr-only">{groupLabel}</legend>
+      <div className="grid grid-cols-1 gap-[8px]">
+        {options.map((opt) => (
+          <label
+            key={opt.value}
+            className="flex items-center gap-[10px] rounded-[5px] border px-[12px] py-[10px] text-[13px] cursor-pointer"
             style={
               value === opt.value
                 ? {
                     borderColor: "var(--color-ln-azul)",
-                    background: "var(--color-ln-azul)",
-                    boxShadow: "inset 0 0 0 3px #fff",
+                    background: "var(--color-ln-celeste-050)",
+                    color: "var(--color-ln-ink)",
                   }
                 : {
-                    borderColor: "var(--color-ln-line-strong)",
-                    background: "transparent",
+                    borderColor: "var(--color-ln-line)",
+                    background: "var(--color-ln-card)",
+                    color: "var(--color-ln-ink)",
                   }
             }
-          />
-          <span>{opt.label}</span>
-        </label>
-      ))}
-    </div>
+          >
+            <input
+              type="radio"
+              name={name}
+              value={opt.value}
+              checked={value === opt.value}
+              onChange={() => onChange(opt.value)}
+              aria-required={required ? "true" : undefined}
+              className="sr-only"
+            />
+            <span
+              className="flex-shrink-0 w-[16px] h-[16px] rounded-full border-2"
+              style={
+                value === opt.value
+                  ? {
+                      borderColor: "var(--color-ln-azul)",
+                      background: "var(--color-ln-azul)",
+                      boxShadow: "inset 0 0 0 3px #fff",
+                    }
+                  : {
+                      borderColor: "var(--color-ln-line-strong)",
+                      background: "transparent",
+                    }
+              }
+            />
+            <span>{opt.label}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
@@ -179,6 +188,19 @@ export function ApplicationForm({
   const [notes, setNotes] = useState("");
   const [profileSharingConsent, setProfileSharingConsent] = useState(false);
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
+  const privacyDialogRef = useRef<HTMLDialogElement | null>(null);
+
+  // Drive the native <dialog> open/close via showModal()/close() so the browser
+  // provides a focus trap and Esc-key dismissal (WCAG 2.1.2 / UX 2.4).
+  useEffect(() => {
+    const dialog = privacyDialogRef.current;
+    if (!dialog) return;
+    if (privacyModalOpen) {
+      if (!dialog.open) dialog.showModal();
+    } else {
+      if (dialog.open) dialog.close();
+    }
+  }, [privacyModalOpen]);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
 
   function advanceStep1() {
@@ -331,9 +353,11 @@ export function ApplicationForm({
         <StepQuestion num="02" label="¿Tuviste mascotas antes?">
           <RadioCard
             name="prior_pets"
+            groupLabel="¿Tuviste mascotas antes?"
             options={PRIOR_PETS_OPTIONS}
             value={priorPets}
             onChange={setPriorPets}
+            required
           />
         </StepQuestion>
         <StepQuestion
@@ -372,9 +396,11 @@ export function ApplicationForm({
         <StepQuestion num="04" label="¿Cómo es tu vivienda?">
           <RadioCard
             name="housing"
+            groupLabel="¿Cómo es tu vivienda?"
             options={HOUSING_OPTIONS}
             value={housingType}
             onChange={setHousingType}
+            required
           />
         </StepQuestion>
         {error && (
@@ -529,51 +555,54 @@ export function ApplicationForm({
           </label>
         </div>
 
-        {privacyModalOpen && (
-          <dialog
-            open
-            className="fixed inset-0 z-50 m-auto w-full overflow-y-auto rounded-[8px] border px-[24px] py-[22px] shadow-xl"
-            style={{
-              maxWidth: 480,
-              background: "var(--color-ln-card)",
-              borderColor: "var(--color-ln-line-strong)",
-            }}
-            aria-labelledby="privacy-modal-title"
+        {/* Privacy modal — native <dialog> with showModal() for browser-managed
+            focus trap and Esc dismissal. Always rendered in the DOM; open/close
+            is driven imperatively via ref + useEffect (see above).
+            The ::backdrop pseudo-element provides the dimming overlay. */}
+        <dialog
+          ref={privacyDialogRef}
+          className="w-full overflow-y-auto rounded-[8px] border px-[24px] py-[22px] shadow-xl"
+          style={{
+            maxWidth: 480,
+            background: "var(--color-ln-card)",
+            borderColor: "var(--color-ln-line-strong)",
+          }}
+          aria-labelledby="privacy-modal-title"
+          onClose={() => setPrivacyModalOpen(false)}
+        >
+          <h2
+            id="privacy-modal-title"
+            className="font-[var(--font-ln-serif)] text-[17px] font-semibold mb-[14px]"
+            style={{ color: "var(--color-ln-ink)" }}
           >
-            <h2
-              id="privacy-modal-title"
-              className="font-[var(--font-ln-serif)] text-[17px] font-semibold mb-[14px]"
-              style={{ color: "var(--color-ln-ink)" }}
-            >
-              Información sobre privacidad — Ley 25.326
-            </h2>
-            <div className="text-[13px] space-y-[10px]" style={{ color: "var(--color-ln-ink-2)" }}>
-              <p>
-                Bajo la Ley 25.326 (Protección de Datos Personales), tus datos solo pueden
-                compartirse con consentimiento informado y para un propósito específico.
-              </p>
-              <p>
-                <strong style={{ color: "var(--color-ln-ink)" }}>Qué compartirías:</strong> la lista
-                de tus adopciones previas en MiMAR (con outcome — exitosa, revertida, etc.), tus
-                fosters previos, tus mascotas registradas actualmente. NO compartirías: tus
-                notificaciones, otras postulaciones, denuncias, dirección exacta.
-              </p>
-              <p>
-                <strong style={{ color: "var(--color-ln-ink)" }}>Por cuánto tiempo:</strong> solo
-                mientras tu postulación a {petName} esté abierta. Al cerrarse, el refugio pierde
-                acceso inmediatamente.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setPrivacyModalOpen(false)}
-              className="mt-[18px] w-full rounded-[5px] border-0 px-[16px] py-[11px] text-[13px] font-semibold text-white"
-              style={{ background: "var(--color-ln-azul)" }}
-            >
-              Entendido
-            </button>
-          </dialog>
-        )}
+            Información sobre privacidad — Ley 25.326
+          </h2>
+          <div className="text-[13px] space-y-[10px]" style={{ color: "var(--color-ln-ink-2)" }}>
+            <p>
+              Bajo la Ley 25.326 (Protección de Datos Personales), tus datos solo pueden compartirse
+              con consentimiento informado y para un propósito específico.
+            </p>
+            <p>
+              <strong style={{ color: "var(--color-ln-ink)" }}>Qué compartirías:</strong> la lista
+              de tus adopciones previas en MiMAR (con outcome — exitosa, revertida, etc.), tus
+              fosters previos, tus mascotas registradas actualmente. NO compartirías: tus
+              notificaciones, otras postulaciones, denuncias, dirección exacta.
+            </p>
+            <p>
+              <strong style={{ color: "var(--color-ln-ink)" }}>Por cuánto tiempo:</strong> solo
+              mientras tu postulación a {petName} esté abierta. Al cerrarse, el refugio pierde
+              acceso inmediatamente.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPrivacyModalOpen(false)}
+            className="mt-[18px] w-full rounded-[5px] border-0 px-[16px] py-[11px] text-[13px] font-semibold text-white"
+            style={{ background: "var(--color-ln-azul)" }}
+          >
+            Entendido
+          </button>
+        </dialog>
 
         {error && (
           <output className="block text-[13px]" style={{ color: "var(--color-ln-err)" }}>

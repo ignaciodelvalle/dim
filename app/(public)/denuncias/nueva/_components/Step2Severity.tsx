@@ -80,37 +80,40 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
         </p>
       </div>
 
-      <ul className="space-y-3">
-        {SEVERITY_CARDS.map((card) => {
-          const isSelected = selected === card.value;
-          return (
-            <li key={card.value}>
-              <label
-                className={`block rounded-[7px] border-2 px-4 py-3.5 cursor-pointer transition-shadow ${
-                  isSelected ? card.selectedClass : card.baseClass
-                }`}
-              >
-                {/* Visually hidden radio — semantics carried by the label */}
-                <input
-                  type="radio"
-                  name="severityCard"
-                  value={card.value}
-                  checked={isSelected}
-                  onChange={() => onSelect(card.value)}
-                  className="sr-only"
-                />
-                <span className="text-xl leading-none" aria-hidden="true">
-                  {card.icon}
-                </span>
-                <span className="block mt-1 text-sm font-semibold">{card.label}</span>
-                <span className="block text-xs mt-0.5 leading-relaxed opacity-80">
-                  {card.description}
-                </span>
-              </label>
-            </li>
-          );
-        })}
-      </ul>
+      <fieldset className="border-0 m-0 p-0">
+        <legend className="sr-only">Gravedad de la situación (obligatorio)</legend>
+        <ul className="space-y-3">
+          {SEVERITY_CARDS.map((card) => {
+            const isSelected = selected === card.value;
+            return (
+              <li key={card.value}>
+                <label
+                  className={`block rounded-[7px] border-2 px-4 py-3.5 cursor-pointer transition-shadow ${
+                    isSelected ? card.selectedClass : card.baseClass
+                  }`}
+                >
+                  {/* Visually hidden radio — semantics carried by the label */}
+                  <input
+                    type="radio"
+                    name="severityCard"
+                    value={card.value}
+                    checked={isSelected}
+                    onChange={() => onSelect(card.value)}
+                    className="sr-only"
+                  />
+                  <span className="text-xl leading-none" aria-hidden="true">
+                    {card.icon}
+                  </span>
+                  <span className="block mt-1 text-sm font-semibold">{card.label}</span>
+                  <span className="block text-xs mt-0.5 leading-relaxed opacity-80">
+                    {card.description}
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </fieldset>
 
       <p className="text-xs text-[var(--color-ln-mute)] text-center pt-2">
         No importa cuál elijas — todas las denuncias son revisadas por el equipo.
