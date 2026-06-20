@@ -46,8 +46,8 @@ export default async function GobInvestigacionesPage() {
       </header>
 
       <OpBreach
-        title="Notificacion externa no integrada"
-        detail="La notificacion obligatoria a SNVS/SENASA/zoonosis (Ley 15.465/60, Decreto 3640/64) NO esta integrada en esta version. Realizala a traves de los canales habituales de tu jurisdiccion."
+        title="Notificación externa no integrada"
+        detail="La notificación obligatoria a SNVS/SENASA/zoonosis (Ley 15.465/60, Decreto 3640/64) NO está integrada en esta versión. Realizala a través de los canales habituales de tu jurisdicción."
         icon="⚠"
       />
 

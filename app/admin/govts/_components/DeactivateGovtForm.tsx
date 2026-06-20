@@ -177,8 +177,8 @@ function DeactivateGovtForm({
         Desactivar govt &mdash; {target.displayName}
       </p>
       <p className="text-[10px] text-ln-op-danger">
-        Esta accion es irreversible desde esta interfaz. El usuario quedara desactivado y recibira
-        una notificacion con el motivo.
+        Esta acción es irreversible desde esta interfaz. El usuario quedará desactivado y recibirá
+        una notificación con el motivo.
         {localityWarning && <span className="block mt-1 font-medium">{localityWarning}</span>}
       </p>
 
@@ -229,7 +229,7 @@ function DeactivateGovtForm({
         labelClassName="text-xs! text-ln-op-danger!"
       >
         Confirmo que quiero desactivar la cuenta de {target.displayName} y revocar todas sus
-        localidades activas. Esta accion genera un registro permanente en el audit log.
+        localidades activas. Esta acción genera un registro permanente en el audit log.
       </LnCheckbox>
 
       {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}

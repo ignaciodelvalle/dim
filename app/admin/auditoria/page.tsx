@@ -11,12 +11,12 @@ const ACTION_LABELS: Record<string, string> = {
   request_approved: "Solicitud aprobada",
   request_rejected: "Solicitud rechazada",
   request_viewed: "Solicitud vista",
-  revocation_vet: "Revocacion matricula",
-  revocation_org: "Revocacion verificacion org",
-  revocation_govt_assignment: "Revocacion localidad govt",
-  deactivation_govt: "Desactivacion cuenta govt",
-  deactivation_admin: "Desactivacion cuenta admin",
-  pii_queried: "Busqueda de PII",
+  revocation_vet: "Revocación de matrícula",
+  revocation_org: "Revocación de verificación org",
+  revocation_govt_assignment: "Revocación de localidad govt",
+  deactivation_govt: "Desactivación cuenta govt",
+  deactivation_admin: "Desactivación cuenta admin",
+  pii_queried: "Búsqueda de PII",
   admin_seeded: "Admin inicializado",
   approval_request_withdrawn_by_applicant: "Solicitud retirada por aplicante",
 };
@@ -101,7 +101,7 @@ export default async function AdminAuditoriaPage({
       <header className="space-y-1">
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Auditoria global</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Ultimas {entries.length} entradas del registro de auditoria (todas las acciones de
+          Últimas {entries.length} entradas del registro de auditoría (todas las acciones de
           autoridad).
         </p>
       </header>
@@ -111,7 +111,7 @@ export default async function AdminAuditoriaPage({
           type="text"
           name="action"
           defaultValue={actionFilter ?? ""}
-          placeholder="Filtrar por accion"
+          placeholder="Filtrar por acción"
           className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <button

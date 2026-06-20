@@ -185,7 +185,7 @@ export default async function GobHistorialPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Mi historial</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Ultimas {entries.length} acciones realizadas por{" "}
+          Últimas {entries.length} acciones realizadas por{" "}
           <span className="font-medium text-ln-op-ink">{actor?.displayName ?? user.id}</span>.
         </p>
       </header>

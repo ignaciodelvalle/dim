@@ -10,8 +10,8 @@ import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { ReviewActions } from "./ReviewActions";
 
 const TYPE_LABELS: Record<string, string> = {
-  role_upgrade_vet: "Matricula veterinaria",
-  organization_verification: "Verificacion de organizacion",
+  role_upgrade_vet: "Matrícula veterinaria",
+  organization_verification: "Verificación de organización",
   service_dog_credential_verification: "Credencial perro de asistencia (RUPGA)",
 };
 

@@ -30,6 +30,7 @@ import {
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { deathCauseLabel } from "@/lib/format";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
@@ -328,7 +329,7 @@ export default async function GobMortalidadPage({
                     className="border-b border-ln-op-line-2 odd:bg-ln-op-stripe"
                   >
                     <td className="px-4 py-2 tabular-nums text-ln-op-ink">{row.week}</td>
-                    <td className="px-4 py-2 capitalize text-ln-op-ink">{row.cause}</td>
+                    <td className="px-4 py-2 text-ln-op-ink">{deathCauseLabel(row.cause)}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-ln-op-ink">
                       {row.count}
                     </td>

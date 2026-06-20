@@ -117,7 +117,7 @@ export function InvestigationActions({
           Registrar dato / nota
         </ActionButton>
         <ActionButton onClick={() => setMode("external_notification")} tone="muted">
-          Registrar notificacion externa
+          Registrar notificación externa
         </ActionButton>
         {canEscalate && (
           <ActionButton onClick={() => setMode("escalate")} tone="warning">
@@ -139,9 +139,9 @@ export function InvestigationActions({
   }
 
   const titles: Record<Exclude<Mode, "none">, string> = {
-    add_note: "Registrar dato epidemiologico o nota",
-    external_notification: "Registrar notificacion externa",
-    escalate: "Escalar investigacion",
+    add_note: "Registrar dato epidemiológico o nota",
+    external_notification: "Registrar notificación externa",
+    escalate: "Escalar investigación",
     close_resolved: "Cerrar como resuelta",
     close_dismissed: "Cerrar como desestimada",
   };
@@ -174,7 +174,7 @@ export function InvestigationActions({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <label htmlFor="ext-date" className="block text-[12px] font-medium text-ln-op-mute">
-              Fecha de notificacion
+              Fecha de notificación
             </label>
             <input
               id="ext-date"
@@ -235,9 +235,9 @@ export function InvestigationActions({
       <div className="space-y-1.5">
         <label htmlFor="notes" className="block text-[12px] font-medium text-ln-op-mute">
           {mode === "add_note"
-            ? "Detalle (minimo 5 caracteres)"
+            ? "Detalle (mínimo 5 caracteres)"
             : mode === "external_notification"
-              ? "Detalle de la notificacion (minimo 5 caracteres)"
+              ? "Detalle de la notificación (mínimo 5 caracteres)"
               : "Motivo (minimo 10 caracteres)"}
         </label>
         <textarea

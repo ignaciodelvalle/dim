@@ -843,8 +843,8 @@ export function DecomisoForm({
         </button>
 
         <p className="text-[12px] text-ln-op-mute text-center">
-          Esta accion es irreversible — el decomiso quedara registrado en el sistema de casos bajo
-          Ley 14.346. El refugio destinatario recibira una notificacion de handoff.
+          Esta acción es irreversible — el decomiso quedará registrado en el sistema de casos bajo
+          Ley 14.346. El refugio destinatario recibirá una notificación de handoff.
         </p>
       </div>
 
@@ -879,8 +879,8 @@ export function DecomisoForm({
                 .
               </p>
               <p className="text-[13px] text-ln-op-ink">
-                El sistema notificara al dueño que el animal fue decomisado. Esta accion esta
-                amparada en Ley 14.346 y quedara auditada.
+                El sistema notificará al dueño que el animal fue decomisado. Esta acción está
+                amparada en Ley 14.346 y quedará auditada.
               </p>
             </div>
             <p className="text-[13px] text-ln-op-mute">

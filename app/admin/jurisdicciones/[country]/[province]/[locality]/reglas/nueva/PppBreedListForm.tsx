@@ -77,8 +77,8 @@ export function PppBreedListForm({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
 
       <p className="text-[13px] rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn">
-        Las mascotas con raza marcada se evaluan automaticamente al guardar. Los duenos afectados
-        reciben notificacion.
+        Las mascotas con raza marcada se evalúan automáticamente al guardar. Los dueños afectados
+        reciben notificación.
       </p>
 
       <fieldset className="space-y-2">

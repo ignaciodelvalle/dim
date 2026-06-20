@@ -116,10 +116,10 @@ export default async function GobAnalyticsExportPage({
         title="Aviso sobre proteccion de datos personales (Ley 25.326)."
         body={
           <>
-            Los datos exportados estan anonimizados segun los principios de minimizacion y
-            proporcionalidad. No se incluye ningun dato personal identificable (nombre, DNI, email,
+            Los datos exportados están anonimizados según los principios de minimización y
+            proporcionalidad. No se incluye ningún dato personal identificable (nombre, DNI, email,
             microchip) en el archivo generado. El link de descarga vence a las 24 horas. El uso de
-            este export queda registrado en el log de auditoria.
+            este export queda registrado en el log de auditoría.
           </>
         }
       />
