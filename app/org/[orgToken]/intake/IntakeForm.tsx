@@ -98,6 +98,26 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     });
   }
 
+  function loadAnother() {
+    // UX 3.6 (e): "Guardar y cargar otro" — preserve the batch-shared fields
+    // (intake reason, custody role, date, jurisdiction, chip country) and clear
+    // the per-animal fields, then return to step 1 for the next animal of the
+    // same intake (e.g. a litter or a multi-animal rescue).
+    setName("");
+    setSpecies("");
+    setSex("unknown");
+    setAgeYears("");
+    setAgeMonths("");
+    setBreed("");
+    setColor("");
+    setDistinguishingFeatures("");
+    setMicrochipId("");
+    setTattooCode("");
+    setIntakeCondition("");
+    setState({ error: null });
+    setStep(1);
+  }
+
   if (state.ok && state.createdPetToken && state.createdPetName) {
     const orgRoot = `/org/${orgToken}`;
     return (
@@ -111,6 +131,12 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             // row's "Proponer tránsito" sends the proposal (proposeFosterAction).
             label: "Asignar tránsito",
             href: `${orgRoot}/voluntarios?pet=${state.createdPetToken}`,
+          },
+          {
+            // Batch intake: clears per-animal fields, keeps the shared ones.
+            label: "Guardar y cargar otro",
+            onClick: loadAnother,
+            variant: "secondary",
           },
           {
             label: "Publicar adopción",

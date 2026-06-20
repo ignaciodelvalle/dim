@@ -93,6 +93,10 @@ export default async function AdoptionReviewIndexPage({
   // ---------------------------------------------------------------------------
 
   let rows: AdoptionQueueRow[] = [];
+  // UX 3.6 (d): fetch one extra row past the cap to detect truncation, so the
+  // list can tell the operator there are more results instead of silently
+  // cutting off at 200.
+  let truncated = false;
 
   if (activeStatus === "pending") {
     // Pending: submitted with no posterior resolution and pet not yet finalized.
@@ -132,10 +136,11 @@ export default async function AdoptionReviewIndexPage({
           WHERE f.pet_id = s.pet_id AND f.event_type = 'adoption_finalized'
         )
       ORDER BY s.recorded_at ASC
-      LIMIT 200
+      LIMIT 201
     `);
 
-    rows = dbRows.map((r) => ({
+    truncated = dbRows.length > 200;
+    rows = dbRows.slice(0, 200).map((r) => ({
       applicationEventId: r.application_id,
       petName: r.pet_name,
       petPublicToken: r.pet_public_token,
@@ -172,12 +177,13 @@ export default async function AdoptionReviewIndexPage({
         AND res.payload->>'auto_generated' IS DISTINCT FROM 'true'
       WHERE s.event_type = 'adoption_application_submitted'
       ORDER BY res.recorded_at DESC
-      LIMIT 200
+      LIMIT 201
     `);
 
     // For resolved views we show read-only rows (no bulk actions).
     // submittedAt is used for the age badge (days to decision).
-    rows = dbRows.map((r) => ({
+    truncated = dbRows.length > 200;
+    rows = dbRows.slice(0, 200).map((r) => ({
       applicationEventId: r.application_id,
       petName: r.pet_name,
       petPublicToken: r.pet_public_token,
@@ -221,7 +227,14 @@ export default async function AdoptionReviewIndexPage({
           </OpCard>
         </>
       ) : (
-        <AdoptionQueueList rows={rows} orgToken={orgToken} activeStatus={activeStatus} />
+        <>
+          <AdoptionQueueList rows={rows} orgToken={orgToken} activeStatus={activeStatus} />
+          {truncated && (
+            <p className="text-[12px] text-ln-op-mute">
+              Mostrando las primeras 200. Hay más — refiná los filtros para acotar la lista.
+            </p>
+          )}
+        </>
       )}
 
       <footer className="pt-4 border-t border-ln-op-line">

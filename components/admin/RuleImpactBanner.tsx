@@ -60,7 +60,14 @@ export function RuleImpactBanner({ input }: Props) {
   }
 
   if (status === "error") {
-    return null; // silent — don't block submission on preview errors
+    // UX 3.6 (f): never render nothing — show a non-blocking fallback so the
+    // operator knows the estimate is unavailable (submission stays allowed; the
+    // preview is advisory, not a gate).
+    return (
+      <p className="text-[13px] text-ln-op-mute" aria-live="polite">
+        No se pudo calcular el impacto estimado. Podés continuar igual.
+      </p>
+    );
   }
 
   if (count === null) return null;

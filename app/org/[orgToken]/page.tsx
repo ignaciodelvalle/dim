@@ -593,6 +593,69 @@ export default async function OrgDashboardPage({
         </section>
       )}
 
+      {/* UX 3.6 (b): module entry points by org type. The operations panel above
+          is shelter-only; clinics and health authorities previously landed on a
+          thin panel with no actionable modules. Surface their primary modules
+          here, capability-gated so the links never dead-end. */}
+      {organization.orgType === "clinic" &&
+        (granted.has("appointment.manage") || canCreateServices) && (
+          <section
+            aria-label="Módulos de la clínica"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+          >
+            {granted.has("appointment.manage") && (
+              <Link
+                href={`/org/${orgToken}/agenda`}
+                className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+              >
+                <p className="text-[13px] font-semibold text-ln-op-ink">Agenda</p>
+                <p className="text-[12px] text-ln-op-mute mt-1">
+                  Turnos del día: asistencia, ausencias y cancelaciones.
+                </p>
+              </Link>
+            )}
+            {canCreateServices && (
+              <Link
+                href={`/org/${orgToken}/servicios`}
+                className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+              >
+                <p className="text-[13px] font-semibold text-ln-op-ink">Servicios</p>
+                <p className="text-[12px] text-ln-op-mute mt-1">
+                  Publicar y gestionar ofrecimientos de servicios.
+                </p>
+              </Link>
+            )}
+          </section>
+        )}
+
+      {organization.orgType === "sanitary_authority" && (
+        <section
+          aria-label="Módulos de la autoridad sanitaria"
+          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+        >
+          <Link
+            href={`/org/${orgToken}/casos`}
+            className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+          >
+            <p className="text-[13px] font-semibold text-ln-op-ink">Casos</p>
+            <p className="text-[12px] text-ln-op-mute mt-1">
+              Expedientes abiertos por la autoridad.
+            </p>
+          </Link>
+          {granted.has("bite.report") && (
+            <Link
+              href={`/org/${orgToken}/mordedura/nuevo`}
+              className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+            >
+              <p className="text-[13px] font-semibold text-ln-op-ink">Mordeduras</p>
+              <p className="text-[12px] text-ln-op-mute mt-1">
+                Registrar una mordedura e iniciar la observación antirrábica.
+              </p>
+            </Link>
+          )}
+        </section>
+      )}
+
       {/* Permissions table */}
       <OpCard>
         <OpCardHead
@@ -612,6 +675,15 @@ export default async function OrgDashboardPage({
           }
         />
         <OpCardBody className="p-0">
+          {/* UX 3.6 (a): nav modules gated by capability disappear silently. This
+              line explains the link and points to the request path below, so a
+              missing section reads as "ask for access" instead of a dead end. */}
+          {!isAdmin && (
+            <p className="px-4 pt-3 text-[12px] text-ln-op-mute">
+              Cada permiso habilita su módulo en el menú. Si no ves una sección que esperabas, pedí
+              el permiso correspondiente acá abajo y un admin lo aprueba.
+            </p>
+          )}
           <ul className="divide-y divide-ln-op-line">
             {CAPABILITY_CATALOG.map((entry) => {
               const state = stateFor(entry.capability);
