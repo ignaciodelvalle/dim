@@ -226,6 +226,14 @@ export default async function GobiernoDashboardPage({
           bar={rabiesCoverage.current}
           sub={`meta ${rabiesCoverage.target}% · ${rabiesCoverage.partidos} partidos`}
           href="/gob/analytics"
+          info={{
+            definition:
+              "Porcentaje de perros activos en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. Meta de salud pública: 80%.",
+            formula:
+              "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros activos",
+            caveat:
+              "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema.",
+          }}
         />
         <OpKpi
           label="Esterilizaciones / mes"
@@ -240,6 +248,12 @@ export default async function GobiernoDashboardPage({
           }
           sub={`${sterilizations.orgs} organizaciones`}
           href="/gob/analytics"
+          info={{
+            definition:
+              "Cantidad de eventos sterilization_performed registrados en los últimos 30 días en la jurisdicción. Incluye la variación porcentual respecto a los 30 días anteriores.",
+            formula:
+              "COUNT(sterilization_performed en últimos 30d) vs COUNT(sterilization_performed en 30d previos)",
+          }}
         />
         <OpKpi
           label="Mordeduras / 10k hab."
@@ -255,6 +269,14 @@ export default async function GobiernoDashboardPage({
           }
           sub={`${bitesPer10k.reports} reportes`}
           href="/gob/vigilancia"
+          info={{
+            definition:
+              "Tasa de incidentes de mordedura por cada 10.000 habitantes del censo provincial en los últimos 12 meses. Se usa como indicador de riesgo zoonótico (A6 proxy).",
+            formula:
+              "COUNT(incident_reported donde incident_type='bite_inflicted', últimos 12m) / (población_censo / 10.000)",
+            caveat:
+              "El denominador es población humana del censo (jurisdictions_census). Si la provincia no tiene fila de censo, la tasa se muestra como 0.",
+          }}
         />
         <OpKpi
           label="Casos zoonosis activos"
@@ -262,6 +284,12 @@ export default async function GobiernoDashboardPage({
           tone="danger"
           sub={`${activeZoonosis.rabies} rabia · ${activeZoonosis.lepto} lepto · ${activeZoonosis.hidat} hidat.`}
           href="/gob/vigilancia"
+          info={{
+            definition:
+              "Total de señales zoonóticas activas: mascotas con observación rábica en curso (status='in_progress') + casos bite_incident abiertos (deduplicados) + reportes de leptospirosis e hidatidosis en los últimos 30 días.",
+            formula:
+              "COUNT DISTINCT(pets en obs. rábica O en caso bite abierto) + COUNT(disease_reported='lepto', 30d) + COUNT(disease_reported='hidatidosis', 30d)",
+          }}
         />
       </section>
 
@@ -280,6 +308,14 @@ export default async function GobiernoDashboardPage({
           bar={microchipPenetration.ratePct}
           sub={`${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas · Ley 14.107`}
           href="/gob/analytics"
+          info={{
+            definition:
+              "Porcentaje de mascotas activas en la jurisdicción con al menos una identificación microchip ISO activa registrada (C1). Exigido por Ley Provincial 14.107.",
+            formula:
+              "COUNT(pets activos con pet_identifications.kind='microchip_iso' y status='active') / COUNT(pets activos)",
+            caveat:
+              "Meta recomendada: 80%. Solo cuenta microchips registrados en MiMAR; la tasa real puede ser mayor.",
+          }}
         />
         <OpKpi
           label="Registro PPP"
@@ -298,6 +334,14 @@ export default async function GobiernoDashboardPage({
               : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas · Ley 4078`
           }
           href="/gob/analytics"
+          info={{
+            definition:
+              "Porcentaje de mascotas de razas potencialmente peligrosas (PPP) en la jurisdicción con al menos un evento dangerous_breed_attested registrado (C7). Exigido por Ley CABA 4078 / Ley Prov. 14.107.",
+            formula:
+              "COUNT(pets PPP activos con evento dangerous_breed_attested) / COUNT(pets PPP activos)",
+            caveat:
+              "Mientras no exista el formulario de atestación, el numerador es 0 y la tasa refleja 0% de adopción del registro — esto es un valor verdadero e informativo, no un error.",
+          }}
         />
       </section>
 

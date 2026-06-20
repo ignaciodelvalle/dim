@@ -303,6 +303,14 @@ export default async function GobVigilanciaPage({
               ? `${rabiesCompliance.openBreaches} abierta(s) > 10 días`
               : `${rabiesCompliance.closed} cerrada(s) en el período`
           }
+          info={{
+            definition:
+              "Porcentaje de observaciones rábicas cerradas dentro del plazo legal de 10 días calendario (A8). Exigido por Ord. CABA 41.831 art. 9 y Decreto 4669/1973 PBA.",
+            formula:
+              "rabies_observation_ended con (ended_at − started_at) ≤ 10 días / total cerradas en período",
+            caveat:
+              "Las observaciones con más de 10 días sin cierre generan un incumplimiento vivo (A9) y activan el banner de alerta.",
+          }}
         />
         <OpKpi
           label="SLA notificación ENO"
@@ -315,6 +323,14 @@ export default async function GobVigilanciaPage({
                 ? `Mediana ${enoSla.medianLatencyHours} h`
                 : "Sin entregas en el período"
           }
+          info={{
+            definition:
+              "Porcentaje de notificaciones ENO (Enfermedades de Notificación Obligatoria) entregadas dentro de su SLA (A7). Mide la cola interna del outbox, no la entrega externa a la autoridad.",
+            formula:
+              "outbox rows (target_kind='eno_authority') con delivered_at ≤ sla_due_at / total delivered en período",
+            caveat:
+              "Filas en estado 'pending' con sla_due_at < ahora se cuentan como incumplimiento vivo (breachedOpen).",
+          }}
         />
         <OpKpi
           label="Densidad ATM/AMR"
@@ -324,6 +340,14 @@ export default async function GobVigilanciaPage({
               ? `por 1.000 · ${amrDensity.provisionalUnclassified} sin clasificar (provisional)`
               : "antimicrobianos por 1.000 pets activos"
           }
+          info={{
+            definition:
+              "Densidad de uso de antimicrobianos: inicios de tratamiento antimicrobiano por cada 1.000 mascotas activas en la jurisdicción (A12). Indicador de presión selectiva de resistencia antimicrobiana (AMR).",
+            formula:
+              "COUNT(medication_started donde drug_code ∈ catálogo antimicrobial) / activePets × 1.000",
+            caveat:
+              "Fármacos cuyo drug_code no está en el catálogo se reportan como 'sin clasificar' y NO se incluyen en la tasa (clasificación provisional).",
+          }}
         />
       </section>
 
@@ -481,6 +505,7 @@ export default async function GobVigilanciaPage({
               {...(mapGeojsonUrl ? { geojsonUrl: mapGeojsonUrl } : {})}
               {...(mapVisibleCodes ? { visibleCodes: mapVisibleCodes } : {})}
               fallbackTableLabel={mapCardTitle}
+              scaleLabel="Casos abiertos"
             />
           </OpCardBody>
         </OpCard>
