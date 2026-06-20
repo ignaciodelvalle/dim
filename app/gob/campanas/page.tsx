@@ -1,4 +1,7 @@
-// /gob/campañas — Campaign performance dashboard for sanitary authority operators.
+// /gob/campanas — Campaign performance dashboard for sanitary authority operators.
+// Route is ASCII ("campanas", not "campañas"): a non-ASCII App Router segment is
+// served percent-encoded (/gob/campa%C3%B1as), which breaks usePathname-based
+// active-nav matchPrefix and is a credibility smell in a government URL bar.
 //
 // Surfaces: enrollment (bookings), completion (attended), no-show, and
 // geographic reach per health-campaign offering in the operator's jurisdiction.

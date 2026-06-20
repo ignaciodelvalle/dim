@@ -251,8 +251,8 @@ describe("GOB_NAV — no route regression", () => {
     expect(hrefs).toContain("/gob/analytics");
   });
 
-  it("contains /gob/campañas (Item 20 — campaign performance)", () => {
-    expect(hrefs).toContain("/gob/campañas");
+  it("contains /gob/campanas (Item 20 — campaign performance, ASCII route)", () => {
+    expect(hrefs).toContain("/gob/campanas");
   });
 
   it("contains /gob/outreach (Item 21 — actionable outreach pipelines)", () => {
@@ -317,7 +317,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/disputas",
   "/gob/maltrato",
   "/gob/decomisos",
-  "/gob/campañas", // Item 20 — campaign performance
+  "/gob/campanas", // Item 20 — campaign performance
   "/gob/outreach", // Item 21 — actionable outreach pipelines
 ]);
 
