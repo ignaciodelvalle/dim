@@ -75,6 +75,39 @@ export function PanoramaShell({
         sintético (densidad ponderada por Censo 2022); no representa casos reales.
       </p>
 
+      {/* Methodology / "acerca de estas métricas" — for a government data product
+          the operator must be able to see how each indicator is computed, its
+          sources, and the privacy treatment (exec-gate E9 credibility). */}
+      <details className="rounded-[6px] border border-ln-op-line bg-ln-op-card/40 px-3 py-2 text-[12px] text-ln-op-ink-2">
+        <summary className="cursor-pointer select-none font-medium text-ln-op-ink">
+          Acerca de estas métricas
+        </summary>
+        <ul className="mt-2 space-y-1.5 text-[11px] leading-relaxed">
+          <li>
+            <span className="font-medium text-ln-op-ink">Cálculo.</span> Los indicadores reusan los
+            mismos cálculos que los dashboards de detalle (idéntico denominador): el Panorama no los
+            recalcula con otra fórmula, los lee de la misma fuente.
+          </li>
+          <li>
+            <span className="font-medium text-ln-op-ink">Fuentes.</span> Densidad poblacional del
+            Censo 2022 (INDEC); jurisdicciones y centroides de localidades del padrón{" "}
+            <code className="text-[10px]">ar_localities</code>.
+          </li>
+          <li>
+            <span className="font-medium text-ln-op-ink">Privacidad.</span> Las denuncias de
+            bienestar se ubican en el centroide de la localidad, nunca en la dirección exacta. Las
+            celdas con menos de 5 casos se suprimen por k-anonimato. Cada capa se limita a 2.000
+            puntos por vista.
+          </li>
+          <li>
+            <span className="font-medium text-ln-op-ink">Reproducción temporal.</span> La línea de
+            tiempo reconstruye los eventos registrados hasta la fecha elegida. Las capas de estado
+            actual (cobertura, mortalidad, refugios) no se reproducen en el tiempo y se atenúan
+            mientras se reproduce.
+          </li>
+        </ul>
+      </details>
+
       <PanoramaConsole
         defaultLayerId={layer.id}
         defaultFeatures={features}
