@@ -41,6 +41,7 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { logWelfareLocationViewed } from "@/lib/welfare-location-audit";
 import { type FlagReason, reasonLabel } from "@/lib/welfare-moderation";
 import {
   welfareReportKindLabel,
@@ -72,7 +73,7 @@ export default async function ModeracionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireAdminOrRedirect();
+  const { user } = await requireAdminOrRedirect();
 
   const [report] = await db
     .select(ADMIN_WELFARE_MODERATION_SELECT)
@@ -83,6 +84,15 @@ export default async function ModeracionDetailPage({
   if (!report.flaggedAt) notFound();
 
   const locationPoint = readPoint(report);
+
+  // Audience-precision plan (2026-06-19): admin moderation sees the EXACT
+  // coordinate (Ley 14.346); log every such view for accountability (Ley
+  // 25.326). Only when there's a point to view. See the gob detail page for the
+  // awaited/prefetch rationale.
+  if (locationPoint) {
+    await logWelfareLocationViewed(user.id, report.id, report.referenceCode);
+  }
+
   const reasons = (report.flagReasons as string[]) ?? [];
 
   const attachmentRows = await db
@@ -189,7 +199,14 @@ export default async function ModeracionDetailPage({
                 </p>
               )}
             </div>
-            {locationPoint && <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />}
+            {locationPoint && (
+              <>
+                <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">
+                  Ubicación exacta — uso oficial (Ley 14.346)
+                </p>
+                <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
+              </>
+            )}
           </OpCardBody>
         </OpCard>
       )}

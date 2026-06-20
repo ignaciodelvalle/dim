@@ -1844,6 +1844,10 @@ export type NewApprovalRequest = typeof approvalRequests.$inferInsert;
 export const AUDIT_LOG_ACTIONS = [
   "request_viewed",
   "evidence_viewed",
+  // Audience-precision plan (2026-06-19): an authority opened a welfare report's
+  // EXACT coordinate. Ley 14.346 justifies the access; Ley 25.326 accountability
+  // requires the trail. Payload: { welfare_report_id, reference_code }.
+  "welfare_location_viewed",
   "request_approved",
   "request_rejected",
   "revocation_org_verified",

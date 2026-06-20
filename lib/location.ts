@@ -35,6 +35,35 @@ export function readPoint(row: Record<string, unknown>): Point | null {
   return { lat, lng };
 }
 
+/** Presentation precision for a {@link Point}, selected per audience. */
+export type PointPrecision = "exact" | "approx";
+
+/**
+ * Reduce a point's precision for public presentation. Audience-precision plan
+ * (2026-06-19): the stored coordinate stays exact, but each audience sees only
+ * the precision its function needs. The authority (Ley 14.346 — maltrato, the
+ * investigative/decomiso need) sees `"exact"`; the public tracking receipt sees
+ * `"approx"` (Ley 25.326 — data minimisation), so a reference-code holder can't
+ * pin the exact denounced site (and, by elevation, de-anonymise the victim or
+ * reporter).
+ *
+ * Does NOT mutate the stored value — this only changes presentation output.
+ *
+ * Deterministic grid rounding, NOT random jitter: repeated loads must return the
+ * SAME coarse value, otherwise a holder could average many reads to triangulate
+ * the true point. `"approx"` rounds to 3 decimals (~110 m at AR latitudes) —
+ * enough to place the report in a neighbourhood without a street-level pin.
+ */
+export function coarsenPoint(point: Point, precision: PointPrecision): Point {
+  // Defensive copy even for "exact": callers must never be able to mutate the
+  // source Point through the returned value.
+  if (precision === "exact") return { lat: point.lat, lng: point.lng };
+  // `+ 0` normalises a negative-zero result (e.g. -0.0004 → Math.round(-0.4)/1000
+  // is -0) back to 0 so the value JSON-serialises consistently.
+  const round = (n: number) => Math.round(n * 1000) / 1000 + 0;
+  return { lat: round(point.lat), lng: round(point.lng) };
+}
+
 /**
  * Convert a {@link Point} (or `null`) to the shape Drizzle expects when
  * writing into `numeric(10,7)` columns. Numeric values must be passed as
