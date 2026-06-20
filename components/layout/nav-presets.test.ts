@@ -303,6 +303,7 @@ describe("ADMIN_NAV — no route regression", () => {
  */
 const GOB_HREF_SNAPSHOT = new Set([
   "/gob",
+  "/gob/panorama", // Centro de Situación Nacional — flagship console
   "/gob/cola",
   "/gob/vigilancia",
   "/gob/mortalidad", // Item 2 — mortality & disposal dashboard
@@ -392,6 +393,7 @@ describe("GOB_NAV_FLAT — derived flat list", () => {
  */
 const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin",
+  "/admin/panorama", // Centro de Situación Nacional — flagship console
   "/admin/cola",
   "/admin/usuarios",
   "/admin/organizaciones",
