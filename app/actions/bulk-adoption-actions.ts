@@ -16,6 +16,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import type { BulkResult } from "@/app/actions/bulk-actions";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import {
   approveAdoptionApplicationAction,
   rejectAdoptionApplicationAction,
@@ -30,6 +31,11 @@ export type BulkAdoptionApproveInput = {
 export async function bulkApproveAdoptionApplicationsAction(
   input: BulkAdoptionApproveInput,
 ): Promise<BulkResult> {
+  // Defense-in-depth: confirm the caller is a member of this org before looping.
+  // Per-item authorization ("adoption.review" capability + org ownership of the
+  // application) is still enforced inside approveAdoptionApplicationAction.
+  await requireOrgAccessByToken(input.orgToken);
+
   const bulkActionId = randomUUID();
   const succeeded: string[] = [];
   const failed: { id: string; reason: string }[] = [];
@@ -66,6 +72,11 @@ export type BulkAdoptionRejectInput = {
 export async function bulkRejectAdoptionApplicationsAction(
   input: BulkAdoptionRejectInput,
 ): Promise<BulkResult> {
+  // Defense-in-depth: confirm the caller is a member of this org before looping.
+  // Per-item authorization ("adoption.review" capability + org ownership of the
+  // application) is still enforced inside rejectAdoptionApplicationAction.
+  await requireOrgAccessByToken(input.orgToken);
+
   const bulkActionId = randomUUID();
   const reason = input.reason.trim();
 

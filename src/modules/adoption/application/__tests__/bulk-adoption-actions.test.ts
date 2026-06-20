@@ -28,6 +28,12 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+// The bulk wrappers call requireOrgAccessByToken for a fail-fast membership check
+// before looping; stub it so these pure-logic tests don't need a DB/Supabase.
+vi.mock("@/lib/auth-guards", () => ({
+  requireOrgAccessByToken: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
   bulkApproveAdoptionApplicationsAction,
   bulkRejectAdoptionApplicationsAction,
