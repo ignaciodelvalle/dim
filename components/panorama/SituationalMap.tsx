@@ -39,6 +39,10 @@ export type ActiveLayer = {
   label: string;
   geomType: "point" | "choropleth";
   features: FeatureCollection;
+  /** F4: muted while a time scrub is active because the layer has no time
+   * dimension (refugios) or is a current-state rollup (cobertura/mortalidad) —
+   * it shows live data, not as-of-t, so it is rendered dimmed (not as if as-of). */
+  dimmed?: boolean;
 };
 
 type Props = {
@@ -212,14 +216,18 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
       const existing = map.getSource(srcId(layer.id)) as maplibregl.GeoJSONSource | undefined;
       if (existing) {
         existing.setData(data);
-        continue;
-      }
-      if (layer.geomType === "choropleth") {
-        addChoroplethLayer(map, layer, data);
       } else {
-        addPointLayer(map, layer, data);
+        if (layer.geomType === "choropleth") {
+          addChoroplethLayer(map, layer, data);
+        } else {
+          addPointLayer(map, layer, data);
+        }
+        mountedRef.current.add(layer.id);
       }
-      mountedRef.current.add(layer.id);
+      // F4: reconcile the dimmed state on every sync (covers toggling dim on a
+      // layer that is already mounted). Dimmed layers are muted, not hidden, so
+      // the operator still sees the current-state context — never AS-OF-t data.
+      applyDim(map, layer);
     }
   }
 
@@ -422,6 +430,31 @@ function removeLayer(map: maplibregl.Map, id: string) {
     if (map.getLayer(lid)) map.removeLayer(lid);
   }
   if (map.getSource(srcId(id))) map.removeSource(srcId(id));
+}
+
+// F4: mute a layer (and re-restore it) by scaling circle-opacity. We never hide
+// dimmed layers — the operator keeps the current-state context while scrubbing —
+// but the reduced opacity signals "not reproducible in time" on the canvas.
+const DIM_OPACITY = 0.18;
+function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
+  const dim = layer.dimmed === true;
+  if (layer.geomType === "choropleth") {
+    const cid = choroLayerId(layer.id);
+    if (!map.getLayer(cid)) return;
+    // Suppressed cells were 0.45, visible 0.78; restore via the original case expr.
+    map.setPaintProperty(
+      cid,
+      "circle-opacity",
+      dim
+        ? DIM_OPACITY
+        : (["case", ["==", ["get", "suppressed"], true], 0.45, 0.78] as unknown as number),
+    );
+    return;
+  }
+  const pl = pointLayerId(layer.id);
+  const cl = clusterLayerId(layer.id);
+  if (map.getLayer(pl)) map.setPaintProperty(pl, "circle-opacity", dim ? DIM_OPACITY : 1);
+  if (map.getLayer(cl)) map.setPaintProperty(cl, "circle-opacity", dim ? DIM_OPACITY : 0.8);
 }
 
 // Layer-specific point popup copy (es-AR). Coarse layers (denuncias) state the

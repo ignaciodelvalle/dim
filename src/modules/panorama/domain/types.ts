@@ -48,6 +48,15 @@ export type PanoramaLayer = {
    * Govt always intersects with its assigned jurisdiction; admin is universal. */
   scopeFilterable: boolean;
   privacy: LayerPrivacy;
+  /**
+   * Whether the layer is event-windowable in time (spec F4 temporal reproduction).
+   * `true`  — the loader filters an `occurred_at/created_at/opened_at` so the layer
+   *           can be reconstructed "as of t" while the TimeScrubber plays.
+   * `false` — no usable time dimension in v1 (refugios) or a CURRENT-STATE rollup
+   *           (cobertura/mortalidad are pets.status / EXISTS snapshots, not windowed).
+   *           These are DIMMED while a scrub is active rather than shown as if as-of-t.
+   */
+  temporal: boolean;
 };
 
 // --- Typed GeoJSON (minimal subset the layers emit; RFC 7946) ----------------

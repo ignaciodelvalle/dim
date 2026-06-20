@@ -20,6 +20,7 @@ import { getJurisdictionsCached, getProfileCached } from "@/lib/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { getLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
+import { clampAsOf, parseAsOf } from "@/src/modules/panorama/domain/time-scrub";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
     from: url.searchParams.get("from") ?? undefined,
     to: url.searchParams.get("to") ?? undefined,
   };
-  const { since } = resolveAnalyticsPeriod(sp);
+  const { since, until } = resolveAnalyticsPeriod(sp);
+
+  // F4 temporal reproduction: parse an optional `asOf` ISO upper bound and clamp
+  // it into [since, until] (until = "now" for presets) so a crafted param can
+  // never widen the window below `since` or above the live edge. null = live.
+  const asOf = clampAsOf(parseAsOf(url.searchParams.get("asOf")), since, until) ?? undefined;
 
   const provinceIso = url.searchParams.get("province");
   const localitySlug = url.searchParams.get("locality");
@@ -78,7 +84,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
   }
 
   // 5. Delegate to the use-case (cap + k-anon enforced inside).
-  const result = await getLayerFeatures(layer, actor, scoped, { since });
+  const result = await getLayerFeatures(layer, actor, scoped, { since, asOf });
 
   return NextResponse.json(
     {

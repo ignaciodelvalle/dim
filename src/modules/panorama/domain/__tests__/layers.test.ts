@@ -6,8 +6,10 @@ import {
   CHOROPLETH_LAYERS,
   PANORAMA_LAYERS,
   POINT_LAYERS,
+  TEMPORAL_LAYERS,
   getLayer,
   isLayerId,
+  isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
 import type { LayerPrivacy } from "@/src/modules/panorama/domain/types";
 
@@ -49,6 +51,19 @@ describe("PANORAMA_LAYERS registry", () => {
 
   it("makes every layer scope-filterable (govt intersects its jurisdiction)", () => {
     expect(PANORAMA_LAYERS.every((l) => l.scopeFilterable)).toBe(true);
+  });
+
+  it("marks event-windowable layers temporal and current-state ones not (F4)", () => {
+    // Temporal: the 4 event-based point layers + perdidas (markedLostAt window).
+    const temporalIds = TEMPORAL_LAYERS.map((l) => l.id).sort();
+    expect(temporalIds).toEqual(
+      ["decomisos", "denuncias", "mordeduras", "perdidas", "zoonosis"].sort(),
+    );
+    // Non-temporal: refugios (no time) + the two current-state choropleths.
+    expect(isTemporalLayer("refugios")).toBe(false);
+    expect(isTemporalLayer("cobertura")).toBe(false);
+    expect(isTemporalLayer("mortalidad")).toBe(false);
+    expect(isTemporalLayer("perdidas")).toBe(true);
   });
 });
 

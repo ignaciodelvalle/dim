@@ -16,8 +16,10 @@ import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPan
 import { PanoramaKpiStrip } from "@/components/panorama/PanoramaKpiStrip";
 import type { ActiveLayer } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
+import { TimeScrubber } from "@/components/panorama/TimeScrubber";
+import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
-import { PANORAMA_LAYERS, getLayer } from "@/src/modules/panorama/domain/layers";
+import { PANORAMA_LAYERS, getLayer, isTemporalLayer } from "@/src/modules/panorama/domain/layers";
 import type { FeatureCollection, LayerId } from "@/src/modules/panorama/domain/types";
 
 const EMPTY_FC: FeatureCollection = { type: "FeatureCollection", features: [] };
@@ -57,9 +59,14 @@ export function PanoramaConsole({
 }: Props) {
   const searchParams = useSearchParams();
   // Feature data per layer (the default is seeded; others fetched on toggle).
+  // This is the LIVE cache (asOf=null). The temporal as-of cache is separate.
   const dataRef = useRef<Map<LayerId, FeatureCollection>>(
     new Map([[defaultLayerId, defaultFeatures]]),
   );
+  // As-of feature cache (F4): per (layer, asOf-iso) the features the layer had at
+  // that instant. Refreshed when the scrubber moves; cleared when the period/scope
+  // changes (a new window invalidates the axis). Live layers stay in dataRef.
+  const asOfDataRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
 
   const [states, setStates] = useState<Record<LayerId, LayerPanelState>>(() => {
     const s = initialState();
@@ -72,6 +79,10 @@ export function PanoramaConsole({
     };
     return s;
   });
+  // Mirror of `states` for effects that must read the latest active set without
+  // re-subscribing (the as-of refetch keys on asOf, not on every layer toggle).
+  const statesRef = useRef(states);
+  statesRef.current = states;
 
   // Headline KPIs: seeded server-side, re-fetched when the scope/period
   // searchParams change so the strip stays IDENTICAL to the dashboards for the
@@ -100,6 +111,74 @@ export function PanoramaConsole({
     };
   }, [qs]);
 
+  // --- F4 temporal reproduction -------------------------------------------
+  // The active period window [since, until] drives the scrubber axis. Resolved
+  // from the SAME searchParams the server used (parity). `until` is "ahora".
+  const { since, until } = useMemo(
+    () =>
+      resolveAnalyticsPeriod({
+        period: searchParams.get("period") ?? undefined,
+        from: searchParams.get("from") ?? undefined,
+        to: searchParams.get("to") ?? undefined,
+      }),
+    [searchParams],
+  );
+
+  // Current as-of upper bound. null = live (parked at "ahora").
+  const [asOf, setAsOf] = useState<Date | null>(null);
+  const scrubbing = asOf !== null;
+
+  // A new period/scope window invalidates the as-of cache and parks at live.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: qs identity is the intended trigger.
+  useEffect(() => {
+    asOfDataRef.current.clear();
+    setAsOf(null);
+  }, [searchParams]);
+
+  // When the as-of moves, refetch the ACTIVE TEMPORAL layers at that instant and
+  // repaint. Non-temporal layers are not refetched (they are dimmed instead).
+  // A version counter forces the activeLayers memo to recompute after fetches
+  // resolve (the caches are refs, so we bump state to re-render).
+  const [asOfVersion, setAsOfVersion] = useState(0);
+  useEffect(() => {
+    if (asOf === null) {
+      // Back to live — repaint from the live cache.
+      setAsOfVersion((v) => v + 1);
+      return;
+    }
+    const iso = asOf.toISOString();
+    const baseQs = searchParams.toString();
+    const activeTemporal = PANORAMA_LAYERS.filter(
+      (l) => statesRef.current[l.id]?.active && isTemporalLayer(l.id),
+    );
+    if (activeTemporal.length === 0) {
+      setAsOfVersion((v) => v + 1);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(
+      activeTemporal.map(async (l) => {
+        const params = new URLSearchParams(baseQs);
+        params.set("asOf", iso);
+        try {
+          const res = await fetch(`/api/panorama/${l.id}?${params.toString()}`, {
+            headers: { accept: "application/json" },
+          });
+          if (!res.ok) return;
+          const body = (await res.json()) as ApiResponse;
+          asOfDataRef.current.set(l.id, body.features);
+        } catch {
+          // Leave the last-known as-of features in place on a transient failure.
+        }
+      }),
+    ).then(() => {
+      if (!cancelled) setAsOfVersion((v) => v + 1);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [asOf, searchParams]);
+
   // Selected map feature → DetailDrawer. Null when the drawer is closed.
   const [selected, setSelected] = useState<SelectedFeature | null>(null);
   const onFeatureClick = useCallback((layerId: string, properties: Record<string, unknown>) => {
@@ -110,20 +189,56 @@ export function PanoramaConsole({
   const closeDrawer = useCallback(() => setSelected(null), []);
 
   // Build the active-layers array for the map from current state + cached data.
+  // Under a scrub (asOf !== null): temporal layers paint their AS-OF features;
+  // non-temporal layers are DIMMED (current-state data shown muted, never as if
+  // it were as-of-t). asOfVersion forces a recompute after as-of fetches resolve.
   const activeLayers = useMemo<ActiveLayer[]>(() => {
+    // The as-of features live in a ref (not React state), so `asOfVersion` is the
+    // explicit recompute trigger bumped after each as-of fetch resolves. Reading
+    // it here keeps the dependency honest (no unused-dep lint).
+    void asOfVersion;
     const out: ActiveLayer[] = [];
     for (const l of PANORAMA_LAYERS) {
       if (!states[l.id]?.active) continue;
+      const temporal = isTemporalLayer(l.id);
+      const features =
+        scrubbing && temporal
+          ? (asOfDataRef.current.get(l.id) ?? EMPTY_FC)
+          : (dataRef.current.get(l.id) ?? EMPTY_FC);
       out.push({
         id: l.id,
         color: l.color,
         label: l.label,
         geomType: l.geomType,
-        features: dataRef.current.get(l.id) ?? EMPTY_FC,
+        features,
+        // Non-temporal layers can't be reproduced in time — mute them while scrubbing.
+        dimmed: scrubbing && !temporal,
       });
     }
     return out;
-  }, [states]);
+    // asOfVersion + scrubbing are intentional triggers (caches are refs).
+  }, [states, scrubbing, asOfVersion]);
+
+  // Fetch a temporal layer's AS-OF features into the as-of cache (used when a
+  // layer is toggled on mid-scrub, so it paints at the current instant, not live).
+  const fetchAsOfFor = useCallback(
+    async (id: LayerId, at: Date) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("asOf", at.toISOString());
+      try {
+        const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
+          headers: { accept: "application/json" },
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as ApiResponse;
+        asOfDataRef.current.set(id, body.features);
+        setAsOfVersion((v) => v + 1);
+      } catch {
+        // Leave the live features showing on a transient failure (no flash).
+      }
+    },
+    [searchParams],
+  );
 
   const onToggle = useCallback(
     async (id: LayerId) => {
@@ -141,6 +256,10 @@ export function PanoramaConsole({
           ...s,
           [id]: { ...s[id], active: true, loading: false, count: fc.features.length },
         }));
+        // Mid-scrub: also resolve this temporal layer's as-of view if missing.
+        if (asOf !== null && isTemporalLayer(id) && !asOfDataRef.current.has(id)) {
+          void fetchAsOfFor(id, asOf);
+        }
         return;
       }
 
@@ -165,6 +284,10 @@ export function PanoramaConsole({
             truncated: body.truncated,
           },
         }));
+        // Mid-scrub: also resolve this temporal layer's as-of view.
+        if (asOf !== null && isTemporalLayer(id)) {
+          void fetchAsOfFor(id, asOf);
+        }
       } catch {
         // On failure, leave the layer off and clear loading; no silent half-state.
         dataRef.current.delete(id);
@@ -174,7 +297,7 @@ export function PanoramaConsole({
         }));
       }
     },
-    [searchParams, states],
+    [searchParams, states, asOf, fetchAsOfFor],
   );
 
   const mapLabel = useMemo(() => {
@@ -182,16 +305,21 @@ export function PanoramaConsole({
     return names.length > 0 ? `Mapa: ${names.join(", ")}` : "Mapa situacional";
   }, [activeLayers]);
 
+  const onScrub = useCallback((next: Date | null) => setAsOf(next), []);
+
   return (
     <div className="space-y-4">
+      {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked by
+          asOf in v1). The scrubber note states this so the operator isn't misled. */}
       <PanoramaKpiStrip kpis={kpis} />
+      <TimeScrubber since={since} until={until} onChange={onScrub} />
       <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
         <SituationalMapDynamic
           layers={activeLayers}
           label={mapLabel}
           onFeatureClick={onFeatureClick}
         />
-        <LayerPanel states={states} onToggle={onToggle} />
+        <LayerPanel states={states} onToggle={onToggle} scrubbing={scrubbing} />
       </div>
       <DetailDrawer selected={selected} onClose={closeDrawer} />
     </div>

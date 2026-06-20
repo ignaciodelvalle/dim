@@ -36,7 +36,14 @@ import {
   buildZoonosisFeatures,
 } from "./build-features";
 
-export type LayerPeriod = { since: Date };
+/**
+ * The active period plus an optional `asOf` upper bound (F4 temporal reproduction).
+ * When `asOf` is set, event-windowable layers filter `occurred_at/created_at/
+ * opened_at <= asOf` (in addition to `>= since`) so the operator can scrub the
+ * situation back in time. Non-temporal layers (refugios + the current-state
+ * choropleths) ignore `asOf` — the console dims them while a scrub is active.
+ */
+export type LayerPeriod = { since: Date; asOf?: Date };
 
 /**
  * The use-case result. `features` is the GeoJSON the map plots; the envelope
@@ -97,38 +104,55 @@ export async function getLayerFeatures(
         since: period.since,
         status: "lost",
       });
+      // F4: fetchLostPets only supports a `since` lower bound, so apply the
+      // `asOf` upper bound here post-fetch by dropping pets whose most-recent
+      // "became lost" event (markedLostAt → lastSeenAt) is after `asOf`. Rows
+      // with no markedLostAt have no time anchor and are dropped under a scrub.
+      const asOfMs = period.asOf?.getTime();
+      const pointRows = rows.map(lostPetToPointRow);
+      const windowed =
+        asOfMs === undefined
+          ? pointRows
+          : pointRows.filter(
+              (r) => r.lastSeenAt !== null && new Date(r.lastSeenAt).getTime() <= asOfMs,
+            );
       return {
-        features: buildPerdidasFeatures(rows.map(lostPetToPointRow)),
+        features: buildPerdidasFeatures(windowed),
         truncated: false,
         suppressedCount: 0,
       };
     }
     case "mordeduras": {
-      const r = await loadBiteEvents(actor, jurisdictions, period.since);
+      const r = await loadBiteEvents(actor, jurisdictions, period.since, period.asOf);
       return pointResult(r, buildMordedurasFeatures(r.rows));
     }
     case "denuncias": {
-      const r = await loadDenunciaCentroids(actor, jurisdictions, period.since);
+      const r = await loadDenunciaCentroids(actor, jurisdictions, period.since, period.asOf);
       return pointResult(r, buildDenunciasFeatures(r.rows));
     }
     case "zoonosis": {
-      const r = await loadOutbreakSignals(actor, jurisdictions, period.since);
+      const r = await loadOutbreakSignals(actor, jurisdictions, period.since, period.asOf);
       return pointResult(r, buildZoonosisFeatures(r.rows));
     }
     case "refugios": {
-      // Shelters have no time dimension — period is not applied.
+      // Shelters have no time dimension — period/asOf are not applied. The
+      // console dims this layer while a scrub is active (not reproducible in time).
       const r = await loadShelters(actor, jurisdictions);
       return pointResult(r, buildRefugiosFeatures(r.rows));
     }
     case "decomisos": {
-      const r = await loadDecomisos(actor, jurisdictions, period.since);
+      const r = await loadDecomisos(actor, jurisdictions, period.since, period.asOf);
       return pointResult(r, buildDecomisosFeatures(r.rows));
     }
     case "cobertura": {
+      // Current-state rollup (EXISTS rabies vaccination) — not event-windowed in
+      // v1, so `asOf` is intentionally ignored; the console dims it under a scrub.
       const r = await loadRabiesCoverage(actor, jurisdictions);
       return choroplethResult(r);
     }
     case "mortalidad": {
+      // Current-state rollup (pets.status='deceased') — not event-windowed in v1;
+      // `asOf` is intentionally ignored; the console dims it under a scrub.
       const r = await loadMortality(actor, jurisdictions);
       return choroplethResult(r);
     }

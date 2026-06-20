@@ -18,7 +18,7 @@
 // govt → intersection with its assignments. The scope clauses are the SAME
 // tested helpers the /gob dashboards use.
 
-import { type SQL, and, countDistinct, eq, gte, isNotNull, sql } from "drizzle-orm";
+import { type SQL, and, countDistinct, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
 import { arLocalities, cases, db, organizations, petEvents, pets, welfareReports } from "@/db";
 import {
@@ -103,6 +103,7 @@ export async function loadBiteEvents(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   since: Date,
+  asOf?: Date,
 ): Promise<LayerRows<BiteRow>> {
   const conditions = [
     eq(petEvents.eventType, "incident_reported"),
@@ -112,6 +113,9 @@ export async function loadBiteEvents(
     // Located events only — a point layer never plots a null coordinate.
     isNotNull(petEvents.locationLat),
   ];
+  // F4 temporal reproduction: upper-bound the event window so the layer can be
+  // reconstructed "as of t" while the TimeScrubber plays.
+  if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
   const scope = petEventsScope(actor, jurisdictions);
   if (scope) conditions.push(sql`(${scope})`);
 
@@ -154,6 +158,7 @@ export async function loadDenunciaCentroids(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   since: Date,
+  asOf?: Date,
 ): Promise<LayerRows<DenunciaCentroidRow>> {
   const conditions = [
     gte(welfareReports.createdAt, since),
@@ -161,6 +166,8 @@ export async function loadDenunciaCentroids(
     sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
     isNotNull(welfareReports.jurisdictionLocality),
   ];
+  // F4: upper-bound the report window for temporal reproduction.
+  if (asOf) conditions.push(lte(welfareReports.createdAt, asOf));
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
@@ -229,12 +236,15 @@ export async function loadOutbreakSignals(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   since: Date,
+  asOf?: Date,
 ): Promise<LayerRows<OutbreakRow>> {
   const conditions = [
     eq(petEvents.eventType, "outbreak_signal"),
     gte(petEvents.occurredAt, since),
     isNotNull(petEvents.locationLat),
   ];
+  // F4: upper-bound the outbreak-signal window for temporal reproduction.
+  if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
   // outbreak_signal stores its own jurisdiction keys; reuse the payload scope.
   const scope = petEventsScope(actor, jurisdictions);
   if (scope) conditions.push(sql`(${scope})`);
@@ -323,12 +333,15 @@ export async function loadDecomisos(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   since: Date,
+  asOf?: Date,
 ): Promise<LayerRows<DecomisoRow>> {
   const conditions = [
     eq(cases.caseKind, "custody_episode"),
     gte(cases.openedAt, since),
     isNotNull(cases.locationLat),
   ];
+  // F4: upper-bound the decomiso (custody_episode) window for temporal reproduction.
+  if (asOf) conditions.push(lte(cases.openedAt, asOf));
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,

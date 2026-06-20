@@ -22,6 +22,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     color: "#e15759",
     scopeFilterable: true,
     privacy: "none",
+    temporal: true,
   },
   {
     id: "mordeduras",
@@ -31,6 +32,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     color: "#f28e2b",
     scopeFilterable: true,
     privacy: "none",
+    temporal: true,
   },
   {
     id: "denuncias",
@@ -40,6 +42,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     color: "#b07aa1",
     scopeFilterable: true,
     privacy: "coarse",
+    temporal: true,
   },
   {
     id: "zoonosis",
@@ -49,6 +52,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     color: "#9c755f",
     scopeFilterable: true,
     privacy: "none",
+    temporal: true,
   },
   {
     id: "refugios",
@@ -58,6 +62,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     color: "#4e79a7",
     scopeFilterable: true,
     privacy: "none",
+    // No time dimension — shelters are a current directory, not an event stream.
+    temporal: false,
   },
   {
     id: "decomisos",
@@ -67,6 +73,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     color: "#76b7b2",
     scopeFilterable: true,
     privacy: "none",
+    temporal: true,
   },
   // --- choropleth (locality rollups via lib/metrics) ---
   {
@@ -77,6 +84,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     color: "#59a14f",
     scopeFilterable: true,
     privacy: "none",
+    // CURRENT-STATE rollup (EXISTS vaccination) — not event-windowed in v1.
+    temporal: false,
   },
   {
     id: "mortalidad",
@@ -86,6 +95,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     color: "#bab0ac",
     scopeFilterable: true,
     privacy: "none",
+    // CURRENT-STATE rollup (pets.status='deceased') — not event-windowed in v1.
+    temporal: false,
   },
 ] as const;
 
@@ -109,3 +120,13 @@ export const POINT_LAYERS: readonly PanoramaLayer[] = PANORAMA_LAYERS.filter(
 export const CHOROPLETH_LAYERS: readonly PanoramaLayer[] = PANORAMA_LAYERS.filter(
   (l) => l.geomType === "choropleth",
 );
+
+/** Layers that can be reconstructed "as of t" — the TimeScrubber refetches these
+ * with `asOf`. Non-temporal layers (refugios + the current-state choropleths) are
+ * dimmed while a scrub is active instead of showing stale data as if it were as-of-t. */
+export const TEMPORAL_LAYERS: readonly PanoramaLayer[] = PANORAMA_LAYERS.filter((l) => l.temporal);
+
+/** True when the layer is event-windowable in time (F4 temporal reproduction). */
+export function isTemporalLayer(id: LayerId): boolean {
+  return LAYER_BY_ID.get(id)?.temporal ?? false;
+}

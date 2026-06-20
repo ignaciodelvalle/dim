@@ -77,6 +77,37 @@ describe("getLayerFeatures — perdidas", () => {
     });
   });
 
+  it("applies asOf as a post-fetch upper bound on perdidas (drops pets lost after asOf)", async () => {
+    mockFetch.mockResolvedValue([
+      lostRow({ petPublicToken: "DIM-EARLY", markedLostAt: new Date("2026-06-05T00:00:00.000Z") }),
+      lostRow({ petPublicToken: "DIM-LATE", markedLostAt: new Date("2026-06-12T00:00:00.000Z") }),
+    ]);
+
+    const result = await getLayerFeatures(
+      "perdidas",
+      { role: "admin" },
+      [],
+      // asOf = 2026-06-08 → only the pet lost on 06-05 survives.
+      { since: new Date("2026-06-01T00:00:00.000Z"), asOf: new Date("2026-06-08T00:00:00.000Z") },
+    );
+
+    expect(result.features.features).toHaveLength(1);
+    expect(result.features.features[0].properties.token).toBe("DIM-EARLY");
+  });
+
+  it("threads asOf into a point loader (mordeduras) as the upper bound", async () => {
+    const { loadBiteEvents } = await import("@/src/modules/panorama/infrastructure/repository");
+    vi.mocked(loadBiteEvents).mockResolvedValue({ rows: [], truncated: false });
+    const asOf = new Date("2026-06-08T00:00:00.000Z");
+
+    await getLayerFeatures("mordeduras", { role: "admin" }, [], {
+      since: new Date("2026-06-01T00:00:00.000Z"),
+      asOf,
+    });
+
+    expect(loadBiteEvents).toHaveBeenCalledWith({ role: "admin" }, [], expect.any(Date), asOf);
+  });
+
   it("delegates a choropleth layer (mortalidad) to its loader, echoing the envelope", async () => {
     const { loadMortality } = await import("@/src/modules/panorama/infrastructure/repository");
     vi.mocked(loadMortality).mockResolvedValue({
