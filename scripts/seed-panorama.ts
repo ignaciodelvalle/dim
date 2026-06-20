@@ -1089,12 +1089,16 @@ async function seedPets(
           authorVerified: false,
           payload: {
             source: "seed-panorama",
-            cause: pick(["natural", "accident", "illness", "euthanasia"]),
+            // "disease" is the canonical DEATH_CAUSES value (deathCauseLabel maps
+            // it to "Enfermedad"); "illness" rendered raw (dashboards D3).
+            cause: pick(["natural", "accident", "disease", "euthanasia"]),
             cause_detail: null,
             confirmed_by_vet: rng() < 0.4,
             vet_name: null,
-            disposition_method: pick(["owner_burial", "cremation", "unknown"]),
-            facility: null,
+            disposition_method: pick(["owner_burial", "cremation", "authorized_cemetery", "unknown"]),
+            // Institutional disposals carry a facility → traceable (B3). Without
+            // any facilities the traceability KPI read a misleading 0% (D4).
+            facility: rng() < 0.45 ? "Establecimiento habilitado (seed)" : null,
             death_at_clinic: false,
             vet_contacted_owner: "unknown",
             vet_decided_alone: null,
@@ -1255,6 +1259,26 @@ async function seedSetPieces(
           },
           ...writePoint(jitteredCoord(baseLat, baseLng, 0.005)),
         },
+        {
+          // D2: /gob/vigilancia counts pet_events.eventType='outbreak_signal'
+          // (scoped via payload jurisdiction). Without these the surveillance
+          // surface read 0 signals despite the bite cluster. Emit one per pet so
+          // the Salta rabies cluster is visible + queryable.
+          eventType: "outbreak_signal" satisfies EventType,
+          occurredAt,
+          recordedByUserId: ownerUserId,
+          authorRole: "govt",
+          authorVerified: true,
+          payload: {
+            source: "seed-panorama-setpiece",
+            disease_code: isDeath ? "rabies_confirmed" : "rabies_suspected",
+            disease_label: isDeath ? "Rabia (confirmada)" : "Rabia (sospechada)",
+            pet_jurisdiction_province: "Salta",
+            pet_jurisdiction_locality: saltaLoc?.localityName ?? "Salta",
+            status: "open",
+          },
+          ...writePoint(jitteredCoord(baseLat, baseLng, 0.005)),
+        },
       ];
 
       if (isDeath) {
@@ -1266,12 +1290,12 @@ async function seedSetPieces(
           authorVerified: true,
           payload: {
             source: "seed-panorama-setpiece",
-            cause: "illness",
+            cause: "disease",
             cause_detail: "sospecha de rabia — cluster NOA",
             confirmed_by_vet: true,
             vet_name: null,
             disposition_method: "cremation",
-            facility: null,
+            facility: "Crematorio Veterinario Salta (seed)",
             death_at_clinic: true,
             vet_contacted_owner: "yes",
             vet_decided_alone: null,
