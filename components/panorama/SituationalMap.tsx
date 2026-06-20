@@ -48,6 +48,12 @@ type Props = {
   label: string;
   /** Map height in px. */
   height?: number;
+  /**
+   * Fired when an INDIVIDUAL feature is clicked (not a cluster — clusters zoom).
+   * Bubbles the layer id + the feature's GeoJSON properties up to the console,
+   * which opens the DetailDrawer. Choropleth cells and points both emit this.
+   */
+  onFeatureClick?: (layerId: string, properties: Record<string, unknown>) => void;
 };
 
 // Continental Argentina centroid + a zoom that frames the mainland.
@@ -90,7 +96,7 @@ function layersBbox(layers: ActiveLayer[]): [[number, number], [number, number]]
   ];
 }
 
-export function SituationalMap({ layers, label, height = 560 }: Props) {
+export function SituationalMap({ layers, label, height = 560, onFeatureClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const mlRef = useRef<typeof maplibregl | null>(null);
@@ -101,6 +107,9 @@ export function SituationalMap({ layers, label, height = 560 }: Props) {
   // Keep the latest layers prop accessible inside one-time map handlers.
   const layersRef = useRef<ActiveLayer[]>(layers);
   layersRef.current = layers;
+  // Keep the latest click callback accessible inside one-time map handlers.
+  const onFeatureClickRef = useRef(onFeatureClick);
+  onFeatureClickRef.current = onFeatureClick;
 
   // --- One-time map construction (basemap only). ---------------------------
   useEffect(() => {
@@ -336,6 +345,12 @@ export function SituationalMap({ layers, label, height = 560 }: Props) {
         .setHTML(pointPopupHtml(layer, f.properties ?? {}))
         .addTo(map);
     });
+    // Clicking an INDIVIDUAL point opens the DetailDrawer (clusters zoom; see above).
+    map.on("click", pl, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
+    });
   }
 
   function wireChoroplethInteractions(map: maplibregl.Map, layer: ActiveLayer) {
@@ -369,6 +384,13 @@ export function SituationalMap({ layers, label, height = 560 }: Props) {
           `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${place}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${layer.label}</em></div>`,
         )
         .addTo(map);
+    });
+    // Clicking a choropleth cell opens the DetailDrawer. Suppressed cells still
+    // open — the drawer renders "Suprimido", never the real count (k-anon).
+    map.on("click", id, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
     });
   }
 

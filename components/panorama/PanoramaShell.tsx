@@ -1,6 +1,7 @@
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { PanoramaConsole } from "@/components/panorama/PanoramaConsole";
+import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import type { FeatureCollection, PanoramaLayer } from "@/src/modules/panorama/domain/types";
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,8 @@ type Props = {
   allowedProvinces: Array<{ code: string; name: string }>;
   /** Localities of the selected province (for the JurisdictionSwitcher). */
   localities: Array<{ slug: string; name: string }>;
+  /** Headline KPIs recalculated for the active scope+period (server-rendered). */
+  kpis: PanoramaKpis;
 };
 
 export function PanoramaShell({
@@ -37,6 +40,7 @@ export function PanoramaShell({
   suppressedCount = 0,
   allowedProvinces,
   localities,
+  kpis,
 }: Props) {
   return (
     <div className="space-y-4">
@@ -76,6 +80,7 @@ export function PanoramaShell({
         defaultFeatures={features}
         defaultTruncated={truncated}
         defaultSuppressedCount={suppressedCount}
+        initialKpis={kpis}
       />
     </div>
   );

@@ -7,6 +7,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { GOB_ALL_PROVINCES } from "@/lib/govt-dashboards";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { getLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
+import { getPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
 
 // Centro de Situación Nacional — admin view (universal scope).
@@ -28,7 +29,8 @@ export default async function AdminPanoramaPage({
   const actor = { role: profile.role };
 
   const sp = await searchParams;
-  const { since } = resolveAnalyticsPeriod(sp);
+  const period = resolveAnalyticsPeriod(sp);
+  const { since } = period;
 
   // Selected province/locality from the filters.
   const provinceObj = sp.province ? provinceByCode(sp.province) : null;
@@ -53,7 +55,12 @@ export default async function AdminPanoramaPage({
 
   // biome-ignore lint/style/noNonNullAssertion: "perdidas" is a static registry id.
   const layer = getLayer("perdidas")!;
-  const result = await getLayerFeatures("perdidas", actor, scoped, { since });
+  // Default layer features + the headline KPIs resolve concurrently. The KPIs
+  // reuse the tested dashboard fetchers (parity) and are scoped+period-aware.
+  const [result, kpis] = await Promise.all([
+    getLayerFeatures("perdidas", actor, scoped, { since }),
+    getPanoramaKpis(actor, scoped, period),
+  ]);
 
   return (
     <PanoramaShell
@@ -64,6 +71,7 @@ export default async function AdminPanoramaPage({
       suppressedCount={result.suppressedCount}
       allowedProvinces={GOB_ALL_PROVINCES}
       localities={localities}
+      kpis={kpis}
     />
   );
 }
