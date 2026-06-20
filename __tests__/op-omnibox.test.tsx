@@ -49,6 +49,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/app/actions/omnibox-search", () => ({
   searchOmniboxAction: vi.fn(),
+  searchOmniboxOrgAction: vi.fn(),
 }));
 
 import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
@@ -88,7 +89,7 @@ describe("<OpOmnibox> — empty state", () => {
     expect(html).toContain('role="combobox"');
     expect(html).toContain('aria-autocomplete="list"');
     expect(html).toContain('aria-label="Búsqueda global"');
-    expect(html).toContain("Buscar mascota, persona o caso…");
+    expect(html).toContain("Buscar persona o caso…");
   });
 
   it("shows the / keyboard shortcut hint when empty", () => {

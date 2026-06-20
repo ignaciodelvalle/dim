@@ -30,7 +30,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { searchOmniboxAction } from "@/app/actions/omnibox-search";
+import { searchOmniboxAction, searchOmniboxOrgAction } from "@/app/actions/omnibox-search";
 import type { OmniboxResult, OmniboxResults } from "@/lib/omnibox-search";
 
 const DEBOUNCE_MS = 250;
@@ -67,7 +67,7 @@ function resultMeta(r: OmniboxResult): string {
   return `${r.caseKind} · ${r.status}`;
 }
 
-export function OpOmnibox() {
+export function OpOmnibox({ orgToken }: { orgToken?: string } = {}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
@@ -101,7 +101,9 @@ export function OpOmnibox() {
     setLoading(true);
     const handle = setTimeout(async () => {
       try {
-        const r = await searchOmniboxAction(trimmed);
+        const r = orgToken
+          ? await searchOmniboxOrgAction(orgToken, trimmed)
+          : await searchOmniboxAction(trimmed);
         if (cancelled) return;
         setResults(r);
         setSearched(true);
@@ -119,7 +121,7 @@ export function OpOmnibox() {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [query]);
+  }, [query, orgToken]);
 
   // Global shortcut: "/" or ⌘K / Ctrl+K focuses the omnibox. "/" is ignored
   // while typing in another field so it doesn't hijack normal input.
@@ -207,7 +209,7 @@ export function OpOmnibox() {
           setTimeout(() => setOpen(false), 150);
         }}
         onKeyDown={onInputKeyDown}
-        placeholder="Buscar mascota, persona o caso…"
+        placeholder={orgToken ? "Buscar mascota…" : "Buscar persona o caso…"}
         className="w-48 rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:w-64 focus:outline-none focus:ring-2 focus:ring-ln-op-azul md:w-56 md:focus:w-72 transition-[width]"
       />
 
@@ -286,6 +288,11 @@ export function OpOmnibox() {
                 })}
               </div>
             ))}
+
+          {/* PII audit notice — always visible at the bottom when the dropdown is open. */}
+          <p className="border-t border-ln-op-line px-4 py-2 text-[10px] text-ln-op-mute">
+            Las búsquedas quedan registradas.
+          </p>
         </div>
       )}
     </div>
