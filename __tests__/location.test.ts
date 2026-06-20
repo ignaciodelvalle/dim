@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { readPoint, writePoint } from "@/lib/location";
+import { coarsenPoint, readPoint, writePoint } from "@/lib/location";
 
 describe("readPoint", () => {
   it("returns null for both-null rows", () => {
@@ -71,6 +71,58 @@ describe("writePoint", () => {
     expect(() => writePoint({ lat: Number.NaN, lng: 0 })).toThrow();
     expect(() => writePoint({ lat: 0, lng: Number.POSITIVE_INFINITY })).toThrow();
     expect(() => writePoint({ lat: Number.NEGATIVE_INFINITY, lng: 0 })).toThrow();
+  });
+});
+
+describe("coarsenPoint", () => {
+  it("passes the point through unchanged for exact precision", () => {
+    const exact = { lat: -34.6083123, lng: -58.3712456 };
+    expect(coarsenPoint(exact, "exact")).toEqual(exact);
+  });
+
+  it("rounds to 3 decimals (~110 m) for approx precision", () => {
+    expect(coarsenPoint({ lat: -34.6083123, lng: -58.3712456 }, "approx")).toEqual({
+      lat: -34.608,
+      lng: -58.371,
+    });
+  });
+
+  it("is deterministic — the same input yields the same output (no jitter)", () => {
+    const p = { lat: -31.4201111, lng: -64.1888222 };
+    const a = coarsenPoint(p, "approx");
+    const b = coarsenPoint(p, "approx");
+    expect(a).toEqual(b);
+  });
+
+  it("never returns more precision than its input (coarse is a subset of exact)", () => {
+    const approx = coarsenPoint({ lat: -34.6083123, lng: -58.3712456 }, "approx");
+    // 3-decimal grid: multiplying by 1000 must yield an integer.
+    expect(Number.isInteger(Math.round(approx.lat * 1000))).toBe(true);
+    expect(approx.lat).toBeCloseTo(-34.608, 3);
+  });
+
+  it("handles negative AR coordinates without sign drift", () => {
+    expect(coarsenPoint({ lat: -54.8019, lng: -68.303 }, "approx")).toEqual({
+      lat: -54.802,
+      lng: -68.303,
+    });
+  });
+
+  it("leaves the zero coordinate at zero", () => {
+    expect(coarsenPoint({ lat: 0, lng: 0 }, "approx")).toEqual({ lat: 0, lng: 0 });
+  });
+
+  it("normalises negative-zero results to +0 (consistent JSON serialisation)", () => {
+    const result = coarsenPoint({ lat: -0.0004, lng: -0.0001 }, "approx");
+    expect(Object.is(result.lat, 0)).toBe(true);
+    expect(Object.is(result.lng, 0)).toBe(true);
+  });
+
+  it("does not return the same object reference for exact (no mutation footgun)", () => {
+    const input = { lat: -34.6083, lng: -58.3712 };
+    const out = coarsenPoint(input, "exact");
+    expect(out).toEqual(input);
+    expect(out).not.toBe(input);
   });
 });
 
