@@ -77,7 +77,10 @@ export function CreateAdminForm() {
       <div className="space-y-4">
         <div>
           <label htmlFor="email" className="block text-[12px] font-medium text-ln-op-ink-2 mb-1">
-            Email
+            Email{" "}
+            <span className="text-ln-op-danger" aria-hidden="true">
+              *
+            </span>
           </label>
           <input
             id="email"
@@ -95,7 +98,10 @@ export function CreateAdminForm() {
             htmlFor="displayName"
             className="block text-[12px] font-medium text-ln-op-ink-2 mb-1"
           >
-            Nombre de display
+            Nombre de display{" "}
+            <span className="text-ln-op-danger" aria-hidden="true">
+              *
+            </span>
           </label>
           <input
             id="displayName"

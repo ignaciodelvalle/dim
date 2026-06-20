@@ -37,6 +37,14 @@ export default async function AdminsPage() {
   const activeAdmins = admins.filter((a) => a.deactivatedAt === null);
   const deactivatedAdmins = admins.filter((a) => a.deactivatedAt !== null);
 
+  // A7: keep service/system accounts (created by backfill scripts, named
+  // "system:…") out of the human admin list — they aren't people and clutter
+  // the roster. Shown in a separate collapsed section below.
+  const isSystem = (a: (typeof admins)[number]) =>
+    a.displayName.startsWith("system:") || a.email.startsWith("system:");
+  const humanActive = activeAdmins.filter((a) => !isSystem(a));
+  const systemActive = activeAdmins.filter(isSystem);
+
   return (
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -57,7 +65,7 @@ export default async function AdminsPage() {
           </Link>
         </header>
 
-        {activeAdmins.length === 0 ? (
+        {humanActive.length === 0 ? (
           <div className="text-center py-12 rounded-[6px] border border-dashed border-ln-op-line">
             <p className="text-[12px] text-ln-op-mute">No hay administradores activos.</p>
             <p className="text-[12px] text-ln-op-mute mt-1">
@@ -67,10 +75,26 @@ export default async function AdminsPage() {
           </div>
         ) : (
           <ul className="space-y-2">
-            {activeAdmins.map((a) => (
+            {humanActive.map((a) => (
               <AdminRow key={a.id} admin={a} />
             ))}
           </ul>
+        )}
+
+        {systemActive.length > 0 && (
+          <details className="group">
+            <summary className="cursor-pointer text-[12px] text-ln-op-mute hover:text-ln-op-ink-2 select-none">
+              Cuentas de sistema ({systemActive.length})
+            </summary>
+            <p className="mt-1 text-[11px] text-ln-op-mute">
+              Cuentas de servicio (backfills, jobs) — no son personas.
+            </p>
+            <ul className="mt-2 space-y-2">
+              {systemActive.map((a) => (
+                <AdminRow key={a.id} admin={a} />
+              ))}
+            </ul>
+          </details>
         )}
 
         {deactivatedAdmins.length > 0 && (

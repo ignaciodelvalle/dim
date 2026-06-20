@@ -47,6 +47,29 @@ function buildSegmentMap(
 const GOB_SEGMENT_MAP = buildSegmentMap(GOB_NAV_SECTIONS, "/gob");
 const ADMIN_SEGMENT_MAP = buildSegmentMap(ADMIN_NAV_SECTIONS, "/admin");
 
+// Segments that are NOT top-level nav items (so they get no label from the nav
+// presets) but show up as crumbs — without these they fell to capitalise() and
+// rendered as raw English/segment text ("Govts", "New", "Admins"). Admin
+// fresh-sweep A4.
+const STATIC_SEGMENT_LABELS: Record<string, string> = {
+  govts: "Gobiernos",
+  admins: "Administradores",
+  new: "Nueva cuenta",
+  nueva: "Nueva",
+  nuevo: "Nuevo",
+  reglas: "Reglas",
+  editar: "Editar",
+  usuarios: "Usuarios",
+  servicios: "Servicios",
+};
+
+/** Localized label for a path segment. The static map wins over the nav-preset
+ * label so non-localized nav labels (e.g. "Admins", "Govts") render localized in
+ * crumbs; falls back to the nav label, then a capitalised segment. */
+function labelForSegment(segment: string, segmentMap: Map<string, string>): string {
+  return STATIC_SEGMENT_LABELS[segment] ?? segmentMap.get(segment) ?? capitalise(segment);
+}
+
 // ---------------------------------------------------------------------------
 // Root labels and base paths per portal.
 // ---------------------------------------------------------------------------
@@ -95,8 +118,8 @@ export function deriveOperatorCrumbs(pathname: string, portal: OperatorPortal): 
 
   const [firstSeg, ...deeperSegs] = segments;
 
-  // Look up the human label from nav presets; fall back to capitalised segment.
-  const sectionLabel = segmentMap.get(firstSeg ?? "") ?? capitalise(firstSeg ?? "");
+  // Look up the human label: nav presets → static segment map → capitalised.
+  const sectionLabel = labelForSegment(firstSeg ?? "", segmentMap);
 
   if (deeperSegs.length === 0) {
     // e.g. /gob/vigilancia — two crumbs, last is current (no link).
@@ -118,8 +141,8 @@ export function deriveOperatorCrumbs(pathname: string, portal: OperatorPortal): 
   const looksLikeId = isLikelyId(secondSeg);
 
   if (!looksLikeId && deeperSegs.length === 1) {
-    // Known static sub-path — treat as a deeper section label.
-    const subLabel = capitalise(secondSeg);
+    // Known static sub-path — treat as a deeper section label (localized).
+    const subLabel = labelForSegment(secondSeg, segmentMap);
     return [rootCrumb, sectionCrumb, { label: subLabel }];
   }
 

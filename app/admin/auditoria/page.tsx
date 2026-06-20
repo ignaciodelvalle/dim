@@ -3,23 +3,10 @@ import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
+import { auditActionLabel } from "@/lib/audit-action-labels";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
 import { likeContains } from "@/lib/like-helpers";
-
-const ACTION_LABELS: Record<string, string> = {
-  request_approved: "Solicitud aprobada",
-  request_rejected: "Solicitud rechazada",
-  request_viewed: "Solicitud vista",
-  revocation_vet: "Revocación de matrícula",
-  revocation_org: "Revocación de verificación org",
-  revocation_govt_assignment: "Revocación de localidad govt",
-  deactivation_govt: "Desactivación cuenta govt",
-  deactivation_admin: "Desactivación cuenta admin",
-  pii_queried: "Búsqueda de PII",
-  admin_seeded: "Admin inicializado",
-  approval_request_withdrawn_by_applicant: "Solicitud retirada por aplicante",
-};
 
 const AUDITORIA_PAGE_LIMIT = 200;
 
@@ -147,7 +134,7 @@ export default async function AdminAuditoriaPage({
                 >
                   <div className="min-w-0 space-y-0.5">
                     <p className="text-[13px] font-medium text-ln-op-ink">
-                      {ACTION_LABELS[entry.action] ?? entry.action}
+                      {auditActionLabel(entry.action)}
                     </p>
                     <p className="text-[12px] text-ln-op-mute">
                       {entry.actorUserId
