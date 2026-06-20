@@ -47,10 +47,14 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
             )}
           </LnField>
 
-          {/* OPEN P0 (deferred 2026-06-12): password reset ships with the transactional-email
-              provider — do not add a dead link until then. A "¿Olvidaste tu contraseña?" link
-              would go here, between the password field and the submit button.
-              See docs/qa/ui-flow-review-2026-06.md. */}
+          <div className="flex justify-end">
+            <a
+              href="/recuperar"
+              className="text-xs text-[var(--color-ln-azul)] underline underline-offset-2 hover:text-[var(--color-ln-azul-700)]"
+            >
+              ¿Olvidaste tu contraseña?
+            </a>
+          </div>
 
           <button
             type="submit"
