@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 
 import { type UpgradeFormState, requestVetUpgradeAction } from "@/app/actions/upgrade";
 import { LocationFields } from "@/components/LocationFields";
-import { LnInput } from "@/components/ui/Field";
+import { LnField, LnInput } from "@/components/ui/Field";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -124,26 +124,42 @@ export function VetUpgradeForm({ dniVerified }: Props) {
       </div>
 
       <form action={formAction} className="space-y-4">
-        <Field
-          id="matriculaNumber"
-          name="matriculaNumber"
-          type="text"
+        <LnField
           label="Número de matrícula"
+          required
           hint="Tal como figura en tu credencial profesional. Ej: MN-12345"
-          required
-          value={matriculaNumber}
-          onChange={(e) => setMatriculaNumber(e.target.value)}
-        />
-        <Field
-          id="matriculaJurisdiccion"
-          name="matriculaJurisdiccion"
-          type="text"
+        >
+          {({ id, describedBy, invalid }) => (
+            <LnInput
+              id={id}
+              name="matriculaNumber"
+              type="text"
+              required
+              aria-describedby={describedBy}
+              invalid={invalid}
+              value={matriculaNumber}
+              onChange={(e) => setMatriculaNumber(e.target.value)}
+            />
+          )}
+        </LnField>
+        <LnField
           label="Provincia de la matrícula"
-          hint="Dónde fue emitida tu matrícula. Ej: CABA, Buenos Aires, Córdoba"
           required
-          value={matriculaJurisdiccion}
-          onChange={(e) => setMatriculaJurisdiccion(e.target.value)}
-        />
+          hint="Dónde fue emitida tu matrícula. Ej: CABA, Buenos Aires, Córdoba"
+        >
+          {({ id, describedBy, invalid }) => (
+            <LnInput
+              id={id}
+              name="matriculaJurisdiccion"
+              type="text"
+              required
+              aria-describedby={describedBy}
+              invalid={invalid}
+              value={matriculaJurisdiccion}
+              onChange={(e) => setMatriculaJurisdiccion(e.target.value)}
+            />
+          )}
+        </LnField>
         <div className="space-y-1.5">
           <p className="block text-sm font-medium text-[var(--color-ln-ink)]">
             Localidad donde ejercés
@@ -153,24 +169,33 @@ export function VetUpgradeForm({ dniVerified }: Props) {
             Para enrutar tu verificación al gobierno correspondiente. Requerido.
           </p>
         </div>
-        <Field
-          id="especialidad"
-          name="especialidad"
-          type="text"
-          label="Especialidad (opcional)"
-          hint="Ej: Clínica, cirugía, exóticos."
-          value={especialidad}
-          onChange={(e) => setEspecialidad(e.target.value)}
-        />
-        <Field
-          id="anosExperiencia"
-          name="anosExperiencia"
-          type="number"
-          label="Años de experiencia (opcional)"
-          inputMode="numeric"
-          value={anosExperiencia}
-          onChange={(e) => setAnosExperiencia(e.target.value)}
-        />
+        <LnField label="Especialidad (opcional)" hint="Ej: Clínica, cirugía, exóticos.">
+          {({ id, describedBy, invalid }) => (
+            <LnInput
+              id={id}
+              name="especialidad"
+              type="text"
+              aria-describedby={describedBy}
+              invalid={invalid}
+              value={especialidad}
+              onChange={(e) => setEspecialidad(e.target.value)}
+            />
+          )}
+        </LnField>
+        <LnField label="Años de experiencia (opcional)">
+          {({ id, describedBy, invalid }) => (
+            <LnInput
+              id={id}
+              name="anosExperiencia"
+              type="number"
+              inputMode="numeric"
+              aria-describedby={describedBy}
+              invalid={invalid}
+              value={anosExperiencia}
+              onChange={(e) => setAnosExperiencia(e.target.value)}
+            />
+          )}
+        </LnField>
 
         {state.error && (
           <p className="text-sm text-[var(--color-ln-err)]" role="alert">
@@ -186,46 +211,6 @@ export function VetUpgradeForm({ dniVerified }: Props) {
           {pending ? "Enviando solicitud..." : "Enviar solicitud de verificación"}
         </button>
       </form>
-    </div>
-  );
-}
-
-function Field({
-  id,
-  name,
-  type,
-  label,
-  required,
-  hint,
-  inputMode,
-  value,
-  onChange,
-}: {
-  id: string;
-  name: string;
-  type: string;
-  label: string;
-  required?: boolean;
-  hint?: string;
-  inputMode?: "numeric" | "text";
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-[var(--color-ln-ink)]">
-        {label}
-      </label>
-      <LnInput
-        id={id}
-        name={name}
-        type={type}
-        required={required}
-        inputMode={inputMode}
-        value={value}
-        onChange={onChange}
-      />
-      {hint && <p className="text-xs text-[var(--color-ln-mute)]">{hint}</p>}
     </div>
   );
 }
