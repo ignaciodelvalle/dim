@@ -19,6 +19,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { CopyCodeButton } from "./CopyCodeButton";
 import { DescargarComprobante } from "./DescargarComprobante";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
@@ -160,14 +161,19 @@ export default async function WelfareReportByCodePage({
             >
               Tu código de seguimiento
             </p>
-            {/* pub-codecard pattern: mono code in a bordered box */}
-            <div className="rounded-[6px] border-2 border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-4 py-3 inline-block">
-              <p
-                className="text-2xl font-semibold tracking-[.06em] text-[var(--color-ln-ink)]"
-                style={{ fontFamily: "var(--font-ln-mono)" }}
-              >
-                {report.referenceCode}
-              </p>
+            {/* pub-codecard pattern: mono code in a bordered box with copy action */}
+            <div className="space-y-2">
+              <div className="rounded-[6px] border-2 border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-4 py-3 inline-block">
+                <p
+                  className="text-2xl font-semibold tracking-[.06em] text-[var(--color-ln-ink)]"
+                  style={{ fontFamily: "var(--font-ln-mono)" }}
+                >
+                  {report.referenceCode}
+                </p>
+              </div>
+              <div>
+                <CopyCodeButton code={report.referenceCode} />
+              </div>
             </div>
             <p className="text-xs text-[var(--color-ln-ok)] leading-relaxed">
               Guardá este código. Es la única forma de volver a esta denuncia sin sesión.
@@ -184,13 +190,17 @@ export default async function WelfareReportByCodePage({
           >
             {welfareReportKindLabel(report.kind)}
           </h1>
-          {/* Reference code — always visible */}
-          <p
-            className="text-sm text-[var(--color-ln-mute)]"
-            style={{ fontFamily: "var(--font-ln-mono)" }}
-          >
-            {report.referenceCode}
-          </p>
+          {/* Reference code — always visible with copy + print actions */}
+          <div className="flex flex-wrap items-center gap-3">
+            <p
+              className="text-sm text-[var(--color-ln-mute)]"
+              style={{ fontFamily: "var(--font-ln-mono)" }}
+            >
+              {report.referenceCode}
+            </p>
+            <CopyCodeButton code={report.referenceCode} />
+            <DescargarComprobante />
+          </div>
           <div className="flex flex-wrap gap-2">
             <span
               className={`text-[9.5px] font-semibold px-2.5 py-0.5 rounded-[2px] ${statusBadgeClass(report.status)}`}
