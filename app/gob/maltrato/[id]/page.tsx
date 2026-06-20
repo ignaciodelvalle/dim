@@ -54,6 +54,7 @@ import { fetchWelfareTimeline } from "@/lib/govt-dashboards";
 import { readPoint } from "@/lib/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { logWelfareLocationViewed } from "@/lib/welfare-location-audit";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
@@ -113,6 +114,17 @@ export default async function GobMaltratoDetailPage({
   }
 
   const locationPoint = readPoint(report);
+
+  // Audience-precision plan (2026-06-19): the authority sees the EXACT
+  // coordinate (Ley 14.346 investigative need); log every such view for
+  // accountability (Ley 25.326). Only logs when there's a point to view.
+  // Awaited so the trail commits before the response returns (a fire-and-forget
+  // insert could be dropped on serverless freeze). A route prefetch may log a
+  // view without a human read — an accepted v1 tradeoff for a tamper-evident
+  // access trail.
+  if (locationPoint) {
+    await logWelfareLocationViewed(user.id, report.id, report.referenceCode);
+  }
 
   const attachmentRows = await db
     .select()
@@ -349,6 +361,9 @@ export default async function GobMaltratoDetailPage({
             </div>
             {locationPoint && (
               <>
+                <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">
+                  Ubicación exacta — uso oficial (Ley 14.346)
+                </p>
                 <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
                 <p className="text-[10px] text-ln-op-mute font-mono">
                   {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}

@@ -1,6 +1,6 @@
 import { db, welfareReportAttachments, welfareReports } from "@/db";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { readPoint } from "@/lib/location";
+import { coarsenPoint, readPoint } from "@/lib/location";
 import { maskEmail, maskPhone } from "@/lib/mask-contact";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -106,11 +106,14 @@ export default async function WelfareReportByCodePage({
   );
 
   const locationPoint = readPoint(report);
+  // Public tracking receipt: show an APPROXIMATE point only (Ley 25.326 — data
+  // minimisation). The exact stored coordinate is reserved for the authority
+  // (Ley 14.346); see lib/location.ts coarsenPoint. Street-level locationAddress
+  // is intentionally excluded from the public predicate and render — only
+  // locality/province + the coarse map are shown to a reference-code holder.
+  const approxLocation = locationPoint ? coarsenPoint(locationPoint, "approx") : null;
   const hasLocation =
-    report.locationAddress ||
-    report.jurisdictionProvince ||
-    report.jurisdictionLocality ||
-    locationPoint !== null;
+    report.jurisdictionProvince || report.jurisdictionLocality || approxLocation !== null;
 
   const hasContact = report.reporterContactEmail || report.reporterContactPhone;
 
@@ -238,12 +241,15 @@ export default async function WelfareReportByCodePage({
           )}
         </section>
 
-        {/* Location */}
+        {/* Location — public tracking receipt shows an APPROXIMATE area only.
+            The exact coordinate exists for the authority (Ley 14.346); the
+            public receipt is minimised (Ley 25.326) so a reference-code holder
+            can't pin the exact denounced site. No street address, no exact
+            decimals — area text + a coarse map labelled "aproximada". */}
         {hasLocation && (
           <section className="space-y-2">
             <SectionLabel>Lugar</SectionLabel>
             <div className="text-sm text-[var(--color-ln-ink-2)] space-y-1">
-              {report.locationAddress && <p>{report.locationAddress}</p>}
               {(report.jurisdictionLocality || report.jurisdictionProvince) && (
                 <p>
                   {[report.jurisdictionLocality, report.jurisdictionProvince]
@@ -251,21 +257,16 @@ export default async function WelfareReportByCodePage({
                     .join(", ")}
                 </p>
               )}
-              {locationPoint && (
-                <>
-                  {/* WebGL map doesn't render in print — hidden there; the
-                      coordinates below remain so the comprobante still records
-                      the exact point. */}
-                  <div data-print-hide>
-                    <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
+              {approxLocation && (
+                <div className="space-y-1">
+                  {/* Label PRINTS so the "Lugar" section is never empty in the
+                      comprobante (e.g. a report with a GPS point but no
+                      locality/province). The WebGL map itself is screen-only. */}
+                  <p className="text-xs text-[var(--color-ln-mute)]">Ubicación aproximada</p>
+                  <div data-print-hide aria-label="Ubicación aproximada de la denuncia">
+                    <LocationMap lat={approxLocation.lat} lng={approxLocation.lng} />
                   </div>
-                  <p
-                    className="text-xs text-[var(--color-ln-mute)]"
-                    style={{ fontFamily: "var(--font-ln-mono)" }}
-                  >
-                    {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
-                  </p>
-                </>
+                </div>
               )}
             </div>
           </section>
