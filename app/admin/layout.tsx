@@ -6,10 +6,10 @@ import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { ADMIN_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import type { NavSection } from "@/components/ui/dashboard";
-import { OpCrumbs } from "@/components/ui/dashboard/OpCrumbs";
 import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
+import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
 import { db, eventNotificationOutbox } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { getProfileCached } from "@/lib/request-cache";
@@ -98,8 +98,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
           {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
           <AppShellDrawer sections={sections} variant="gob" brandSubtitle="Admin" />
-          {/* Left: breadcrumbs */}
-          <OpCrumbs items={[{ label: "Panel" }]} />
+          {/* Left: breadcrumbs — derived from route (UX 1.2) */}
+          <OperatorBreadcrumbs portal="admin" />
           {/* Scope chip */}
           <OpScopeChip code="SUPERADMIN" label="Universal" variant="superadmin" />
           {/* Spacer */}
