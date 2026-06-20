@@ -1,44 +1,57 @@
-// Integration tests for the operator omnibox search (Wave 2 Item 10.1).
+// Integration tests for the operator omnibox search (Wave 2 Item 10.1 / UX 1.1).
 //
 // Runs against the local Postgres stack (see __tests__/setup.ts). Verifies:
-//   1. Jurisdiction scoping: a govt viewer scoped to CABA sees CABA pets/cases
-//      but NOT Mendoza ones; admin sees both (universal scope).
-//   2. govt-with-zero-assignments → empty, no leak.
-//   3. Pet matching by name, DIM token, and active microchip code.
-//   4. Case matching by public code, scoped.
-//   5. searchOmniboxAction writes a single pii_queried audit row with the
-//      actual result count and surface='omnibox' (PII-query logging).
 //
-// Person scoping is delegated to searchUsers (already covered by
-// user-search-scope.test.ts), so here we focus on pets + cases + the action.
+//   org scope (UX 1.1):
+//     1. A held pet (active shelter_custody) is returned with the correct href.
+//     2. A pet NOT held by the org is not returned.
+//     3. A pet whose custody has ended is NOT returned.
+//     4. A multi-custody pet appears exactly once per org query.
+//
+//   admin scope (UX 1.1 — pet results dropped):
+//     5. searchOmnibox returns pets: [] for admin; persons + cases unaffected.
+//
+//   govt scope:
+//     6. Jurisdiction scoping for cases still works (CABA vs Mendoza).
+//     7. govt-with-zero-assignments → empty, no leak.
+//
+//   PII logging:
+//     8. searchOmniboxAction writes a single pii_queried audit row.
+//     9. Short queries (<2 chars) are not logged and return empty.
 
 import { randomUUID } from "node:crypto";
-import { and, eq, gte, sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth-guards", () => ({
   requireAdminOrGovtOrRedirect: vi.fn(),
+  requireOrgAccessByToken: vi.fn(),
 }));
 
 import { searchOmniboxAction } from "@/app/actions/omnibox-search";
-import { auditLog, cases, db, petIdentifications, pets, profiles } from "@/db";
+import {
+  auditLog,
+  cases,
+  db,
+  organizations,
+  ownerships,
+  petIdentifications,
+  pets,
+  profiles,
+} from "@/db";
 import type { AdminOrGovtSession } from "@/lib/auth-guards";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { searchOmnibox } from "@/lib/omnibox-search";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
-// Unique markers so cleanup is surgical and parallel-safe.
+// ---------------------------------------------------------------------------
+// Shared static fixtures (admin/govt + PII logging tests)
+// ---------------------------------------------------------------------------
+
 const TAG = "OMNIBOXTEST";
-const CABA_PET_TOKEN = "DIM-OMBX-CA01";
-const MENDOZA_PET_TOKEN = "DIM-OMBX-MZ01";
-// microchip_iso requires a 15-char code per the chip_requires_iso_fields check
-// (ISO 11784/11785 = 15 digits).
-const CHIP_CODE = "999000000111222";
 const CABA_CASE_CODE = `CASO-${TAG}-CA`;
 const MENDOZA_CASE_CODE = `CASO-${TAG}-MZ`;
 
-let cabaPetId: string;
-let mendozaPetId: string;
 let cabaCaseId: string;
 let mendozaCaseId: string;
 let govtUserId: string;
@@ -47,10 +60,8 @@ const GOVT_CABA = {
   role: "govt" as const,
   jurisdictions: [{ province: "CABA", locality: "Buenos Aires" }],
 };
-const ADMIN = { role: "admin" as const };
+const ADMIN_SCOPE = { role: "admin" as const };
 
-// Build a fully-typed govt session stub for the action (no `as any` needed).
-// The supabase client is never touched by searchOmniboxAction.
 function govtSession(userId: string): AdminOrGovtSession {
   return {
     supabase: {} as AdminOrGovtSession["supabase"],
@@ -60,74 +71,22 @@ function govtSession(userId: string): AdminOrGovtSession {
   };
 }
 
-async function cleanup() {
+async function cleanupStaticFixtures() {
   await withMutationOverride(async (tx) => {
-    for (const token of [CABA_PET_TOKEN, MENDOZA_PET_TOKEN]) {
-      await tx.execute(sql`DELETE FROM pet_identifications WHERE pet_id IN (
-        SELECT id FROM pets WHERE public_token = ${token}
-      )`);
-      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
-        SELECT id FROM pets WHERE public_token = ${token}
-      )`);
-      await tx.execute(sql`DELETE FROM pets WHERE public_token = ${token}`);
-    }
     await tx.execute(sql`DELETE FROM cases WHERE public_code LIKE ${`%${TAG}%`}`);
-    // audit_log is append-only (DELETE is trigger-blocked). We never delete the
-    // pii_queried rows; the FK is ON DELETE SET NULL, so deleting the stub
-    // profile nulls the actor. Test queries scope by the fresh per-run actor id
-    // + a `since` timestamp, so leftover rows from prior runs never interfere.
     if (govtUserId) await tx.execute(sql`DELETE FROM profiles WHERE id = ${govtUserId}`);
   });
 }
 
 beforeAll(async () => {
-  // Govt user (stub profile — no auth.users row needed for action testing).
   govtUserId = randomUUID();
-
-  await cleanup();
+  await cleanupStaticFixtures();
 
   await db.insert(profiles).values({
     id: govtUserId,
     displayName: `Oficial ${TAG}`,
     role: "govt",
     accountType: "institutional",
-  });
-
-  const [cabaPet] = await db
-    .insert(pets)
-    .values({
-      publicToken: CABA_PET_TOKEN,
-      name: `Firulais ${TAG}`,
-      species: "dog",
-      sex: "male",
-      potentiallyDangerousBreed: false,
-      jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Buenos Aires",
-    })
-    .returning();
-  cabaPetId = cabaPet.id;
-
-  const [mendozaPet] = await db
-    .insert(pets)
-    .values({
-      publicToken: MENDOZA_PET_TOKEN,
-      name: `Firulais ${TAG}`,
-      species: "cat",
-      sex: "female",
-      potentiallyDangerousBreed: false,
-      jurisdictionProvince: "Mendoza",
-      jurisdictionLocality: "Mendoza",
-    })
-    .returning();
-  mendozaPetId = mendozaPet.id;
-
-  // Active microchip on the CABA pet — exercises the chip-match path.
-  await db.insert(petIdentifications).values({
-    petId: cabaPetId,
-    kind: "microchip_iso",
-    status: "active",
-    code: CHIP_CODE,
-    recordedAt: "2026-01-01",
   });
 
   const [cabaCase] = await db
@@ -157,40 +116,183 @@ beforeAll(async () => {
   mendozaCaseId = mendozaCase.id;
 });
 
-afterAll(cleanup);
+afterAll(cleanupStaticFixtures);
 
-describe("searchOmnibox — pet scoping", () => {
-  it("govt scoped to CABA finds the CABA pet but NOT the Mendoza pet (same name)", async () => {
-    const r = await searchOmnibox(`Firulais ${TAG}`, GOVT_CABA);
-    const tokens = r.pets.map((p) => p.publicToken);
-    expect(tokens).toContain(CABA_PET_TOKEN);
-    expect(tokens).not.toContain(MENDOZA_PET_TOKEN);
+// ---------------------------------------------------------------------------
+// Dynamic fixtures for org scope tests (per-test ephemeral)
+// ---------------------------------------------------------------------------
+
+const ephemeralOrgIds: string[] = [];
+const ephemeralPetIds: string[] = [];
+
+const RUN_ID = Math.random().toString(36).slice(2, 8).toUpperCase();
+let counter = 0;
+function nextToken(prefix = "OMB"): string {
+  counter += 1;
+  return `${prefix}-${RUN_ID}-${String(counter).padStart(3, "0")}`;
+}
+
+async function makeOrg(): Promise<{ id: string; publicToken: string }> {
+  const token = nextToken("ORG");
+  const [row] = await db
+    .insert(organizations)
+    .values({
+      publicToken: token,
+      legalName: "Omnibox Test Org",
+      displayName: "Omnibox Test Org",
+      orgType: "shelter",
+      email: `omnibox-${counter}@dim-test.local`,
+    })
+    .returning({ id: organizations.id });
+  ephemeralOrgIds.push(row.id);
+  return { id: row.id, publicToken: token };
+}
+
+async function makePet(nameSuffix: string): Promise<{ id: string; publicToken: string }> {
+  const token = nextToken("DIM");
+  const [row] = await db
+    .insert(pets)
+    .values({
+      publicToken: token,
+      name: `OmbPet ${nameSuffix} ${RUN_ID}`,
+      species: "dog",
+      sex: "unknown",
+    })
+    .returning({ id: pets.id });
+  ephemeralPetIds.push(row.id);
+  return { id: row.id, publicToken: token };
+}
+
+async function makeCustody(
+  petId: string,
+  orgId: string,
+  opts: { endedAt?: Date } = {},
+): Promise<void> {
+  await db.insert(ownerships).values({
+    petId,
+    ownerOrganizationId: orgId,
+    role: "shelter_custody",
+    startedAt: new Date(),
+    endedAt: opts.endedAt ?? undefined,
+  });
+}
+
+afterEach(async () => {
+  if (ephemeralPetIds.length > 0) {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(
+        sql`DELETE FROM pet_events WHERE pet_id = ANY(${sql.raw(`ARRAY[${ephemeralPetIds.map((id) => `'${id}'`).join(",")}]::uuid[]`)})`,
+      );
+    });
+    await db.delete(ownerships).where(inArray(ownerships.petId, ephemeralPetIds));
+    await db.delete(pets).where(inArray(pets.id, ephemeralPetIds));
+    ephemeralPetIds.length = 0;
+  }
+  if (ephemeralOrgIds.length > 0) {
+    await db.delete(organizations).where(inArray(organizations.id, ephemeralOrgIds));
+    ephemeralOrgIds.length = 0;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// org scope
+// ---------------------------------------------------------------------------
+
+describe("searchOmnibox — org scope", () => {
+  it("returns a held pet with the correct org-portal href", async () => {
+    const org = await makeOrg();
+    const pet = await makePet("Luna");
+    await makeCustody(pet.id, org.id);
+
+    const results = await searchOmnibox(`OmbPet Luna ${RUN_ID}`, {
+      role: "org",
+      organizationId: org.id,
+      orgToken: org.publicToken,
+    });
+
+    expect(results.persons).toHaveLength(0);
+    expect(results.cases).toHaveLength(0);
+    expect(results.pets.length).toBeGreaterThanOrEqual(1);
+    const found = results.pets.find((p) => p.publicToken === pet.publicToken);
+    expect(found).toBeDefined();
+    expect(found?.href).toBe(`/org/${org.publicToken}/mascotas/${pet.publicToken}`);
+    expect(results.total).toBe(results.pets.length);
   });
 
-  it("admin (universal) finds both pets", async () => {
-    const r = await searchOmnibox(`Firulais ${TAG}`, ADMIN);
-    const tokens = r.pets.map((p) => p.publicToken);
-    expect(tokens).toContain(CABA_PET_TOKEN);
-    expect(tokens).toContain(MENDOZA_PET_TOKEN);
+  it("does not return a pet not held by the org", async () => {
+    const orgA = await makeOrg();
+    const orgB = await makeOrg();
+    const pet = await makePet("Luna");
+    await makeCustody(pet.id, orgB.id);
+
+    const results = await searchOmnibox(`OmbPet Luna ${RUN_ID}`, {
+      role: "org",
+      organizationId: orgA.id,
+      orgToken: orgA.publicToken,
+    });
+
+    const found = results.pets.find((p) => p.publicToken === pet.publicToken);
+    expect(found).toBeUndefined();
   });
 
-  it("matches an exact DIM token", async () => {
-    const r = await searchOmnibox(CABA_PET_TOKEN, GOVT_CABA);
-    expect(r.pets.map((p) => p.id)).toContain(cabaPetId);
+  it("does not return a pet whose custody has ended", async () => {
+    const org = await makeOrg();
+    const pet = await makePet("Luna");
+    await makeCustody(pet.id, org.id, { endedAt: new Date(Date.now() - 1000) });
+
+    const results = await searchOmnibox(`OmbPet Luna ${RUN_ID}`, {
+      role: "org",
+      organizationId: org.id,
+      orgToken: org.publicToken,
+    });
+
+    const found = results.pets.find((p) => p.publicToken === pet.publicToken);
+    expect(found).toBeUndefined();
   });
 
-  it("matches an active microchip code", async () => {
-    const r = await searchOmnibox(CHIP_CODE, GOVT_CABA);
-    expect(r.pets.map((p) => p.id)).toContain(cabaPetId);
-  });
+  it("returns a multi-custody pet exactly once per org query", async () => {
+    // Two different orgs both hold the same pet (allowed by schema since they
+    // are different organizations). Each org query must see it exactly once.
+    const orgA = await makeOrg();
+    const orgB = await makeOrg();
+    const pet = await makePet("Luna");
+    await makeCustody(pet.id, orgA.id);
+    await makeCustody(pet.id, orgB.id);
 
-  it("govt with zero assignments returns empty without a DB hit", async () => {
-    const r = await searchOmnibox(`Firulais ${TAG}`, { role: "govt", jurisdictions: [] });
-    expect(r.total).toBe(0);
+    const resultsA = await searchOmnibox(`OmbPet Luna ${RUN_ID}`, {
+      role: "org",
+      organizationId: orgA.id,
+      orgToken: orgA.publicToken,
+    });
+
+    const matchesA = resultsA.pets.filter((p) => p.publicToken === pet.publicToken);
+    expect(matchesA).toHaveLength(1);
   });
 });
 
-describe("searchOmnibox — case scoping", () => {
+// ---------------------------------------------------------------------------
+// admin scope — pet results must be empty (UX 1.1)
+// ---------------------------------------------------------------------------
+
+describe("searchOmnibox — admin scope drops pet results", () => {
+  it("returns pets: [] even when a matching pet exists in custody", async () => {
+    const org = await makeOrg();
+    const pet = await makePet("Luna");
+    await makeCustody(pet.id, org.id);
+
+    const results = await searchOmnibox(`OmbPet Luna ${RUN_ID}`, ADMIN_SCOPE);
+
+    expect(results.pets).toHaveLength(0);
+    // total is persons + cases only
+    expect(results.total).toBe(results.persons.length + results.cases.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// govt scope — case scoping still works
+// ---------------------------------------------------------------------------
+
+describe("searchOmnibox — case scoping (govt)", () => {
   it("govt scoped to CABA finds the CABA case but NOT the Mendoza case", async () => {
     const r = await searchOmnibox(`CASO-${TAG}`, GOVT_CABA);
     const ids = r.cases.map((c) => c.id);
@@ -199,22 +301,30 @@ describe("searchOmnibox — case scoping", () => {
   });
 
   it("admin finds both cases", async () => {
-    const r = await searchOmnibox(`CASO-${TAG}`, ADMIN);
+    const r = await searchOmnibox(`CASO-${TAG}`, ADMIN_SCOPE);
     const ids = r.cases.map((c) => c.id);
     expect(ids).toContain(cabaCaseId);
     expect(ids).toContain(mendozaCaseId);
   });
+
+  it("govt with zero assignments returns empty", async () => {
+    const r = await searchOmnibox(`CASO-${TAG}`, { role: "govt", jurisdictions: [] });
+    expect(r.total).toBe(0);
+  });
 });
+
+// ---------------------------------------------------------------------------
+// PII logging
+// ---------------------------------------------------------------------------
 
 describe("searchOmniboxAction — PII-query logging", () => {
   it("writes a single pii_queried audit row with surface=omnibox and the result count", async () => {
     vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValue(govtSession(govtUserId));
 
     const since = new Date();
-    const results = await searchOmniboxAction(`Firulais ${TAG}`);
-    expect(results.pets.map((p) => p.publicToken)).toContain(CABA_PET_TOKEN);
+    const results = await searchOmniboxAction(`CASO-${TAG}`);
 
-    // The action logs fire-and-forget; give the insert a tick to land.
+    // Fire-and-forget; give the insert a tick to land.
     await new Promise((res) => setTimeout(res, 100));
 
     const rows = await db
@@ -231,7 +341,7 @@ describe("searchOmniboxAction — PII-query logging", () => {
     expect(rows.length).toBe(1);
     const payload = rows[0].payload as { surface?: string; result_count?: number; query?: string };
     expect(payload.surface).toBe("omnibox");
-    expect(payload.query).toBe(`Firulais ${TAG}`);
+    expect(payload.query).toBe(`CASO-${TAG}`);
     expect(payload.result_count).toBe(results.total);
   });
 

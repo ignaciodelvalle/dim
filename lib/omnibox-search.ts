@@ -2,6 +2,7 @@
 // across the three operator entities: pets, persons and cases.
 //
 // Wave 2 Item 10.1 (docs/superpowers/specs/2026-06-18-wave2-ux-hardening-handoff.md).
+// UX 1.1: org variant (pet-only, held by the org); admin/govt variant drops pets.
 //
 // Security model (mirrors lib/admin-search.ts + app/actions/decomiso-pet-lookup.ts):
 //   - admin: universal scope. session.jurisdictions is empty by contract; the
@@ -9,11 +10,10 @@
 //   - govt: scoped to their active assignments. A govt viewer with zero
 //     assignments receives ZERO results without hitting the database (prefer
 //     showing LESS over leaking cross-jurisdiction PII).
+//   - org: scoped to pets the org currently holds (active shelter_custody).
+//     Returns pets only — operators cannot search persons or cases via org portal.
 //
 // Scope predicates per entity:
-//   - pet: pets.jurisdiction_province ∈ assigned provinces. A pet with a null
-//     province is treated as out-of-scope for govt (cannot prove it belongs to
-//     the viewer) — admin still sees it.
 //   - person: reuses searchUsers() which scopes via the ownerships→pets
 //     jurisdiction semi-join already audited for /gob/usuarios (P1-2).
 //   - case: cases.(province, locality) matches one of the viewer's assignments
@@ -25,7 +25,7 @@
 
 import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
 
-import { cases, db, petIdentifications, pets } from "@/db";
+import { cases, db, ownerships, petIdentifications, pets } from "@/db";
 import { searchUsers } from "@/lib/admin-search";
 import type { AdminOrGovtJurisdiction } from "@/lib/auth-guards";
 import { likeContains } from "@/lib/like-helpers";
@@ -40,7 +40,8 @@ const DIM_TOKEN_PATTERN = /^DIM-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
 
 export type OmniboxScope =
   | { role: "admin" }
-  | { role: "govt"; jurisdictions: readonly AdminOrGovtJurisdiction[] };
+  | { role: "govt"; jurisdictions: readonly AdminOrGovtJurisdiction[] }
+  | { role: "org"; organizationId: string; orgToken: string };
 
 export type OmniboxPetResult = {
   type: "pet";
@@ -81,16 +82,7 @@ export type OmniboxResults = {
 
 const EMPTY_RESULTS: OmniboxResults = { pets: [], persons: [], cases: [], total: 0 };
 
-// Build the govt jurisdiction predicate for a (province[, locality]) table.
-// Returns undefined for admin (no predicate). Caller must short-circuit to an
-// empty result BEFORE calling this when a govt viewer has zero assignments.
-function petProvinceScope(scope: OmniboxScope) {
-  if (scope.role === "admin") return undefined;
-  const provinces = Array.from(new Set(scope.jurisdictions.map((j) => j.province)));
-  return inArray(pets.jurisdictionProvince, provinces);
-}
-
-function caseJurisdictionScope(scope: OmniboxScope) {
+function caseJurisdictionScope(scope: Extract<OmniboxScope, { role: "admin" } | { role: "govt" }>) {
   if (scope.role === "admin") return undefined;
   return or(
     ...scope.jurisdictions.map((j) =>
@@ -99,19 +91,21 @@ function caseJurisdictionScope(scope: OmniboxScope) {
   );
 }
 
-async function searchPets(query: string, scope: OmniboxScope): Promise<OmniboxPetResult[]> {
+/**
+ * Search pets currently held by an org (active shelter_custody ownership).
+ * Uses the same text match strategy as the former admin/govt pet search, but
+ * scoped to the org's active ownerships. A pet appearing in multiple custody
+ * rows for the same org is returned only once (DISTINCT on pets.id via Map).
+ */
+async function searchOrgPets(
+  query: string,
+  scope: Extract<OmniboxScope, { role: "org" }>,
+): Promise<OmniboxPetResult[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
-  const scopePredicate = petProvinceScope(scope);
   const isToken = DIM_TOKEN_PATTERN.test(trimmed);
 
-  // Match strategy:
-  //   - exact DIM token (case-insensitive) OR
-  //   - name contains (accent-insensitive via unaccent) OR
-  //   - an ACTIVE microchip code contains the query (pet_identifications).
-  // The microchip predicate is an EXISTS semi-join so a pet with multiple
-  // identifiers is not duplicated.
   const namePredicate = sql`unaccent(${pets.name}) ILIKE unaccent(${likeContains(trimmed)}) ESCAPE '\'`;
   const tokenPredicate = isToken
     ? ilike(pets.publicToken, trimmed)
@@ -123,22 +117,30 @@ async function searchPets(query: string, scope: OmniboxScope): Promise<OmniboxPe
       AND ${petIdentifications.code} ILIKE ${likeContains(trimmed)} ESCAPE '\'
   )`;
 
-  // Soft-deleted pets must never surface in operator search.
-  const notDeleted = sql`${pets.deletedAt} IS NULL`;
   const textPredicate = or(tokenPredicate, namePredicate, chipPredicate);
-  const where = scopePredicate
-    ? and(notDeleted, scopePredicate, textPredicate)
-    : and(notDeleted, textPredicate);
 
+  // INNER JOIN ownerships so only org-held pets are visible.
+  // role = 'shelter_custody' + endedAt IS NULL → active custody only.
+  // DISTINCT ON pets.id prevents duplicates if somehow multiple custody rows
+  // match (defensive; the unique constraint makes this unlikely in practice).
   const rows = await db
-    .select({
+    .selectDistinct({
       id: pets.id,
       publicToken: pets.publicToken,
       name: pets.name,
       species: pets.species,
     })
     .from(pets)
-    .where(where)
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        sql`${pets.deletedAt} IS NULL`,
+        eq(ownerships.ownerOrganizationId, scope.organizationId),
+        eq(ownerships.role, "shelter_custody"),
+        sql`${ownerships.endedAt} IS NULL`,
+        textPredicate,
+      ),
+    )
     .limit(PER_TYPE_LIMIT);
 
   return rows.map((r) => ({
@@ -147,11 +149,14 @@ async function searchPets(query: string, scope: OmniboxScope): Promise<OmniboxPe
     publicToken: r.publicToken,
     name: r.name,
     species: r.species,
-    href: `/mis-mascotas/${r.publicToken}`,
+    href: `/org/${scope.orgToken}/mascotas/${r.publicToken}`,
   }));
 }
 
-async function searchPersons(query: string, scope: OmniboxScope): Promise<OmniboxPersonResult[]> {
+async function searchPersons(
+  query: string,
+  scope: Extract<OmniboxScope, { role: "admin" } | { role: "govt" }>,
+): Promise<OmniboxPersonResult[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
@@ -174,7 +179,10 @@ async function searchPersons(query: string, scope: OmniboxScope): Promise<Omnibo
   }));
 }
 
-async function searchCases(query: string, scope: OmniboxScope): Promise<OmniboxCaseResult[]> {
+async function searchCases(
+  query: string,
+  scope: Extract<OmniboxScope, { role: "admin" } | { role: "govt" }>,
+): Promise<OmniboxCaseResult[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
@@ -207,12 +215,16 @@ async function searchCases(query: string, scope: OmniboxScope): Promise<OmniboxC
 }
 
 /**
- * Runs the scoped omnibox search across pets, persons and cases in parallel.
+ * Runs the scoped omnibox search.
+ *
+ * - org scope  → pets only (pets the org currently holds via shelter_custody).
+ * - admin/govt → persons + cases only (no pet results for operators).
  *
  * Security guarantees:
  *   - govt with zero jurisdiction assignments → empty result, NO db hit.
  *   - govt results are restricted to their assigned jurisdiction(s).
  *   - admin → universal scope.
+ *   - org → pets scoped to active ownerships for that org.
  *
  * Does NOT log the PII query — the caller (server action) owns that, so the
  * audit row records the authenticated actor and exact result count.
@@ -221,19 +233,24 @@ export async function searchOmnibox(query: string, scope: OmniboxScope): Promise
   const trimmed = query.trim();
   if (!trimmed) return EMPTY_RESULTS;
 
+  if (scope.role === "org") {
+    const petResults = await searchOrgPets(trimmed, scope);
+    return { pets: petResults, persons: [], cases: [], total: petResults.length };
+  }
+
+  // admin / govt branch — no pet results for operators (UX 1.1).
   // govt-with-no-assignments must see nothing without touching the DB.
   if (scope.role === "govt" && scope.jurisdictions.length === 0) return EMPTY_RESULTS;
 
-  const [petResults, personResults, caseResults] = await Promise.all([
-    searchPets(trimmed, scope),
+  const [personResults, caseResults] = await Promise.all([
     searchPersons(trimmed, scope),
     searchCases(trimmed, scope),
   ]);
 
   return {
-    pets: petResults,
+    pets: [],
     persons: personResults,
     cases: caseResults,
-    total: petResults.length + personResults.length + caseResults.length,
+    total: personResults.length + caseResults.length,
   };
 }

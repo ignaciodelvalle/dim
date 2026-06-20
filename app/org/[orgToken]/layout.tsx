@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { buildOrgNav } from "@/components/layout/nav-presets";
+import { OpOmnibox } from "@/components/ui/dashboard";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
@@ -40,6 +41,9 @@ export default async function OrgLayout({
   // the nav filter is UX, not the security boundary.
   const granted = await getGrantedCapabilities(membership);
   const orgNavSections = buildOrgNav(orgToken, { granted });
+
+  // Omnibox: show only for members with pet read access.
+  const canSearchPets = granted.has("pet.read_held") || membership.role === "admin";
 
   // Right-side topbar actions: personal cross-portal links (owner portal + account).
   // ContextSwitcher is not added here: owner/vet with no additional org memberships
@@ -80,8 +84,11 @@ export default async function OrgLayout({
           <OpScopeChip code="ORG" label={organization.displayName} variant="org" />
           {/* Spacer */}
           <div className="flex-1" />
-          {/* Right: actions */}
-          <div className="flex items-center gap-2">{topbarActions}</div>
+          {/* Right: omnibox (capability-gated) + actions */}
+          <div className="flex items-center gap-2">
+            {canSearchPets && <OpOmnibox orgToken={orgToken} />}
+            {topbarActions}
+          </div>
         </header>
       }
     >
