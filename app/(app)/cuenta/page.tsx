@@ -15,10 +15,10 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { logoutAction } from "@/app/actions/auth";
-import { db, organizationMemberships, profiles } from "@/db";
+import { db, organizationMemberships, ownerships, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 
 import { LnBadge } from "@/components/ui/Badge";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
@@ -44,9 +44,10 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
 export default async function CuentaPage() {
   const { user } = await requireUserOrRedirect();
 
-  // Profile DB read and admin auth email lookup are independent — run in parallel.
+  // Profile DB read, admin auth email lookup, and pet count are independent — run in parallel.
+  // petCount uses SQL COUNT(*) — never loads pet rows into JS (scale guard, UX 0.3).
   const adminClient = createAdminClient();
-  const [[profile], emailResult] = await Promise.all([
+  const [[profile], emailResult, petCountResult] = await Promise.all([
     db
       .select({
         role: profiles.role,
@@ -73,7 +74,15 @@ export default async function CuentaPage() {
       .where(eq(profiles.id, user.id))
       .limit(1),
     adminClient.auth.admin.getUserById(user.id).catch(() => ({ data: null })),
+    // SQL COUNT — bounded by definition; safe for owners with thousands of pets.
+    db
+      .select({ n: count() })
+      .from(ownerships)
+      .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)))
+      .then((r) => Number(r[0]?.n ?? 0))
+      .catch(() => 0),
   ]);
+  const petCount = petCountResult;
   const email = emailResult.data?.user?.email ?? "";
 
   let vetNeedsClinic = false;
@@ -160,6 +169,11 @@ export default async function CuentaPage() {
               <div className="mt-[8px] flex flex-wrap gap-[6px]">
                 <LnBadge variant="info">{roleLabel}</LnBadge>
                 <LnBadge variant="neutral">{accountTypeLabel}</LnBadge>
+                {isPersonal && petCount > 0 && (
+                  <LnBadge variant="neutral">
+                    {petCount} mascota{petCount !== 1 ? "s" : ""}
+                  </LnBadge>
+                )}
               </div>
             </div>
           </div>

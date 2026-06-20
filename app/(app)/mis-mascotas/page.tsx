@@ -26,8 +26,18 @@ import { getProfileCached } from "@/lib/request-cache";
 import { resolveVetLanding } from "@/lib/role-landing";
 import { petPhotoUrl } from "@/lib/storage";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
+
+/**
+ * Maximum pet rows rendered on this page.
+ *
+ * Owners with thousands of pets (high-volume rescue networks / shelters) would
+ * produce an enormous DOM and exhaust server memory otherwise. For now we cap
+ * the listing and show a "showing N of M" notice. Full pagination is tracked
+ * as a follow-up improvement.
+ */
+const MIS_MASCOTAS_LIMIT = 200;
 import { redirect } from "next/navigation";
 
 export default async function MisMascotasPage({
@@ -51,22 +61,35 @@ export default async function MisMascotasPage({
   const { data: authData } = await supabase.auth.getUser();
   const userEmail = (authData?.user?.email ?? "").toLowerCase();
 
-  const [ownedPets, activeReminders, pendingApplicationsCount, pendingTransfersCount] =
-    await Promise.all([
-      db
-        .select({
-          pet: PET_CARD_SELECT,
-          photo: PET_CARD_PHOTO_SELECT,
-          ownershipRole: ownerships.role,
-        })
-        .from(pets)
-        .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-        .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-        .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt))),
-      fetchActiveReminders(user.id),
-      countPendingApplications(user.id),
-      countPendingTransfers(user.id, userEmail),
-    ]);
+  const [
+    ownedPets,
+    totalPetsCount,
+    activeReminders,
+    pendingApplicationsCount,
+    pendingTransfersCount,
+  ] = await Promise.all([
+    db
+      .select({
+        pet: PET_CARD_SELECT,
+        photo: PET_CARD_PHOTO_SELECT,
+        ownershipRole: ownerships.role,
+      })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+      .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)))
+      // Hard cap: prevents loading thousands of pet rows into JS for high-volume
+      // owners. Full pagination is tracked as a follow-up improvement.
+      .limit(MIS_MASCOTAS_LIMIT),
+    db
+      .select({ n: count() })
+      .from(ownerships)
+      .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)))
+      .then((r) => Number(r[0]?.n ?? 0)),
+    fetchActiveReminders(user.id),
+    countPendingApplications(user.id),
+    countPendingTransfers(user.id, userEmail),
+  ]);
 
   // Highest-priority reminder variant per pet (for status dot derivation)
   const reminderVariantByPet = new Map<string, ReminderVariant>();
@@ -120,6 +143,14 @@ export default async function MisMascotasPage({
           {claimedCount > 0
             ? `Reclamaste ${claimedCount} mascota${claimedCount === 1 ? "" : "s"} adoptada${claimedCount === 1 ? "" : "s"} a tu cuenta.`
             : "Vinculamos tu DNI a tu cuenta. Si esperabas una adopción, pedile al refugio que verifique el DNI cargado."}
+        </p>
+      )}
+
+      {/* Scale guard notice — shown only when the list is capped */}
+      {ownedPets.length < totalPetsCount && (
+        <p className="mb-[14px] rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[14px] py-[10px] text-[12.5px] text-[var(--color-ln-azul)]">
+          Mostrando {ownedPets.length} de {totalPetsCount} mascotas. Para ver más usá el buscador o
+          accedé directamente desde la chapita o QR de cada mascota.
         </p>
       )}
 
