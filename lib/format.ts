@@ -546,6 +546,20 @@ export function notificationTypeLabel(notificationType: string | null | undefine
   return NOTIFICATION_TYPE_LABELS[notificationType] ?? notificationType;
 }
 
+/**
+ * Cap a potentially large count for display so alarming raw numbers are not
+ * surfaced to owners (UX 3.5 item 6). Returns a string: the number itself
+ * when ≤ cap, or "${cap}+" when above. Default cap is 99.
+ *
+ * @example capCount(264)  // "99+"
+ * @example capCount(5)    // "5"
+ * @example capCount(99)   // "99"
+ * @example capCount(100)  // "99+"
+ */
+export function capCount(n: number, cap = 99): string {
+  return n > cap ? `${cap}+` : String(n);
+}
+
 export function ageFromDateOfBirth(dateOfBirth: string | null | undefined): string | null {
   if (!dateOfBirth) return null;
   const dob = new Date(dateOfBirth);

@@ -93,13 +93,11 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
       </div>
 
       {/* ── Location — REQUIRED ──────────────────────────────────────── */}
+      {/* UX 3.5 item 2: the wrapper <p> "LOCALIDAD *" was removed because
+          LocationFields renders its own <label>Localidad</label> for L1 mode,
+          producing a duplicate label. The helper text below + the "Requerido"
+          note already convey the required constraint. */}
       <div className="flex flex-col gap-[6px]">
-        <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
-          Localidad{" "}
-          <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
-            *
-          </span>
-        </p>
         <LocationFields mode="l1" />
         <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
           Requerido. Ayuda a las campañas regionales de salud animal.

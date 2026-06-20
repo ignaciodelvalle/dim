@@ -19,7 +19,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { BRANDING } from "@/lib/branding";
-import { speciesLabel } from "@/lib/format";
+import { capCount, speciesLabel } from "@/lib/format";
 import type { DashboardPet } from "@/lib/owner-dashboard";
 import {
   fetchActiveReminders,
@@ -129,12 +129,16 @@ export default async function InicioPage() {
             Buen día, {firstName}.
           </h1>
           {reminders.length > 0 || cases.length > 0 ? (
+            // UX 3.5 item 6: cap large aggregate counts at "99+" so the greeting
+            // does not read as alarming personal debt for high-volume owners.
+            // "requieren atención" is also softened to "con novedades".
             <p className="mt-[6px] text-[14px] text-[var(--color-ln-ink-2)]">
               {reminders.length > 0 && (
                 <>
                   Tenés{" "}
                   <strong>
-                    {reminders.length} vencimiento{reminders.length !== 1 ? "s" : ""} próximo
+                    {capCount(reminders.length)} vencimiento
+                    {reminders.length !== 1 ? "s" : ""} próximo
                     {reminders.length !== 1 ? "s" : ""}
                   </strong>
                   {cases.length > 0 ? " y " : "."}
@@ -142,8 +146,10 @@ export default async function InicioPage() {
               )}
               {cases.length > 0 && (
                 <>
-                  {cases.length > 1 ? `${cases.length} casos abiertos` : "un caso abierto"} que{" "}
-                  {cases.length !== 1 ? "requieren" : "requiere"} atención.
+                  {cases.length === 1
+                    ? "un caso abierto"
+                    : `${capCount(cases.length)} casos abiertos`}{" "}
+                  con novedades.
                 </>
               )}
             </p>

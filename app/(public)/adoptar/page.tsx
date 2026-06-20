@@ -60,18 +60,28 @@ export default async function AdoptarPage({
         <AdoptionFiltersBar filters={filters} />
 
         {items.length === 0 ? (
+          // UX 3.5 item 3: distinguish true-empty (no filters) from filter-empty.
+          // "no hay resultados con esos filtros" is misleading when there are no
+          // active filters — in that case the section simply has no listings yet.
           <div className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-6 py-10 text-center space-y-2">
-            <p className="text-sm font-medium text-[var(--color-ln-ink)]">
-              No encontramos mascotas con esos filtros.
-            </p>
             {hasActiveFilters ? (
-              <Link href="/adoptar" className="text-sm text-[var(--color-ln-azul)] underline">
-                Limpiar filtros
-              </Link>
+              <>
+                <p className="text-sm font-medium text-[var(--color-ln-ink)]">
+                  No hay mascotas con esos filtros.
+                </p>
+                <Link href="/adoptar" className="text-sm text-[var(--color-ln-azul)] underline">
+                  Limpiar filtros
+                </Link>
+              </>
             ) : (
-              <p className="text-xs text-[var(--color-ln-mute)]">
-                Volvé en unos días — los refugios suben mascotas seguido.
-              </p>
+              <>
+                <p className="text-sm font-medium text-[var(--color-ln-ink)]">
+                  Todavía no hay animales en adopción.
+                </p>
+                <p className="text-xs text-[var(--color-ln-mute)]">
+                  Volvé en unos días — los refugios suben mascotas seguido.
+                </p>
+              </>
             )}
           </div>
         ) : (

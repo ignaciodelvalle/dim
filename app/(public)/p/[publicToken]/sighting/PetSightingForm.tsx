@@ -152,6 +152,7 @@ export function PetSightingForm({
               id="finderName"
               name="finderName"
               type="text"
+              autoComplete="name"
               maxLength={80}
               placeholder="María García"
               className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
@@ -164,10 +165,14 @@ export function PetSightingForm({
             >
               Teléfono o email
             </label>
+            {/* UX 3.5 item 8a: combined phone-or-email field — inputMode="email"
+                is the best single keyboard without forcing type=tel/email. */}
             <input
               id="finderContact"
               name="finderContact"
               type="text"
+              inputMode="email"
+              autoComplete="email"
               maxLength={120}
               placeholder="11-1234-5678 o maria@ejemplo.com"
               className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"

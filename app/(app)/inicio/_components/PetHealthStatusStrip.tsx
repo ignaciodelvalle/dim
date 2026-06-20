@@ -12,7 +12,7 @@
 import Link from "next/link";
 
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import { speciesLabel } from "@/lib/format";
+import { capCount, speciesLabel } from "@/lib/format";
 import type { Nudge, PetHealthStatus } from "@/lib/owner-nudges";
 
 function StatusBadge({ pending }: { pending: number }) {
@@ -91,10 +91,14 @@ export function PetHealthStatusStrip({ pets }: { pets: PetHealthStatus[] }) {
     <LnCard aria-labelledby="estado-sanitario-heading">
       <LnCardHead
         title={<span id="estado-sanitario-heading">Estado sanitario</span>}
+        // UX 3.5 item 1: cap the aggregate at "99+" so a high-volume owner does
+        // not see an alarming raw total (e.g. "1459 PENDIENTES") uppercased by
+        // LnCardHead. Per-pet badges stay uncapped — those counts are bounded
+        // and actionable. Pluralization still uses the real total.
         label={
           pendingTotal === 0
             ? "todo al día"
-            : `${pendingTotal} pendiente${pendingTotal !== 1 ? "s" : ""}`
+            : `${capCount(pendingTotal)} pendiente${pendingTotal !== 1 ? "s" : ""}`
         }
       />
       <LnCardBody>

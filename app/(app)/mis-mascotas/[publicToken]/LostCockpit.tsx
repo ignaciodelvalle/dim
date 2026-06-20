@@ -26,6 +26,7 @@ import { foundParticiple, lostThirdPersonPhrase } from "@/lib/format";
 import type { LostEpisode } from "@/lib/lost-mode";
 import { setPetFoundAction } from "@/src/modules/events/actions";
 import Link from "next/link";
+import { MarkFoundButton } from "./MarkFoundButton";
 
 type Props = {
   pet: {
@@ -185,15 +186,12 @@ export async function LostCockpit({
               </p>
             </div>
 
-            {/* Mark-found button */}
-            <form action={markFoundAction} className="flex-shrink-0">
-              <button
-                type="submit"
-                className="cursor-pointer rounded-[3px] border border-white bg-white px-[16px] py-[9px] font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-[var(--color-ln-seal)] transition-colors hover:bg-white/90"
-              >
-                ✓ Marcar {foundParticiple(pet.sex)}
-              </button>
-            </form>
+            {/* Mark-found button — wrapped in MarkFoundButton for a lightweight
+                confirm step (UX 3.5 item 7). */}
+            <MarkFoundButton
+              action={markFoundAction}
+              label={`Marcar ${foundParticiple(pet.sex)}`}
+            />
           </div>
         </div>
 

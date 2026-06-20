@@ -144,6 +144,7 @@ export function FinderInPossessionForm({
             id="finderName"
             name="finderName"
             type="text"
+            autoComplete="name"
             required
             maxLength={80}
             value={finderName}
@@ -171,6 +172,8 @@ export function FinderInPossessionForm({
               id="finderPhone"
               name="finderPhone"
               type="tel"
+              inputMode="tel"
+              autoComplete="tel"
               maxLength={40}
               value={finderPhone}
               onChange={(e) => setFinderPhone(e.target.value)}
@@ -190,6 +193,8 @@ export function FinderInPossessionForm({
               id="finderEmail"
               name="finderEmail"
               type="email"
+              inputMode="email"
+              autoComplete="email"
               maxLength={120}
               value={finderEmail}
               onChange={(e) => setFinderEmail(e.target.value)}

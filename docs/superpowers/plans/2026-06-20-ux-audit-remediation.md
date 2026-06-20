@@ -16,7 +16,7 @@
 
 ---
 
-> **Estado (2026-06-20):** **Fase 0 ✅** y **Fase 1 ✅** completas. Fase 0: 0.1 verificado en vivo · 0.2 portal de org (schema-drift, migración 0102-0106) · 0.3 `/cuenta` era crash de **escala** (agregación sin bound, no schema-drift; #680) · 0.4 404 branded (#678) · 0.5 login org-aware (#679). Fase 1: 1.1 omnibox org + descope mascotas operador (#682) · 1.2 breadcrumbs gob/admin (#683) · 1.3 adopciones+casos `CaseQueue` bulk/SLA (#684/#685) · 1.4 retiro `MetricCard` + label "Mi actividad" (#687; 2 "duplicados" resultaron NO serlo y quedaron) · 1.5 field kit aria auto (#686). **Restan Fase 2 y Fase 3.**
+> **Estado (2026-06-20):** **Fase 0 ✅** y **Fase 1 ✅** completas. Fase 0: 0.1 verificado en vivo · 0.2 portal de org (schema-drift, migración 0102-0106) · 0.3 `/cuenta` era crash de **escala** (agregación sin bound, no schema-drift; #680) · 0.4 404 branded (#678) · 0.5 login org-aware (#679). Fase 1: 1.1 omnibox org + descope mascotas operador (#682) · 1.2 breadcrumbs gob/admin (#683) · 1.3 adopciones+casos `CaseQueue` bulk/SLA (#684/#685) · 1.4 retiro `MetricCard` + label "Mi actividad" (#687; 2 "duplicados" resultaron NO serlo y quedaron) · 1.5 field kit aria auto (#686). **Fase 2 ✅** (2.1+2.2 touch targets 44px + estado no-solo-color #689 · 2.3 dataviz interpretabilidad #691 · 2.4 a11y estructural #690). **Fase 3** en curso: 3.1 dead-ends password-reset/transferencias #692 · 3.2 flujo denuncia #693 · 3.3 stubs footer + claim a11y honesto #694 · 3.4 localización es-AR #695 · **3.5 owner polish (este PR)**. **Resta solo Fase 3.6 (org/admin polish).**
 
 ## Fase 0 — Crashes de producción (🔴 P0, hacer primero)
 

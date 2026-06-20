@@ -67,10 +67,16 @@ export function LnHero({
         </span>
       </div>
 
-      {/* Main content — negative margin to overlap the band */}
-      <div className="flex items-end gap-[22px] px-[24px] pb-[22px]" style={{ marginTop: -50 }}>
-        {/* Photo overlapping band */}
-        <LnPetPhoto src={photoSrc} alt={name} status={status} size={132} radius="md" />
+      {/* Main content — UX 3.5 item 4: only the PHOTO overlaps the band (via its
+          own negative margin); the text column stays fully below the band so the
+          dark serif name never sits over the patterned band (legibility). The
+          old row-level marginTop pulled the name up into the band when breed +
+          wrapping tags made the text column tall. */}
+      <div className="flex items-end gap-[22px] px-[24px] pb-[22px]">
+        {/* Photo overlapping band (pokes 50px up into the band) */}
+        <div className="-mt-[50px] flex-shrink-0">
+          <LnPetPhoto src={photoSrc} alt={name} status={status} size={132} radius="md" />
+        </div>
 
         {/* Info */}
         <div className="min-w-0 flex-1 pb-[4px]">

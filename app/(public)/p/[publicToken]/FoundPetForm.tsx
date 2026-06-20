@@ -36,6 +36,7 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
           id="finderName"
           name="finderName"
           type="text"
+          autoComplete="name"
           required
           placeholder="Nombre y apellido"
           aria-describedby={state.error ? errorId : undefined}
@@ -47,10 +48,16 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
         <label htmlFor="finderContact" className="block text-xs font-medium text-ln-warn">
           Cómo te contactamos<span className="text-ln-err ml-0.5">*</span>
         </label>
+        {/* UX 3.5 item 8a: combined phone-or-email field. inputMode="email"
+            surfaces "@"/"." while keeping digits reachable — the best single
+            keyboard for either input — without forcing type=tel/email (which
+            would reject the other value). Server contract stays one field. */}
         <input
           id="finderContact"
           name="finderContact"
           type="text"
+          inputMode="email"
+          autoComplete="email"
           required
           placeholder="Teléfono o email"
           aria-describedby={state.error ? errorId : undefined}
