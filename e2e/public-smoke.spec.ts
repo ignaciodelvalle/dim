@@ -57,6 +57,25 @@ for (const { path, landmark } of PUBLIC_ROUTES) {
   });
 }
 
+// Invalid / expired / mistyped credential token must render the BRANDED Spanish
+// not-found (app/(public)/not-found.tsx) — not Next.js's black English default
+// 404 ("This page could not be found"). UX audit remediation — Fase 0 item 0.4.
+test("/p/[invalid token] → branded Spanish not-found (not the English default)", async ({
+  page,
+}) => {
+  const response = await page.goto("/p/DIM-0000-0000");
+
+  // notFound() returns a 404, never a 500.
+  expect(response?.status()).toBeLessThan(500);
+
+  // Branded Spanish copy + a way forward (link to lost-pet directory).
+  await expect(page.getByText(/no encontramos esa credencial/i)).toBeVisible();
+  await expect(page.locator('a[href="/perdidas"]').first()).toBeVisible();
+
+  // Must NOT be the Next.js black English default 404.
+  await expect(page.getByText(/this page could not be found/i)).not.toBeVisible();
+});
+
 // A11y checks on static public pages (no auth / no dynamic token required).
 // Scoped to WCAG 2.1 AA; color-contrast is excluded because design-token
 // contrast ratios are validated separately (P-1 in the a11y audit).
