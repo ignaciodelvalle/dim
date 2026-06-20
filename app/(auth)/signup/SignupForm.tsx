@@ -7,7 +7,7 @@ import {
   signupAction,
 } from "@/app/actions/auth";
 import { LocationFields } from "@/components/LocationFields";
-import { LnCheckbox, LnInput } from "@/components/ui/Field";
+import { LnCheckbox, LnField, LnInput } from "@/components/ui/Field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
@@ -85,36 +85,50 @@ export function SignupForm({
         </div>
 
         <form action={identityFormAction} className="space-y-4">
-          <Field
-            id="firstName"
-            name="firstName"
-            type="text"
-            label="Nombre"
-            autoComplete="given-name"
-            required
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-          />
-          <Field
-            id="lastName"
-            name="lastName"
-            type="text"
-            label="Apellido"
-            autoComplete="family-name"
-            required
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-          />
-          <Field
-            id="dni"
-            name="dni"
-            type="text"
-            inputMode="numeric"
-            label="DNI"
-            autoComplete="off"
-            hint="Podés agregarlo después desde tu cuenta."
-            placeholder="Ej: 34567890"
-          />
+          <LnField label="Nombre" required>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="firstName"
+                type="text"
+                autoComplete="given-name"
+                required
+                aria-describedby={describedBy}
+                invalid={invalid}
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+              />
+            )}
+          </LnField>
+          <LnField label="Apellido" required>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="lastName"
+                type="text"
+                autoComplete="family-name"
+                required
+                aria-describedby={describedBy}
+                invalid={invalid}
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
+            )}
+          </LnField>
+          <LnField label="DNI" hint="Podés agregarlo después desde tu cuenta.">
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="dni"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="Ej: 34567890"
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
 
           <div className="space-y-1.5">
             <p className="block text-sm font-medium text-[var(--color-ln-ink)]">
@@ -154,35 +168,49 @@ export function SignupForm({
           The Mi Argentina stub renders below (visually and in DOM). */}
       <div className="flex flex-col gap-5">
         <form action={authFormAction} className="space-y-4">
-          <Field
-            id="email"
-            name="email"
-            type="email"
-            label="Correo electrónico"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <Field
-            id="password"
-            name="password"
-            type="password"
-            label="Contraseña"
-            autoComplete="new-password"
-            minLength={8}
-            required
-            hint="Mínimo 8 caracteres."
-          />
-          <Field
-            id="confirmPassword"
-            name="confirmPassword"
-            type="password"
-            label="Repetir contraseña"
-            autoComplete="new-password"
-            minLength={8}
-            required
-          />
+          <LnField label="Correo electrónico" required error={authState.error ?? undefined}>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                aria-describedby={describedBy}
+                invalid={invalid}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            )}
+          </LnField>
+          <LnField label="Contraseña" required hint="Mínimo 8 caracteres.">
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <LnField label="Repetir contraseña" required>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
 
           <LnCheckbox id="tosAccepted" name="tosAccepted" required>
             Leí y acepto los{" "}
@@ -203,12 +231,6 @@ export function SignupForm({
             </Link>
             .
           </LnCheckbox>
-
-          {authState.error && (
-            <p className="text-sm text-[var(--color-ln-err)]" role="alert">
-              {authState.error}
-            </p>
-          )}
 
           <button
             type="submit"
@@ -236,55 +258,6 @@ export function SignupForm({
           Conectar con Mi Argentina (próximamente)
         </button>
       </div>
-    </div>
-  );
-}
-
-function Field({
-  id,
-  name,
-  type,
-  label,
-  autoComplete,
-  required,
-  minLength,
-  hint,
-  inputMode,
-  placeholder,
-  value,
-  onChange,
-}: {
-  id: string;
-  name: string;
-  type: string;
-  label: string;
-  autoComplete?: string;
-  required?: boolean;
-  minLength?: number;
-  hint?: string;
-  inputMode?: React.InputHTMLAttributes<HTMLInputElement>["inputMode"];
-  placeholder?: string;
-  value?: string;
-  onChange?: React.ChangeEventHandler<HTMLInputElement>;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-[var(--color-ln-ink)]">
-        {label}
-      </label>
-      <LnInput
-        id={id}
-        name={name}
-        type={type}
-        autoComplete={autoComplete}
-        required={required}
-        minLength={minLength}
-        inputMode={inputMode}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-      />
-      {hint && <p className="text-xs text-[var(--color-ln-mute)]">{hint}</p>}
     </div>
   );
 }

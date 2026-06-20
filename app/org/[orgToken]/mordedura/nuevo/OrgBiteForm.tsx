@@ -19,6 +19,7 @@ import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnCheckbox, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { OpField } from "@/components/ui/dashboard/OpField";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import {
   type ReportBiteFromOrgFormState,
@@ -134,24 +135,25 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
     >
       {/* Step 1 — Mascota */}
       <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
-        <div className="space-y-1.5">
-          <label htmlFor="petPublicToken" className="block text-[13px] font-medium text-ln-op-ink">
-            Token público de la mascota
-            <span className="text-ln-op-danger ml-0.5">*</span>
-          </label>
-          <LnInput
-            id="petPublicToken"
-            type="text"
-            required
-            value={petPublicToken}
-            onChange={(e) => setPetPublicToken(e.target.value)}
-            placeholder="DIM-XXXX-XXXX"
-            className="font-mono uppercase tracking-wider"
-          />
-          <p className="text-[12px] text-ln-op-mute">
-            El dueño tiene este token en la credencial pública (escaneable o en su perfil).
-          </p>
-        </div>
+        <OpField
+          label="Token público de la mascota"
+          required
+          hint="El dueño tiene este token en la credencial pública (escaneable o en su perfil)."
+        >
+          {({ id, describedBy, invalid }) => (
+            <LnInput
+              id={id}
+              type="text"
+              required
+              value={petPublicToken}
+              onChange={(e) => setPetPublicToken(e.target.value)}
+              placeholder="DIM-XXXX-XXXX"
+              className="font-mono uppercase tracking-wider"
+              aria-describedby={describedBy}
+              aria-invalid={invalid || undefined}
+            />
+          )}
+        </OpField>
         <button
           type="button"
           onClick={() => setStep(2)}
@@ -164,19 +166,20 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
 
       {/* Step 2 — Cuándo */}
       <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
-        <div className="space-y-1.5">
-          <label htmlFor="occurredAt" className="block text-[13px] font-medium text-ln-op-ink">
-            Fecha del incidente<span className="text-ln-op-danger ml-0.5">*</span>
-          </label>
-          <LnInput
-            id="occurredAt"
-            type="date"
-            required
-            max={today}
-            value={occurredAt}
-            onChange={(e) => setOccurredAt(e.target.value)}
-          />
-        </div>
+        <OpField label="Fecha del incidente" required>
+          {({ id, describedBy, invalid }) => (
+            <LnInput
+              id={id}
+              type="date"
+              required
+              max={today}
+              value={occurredAt}
+              onChange={(e) => setOccurredAt(e.target.value)}
+              aria-describedby={describedBy}
+              aria-invalid={invalid || undefined}
+            />
+          )}
+        </OpField>
         <button
           type="button"
           onClick={() => setStep(3)}
@@ -189,24 +192,22 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
 
       {/* Step 3 — Víctima + contexto */}
       <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
-        <div className="space-y-1.5">
-          <label
-            htmlFor="locationDescription"
-            className="block text-[13px] font-medium text-ln-op-ink"
-          >
-            Lugar
-          </label>
-          <LnInput
-            id="locationDescription"
-            type="text"
-            value={locationDescription}
-            onChange={(e) => setLocationDescription(e.target.value)}
-            placeholder="Ej: Plaza Italia, esquina Cerviño"
-          />
-        </div>
+        <OpField label="Lugar">
+          {({ id, describedBy, invalid }) => (
+            <LnInput
+              id={id}
+              type="text"
+              value={locationDescription}
+              onChange={(e) => setLocationDescription(e.target.value)}
+              placeholder="Ej: Plaza Italia, esquina Cerviño"
+              aria-describedby={describedBy}
+              aria-invalid={invalid || undefined}
+            />
+          )}
+        </OpField>
 
         <div className="space-y-1.5">
-          <label htmlFor="bite-locality" className="block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="bite-locality" className="block text-xs font-medium text-ln-op-ink-2">
             Jurisdicción del incidente
           </label>
           <LocalityPickerAcross
@@ -225,8 +226,11 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         </div>
 
         <div className="space-y-1.5">
-          <p className="block text-[13px] font-medium text-ln-op-ink">
-            Tipo de víctima<span className="text-ln-op-danger ml-0.5">*</span>
+          <p className="block text-xs font-medium text-ln-op-ink-2">
+            Tipo de víctima
+            <span className="ml-0.5 text-ln-op-danger" aria-hidden="true">
+              *
+            </span>
           </p>
           <div className="grid grid-cols-3 gap-2">
             {(
@@ -258,83 +262,79 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
               Datos de contacto opcionales — para denuncia obligatoria a autoridad sanitaria si
               corresponde.
             </p>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="victimContactName"
-                className="text-[12px] uppercase tracking-wider text-ln-op-mute"
-              >
-                Nombre
-              </label>
-              <LnInput
-                id="victimContactName"
-                type="text"
-                value={victimContactName}
-                onChange={(e) => setVictimContactName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="victimContactPhone"
-                className="text-[12px] uppercase tracking-wider text-ln-op-mute"
-              >
-                Teléfono
-              </label>
-              <LnInput
-                id="victimContactPhone"
-                type="tel"
-                value={victimContactPhone}
-                onChange={(e) => setVictimContactPhone(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="victimAgeEstimate"
-                className="text-[12px] uppercase tracking-wider text-ln-op-mute"
-              >
-                Edad aproximada
-              </label>
-              <LnInput
-                id="victimAgeEstimate"
-                type="text"
-                value={victimAgeEstimate}
-                onChange={(e) => setVictimAgeEstimate(e.target.value)}
-                placeholder="Ej: niño, adulto, mayor"
-              />
-            </div>
+            <OpField label="Nombre">
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  type="text"
+                  value={victimContactName}
+                  onChange={(e) => setVictimContactName(e.target.value)}
+                  aria-describedby={describedBy}
+                  aria-invalid={invalid || undefined}
+                />
+              )}
+            </OpField>
+            <OpField label="Teléfono">
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  type="tel"
+                  value={victimContactPhone}
+                  onChange={(e) => setVictimContactPhone(e.target.value)}
+                  aria-describedby={describedBy}
+                  aria-invalid={invalid || undefined}
+                />
+              )}
+            </OpField>
+            <OpField label="Edad aproximada">
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  type="text"
+                  value={victimAgeEstimate}
+                  onChange={(e) => setVictimAgeEstimate(e.target.value)}
+                  placeholder="Ej: niño, adulto, mayor"
+                  aria-describedby={describedBy}
+                  aria-invalid={invalid || undefined}
+                />
+              )}
+            </OpField>
           </div>
         )}
 
-        <div className="space-y-1.5">
-          <label htmlFor="severity" className="block text-[13px] font-medium text-ln-op-ink">
-            Severidad<span className="text-ln-op-danger ml-0.5">*</span>
-          </label>
-          <LnSelect
-            id="severity"
-            value={severity}
-            onChange={(e) => setSeverity(e.target.value)}
-            required
-          >
-            <option value="" disabled>
-              Elegí una opción
-            </option>
-            <option value="minor">Leve — sin sangrado, rasguño</option>
-            <option value="moderate">Moderada — sangrado, requiere atención</option>
-            <option value="severe">Grave — heridas profundas, hospital</option>
-          </LnSelect>
-        </div>
+        <OpField label="Severidad" required>
+          {({ id, describedBy, invalid }) => (
+            <LnSelect
+              id={id}
+              value={severity}
+              onChange={(e) => setSeverity(e.target.value)}
+              required
+              aria-describedby={describedBy}
+              invalid={invalid}
+            >
+              <option value="" disabled>
+                Elegí una opción
+              </option>
+              <option value="minor">Leve — sin sangrado, rasguño</option>
+              <option value="moderate">Moderada — sangrado, requiere atención</option>
+              <option value="severe">Grave — heridas profundas, hospital</option>
+            </LnSelect>
+          )}
+        </OpField>
 
-        <div className="space-y-1.5">
-          <label htmlFor="injuriesSummary" className="block text-[13px] font-medium text-ln-op-ink">
-            Resumen clínico de las heridas
-          </label>
-          <LnTextarea
-            id="injuriesSummary"
-            value={injuriesSummary}
-            onChange={(e) => setInjuriesSummary(e.target.value)}
-            rows={2}
-            placeholder="Ej: laceración profunda en antebrazo izquierdo, requirió sutura."
-          />
-        </div>
+        <OpField label="Resumen clínico de las heridas">
+          {({ id, describedBy, invalid }) => (
+            <LnTextarea
+              id={id}
+              value={injuriesSummary}
+              onChange={(e) => setInjuriesSummary(e.target.value)}
+              rows={2}
+              placeholder="Ej: laceración profunda en antebrazo izquierdo, requirió sutura."
+              aria-describedby={describedBy}
+              invalid={invalid}
+            />
+          )}
+        </OpField>
 
         <div className="space-y-1.5">
           <LnCheckbox checked={vetInvolved} onChange={(e) => setVetInvolved(e.target.checked)}>
@@ -342,18 +342,19 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           </LnCheckbox>
         </div>
 
-        <div className="space-y-1.5">
-          <label htmlFor="context" className="block text-[13px] font-medium text-ln-op-ink">
-            Contexto adicional
-          </label>
-          <LnTextarea
-            id="context"
-            value={context}
-            onChange={(e) => setContext(e.target.value)}
-            rows={3}
-            placeholder="Ej: el animal estaba suelto sin correa en plaza pública."
-          />
-        </div>
+        <OpField label="Contexto adicional">
+          {({ id, describedBy, invalid }) => (
+            <LnTextarea
+              id={id}
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              rows={3}
+              placeholder="Ej: el animal estaba suelto sin correa en plaza pública."
+              aria-describedby={describedBy}
+              invalid={invalid}
+            />
+          )}
+        </OpField>
 
         <button
           type="button"
