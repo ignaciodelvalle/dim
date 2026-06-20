@@ -266,5 +266,3 @@ export async function fetchLatestAmendmentsForEvents(
 
   return map;
 }
-
-export { AMENDABLE_EVENT_TYPES };
