@@ -345,54 +345,49 @@ export default async function OrgDashboardPage({
             tone={occupancyDisplay?.tone ?? "neutral"}
             sub={occupancyDisplay?.sub ?? undefined}
             href={`/org/${orgToken}/censo`}
+            info={{
+              definition: "Porcentaje de ocupación sobre la capacidad máxima declarada.",
+              formula: "animales en custodia / capacidad total × 100",
+              caveat: "Solo disponible cuando la organización declaró su capacidad máxima.",
+            }}
           />
 
-          {/* Ingresos (semana) */}
-          {intakesLastWeek === 0 ? (
-            <OpKpi
-              label="Ingresos (semana)"
-              value="—"
-              tone="neutral"
-              sub="Sin ingresos esta semana"
-            />
-          ) : (
-            <OpKpi
-              label="Ingresos (semana)"
-              value={intakesLastWeek}
-              tone="blue"
-              href={`/org/${orgToken}/intake`}
-            />
-          )}
+          {/* Ingresos (semana) — consolidated: always renders OpKpi, empty-state via value="—" */}
+          <OpKpi
+            label="Ingresos (semana)"
+            value={intakesLastWeek === 0 ? "—" : intakesLastWeek}
+            tone={intakesLastWeek === 0 ? "neutral" : "blue"}
+            sub={intakesLastWeek === 0 ? "Sin ingresos esta semana" : undefined}
+            href={intakesLastWeek > 0 ? `/org/${orgToken}/intake` : undefined}
+            info={{
+              definition: "Cantidad de animales ingresados a custodia en los últimos 7 días.",
+            }}
+          />
 
-          {/* Disponibles para adopción */}
-          {availableForAdopt === 0 ? (
-            <OpKpi label="Disponibles" value="—" tone="neutral" sub="Sin animales disponibles" />
-          ) : (
-            <OpKpi
-              label="Disponibles"
-              value={availableForAdopt}
-              tone="ok"
-              sub="para adopción"
-              href={`/org/${orgToken}/mascotas`}
-            />
-          )}
+          {/* Disponibles para adopción — consolidated */}
+          <OpKpi
+            label="Disponibles"
+            value={availableForAdopt === 0 ? "—" : availableForAdopt}
+            tone={availableForAdopt === 0 ? "neutral" : "ok"}
+            sub={availableForAdopt === 0 ? "Sin animales disponibles" : "para adopción"}
+            href={availableForAdopt > 0 ? `/org/${orgToken}/mascotas` : undefined}
+            info={{
+              definition: "Animales con estado 'disponible para adopción' en este momento.",
+            }}
+          />
 
-          {/* Adopciones en curso */}
-          {activeAdoptions === 0 ? (
-            <OpKpi
-              label="Adopciones en curso"
-              value="—"
-              tone="neutral"
-              sub="Sin postulaciones activas"
-            />
-          ) : (
-            <OpKpi
-              label="Adopciones en curso"
-              value={activeAdoptions}
-              tone="warn"
-              href={`/org/${orgToken}/adopciones`}
-            />
-          )}
+          {/* Adopciones en curso — consolidated */}
+          <OpKpi
+            label="Adopciones en curso"
+            value={activeAdoptions === 0 ? "—" : activeAdoptions}
+            tone={activeAdoptions === 0 ? "neutral" : "warn"}
+            sub={activeAdoptions === 0 ? "Sin postulaciones activas" : undefined}
+            href={activeAdoptions > 0 ? `/org/${orgToken}/adopciones` : undefined}
+            info={{
+              definition:
+                "Procesos de adopción activos (postulaciones en evaluación o seguimiento).",
+            }}
+          />
         </section>
       )}
 

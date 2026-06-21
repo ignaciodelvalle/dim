@@ -91,24 +91,55 @@ export default async function OrgCensoPage({
           value={kpiValue(breakdown.dogs)}
           tone={kpiTone(breakdown.dogs)}
           href={`/org/${orgToken}/mascotas?species=dog`}
+          info={{
+            definition: "Perros actualmente en custodia de la organización.",
+            formula:
+              breakdown.dogs.capacity != null
+                ? "en custodia / capacidad perros × 100"
+                : "count(*) where species = 'dog'",
+          }}
         />
         <OpKpi
           label="Gatos"
           value={kpiValue(breakdown.cats)}
           tone={kpiTone(breakdown.cats)}
           href={`/org/${orgToken}/mascotas?species=cat`}
+          info={{
+            definition: "Gatos actualmente en custodia de la organización.",
+            formula:
+              breakdown.cats.capacity != null
+                ? "en custodia / capacidad gatos × 100"
+                : "count(*) where species = 'cat'",
+          }}
         />
         <OpKpi
           label="Otros"
           value={kpiValue(breakdown.other)}
           tone={kpiTone(breakdown.other)}
           href={`/org/${orgToken}/mascotas?species=other`}
+          info={{
+            definition: "Animales de otras especies actualmente en custodia.",
+            formula:
+              breakdown.other.capacity != null
+                ? "en custodia / capacidad otros × 100"
+                : "count(*) where species not in ('dog','cat')",
+          }}
         />
         <OpKpi
           label="Total"
           value={kpiValue(breakdown.total)}
           tone={kpiTone(breakdown.total)}
           href={`/org/${orgToken}/mascotas`}
+          info={{
+            definition: "Total de animales en custodia activa de la organización.",
+            formula:
+              breakdown.total.capacity != null
+                ? "total en custodia / capacidad total × 100"
+                : "count(*) animales en custodia",
+            caveat: breakdown.noCapacityDeclared
+              ? "Declarar la capacidad habilita el porcentaje de ocupación."
+              : undefined,
+          }}
         />
       </section>
 

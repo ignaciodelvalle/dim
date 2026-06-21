@@ -7,12 +7,18 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCodeBadge, OpKpi } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { buildProjectionContext } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 import { findServiceKind } from "@/lib/service-kinds";
 
 export default async function AdminServiciosPage() {
   await requireAdminOrRedirect();
+
+  // Admin context: global scope, trailing 12m — for DashboardFreshnessFooter.
+  const adminCtx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
 
   const pendingOfferings = await db
     .select({
@@ -48,6 +54,10 @@ export default async function AdminServiciosPage() {
         label="Pendientes de revisión"
         value={pendingOfferings.length}
         tone={pendingOfferings.length > 0 ? "warn" : "neutral"}
+        info={{
+          definition: "Ofrecimientos de servicios en estado 'pending_approval' en este momento.",
+          caveat: "Vista universal — incluye todas las jurisdicciones.",
+        }}
       />
 
       {pendingOfferings.length === 0 ? (
@@ -104,6 +114,8 @@ export default async function AdminServiciosPage() {
           })}
         </ul>
       )}
+
+      <DashboardFreshnessFooter ctx={adminCtx} />
     </div>
   );
 }

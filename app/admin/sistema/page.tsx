@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import {
   fetchCronRuns,
   fetchDecisionsMetrics,
@@ -9,6 +10,8 @@ import {
   fetchUserMetrics,
 } from "@/lib/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { buildProjectionContext, computeDeltaPct } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 
 type CronTone = "ok" | "danger" | "open";
 const STATUS_LABEL: Record<string, string> = {
@@ -25,6 +28,10 @@ const STATUS_TONE: Record<string, CronTone> = {
 export default async function AdminSistemaPage() {
   await requireAdminOrRedirect();
 
+  // Admin context: global scope (no jurisdiction restriction), trailing 12m window.
+  // Used for DashboardFreshnessFooter (lastIngestAt) — admin sees all pet_events.
+  const adminCtx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
+
   const [users, queue, decisions, govts, crons] = await Promise.all([
     fetchUserMetrics(),
     fetchQueueHealth(),
@@ -32,6 +39,13 @@ export default async function AdminSistemaPage() {
     fetchGovtActivity(),
     fetchCronRuns(),
   ]);
+
+  // deltaV2 for decisions 7d — compare vs prior 7d approximated from the 30d window.
+  const total7d = decisions.approved7d + decisions.rejected7d;
+  const total30d = decisions.approved30d + decisions.rejected30d;
+  const prior23d = total30d - total7d;
+  const decisionsDelta =
+    prior23d > 0 ? computeDeltaPct(total7d, Math.round((prior23d / 23) * 7)) : null;
 
   return (
     <div className="space-y-8">
@@ -54,7 +68,15 @@ export default async function AdminSistemaPage() {
 
       {/* Top KPIs */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <OpKpi label="Usuarios personales" value={users.totalPersonal} href="/admin/usuarios" />
+        <OpKpi
+          label="Usuarios personales"
+          value={users.totalPersonal}
+          href="/admin/usuarios"
+          info={{
+            definition: "Total de cuentas personales activas en la plataforma.",
+            formula: "count(*) where account_type = 'personal'",
+          }}
+        />
         <OpKpi
           label="Cola pendiente"
           value={queue.pendingTotal}
@@ -65,13 +87,26 @@ export default async function AdminSistemaPage() {
               : undefined
           }
           href="/admin/cola"
+          info={{
+            definition: "Solicitudes de aprobación en estado pendiente en este momento.",
+            caveat: "Incluye solicitudes de todas las jurisdicciones.",
+          }}
         />
         <OpKpi
           label="Decisiones 7d"
-          value={decisions.approved7d + decisions.rejected7d}
+          value={total7d}
           tone="ok"
           sub={`${decisions.approved7d} aprobadas · ${decisions.rejected7d} rechazadas`}
           href="/admin/auditoria"
+          info={{
+            definition: "Decisiones tomadas (aprobaciones + rechazos) en los últimos 7 días.",
+            formula: "request_approved + request_rejected en audit_log (últimos 7d)",
+          }}
+          deltaV2={
+            decisionsDelta !== null
+              ? { value: decisionsDelta, period: "vs 7d anteriores (aprox.)" }
+              : undefined
+          }
         />
       </section>
 
@@ -258,6 +293,8 @@ export default async function AdminSistemaPage() {
           </OpCard>
         )}
       </section>
+
+      <DashboardFreshnessFooter ctx={adminCtx} />
     </div>
   );
 }

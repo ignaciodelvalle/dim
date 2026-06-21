@@ -1,17 +1,35 @@
 import Link from "next/link";
 
 import { OpCallout, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchDecisionsMetrics, fetchQueueHealth, fetchUserMetrics } from "@/lib/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { buildProjectionContext, computeDeltaPct } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 
 export default async function AdminDashboardPage() {
   await requireAdminOrRedirect();
+
+  // Admin context: global scope (no jurisdiction restriction), trailing 12m window.
+  // Used for DashboardFreshnessFooter (lastIngestAt) — admin sees all pet_events.
+  const adminCtx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
 
   const [users, queue, decisions] = await Promise.all([
     fetchUserMetrics(),
     fetchQueueHealth(),
     fetchDecisionsMetrics(),
   ]);
+
+  // deltaV2 for decisions: compare 7d vs the preceding 7d window.
+  // fetchDecisionsMetrics already returns approved30d/rejected30d; the prior 7d
+  // is: total30d − total7d (first 23 days). That is an approximation; it is the
+  // cleanest delta we can derive without adding a new fetcher field.
+  const total7d = decisions.approved7d + decisions.rejected7d;
+  const total30d = decisions.approved30d + decisions.rejected30d;
+  const prior23d = total30d - total7d; // approx prior 7d baseline ≈ prior23d/23*7
+  // Use the simpler "30d vs 7d" ratio — if prior23d is 0 we skip deltaV2.
+  const decisionsDelta =
+    prior23d > 0 ? computeDeltaPct(total7d, Math.round((prior23d / 23) * 7)) : null;
 
   return (
     <div className="space-y-6">
@@ -29,7 +47,15 @@ export default async function AdminDashboardPage() {
 
       {/* Live system metrics — spec AC3 (audit-internal-roles-pages PR5) */}
       <section aria-label="Estado del sistema" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <OpKpi label="Usuarios personales" value={users.totalPersonal} href="/admin/usuarios" />
+        <OpKpi
+          label="Usuarios personales"
+          value={users.totalPersonal}
+          href="/admin/usuarios"
+          info={{
+            definition: "Total de cuentas personales activas en la plataforma.",
+            formula: "count(*) where account_type = 'personal'",
+          }}
+        />
         <OpKpi
           label="Solicitudes pendientes"
           value={queue.pendingTotal}
@@ -40,13 +66,26 @@ export default async function AdminDashboardPage() {
               : undefined
           }
           href="/admin/cola"
+          info={{
+            definition: "Solicitudes de aprobación en estado pendiente en este momento.",
+            caveat: "Incluye solicitudes de todas las jurisdicciones.",
+          }}
         />
         <OpKpi
           label="Decisiones (últimos 7d)"
-          value={decisions.approved7d + decisions.rejected7d}
+          value={total7d}
           tone="ok"
           sub={`${decisions.approved7d} aprobadas · ${decisions.rejected7d} rechazadas`}
           href="/admin/auditoria"
+          info={{
+            definition: "Decisiones tomadas (aprobaciones + rechazos) en los últimos 7 días.",
+            formula: "request_approved + request_rejected en audit_log (últimos 7d)",
+          }}
+          deltaV2={
+            decisionsDelta !== null
+              ? { value: decisionsDelta, period: "vs 7d anteriores (aprox.)" }
+              : undefined
+          }
         />
       </section>
 
@@ -98,6 +137,8 @@ export default async function AdminDashboardPage() {
           </>
         }
       />
+
+      <DashboardFreshnessFooter ctx={adminCtx} />
     </div>
   );
 }
