@@ -75,6 +75,15 @@ const EMPTY_STACKED = (granularity: BucketGranularity): StackedTrend => ({
   suppressedCount: 0,
 });
 
+// Postgres date_trunc requires its field arg as a string LITERAL — passing the
+// unit as a bind param (date_trunc($1, ts)) fails to plan and 500s the query.
+// `unit` is a fixed 'week'|'month' enum (dateTruncUnit), re-whitelisted here,
+// so inlining it via sql.raw is injection-safe (no user input reaches it).
+function truncBucket(unit: "week" | "month") {
+  const u = unit === "week" ? "week" : "month";
+  return sql<string>`date_trunc(${sql.raw(`'${u}'`)}, ${petEvents.occurredAt})`;
+}
+
 // ---------------------------------------------------------------------------
 // D1.1 — Death causes per bucket (STACKED) — backs /gob/mortalidad
 // ---------------------------------------------------------------------------
@@ -93,6 +102,7 @@ export async function fetchDeathCausesTrend(ctx: ProjectionContext): Promise<Sta
   if (isEmptyScope(ctx)) return EMPTY_STACKED(granularity);
 
   const unit = dateTruncUnit(granularity);
+  const bucket = truncBucket(unit);
   const scope = petsScopeClause(ctx);
   const conditions = [
     eq(petEvents.eventType, "death_recorded"),
@@ -103,18 +113,15 @@ export async function fetchDeathCausesTrend(ctx: ProjectionContext): Promise<Sta
 
   const rows = await db
     .select({
-      bucket: sql<string>`date_trunc(${unit}, ${petEvents.occurredAt})`,
+      bucket,
       cause: sql<string>`COALESCE(${petEvents.payload}->>'cause', 'unknown')`,
       n: count(),
     })
     .from(petEvents)
     .innerJoin(pets, eq(pets.id, petEvents.petId))
     .where(and(...conditions))
-    .groupBy(
-      sql`date_trunc(${unit}, ${petEvents.occurredAt})`,
-      sql`COALESCE(${petEvents.payload}->>'cause', 'unknown')`,
-    )
-    .orderBy(sql`date_trunc(${unit}, ${petEvents.occurredAt})`);
+    .groupBy(bucket, sql`COALESCE(${petEvents.payload}->>'cause', 'unknown')`)
+    .orderBy(bucket);
 
   const seriesRows: SeriesBucketRow[] = rows.map((r) => {
     const start = new Date(r.bucket);
@@ -144,6 +151,7 @@ export async function fetchBitesTrend(ctx: ProjectionContext): Promise<SingleSer
   if (isEmptyScope(ctx)) return EMPTY_SINGLE(granularity);
 
   const unit = dateTruncUnit(granularity);
+  const bucket = truncBucket(unit);
   const scope = petEventsScopeClause(ctx);
   const conditions = [
     eq(petEvents.eventType, "incident_reported"),
@@ -155,13 +163,13 @@ export async function fetchBitesTrend(ctx: ProjectionContext): Promise<SingleSer
 
   const rows = await db
     .select({
-      bucket: sql<string>`date_trunc(${unit}, ${petEvents.occurredAt})`,
+      bucket,
       n: count(),
     })
     .from(petEvents)
     .where(and(...conditions))
-    .groupBy(sql`date_trunc(${unit}, ${petEvents.occurredAt})`)
-    .orderBy(sql`date_trunc(${unit}, ${petEvents.occurredAt})`);
+    .groupBy(bucket)
+    .orderBy(bucket);
 
   return finalizeSingleSeries(rows, granularity);
 }
@@ -182,6 +190,7 @@ export async function fetchOutbreakSignalsTrend(
   if (isEmptyScope(ctx)) return EMPTY_SINGLE(granularity);
 
   const unit = dateTruncUnit(granularity);
+  const bucket = truncBucket(unit);
   const scope = petEventsScopeClause(ctx);
   const conditions = [
     sql`${petEvents.eventType} LIKE ${"outbreak_%"}`,
@@ -192,13 +201,13 @@ export async function fetchOutbreakSignalsTrend(
 
   const rows = await db
     .select({
-      bucket: sql<string>`date_trunc(${unit}, ${petEvents.occurredAt})`,
+      bucket,
       n: count(),
     })
     .from(petEvents)
     .where(and(...conditions))
-    .groupBy(sql`date_trunc(${unit}, ${petEvents.occurredAt})`)
-    .orderBy(sql`date_trunc(${unit}, ${petEvents.occurredAt})`);
+    .groupBy(bucket)
+    .orderBy(bucket);
 
   return finalizeSingleSeries(rows, granularity);
 }
@@ -225,6 +234,7 @@ export async function fetchRabiesVaccinationTrend(
   if (isEmptyScope(ctx)) return EMPTY_SINGLE(granularity);
 
   const unit = dateTruncUnit(granularity);
+  const bucket = truncBucket(unit);
   const scope = petEventsScopeClause(ctx);
   const conditions = [
     eq(petEvents.eventType, "vaccination_administered"),
@@ -237,14 +247,14 @@ export async function fetchRabiesVaccinationTrend(
 
   const rows = await db
     .select({
-      bucket: sql<string>`date_trunc(${unit}, ${petEvents.occurredAt})`,
+      bucket,
       n: countDistinct(petEvents.petId),
     })
     .from(petEvents)
     .innerJoin(pets, eq(pets.id, petEvents.petId))
     .where(and(...conditions))
-    .groupBy(sql`date_trunc(${unit}, ${petEvents.occurredAt})`)
-    .orderBy(sql`date_trunc(${unit}, ${petEvents.occurredAt})`);
+    .groupBy(bucket)
+    .orderBy(bucket);
 
   return finalizeSingleSeries(rows, granularity);
 }
