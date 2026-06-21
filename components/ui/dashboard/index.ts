@@ -37,3 +37,4 @@ export {
   OpTextarea,
   OpSubmitButton,
 } from "./OpField";
+export { DashboardFreshnessFooter } from "./DashboardFreshnessFooter";

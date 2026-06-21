@@ -260,6 +260,56 @@ export async function fetchRabiesVaccinationTrend(
 }
 
 // ---------------------------------------------------------------------------
+// D2 — Generic single-series KPI trend — backs sparklines on all KPI tiles
+// ---------------------------------------------------------------------------
+
+/**
+ * Count of `pet_events` with the given `eventType`, bucketed by period
+ * (week for ≤120d, month otherwise), scoped to the viewer's jurisdiction.
+ *
+ * This is the generic building block for KPI sparklines introduced in
+ * Dashboards vNext Fase 0.  It intentionally mirrors `fetchBitesTrend` and
+ * `fetchOutbreakSignalsTrend`: same `truncBucket` helper (injection-safe
+ * date_trunc inliner), same `finalizeSingleSeries`, same `petEventsScopeClause`.
+ *
+ * Usage:
+ *   const trend = await fetchKpiTrend("vaccination_administered", ctx);
+ *   // trend.points → [{ x: "2026-W03", y: 14 }, …]
+ *
+ * @param eventType - The exact `pet_events.event_type` value to count.
+ * @param ctx       - ProjectionContext (actor + scope + period).
+ */
+export async function fetchKpiTrend(
+  eventType: string,
+  ctx: ProjectionContext,
+): Promise<SingleSeriesTrend> {
+  const granularity = bucketGranularityFor(ctx.period);
+  if (isEmptyScope(ctx)) return EMPTY_SINGLE(granularity);
+
+  const unit = dateTruncUnit(granularity);
+  const bucket = truncBucket(unit);
+  const scope = petEventsScopeClause(ctx);
+  const conditions = [
+    eq(petEvents.eventType, eventType),
+    gte(petEvents.occurredAt, ctx.period.since),
+    lte(petEvents.occurredAt, ctx.period.until),
+  ];
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const rows = await db
+    .select({
+      bucket,
+      n: count(),
+    })
+    .from(petEvents)
+    .where(and(...conditions))
+    .groupBy(bucket)
+    .orderBy(bucket);
+
+  return finalizeSingleSeries(rows, granularity);
+}
+
+// ---------------------------------------------------------------------------
 // Shared single-series finalizer: label → suppress → return.
 // ---------------------------------------------------------------------------
 

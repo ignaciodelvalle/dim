@@ -50,6 +50,11 @@ export type { SingleSeriesTrend, StackedTrend } from "./trends";
 export {
   fetchBitesTrend,
   fetchDeathCausesTrend,
+  fetchKpiTrend,
   fetchOutbreakSignalsTrend,
   fetchRabiesVaccinationTrend,
 } from "./trends";
+
+// Fase 0 additions — targets, tone, delta, freshness.
+export { TARGETS, computeDeltaPct, toneForTarget } from "./targets";
+export { lastIngestAt } from "./freshness";
