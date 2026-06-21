@@ -2740,6 +2740,79 @@ export type CronRun = typeof cronRuns.$inferSelect;
 export type NewCronRun = typeof cronRuns.$inferInsert;
 
 // ============================================================================
+// Alert subscriptions — Paquete H (threshold alerts on /admin/programa)
+// ============================================================================
+// Each row represents an admin user's threshold subscription for a program
+// metric. When the current value crosses the threshold in the configured
+// direction, the subscription is "breaching" and is surfaced on the dashboard.
+//
+// Metrics: active_zoonosis, eno_sla_ontime_pct, queue_oldest_days,
+//          sterilization_coverage_pct, microchip_penetration_pct, open_welfare_reports
+//
+// Jurisdiction scope is optional — when set, the metric is fetched scoped to
+// that jurisdiction. queue_oldest_days is always global (no jurisdiction dim).
+//
+// RLS: owner SELECT/INSERT/UPDATE/DELETE own; admin SELECT all via RLS.
+// Admin writes go through Drizzle BYPASSRLS (no permissive admin write policy).
+
+export const ALERT_METRIC_KEYS = [
+  "active_zoonosis",
+  "eno_sla_ontime_pct",
+  "queue_oldest_days",
+  "sterilization_coverage_pct",
+  "microchip_penetration_pct",
+  "open_welfare_reports",
+] as const;
+
+export type AlertMetricKey = (typeof ALERT_METRIC_KEYS)[number];
+
+export const ALERT_DIRECTIONS = ["above", "below"] as const;
+export type AlertDirection = (typeof ALERT_DIRECTIONS)[number];
+
+export const alertSubscriptions = pgTable(
+  "alert_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorUserId: uuid("actor_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    metricKey: text("metric_key").notNull().$type<AlertMetricKey>(),
+    direction: text("direction").notNull().$type<AlertDirection>(),
+    threshold: numeric("threshold").notNull(),
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
+    label: text("label"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    // Partial index: fast lookup of a user's active subscriptions.
+    actorActiveIdx: index("alert_subscriptions_actor_active_idx")
+      .on(table.actorUserId)
+      .where(sql`${table.isActive} = true`),
+    // CHECK: metric_key must be one of the 6 supported keys.
+    metricKeyValid: check(
+      "alert_subscriptions_metric_key_valid",
+      sql`${table.metricKey} IN ('active_zoonosis','eno_sla_ontime_pct','queue_oldest_days','sterilization_coverage_pct','microchip_penetration_pct','open_welfare_reports')`,
+    ),
+    // CHECK: direction must be 'above' or 'below'.
+    directionValid: check(
+      "alert_subscriptions_direction_valid",
+      sql`${table.direction} IN ('above','below')`,
+    ),
+    // CHECK: jurisdiction_province must be null or a canonical Argentine province.
+    provinceValid: check(
+      "alert_subscriptions_province_valid",
+      sql`${table.jurisdictionProvince} IS NULL OR ${table.jurisdictionProvince} IN ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
+  }),
+);
+
+export type AlertSubscription = typeof alertSubscriptions.$inferSelect;
+export type NewAlertSubscription = typeof alertSubscriptions.$inferInsert;
+
+// ============================================================================
 // Custody disputes — Admin Fase 10
 // ============================================================================
 // Created in lockstep with a `custody_dispute_raised` pet_event; resolved via

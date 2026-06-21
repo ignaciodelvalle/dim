@@ -103,6 +103,10 @@ export {
 } from "./program-health";
 export type { DataQuality, OutlierMetric, OutlierRow, PiiOversightRow } from "./program-health";
 
+// Paquete H — alert subscriptions (threshold alerts on /admin/programa).
+export { evaluateAlertSubscriptions, isBreaching } from "./alert-evaluation";
+export type { EvaluatedSubscription } from "./alert-evaluation";
+
 // Paquete G — control poblacional.
 export {
   computeNetGrowth,

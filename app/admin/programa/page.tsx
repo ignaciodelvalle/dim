@@ -1,14 +1,9 @@
 // /admin/programa — Resumen ejecutivo del programa (Paquete H).
 //
 // Executive summary: North-Star KPIs + outliers + PII oversight + data quality
-// + cron health. Universal admin scope (no JurisdictionSwitcher).
+// + cron health + threshold alert subscriptions.
 //
-// ALERTS / SUBSCRIPTIONS — NOT IMPLEMENTED:
-//   The alerts/subscriptions feature requires a new `alert_subscriptions` table
-//   (product decision pending). A "Próximamente" placeholder is rendered below.
-//   DO NOT add functionality or a migration until the product decision is made.
-//
-// Data sources (all NO-SCHEMA):
+// Data sources:
 //   fetchEnoSla          ← lib/surveillance-metrics.ts  (A7)
 //   fetchQueueHealth     ← lib/admin-metrics.ts
 //   fetchCronRuns        ← lib/admin-metrics.ts
@@ -18,7 +13,13 @@
 //   registryCounts       ← lib/metrics/census.ts  (total registradas)
 //   fetchSterilizationCoverage ← lib/metrics/population-control.ts
 //   fetchMicrochipPenetration  ← lib/compliance-metrics.ts
+//   evaluateAlertSubscriptions ← lib/metrics/alert-evaluation.ts
 
+import {
+  deleteAlertSubscriptionAction,
+  toggleAlertSubscriptionAction,
+} from "@/app/actions/alert-subscriptions";
+import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -28,6 +29,7 @@ import { fetchMicrochipPenetration } from "@/lib/compliance-metrics";
 import {
   TARGETS,
   buildProjectionContext,
+  evaluateAlertSubscriptions,
   fetchCrossJurisdictionOutliers,
   fetchDataQuality,
   fetchPiiOversight,
@@ -37,6 +39,7 @@ import { registryCounts } from "@/lib/metrics/census";
 import { DORMANT_MONTHS_DEFAULT } from "@/lib/metrics/census";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
+import { createClient } from "@/lib/supabase/server";
 import { fetchEnoSla } from "@/lib/surveillance-metrics";
 
 export const dynamic = "force-dynamic";
@@ -59,12 +62,33 @@ const METRIC_LABEL: Record<string, string> = {
   microchip: "Microchip",
 };
 
+const ALERT_METRIC_LABEL: Record<string, string> = {
+  active_zoonosis: "Casos de zoonosis activos",
+  eno_sla_ontime_pct: "SLA ENO en tiempo (%)",
+  queue_oldest_days: "Días sin atender (solicitud más antigua)",
+  sterilization_coverage_pct: "Cobertura de esterilización (%)",
+  microchip_penetration_pct: "Penetración de microchip (%)",
+  open_welfare_reports: "Denuncias de maltrato abiertas",
+};
+
+const ALERT_DIRECTION_LABEL: Record<string, string> = {
+  above: "encima de",
+  below: "debajo de",
+};
+
 export default async function AdminProgramaPage({
   searchParams,
 }: {
   searchParams?: Promise<{ period?: string; from?: string; to?: string }>;
 }) {
   await requireAdminOrRedirect();
+
+  // Resolve the current user id for alert subscription evaluation.
+  const supabase = await createClient();
+  const {
+    data: { user: currentUser },
+  } = await supabase.auth.getUser();
+  const currentUserId = currentUser?.id ?? null;
 
   const sp = searchParams ? await searchParams : {};
   const { resolveAnalyticsPeriod } = await import("@/lib/metrics/period");
@@ -82,6 +106,7 @@ export default async function AdminProgramaPage({
     dataQuality,
     outliers,
     piiOversight,
+    alertEvals,
   ] = await Promise.all([
     registryCounts(adminCtx, DORMANT_MONTHS_DEFAULT),
     fetchSterilizationCoverage(adminCtx),
@@ -92,7 +117,12 @@ export default async function AdminProgramaPage({
     fetchDataQuality(adminCtx),
     fetchCrossJurisdictionOutliers(adminCtx),
     fetchPiiOversight(adminCtx),
+    currentUserId
+      ? evaluateAlertSubscriptions(currentUserId, { role: "admin" })
+      : Promise.resolve([]),
   ]);
+
+  const breachingAlerts = alertEvals.filter((a) => a.breaching);
 
   const outlierCount = outliers.filter((r) => r.isOutlier).length;
   const chipRatePct = microchip.ratePct;
@@ -485,24 +515,116 @@ export default async function AdminProgramaPage({
         </OpCard>
       </div>
 
-      {/* Alertas / suscripciones — PLACEHOLDER (requires schema) */}
-      {/*
-        PRÓXIMAMENTE — alert_subscriptions table required.
-        This card is intentionally inert. The feature needs a new `alert_subscriptions`
-        table to persist threshold rules and subscriber lists (product decision pending).
-        DO NOT add real functionality here until the schema is created and approved.
-      */}
-      <OpCard aria-labelledby={panelAlertasId}>
+      {/* Alertas / suscripciones — Paquete H */}
+      <OpCard
+        aria-labelledby={panelAlertasId}
+        accent={breachingAlerts.length > 0 ? "danger" : undefined}
+      >
         <OpCardHead title={<span id={panelAlertasId}>Alertas y suscripciones</span>} />
         <OpCardBody>
-          <p className="text-[13px] text-ln-op-mute">
-            Próximamente — requiere una tabla de suscripciones (decisión de producto pendiente).
-          </p>
-          <p className="mt-1 text-[11px] text-ln-op-mute">
-            Las alertas de umbral sobre breaches activos (zoonosis, SLA ENO, cobertura) serán
-            configurables cuando se apruebe el diseño de la tabla{" "}
-            <code className="font-mono">alert_subscriptions</code>.
-          </p>
+          {/* (a) Alertas activas — breaching subscriptions */}
+          <section aria-label="Alertas activas" className="mb-5">
+            <h4 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+              Alertas activas
+            </h4>
+            {breachingAlerts.length === 0 ? (
+              <p className="text-[13px] text-ln-op-mute">Sin alertas activas.</p>
+            ) : (
+              <ul className="space-y-2">
+                {breachingAlerts.map((a) => (
+                  <li
+                    key={a.id}
+                    className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-[13px] text-ln-op-danger"
+                  >
+                    <span className="font-semibold">
+                      {a.label ?? ALERT_METRIC_LABEL[a.metricKey] ?? a.metricKey}
+                    </span>
+                    {a.jurisdictionProvince ? (
+                      <span className="ml-1 text-[11px] text-ln-op-mute">
+                        ({a.jurisdictionProvince})
+                      </span>
+                    ) : null}
+                    {" — "}
+                    actual{" "}
+                    <span className="font-semibold">
+                      {a.currentValue !== null ? a.currentValue.toLocaleString("es-AR") : "—"}
+                    </span>{" "}
+                    {ALERT_DIRECTION_LABEL[a.direction] ?? a.direction} umbral{" "}
+                    <span className="font-semibold">
+                      {Number(a.threshold).toLocaleString("es-AR")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* (b) Mis suscripciones — all subscriptions list with delete / toggle */}
+          <section aria-label="Mis suscripciones" className="mb-5">
+            <h4 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+              Mis suscripciones
+            </h4>
+            {alertEvals.length === 0 ? (
+              <p className="text-[13px] text-ln-op-mute">
+                Sin suscripciones configuradas. Creá una abajo.
+              </p>
+            ) : (
+              <ul className="divide-y divide-ln-op-line-2">
+                {alertEvals.map((a) => (
+                  <li key={a.id} className="flex items-center gap-3 py-2 text-[13px]">
+                    <div className="flex-1">
+                      <span className={a.isActive ? "text-ln-op-ink" : "text-ln-op-mute"}>
+                        {a.label ?? ALERT_METRIC_LABEL[a.metricKey] ?? a.metricKey}
+                      </span>
+                      {a.jurisdictionProvince ? (
+                        <span className="ml-1 text-[11px] text-ln-op-mute">
+                          ({a.jurisdictionProvince})
+                        </span>
+                      ) : null}
+                      <span className="ml-2 text-[11px] text-ln-op-mute">
+                        {ALERT_DIRECTION_LABEL[a.direction] ?? a.direction}{" "}
+                        {Number(a.threshold).toLocaleString("es-AR")}
+                      </span>
+                      {!a.isActive && (
+                        <span className="ml-2 text-[11px] text-ln-op-mute italic">(inactiva)</span>
+                      )}
+                    </div>
+                    {/* Toggle active/inactive */}
+                    <form action={toggleAlertSubscriptionAction}>
+                      <input type="hidden" name="id" value={a.id} />
+                      <input type="hidden" name="isActive" value={a.isActive ? "false" : "true"} />
+                      <button
+                        type="submit"
+                        className="h-11 rounded-[6px] border border-ln-op-line px-3 text-[12px] text-ln-op-ink hover:bg-ln-op-hover"
+                        aria-label={a.isActive ? "Desactivar suscripción" : "Activar suscripción"}
+                      >
+                        {a.isActive ? "Pausar" : "Activar"}
+                      </button>
+                    </form>
+                    {/* Delete */}
+                    <form action={deleteAlertSubscriptionAction}>
+                      <input type="hidden" name="id" value={a.id} />
+                      <button
+                        type="submit"
+                        className="h-11 rounded-[6px] border border-ln-op-danger-bd px-3 text-[12px] text-ln-op-danger hover:bg-ln-op-danger-bg"
+                        aria-label="Eliminar suscripción"
+                      >
+                        Eliminar
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* (c) Crear suscripción form */}
+          <section aria-label="Crear suscripción">
+            <h4 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+              Crear suscripción
+            </h4>
+            <AlertSubscriptionForm />
+          </section>
         </OpCardBody>
       </OpCard>
 
