@@ -90,8 +90,11 @@ export function PanoramaConsole({
 
   // U5 aggregation axis — the granularity TOGGLE. Distinct from the scope filter
   // (JurisdictionSwitcher narrows WHAT is shown; this changes HOW the choropleth
-  // layers are aggregated + rendered). Defaults to locality (pre-U5 behavior).
-  const [level, setLevel] = useState<AggregationLevel>("locality");
+  // layers are aggregated + rendered). Defaults to PROVINCE: the national
+  // overview reads well at a glance, the province rollup is fast, and it keeps
+  // the default off the slow rabies-coverage locality rollup. Locality (centroid
+  // symbols) is one toggle away.
+  const [level, setLevel] = useState<AggregationLevel>("province");
   const levelRef = useRef(level);
   levelRef.current = level;
 
