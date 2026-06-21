@@ -15,6 +15,7 @@ import { AggregationToggle } from "@/components/panorama/AggregationToggle";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPanel";
 import { PanoramaKpiStrip } from "@/components/panorama/PanoramaKpiStrip";
+import { PresetPanel } from "@/components/panorama/PresetPanel";
 import type { ActiveLayer, PointRenderMode } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
@@ -30,6 +31,12 @@ import {
   isAggregatedPointLayer,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
+import {
+  PANORAMA_PRESETS,
+  type PresetId,
+  getPreset,
+  presetLayerIds,
+} from "@/src/modules/panorama/domain/presets";
 import type {
   AggregationLevel,
   FeatureCollection,
@@ -401,6 +408,12 @@ export function PanoramaConsole({
 
   const onToggle = useCallback(
     async (id: LayerId) => {
+      // A manual toggle exits preset mode. Guard: skip when onPreset is
+      // activating layers sequentially (presetActivatingRef prevents clearing
+      // the preset id that was just set).
+      if (!presetActivatingRef.current) {
+        setActivePresetId(null);
+      }
       const wasActive = states[id]?.active ?? false;
       if (wasActive) {
         // Turn off — keep cached data so a re-toggle is instant.
@@ -556,6 +569,79 @@ export function PanoramaConsole({
     [searchParams, states, asOf, fetchAsOfFor, fetchChoroplethAt, computeHints],
   );
 
+  // F3: active preset — null when the operator is in manual "modo avanzado".
+  const [activePresetId, setActivePresetId] = useState<PresetId | null>(null);
+  // True while onPreset is sequentially activating layers, so onToggle does
+  // not clear the preset id mid-activation.
+  const presetActivatingRef = useRef(false);
+
+  /**
+   * F3: Activate a preset.
+   *
+   * 1. Deactivate all currently active layers (no fetch needed — just flip state
+   *    and clear the cache entries so the next toggle triggers a fresh fetch).
+   * 2. Activate the preset's layers in order [base, signal?, ...references?].
+   *    Each step goes through the standard onToggle path so F2 compatibility
+   *    checks and the province-level cache are respected automatically.
+   * 3. Switch the aggregation level to the preset's level.
+   * 4. Period: push the preset's periodPreset as the ?period searchParam so the
+   *    existing PeriodPicker/resolveAnalyticsPeriod path picks it up. This is
+   *    the same mechanism a user clicking a period button uses (router.push),
+   *    which invalidates the scope/period caches and triggers a refetch — giving
+   *    a clean slate identical to a page navigation with the new period.
+   * 5. Record the active preset id so PresetPanel highlights the active button.
+   */
+  const onPreset = useCallback(
+    async (id: PresetId) => {
+      const preset = getPreset(id);
+      if (!preset) return;
+
+      // Deactivate all currently active layers.
+      setStates((s) => {
+        const next = { ...s };
+        for (const l of PANORAMA_LAYERS) {
+          if (s[l.id]?.active) {
+            next[l.id] = { ...s[l.id], active: false, compatibilityHint: undefined };
+          }
+        }
+        return next;
+      });
+      // Clear the feature caches for all layers so the preset's layers always
+      // fetch fresh data at the correct level/period (avoids showing stale data
+      // from a previous manual configuration in the same session).
+      dataRef.current.clear();
+      provinceDataRef.current.clear();
+      asOfDataRef.current.clear();
+
+      // Switch aggregation level (fire-and-forget; the refetch below respects it).
+      setLevel(preset.level);
+      levelRef.current = preset.level;
+
+      // Push the period searchParam so the existing PeriodPicker/resolveAnalyticsPeriod
+      // path refreshes the window. This is the same URL-driven mechanism that the
+      // period control uses, so KPI refetches and cache invalidation happen automatically.
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.set("period", preset.periodPreset);
+      // We reach router via window.history to avoid importing useRouter (the
+      // console already reads searchParams via useSearchParams, which re-renders
+      // the component when the URL changes via any mechanism).
+      window.history.pushState(null, "", `?${nextParams.toString()}`);
+
+      // Activate the preset's layers sequentially using the existing onToggle
+      // handler so F2 checks, cache logic, and loading states all work correctly.
+      // The presetActivatingRef prevents onToggle from clearing the preset id.
+      presetActivatingRef.current = true;
+      const ids = presetLayerIds(preset);
+      for (const layerId of ids) {
+        await onToggle(layerId);
+      }
+      presetActivatingRef.current = false;
+
+      setActivePresetId(id);
+    },
+    [searchParams, onToggle],
+  );
+
   // Whether any aggregation-axis-sensitive layer is active (choropleth or
   // density/signal point layers). The toggle hints when it has no current effect
   // (all active layers are reference pins).
@@ -584,6 +670,11 @@ export function PanoramaConsole({
           onFeatureClick={onFeatureClick}
         />
         <div className="space-y-3">
+          <PresetPanel
+            presets={PANORAMA_PRESETS}
+            activePresetId={activePresetId}
+            onPreset={onPreset}
+          />
           <AggregationToggle
             level={level}
             onChange={onLevelChange}

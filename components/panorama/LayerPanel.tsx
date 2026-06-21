@@ -40,105 +40,110 @@ type Props = {
 
 export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
   return (
-    <fieldset className="space-y-1.5">
-      <legend className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-        Capas
-      </legend>
-      <ul className="space-y-1">
-        {PANORAMA_LAYERS.map((layer) => {
-          const st = states[layer.id];
-          const active = st?.active ?? false;
-          // Under a scrub, layers with no time dimension can't be reproduced
-          // as-of-t — flag and visually de-emphasise them in the legend.
-          const notReproducible = scrubbing && !isTemporalLayer(layer.id);
-          // F2 compatibility: an inactive layer may be blocked due to a
-          // conflict with the currently active set. The hint explains why.
-          const compatibilityHint = !active ? (st?.compatibilityHint ?? undefined) : undefined;
-          const isBlocked = Boolean(compatibilityHint);
-          return (
-            <li key={layer.id}>
-              <label
-                className={`flex items-center gap-2.5 rounded-[6px] px-1.5 py-1 text-[12px] text-ln-op-ink-2 ${
-                  isBlocked ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-ln-op-card"
-                } ${notReproducible ? "opacity-50" : ""}`}
-                title={compatibilityHint}
-              >
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 accent-current"
-                  checked={active}
-                  disabled={isBlocked}
-                  aria-disabled={isBlocked}
-                  aria-describedby={isBlocked ? `compat-hint-${layer.id}` : undefined}
-                  onChange={() => {
-                    if (!isBlocked) onToggle(layer.id);
-                  }}
-                />
-                <span
-                  className="inline-block h-3 w-3 shrink-0 rounded-full border border-ln-op-line"
-                  style={{ background: layer.color }}
-                  aria-hidden="true"
-                />
-                <span className="flex-1">{layer.label}</span>
-                {notReproducible && (
+    <details className="group space-y-1.5">
+      <summary className="cursor-pointer list-none text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
+        Capas (modo avanzado)
+      </summary>
+      <fieldset className="mt-1.5 space-y-1.5">
+        <legend className="sr-only">Capas (modo avanzado)</legend>
+        <ul className="space-y-1">
+          {PANORAMA_LAYERS.map((layer) => {
+            const st = states[layer.id];
+            const active = st?.active ?? false;
+            // Under a scrub, layers with no time dimension can't be reproduced
+            // as-of-t — flag and visually de-emphasise them in the legend.
+            const notReproducible = scrubbing && !isTemporalLayer(layer.id);
+            // F2 compatibility: an inactive layer may be blocked due to a
+            // conflict with the currently active set. The hint explains why.
+            const compatibilityHint = !active ? (st?.compatibilityHint ?? undefined) : undefined;
+            const isBlocked = Boolean(compatibilityHint);
+            return (
+              <li key={layer.id}>
+                <label
+                  className={`flex items-center gap-2.5 rounded-[6px] px-1.5 py-1 text-[12px] text-ln-op-ink-2 ${
+                    isBlocked
+                      ? "cursor-not-allowed opacity-40"
+                      : "cursor-pointer hover:bg-ln-op-card"
+                  } ${notReproducible ? "opacity-50" : ""}`}
+                  title={compatibilityHint}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 accent-current"
+                    checked={active}
+                    disabled={isBlocked}
+                    aria-disabled={isBlocked}
+                    aria-describedby={isBlocked ? `compat-hint-${layer.id}` : undefined}
+                    onChange={() => {
+                      if (!isBlocked) onToggle(layer.id);
+                    }}
+                  />
                   <span
-                    className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-[10px] text-ln-op-mute"
-                    title="Esta capa no tiene dimensión temporal: muestra el estado actual, no reproducible en el tiempo."
-                  >
-                    no reproducible en el tiempo
-                  </span>
-                )}
-                {st?.loading && (
-                  <span className="text-[11px] text-ln-op-mute" aria-live="polite">
-                    cargando…
-                  </span>
-                )}
-                {active && !st?.loading && (
-                  <span className="tabular-nums text-[11px] text-ln-op-mute">
-                    {st.count.toLocaleString("es-AR")}
-                  </span>
-                )}
-                {active && !st?.loading && st.suppressedCount > 0 && (
-                  <span
-                    className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-[10px] text-ln-op-mute"
-                    title="Celdas ocultas por privacidad (k-anonimato, k=5)"
-                  >
-                    {st.suppressedCount} suprimido{st.suppressedCount === 1 ? "" : "s"}
-                  </span>
-                )}
-                {active && !st?.loading && st.truncated && (
-                  <span
-                    className="rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-1.5 py-0.5 text-[10px] text-ln-op-ink-2"
-                    title="Se alcanzó el tope por capa; hay más registros fuera de la vista."
-                  >
-                    capá al máximo (2.000)
-                  </span>
-                )}
-                {isBlocked && (
-                  <span
-                    className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-[10px] text-ln-op-mute"
+                    className="inline-block h-3 w-3 shrink-0 rounded-full border border-ln-op-line"
+                    style={{ background: layer.color }}
                     aria-hidden="true"
-                  >
-                    bloqueada
-                  </span>
-                )}
-              </label>
-              {/* Inline helper text — visible (not color-only), associated to the
+                  />
+                  <span className="flex-1">{layer.label}</span>
+                  {notReproducible && (
+                    <span
+                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-[10px] text-ln-op-mute"
+                      title="Esta capa no tiene dimensión temporal: muestra el estado actual, no reproducible en el tiempo."
+                    >
+                      no reproducible en el tiempo
+                    </span>
+                  )}
+                  {st?.loading && (
+                    <span className="text-[11px] text-ln-op-mute" aria-live="polite">
+                      cargando…
+                    </span>
+                  )}
+                  {active && !st?.loading && (
+                    <span className="tabular-nums text-[11px] text-ln-op-mute">
+                      {st.count.toLocaleString("es-AR")}
+                    </span>
+                  )}
+                  {active && !st?.loading && st.suppressedCount > 0 && (
+                    <span
+                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-[10px] text-ln-op-mute"
+                      title="Celdas ocultas por privacidad (k-anonimato, k=5)"
+                    >
+                      {st.suppressedCount} suprimido{st.suppressedCount === 1 ? "" : "s"}
+                    </span>
+                  )}
+                  {active && !st?.loading && st.truncated && (
+                    <span
+                      className="rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-1.5 py-0.5 text-[10px] text-ln-op-ink-2"
+                      title="Se alcanzó el tope por capa; hay más registros fuera de la vista."
+                    >
+                      capá al máximo (2.000)
+                    </span>
+                  )}
+                  {isBlocked && (
+                    <span
+                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-[10px] text-ln-op-mute"
+                      aria-hidden="true"
+                    >
+                      bloqueada
+                    </span>
+                  )}
+                </label>
+                {/* Inline helper text — visible (not color-only), associated to the
                   checkbox via aria-describedby. Placed outside the <label> so it
                   renders below the row and is perceivable without relying on color. */}
-              {isBlocked && compatibilityHint && (
-                <p
-                  id={`compat-hint-${layer.id}`}
-                  className="mt-0.5 px-1.5 text-[10px] text-ln-op-mute"
-                  role="note"
-                >
-                  {compatibilityHint}
-                </p>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </fieldset>
+                {isBlocked && compatibilityHint && (
+                  <p
+                    id={`compat-hint-${layer.id}`}
+                    className="mt-0.5 px-1.5 text-[10px] text-ln-op-mute"
+                    role="note"
+                  >
+                    {compatibilityHint}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </fieldset>
+    </details>
   );
 }
