@@ -42,7 +42,7 @@ export default async function AdminDashboardPage() {
           href="/admin/cola"
         />
         <OpKpi
-          label="Decisiones (ultimos 7d)"
+          label="Decisiones (últimos 7d)"
           value={decisions.approved7d + decisions.rejected7d}
           tone="ok"
           sub={`${decisions.approved7d} aprobadas · ${decisions.rejected7d} rechazadas`}

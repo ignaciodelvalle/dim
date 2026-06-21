@@ -154,7 +154,7 @@ export default async function GobAnalyticsPage({
       {/* Page header */}
       <header className="space-y-2">
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Analytics
+          Vigilancia sanitaria · Analítica
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Analítica</h1>
         <p className="text-[13px] text-ln-op-mute">

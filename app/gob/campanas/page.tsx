@@ -151,7 +151,8 @@ export default async function GobCampanasPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Performance de campañas</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Inscripciones, completitud y alcance geográfico de las campañas sanitarias en tu cobertura.
+          Inscripciones, completitud y alcance geográfico de las campañas sanitarias en tu
+          cobertura.
         </p>
       </header>
 
@@ -292,7 +293,7 @@ export default async function GobCampanasPage({
                             {offering.enrollment}
                           </p>
                           <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
-                            Enrollment
+                            Inscripciones
                           </p>
                         </div>
 

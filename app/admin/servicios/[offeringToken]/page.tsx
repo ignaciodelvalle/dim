@@ -118,7 +118,7 @@ export default async function AdminServicioDetailPage({
       <DetailSection title="Detalles">
         <dl className="space-y-1">
           <div className="flex gap-3">
-            <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Duracion</dt>
+            <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Duración</dt>
             <dd className="text-[13px] text-ln-op-ink">{offering.durationMinutes} min</dd>
           </div>
           <div className="flex gap-3">
@@ -165,11 +165,11 @@ export default async function AdminServicioDetailPage({
       </DetailSection>
 
       {offering.status === "pending_approval" ? (
-        <DetailSection title="Decision">
+        <DetailSection title="Decisión">
           <OfferingReviewActions publicToken={offering.publicToken} />
         </DetailSection>
       ) : (
-        <DetailSection title="Decision">
+        <DetailSection title="Decisión">
           <p className="text-[13px] text-ln-op-ink">
             {STATUS_LABELS[offering.status] ?? offering.status}
             {offering.reviewedAt &&

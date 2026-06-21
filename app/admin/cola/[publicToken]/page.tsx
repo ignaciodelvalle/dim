@@ -203,7 +203,7 @@ export default async function AdminReviewRequestPage({
           <ReviewActions publicToken={request.publicToken} />
         </Section>
       ) : (
-        <Section title="Decision">
+        <Section title="Decisión">
           <p className="text-[13px] text-ln-op-ink">
             {STATUS_LABELS[request.status]}
             {request.decidedAt &&
