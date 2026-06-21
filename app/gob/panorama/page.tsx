@@ -4,6 +4,7 @@ import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import type { ProvinceCode } from "@/lib/ar-provincias";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { type AdminOrGovtJurisdiction, requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { jurisdictionBounds } from "@/lib/gov-scope";
 import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/govt-dashboards";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { getLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
@@ -74,14 +75,17 @@ export default async function GobPanoramaPage({
 
   // biome-ignore lint/style/noNonNullAssertion: "perdidas" is a static registry id.
   const layer = getLayer("perdidas")!;
-  // Default layer features + the headline KPIs resolve concurrently. The KPIs
-  // reuse the tested dashboard fetchers (parity) and are scoped+period-aware.
-  // Seed the default layer at PROVINCE level (matching the PanoramaConsole default
-  // aggregation axis of "province"). Seeding at locality level would leave the
-  // provinceDataRef cache empty on first render and produce a blank map (C2).
-  const [result, kpis] = await Promise.all([
+  // Default layer features + the headline KPIs + the jurisdiction bbox resolve
+  // concurrently. The KPIs reuse the tested dashboard fetchers (parity) and are
+  // scoped+period-aware. Seed the default layer at PROVINCE level (matching the
+  // PanoramaConsole default aggregation axis of "province"). Seeding at locality
+  // level would leave the provinceDataRef cache empty on first render and produce
+  // a blank map (C2).
+  const [result, kpis, initialBounds] = await Promise.all([
     getLayerFeatures("perdidas", actor, scoped, { since }, "province"),
     getPanoramaKpis(actor, scoped, period),
+    // Govt → bbox of their assigned localities; admin (jurisdictions=[]) → null.
+    jurisdictionBounds(jurisdictions),
   ]);
 
   return (
@@ -94,6 +98,7 @@ export default async function GobPanoramaPage({
       allowedProvinces={allowedProvinces}
       localities={localities}
       kpis={kpis}
+      initialBounds={initialBounds ?? undefined}
     />
   );
 }

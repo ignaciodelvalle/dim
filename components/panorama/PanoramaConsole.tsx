@@ -73,6 +73,12 @@ type Props = {
   defaultSuppressedCount?: number;
   /** Server-rendered headline KPIs (recalculated for the active scope+period). */
   initialKpis: PanoramaKpis;
+  /**
+   * Pre-zoomed bounding box for the map's initial viewport.
+   * Govt operators receive their jurisdiction bbox (server-computed); admin
+   * leaves this undefined to keep the national/data-extent view.
+   */
+  initialBounds?: [[number, number], [number, number]];
 };
 
 export function PanoramaConsole({
@@ -81,6 +87,7 @@ export function PanoramaConsole({
   defaultTruncated = false,
   defaultSuppressedCount = 0,
   initialKpis,
+  initialBounds,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -750,6 +757,7 @@ export function PanoramaConsole({
           layers={activeLayers}
           label={mapLabel}
           onFeatureClick={onFeatureClick}
+          initialBounds={initialBounds}
         />
         <div className="space-y-3">
           <PresetPanel

@@ -30,6 +30,12 @@ type Props = {
   localities: Array<{ slug: string; name: string }>;
   /** Headline KPIs recalculated for the active scope+period (server-rendered). */
   kpis: PanoramaKpis;
+  /**
+   * Pre-zoomed bounding box for the map's initial viewport.
+   * Govt operators receive their jurisdiction bbox (server-computed); admin
+   * leaves this undefined to keep the national/data-extent view.
+   */
+  initialBounds?: [[number, number], [number, number]];
 };
 
 export function PanoramaShell({
@@ -41,6 +47,7 @@ export function PanoramaShell({
   allowedProvinces,
   localities,
   kpis,
+  initialBounds,
 }: Props) {
   return (
     <div className="space-y-4">
@@ -114,6 +121,7 @@ export function PanoramaShell({
         defaultTruncated={truncated}
         defaultSuppressedCount={suppressedCount}
         initialKpis={kpis}
+        initialBounds={initialBounds}
       />
     </div>
   );

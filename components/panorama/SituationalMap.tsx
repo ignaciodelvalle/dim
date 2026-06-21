@@ -109,6 +109,14 @@ type Props = {
    * which opens the DetailDrawer. Choropleth cells and points both emit this.
    */
   onFeatureClick?: (layerId: string, properties: Record<string, unknown>) => void;
+  /**
+   * Pre-zoomed bounding box for the map's initial viewport.
+   * When provided (govt operators with assigned jurisdictions), the map opens
+   * fitted to this bbox instead of the data-extent bbox.
+   * Admin (no assigned jurisdictions) leaves this undefined and keeps the
+   * national/data-extent fit.
+   */
+  initialBounds?: [[number, number], [number, number]];
 };
 
 // Continental Argentina centroid + a zoom that frames the mainland.
@@ -156,7 +164,13 @@ function layersBbox(layers: ActiveLayer[]): [[number, number], [number, number]]
   ];
 }
 
-export function SituationalMap({ layers, label, height = 560, onFeatureClick }: Props) {
+export function SituationalMap({
+  layers,
+  label,
+  height = 560,
+  onFeatureClick,
+  initialBounds,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const mlRef = useRef<typeof maplibregl | null>(null);
@@ -170,6 +184,9 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
   // Keep the latest click callback accessible inside one-time map handlers.
   const onFeatureClickRef = useRef(onFeatureClick);
   onFeatureClickRef.current = onFeatureClick;
+  // Capture initialBounds once at mount — it's a stable server-computed value
+  // (jurisdiction bbox) that must not change after the map is constructed.
+  const initialBoundsRef = useRef(initialBounds);
 
   // --- One-time map construction (basemap only). ---------------------------
   useEffect(() => {
@@ -227,7 +244,10 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
         if (cancelled) return;
         loadedRef.current = true;
         syncLayers();
-        const bbox = layersBbox(layersRef.current);
+        // Prefer the server-computed jurisdiction bbox (govt) over the
+        // data-extent bbox (admin/national). Falls back to the data-extent
+        // when no initialBounds was supplied (admin = national view).
+        const bbox = initialBoundsRef.current ?? layersBbox(layersRef.current);
         if (bbox) map.fitBounds(bbox, { padding: 56, animate: false, maxZoom: 11 });
       });
     });
