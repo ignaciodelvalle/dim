@@ -19,6 +19,7 @@ import Link from "next/link";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { relativeDaysShort } from "@/lib/format";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import {
@@ -160,9 +161,13 @@ export default async function GobOutreachPage() {
           ) : (
             <ul className="space-y-1" aria-label="Lista de mascotas con antirrábica vencida">
               {overdueResult.pets.slice(0, 50).map((pet) => {
-                const daysSince = Math.floor(
-                  (Date.now() - pet.lastVaccineAt.getTime()) / 86400_000,
-                );
+                // epoch sentinel (new Date(0)) = pet never had a rabies vaccine
+                // on record. Show "sin registro" instead of a meaningless
+                // "hace 20624d"; real overdue dates render as a capped "hace Nd".
+                const overdueLabel =
+                  pet.lastVaccineAt.getTime() === 0
+                    ? "sin registro"
+                    : relativeDaysShort(pet.lastVaccineAt);
                 return (
                   <li
                     key={pet.petId}
@@ -178,7 +183,7 @@ export default async function GobOutreachPage() {
                       </p>
                     </div>
                     <span className="shrink-0 text-ln-op-danger font-medium tabular-nums">
-                      {daysSince === 0 ? "hoy" : `hace ${daysSince}d`}
+                      {overdueLabel}
                     </span>
                   </li>
                 );

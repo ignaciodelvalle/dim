@@ -1,4 +1,4 @@
-// lib/campaign-metrics.ts — Campaign performance projections for /gob/campañas.
+// lib/campaign-metrics.ts — Campaign performance projections for /gob/campanas.
 //
 // Pure projection layer over the existing bookings (appointments) +
 // attendance (appointments.status) + service_offerings data.

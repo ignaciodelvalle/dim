@@ -39,7 +39,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/disputas",
   "/gob/maltrato",
   "/gob/decomisos",
-  "/gob/campañas",
+  "/gob/campanas",
   "/gob/outreach", // Item 21 — actionable outreach pipelines
 ]);
 
