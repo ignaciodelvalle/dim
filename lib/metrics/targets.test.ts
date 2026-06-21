@@ -45,6 +45,10 @@ describe("TARGETS constant values", () => {
   it("DORMANT_MONTHS is 12 (Paquete E dormancy threshold)", () => {
     expect(TARGETS.DORMANT_MONTHS).toBe(12);
   });
+
+  it("STERILIZATION_COVERAGE_PCT is 70 (Paquete G — programmatic benchmark, not legal mandate)", () => {
+    expect(TARGETS.STERILIZATION_COVERAGE_PCT).toBe(70);
+  });
 });
 
 // ---------------------------------------------------------------------------

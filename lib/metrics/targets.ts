@@ -57,6 +57,15 @@ export const TARGETS = {
   DISPOSAL_UNKNOWN_BREACH_PCT: 25,
 
   /**
+   * % of active pets in scope that have received a sterilization_performed event.
+   *
+   * Programmatic benchmark (NOT a legal mandate like RABIES_COVERAGE_PCT).
+   * Source: programme internal KPI — goal for population containment.
+   * See Paquete G (population-control.ts) for the fetcher that uses this.
+   */
+  STERILIZATION_COVERAGE_PCT: 70,
+
+  /**
    * Months of owner inactivity before a pet is classified as dormant (Paquete E).
    * Used as the tooltip reference value in the Dormant KPI.
    */

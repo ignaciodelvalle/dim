@@ -227,6 +227,7 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
       { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
       { href: "/gob/campanas", label: "Campañas", matchPrefix: "/gob/campanas" },
       { href: "/gob/outreach", label: "Outreach", matchPrefix: "/gob/outreach" },
+      { href: "/gob/poblacion", label: "Población", matchPrefix: "/gob/poblacion" },
     ],
   },
   {
@@ -297,6 +298,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
     label: "Confiabilidad",
     items: [
       { href: "/admin/censo", label: "Censo", matchPrefix: "/admin/censo" },
+      { href: "/admin/poblacion", label: "Población", matchPrefix: "/admin/poblacion" },
       { href: "/admin/sistema", label: "Sistema", matchPrefix: "/admin/sistema" },
       { href: "/admin/outbox", label: "Outbox", matchPrefix: "/admin/outbox" },
       { href: "/admin/auditoria", label: "Auditoría", matchPrefix: "/admin/auditoria" },

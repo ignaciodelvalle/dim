@@ -72,3 +72,23 @@ export {
   registryByProvince,
 } from "./census";
 export type { FunnelStages, ProvinceRegistryRow, RegistryCounts } from "./census";
+
+// Paquete G — control poblacional.
+export {
+  computeNetGrowth,
+  coverageRate,
+  fetchActivePregnancies,
+  fetchNetGrowth,
+  fetchReproductiveOutcomes,
+  fetchSterilizationCoverage,
+  fetchSterilizationNatalidadRatio,
+  fetchSterilizationTrend,
+  safeRatio,
+} from "./population-control";
+export type {
+  NetGrowthResult,
+  ProvinceSterlizationRow,
+  ReproductiveOutcomeKey,
+  ReproductiveOutcomes,
+  SterilizationCoverageResult,
+} from "./population-control";

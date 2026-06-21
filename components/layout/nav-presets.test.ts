@@ -258,6 +258,10 @@ describe("GOB_NAV — no route regression", () => {
   it("contains /gob/outreach (Item 21 — actionable outreach pipelines)", () => {
     expect(hrefs).toContain("/gob/outreach");
   });
+
+  it("contains /gob/poblacion (Paquete G — control poblacional)", () => {
+    expect(hrefs).toContain("/gob/poblacion");
+  });
 });
 
 describe("ADMIN_NAV — no route regression", () => {
@@ -290,6 +294,10 @@ describe("ADMIN_NAV — no route regression", () => {
   it("has at least 15 items (no silent drops)", () => {
     expect(ADMIN_NAV.length).toBeGreaterThanOrEqual(15);
   });
+
+  it("contains /admin/poblacion (Paquete G — control poblacional)", () => {
+    expect(hrefs).toContain("/admin/poblacion");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -321,6 +329,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/campanas", // Item 20 — campaign performance
   "/gob/outreach", // Item 21 — actionable outreach pipelines
   "/gob/censo", // Paquete E — censo poblacional & salud del registro
+  "/gob/poblacion", // Paquete G — control poblacional (North Star)
 ]);
 
 describe("GOB_NAV_SECTIONS — section invariants", () => {
@@ -346,6 +355,11 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
   it("includes /gob/mortalidad in the Vigilancia sanitaria section (Item 2)", () => {
     const vigSection = GOB_NAV_SECTIONS.find((s) => s.label === "Vigilancia sanitaria");
     expect(vigSection?.items.map((i) => i.href)).toContain("/gob/mortalidad");
+  });
+
+  it("includes /gob/poblacion in the Vigilancia sanitaria section (Paquete G)", () => {
+    const vigSection = GOB_NAV_SECTIONS.find((s) => s.label === "Vigilancia sanitaria");
+    expect(vigSection?.items.map((i) => i.href)).toContain("/gob/poblacion");
   });
 
   it("no href is duplicated across sections", () => {
@@ -410,6 +424,7 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/casos",
   "/admin/jurisdicciones",
   "/admin/censo", // Paquete E — censo poblacional & salud del registro
+  "/admin/poblacion", // Paquete G — control poblacional (North Star)
 ]);
 
 describe("ADMIN_NAV_SECTIONS — section invariants", () => {
@@ -441,6 +456,11 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
   it("first section is unlabeled (Dashboard) with href /admin", () => {
     expect(ADMIN_NAV_SECTIONS[0].label).toBe("");
     expect(ADMIN_NAV_SECTIONS[0].items[0].href).toBe("/admin");
+  });
+
+  it("includes /admin/poblacion in the Confiabilidad section (Paquete G)", () => {
+    const confSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Confiabilidad");
+    expect(confSection?.items.map((i) => i.href)).toContain("/admin/poblacion");
   });
 });
 
