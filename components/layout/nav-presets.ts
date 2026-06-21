@@ -298,6 +298,8 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     label: "Confiabilidad",
     items: [
+      // Paquete H — exec summary / programa (top of section: highest-level view first)
+      { href: "/admin/programa", label: "Programa", matchPrefix: "/admin/programa" },
       { href: "/admin/censo", label: "Censo", matchPrefix: "/admin/censo" },
       { href: "/admin/adopciones", label: "Adopciones", matchPrefix: "/admin/adopciones" },
       { href: "/admin/poblacion", label: "Población", matchPrefix: "/admin/poblacion" },

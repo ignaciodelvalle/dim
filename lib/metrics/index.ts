@@ -93,6 +93,16 @@ export type {
   TimeInStateRow,
 } from "./custody";
 
+// Paquete H — salud operativa del programa.
+export {
+  completeness,
+  fetchCrossJurisdictionOutliers,
+  fetchDataQuality,
+  fetchPiiOversight,
+  isOutlier,
+} from "./program-health";
+export type { DataQuality, OutlierMetric, OutlierRow, PiiOversightRow } from "./program-health";
+
 // Paquete G — control poblacional.
 export {
   computeNetGrowth,

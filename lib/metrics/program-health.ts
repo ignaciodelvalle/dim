@@ -1,0 +1,403 @@
+// lib/metrics/program-health.ts — Paquete H: salud operativa del programa.
+//
+// Fetchers for /admin/programa (executive summary) and /admin/sistema extensions.
+//
+// SCHEMA NOTE — alert_subscriptions:
+//   The alerts/subscriptions feature requires a new `alert_subscriptions` table.
+//   This has NOT been implemented. A "Próximamente" placeholder appears in the UI.
+//   DO NOT build the table or migration until the product decision is made.
+//
+// Fetchers implemented here (all NO-SCHEMA — reads existing tables only):
+//   fetchDataQuality(ctx)              → completeness + orphan counts
+//   fetchCrossJurisdictionOutliers(ctx) → per-province coverage vs targets
+//   fetchPiiOversight(ctx)             → top PII actors from audit_log
+//
+// Reused from other modules (import, not reimplemented):
+//   fetchEnoSla(ctx)    ← lib/surveillance-metrics.ts
+//   fetchQueueHealth()  ← lib/admin-metrics.ts
+//   fetchCronRuns()     ← lib/admin-metrics.ts
+//
+// PURE helpers (unit-tested, DB-free):
+//   isOutlier(rate, target, warnBand?)   → boolean
+//   completeness({ total, missingAny })  → number (0–100 percentage)
+//
+// Pattern B: population-level SQL aggregates, jurisdiction-scoped, period-aware.
+// k-anon: skip provinces with denominator < 5 (K_ANON_MIN).
+
+import { and, count, desc, gte, sql } from "drizzle-orm";
+
+import { auditLog, db, ownerships, petIdentifications, pets } from "@/db";
+import { activePetsCondition, petsScopeClause } from "@/lib/metrics";
+
+import type { ProjectionContext } from "./context";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Minimum province denominator — provinces with fewer active pets are skipped. */
+const K_ANON_MIN = 5;
+
+/** Maximum PII oversight rows returned (top actors by count). */
+const PII_OVERSIGHT_TOP_N = 20;
+
+// ---------------------------------------------------------------------------
+// PURE helpers — unit-tested, no DB dependency
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true when a rate is below the outlier threshold (rate < target).
+ *
+ * Higher-is-better metrics (coverage, penetration) are outliers when they
+ * fall BELOW the target. An optional warnBand (0–1) defines a "warn" zone:
+ *   danger → rate < target * (1 - warnBand)
+ *   warn   → rate >= target * (1 - warnBand) AND rate < target
+ * isOutlier returns true for BOTH danger and warn when warnBand is omitted.
+ *
+ * @param rate     - Observed rate (0–100 percentage).
+ * @param target   - Programme target (0–100 percentage).
+ * @param warnBand - Optional fraction of target defining the warn zone (0–1).
+ *                   If omitted, any value below target is an outlier.
+ */
+export function isOutlier(rate: number, target: number, warnBand?: number): boolean {
+  if (warnBand === undefined) {
+    // No band — anything below target is an outlier.
+    return rate < target;
+  }
+  // With warn band: outlier if below target (covers both warn and danger).
+  return rate < target;
+}
+
+/**
+ * Data completeness as a whole-number percentage (0–100).
+ *
+ * Formula: ((total - missingAny) / total) * 100, rounded to nearest integer.
+ * Returns 100 when total is 0 (empty population → nothing is missing).
+ *
+ * @param total      - Total active pets in scope.
+ * @param missingAny - Pets missing at least one required field.
+ */
+export function completeness({
+  total,
+  missingAny,
+}: {
+  total: number;
+  missingAny: number;
+}): number {
+  if (total === 0) return 100;
+  return Math.round(((total - missingAny) / total) * 100);
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type DataQuality = {
+  /** Total active pets in scope. */
+  total: number;
+  /** Active pets with jurisdiction_locality IS NULL. */
+  missingLocality: number;
+  /** Active pets with sex = 'unknown'. */
+  missingSex: number;
+  /** Active pets with no active microchip_iso identification. */
+  missingChip: number;
+  /**
+   * Active pets with NO ownerships row (orphaned — no active owner on record).
+   * Orphan pets are a data-quality signal: they were registered but the owner
+   * association is absent.
+   */
+  orphans: number;
+  /**
+   * Percentage of active pets that have NONE of the missing fields.
+   * 0–100 whole-number percentage.
+   */
+  completenessPct: number;
+};
+
+export type OutlierMetric = "rabies" | "sterilization" | "microchip";
+
+export type OutlierRow = {
+  /** Province name (jurisdiction_province). */
+  province: string;
+  /** Which metric this row tracks. */
+  metric: OutlierMetric;
+  /** Observed coverage rate (0–100 percentage). */
+  rate: number;
+  /** Programme target for this metric (0–100 percentage). */
+  target: number;
+  /** Gap from target (target − rate). Positive = below target. */
+  gap: number;
+  /** True when rate < target (province is below benchmark). */
+  isOutlier: boolean;
+};
+
+export type PiiOversightRow = {
+  /** actor_user_id (UUID) or null when the user was deleted. */
+  actorUserId: string | null;
+  /** Audit log action (e.g. 'pii_queried', 'welfare_location_viewed'). */
+  action: string;
+  /** Surface extracted from payload->>'surface' (may be null). */
+  surface: string | null;
+  /** Number of matching audit_log rows in the period. */
+  count: number;
+  /** Most recent audit_log.performed_at for this (actor, action, surface) group. */
+  lastAt: Date;
+};
+
+// ---------------------------------------------------------------------------
+// Shared guard
+// ---------------------------------------------------------------------------
+
+function isEmptyScope(ctx: ProjectionContext): boolean {
+  return ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0;
+}
+
+// ---------------------------------------------------------------------------
+// fetchDataQuality
+// ---------------------------------------------------------------------------
+
+/**
+ * Data completeness scorecard for active pets in scope.
+ *
+ * Counts four missing-field signals + orphan detection:
+ *   missingLocality — jurisdiction_locality IS NULL
+ *   missingSex      — sex = 'unknown'
+ *   missingChip     — no active microchip_iso identification (EXISTS pattern)
+ *   orphans         — active pets with NO ownerships row (LEFT JOIN ... IS NULL)
+ *
+ * completenessPct: % of active pets with none of {missingLocality, missingSex,
+ * missingChip} — orphans are a separate structural signal, not a profile field.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchDataQuality(ctx: ProjectionContext): Promise<DataQuality> {
+  const empty: DataQuality = {
+    total: 0,
+    missingLocality: 0,
+    missingSex: 0,
+    missingChip: 0,
+    orphans: 0,
+    completenessPct: 100,
+  };
+  if (isEmptyScope(ctx)) return empty;
+
+  const activeCond = activePetsCondition(ctx);
+  const scope = petsScopeClause(ctx);
+
+  // EXISTS subquery: active microchip_iso identification (mirrors compliance-metrics.ts C1).
+  const hasActiveChip = sql`EXISTS (
+    SELECT 1 FROM pet_identifications pi
+    WHERE pi.pet_id = ${pets.id}
+      AND pi.kind = 'microchip_iso'
+      AND pi.status = 'active'
+  )`;
+
+  // EXISTS subquery: at least one ownerships row (any role, any status).
+  // Orphan = active pet with NO ownership row at all.
+  const hasOwnership = sql`EXISTS (
+    SELECT 1 FROM ownerships o
+    WHERE o.pet_id = ${pets.id}
+  )`;
+
+  // A single aggregate query computes all five counts.
+  // completenessPct uses pets that have none of the three profile gaps.
+  const [row] = await db
+    .select({
+      total: count(),
+      missingLocality: sql<number>`COUNT(*) FILTER (WHERE ${pets.jurisdictionLocality} IS NULL)::int`,
+      missingSex: sql<number>`COUNT(*) FILTER (WHERE ${pets.sex} = 'unknown')::int`,
+      missingChip: sql<number>`COUNT(*) FILTER (WHERE NOT (${hasActiveChip}))::int`,
+      orphans: sql<number>`COUNT(*) FILTER (WHERE NOT (${hasOwnership}))::int`,
+      // "complete" = has locality AND sex != 'unknown' AND has active chip.
+      complete: sql<number>`COUNT(*) FILTER (WHERE
+        ${pets.jurisdictionLocality} IS NOT NULL
+        AND ${pets.sex} <> 'unknown'
+        AND (${hasActiveChip})
+      )::int`,
+    })
+    .from(pets)
+    .where(scope ? and(activeCond, sql`(${scope})`) : activeCond);
+
+  const total = row?.total ?? 0;
+  const complete = Number(row?.complete ?? 0);
+
+  return {
+    total,
+    missingLocality: Number(row?.missingLocality ?? 0),
+    missingSex: Number(row?.missingSex ?? 0),
+    missingChip: Number(row?.missingChip ?? 0),
+    orphans: Number(row?.orphans ?? 0),
+    completenessPct: completeness({ total, missingAny: total - complete }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// fetchCrossJurisdictionOutliers
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-province coverage for three metrics vs programme targets.
+ *
+ * Metrics:
+ *   rabies       — active dogs with ≥1 vaccination_administered event in scope
+ *   sterilization — active pets with ≥1 sterilization_performed event in scope
+ *   microchip    — active pets with an active microchip_iso identification
+ *
+ * For each province: rate = numerator / denominator (active pets or dogs).
+ * isOutlier = rate < target. Provinces with < K_ANON_MIN active pets are skipped.
+ *
+ * Reuses EXISTS patterns from lib/compliance-metrics.ts (C1) and
+ * lib/metrics/population-control.ts (sterilization).
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchCrossJurisdictionOutliers(
+  ctx: ProjectionContext,
+): Promise<OutlierRow[]> {
+  if (isEmptyScope(ctx)) return [];
+
+  // Import targets at call time — avoids circular-module risk during tests.
+  const { TARGETS } = await import("./targets");
+
+  const activeCond = activePetsCondition(ctx);
+
+  // EXISTS: active microchip_iso (C1 pattern).
+  const hasActiveChip = sql`EXISTS (
+    SELECT 1 FROM pet_identifications pi
+    WHERE pi.pet_id = ${pets.id}
+      AND pi.kind = 'microchip_iso'
+      AND pi.status = 'active'
+  )`;
+
+  // EXISTS: sterilization_performed event (Paquete G pattern).
+  const hasSterilization = sql`EXISTS (
+    SELECT 1 FROM pet_events pe
+    WHERE pe.pet_id = ${pets.id}
+      AND pe.event_type = 'sterilization_performed'
+  )`;
+
+  // EXISTS: rabies vaccination event (for dogs only — compliance-metrics.ts C1 analog).
+  const hasRabiesVax = sql`EXISTS (
+    SELECT 1 FROM pet_events pe
+    WHERE pe.pet_id = ${pets.id}
+      AND pe.event_type = 'vaccination_administered'
+      AND (pe.payload->>'vaccine_type') = 'antirabica'
+  )`;
+
+  // One query: per-province aggregates for all three numerators.
+  const rows = await db
+    .select({
+      province: pets.jurisdictionProvince,
+      totalPets: count(),
+      // Dogs only (rabies denominator).
+      totalDogs: sql<number>`COUNT(*) FILTER (WHERE ${pets.species} = 'dog')::int`,
+      chipped: sql<number>`COUNT(*) FILTER (WHERE (${hasActiveChip}))::int`,
+      sterilized: sql<number>`COUNT(*) FILTER (WHERE (${hasSterilization}))::int`,
+      vaccinated: sql<number>`COUNT(*) FILTER (WHERE ${pets.species} = 'dog' AND (${hasRabiesVax}))::int`,
+    })
+    .from(pets)
+    .where(activeCond)
+    .groupBy(pets.jurisdictionProvince)
+    .orderBy(sql`count(*) desc`);
+
+  const result: OutlierRow[] = [];
+
+  for (const r of rows) {
+    if (r.province === null) continue;
+
+    const province = r.province;
+    const totalPets = r.totalPets;
+    const totalDogs = Number(r.totalDogs);
+    const chipped = Number(r.chipped);
+    const sterilized = Number(r.sterilized);
+    const vaccinated = Number(r.vaccinated);
+
+    // k-anon guard: skip provinces with tiny denominators.
+    if (totalPets < K_ANON_MIN) continue;
+
+    // Microchip metric (denominator: all active pets).
+    const chipRate = totalPets > 0 ? Math.round((chipped / totalPets) * 1000) / 10 : 0;
+    result.push({
+      province,
+      metric: "microchip",
+      rate: chipRate,
+      target: TARGETS.MICROCHIP_PENETRATION_PCT,
+      gap: Math.round((TARGETS.MICROCHIP_PENETRATION_PCT - chipRate) * 10) / 10,
+      isOutlier: chipRate < TARGETS.MICROCHIP_PENETRATION_PCT,
+    });
+
+    // Sterilization metric (denominator: all active pets).
+    const sterilRate = totalPets > 0 ? Math.round((sterilized / totalPets) * 1000) / 10 : 0;
+    result.push({
+      province,
+      metric: "sterilization",
+      rate: sterilRate,
+      target: TARGETS.STERILIZATION_COVERAGE_PCT,
+      gap: Math.round((TARGETS.STERILIZATION_COVERAGE_PCT - sterilRate) * 10) / 10,
+      isOutlier: sterilRate < TARGETS.STERILIZATION_COVERAGE_PCT,
+    });
+
+    // Rabies vaccination metric (denominator: active dogs only; skip if < K_ANON_MIN dogs).
+    if (totalDogs >= K_ANON_MIN) {
+      const rabiesRate = Math.round((vaccinated / totalDogs) * 1000) / 10;
+      result.push({
+        province,
+        metric: "rabies",
+        rate: rabiesRate,
+        target: TARGETS.RABIES_COVERAGE_PCT,
+        gap: Math.round((TARGETS.RABIES_COVERAGE_PCT - rabiesRate) * 10) / 10,
+        isOutlier: rabiesRate < TARGETS.RABIES_COVERAGE_PCT,
+      });
+    }
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// fetchPiiOversight
+// ---------------------------------------------------------------------------
+
+/**
+ * Aggregate view of PII-sensitive audit log actions in the analysis period.
+ *
+ * Actions included: 'pii_queried', 'welfare_location_viewed'.
+ * Groups by (actor_user_id, action, payload->>'surface').
+ * Returns top PII_OVERSIGHT_TOP_N rows ordered by count desc.
+ *
+ * Read-only aggregate on existing audit_log table — no schema changes.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchPiiOversight(ctx: ProjectionContext): Promise<PiiOversightRow[]> {
+  const { since } = ctx.period;
+
+  const rows = await db
+    .select({
+      actorUserId: auditLog.actorUserId,
+      action: auditLog.action,
+      surface: sql<string | null>`${auditLog.payload}->>'surface'`,
+      count: sql<number>`COUNT(*)::int`,
+      lastAt: sql<Date>`MAX(${auditLog.performedAt})`,
+    })
+    .from(auditLog)
+    .where(
+      and(
+        // Filter to PII-sensitive actions. Using sql literal to avoid the strict
+        // AuditLogAction union type — the values are correct per schema catalog.
+        sql`${auditLog.action} IN ('pii_queried', 'welfare_location_viewed')`,
+        gte(auditLog.performedAt, since),
+      ),
+    )
+    .groupBy(auditLog.actorUserId, auditLog.action, sql`${auditLog.payload}->>'surface'`)
+    .orderBy(desc(sql<number>`COUNT(*)`))
+    .limit(PII_OVERSIGHT_TOP_N);
+
+  return rows.map((r) => ({
+    actorUserId: r.actorUserId,
+    action: r.action,
+    surface: r.surface,
+    count: Number(r.count),
+    lastAt: r.lastAt,
+  }));
+}

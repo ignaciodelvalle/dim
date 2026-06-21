@@ -10,8 +10,9 @@ import {
   fetchUserMetrics,
 } from "@/lib/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { buildProjectionContext, computeDeltaPct } from "@/lib/metrics";
+import { buildProjectionContext, computeDeltaPct, toneForTarget } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { fetchEnoSla } from "@/lib/surveillance-metrics";
 
 type CronTone = "ok" | "danger" | "open";
 const STATUS_LABEL: Record<string, string> = {
@@ -32,12 +33,13 @@ export default async function AdminSistemaPage() {
   // Used for DashboardFreshnessFooter (lastIngestAt) — admin sees all pet_events.
   const adminCtx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
 
-  const [users, queue, decisions, govts, crons] = await Promise.all([
+  const [users, queue, decisions, govts, crons, enoSla] = await Promise.all([
     fetchUserMetrics(),
     fetchQueueHealth(),
     fetchDecisionsMetrics(),
     fetchGovtActivity(),
     fetchCronRuns(),
+    fetchEnoSla(adminCtx),
   ]);
 
   // deltaV2 for decisions 7d — compare vs prior 7d approximated from the 30d window.
@@ -58,16 +60,25 @@ export default async function AdminSistemaPage() {
         {/* D6 — cross-link a la profundidad analítica nacional (mapa, ranking,
             métricas agregadas). El admin no tiene charts propios todavía; el
             Centro de Situación es la superficie integradora pendiente. */}
-        <Link
-          href="/gob/analytics"
-          className="inline-block pt-1 text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
-        >
-          Ver analítica nacional {"→"}
-        </Link>
+        <div className="flex flex-wrap gap-4 pt-1">
+          <Link
+            href="/gob/analytics"
+            className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+          >
+            Ver analítica nacional {"→"}
+          </Link>
+          {/* Paquete H — executive summary cross-link */}
+          <Link
+            href="/admin/programa"
+            className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+          >
+            Resumen ejecutivo {"→"}
+          </Link>
+        </div>
       </header>
 
       {/* Top KPIs */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <OpKpi
           label="Usuarios personales"
           value={users.totalPersonal}
@@ -107,6 +118,25 @@ export default async function AdminSistemaPage() {
               ? { value: decisionsDelta, period: "vs 7d anteriores (aprox.)" }
               : undefined
           }
+        />
+        {/* Paquete H — ENO SLA (A7): measures our notification pipeline health. */}
+        <OpKpi
+          label="SLA ENO"
+          value={enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
+          tone={enoSla.onTimePct !== null ? toneForTarget(enoSla.onTimePct, 95) : undefined}
+          sub={
+            enoSla.breachedOpen > 0
+              ? `${enoSla.breachedOpen} en breach activo`
+              : enoSla.total > 0
+                ? "sin breach activo"
+                : "sin notificaciones en el período"
+          }
+          href="/admin/outbox"
+          info={{
+            definition:
+              "% de notificaciones ENO (target_kind='eno_authority') entregadas dentro del SLA (A7). breachedOpen: pendientes con sla_due_at vencido en este momento.",
+            formula: "onTime / delivered * 100 — período seleccionado",
+          }}
         />
       </section>
 

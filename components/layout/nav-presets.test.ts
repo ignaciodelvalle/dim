@@ -306,6 +306,10 @@ describe("ADMIN_NAV — no route regression", () => {
   it("contains /admin/adopciones (Paquete F — pipeline de custodia & adopción)", () => {
     expect(hrefs).toContain("/admin/adopciones");
   });
+
+  it("contains /admin/programa (Paquete H — resumen ejecutivo del programa)", () => {
+    expect(hrefs).toContain("/admin/programa");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -435,6 +439,7 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/censo", // Paquete E — censo poblacional & salud del registro
   "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
   "/admin/poblacion", // Paquete G — control poblacional (North Star)
+  "/admin/programa", // Paquete H — resumen ejecutivo del programa
 ]);
 
 describe("ADMIN_NAV_SECTIONS — section invariants", () => {
@@ -471,6 +476,11 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
   it("includes /admin/poblacion in the Confiabilidad section (Paquete G)", () => {
     const confSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Confiabilidad");
     expect(confSection?.items.map((i) => i.href)).toContain("/admin/poblacion");
+  });
+
+  it("includes /admin/programa in the Confiabilidad section (Paquete H)", () => {
+    const confSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Confiabilidad");
+    expect(confSection?.items.map((i) => i.href)).toContain("/admin/programa");
   });
 });
 
