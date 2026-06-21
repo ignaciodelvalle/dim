@@ -10,6 +10,7 @@ import { fetchRegionRanking } from "@/lib/analytics-ranking";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { deathCauseLabel } from "@/lib/format";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
@@ -138,7 +139,7 @@ export default async function GobAnalyticsPage({
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Analytics
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Analytics</h1>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">Analítica</h1>
         <p className="text-[13px] text-ln-op-mute">
           Métricas analíticas de salud animal y gestión de mascotas en tu cobertura.
         </p>
@@ -263,8 +264,8 @@ export default async function GobAnalyticsPage({
             <ul className="space-y-2">
               {deathCauses.map((row) => (
                 <li key={row.cause} className="flex items-center gap-3">
-                  <span className="w-28 shrink-0 text-[13px] text-ln-op-ink capitalize">
-                    {row.cause}
+                  <span className="w-28 shrink-0 text-[13px] text-ln-op-ink">
+                    {deathCauseLabel(row.cause)}
                   </span>
                   <div className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden">
                     <div

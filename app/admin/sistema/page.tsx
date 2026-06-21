@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import {
   fetchCronRuns,
@@ -39,11 +41,20 @@ export default async function AdminSistemaPage() {
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Salud del sistema</h1>
         <p className="text-[13px] text-ln-op-ink-2">Métricas operativas en vivo. Solo admin.</p>
+        {/* D6 — cross-link a la profundidad analítica nacional (mapa, ranking,
+            métricas agregadas). El admin no tiene charts propios todavía; el
+            Centro de Situación es la superficie integradora pendiente. */}
+        <Link
+          href="/gob/analytics"
+          className="inline-block pt-1 text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+        >
+          Ver analítica nacional {"→"}
+        </Link>
       </header>
 
       {/* Top KPIs */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <OpKpi label="Usuarios personales" value={users.totalPersonal} />
+        <OpKpi label="Usuarios personales" value={users.totalPersonal} href="/admin/usuarios" />
         <OpKpi
           label="Cola pendiente"
           value={queue.pendingTotal}
@@ -53,12 +64,14 @@ export default async function AdminSistemaPage() {
               ? `Más vieja: ${queue.oldestPendingDaysAgo}d`
               : undefined
           }
+          href="/admin/cola"
         />
         <OpKpi
           label="Decisiones 7d"
           value={decisions.approved7d + decisions.rejected7d}
           tone="ok"
           sub={`${decisions.approved7d} aprobadas · ${decisions.rejected7d} rechazadas`}
+          href="/admin/auditoria"
         />
       </section>
 

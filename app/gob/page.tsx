@@ -537,10 +537,7 @@ export default async function GobiernoDashboardPage({
               }
             />
             <OpCardBody>
-              <p className="text-[13px] text-ln-op-mute">
-                Mascotas en status <code className="text-[12px] font-mono">lost</code> en tu
-                cobertura.
-              </p>
+              <p className="text-[13px] text-ln-op-mute">Mascotas perdidas en tu cobertura.</p>
             </OpCardBody>
           </OpCard>
         </div>
