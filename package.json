@@ -32,6 +32,7 @@
     "seed:perf": "tsx scripts/seed-perf.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "seed:coverage": "tsx scripts/seed-coverage.ts",
+    "seed:panorama": "tsx scripts/seed-panorama.ts",
     "materialize:slots": "tsx scripts/materialize-slots.ts",
     "close:rabies-observations": "tsx scripts/close-rabies-observations.ts",
     "backfill:eno": "node --conditions=react-server --import tsx scripts/backfill-eno-trigger.ts",
