@@ -26,6 +26,7 @@ import {
 import {
   TARGETS,
   buildProjectionContext,
+  fetchKpiTrend,
   fetchOutbreakSignalsTrend,
   toneForTarget,
 } from "@/lib/metrics";
@@ -111,6 +112,7 @@ export default async function GobAnalyticsPage({
     casesPerCapita,
     regionRanking,
     signalsTrend,
+    petRegisteredTrend,
   ] = await Promise.all([
     fetchAnalyticsMetrics(actor, filteredJurisdictions, { since }),
     fetchAcquisitionTrend(actor, filteredJurisdictions, { since }),
@@ -119,6 +121,8 @@ export default async function GobAnalyticsPage({
     fetchCasesPerCapita(actor, filteredJurisdictions),
     fetchRegionRanking(actor, filteredJurisdictions),
     fetchOutbreakSignalsTrend(trendCtx),
+    // Sparkline for "Pets totales" KPI — registrations trend via pet_registered events.
+    fetchKpiTrend("pet_registered", trendCtx),
   ]);
 
   // Shape the outbreak-signals trend for TimeSeriesChart.
@@ -182,6 +186,11 @@ export default async function GobAnalyticsPage({
           label="Pets totales"
           value={String(metrics.totalPets)}
           sub="activos + perdidos"
+          sparkline={
+            petRegisteredTrend.points.length > 0
+              ? petRegisteredTrend.points.map((p) => p.y)
+              : undefined
+          }
           href="/gob/perdidas"
           info={{
             definition:

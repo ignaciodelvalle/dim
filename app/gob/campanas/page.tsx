@@ -318,9 +318,11 @@ export default async function GobCampanasPage({
                           <p
                             className={[
                               "text-[18px] font-semibold font-ln-serif leading-none",
-                              offering.completionRate !== null && offering.completionRate >= 70
+                              offering.completionRate !== null &&
+                              offering.completionRate >= TARGETS.CAMPAIGN_COMPLETION_PCT
                                 ? "text-ln-op-ok"
-                                : offering.completionRate !== null && offering.completionRate >= 40
+                                : offering.completionRate !== null &&
+                                    offering.completionRate >= TARGETS.CAMPAIGN_COMPLETION_PCT * 0.6
                                   ? "text-ln-op-warn"
                                   : offering.completionRate !== null
                                     ? "text-ln-op-danger"
@@ -333,12 +335,13 @@ export default async function GobCampanasPage({
                             Completitud
                           </p>
                           {/* Icon + text a11y (Item 11 pattern: no color-only) */}
-                          {offering.completionRate !== null && offering.completionRate < 40 && (
-                            <p className="text-[9px] text-ln-op-danger mt-0.5 flex items-center justify-center gap-0.5">
-                              <span aria-hidden="true">↓</span>
-                              <span>Baja</span>
-                            </p>
-                          )}
+                          {offering.completionRate !== null &&
+                            offering.completionRate < TARGETS.CAMPAIGN_COMPLETION_PCT * 0.6 && (
+                              <p className="text-[9px] text-ln-op-danger mt-0.5 flex items-center justify-center gap-0.5">
+                                <span aria-hidden="true">↓</span>
+                                <span>Baja</span>
+                              </p>
+                            )}
                         </div>
 
                         {/* No-show */}

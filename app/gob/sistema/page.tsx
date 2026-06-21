@@ -26,7 +26,7 @@ import {
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
 } from "@/lib/govt-dashboards";
-import { buildProjectionContext, toneForTarget } from "@/lib/metrics";
+import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchEnoSla } from "@/lib/surveillance-metrics";
@@ -135,7 +135,11 @@ export default async function GobSistemaPage({
         <OpKpi
           label="SLA ENO"
           value={enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
-          tone={enoSla.onTimePct !== null ? toneForTarget(enoSla.onTimePct, 95) : undefined}
+          tone={
+            enoSla.onTimePct !== null
+              ? toneForTarget(enoSla.onTimePct, TARGETS.ENO_SLA_PCT)
+              : undefined
+          }
           sub={
             enoSla.breachedOpen > 0
               ? `${enoSla.breachedOpen} en breach activo`
@@ -216,8 +220,9 @@ export default async function GobSistemaPage({
             </div>
           </div>
           <p className="mt-3 text-[10px] text-ln-op-mute">
-            SLA objetivo: 95% de notificaciones ENO entregadas en tiempo (A7). Solo se muestran
-            notificaciones cuyo target_jurisdiction corresponde a tu jurisdicción asignada.
+            SLA objetivo: {TARGETS.ENO_SLA_PCT}% de notificaciones ENO entregadas en tiempo (A7).
+            Solo se muestran notificaciones cuyo target_jurisdiction corresponde a tu jurisdicción
+            asignada.
           </p>
         </OpCardBody>
       </OpCard>

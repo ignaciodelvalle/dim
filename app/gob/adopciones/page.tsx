@@ -27,6 +27,7 @@ import {
   PROVINCE_ISO_MAP,
 } from "@/lib/govt-dashboards";
 import {
+  TARGETS,
   buildProjectionContext,
   fetchAdoptionTrend,
   fetchCustodyFunnel,
@@ -185,6 +186,9 @@ export default async function GobAdopcionesPage({
           label="Adopciones"
           value={funnel.adoption > 0 ? funnel.adoption.toLocaleString("es-AR") : "—"}
           sub="adoption_finalized en el período y la cobertura"
+          sparkline={
+            adoptionTrend.points.length > 0 ? adoptionTrend.points.map((p) => p.y) : undefined
+          }
           info={{
             definition: "Eventos adoption_finalized en el período, scoped a la jurisdicción.",
             formula: "COUNT(pet_events) WHERE event_type='adoption_finalized' AND period AND scope",
@@ -201,7 +205,9 @@ export default async function GobAdopcionesPage({
           tone={
             returnRatePct == null
               ? "neutral"
-              : toneForTarget(returnRatePct, 10, { higherIsBetter: false })
+              : toneForTarget(returnRatePct, TARGETS.ADOPTION_RETURN_RATE_PCT, {
+                  higherIsBetter: false,
+                })
           }
           info={{
             definition:

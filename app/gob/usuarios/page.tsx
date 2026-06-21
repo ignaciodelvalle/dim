@@ -7,7 +7,7 @@ import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFre
 import { searchUsers } from "@/lib/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/compliance-metrics";
-import { buildProjectionContext } from "@/lib/metrics";
+import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 
 import { ProposeUserActions } from "./ProposeUserActions";
@@ -87,13 +87,24 @@ export default async function UsuariosPage({
         <OpKpi
           label="Validez ISO de chips"
           value={isoValidity.chipped === 0 ? "—" : `${isoValidity.ratePct}%`}
-          tone={isoValidity.chipped === 0 ? "neutral" : isoValidity.ratePct >= 80 ? "ok" : "warn"}
+          tone={
+            isoValidity.chipped === 0
+              ? "neutral"
+              : toneForTarget(isoValidity.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)
+          }
           bar={isoValidity.chipped === 0 ? undefined : isoValidity.ratePct}
           sub={
             isoValidity.chipped === 0
               ? "sin chips en cobertura"
-              : `${isoValidity.valid} de ${isoValidity.chipped} chips · ISO 11784/11785`
+              : `${isoValidity.valid} de ${isoValidity.chipped} chips · meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ISO 11784/11785`
           }
+          info={{
+            definition:
+              "Porcentaje de chips registrados en la cobertura que cumplen con la norma ISO 11784/11785 (identificación electrónica de animales). Meta interna: 80%.",
+            formula:
+              "COUNT(pet_identifications WHERE kind='microchip_iso' AND status='active' AND is_valid_iso=true) / COUNT(pet_identifications WHERE kind='microchip_iso' AND status='active') × 100",
+            caveat: `Meta recomendada: ${TARGETS.MICROCHIP_PENETRATION_PCT}%. Solo cuenta microchips con registro ISO activo en MiMAR.`,
+          }}
         />
       </section>
 

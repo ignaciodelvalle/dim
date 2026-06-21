@@ -178,6 +178,7 @@ export default async function GobPoblacionPage({
               ? `meta programática 70% · ${coverage.sterilized.toLocaleString("es-AR")} de ${coverage.total.toLocaleString("es-AR")}`
               : "Sin datos en la cobertura"
           }
+          sparkline={hasTrend ? sterilTrend.points.map((p) => p.y) : undefined}
           info={{
             definition:
               "Fracción de mascotas activas/extraviadas en scope con al menos un evento sterilization_performed registrado.",

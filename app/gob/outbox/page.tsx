@@ -22,6 +22,7 @@ import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, OpPill } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, eventNotificationOutbox } from "@/db";
 import type { OutboxStatus, OutboxTargetKind } from "@/db";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
@@ -30,6 +31,8 @@ import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { type DashboardJurisdiction, PROVINCE_ISO_MAP } from "@/lib/govt-dashboards";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
+import { buildProjectionContext } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 import { buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
 
 // Set of canonical province names for filter validation.
@@ -107,12 +110,17 @@ export default async function GobOutboxPage({
   }
 
   const sp = await searchParams;
+  const actor = { role: profile.role } as const;
   const filters = {
     status: sp.status?.trim() || undefined,
     target_kind: sp.target_kind?.trim() || undefined,
     breach: sp.breach?.trim() || undefined,
     province: sp.province?.trim() || undefined,
   };
+
+  // Build a scoped ProjectionContext for DashboardFreshnessFooter.
+  // The outbox page has no period picker — trailing12m is the default window.
+  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m());
   const rawCursor = sp.cursor;
   const cursor = decodeCursor(rawCursor);
 
@@ -463,6 +471,8 @@ export default async function GobOutboxPage({
           </div>
         </nav>
       )}
+
+      <DashboardFreshnessFooter ctx={ctx} />
     </div>
   );
 }

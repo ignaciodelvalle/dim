@@ -360,9 +360,7 @@ export default async function GobiernoDashboardPage({
           tone={
             breedCompliance.flaggedCount === 0
               ? "neutral"
-              : breedCompliance.ratePct >= 80
-                ? "ok"
-                : "warn"
+              : toneForTarget(breedCompliance.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)
           }
           bar={breedCompliance.flaggedCount === 0 ? undefined : breedCompliance.ratePct}
           sub={
