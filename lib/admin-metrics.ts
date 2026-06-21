@@ -93,6 +93,60 @@ export async function fetchQueueHealth(): Promise<QueueHealth> {
   };
 }
 
+/**
+ * Scoped variant of `fetchQueueHealth` for govt dashboards.
+ *
+ * Mirrors the global `fetchQueueHealth` (same buckets: pendingTotal,
+ * oldestPending, 14d/30d/60d) but restricts to `approval_requests` rows
+ * matching any of the caller's jurisdiction assignments via
+ * `(jurisdictionProvince, jurisdictionLocality)` pairs.
+ *
+ * Empty `jurisdictions` (admin universal scope) → behaves identically to
+ * `fetchQueueHealth()` with no jurisdiction filter.
+ */
+export async function fetchQueueHealthScoped(
+  jurisdictions: import("@/lib/metrics").DashboardJurisdiction[],
+): Promise<QueueHealth> {
+  const now = Date.now();
+
+  // Build a jurisdiction WHERE clause when jurisdictions are provided.
+  // The approval_requests table has indexed columns jurisdictionProvince /
+  // jurisdictionLocality (see jurisIdx in schema.ts) so the OR fan-out is
+  // covered by the existing partial index on status='pending'.
+  const jurisClause =
+    jurisdictions.length > 0
+      ? sql`(${sql.join(
+          jurisdictions.map(
+            (j) =>
+              sql`(${approvalRequests.jurisdictionProvince} = ${j.province} AND ${approvalRequests.jurisdictionLocality} = ${j.locality})`,
+          ),
+          sql` OR `,
+        )})`
+      : undefined;
+
+  const [row] = await db
+    .select({
+      pendingTotal: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending')`,
+      oldestPendingMs: sql<
+        number | null
+      >`extract(epoch from (now() - min(${approvalRequests.createdAt}) filter (where ${approvalRequests.status} = 'pending'))) * 1000`,
+      pending14dPlus: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.createdAt} < ${new Date(now - 14 * DAY_MS).toISOString()})`,
+      pending30dPlus: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.createdAt} < ${new Date(now - 30 * DAY_MS).toISOString()})`,
+      pending60dPlus: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.createdAt} < ${new Date(now - 60 * DAY_MS).toISOString()})`,
+    })
+    .from(approvalRequests)
+    .where(jurisClause);
+
+  return {
+    pendingTotal: Number(row.pendingTotal),
+    oldestPendingDaysAgo:
+      row.oldestPendingMs != null ? Math.floor(Number(row.oldestPendingMs) / DAY_MS) : null,
+    pending14dPlus: Number(row.pending14dPlus),
+    pending30dPlus: Number(row.pending30dPlus),
+    pending60dPlus: Number(row.pending60dPlus),
+  };
+}
+
 // Decisions are sourced from audit_log because approvalRequests doesn't keep a
 // timestamp for the decision itself — only the current status. Revocations
 // (revoke_vet, revoke_org, revoke_govt) are all prefixed `revocation_` in

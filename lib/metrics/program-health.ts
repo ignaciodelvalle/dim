@@ -24,9 +24,9 @@
 // Pattern B: population-level SQL aggregates, jurisdiction-scoped, period-aware.
 // k-anon: skip provinces with denominator < 5 (K_ANON_MIN).
 
-import { and, count, desc, gte, sql } from "drizzle-orm";
+import { and, count, desc, gte, inArray, sql } from "drizzle-orm";
 
-import { auditLog, db, ownerships, petIdentifications, pets } from "@/db";
+import { auditLog, db, govtAssignments, ownerships, petIdentifications, pets } from "@/db";
 import { activePetsCondition, petsScopeClause } from "@/lib/metrics";
 
 import type { ProjectionContext } from "./context";
@@ -365,12 +365,56 @@ export async function fetchCrossJurisdictionOutliers(
  * Groups by (actor_user_id, action, payload->>'surface').
  * Returns top PII_OVERSIGHT_TOP_N rows ordered by count desc.
  *
- * Read-only aggregate on existing audit_log table — no schema changes.
+ * Scope behaviour:
+ *  - ctx.scope.kind === "global" (admin): no actor filter — platform-wide view.
+ *  - ctx.scope.kind === "jurisdictions" (govt): restricts to actors who hold an
+ *    active govt_assignment matching one of the caller's jurisdictions. This
+ *    closes the cross-tenant leak where a govt user could previously see PII
+ *    actions from actors in other provinces.
+ *
+ * Read-only aggregate on existing audit_log + govt_assignments — no schema changes.
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
 export async function fetchPiiOversight(ctx: ProjectionContext): Promise<PiiOversightRow[]> {
   const { since } = ctx.period;
+
+  // Build the actor filter for govt scope.
+  // For admin (global scope) we skip the subquery entirely so the planner can
+  // use the existing audit_log indexes without an extra join.
+  let actorFilter: ReturnType<typeof sql> | undefined;
+
+  if (ctx.scope.kind === "jurisdictions") {
+    const { jurisdictions } = ctx.scope;
+
+    if (jurisdictions.length === 0) {
+      // Govt with zero assignments — matches nothing.
+      return [];
+    }
+
+    // Collect user_ids from govt_assignments that match any of the caller's
+    // jurisdiction pairs and are not revoked.
+    const assignedUserIds = (
+      await db
+        .selectDistinct({ userId: govtAssignments.userId })
+        .from(govtAssignments)
+        .where(
+          and(
+            sql`${govtAssignments.revokedAt} IS NULL`,
+            sql`(${govtAssignments.jurisdictionProvince}, ${govtAssignments.jurisdictionLocality}) IN (${sql.join(
+              jurisdictions.map((j) => sql`(${j.province}, ${j.locality})`),
+              sql`, `,
+            )})`,
+          ),
+        )
+    ).map((r) => r.userId);
+
+    if (assignedUserIds.length === 0) return [];
+
+    actorFilter = inArray(auditLog.actorUserId, assignedUserIds) as unknown as ReturnType<
+      typeof sql
+    >;
+  }
 
   const rows = await db
     .select({
@@ -387,6 +431,7 @@ export async function fetchPiiOversight(ctx: ProjectionContext): Promise<PiiOver
         // AuditLogAction union type — the values are correct per schema catalog.
         sql`${auditLog.action} IN ('pii_queried', 'welfare_location_viewed')`,
         gte(auditLog.performedAt, since),
+        actorFilter,
       ),
     )
     .groupBy(auditLog.actorUserId, auditLog.action, sql`${auditLog.payload}->>'surface'`)
