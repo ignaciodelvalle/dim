@@ -228,11 +228,16 @@ export function PanoramaConsole({
 
   // Selected map feature → DetailDrawer. Null when the drawer is closed.
   const [selected, setSelected] = useState<SelectedFeature | null>(null);
-  const onFeatureClick = useCallback((layerId: string, properties: Record<string, unknown>) => {
-    const reg = getLayer(layerId as LayerId);
-    if (!reg) return;
-    setSelected({ layerId: reg.id, layerLabel: reg.label, properties });
-  }, []);
+  const onFeatureClick = useCallback(
+    (layerId: string, properties: Record<string, unknown>) => {
+      const reg = getLayer(layerId as LayerId);
+      if (!reg) return;
+      // Thread the active period/scope query string so the DetailDrawer's
+      // unit-history fetch uses the SAME window as the map (F4).
+      setSelected({ layerId: reg.id, layerLabel: reg.label, properties, periodQs: qs });
+    },
+    [qs],
+  );
   const closeDrawer = useCallback(() => setSelected(null), []);
 
   // Province-fetch version counter — bumped after a province-level choropleth

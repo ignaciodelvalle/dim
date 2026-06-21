@@ -1176,3 +1176,546 @@ export async function loadZoonosisByUnit(
   const { cells, suppressedCount } = toAggregatedCells(rollup, true);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
+
+// ---------------------------------------------------------------------------
+// F4 Unit history — per-(province[, locality]) catalogued event list + trend.
+//
+// Returns the most recent events for a SINGLE administrative unit, the daily
+// trend over the window (for the sparkline), and a count breakdown by sub-type.
+//
+// Privacy invariants (same as the per-unit loaders above):
+//   - denuncias: no exact coordinates; only jurisdiction name + kind/severity.
+//   - scope enforced: govt ALWAYS intersects with its govt_assignments via the
+//     same scope-clause helpers; admin gets universal access.
+//   - No PII (exact welfare report ids, precise coordinates) is returned.
+//
+// NOTE: This function is DB-backed via @/db (Drizzle). It cannot be unit-tested
+// in this Windows/Docker environment. Type-check only via tsc --noEmit.
+// ---------------------------------------------------------------------------
+
+/** A single catalogued event entry in the unit-history list. */
+export type UnitHistoryEvent = {
+  /** ISO 8601 timestamp string. */
+  date: string;
+  /** Sub-type label key (e.g. "bite_inflicted", "neglect", "custody_episode"). */
+  type: string;
+  /** Short human-readable description (e.g. the case public code or event type). */
+  label: string;
+};
+
+/** One bucket in the trend series (for the sparkline). */
+export type TrendBucket = {
+  /** ISO date string for the bucket start (YYYY-MM-DD). */
+  date: string;
+  count: number;
+};
+
+/** The full result of a unit-history query. */
+export type UnitHistoryResult = {
+  /** Most recent events for this unit (newest first), up to 20 entries. */
+  events: UnitHistoryEvent[];
+  /** Daily buckets over the requested window (for the sparkline). */
+  trend: TrendBucket[];
+  /** Count breakdown by event sub-type. */
+  byType: Record<string, number>;
+};
+
+/** Parameters for the unit-history loader. */
+export type LoadUnitHistoryParams = {
+  /** The active Panorama layer id — drives which event source is queried. */
+  layer: string;
+  /** Province name (display name, e.g. "Buenos Aires"). Always required. */
+  province: string;
+  /** Locality name (display name). Optional — when absent, scope is province-wide. */
+  locality?: string | null;
+  /** Window start (inclusive). */
+  since: Date;
+  /** Window end (inclusive). */
+  until: Date;
+  /** Auth actor (admin → universal; govt → intersect with jurisdictions). */
+  actor: DashboardActor;
+  /** The viewer's assigned jurisdictions (empty for admin). */
+  jurisdictions: DashboardJurisdiction[];
+};
+
+/**
+ * Load catalogued history for a single administrative unit (province or
+ * province+locality) for the requested layer + period.
+ *
+ * Returns:
+ *  - `events`: most recent 20 events, newest first.
+ *  - `trend`: daily counts over [since, until] for the sparkline.
+ *  - `byType`: event sub-type breakdown as { typeKey: count }.
+ *
+ * Scope is ALWAYS enforced via the same helpers as the per-unit loaders:
+ *  - govt actors: must match an assigned jurisdiction (province+locality pair);
+ *    an out-of-scope request returns empty results (never an error — the caller
+ *    validates scope before reaching here via the API route).
+ *  - admin actors: universal (no restriction).
+ *
+ * DB-backed; not unit-testable without a live Postgres connection.
+ */
+export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<UnitHistoryResult> {
+  const { layer, province, locality, since, until, actor, jurisdictions } = params;
+
+  // --- verify scope for govt actors -----------------------------------------
+  // A govt actor must have at least one assignment that covers the requested
+  // unit. If the jurisdiction check fails we return empty (silently) — the
+  // API route's scope guard is the authoritative gate; this is a second fence.
+  if (actor.role === "govt") {
+    const inScope = jurisdictions.some((j) => {
+      if (j.province !== province) return false;
+      if (locality) return j.locality === locality;
+      return true; // province-wide request: any assignment in the province
+    });
+    if (!inScope) {
+      return { events: [], trend: [], byType: {} };
+    }
+  }
+
+  const EVENT_LIMIT = 20;
+
+  // ---------------------------------------------------------------------------
+  // Route by layer source to the correct event table + predicate.
+  // Each branch mirrors the predicate used in the corresponding per-unit loader.
+  // ---------------------------------------------------------------------------
+
+  type RawEvent = { date: Date | null; type: string; label: string };
+
+  async function queryEvents(): Promise<RawEvent[]> {
+    // Build province+locality filter for pet_events JSONB-payload layers.
+    function payloadJurisdictionFilter(): SQL[] {
+      const filters: SQL[] = [sql`(${petEvents.payload}->>'province') = ${province}`];
+      if (locality) filters.push(sql`(${petEvents.payload}->>'locality') = ${locality}`);
+      return filters;
+    }
+
+    // Build province+locality filter for jurisdiction-column based tables
+    // (welfare_reports, cases).
+    function columnJurisdictionFilter(provinceCol: SQL, localityCol: SQL): SQL[] {
+      const filters: SQL[] = [sql`${provinceCol} = ${province}`];
+      if (locality) filters.push(sql`${localityCol} = ${locality}`);
+      return filters;
+    }
+
+    // Build province+locality filter for the pets table.
+    function petsJurisdictionFilter(): SQL[] {
+      const filters: SQL[] = [sql`${pets.jurisdictionProvince} = ${province}`];
+      if (locality) filters.push(sql`${pets.jurisdictionLocality} = ${locality}`);
+      return filters;
+    }
+
+    switch (layer) {
+      case "perdidas": {
+        const scope = petEventsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          sql`(${petEvents.payload}->>'kind') IN ('pet_lost', 'pet_found_sighting')`,
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...payloadJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({
+            occurredAt: petEvents.occurredAt,
+            kind: sql<string>`(${petEvents.payload}->>'kind')`,
+          })
+          .from(petEvents)
+          .where(and(...conditions))
+          .orderBy(sql`${petEvents.occurredAt} DESC`)
+          .limit(EVENT_LIMIT);
+        return rows.map((r) => ({
+          date: r.occurredAt,
+          type: r.kind ?? "pet_lost",
+          label: r.kind === "pet_found_sighting" ? "Avistaje" : "Mascota perdida",
+        }));
+      }
+
+      case "mordeduras": {
+        const scope = petEventsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "incident_reported"),
+          sql`(${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered')`,
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...payloadJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({
+            occurredAt: petEvents.occurredAt,
+            incidentType: sql<string>`(${petEvents.payload}->>'incident_type')`,
+          })
+          .from(petEvents)
+          .where(and(...conditions))
+          .orderBy(sql`${petEvents.occurredAt} DESC`)
+          .limit(EVENT_LIMIT);
+        return rows.map((r) => ({
+          date: r.occurredAt,
+          type: r.incidentType ?? "bite_inflicted",
+          label: r.incidentType === "bite_suffered" ? "Mordedura recibida" : "Mordedura infligida",
+        }));
+      }
+
+      case "denuncias": {
+        // COARSE: never exact coordinates — only kind/severity/jurisdiction.
+        const scope = jurisdictionColumnsScope(
+          actor,
+          jurisdictions,
+          sql`${welfareReports.jurisdictionProvince}`,
+          sql`${welfareReports.jurisdictionLocality}`,
+        );
+        const conditions: SQL[] = [
+          gte(welfareReports.createdAt, since),
+          lte(welfareReports.createdAt, until),
+          sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+          ...columnJurisdictionFilter(
+            sql`${welfareReports.jurisdictionProvince}`,
+            sql`${welfareReports.jurisdictionLocality}`,
+          ),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({
+            createdAt: welfareReports.createdAt,
+            kind: welfareReports.kind,
+            severity: welfareReports.severity,
+          })
+          .from(welfareReports)
+          .where(and(...conditions))
+          .orderBy(sql`${welfareReports.createdAt} DESC`)
+          .limit(EVENT_LIMIT);
+        return rows.map((r) => ({
+          date: r.createdAt,
+          type: r.kind ?? "other",
+          label: r.severity ? `Denuncia (${r.severity})` : "Denuncia",
+        }));
+      }
+
+      case "zoonosis": {
+        const scope = petEventsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "outbreak_signal"),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...payloadJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({
+            occurredAt: petEvents.occurredAt,
+            diseaseCode: sql<string | null>`(${petEvents.payload}->>'disease_code')`,
+            diseaseLabel: sql<string | null>`(${petEvents.payload}->>'disease_label')`,
+          })
+          .from(petEvents)
+          .where(and(...conditions))
+          .orderBy(sql`${petEvents.occurredAt} DESC`)
+          .limit(EVENT_LIMIT);
+        return rows.map((r) => ({
+          date: r.occurredAt,
+          type: r.diseaseCode ?? "outbreak_signal",
+          label: r.diseaseLabel ?? r.diseaseCode ?? "Señal de brote",
+        }));
+      }
+
+      case "decomisos": {
+        const scope = jurisdictionColumnsScope(
+          actor,
+          jurisdictions,
+          sql`${cases.jurisdictionProvince}`,
+          sql`${cases.jurisdictionLocality}`,
+        );
+        const conditions: SQL[] = [
+          eq(cases.caseKind, "custody_episode"),
+          gte(cases.openedAt, since),
+          lte(cases.openedAt, until),
+          ...columnJurisdictionFilter(
+            sql`${cases.jurisdictionProvince}`,
+            sql`${cases.jurisdictionLocality}`,
+          ),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({
+            openedAt: cases.openedAt,
+            publicCode: cases.publicCode,
+            status: cases.status,
+          })
+          .from(cases)
+          .where(and(...conditions))
+          .orderBy(sql`${cases.openedAt} DESC`)
+          .limit(EVENT_LIMIT);
+        return rows.map((r) => ({
+          date: r.openedAt,
+          type: "custody_episode",
+          label: r.publicCode ?? "Expediente",
+        }));
+      }
+
+      case "cobertura": {
+        // Rabies-coverage events — rabies vaccinations on pets in the unit.
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "vaccination_administered"),
+          sql`unaccent(lower(coalesce(${petEvents.payload}->>'vaccine_name', ''))) LIKE '%rabi%'`,
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({
+            occurredAt: petEvents.occurredAt,
+            vaccineName: sql<string | null>`(${petEvents.payload}->>'vaccine_name')`,
+          })
+          .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .where(and(...conditions))
+          .orderBy(sql`${petEvents.occurredAt} DESC`)
+          .limit(EVENT_LIMIT);
+        return rows.map((r) => ({
+          date: r.occurredAt,
+          type: "vaccination_administered",
+          label: r.vaccineName ?? "Vacuna antirrábica",
+        }));
+      }
+
+      case "mortalidad": {
+        // Mortality events — deaths recorded for pets in the unit.
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "death_recorded"),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({
+            occurredAt: petEvents.occurredAt,
+            dispositionMethod: sql<string | null>`(${petEvents.payload}->>'disposition_method')`,
+          })
+          .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .where(and(...conditions))
+          .orderBy(sql`${petEvents.occurredAt} DESC`)
+          .limit(EVENT_LIMIT);
+        return rows.map((r) => ({
+          date: r.occurredAt,
+          type: "death_recorded",
+          label: r.dispositionMethod ?? "Fallecimiento registrado",
+        }));
+      }
+
+      default:
+        return [];
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Daily-bucket trend query — same predicate as the events query but grouped
+  // by day and without the LIMIT, so the sparkline covers the full window.
+  // A second query here (simpler SQL) because the event list and the trend
+  // have different LIMIT semantics.
+  // ---------------------------------------------------------------------------
+
+  async function queryTrend(): Promise<TrendBucket[]> {
+    const dayBucket = (tsCol: SQL) =>
+      sql<string>`to_char(date_trunc('day', ${tsCol}), 'YYYY-MM-DD')`;
+
+    function payloadJurisdictionFilter(): SQL[] {
+      const filters: SQL[] = [sql`(${petEvents.payload}->>'province') = ${province}`];
+      if (locality) filters.push(sql`(${petEvents.payload}->>'locality') = ${locality}`);
+      return filters;
+    }
+
+    function columnJurisdictionFilter(provinceCol: SQL, localityCol: SQL): SQL[] {
+      const filters: SQL[] = [sql`${provinceCol} = ${province}`];
+      if (locality) filters.push(sql`${localityCol} = ${locality}`);
+      return filters;
+    }
+
+    function petsJurisdictionFilter(): SQL[] {
+      const filters: SQL[] = [sql`${pets.jurisdictionProvince} = ${province}`];
+      if (locality) filters.push(sql`${pets.jurisdictionLocality} = ${locality}`);
+      return filters;
+    }
+
+    let rows: Array<{ day: string; n: number }> = [];
+
+    switch (layer) {
+      case "perdidas": {
+        const scope = petEventsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          sql`(${petEvents.payload}->>'kind') IN ('pet_lost', 'pet_found_sighting')`,
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...payloadJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        rows = await db
+          .select({ day: dayBucket(sql`${petEvents.occurredAt}`), n: count() })
+          .from(petEvents)
+          .where(and(...conditions))
+          .groupBy(dayBucket(sql`${petEvents.occurredAt}`))
+          .orderBy(dayBucket(sql`${petEvents.occurredAt}`));
+        break;
+      }
+
+      case "mordeduras": {
+        const scope = petEventsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "incident_reported"),
+          sql`(${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered')`,
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...payloadJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        rows = await db
+          .select({ day: dayBucket(sql`${petEvents.occurredAt}`), n: count() })
+          .from(petEvents)
+          .where(and(...conditions))
+          .groupBy(dayBucket(sql`${petEvents.occurredAt}`))
+          .orderBy(dayBucket(sql`${petEvents.occurredAt}`));
+        break;
+      }
+
+      case "denuncias": {
+        const scope = jurisdictionColumnsScope(
+          actor,
+          jurisdictions,
+          sql`${welfareReports.jurisdictionProvince}`,
+          sql`${welfareReports.jurisdictionLocality}`,
+        );
+        const conditions: SQL[] = [
+          gte(welfareReports.createdAt, since),
+          lte(welfareReports.createdAt, until),
+          sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+          ...columnJurisdictionFilter(
+            sql`${welfareReports.jurisdictionProvince}`,
+            sql`${welfareReports.jurisdictionLocality}`,
+          ),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        rows = await db
+          .select({ day: dayBucket(sql`${welfareReports.createdAt}`), n: count() })
+          .from(welfareReports)
+          .where(and(...conditions))
+          .groupBy(dayBucket(sql`${welfareReports.createdAt}`))
+          .orderBy(dayBucket(sql`${welfareReports.createdAt}`));
+        break;
+      }
+
+      case "zoonosis": {
+        const scope = petEventsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "outbreak_signal"),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...payloadJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        rows = await db
+          .select({ day: dayBucket(sql`${petEvents.occurredAt}`), n: count() })
+          .from(petEvents)
+          .where(and(...conditions))
+          .groupBy(dayBucket(sql`${petEvents.occurredAt}`))
+          .orderBy(dayBucket(sql`${petEvents.occurredAt}`));
+        break;
+      }
+
+      case "decomisos": {
+        const scope = jurisdictionColumnsScope(
+          actor,
+          jurisdictions,
+          sql`${cases.jurisdictionProvince}`,
+          sql`${cases.jurisdictionLocality}`,
+        );
+        const conditions: SQL[] = [
+          eq(cases.caseKind, "custody_episode"),
+          gte(cases.openedAt, since),
+          lte(cases.openedAt, until),
+          ...columnJurisdictionFilter(
+            sql`${cases.jurisdictionProvince}`,
+            sql`${cases.jurisdictionLocality}`,
+          ),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        rows = await db
+          .select({ day: dayBucket(sql`${cases.openedAt}`), n: count() })
+          .from(cases)
+          .where(and(...conditions))
+          .groupBy(dayBucket(sql`${cases.openedAt}`))
+          .orderBy(dayBucket(sql`${cases.openedAt}`));
+        break;
+      }
+
+      case "cobertura": {
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "vaccination_administered"),
+          sql`unaccent(lower(coalesce(${petEvents.payload}->>'vaccine_name', ''))) LIKE '%rabi%'`,
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        rows = await db
+          .select({ day: dayBucket(sql`${petEvents.occurredAt}`), n: count() })
+          .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .where(and(...conditions))
+          .groupBy(dayBucket(sql`${petEvents.occurredAt}`))
+          .orderBy(dayBucket(sql`${petEvents.occurredAt}`));
+        break;
+      }
+
+      case "mortalidad": {
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "death_recorded"),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        rows = await db
+          .select({ day: dayBucket(sql`${petEvents.occurredAt}`), n: count() })
+          .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .where(and(...conditions))
+          .groupBy(dayBucket(sql`${petEvents.occurredAt}`))
+          .orderBy(dayBucket(sql`${petEvents.occurredAt}`));
+        break;
+      }
+
+      default:
+        return [];
+    }
+
+    return rows.map((r) => ({ date: r.day, count: r.n }));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Execute both queries, then compute byType from the events list.
+  // ---------------------------------------------------------------------------
+
+  const [rawEvents, trend] = await Promise.all([queryEvents(), queryTrend()]);
+
+  const events: UnitHistoryEvent[] = rawEvents.map((e) => ({
+    date: e.date ? e.date.toISOString() : new Date().toISOString(),
+    type: e.type,
+    label: e.label,
+  }));
+
+  // byType: tally from the full event list (capped at EVENT_LIMIT, which is
+  // representative; a separate count query is not worth the extra round-trip
+  // given the 20-event cap and the "recent context" framing).
+  const byType: Record<string, number> = {};
+  for (const e of events) {
+    byType[e.type] = (byType[e.type] ?? 0) + 1;
+  }
+
+  return { events, trend, byType };
+}

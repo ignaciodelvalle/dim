@@ -14,6 +14,14 @@
 //   - perdidas / mordeduras / zoonosis / refugios / choropleth → show the
 //     feature's properties + a link to the relevant dashboard when one exists.
 //
+// F4 UNIT HISTORY (§6 detail on-demand):
+//   Clicking an AGGREGATED unit (province/locality symbol or choropleth cell)
+//   opens a "Historia de la unidad" section below the existing FeatureBody.
+//   It fetches /api/panorama/unit-history with AbortController (cancels stale),
+//   then renders: a Sparkline of the daily trend, a recent-events list, and a
+//   byType breakdown. Reference layers (refugios, decomisos) keep their existing
+//   body only — no unit-history fetch for individual pins.
+//
 // ACCESSIBILITY (WCAG 2.1):
 //   - role="dialog" + aria-modal="true" + aria-labelledby (the title),
 //   - Escape closes (keydown on the drawer; the backdrop is also a close target),
@@ -23,11 +31,19 @@
 //
 // PRIVACY: this drawer renders ONLY the properties the layer already exposes.
 // The denuncias feature carries a coarse centroid + kind/severity — never an
-// exact coordinate — so there is nothing precise to leak here.
+// exact coordinate — so there is nothing precise to leak here. The unit-history
+// fetch respects the same privacy rules as the repository (denuncias: kind/
+// severity only, no coordinates; govt scope always intersected server-side).
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import type { LayerId } from "@/src/modules/panorama/domain/types";
+
+import { Sparkline } from "./Sparkline";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 /** The payload the console hands the drawer when a feature is clicked. */
 export type SelectedFeature = {
@@ -36,6 +52,12 @@ export type SelectedFeature = {
   layerLabel: string;
   /** The clicked feature's GeoJSON properties (shape varies per layer). */
   properties: Record<string, unknown>;
+  /**
+   * The raw query-string from the console's active searchParams (period/scope).
+   * Forwarded to /api/panorama/unit-history so the history window matches the
+   * map's current time window. Omit for reference-pin layers (no history fetch).
+   */
+  periodQs?: string;
 };
 
 type Props = {
@@ -44,7 +66,30 @@ type Props = {
   onClose: () => void;
 };
 
-// --- es-AR label maps (local; no shared helper exists for these enums) -------
+// ---------------------------------------------------------------------------
+// Unit-history API response shape (mirrors UnitHistoryResult in repository.ts)
+// ---------------------------------------------------------------------------
+
+type UnitHistoryEvent = {
+  date: string;
+  type: string;
+  label: string;
+};
+
+type TrendBucket = {
+  date: string;
+  count: number;
+};
+
+type UnitHistoryResult = {
+  events: UnitHistoryEvent[];
+  trend: TrendBucket[];
+  byType: Record<string, number>;
+};
+
+// ---------------------------------------------------------------------------
+// es-AR label maps (local; no shared helper exists for these enums)
+// ---------------------------------------------------------------------------
 
 const SPECIES_LABEL: Record<string, string> = {
   dog: "Perro",
@@ -103,7 +148,9 @@ function shortDate(iso: string | null): string {
   return d.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
 }
 
-// --- a single definition row -------------------------------------------------
+// ---------------------------------------------------------------------------
+// A single definition row
+// ---------------------------------------------------------------------------
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -117,7 +164,9 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 const DRILL_CLS =
   "inline-flex items-center gap-1 rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white no-underline hover:bg-ln-op-azul-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul";
 
-// --- per-layer body ----------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Per-layer body (individual-feature detail; no unit history)
+// ---------------------------------------------------------------------------
 
 function FeatureBody({
   layerId,
@@ -278,7 +327,176 @@ function FeatureBody({
   }
 }
 
-// --- the drawer shell --------------------------------------------------------
+// ---------------------------------------------------------------------------
+// F4 Unit history section
+// ---------------------------------------------------------------------------
+
+// Layers that carry individual-feature pins (NOT aggregated units). These never
+// trigger a unit-history fetch — they have their own FeatureBody only.
+const REFERENCE_LAYER_IDS = new Set<LayerId>(["refugios", "decomisos"]);
+
+/** Determine whether the selected feature should trigger a unit-history fetch.
+ * True for aggregated (density/signal/choropleth) units that carry a province. */
+function shouldFetchHistory(layerId: LayerId, properties: Record<string, unknown>): boolean {
+  if (REFERENCE_LAYER_IDS.has(layerId)) return false;
+  // Aggregated point cells and choropleth cells carry `province` in properties.
+  const province = properties.province;
+  return typeof province === "string" && province.length > 0;
+}
+
+/** Build the /api/panorama/unit-history URL for the given selected feature. */
+function buildHistoryUrl(
+  layerId: LayerId,
+  properties: Record<string, unknown>,
+  periodQs: string,
+): string {
+  const province = String(properties.province ?? "");
+  const locality =
+    typeof properties.locality === "string" && properties.locality ? properties.locality : null;
+
+  const params = new URLSearchParams();
+  params.set("layer", layerId);
+  params.set("province", province);
+  if (locality) params.set("locality", locality);
+
+  // Thread the active period (from the console's searchParams) so the history
+  // window matches the map's current filters.
+  if (periodQs) {
+    const existing = new URLSearchParams(periodQs);
+    for (const [k, v] of existing.entries()) {
+      if (k === "province" || k === "locality" || k === "layer") continue;
+      params.set(k, v);
+    }
+  }
+
+  return `/api/panorama/unit-history?${params.toString()}`;
+}
+
+type HistoryState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ok"; data: UnitHistoryResult };
+
+function UnitHistorySection({
+  layerId,
+  properties,
+  periodQs,
+}: {
+  layerId: LayerId;
+  properties: Record<string, unknown>;
+  periodQs: string;
+}) {
+  const [state, setState] = useState<HistoryState>({ status: "loading" });
+
+  useEffect(() => {
+    setState({ status: "loading" });
+    const controller = new AbortController();
+    const url = buildHistoryUrl(layerId, properties, periodQs);
+
+    fetch(url, { signal: controller.signal, headers: { accept: "application/json" } })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<UnitHistoryResult>;
+      })
+      .then((data) => {
+        setState({ status: "ok", data });
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        setState({ status: "error", message: "No se pudo cargar el historial." });
+      });
+
+    return () => controller.abort();
+  }, [layerId, properties, periodQs]);
+
+  const place = [
+    typeof properties.locality === "string" && properties.locality ? properties.locality : null,
+    typeof properties.province === "string" ? properties.province : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return (
+    <section aria-labelledby="unit-history-heading" className="border-t border-ln-op-line pt-3">
+      <h3
+        id="unit-history-heading"
+        className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+      >
+        Historia de la unidad
+        {place ? <span className="font-normal normal-case"> · {place}</span> : null}
+      </h3>
+
+      {state.status === "loading" && (
+        <output aria-busy="true" className="text-[12px] text-ln-op-mute">
+          Cargando historial…
+        </output>
+      )}
+
+      {state.status === "error" && (
+        <p role="alert" className="text-[12px] text-ln-op-warn">
+          {state.message}
+        </p>
+      )}
+
+      {state.status === "ok" && (
+        <div className="flex flex-col gap-3">
+          {/* Sparkline — daily trend over the active period */}
+          {state.data.trend.length > 0 && (
+            <div>
+              <p className="mb-1 text-[10px] text-ln-op-mute">Tendencia diaria</p>
+              <Sparkline
+                points={state.data.trend.map((b) => b.count)}
+                width={288}
+                height={40}
+                ariaLabel={`Tendencia de ${layerId}: ${state.data.trend.length} días`}
+              />
+            </div>
+          )}
+
+          {/* Recent events list */}
+          {state.data.events.length > 0 ? (
+            <div>
+              <p className="mb-1 text-[10px] text-ln-op-mute">
+                Eventos recientes ({state.data.events.length})
+              </p>
+              <ul className="flex flex-col gap-1">
+                {state.data.events.map((ev, idx) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: stable ordered list
+                  <li key={idx} className="flex items-start gap-2 text-[12px]">
+                    <span className="shrink-0 text-ln-op-mute">{shortDate(ev.date)}</span>
+                    <span className="text-ln-op-ink-2">{ev.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-[12px] text-ln-op-mute">Sin eventos en el período.</p>
+          )}
+
+          {/* byType breakdown */}
+          {Object.keys(state.data.byType).length > 0 && (
+            <div>
+              <p className="mb-1 text-[10px] text-ln-op-mute">Por tipo</p>
+              <dl className="flex flex-col gap-0.5">
+                {Object.entries(state.data.byType).map(([type, n]) => (
+                  <div key={type} className="flex items-center justify-between text-[12px]">
+                    <dt className="text-ln-op-ink-2">{type}</dt>
+                    <dd className="font-medium text-ln-op-ink">{n}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The drawer shell
+// ---------------------------------------------------------------------------
 
 // The drawer is a native <dialog> opened with showModal() — same proven pattern
 // as components/ui/ConfirmDialog.tsx. The browser then provides, for free:
@@ -350,6 +568,15 @@ export function DetailDrawer({ selected, onClose }: Props) {
 
           <div className="flex flex-col gap-3 overflow-y-auto px-4 py-3">
             <FeatureBody layerId={selected.layerId} properties={selected.properties} />
+
+            {/* F4: unit-history section — only for aggregated units that carry a province */}
+            {shouldFetchHistory(selected.layerId, selected.properties) && (
+              <UnitHistorySection
+                layerId={selected.layerId}
+                properties={selected.properties}
+                periodQs={selected.periodQs ?? ""}
+              />
+            )}
           </div>
         </>
       )}
