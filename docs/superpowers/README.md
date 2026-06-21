@@ -43,6 +43,10 @@ Auditado 2026-05-19 contra `develop`: varios items que estaban acá ya están en
 
 ---
 
+## Admin fresh-sweep fixes (extiende Fase 3.6 de la remediación)
+
+> [`plans/2026-06-22-admin-fresh-sweep-fixes.md`](./plans/2026-06-22-admin-fresh-sweep-fixes.md) — barrido en vivo de **todas** las pantallas admin post-Fases 0-2 (verifica lo arreglado + deja 7 hallazgos A1-A7). **Entregados + verificados (los tres 🟡):** A1 `not-found.tsx` branded por route-group (admin/gob/(app), extiende 0.4); A2 fix del `RuleImpactBanner` que no calculaba (binding `= ANY(${array})` sin tipo → throw; ahora `inArray`, con test de integración); A3 acentos es-AR residuales (sistema, gob/organizaciones, servicios, govts/new, auditoría, rule form). **Pendientes (🟢 polish):** A4 crumb labels localizados, A5 action-code crudo en auditoría, A6 required markers en forms de creación, A7 separar cuentas de sistema.
+
 ## All specs & plans
 
 > Reconciliado 2026-06-19 contra `develop`: la mayoría de los items 🟢 ya estaban en código (ver `git log`).

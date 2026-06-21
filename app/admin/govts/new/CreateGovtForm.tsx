@@ -114,7 +114,10 @@ export function CreateGovtForm() {
       <div className="space-y-4">
         <div>
           <label htmlFor="email" className="block text-[12px] font-medium text-ln-op-ink-2 mb-1">
-            Email
+            Email{" "}
+            <span className="text-ln-op-danger" aria-hidden="true">
+              *
+            </span>
           </label>
           <input
             id="email"
@@ -132,7 +135,10 @@ export function CreateGovtForm() {
             htmlFor="displayName"
             className="block text-[12px] font-medium text-ln-op-ink-2 mb-1"
           >
-            Nombre de display
+            Nombre de display{" "}
+            <span className="text-ln-op-danger" aria-hidden="true">
+              *
+            </span>
           </label>
           <input
             id="displayName"
@@ -158,7 +164,7 @@ export function CreateGovtForm() {
             </button>
           </div>
           <p className="text-[12px] text-ln-op-mute mb-3">
-            Opcional. Se pueden asignar mas localidades luego desde la pagina del operador.
+            Opcional. Se pueden asignar más localidades luego desde la página del operador.
           </p>
           <div className="space-y-2">
             {localities.map((l) => (

@@ -104,14 +104,14 @@ export function PppBreedListForm({
 
       {/* Inline add-breed row: label-less compact layout — Field not used (rule #2) */}
       <div className="space-y-1.5">
-        <p className="text-[12px] font-semibold text-ln-op-mute">Agregar raza no estandar</p>
+        <p className="text-[12px] font-semibold text-ln-op-mute">Agregar raza no estándar</p>
         <div className="flex gap-2">
           <LnInput
             id="customBreed"
             type="text"
             value={customBreed}
             onChange={(e) => setCustomBreed(e.target.value)}
-            placeholder="Boxer, Cimarron Uruguayo..."
+            placeholder="Boxer, Cimarrón Uruguayo..."
             className="flex-1"
           />
           <button

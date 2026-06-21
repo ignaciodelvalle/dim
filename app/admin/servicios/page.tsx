@@ -28,8 +28,8 @@ export default async function AdminServiciosPage() {
 
   const subtitle =
     pendingOfferings.length === 0
-      ? "No hay servicios pendientes de revision."
-      : `${pendingOfferings.length} servicio${pendingOfferings.length === 1 ? "" : "s"} pendiente${pendingOfferings.length === 1 ? "" : "s"} de revision.`;
+      ? "No hay servicios pendientes de revisión."
+      : `${pendingOfferings.length} servicio${pendingOfferings.length === 1 ? "" : "s"} pendiente${pendingOfferings.length === 1 ? "" : "s"} de revisión.`;
 
   return (
     <div className="space-y-6">
@@ -45,14 +45,14 @@ export default async function AdminServiciosPage() {
       </header>
 
       <OpKpi
-        label="Pendientes de revision"
+        label="Pendientes de revisión"
         value={pendingOfferings.length}
         tone={pendingOfferings.length > 0 ? "warn" : "neutral"}
       />
 
       {pendingOfferings.length === 0 ? (
         <p className="text-[13px] text-ln-op-mute">
-          Cuando lleguen nuevas solicitudes vas a verlas aca.
+          Cuando lleguen nuevas solicitudes vas a verlas acá.
         </p>
       ) : (
         <ul className="space-y-2">

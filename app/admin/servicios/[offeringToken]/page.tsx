@@ -22,7 +22,7 @@ import { findServiceKind } from "@/lib/service-kinds";
 import { OfferingReviewActions } from "@/app/gob/servicios/[offeringToken]/OfferingReviewActions";
 
 const STATUS_LABELS: Record<string, string> = {
-  pending_approval: "Pendiente de revision",
+  pending_approval: "Pendiente de revisión",
   approved: "Aprobado",
   rejected: "Rechazado",
 };

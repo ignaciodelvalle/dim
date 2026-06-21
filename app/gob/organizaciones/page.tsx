@@ -43,8 +43,8 @@ export default async function OrganizacionesPage({
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Organizaciones</h1>
         <p className="text-[13px] text-ln-op-ink-2">
           {profile.role === "admin"
-            ? "Busca por nombre, razon social o CUIT. Tu vista es universal."
-            : `Busca entre las orgs en tus ${jurisdictions.length} localidad${jurisdictions.length === 1 ? "" : "es"}.`}
+            ? "Buscá por nombre, razón social o CUIT. Tu vista es universal."
+            : `Buscá entre las orgs en tus ${jurisdictions.length} localidad${jurisdictions.length === 1 ? "" : "es"}.`}
         </p>
       </header>
 
@@ -53,7 +53,7 @@ export default async function OrganizacionesPage({
           type="text"
           name="q"
           defaultValue={query}
-          placeholder="Buscar por nombre, razon social o CUIT"
+          placeholder="Buscar por nombre, razón social o CUIT"
           className="flex-1 text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <button

@@ -90,7 +90,7 @@ export function RevokeOrgActions({
       onClick={() => setMode("confirming")}
       className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-danger text-ln-op-danger hover:opacity-90 transition-opacity"
     >
-      Revocar verificacion
+      Revocar verificación
     </button>
   );
 }
