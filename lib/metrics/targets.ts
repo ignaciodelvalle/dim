@@ -70,6 +70,23 @@ export const TARGETS = {
    * Used as the tooltip reference value in the Dormant KPI.
    */
   DORMANT_MONTHS: 12,
+
+  /**
+   * % of ENO (Enfermedades de Notificación Obligatoria) alert cases resolved
+   * within the regulatory SLA window.
+   *
+   * Programmatic benchmark — derived from ANMAT/SENASA operational targets.
+   * See Paquete ENO (surveillance-metrics.ts) for the fetcher.
+   */
+  ENO_SLA_PCT: 95,
+
+  /**
+   * % of adopters who return to the programme within 12 months (repeat adoptions
+   * or follow-up visits), used to measure programme retention and engagement.
+   *
+   * Programmatic benchmark — programme internal KPI.
+   */
+  ADOPTION_RETURN_RATE_PCT: 10,
 } as const;
 
 // ---------------------------------------------------------------------------

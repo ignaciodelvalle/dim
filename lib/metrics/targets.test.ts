@@ -49,6 +49,14 @@ describe("TARGETS constant values", () => {
   it("STERILIZATION_COVERAGE_PCT is 70 (Paquete G — programmatic benchmark, not legal mandate)", () => {
     expect(TARGETS.STERILIZATION_COVERAGE_PCT).toBe(70);
   });
+
+  it("ENO_SLA_PCT is 95 (programmatic benchmark — ENO resolution within SLA window)", () => {
+    expect(TARGETS.ENO_SLA_PCT).toBe(95);
+  });
+
+  it("ADOPTION_RETURN_RATE_PCT is 10 (programmatic benchmark — programme retention/engagement)", () => {
+    expect(TARGETS.ADOPTION_RETURN_RATE_PCT).toBe(10);
+  });
 });
 
 // ---------------------------------------------------------------------------

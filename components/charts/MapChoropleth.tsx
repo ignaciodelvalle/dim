@@ -7,7 +7,16 @@ import {
   isCABA,
   joinChoroplethData,
 } from "@/lib/geo-join";
-import { COLOR_NO_DATA, COLOR_SUPPRESSED, type ColorRamp, RAMP_BLUE } from "@/lib/viz-scales";
+import {
+  COLOR_DIVERGENT_ABOVE,
+  COLOR_DIVERGENT_BELOW,
+  COLOR_DIVERGENT_NEUTRAL,
+  COLOR_NO_DATA,
+  COLOR_SUPPRESSED,
+  type ColorRamp,
+  RAMP_BLUE,
+  divergentStops,
+} from "@/lib/viz-scales";
 import type maplibregl from "maplibre-gl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -95,6 +104,20 @@ export type MapChoroplethProps = {
    * encodes a quantitative variable.
    */
   scaleLabel?: string;
+  /**
+   * Color scale rendering mode.
+   *  - `"sequential"` (default): linear interpolation from colorScale[0] → colorScale[1].
+   *  - `"divergent"`: divergent scale anchored at `target` using SCALE_DIVERGENT_COMPLIANCE
+   *    (orange=below target, neutral=at target, teal=above target — colorblind-safe).
+   *    Requires `target` to be provided; falls back to sequential if `target` is absent.
+   */
+  scaleMode?: "sequential" | "divergent";
+  /**
+   * Compliance target value used when `scaleMode === "divergent"`.
+   * Anchors the neutral midpoint of the divergent ramp (e.g. 80 for an 80% coverage goal).
+   * Has no effect when `scaleMode` is `"sequential"` (the default).
+   */
+  target?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -149,6 +172,8 @@ export function MapChoropleth({
   allowDrill = false,
   paramKeys,
   scaleLabel,
+  scaleMode = "sequential",
+  target,
 }: MapChoroplethProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -229,20 +254,23 @@ export function MapChoropleth({
 
     let cancelled = false;
 
-    import("maplibre-gl").then(({ default: maplibregl, AttributionControl }) => {
+    import("maplibre-gl").then(({ default: maplibregl }) => {
       if (cancelled || !mapContainer.current) return;
 
+      // Privacy (spec §13.4 mirror): tiles-free basemap — background layer only,
+      // no external raster source. The choropleth region polygons (per-level
+      // local geojson) are added as a data layer on top of this background.
+      // No third-party tile provider means no viewport beacon to OSM or similar.
       const STYLE: maplibregl.StyleSpecification = {
         version: 8,
-        sources: {
-          osm: {
-            type: "raster",
-            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-            tileSize: 256,
-            attribution: "© OpenStreetMap contributors",
+        sources: {},
+        layers: [
+          {
+            id: "bg",
+            type: "background",
+            paint: { "background-color": "#e8ecf0" },
           },
-        },
-        layers: [{ id: "osm-base", type: "raster", source: "osm" }],
+        ],
       };
 
       const map = new maplibregl.Map({
@@ -254,14 +282,6 @@ export function MapChoropleth({
       });
 
       mapRef.current = map;
-
-      map.addControl(
-        new AttributionControl({
-          customAttribution: "© OpenStreetMap contributors",
-          compact: false,
-        }),
-        "bottom-right",
-      );
 
       map.on("load", () => {
         if (cancelled) return;
@@ -340,21 +360,38 @@ export function MapChoropleth({
             // MapLibre color expression:
             // - suppressed: COLOR_SUPPRESSED
             // - no data:    COLOR_NO_DATA
-            // - has data:   linear interpolation
+            // - has data:   interpolation (sequential or divergent)
+            const isDivergent = scaleMode === "divergent" && typeof target === "number";
+
+            const dataInterpolateExpr: maplibregl.ExpressionSpecification = isDivergent
+              ? (() => {
+                  // Divergent: anchor at `target`, orange=below, neutral=at, teal=above.
+                  // Reuses divergentStops from lib/viz-scales — same helper as SituationalMap.
+                  const stops = divergentStops(target as number, minVal, maxVal);
+                  const flatStops = stops.flat();
+                  return [
+                    "interpolate",
+                    ["linear"],
+                    ["get", "choropleth_value"],
+                    ...flatStops,
+                  ] as maplibregl.ExpressionSpecification;
+                })()
+              : ([
+                  "interpolate",
+                  ["linear"],
+                  ["get", "choropleth_value"],
+                  minVal,
+                  colorScale[0],
+                  maxVal,
+                  colorScale[1],
+                ] as maplibregl.ExpressionSpecification);
+
             const colorExpr: maplibregl.ExpressionSpecification = [
               "case",
               ["==", ["get", "choropleth_suppressed"], "yes"],
               COLOR_SUPPRESSED,
               ["has", "choropleth_value"],
-              [
-                "interpolate",
-                ["linear"],
-                ["get", "choropleth_value"],
-                minVal,
-                colorScale[0],
-                maxVal,
-                colorScale[1],
-              ] as maplibregl.ExpressionSpecification,
+              dataInterpolateExpr,
               COLOR_NO_DATA,
             ];
 
@@ -509,7 +546,15 @@ export function MapChoropleth({
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drillState.level, drillState.geojsonUrl, drillState.provinceIso, colorScale, allowDrill]);
+  }, [
+    drillState.level,
+    drillState.geojsonUrl,
+    drillState.provinceIso,
+    colorScale,
+    allowDrill,
+    scaleMode,
+    target,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Scale range for gradient legend — derived from non-suppressed data values.
@@ -579,20 +624,54 @@ export function MapChoropleth({
         {scaleLabel && scaleBounds && scaleBounds.min !== scaleBounds.max && (
           <div
             role="img"
-            aria-label={`Escala de color para ${scaleLabel}: de ${scaleBounds.min} (mínimo) a ${scaleBounds.max} (máximo)`}
+            aria-label={
+              scaleMode === "divergent" && typeof target === "number"
+                ? `Escala de color para ${scaleLabel}: bajo meta ${target}% (naranja) — sobre meta (verde azulado)`
+                : `Escala de color para ${scaleLabel}: de ${scaleBounds.min} (mínimo) a ${scaleBounds.max} (máximo)`
+            }
           >
             <p className="text-[10px] text-ln-ink-3 mb-0.5">{scaleLabel}</p>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] tabular-nums text-ln-ink-3">{scaleBounds.min}</span>
-              <div
-                className="h-2.5 flex-1 rounded-sm border border-ln-line"
-                style={{
-                  background: `linear-gradient(to right, ${colorScale[0]}, ${colorScale[1]})`,
-                }}
-                aria-hidden="true"
-              />
-              <span className="text-[10px] tabular-nums text-ln-ink-3">{scaleBounds.max}</span>
-            </div>
+            {scaleMode === "divergent" && typeof target === "number" ? (
+              // Divergent legend: two poles with the target anchor labeled.
+              // Mirrors the F5 Panorama province-choropleth legend semantics.
+              // Colorblind-safe: orange=below, neutral=at target, teal=above.
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-ln-ink-3">bajo meta</span>
+                  <div
+                    className="h-2.5 flex-1 rounded-sm border border-ln-line"
+                    style={{
+                      background: `linear-gradient(to right, ${COLOR_DIVERGENT_BELOW}, ${COLOR_DIVERGENT_NEUTRAL}, ${COLOR_DIVERGENT_ABOVE})`,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span className="text-[10px] text-ln-ink-3">sobre meta</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] text-ln-ink-3">
+                  <span
+                    className="inline-block w-2.5 h-2.5 rounded-[2px] border border-ln-line"
+                    style={{ background: COLOR_DIVERGENT_NEUTRAL }}
+                    aria-hidden="true"
+                  />
+                  <span>
+                    meta <strong>{target}%</strong>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              // Sequential legend: min → max gradient bar.
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] tabular-nums text-ln-ink-3">{scaleBounds.min}</span>
+                <div
+                  className="h-2.5 flex-1 rounded-sm border border-ln-line"
+                  style={{
+                    background: `linear-gradient(to right, ${colorScale[0]}, ${colorScale[1]})`,
+                  }}
+                  aria-hidden="true"
+                />
+                <span className="text-[10px] tabular-nums text-ln-ink-3">{scaleBounds.max}</span>
+              </div>
+            )}
           </div>
         )}
 
