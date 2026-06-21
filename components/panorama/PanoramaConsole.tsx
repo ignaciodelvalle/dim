@@ -11,6 +11,7 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AggregationToggle } from "@/components/panorama/AggregationToggle";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPanel";
 import { PanoramaKpiStrip } from "@/components/panorama/PanoramaKpiStrip";
@@ -19,8 +20,17 @@ import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynam
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
-import { PANORAMA_LAYERS, getLayer, isTemporalLayer } from "@/src/modules/panorama/domain/layers";
-import type { FeatureCollection, LayerId } from "@/src/modules/panorama/domain/types";
+import {
+  CHOROPLETH_LAYERS,
+  PANORAMA_LAYERS,
+  getLayer,
+  isTemporalLayer,
+} from "@/src/modules/panorama/domain/layers";
+import type {
+  AggregationLevel,
+  FeatureCollection,
+  LayerId,
+} from "@/src/modules/panorama/domain/types";
 
 const EMPTY_FC: FeatureCollection = { type: "FeatureCollection", features: [] };
 
@@ -36,7 +46,11 @@ type ApiResponse = {
   features: FeatureCollection;
   truncated: boolean;
   suppressedCount: number;
+  level?: AggregationLevel;
 };
+
+// The two choropleth layer ids — the only layers the aggregation level affects.
+const CHOROPLETH_IDS = new Set<LayerId>(CHOROPLETH_LAYERS.map((l) => l.id));
 
 type Props = {
   /** Default-on layer id (perdidas) — its features come pre-resolved from the server. */
@@ -67,6 +81,19 @@ export function PanoramaConsole({
   // that instant. Refreshed when the scrubber moves; cleared when the period/scope
   // changes (a new window invalidates the axis). Live layers stay in dataRef.
   const asOfDataRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
+  // U5 PROVINCE-level choropleth cache. `dataRef` holds the LOCALITY (and point)
+  // features; this holds the province-aggregated features for the two choropleth
+  // layers. Keyed by layer id; populated lazily when the toggle is on "Provincia"
+  // and the layer is active. Cleared (with dataRef's choropleth entries) when the
+  // scope/period changes so a new window refetches at the active level.
+  const provinceDataRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
+
+  // U5 aggregation axis — the granularity TOGGLE. Distinct from the scope filter
+  // (JurisdictionSwitcher narrows WHAT is shown; this changes HOW the choropleth
+  // layers are aggregated + rendered). Defaults to locality (pre-U5 behavior).
+  const [level, setLevel] = useState<AggregationLevel>("locality");
+  const levelRef = useRef(level);
+  levelRef.current = level;
 
   const [states, setStates] = useState<Record<LayerId, LayerPanelState>>(() => {
     const s = initialState();
@@ -128,10 +155,15 @@ export function PanoramaConsole({
   const [asOf, setAsOf] = useState<Date | null>(null);
   const scrubbing = asOf !== null;
 
-  // A new period/scope window invalidates the as-of cache and parks at live.
+  // A new period/scope window invalidates the as-of cache and parks at live. It
+  // also invalidates the province-level choropleth cache and the LOCALITY
+  // choropleth entries in dataRef (point layers keep their cache — they refetch
+  // on toggle as before).
   // biome-ignore lint/correctness/useExhaustiveDependencies: qs identity is the intended trigger.
   useEffect(() => {
     asOfDataRef.current.clear();
+    provinceDataRef.current.clear();
+    for (const id of CHOROPLETH_IDS) dataRef.current.delete(id);
     setAsOf(null);
   }, [searchParams]);
 
@@ -188,6 +220,10 @@ export function PanoramaConsole({
   }, []);
   const closeDrawer = useCallback(() => setSelected(null), []);
 
+  // Province-fetch version counter — bumped after a province-level choropleth
+  // fetch resolves so the activeLayers memo recomputes (the cache is a ref).
+  const [levelVersion, setLevelVersion] = useState(0);
+
   // Build the active-layers array for the map from current state + cached data.
   // Under a scrub (asOf !== null): temporal layers paint their AS-OF features;
   // non-temporal layers are DIMMED (current-state data shown muted, never as if
@@ -195,14 +231,20 @@ export function PanoramaConsole({
   const activeLayers = useMemo<ActiveLayer[]>(() => {
     // The as-of features live in a ref (not React state), so `asOfVersion` is the
     // explicit recompute trigger bumped after each as-of fetch resolves. Reading
-    // it here keeps the dependency honest (no unused-dep lint).
+    // it here keeps the dependency honest (no unused-dep lint). levelVersion does
+    // the same for the province cache.
     void asOfVersion;
+    void levelVersion;
     const out: ActiveLayer[] = [];
     for (const l of PANORAMA_LAYERS) {
       if (!states[l.id]?.active) continue;
       const temporal = isTemporalLayer(l.id);
-      const features =
-        scrubbing && temporal
+      // U5: a choropleth layer in "province" mode reads the province cache and
+      // renders as a filled polygon. Point + locality-mode layers are unchanged.
+      const isProvinceChoropleth = CHOROPLETH_IDS.has(l.id) && level === "province";
+      const features = isProvinceChoropleth
+        ? (provinceDataRef.current.get(l.id) ?? EMPTY_FC)
+        : scrubbing && temporal
           ? (asOfDataRef.current.get(l.id) ?? EMPTY_FC)
           : (dataRef.current.get(l.id) ?? EMPTY_FC);
       out.push({
@@ -211,13 +253,16 @@ export function PanoramaConsole({
         label: l.label,
         geomType: l.geomType,
         features,
+        // Choropleth layers carry the active aggregation level so the map fills
+        // polygons (province) or plots centroids (locality). Point layers omit it.
+        level: l.geomType === "choropleth" ? level : undefined,
         // Non-temporal layers can't be reproduced in time — mute them while scrubbing.
         dimmed: scrubbing && !temporal,
       });
     }
     return out;
-    // asOfVersion + scrubbing are intentional triggers (caches are refs).
-  }, [states, scrubbing, asOfVersion]);
+    // asOfVersion + scrubbing + level + levelVersion are intentional triggers.
+  }, [states, scrubbing, asOfVersion, level, levelVersion]);
 
   // Fetch a temporal layer's AS-OF features into the as-of cache (used when a
   // layer is toggled on mid-scrub, so it paints at the current instant, not live).
@@ -240,12 +285,108 @@ export function PanoramaConsole({
     [searchParams],
   );
 
+  // U5: fetch a choropleth layer at a given aggregation level into the right
+  // cache (province → provinceDataRef; locality → dataRef). Returns the count so
+  // the LayerPanel state can be refreshed. Threads the active scope/period qs.
+  const fetchChoroplethAt = useCallback(
+    async (id: LayerId, lvl: AggregationLevel): Promise<ApiResponse | null> => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (lvl === "province") params.set("level", "province");
+      try {
+        const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
+          headers: { accept: "application/json" },
+        });
+        if (!res.ok) return null;
+        const body = (await res.json()) as ApiResponse;
+        if (lvl === "province") provinceDataRef.current.set(id, body.features);
+        else dataRef.current.set(id, body.features);
+        return body;
+      } catch {
+        return null;
+      }
+    },
+    [searchParams],
+  );
+
+  // U5: switch the aggregation axis. Refetch the ACTIVE choropleth layers at the
+  // new level if not already cached, then repaint. Non-choropleth layers are
+  // untouched (the level doesn't apply to them). Cheap re-toggle: a cached level
+  // repaints instantly without a network round-trip.
+  const onLevelChange = useCallback(
+    (next: AggregationLevel) => {
+      if (next === levelRef.current) return;
+      setLevel(next);
+      const activeChoropleths = CHOROPLETH_LAYERS.filter((l) => statesRef.current[l.id]?.active);
+      const needFetch = activeChoropleths.filter((l) =>
+        next === "province" ? !provinceDataRef.current.has(l.id) : !dataRef.current.has(l.id),
+      );
+      if (needFetch.length === 0) {
+        // All cached — bump so the memo repaints at the new level.
+        setLevelVersion((v) => v + 1);
+        return;
+      }
+      // Mark the layers loading while their level features resolve.
+      setStates((s) => {
+        const out = { ...s };
+        for (const l of needFetch) out[l.id] = { ...s[l.id], loading: true };
+        return out;
+      });
+      Promise.all(
+        needFetch.map(async (l) => {
+          const body = await fetchChoroplethAt(l.id, next);
+          setStates((s) => ({
+            ...s,
+            [l.id]: {
+              ...s[l.id],
+              loading: false,
+              count: body?.features.features.length ?? s[l.id].count,
+              suppressedCount: body?.suppressedCount ?? 0,
+              truncated: body?.truncated ?? false,
+            },
+          }));
+        }),
+      ).then(() => setLevelVersion((v) => v + 1));
+    },
+    [fetchChoroplethAt],
+  );
+
   const onToggle = useCallback(
     async (id: LayerId) => {
       const wasActive = states[id]?.active ?? false;
       if (wasActive) {
         // Turn off — keep cached data so a re-toggle is instant.
         setStates((s) => ({ ...s, [id]: { ...s[id], active: false } }));
+        return;
+      }
+
+      // U5: a choropleth layer toggled on while the axis is "Provincia" resolves
+      // at the province level (filled polygons), reading/writing the province
+      // cache. Locality mode falls through to the standard path below.
+      if (CHOROPLETH_IDS.has(id) && levelRef.current === "province") {
+        if (provinceDataRef.current.has(id)) {
+          const fc = provinceDataRef.current.get(id) ?? EMPTY_FC;
+          setStates((s) => ({
+            ...s,
+            [id]: { ...s[id], active: true, loading: false, count: fc.features.length },
+          }));
+          setLevelVersion((v) => v + 1);
+          return;
+        }
+        setStates((s) => ({ ...s, [id]: { ...s[id], active: true, loading: true } }));
+        const body = await fetchChoroplethAt(id, "province");
+        setStates((s) => ({
+          ...s,
+          [id]: body
+            ? {
+                active: true,
+                loading: false,
+                count: body.features.features.length,
+                suppressedCount: body.suppressedCount,
+                truncated: body.truncated,
+              }
+            : { active: false, loading: false, count: 0, suppressedCount: 0, truncated: false },
+        }));
+        setLevelVersion((v) => v + 1);
         return;
       }
 
@@ -297,7 +438,14 @@ export function PanoramaConsole({
         }));
       }
     },
-    [searchParams, states, asOf, fetchAsOfFor],
+    [searchParams, states, asOf, fetchAsOfFor, fetchChoroplethAt],
+  );
+
+  // Whether any choropleth layer is active — the toggle only affects those, so
+  // the control hints when it has no current effect (all active layers are points).
+  const anyChoroplethActive = useMemo(
+    () => CHOROPLETH_LAYERS.some((l) => states[l.id]?.active),
+    [states],
   );
 
   const mapLabel = useMemo(() => {
@@ -319,7 +467,14 @@ export function PanoramaConsole({
           label={mapLabel}
           onFeatureClick={onFeatureClick}
         />
-        <LayerPanel states={states} onToggle={onToggle} scrubbing={scrubbing} />
+        <div className="space-y-3">
+          <AggregationToggle
+            level={level}
+            onChange={onLevelChange}
+            relevant={anyChoroplethActive}
+          />
+          <LayerPanel states={states} onToggle={onToggle} scrubbing={scrubbing} />
+        </div>
       </div>
       <DetailDrawer selected={selected} onClose={closeDrawer} />
     </div>

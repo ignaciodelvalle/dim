@@ -243,20 +243,22 @@ function FeatureBody({
 
     case "cobertura":
     case "mortalidad": {
-      // Choropleth cell. Suppressed cells NEVER show a number (k-anon).
+      // Choropleth cell. U5: province mode carries no locality + no suppression
+      // (province cells are large); locality mode may be suppressed (k-anon).
+      const isProvince = str(properties, "level") === "province";
       const suppressed = properties.suppressed === true;
       const value = properties.value;
-      const place = [str(properties, "locality"), str(properties, "province")]
-        .filter(Boolean)
-        .join(", ");
+      const place = isProvince
+        ? (str(properties, "province") ?? "—")
+        : [str(properties, "locality"), str(properties, "province")].filter(Boolean).join(", ");
       return (
         <>
           <dl>
-            <Row label="Localidad" value={place || "—"} />
+            <Row label={isProvince ? "Provincia" : "Localidad"} value={place || "—"} />
             <Row
               label={layerId === "cobertura" ? "Perros vacunados" : "Mascotas fallecidas"}
               value={
-                suppressed ? (
+                !isProvince && suppressed ? (
                   <span className="text-ln-op-mute">Suprimido (privacidad · k‑anon)</span>
                 ) : (
                   String(value ?? 0)

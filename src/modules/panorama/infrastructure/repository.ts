@@ -37,8 +37,10 @@ import type {
   DecomisoRow,
   DenunciaCentroidRow,
   OutbreakRow,
+  ProvinceChoroplethCell,
   ShelterRow,
 } from "@/src/modules/panorama/application/build-features";
+import type { AggregationLevel } from "@/src/modules/panorama/domain/types";
 
 // Per-layer hard cap. Each loader limits at this; when the row count equals the
 // cap the result is (potentially) truncated and the envelope says so.
@@ -497,12 +499,53 @@ function toChoroplethCells(rollup: RollupRow[]): {
   return { cells, suppressedCount };
 }
 
-/** Result envelope for a choropleth loader. */
+/** Result envelope for a LOCALITY choropleth loader (centroid graduated symbols). */
 export type ChoroplethRows = {
   cells: ChoroplethCell[];
   suppressedCount: number;
   truncated: boolean;
 };
+
+/** Result envelope for a PROVINCE choropleth loader (filled polygons; U5). No
+ * k-anon (province cells are large), so there is no suppressedCount. */
+export type ProvinceChoroplethRows = {
+  cells: ProvinceChoroplethCell[];
+  truncated: boolean;
+};
+
+// ---------------------------------------------------------------------------
+// U5 — ONE rollup, parametrized by aggregation LEVEL (province | locality).
+//
+// Both levels share the SAME metric predicate (the `whereExtra` SQL) and the
+// SAME scope clause, differing ONLY in the GROUP BY and (for locality) the
+// ar_localities centroid join. This is what GUARANTEES the consistency
+// invariant the spec asserts: a province total is exactly the sum of its
+// localities, because both count the identical set of pets — just grouped
+// coarser. Both count COUNT(DISTINCT pets.id) so the locality centroid
+// leftJoin fan-out can never make the two disagree.
+// ---------------------------------------------------------------------------
+
+/** The supported choropleth metrics. Each maps to a single pets-table predicate
+ * reused VERBATIM by both the province and the locality rollup. */
+export type ChoroplethMetric = "rabies-coverage" | "mortality";
+
+/** Build the metric-specific pets predicate. Defined ONCE so province and
+ * locality rollups can NEVER drift apart on the numerator definition (U5). */
+function metricPredicate(metric: ChoroplethMetric): SQL {
+  if (metric === "rabies-coverage") {
+    // Pets in scope with at least one rabies vaccination event (vaccine_name
+    // accent-insensitively matches rabia/rabies/antirrábica). Mirrors the
+    // welfare-metrics rabies match.
+    return sql`EXISTS (
+      SELECT 1 FROM ${petEvents} pe_rabies
+      WHERE pe_rabies.pet_id = ${pets.id}
+        AND pe_rabies.event_type = 'vaccination_administered'
+        AND unaccent(lower(coalesce(pe_rabies.payload->>'vaccine_name', ''))) LIKE '%rabi%'
+    )`;
+  }
+  // mortality — pets currently in status='deceased'.
+  return sql`${pets.status} = 'deceased'`;
+}
 
 // Build the per-locality rollup join. `whereExtra` adds the metric-specific
 // predicate (e.g. rabies vaccination). `scopeClause` is the pets-scope clause.
@@ -551,37 +594,128 @@ async function rollupPetsPerLocality(
     }));
 }
 
-// metrics:rabies-coverage (cobertura) — per-locality count of pets in scope that
-// have a valid rabies vaccination. The numerator is the suppressed, plotted
-// value; we surface the raw vaccinated count as a graduated symbol per locality.
+/** A raw per-province rollup row before mapping to a ProvinceChoroplethCell. */
+type ProvinceRollupRow = {
+  province: string;
+  count: number;
+};
+
+// Build the per-PROVINCE rollup. NO ar_localities join (provinces need no
+// centroid — the basemap polygon is the geometry), NO locality requirement, and
+// NO k-anon. Same metric predicate + scope as the locality rollup, grouped by
+// province only — so the province total equals the sum of its localities.
+async function rollupPetsPerProvince(
+  whereExtra: SQL[],
+  scopeClause: SQL | null,
+): Promise<ProvinceRollupRow[]> {
+  const conditions = [...whereExtra, isNotNull(pets.jurisdictionProvince)];
+  if (scopeClause) conditions.push(sql`(${scopeClause})`);
+
+  const rows = await db
+    .select({
+      province: pets.jurisdictionProvince,
+      // COUNT(DISTINCT pets.id) to mirror the locality rollup exactly (no join
+      // here, but keeping DISTINCT makes the two provably identical in count).
+      n: countDistinct(pets.id),
+    })
+    .from(pets)
+    .where(and(...conditions))
+    .groupBy(pets.jurisdictionProvince)
+    .limit(PER_LAYER_CAP);
+
+  return rows
+    .filter((r) => r.province !== null)
+    .map((r) => ({ province: r.province as string, count: r.n }));
+}
+
+/** Map a raw province rollup to ProvinceChoroplethCell[] (resolve ISO code +
+ * label). Provinces whose name has no ISO code are dropped — the basemap can
+ * only fill a polygon it can join by code. */
+function toProvinceChoroplethCells(rollup: ProvinceRollupRow[]): ProvinceChoroplethCell[] {
+  const cells: ProvinceChoroplethCell[] = [];
+  for (const r of rollup) {
+    const code = PROVINCE_ISO[r.province];
+    if (!code) continue;
+    cells.push({ provinceCode: code, label: r.province, value: r.count });
+  }
+  return cells;
+}
+
+// metrics:rabies-coverage (cobertura) — count of pets in scope with a valid
+// rabies vaccination, at the LOCALITY level (centroid graduated symbols, k-anon).
 export async function loadRabiesCoverage(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
 ): Promise<ChoroplethRows> {
-  // Pets in scope with at least one rabies vaccination event (vaccine_name
-  // accent-insensitively matches rabia/rabies/antirrábica). Mirrors the
-  // welfare-metrics rabies match.
-  const vaccinated = sql`EXISTS (
-    SELECT 1 FROM ${petEvents} pe_rabies
-    WHERE pe_rabies.pet_id = ${pets.id}
-      AND pe_rabies.event_type = 'vaccination_administered'
-      AND unaccent(lower(coalesce(pe_rabies.payload->>'vaccine_name', ''))) LIKE '%rabi%'
-  )`;
   const scope = petsScope(actor, jurisdictions);
-  const rollup = await rollupPetsPerLocality([vaccinated as SQL], scope);
+  const rollup = await rollupPetsPerLocality([metricPredicate("rabies-coverage")], scope);
   const { cells, suppressedCount } = toChoroplethCells(rollup);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
-// metrics:mortality (mortalidad) — per-locality count of pets in scope currently
-// in status='deceased'. The death disposition surface is rendered as a graduated
-// centroid symbol; the count is the suppressed, plotted value.
+// metrics:mortality (mortalidad) — count of pets in scope currently in
+// status='deceased', at the LOCALITY level (centroid graduated symbols, k-anon).
 export async function loadMortality(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
 ): Promise<ChoroplethRows> {
   const scope = petsScope(actor, jurisdictions);
-  const rollup = await rollupPetsPerLocality([eq(pets.status, "deceased")], scope);
+  const rollup = await rollupPetsPerLocality([metricPredicate("mortality")], scope);
   const { cells, suppressedCount } = toChoroplethCells(rollup);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+// U5: PROVINCE-level loaders. Same metric/scope as the locality loaders above,
+// grouped by province (no k-anon). Used when the aggregation toggle is on
+// "Provincia" — the use-case routes to these for the filled choropleth.
+export async function loadRabiesCoverageByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<ProvinceChoroplethRows> {
+  const scope = petsScope(actor, jurisdictions);
+  const rollup = await rollupPetsPerProvince([metricPredicate("rabies-coverage")], scope);
+  return { cells: toProvinceChoroplethCells(rollup), truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+export async function loadMortalityByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<ProvinceChoroplethRows> {
+  const scope = petsScope(actor, jurisdictions);
+  const rollup = await rollupPetsPerProvince([metricPredicate("mortality")], scope);
+  return { cells: toProvinceChoroplethCells(rollup), truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+/**
+ * U5 single entry point: rollup a choropleth metric at the requested LEVEL.
+ * Reused by the Panorama use-case AND available to the dashboard distribution
+ * widgets so both share ONE source of numbers (spec §U5.4). Province returns
+ * filled-polygon cells (no k-anon); locality returns centroid cells (k-anon).
+ */
+export function loadChoroplethByLevel(
+  metric: ChoroplethMetric,
+  level: "province",
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<ProvinceChoroplethRows>;
+export function loadChoroplethByLevel(
+  metric: ChoroplethMetric,
+  level: "locality",
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<ChoroplethRows>;
+export function loadChoroplethByLevel(
+  metric: ChoroplethMetric,
+  level: AggregationLevel,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<ChoroplethRows | ProvinceChoroplethRows> {
+  if (level === "province") {
+    return metric === "rabies-coverage"
+      ? loadRabiesCoverageByProvince(actor, jurisdictions)
+      : loadMortalityByProvince(actor, jurisdictions);
+  }
+  return metric === "rabies-coverage"
+    ? loadRabiesCoverage(actor, jurisdictions)
+    : loadMortality(actor, jurisdictions);
 }

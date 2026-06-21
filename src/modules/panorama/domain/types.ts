@@ -24,6 +24,18 @@ export type LayerId =
 export type GeomType = "point" | "choropleth";
 
 /**
+ * The AGGREGATION AXIS of a choropleth layer (U5). This is DISTINCT from the
+ * scope filter (PanoramaScope) — the scope narrows WHAT the viewer sees; the
+ * level changes HOW it is aggregated and rendered:
+ *  - `locality` — per (province, locality) rollup → centroid graduated symbols
+ *                 (k-anon k=5 suppression on small cells).
+ *  - `province` — per provinceCode rollup → filled choropleth over the local
+ *                 ar-provinces polygons (no k-anon: province cells are large).
+ * Point layers ignore the level entirely.
+ */
+export type AggregationLevel = "locality" | "province";
+
+/**
  * Privacy level of a layer's rendered geometry (spec §8).
  *  - `none`   — shown as stored: public data (lost last-seen, opt-in) or
  *               operational data the viewer is cleared for, plus k-anon rollups.

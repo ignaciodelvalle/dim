@@ -15,11 +15,11 @@ vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
   loadOutbreakSignals: vi.fn(),
   loadShelters: vi.fn(),
   loadDecomisos: vi.fn(),
-  loadRabiesCoverage: vi.fn(),
-  loadMortality: vi.fn(),
+  loadChoroplethByLevel: vi.fn(),
 }));
 
 import { type LostPetRow, fetchLostPets } from "@/lib/govt-dashboards";
+import type { ChoroplethRows } from "@/src/modules/panorama/infrastructure/repository";
 
 import { getLayerFeatures } from "../get-layer-features";
 
@@ -108,9 +108,11 @@ describe("getLayerFeatures — perdidas", () => {
     expect(loadBiteEvents).toHaveBeenCalledWith({ role: "admin" }, [], expect.any(Date), asOf);
   });
 
-  it("delegates a choropleth layer (mortalidad) to its loader, echoing the envelope", async () => {
-    const { loadMortality } = await import("@/src/modules/panorama/infrastructure/repository");
-    vi.mocked(loadMortality).mockResolvedValue({
+  it("delegates a LOCALITY choropleth (mortalidad) to its loader, echoing the envelope", async () => {
+    const { loadChoroplethByLevel } = await import(
+      "@/src/modules/panorama/infrastructure/repository"
+    );
+    vi.mocked(loadChoroplethByLevel).mockResolvedValue({
       cells: [
         {
           key: "Buenos Aires|La Plata",
@@ -135,17 +137,69 @@ describe("getLayerFeatures — perdidas", () => {
       truncated: false,
     });
 
+    // Default level is "locality".
     const result = await getLayerFeatures("mortalidad", { role: "admin" }, [], {
       since: new Date("2026-06-01T00:00:00.000Z"),
     });
 
+    // The loader was asked for the mortality metric at the LOCALITY level.
+    expect(loadChoroplethByLevel).toHaveBeenCalledWith(
+      "mortality",
+      "locality",
+      { role: "admin" },
+      [],
+    );
     // Both cells plot (each has a centroid); the suppressed one carries value=null.
     expect(result.features.features).toHaveLength(2);
     expect(result.suppressedCount).toBe(1);
+    expect(result.level).toBe("locality");
     const suppressed = result.features.features.find(
       (f) => (f.properties as { suppressed?: boolean }).suppressed === true,
     );
     expect((suppressed?.properties as { value: number | null }).value).toBeNull();
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("delegates a PROVINCE choropleth (cobertura) to the province loader (filled polygons)", async () => {
+    const { loadChoroplethByLevel } = await import(
+      "@/src/modules/panorama/infrastructure/repository"
+    );
+    vi.mocked(loadChoroplethByLevel).mockResolvedValue({
+      // vi.mocked resolves the mock to the first overload (ChoroplethRows); the
+      // use-case routes by `level` to the province loader, so a province-shaped
+      // result is the correct value here — cast through unknown for the mock type.
+      cells: [
+        { provinceCode: "AR-B", label: "Buenos Aires", value: 61 },
+        { provinceCode: "AR-X", label: "Córdoba", value: 9 },
+      ],
+      truncated: false,
+    } as unknown as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "cobertura",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "province",
+    );
+
+    // Routed to the rabies-coverage metric at the PROVINCE level.
+    expect(loadChoroplethByLevel).toHaveBeenCalledWith(
+      "rabies-coverage",
+      "province",
+      { role: "admin" },
+      [],
+    );
+    expect(result.level).toBe("province");
+    // Province features carry no geometry (the basemap polygon is the geometry)
+    // and a provinceCode the map joins on. No k-anon at province level.
+    expect(result.features.features).toHaveLength(2);
+    expect(result.features.features[0].geometry).toBeNull();
+    expect(result.features.features[0].properties).toMatchObject({
+      provinceCode: "AR-B",
+      value: 61,
+      suppressed: false,
+    });
+    expect(result.suppressedCount).toBe(0);
   });
 });

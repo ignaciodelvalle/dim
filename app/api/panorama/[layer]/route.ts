@@ -66,6 +66,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
   const provinceIso = url.searchParams.get("province");
   const localitySlug = url.searchParams.get("locality");
 
+  // U5 aggregation axis (distinct from the province/locality SCOPE filter above):
+  // `level=province` aggregates the choropleth layers by province (filled
+  // polygons); anything else defaults to locality (centroid symbols). A crafted
+  // value can only choose between the two safe levels — never widen scope.
+  const level = url.searchParams.get("level") === "province" ? "province" : "locality";
+
   // 4. Intersect scope with the viewer's assignments (never widens for govt).
   let scoped = jurisdictions;
   if (provinceIso && profile.role !== "admin") {
@@ -83,14 +89,16 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
     }
   }
 
-  // 5. Delegate to the use-case (cap + k-anon enforced inside).
-  const result = await getLayerFeatures(layer, actor, scoped, { since, asOf });
+  // 5. Delegate to the use-case (cap + k-anon enforced inside). The level only
+  // affects the two choropleth layers; point layers ignore it.
+  const result = await getLayerFeatures(layer, actor, scoped, { since, asOf }, level);
 
   return NextResponse.json(
     {
       features: result.features,
       truncated: result.truncated,
       suppressedCount: result.suppressedCount,
+      level: result.level,
     },
     { headers: { "cache-control": "no-store" } },
   );

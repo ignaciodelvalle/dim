@@ -3,12 +3,17 @@
 import type maplibregl from "maplibre-gl";
 import { useEffect, useRef } from "react";
 
-import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
+import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 // maplibre-gl ships its own CSS (popups, controls, canvas). It is imported
 // per-map-component in this repo (see LocationMap/LocationPicker), not globally.
 import "maplibre-gl/dist/maplibre-gl.css";
-import { COLOR_SUPPRESSED } from "@/lib/viz-scales";
+import {
+  type ScaleBounds,
+  provinceColorExpr,
+  provinceValueBounds,
+} from "@/components/panorama/province-choropleth-style";
+import { COLOR_NO_DATA, COLOR_SUPPRESSED, RAMP_BLUE } from "@/lib/viz-scales";
 
 // ---------------------------------------------------------------------------
 // SituationalMap — the Panorama console's geospatial canvas.
@@ -39,6 +44,12 @@ export type ActiveLayer = {
   label: string;
   geomType: "point" | "choropleth";
   features: FeatureCollection;
+  /**
+   * U5 aggregation axis (choropleth layers only). "province" → fill the local
+   * ar-provinces polygons by value (data-join on provinceCode); "locality" →
+   * the existing centroid graduated symbols. Point layers leave this undefined.
+   */
+  level?: AggregationLevel;
   /** F4: muted while a time scrub is active because the layer has no time
    * dimension (refugios) or is a current-state rollup (cobertura/mortalidad) —
    * it shows live data, not as-of-t, so it is rendered dimmed (not as if as-of). */
@@ -76,6 +87,11 @@ const srcId = (id: string) => `pano-src-${id}`;
 const clusterLayerId = (id: string) => `pano-cluster-${id}`;
 const pointLayerId = (id: string) => `pano-point-${id}`;
 const choroLayerId = (id: string) => `pano-choro-${id}`;
+// U5 province-choropleth: a fill (+ its hover outline) over the SHARED
+// ar-provinces basemap source, colored by a per-layer data-join on the polygon
+// `code` property. Namespaced by layer id so two province-choropleths coexist.
+const provinceFillLayerId = (id: string) => `pano-prov-fill-${id}`;
+const provinceLineLayerId = (id: string) => `pano-prov-line-${id}`;
 
 /** Compute a [[minLng,minLat],[maxLng,maxLat]] bbox over many feature sets. */
 function layersBbox(layers: ActiveLayer[]): [[number, number], [number, number]] | null {
@@ -213,6 +229,19 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
     // Add or update active layers.
     for (const layer of active) {
       const data = layer.features as unknown as GeoJSON.FeatureCollection;
+      // U5: a province-level choropleth fills the SHARED basemap polygons — it
+      // has no own GeoJSON source, so it can't be reconciled via getSource. We
+      // recompute its data-driven color expression in place on every sync.
+      if (layer.geomType === "choropleth" && layer.level === "province") {
+        if (mountedRef.current.has(layer.id)) {
+          updateProvinceChoroplethLayer(map, layer);
+        } else {
+          addProvinceChoroplethLayer(map, layer);
+          mountedRef.current.add(layer.id);
+        }
+        applyDim(map, layer);
+        continue;
+      }
       const existing = map.getSource(srcId(layer.id)) as maplibregl.GeoJSONSource | undefined;
       if (existing) {
         existing.setData(data);
@@ -300,6 +329,104 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
       },
     });
     wireChoroplethInteractions(map, layer);
+  }
+
+  // --- U5 province-choropleth: fill the local basemap polygons by value. -----
+
+  // Add a fill (+ hover outline) over the SHARED ar-provinces basemap source.
+  // The fill-color is a data-driven expression keyed on the polygon `code`
+  // property (a local-only data-join — NO external provider, mirrors the
+  // MapChoropleth color-expression approach but on the local polygons). If the
+  // basemap source is missing (fetch failed), there is nothing to fill.
+  function addProvinceChoroplethLayer(map: maplibregl.Map, layer: ActiveLayer) {
+    if (!map.getSource("ar-provinces")) return;
+    const fillId = provinceFillLayerId(layer.id);
+    const lineId = provinceLineLayerId(layer.id);
+    if (!map.getLayer(fillId)) {
+      map.addLayer({
+        id: fillId,
+        type: "fill",
+        source: "ar-provinces",
+        paint: {
+          "fill-color": provinceColorExpr(layer.features),
+          "fill-opacity": 0.82,
+        },
+      });
+    }
+    if (!map.getLayer(lineId)) {
+      map.addLayer({
+        id: lineId,
+        type: "line",
+        source: "ar-provinces",
+        paint: { "line-color": COLOR_CANVAS, "line-width": 0.8 },
+      });
+    }
+    wireProvinceChoroplethInteractions(map, layer);
+  }
+
+  // Recompute the color expression in place when the layer's features change
+  // (e.g. scope/period refetch). The fill layer + source are reused.
+  function updateProvinceChoroplethLayer(map: maplibregl.Map, layer: ActiveLayer) {
+    const fillId = provinceFillLayerId(layer.id);
+    if (map.getLayer(fillId)) {
+      map.setPaintProperty(fillId, "fill-color", provinceColorExpr(layer.features));
+    } else {
+      // Basemap may have loaded after the first sync attempt — try to add now.
+      addProvinceChoroplethLayer(map, layer);
+    }
+  }
+
+  function wireProvinceChoroplethInteractions(map: maplibregl.Map, layer: ActiveLayer) {
+    const popup = popupRef.current;
+    if (!popup) return;
+    const fillId = provinceFillLayerId(layer.id);
+    // Look up the value for a province code from the layer's current features.
+    const valueFor = (code: string): number | null => {
+      const current = layersRef.current.find((l) => l.id === layer.id);
+      for (const f of current?.features.features ?? []) {
+        const p = f.properties as { provinceCode?: string; province?: string; value?: number };
+        if (p.provinceCode === code) return p.value ?? 0;
+      }
+      return null;
+    };
+    map.on("mouseenter", fillId, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", fillId, () => {
+      map.getCanvas().style.cursor = "";
+      popup.remove();
+    });
+    map.on("mousemove", fillId, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const props = f.properties as { code?: string; name?: string };
+      const code = props.code ?? "";
+      const value = valueFor(code);
+      const place = props.name ?? code ?? "—";
+      const valueLine =
+        value === null
+          ? `<span style="color:#94a3b8">Sin datos</span>`
+          : `<strong>${value.toLocaleString("es-AR")}</strong>`;
+      popup
+        .setLngLat(e.lngLat)
+        .setHTML(
+          `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${place}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${layer.label}</em></div>`,
+        )
+        .addTo(map);
+    });
+    // Clicking a province opens the DetailDrawer with the province cell props.
+    map.on("click", fillId, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const props = f.properties as { code?: string; name?: string };
+      const code = props.code ?? "";
+      onFeatureClickRef.current?.(layer.id, {
+        provinceCode: code,
+        province: props.name ?? code,
+        value: valueFor(code),
+        level: "province",
+      });
+    });
   }
 
   function wirePointInteractions(map: maplibregl.Map, layer: ActiveLayer) {
@@ -404,6 +531,14 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
 
   const totalPoints = layers.reduce((sum, l) => sum + l.features.features.length, 0);
 
+  // U5: province-choropleth scale legend. One entry per active province-mode
+  // choropleth layer, with its value min→max range. Rendered as an HTML overlay
+  // (privacy: HTML only, no on-canvas text), mirroring the MapChoropleth legend.
+  const provinceLegends = layers
+    .filter((l) => l.geomType === "choropleth" && l.level === "province")
+    .map((l) => ({ layer: l, bounds: provinceValueBounds(l.features) }))
+    .filter((x): x is { layer: ActiveLayer; bounds: ScaleBounds } => x.bounds !== null);
+
   return (
     <div className="relative w-full" style={{ height }}>
       <div
@@ -420,15 +555,55 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
           </p>
         </div>
       )}
+      {provinceLegends.length > 0 && (
+        <div className="pointer-events-none absolute bottom-3 left-3 space-y-2">
+          {provinceLegends.map(({ layer, bounds }) => (
+            <div
+              key={layer.id}
+              className="rounded-[6px] bg-black/55 px-3 py-2 text-[11px] text-white/90"
+            >
+              <div className="mb-1 font-medium">{layer.label}</div>
+              <div className="flex items-center gap-2">
+                <span className="tabular-nums">{bounds.min.toLocaleString("es-AR")}</span>
+                <span
+                  className="h-2.5 w-24 rounded-full"
+                  style={{
+                    background: `linear-gradient(to right, ${RAMP_BLUE[0]}, ${RAMP_BLUE[1]})`,
+                  }}
+                  aria-hidden="true"
+                />
+                <span className="tabular-nums">{bounds.max.toLocaleString("es-AR")}</span>
+              </div>
+              <div className="mt-1 flex items-center gap-1.5 text-white/70">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-[2px]"
+                  style={{ background: COLOR_NO_DATA }}
+                  aria-hidden="true"
+                />
+                Sin datos
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// Remove every maplibre object belonging to a layer id.
+// Remove every maplibre object belonging to a layer id (point, locality
+// choropleth, AND province-choropleth fill/outline over the shared basemap).
 function removeLayer(map: maplibregl.Map, id: string) {
-  for (const lid of [clusterLayerId(id), pointLayerId(id), choroLayerId(id)]) {
+  for (const lid of [
+    clusterLayerId(id),
+    pointLayerId(id),
+    choroLayerId(id),
+    provinceFillLayerId(id),
+    provinceLineLayerId(id),
+  ]) {
     if (map.getLayer(lid)) map.removeLayer(lid);
   }
+  // Only the per-layer GeoJSON source is removed; the SHARED ar-provinces
+  // basemap source is never removed here (province-choropleth borrows it).
   if (map.getSource(srcId(id))) map.removeSource(srcId(id));
 }
 
@@ -439,6 +614,12 @@ const DIM_OPACITY = 0.18;
 function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
   const dim = layer.dimmed === true;
   if (layer.geomType === "choropleth") {
+    // U5 province mode: mute the polygon fill instead of the centroid circles.
+    if (layer.level === "province") {
+      const fid = provinceFillLayerId(layer.id);
+      if (map.getLayer(fid)) map.setPaintProperty(fid, "fill-opacity", dim ? DIM_OPACITY : 0.82);
+      return;
+    }
     const cid = choroLayerId(layer.id);
     if (!map.getLayer(cid)) return;
     // Suppressed cells were 0.45, visible 0.78; restore via the original case expr.

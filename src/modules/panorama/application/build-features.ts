@@ -285,3 +285,56 @@ export function buildChoroplethFeatures(
     .filter((f) => f.geometry !== null);
   return featureCollection(features);
 }
+
+// --- province choropleth (U5: filled polygons, no centroid geometry) ---------
+
+/**
+ * A per-PROVINCE rollup cell (U5 aggregation level = province). Unlike the
+ * locality cell it carries NO centroid: the map data-joins this to the LOCAL
+ * ar-provinces basemap polygons by `provinceCode` and fills them by `value`.
+ * Province cells are large, so there is NO k-anon suppression here (spec §U5).
+ */
+export type ProvinceChoroplethCell = {
+  /** ISO 3166-2:AR code, the join key against the basemap polygon `code`. */
+  provinceCode: string;
+  /** Canonical province display name (popup label). */
+  label: string;
+  value: number;
+};
+
+/**
+ * Properties for a province choropleth feature. The geometry is NULL (the fill
+ * comes from the basemap polygon, matched by `provinceCode`); this feature is a
+ * pure value carrier the SituationalMap reads to build the polygon fill+popup.
+ */
+export type ProvinceChoroplethProps = {
+  provinceCode: string;
+  province: string;
+  value: number;
+  /** Always false at province level (no k-anon); kept for a uniform popup path. */
+  suppressed: false;
+};
+
+/**
+ * Build a province choropleth FeatureCollection. Each cell becomes a feature
+ * with NULL geometry — the map colors the matching ar-provinces polygon by
+ * `value` (data-join on provinceCode), it does NOT plot a point. Cells with no
+ * provinceCode (unmappable province name) are dropped.
+ */
+export function buildProvinceChoroplethFeatures(
+  cells: readonly ProvinceChoroplethCell[],
+): FeatureCollection<ProvinceChoroplethProps> {
+  const features = cells
+    .filter((c) => c.provinceCode.length > 0)
+    .map((c) => ({
+      type: "Feature" as const,
+      geometry: null,
+      properties: {
+        provinceCode: c.provinceCode,
+        province: c.label,
+        value: c.value,
+        suppressed: false as const,
+      },
+    }));
+  return featureCollection(features);
+}

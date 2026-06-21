@@ -9,12 +9,14 @@ import {
   type DenunciaCentroidRow,
   type LostPointRow,
   type OutbreakRow,
+  type ProvinceChoroplethCell,
   type ShelterRow,
   buildChoroplethFeatures,
   buildDecomisosFeatures,
   buildDenunciasFeatures,
   buildMordedurasFeatures,
   buildPerdidasFeatures,
+  buildProvinceChoroplethFeatures,
   buildRefugiosFeatures,
   buildZoonosisFeatures,
 } from "../build-features";
@@ -231,6 +233,42 @@ describe("buildChoroplethFeatures", () => {
 
   it("drops cells with no resolvable centroid", () => {
     const fc = buildChoroplethFeatures([cell({ centroidLat: null, centroidLng: null })]);
+    expect(fc.features).toHaveLength(0);
+  });
+});
+
+// --- province choropleth (U5: filled polygons, no geometry/centroid) --------
+
+describe("buildProvinceChoroplethFeatures", () => {
+  const pCell = (over: Partial<ProvinceChoroplethCell> = {}): ProvinceChoroplethCell => ({
+    provinceCode: "AR-B",
+    label: "Buenos Aires",
+    value: 61,
+    ...over,
+  });
+
+  it("emits ONE null-geometry feature per province (the polygon comes from the basemap)", () => {
+    const fc = buildProvinceChoroplethFeatures([pCell()]);
+    expect(fc.features).toHaveLength(1);
+    // No point geometry — the map data-joins this to the ar-provinces polygon.
+    expect(fc.features[0].geometry).toBeNull();
+    expect(fc.features[0].properties).toEqual({
+      provinceCode: "AR-B",
+      province: "Buenos Aires",
+      value: 61,
+      suppressed: false,
+    });
+  });
+
+  it("carries the value verbatim — province cells are NEVER suppressed (no k-anon)", () => {
+    // A tiny province value (below the locality k=5 threshold) still shows.
+    const fc = buildProvinceChoroplethFeatures([pCell({ provinceCode: "AR-V", value: 2 })]);
+    expect(fc.features[0].properties.value).toBe(2);
+    expect(fc.features[0].properties.suppressed).toBe(false);
+  });
+
+  it("drops cells with an unmappable (empty) province code", () => {
+    const fc = buildProvinceChoroplethFeatures([pCell({ provinceCode: "" })]);
     expect(fc.features).toHaveLength(0);
   });
 });

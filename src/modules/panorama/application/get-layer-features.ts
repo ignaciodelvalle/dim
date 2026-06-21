@@ -13,18 +13,23 @@ import { type LostPetRow, fetchLostPets } from "@/lib/govt-dashboards";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 
 import {
+  type ChoroplethMetric,
   type ChoroplethRows,
   type LayerRows,
+  type ProvinceChoroplethRows,
   loadBiteEvents,
+  loadChoroplethByLevel,
   loadDecomisos,
   loadDenunciaCentroids,
-  loadMortality,
   loadOutbreakSignals,
-  loadRabiesCoverage,
   loadShelters,
 } from "@/src/modules/panorama/infrastructure/repository";
 
-import type { FeatureCollection, LayerId } from "@/src/modules/panorama/domain/types";
+import type {
+  AggregationLevel,
+  FeatureCollection,
+  LayerId,
+} from "@/src/modules/panorama/domain/types";
 import {
   type LostPointRow,
   buildChoroplethFeatures,
@@ -32,6 +37,7 @@ import {
   buildDenunciasFeatures,
   buildMordedurasFeatures,
   buildPerdidasFeatures,
+  buildProvinceChoroplethFeatures,
   buildRefugiosFeatures,
   buildZoonosisFeatures,
 } from "./build-features";
@@ -46,15 +52,27 @@ import {
 export type LayerPeriod = { since: Date; asOf?: Date };
 
 /**
+ * U5 aggregation axis for the two choropleth layers. Defaults to "locality"
+ * (the historical behavior). Point layers ignore it. "province" yields a filled
+ * choropleth over the basemap polygons; "locality" yields centroid symbols.
+ */
+export type { AggregationLevel };
+
+/**
  * The use-case result. `features` is the GeoJSON the map plots; the envelope
  * fields are surfaced by the LayerPanel:
  *  - `truncated`       — the per-layer 2.000 cap clipped the result.
  *  - `suppressedCount` — choropleth cells hidden by k-anon (k=5); 0 otherwise.
+ *  - `level`           — the aggregation level the features were built at, so
+ *                        the map knows whether to fill polygons (province) or
+ *                        plot centroids (locality / point layers).
  */
 export type LayerFeaturesResult = {
   features: FeatureCollection;
   truncated: boolean;
   suppressedCount: number;
+  /** "province" only for a choropleth layer aggregated by province; else "locality". */
+  level: AggregationLevel;
 };
 
 /** Adapt a scoped LostPetRow to the pure transform's row contract. */
@@ -74,20 +92,50 @@ const empty = (): LayerFeaturesResult => ({
   features: { type: "FeatureCollection", features: [] },
   truncated: false,
   suppressedCount: 0,
+  level: "locality",
 });
 
 /** Wrap a point-layer reader result into the use-case envelope. */
 function pointResult<Row>(rows: LayerRows<Row>, features: FeatureCollection): LayerFeaturesResult {
-  return { features, truncated: rows.truncated, suppressedCount: 0 };
+  return { features, truncated: rows.truncated, suppressedCount: 0, level: "locality" };
 }
 
-/** Wrap a choropleth reader result into the use-case envelope. */
-function choroplethResult(rows: ChoroplethRows): LayerFeaturesResult {
+/** Wrap a LOCALITY choropleth reader result (centroid symbols, k-anon). */
+function localityChoroplethResult(rows: ChoroplethRows): LayerFeaturesResult {
   return {
     features: buildChoroplethFeatures(rows.cells),
     truncated: rows.truncated,
     suppressedCount: rows.suppressedCount,
+    level: "locality",
   };
+}
+
+/** Wrap a PROVINCE choropleth reader result (filled polygons, no k-anon; U5). */
+function provinceChoroplethResult(rows: ProvinceChoroplethRows): LayerFeaturesResult {
+  return {
+    features: buildProvinceChoroplethFeatures(rows.cells),
+    truncated: rows.truncated,
+    suppressedCount: 0,
+    level: "province",
+  };
+}
+
+/** Resolve a choropleth layer at the requested aggregation level (U5). The
+ * metric is fixed per layer id; the level selects province vs locality. */
+async function choroplethResult(
+  metric: ChoroplethMetric,
+  level: AggregationLevel,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<LayerFeaturesResult> {
+  if (level === "province") {
+    return provinceChoroplethResult(
+      await loadChoroplethByLevel(metric, "province", actor, jurisdictions),
+    );
+  }
+  return localityChoroplethResult(
+    await loadChoroplethByLevel(metric, "locality", actor, jurisdictions),
+  );
 }
 
 export async function getLayerFeatures(
@@ -95,6 +143,9 @@ export async function getLayerFeatures(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   period: LayerPeriod,
+  /** U5 aggregation axis for choropleth layers; ignored by point layers.
+   * Defaults to "locality" (the historical / pre-U5 behavior). */
+  level: AggregationLevel = "locality",
 ): Promise<LayerFeaturesResult> {
   switch (layer) {
     case "perdidas": {
@@ -120,6 +171,7 @@ export async function getLayerFeatures(
         features: buildPerdidasFeatures(windowed),
         truncated: false,
         suppressedCount: 0,
+        level: "locality",
       };
     }
     case "mordeduras": {
@@ -147,14 +199,14 @@ export async function getLayerFeatures(
     case "cobertura": {
       // Current-state rollup (EXISTS rabies vaccination) — not event-windowed in
       // v1, so `asOf` is intentionally ignored; the console dims it under a scrub.
-      const r = await loadRabiesCoverage(actor, jurisdictions);
-      return choroplethResult(r);
+      // U5: the level selects province (filled polygons) vs locality (centroids).
+      return choroplethResult("rabies-coverage", level, actor, jurisdictions);
     }
     case "mortalidad": {
       // Current-state rollup (pets.status='deceased') — not event-windowed in v1;
       // `asOf` is intentionally ignored; the console dims it under a scrub.
-      const r = await loadMortality(actor, jurisdictions);
-      return choroplethResult(r);
+      // U5: the level selects province (filled polygons) vs locality (centroids).
+      return choroplethResult("mortality", level, actor, jurisdictions);
     }
     default:
       return empty();
