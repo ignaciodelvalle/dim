@@ -34,7 +34,12 @@ const period: AnalyticsPeriod = {
 };
 
 function seedDefaults() {
-  vi.mocked(fetchRabiesCoverage).mockResolvedValue({ current: 72, target: 80, partidos: 3 });
+  vi.mocked(fetchRabiesCoverage).mockResolvedValue({
+    current: 72,
+    target: 80,
+    partidos: 3,
+    hasData: true,
+  });
   vi.mocked(fetchAnalyticsMetrics).mockResolvedValue({
     totalPets: 12345,
     adoptionRate: 0,

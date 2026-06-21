@@ -7,6 +7,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnInput } from "@/components/ui/Field";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { listLocalitiesByProvince } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -19,7 +20,7 @@ import {
   fetchLostPets,
   fetchPerdidasMetrics,
 } from "@/lib/govt-dashboards";
-import { buildProjectionContext } from "@/lib/metrics";
+import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
 /**
@@ -177,22 +178,53 @@ export default async function GobPerdidasPage({
       >
         <OpKpi
           label="Activas"
-          value={String(metrics.activeCount)}
-          tone={metrics.activeCount > 0 ? "warn" : "ok"}
+          value={metrics.activeCount > 0 ? String(metrics.activeCount) : "—"}
+          tone={metrics.activeCount > 0 ? "warn" : "neutral"}
+          drillHref="/gob/perdidas?status=lost"
+          info={{
+            definition: "Mascotas con estado 'lost' actualmente en la jurisdicción del operador.",
+            formula: "COUNT(pets WHERE status='lost') scoped to jurisdiction",
+          }}
         />
-        <OpKpi label="Recuperados (30d)" value={String(metrics.recoveredMonth)} tone="ok" />
-        <OpKpi label="Antiguedad media (dias)" value={String(metrics.avgDaysActive)} />
-        {/* D4 — reunification rate over the selected period (UK ~39% benchmark). */}
+        <OpKpi
+          label="Recuperados (30d)"
+          value={String(metrics.recoveredMonth)}
+          tone="ok"
+          info={{
+            definition: "Mascotas que pasaron de estado 'lost' a 'active' en los últimos 30 días.",
+            formula: "COUNT(pet_events WHERE event_type='pet_found', últimos 30d) scoped",
+          }}
+        />
+        <OpKpi
+          label="Antiguedad media (dias)"
+          value={String(metrics.avgDaysActive)}
+          info={{
+            definition:
+              "Promedio de días transcurridos desde la fecha de pérdida (evento pet_lost) hasta hoy, sobre el set actualmente perdido.",
+            formula: "AVG(today − lost_at) WHERE status='lost'",
+          }}
+        />
+        {/* D4 — reunification rate over the selected period (benchmark: TARGETS.REUNIFICATION_PCT). */}
         <OpKpi
           label="Tasa de reunificación"
           value={`${reunification.ratePct}%`}
-          tone={reunification.ratePct >= 39 ? "ok" : "warn"}
+          tone={toneForTarget(reunification.ratePct, TARGETS.REUNIFICATION_PCT)}
           bar={reunification.ratePct}
-          sub={`${reunification.recovered} de ${reunification.lostEpisodes} episodios`}
+          sub={`meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios`}
+          info={{
+            definition: `Porcentaje de episodios de pérdida que terminaron en reunificación con el dueño/a. Benchmark internacional: ${TARGETS.REUNIFICATION_PCT}% (UK RSPCA).`,
+            formula:
+              "COUNT(episodios_lost → status='active') / COUNT(all lost episodes en período) × 100",
+          }}
         />
         <OpKpi
           label="Mediana recuperación (días)"
           value={String(reunification.medianDaysToRecovery)}
+          info={{
+            definition:
+              "Mediana de días entre la apertura del episodio de pérdida y su resolución (reunificación). Menor es mejor.",
+            formula: "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_to_recovery)",
+          }}
         />
       </section>
 
@@ -287,6 +319,8 @@ export default async function GobPerdidasPage({
           })}
         </UrlTabs>
       </Suspense>
+
+      <DashboardFreshnessFooter ctx={reunificationCtx} />
     </div>
   );
 }

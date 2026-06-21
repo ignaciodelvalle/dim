@@ -28,6 +28,7 @@ import {
   OpKpi,
   OpKpiSm,
 } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -37,13 +38,17 @@ import {
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
 } from "@/lib/govt-dashboards";
-import { buildProjectionContext, fetchDeathCausesTrend } from "@/lib/metrics";
+import {
+  TARGETS,
+  buildProjectionContext,
+  fetchDeathCausesTrend,
+  fetchKpiTrend,
+  toneForTarget,
+} from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchMortalityDisposition } from "@/lib/mortality-metrics";
 
 export const dynamic = "force-dynamic";
-
-const UNKNOWN_DISPOSITION_BREACH_THRESHOLD = 25;
 
 const BUCKET_LABELS: Record<string, string> = {
   cremation: "Cremación",
@@ -114,11 +119,12 @@ export default async function GobMortalidadPage({
 
   const period = resolveAnalyticsPeriod(sp);
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
-  // Snapshot projection + the D1 cause-by-period trend run in parallel over the
-  // same scoped death_recorded population.
-  const [m, causesTrend] = await Promise.all([
+  // Snapshot projection + the D1 cause-by-period trend + death sparkline run in
+  // parallel over the same scoped death_recorded population.
+  const [m, causesTrend, deathSparkline] = await Promise.all([
     fetchMortalityDisposition(ctx),
     fetchDeathCausesTrend(ctx),
+    fetchKpiTrend("death_recorded", ctx),
   ]);
 
   const allowedProvinces =
@@ -131,7 +137,8 @@ export default async function GobMortalidadPage({
   const maxBucket = m.byBucket.reduce((acc, b) => Math.max(acc, b.count), 0);
   const localityCells = m.byLocality.value;
   const maxLocality = localityCells.reduce((acc, c) => Math.max(acc, c.count), 0);
-  const showBreach = m.unknownRate > UNKNOWN_DISPOSITION_BREACH_THRESHOLD;
+  const showBreach = m.unknownRate > TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT;
+  const hasDeaths = m.total > 0;
 
   const panelDispId = "panel-disposicion-titulo";
   const panelCtxId = "panel-contexto-titulo";
@@ -167,7 +174,7 @@ export default async function GobMortalidadPage({
       {showBreach && (
         <OpBreach
           title="Baja trazabilidad de disposición"
-          detail={`${m.unknownRate}% de los fallecimientos no tienen método de disposición registrado (umbral ${UNKNOWN_DISPOSITION_BREACH_THRESHOLD}%).`}
+          detail={`${m.unknownRate}% de los fallecimientos no tienen método de disposición registrado (umbral ${TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT}%).`}
         />
       )}
 
@@ -178,8 +185,10 @@ export default async function GobMortalidadPage({
       >
         <OpKpi
           label="Muertes (período)"
-          value={m.total.toLocaleString("es-AR")}
-          sub="fallecimientos registrados"
+          value={hasDeaths ? m.total.toLocaleString("es-AR") : "—"}
+          sub={hasDeaths ? "fallecimientos registrados" : "Sin datos en el período"}
+          tone={!hasDeaths ? "neutral" : undefined}
+          sparkline={deathSparkline.points.map((p) => p.y)}
           info={{
             definition:
               "Total de eventos death_recorded registrados en el período y jurisdicción seleccionados.",
@@ -189,26 +198,28 @@ export default async function GobMortalidadPage({
         <OpKpi
           label="Trazabilidad de disposición"
           value={`${m.traceableRate}%`}
-          tone={m.traceableRate >= 75 ? "ok" : m.traceableRate >= 50 ? "warn" : "danger"}
+          tone={toneForTarget(m.traceableRate, TARGETS.DISPOSAL_TRACEABILITY_PCT)}
           bar={m.traceableRate}
-          sub="método + instalación (B3 · Ley 5470)"
+          sub={`meta ${TARGETS.DISPOSAL_TRACEABILITY_PCT}% · método + instalación (B3 · Ley 5470)`}
           info={{
             definition:
               "Porcentaje de fallecimientos con método de disposición conocido E instalación registrada. Mide el cumplimiento de trazabilidad exigido por la Ley CABA 5470.",
             formula: "deaths con (disposition_method ≠ null/unknown) AND (facility ≠ '') / total",
-            caveat: "Umbral de alerta: < 75%. Valor < 50% se considera incumplimiento grave (B3).",
+            caveat: `Umbral de alerta: < ${TARGETS.DISPOSAL_TRACEABILITY_PCT}%. Valor < 50% se considera incumplimiento grave (B3).`,
           }}
         />
         <OpKpi
           label="Disposición desconocida"
           value={`${m.unknownRate}%`}
-          tone={m.unknownRate > UNKNOWN_DISPOSITION_BREACH_THRESHOLD ? "danger" : "neutral"}
+          tone={toneForTarget(m.unknownRate, TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT, {
+            higherIsBetter: false,
+          })}
           sub="sin método registrado (B4)"
           info={{
             definition:
               "Porcentaje de fallecimientos sin método de disposición registrado (campo disposition_method ausente o con valor 'unknown'). Es el complemento negativo de la trazabilidad (B4).",
             formula: "deaths con (disposition_method IS NULL OR = 'unknown') / total",
-            caveat: `Se activa alerta visual cuando supera el ${UNKNOWN_DISPOSITION_BREACH_THRESHOLD}%.`,
+            caveat: `Se activa alerta visual cuando supera el ${TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT}%.`,
           }}
         />
         <OpKpi
@@ -410,6 +421,8 @@ export default async function GobMortalidadPage({
           )}
         </OpCardBody>
       </OpCard>
+
+      <DashboardFreshnessFooter ctx={ctx} />
     </div>
   );
 }

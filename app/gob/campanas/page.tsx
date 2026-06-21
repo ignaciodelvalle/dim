@@ -15,6 +15,7 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -24,7 +25,12 @@ import {
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
 } from "@/lib/govt-dashboards";
-import { buildProjectionContext, resolveAnalyticsPeriod } from "@/lib/metrics";
+import {
+  TARGETS,
+  buildProjectionContext,
+  resolveAnalyticsPeriod,
+  toneForTarget,
+} from "@/lib/metrics";
 import { findServiceKind } from "@/lib/service-kinds";
 import { RAMP_BLUE, RAMP_GREEN } from "@/lib/viz-scales";
 
@@ -204,16 +210,13 @@ export default async function GobCampanasPage({
               }
               tone={
                 dashboard.totals.completionRate !== null
-                  ? dashboard.totals.completionRate >= 70
-                    ? "ok"
-                    : dashboard.totals.completionRate >= 40
-                      ? "warn"
-                      : "danger"
+                  ? toneForTarget(dashboard.totals.completionRate, TARGETS.CAMPAIGN_COMPLETION_PCT)
                   : "neutral"
               }
+              bar={dashboard.totals.completionRate ?? undefined}
               deltaV2={completionDelta ?? undefined}
               info={{
-                definition: "Porcentaje de turnos que resultaron en asistencia efectiva.",
+                definition: `Porcentaje de turnos que resultaron en asistencia efectiva. Meta: ${TARGETS.CAMPAIGN_COMPLETION_PCT}%.`,
                 formula: "attended / enrollment × 100",
               }}
             />
@@ -408,6 +411,8 @@ export default async function GobCampanasPage({
           )}
         </>
       )}
+
+      <DashboardFreshnessFooter ctx={ctx} />
     </div>
   );
 }

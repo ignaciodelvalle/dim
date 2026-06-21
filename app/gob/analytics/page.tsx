@@ -6,6 +6,7 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import { fetchRegionRanking } from "@/lib/analytics-ranking";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
@@ -22,7 +23,12 @@ import {
   fetchDeathCauses,
   fetchOutbreakHistory,
 } from "@/lib/govt-dashboards";
-import { buildProjectionContext, fetchOutbreakSignalsTrend } from "@/lib/metrics";
+import {
+  TARGETS,
+  buildProjectionContext,
+  fetchOutbreakSignalsTrend,
+  toneForTarget,
+} from "@/lib/metrics";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
 import { RegionRankingTable } from "./_components/RegionRankingTable";
@@ -178,25 +184,36 @@ export default async function GobAnalyticsPage({
           value={String(metrics.totalPets)}
           sub="activos + perdidos"
           href="/gob/perdidas"
+          info={{
+            definition:
+              "Total de mascotas con estado activo o perdido en la jurisdicción y período seleccionados.",
+            formula: "COUNT(pets WHERE status IN ('active','lost'))",
+          }}
         />
         <OpKpi
           label="Tasa de adopción (12m)"
           value={`${metrics.adoptionRate}%`}
-          tone={metrics.adoptionRate >= 20 ? "ok" : undefined}
-          sub="del total de adquisiciones"
+          tone={toneForTarget(metrics.adoptionRate, TARGETS.ADOPTION_RATE_PCT)}
+          bar={metrics.adoptionRate}
+          sub={`meta ${TARGETS.ADOPTION_RATE_PCT}% del total de adquisiciones`}
+          info={{
+            definition: `Porcentaje de mascotas adquiridas por adopción sobre el total de adquisiciones en el período (A3). Meta interna: ${TARGETS.ADOPTION_RATE_PCT}%.`,
+            formula: "COUNT(acquisition_method='adoption') / COUNT(all acquisitions) × 100",
+          }}
         />
         <OpKpi
           label="Cobertura antirrábica"
           value={`${metrics.rabiesVaccinationRate}%`}
-          tone={
-            metrics.rabiesVaccinationRate >= 70
-              ? "ok"
-              : metrics.rabiesVaccinationRate >= 40
-                ? "warn"
-                : "danger"
-          }
-          sub="pets con >= 1 vacuna antirrábica"
+          tone={toneForTarget(metrics.rabiesVaccinationRate, TARGETS.RABIES_COVERAGE_PCT)}
+          bar={metrics.rabiesVaccinationRate}
+          sub={`meta ${TARGETS.RABIES_COVERAGE_PCT}% · pets con ≥1 vacuna antirrábica`}
           href="/gob/vigilancia"
+          info={{
+            definition: `Porcentaje de mascotas activas con al menos una vacunación antirrábica registrada. Meta de salud pública: ${TARGETS.RABIES_COVERAGE_PCT}%.`,
+            formula:
+              "COUNT(pets con vaccination_administered ~* 'antirr[áa]bica|rabies') / COUNT(pets activos) × 100",
+            caveat: "Solo vacunas registradas en MiMAR. La cobertura real puede ser mayor.",
+          }}
         />
         <OpKpi
           label="Disputas de custodia"
@@ -204,6 +221,11 @@ export default async function GobAnalyticsPage({
           tone={metrics.custodyDisputes > 0 ? "warn" : undefined}
           sub="casos abiertos"
           href="/gob/disputas"
+          info={{
+            definition:
+              "Cantidad de casos de tipo 'custody_dispute' con estado abierto en la jurisdicción seleccionada.",
+            formula: "COUNT(cases WHERE caseKind='custody_dispute' AND status='open')",
+          }}
         />
       </section>
 
@@ -344,6 +366,8 @@ export default async function GobAnalyticsPage({
           <OutbreakHistoryTable rows={outbreakHistory} />
         </OpCardBody>
       </OpCard>
+
+      <DashboardFreshnessFooter ctx={trendCtx} />
     </div>
   );
 }

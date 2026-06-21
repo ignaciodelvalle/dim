@@ -15,6 +15,7 @@ import Link from "next/link";
 
 import { resolveGovtOrgForUser } from "@/app/actions/decomiso";
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { cases, db, organizations, pets } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/auth-guards";
 import { fetchSeizures } from "@/lib/compliance-metrics";
@@ -134,6 +135,12 @@ export default async function DecomisosDashboardPage() {
             value={String(seizures.total)}
             tone={seizures.total > 0 ? "warn" : "neutral"}
             sub="incautaciones por Ley 14.346"
+            info={{
+              definition:
+                "Total de eventos shelter_intake_recorded con intake_reason='seizure' en los últimos 30 días, scoped a la jurisdicción del operador.",
+              formula:
+                "COUNT(shelter_intake_recorded WHERE intake_reason='seizure', últimos 30d) scoped",
+            }}
           />
         </div>
         {seizures.byMotive.length > 0 && (
@@ -252,6 +259,8 @@ export default async function DecomisosDashboardPage() {
           })}
         </ul>
       )}
+
+      <DashboardFreshnessFooter ctx={seizuresCtx} />
     </div>
   );
 }

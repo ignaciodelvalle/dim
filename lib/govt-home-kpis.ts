@@ -15,6 +15,7 @@ import { eq } from "drizzle-orm";
 import { cases, db, jurisdictionsCensus, petEvents, pets, welfareReports } from "@/db";
 import {
   type ProjectionContext,
+  TARGETS,
   dogsInScopeCondition,
   petEventsScopeClause,
   petsScopeClause,
@@ -60,15 +61,17 @@ function welfareReportsScopeClause(ctx: ProjectionContext) {
 export type RabiesCoverageKpi = {
   /** % of dogs in scope with ≥1 rabies vaccination event in the last 12 months. */
   current: number;
-  /** Hardcoded public-health target. Configurable in a future sprint. */
+  /** Public-health target from TARGETS.RABIES_COVERAGE_PCT. */
   target: number;
   /** Number of distinct localities in scope with ≥1 dog. */
   partidos: number;
+  /** True when the scope contains ≥1 dog; false means "no population yet". */
+  hasData: boolean;
 };
 
 export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<RabiesCoverageKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
-    return { current: 0, target: 80, partidos: 0 };
+    return { current: 0, target: TARGETS.RABIES_COVERAGE_PCT, partidos: 0, hasData: false };
   }
 
   const since12m = ctx.period.since;
@@ -123,8 +126,9 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
 
   return {
     current,
-    target: 80,
+    target: TARGETS.RABIES_COVERAGE_PCT,
     partidos: partidosRows[0]?.n ?? 0,
+    hasData: totalDogs > 0,
   };
 }
 
@@ -182,7 +186,10 @@ export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise
 
   const currentCount = currentRows[0]?.n ?? 0;
   const prevCount = prevRows[0]?.n ?? 0;
-  const deltaPct = prevCount === 0 ? 0 : Math.round(((currentCount - prevCount) / prevCount) * 100);
+  // Use the centralized computeDeltaPct which rounds to one decimal and guards /0.
+  // Re-imported inline to avoid circular dep — TARGETS is already imported from lib/metrics.
+  const deltaPct =
+    prevCount === 0 ? 0 : Math.round(((currentCount - prevCount) / prevCount) * 1000) / 10;
 
   return {
     count: currentCount,

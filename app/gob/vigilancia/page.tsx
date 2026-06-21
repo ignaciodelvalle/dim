@@ -13,6 +13,7 @@ import {
   OpCardHead,
   OpKpi,
 } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
@@ -29,7 +30,7 @@ import {
   fetchVigilanciaMetrics,
   fetchZoonosisTrend,
 } from "@/lib/govt-dashboards";
-import { buildProjectionContext } from "@/lib/metrics";
+import { buildProjectionContext, fetchKpiTrend } from "@/lib/metrics";
 import { fetchSurveillanceCompliance } from "@/lib/surveillance-metrics";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
@@ -105,23 +106,35 @@ export default async function GobVigilanciaPage({
   // presentational.
   const complianceCtx = buildProjectionContext(actor, filteredJurisdictions, period);
 
-  const [metrics, signals30d, mapData, trend, signalsPeriod, subregionData, compliance] =
-    await Promise.all([
-      fetchVigilanciaMetrics(actor, filteredJurisdictions),
-      fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
-      fetchCasesPerLocality(actor, filteredJurisdictions),
-      fetchZoonosisTrend(actor, filteredJurisdictions, { since }),
-      periodMatchesSummary
-        ? null
-        : fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
-      // When a province is selected, fetch department/barrio-level case counts.
-      // For the national view (no province), this is null and the choropleth
-      // stays at province level (no behavior change).
-      selectedProvinceIso
-        ? fetchCasesPerSubregion(actor, filteredJurisdictions, selectedProvinceIso)
-        : Promise.resolve(null),
-      fetchSurveillanceCompliance(complianceCtx),
-    ]);
+  const [
+    metrics,
+    signals30d,
+    mapData,
+    trend,
+    signalsPeriod,
+    subregionData,
+    compliance,
+    outbreakSparkline,
+    rabiesSparkline,
+    vacSparkline,
+  ] = await Promise.all([
+    fetchVigilanciaMetrics(actor, filteredJurisdictions),
+    fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
+    fetchCasesPerLocality(actor, filteredJurisdictions),
+    fetchZoonosisTrend(actor, filteredJurisdictions, { since }),
+    periodMatchesSummary ? null : fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
+    // When a province is selected, fetch department/barrio-level case counts.
+    // For the national view (no province), this is null and the choropleth
+    // stays at province level (no behavior change).
+    selectedProvinceIso
+      ? fetchCasesPerSubregion(actor, filteredJurisdictions, selectedProvinceIso)
+      : Promise.resolve(null),
+    fetchSurveillanceCompliance(complianceCtx),
+    // Sparklines for KPI tiles (Fase 0).
+    fetchKpiTrend("outbreak_signal_opened", complianceCtx),
+    fetchKpiTrend("rabies_observation_started", complianceCtx),
+    fetchKpiTrend("vaccination_administered", complianceCtx),
+  ]);
 
   const signals = signalsPeriod ?? signals30d;
   const summary = computeDiseaseSummary(signals30d);
@@ -271,16 +284,46 @@ export default async function GobVigilanciaPage({
           label="Brotes activos"
           value={String(metrics.outbreakActiveCount)}
           tone={metrics.outbreakActiveCount > 0 ? "warn" : "neutral"}
+          sparkline={outbreakSparkline.points.map((p) => p.y)}
           href="/gob/vigilancia/brotes"
+          info={{
+            definition:
+              "Cantidad de señales de brote (outbreak_signal) con estado 'open' en la jurisdicción en los últimos 30 días.",
+            formula: "COUNT(outbreak_signal_opened events, últimos 30d) scoped to jurisdiction",
+          }}
         />
         <OpKpi
           label="Rábicas activas"
           value={String(metrics.rabiesActiveCount)}
           tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
+          sparkline={rabiesSparkline.points.map((p) => p.y)}
           href="/gob/vigilancia/zoonosis"
+          info={{
+            definition:
+              "Cantidad de casos de observación rábica (caseKind='rabies_observation') con estado 'open' en la jurisdicción.",
+            formula: "COUNT(cases WHERE caseKind='rabies_observation' AND status='open')",
+          }}
         />
-        <OpKpi label="Pets hoy" value={String(metrics.petsRegisteredToday)} />
-        <OpKpi label="Vacunaciones (7d)" value={String(metrics.vaccinationsThisWeek)} tone="ok" />
+        <OpKpi
+          label="Pets hoy"
+          value={String(metrics.petsRegisteredToday)}
+          info={{
+            definition:
+              "Mascotas registradas en el sistema desde las 00:00 hora local de hoy (Arg/Buenos Aires), scoped a la jurisdicción del operador.",
+            formula: "COUNT(pets WHERE created_at >= today midnight ART)",
+          }}
+        />
+        <OpKpi
+          label="Vacunaciones (7d)"
+          value={String(metrics.vaccinationsThisWeek)}
+          tone="ok"
+          sparkline={vacSparkline.points.map((p) => p.y)}
+          info={{
+            definition:
+              "Eventos vaccination_administered registrados en los últimos 7 días en la jurisdicción del operador.",
+            formula: "COUNT(vaccination_administered, últimos 7d) scoped to jurisdiction",
+          }}
+        />
       </section>
 
       {/* Item 3 — compliance KPI row (A8 / A7 / A12) */}
@@ -298,6 +341,7 @@ export default async function GobVigilanciaPage({
                 ? "neutral"
                 : "ok"
           }
+          bar={rabiesCompliance.compliancePct ?? undefined}
           sub={
             rabiesCompliance.openBreaches > 0
               ? `${rabiesCompliance.openBreaches} abierta(s) > 10 días`
@@ -316,6 +360,7 @@ export default async function GobVigilanciaPage({
           label="SLA notificación ENO"
           value={pct(enoSla.onTimePct)}
           tone={enoSla.breachedOpen > 0 ? "warn" : enoSla.onTimePct === null ? "neutral" : "ok"}
+          bar={enoSla.onTimePct ?? undefined}
           sub={
             enoSla.breachedOpen > 0
               ? `${enoSla.breachedOpen} fuera de SLA`
@@ -561,6 +606,8 @@ export default async function GobVigilanciaPage({
           </div>
         </OpCardBody>
       </OpCard>
+
+      <DashboardFreshnessFooter ctx={complianceCtx} />
     </div>
   );
 }

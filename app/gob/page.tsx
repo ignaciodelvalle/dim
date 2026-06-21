@@ -16,6 +16,7 @@ import { JurisdictionFilterBar } from "@/components/JurisdictionFilterBar";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { readFilterParams } from "@/components/jurisdiction-filter-params";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { auditLog, db } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
 import { listLocalitiesByProvince } from "@/lib/ar-localidades";
@@ -31,7 +32,14 @@ import {
   fetchRabiesCoverage,
   fetchSterilizationMetrics,
 } from "@/lib/govt-home-kpis";
-import { buildProjectionContext, fetchBitesTrend } from "@/lib/metrics";
+import {
+  TARGETS,
+  buildProjectionContext,
+  computeDeltaPct,
+  fetchBitesTrend,
+  fetchKpiTrend,
+  toneForTarget,
+} from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -136,6 +144,9 @@ export default async function GobiernoDashboardPage({
     microchipPenetration,
     breedCompliance,
     bitesTrend,
+    sterilizationTrend,
+    zoonosisTrend,
+    rabiesVaxTrend,
   ] = await Promise.all([
     // Dashboard preview — not a paginated surface: intentionally passes limit without cursor.
     fetchVisiblePendingRequests(profile, jurisdictions, undefined, { limit: 200 }),
@@ -162,6 +173,10 @@ export default async function GobiernoDashboardPage({
     // D1 — mordeduras por período (trend), so the operator sees direction, not
     // just the "Mordeduras / 10k hab." snapshot KPI above. Reuses the 12m ctx.
     fetchBitesTrend(ctx12m),
+    // Sparklines for KPI tiles (Fase 0).
+    fetchKpiTrend("sterilization_performed", ctx30d),
+    fetchKpiTrend("rabies_observation_started", ctx12m),
+    fetchKpiTrend("vaccination_administered", ctx12m),
   ]);
 
   // Shape the bites trend for TimeSeriesChart (x/y points).
@@ -230,10 +245,19 @@ export default async function GobiernoDashboardPage({
       >
         <OpKpi
           label="Cobertura antirrábica"
-          value={`${rabiesCoverage.current}%`}
-          tone={rabiesCoverage.current >= rabiesCoverage.target ? "ok" : "warn"}
-          bar={rabiesCoverage.current}
-          sub={`meta ${rabiesCoverage.target}% · ${rabiesCoverage.partidos} partidos`}
+          value={rabiesCoverage.hasData ? `${rabiesCoverage.current}%` : "—"}
+          tone={
+            !rabiesCoverage.hasData
+              ? "neutral"
+              : toneForTarget(rabiesCoverage.current, TARGETS.RABIES_COVERAGE_PCT)
+          }
+          bar={rabiesCoverage.hasData ? rabiesCoverage.current : undefined}
+          sub={
+            rabiesCoverage.hasData
+              ? `meta ${TARGETS.RABIES_COVERAGE_PCT}% · ${rabiesCoverage.partidos} partidos`
+              : "Sin datos en el período"
+          }
+          sparkline={rabiesVaxTrend.points.map((p) => p.y)}
           href="/gob/analytics"
           info={{
             definition:
@@ -247,14 +271,12 @@ export default async function GobiernoDashboardPage({
         <OpKpi
           label="Esterilizaciones / mes"
           value={sterilizations.count.toLocaleString("es-AR")}
-          delta={
+          deltaV2={
             sterilizations.deltaPct !== 0
-              ? {
-                  text: `${Math.abs(sterilizations.deltaPct)}% vs mes ant.`,
-                  up: sterilizations.deltaPct >= 0,
-                }
+              ? { value: sterilizations.deltaPct, period: "vs mes ant." }
               : undefined
           }
+          sparkline={sterilizationTrend.points.map((p) => p.y)}
           sub={`${sterilizations.orgs} organizaciones`}
           href="/gob/analytics"
           info={{
@@ -268,14 +290,15 @@ export default async function GobiernoDashboardPage({
           label="Mordeduras / 10k hab."
           value={bitesPer10k.rate.toString().replace(".", ",")}
           tone="warn"
-          delta={
+          deltaV2={
             bitesPer10k.delta !== 0
               ? {
-                  text: `${Math.abs(bitesPer10k.delta).toString().replace(".", ",")} vs año ant.`,
-                  up: false,
+                  value: computeDeltaPct(bitesPer10k.rate, bitesPer10k.rate - bitesPer10k.delta),
+                  period: "vs año ant.",
                 }
               : undefined
           }
+          sparkline={bitesTrend.points.map((p) => p.y)}
           sub={`${bitesPer10k.reports} reportes`}
           href="/gob/vigilancia"
           info={{
@@ -291,6 +314,12 @@ export default async function GobiernoDashboardPage({
           label="Casos zoonosis activos"
           value={activeZoonosis.count}
           tone="danger"
+          deltaV2={
+            activeZoonosis.deltaWeek !== 0
+              ? { value: activeZoonosis.deltaWeek, period: "vs semana ant." }
+              : undefined
+          }
+          sparkline={zoonosisTrend.points.map((p) => p.y)}
           sub={`${activeZoonosis.rabies} rabia · ${activeZoonosis.lepto} lepto · ${activeZoonosis.hidat} hidat.`}
           href="/gob/vigilancia"
           info={{
@@ -313,17 +342,16 @@ export default async function GobiernoDashboardPage({
         <OpKpi
           label="Penetración de microchip"
           value={`${microchipPenetration.ratePct}%`}
-          tone={microchipPenetration.ratePct >= 80 ? "ok" : "warn"}
+          tone={toneForTarget(microchipPenetration.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
           bar={microchipPenetration.ratePct}
-          sub={`${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas · Ley 14.107`}
+          sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas · Ley 14.107`}
           href="/gob/analytics"
           info={{
             definition:
               "Porcentaje de mascotas activas en la jurisdicción con al menos una identificación microchip ISO activa registrada (C1). Exigido por Ley Provincial 14.107.",
             formula:
               "COUNT(pets activos con pet_identifications.kind='microchip_iso' y status='active') / COUNT(pets activos)",
-            caveat:
-              "Meta recomendada: 80%. Solo cuenta microchips registrados en MiMAR; la tasa real puede ser mayor.",
+            caveat: `Meta recomendada: ${TARGETS.MICROCHIP_PENETRATION_PCT}%. Solo cuenta microchips registrados en MiMAR; la tasa real puede ser mayor.`,
           }}
         />
         <OpKpi
@@ -586,6 +614,8 @@ export default async function GobiernoDashboardPage({
           </OpCard>
         </div>
       </div>
+
+      <DashboardFreshnessFooter ctx={ctx12m} />
     </div>
   );
 }

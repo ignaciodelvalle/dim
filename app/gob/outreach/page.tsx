@@ -18,6 +18,7 @@ import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { relativeDaysShort } from "@/lib/format";
 import { buildProjectionContext } from "@/lib/metrics";
@@ -341,6 +342,8 @@ export default async function GobOutreachPage() {
           ← Volver al dashboard
         </Link>
       </p>
+
+      <DashboardFreshnessFooter ctx={ctx12m} />
     </div>
   );
 }

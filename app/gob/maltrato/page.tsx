@@ -4,6 +4,7 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, welfareReports } from "@/db";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
@@ -15,6 +16,8 @@ import {
   buildMaltratoListConditions,
   fetchWelfareMetrics,
 } from "@/lib/govt-dashboards";
+import { buildProjectionContext } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,
@@ -150,6 +153,9 @@ export default async function GobMaltratoPage({
     currentUserId: user.id,
   });
 
+  // Build a ctx for the freshness footer (jurisdiction-scoped, trailing 30d window).
+  const freshnessCtx = buildProjectionContext(actor, filteredJurisdictions, windows.trailing30d());
+
   // Fetch metrics and paginated report list in parallel.
   const offset = (currentPage - 1) * PAGE_SIZE;
 
@@ -227,15 +233,44 @@ export default async function GobMaltratoPage({
             value={String(metrics.unassignedCount)}
             tone={metrics.unassignedCount > 0 ? "warn" : "neutral"}
             href="/gob/maltrato?queue=urgent"
+            info={{
+              definition:
+                "Denuncias de maltrato sin ningún operador asignado (assignedToId IS NULL). Requieren triage inmediato.",
+              formula: "COUNT(welfare_reports WHERE assigned_to_id IS NULL AND status != 'closed')",
+            }}
           />
           <OpKpi
             label="Mías"
             value={String(metrics.myCount)}
             tone="blue"
             href="/gob/maltrato?queue=mine"
+            info={{
+              definition: "Denuncias de maltrato asignadas al usuario actual que están en curso.",
+              formula:
+                "COUNT(welfare_reports WHERE assigned_to_id = current_user AND status = 'in_progress')",
+            }}
           />
-          <OpKpi label="En investigación" value={String(metrics.inProgressCount)} tone="neutral" />
-          <OpKpi label="Cerradas (30d)" value={String(metrics.closedMonth)} tone="ok" />
+          <OpKpi
+            label="En investigación"
+            value={String(metrics.inProgressCount)}
+            tone="neutral"
+            info={{
+              definition:
+                "Total de denuncias con estado 'in_progress' en la jurisdicción del operador (asignadas a alguien).",
+              formula: "COUNT(welfare_reports WHERE status = 'in_progress') scoped",
+            }}
+          />
+          <OpKpi
+            label="Cerradas (30d)"
+            value={String(metrics.closedMonth)}
+            tone="ok"
+            info={{
+              definition:
+                "Denuncias cerradas (status='closed') en los últimos 30 días en la jurisdicción.",
+              formula:
+                "COUNT(welfare_reports WHERE status='closed' AND closed_at >= 30d ago) scoped",
+            }}
+          />
         </div>
 
         {/* Queue tabs + list card */}
@@ -305,6 +340,8 @@ export default async function GobMaltratoPage({
             ))}
           </UrlTabs>
         </Suspense>
+
+        <DashboardFreshnessFooter ctx={freshnessCtx} />
       </div>
     </main>
   );

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { logPiiQueryForAuthority } from "@/app/actions/admin-proposals";
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
+import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { searchUsers } from "@/lib/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/compliance-metrics";
@@ -171,6 +172,8 @@ export default async function UsuariosPage({
           ← Volver al dashboard
         </Link>
       </p>
+
+      <DashboardFreshnessFooter ctx={complianceCtx} />
     </div>
   );
 }
