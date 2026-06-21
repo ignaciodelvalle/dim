@@ -8,7 +8,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { ACCENT_WORDS, SCREAMING_ENUM, TOUCH_TARGET_TOKENS } from "@/scripts/check-ui-invariants";
+import {
+  ACCENT_WORDS,
+  ENGLISH_UI_WORDS,
+  SCREAMING_ENUM,
+  TOUCH_TARGET_TOKENS,
+} from "@/scripts/check-ui-invariants";
 
 // ---------------------------------------------------------------------------
 // Rule 1 — Touch target tokens
@@ -222,6 +227,62 @@ describe("ACCENT_WORDS", () => {
     it("does NOT match accented 'todavía'", () => {
       entry.re.lastIndex = 0;
       expect("Sin casos registrados todavía.").not.toMatch(entry.re);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 4 — Raw English UI words in JSX text
+// ---------------------------------------------------------------------------
+
+describe("ENGLISH_UI_WORDS", () => {
+  it("has an entry for Enrollment", () => {
+    const words = ENGLISH_UI_WORDS.map((w) => w.word);
+    expect(words).toContain("Enrollment");
+  });
+
+  describe("Enrollment", () => {
+    const entry = ENGLISH_UI_WORDS.find((w) => w.word === "Enrollment")!;
+
+    // Positive: >Enrollment< in JSX text position is flagged
+    it("matches >Enrollment< in JSX text position", () => {
+      entry.re.lastIndex = 0;
+      expect(">Enrollment<").toMatch(entry.re);
+    });
+
+    it("matches 'Enrollment' in a realistic JSX label line", () => {
+      entry.re.lastIndex = 0;
+      const line = '          <p className="text-[9px] font-bold uppercase">Enrollment</p>';
+      expect(line).toMatch(entry.re);
+    });
+
+    // Negative: code identifier is NOT flagged by the regex itself
+    it("does NOT match 'Inscripciones' (correct Spanish form)", () => {
+      entry.re.lastIndex = 0;
+      expect(">Inscripciones<").not.toMatch(entry.re);
+    });
+
+    // Negative: Outreach is not in the denylist at all
+    it("Outreach is not in the denylist (intentional product vocabulary)", () => {
+      const words = ENGLISH_UI_WORDS.map((w) => w.word);
+      expect(words).not.toContain("Outreach");
+    });
+
+    // Negative: a TypeScript const declaration is not JSX text
+    it("does NOT flag 'const Enrollment = ...' (code identifier, not JSX text)", () => {
+      // looksLikeJsxText returns false for this pattern — the regex matches but
+      // the JSX text check (>Word< or {"Word"}) is what gates the rule.
+      // Here we verify the regex alone matches, then confirm a non-JSX line
+      // containing Enrollment would be excluded by the text-position check.
+      entry.re.lastIndex = 0;
+      const codeLine = "  const Enrollment = offering.enrollment;";
+      // The regex matches the word — but looksLikeJsxText would return false
+      // because the line has neither >Enrollment< nor {"Enrollment"}.
+      const matches = [...codeLine.matchAll(entry.re)];
+      expect(matches.length).toBeGreaterThan(0); // regex detects it
+      // Confirm it's NOT in JSX text position (no >Word< or {"Word"} pattern):
+      expect(codeLine).not.toMatch(/>Enrollment</);
+      expect(codeLine).not.toMatch(/\{["'`]Enrollment["'`]\}/);
     });
   });
 });

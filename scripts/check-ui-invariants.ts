@@ -4,6 +4,7 @@
 //   1. Touch target ≥ 44px  — flags h-9/min-h-9/min-w-9 inside className on tsx files
 //   2. No raw SCREAMING_CASE enum in JSX text  — catches un-localized event codes
 //   3. es-AR missing accents  — known missing-accent regressions in Spanish copy
+//   4. No raw English UI words in JSX text  — catches un-translated visible copy (denylist-based)
 //
 // Run: pnpm tsx scripts/check-ui-invariants.ts
 // Or:  pnpm lint:ui
@@ -232,6 +233,43 @@ export const ACCENT_ALLOWLIST = new Set<string>([
 ]);
 
 // ---------------------------------------------------------------------------
+// Rule 4 — No raw English UI words in JSX text
+// ---------------------------------------------------------------------------
+// Catches English words rendered as visible UI copy instead of their Spanish
+// equivalents. Only flags tokens in JSX text position (same technique as Rule 2)
+// to avoid false positives on code identifiers, imports, and prop names.
+//
+// Denylist is opt-in: only words explicitly added here are flagged.
+// Borrowed/product vocabulary (Outreach, etc.) simply stays off the list.
+//
+// Detection patterns (same as looksLikeJsxText):
+//   >Word<     direct JSX text child
+//   {"Word"}   JSX expression string literal child
+//
+// Allowlist: "relativePath:word" for any intentional use of a denylisted word.
+export const ENGLISH_UI_WORDS: Array<{ word: string; suggestion: string; re: RegExp }> = [
+  {
+    word: "Enrollment",
+    suggestion: "Inscripciones",
+    re: /\bEnrollment\b/g,
+  },
+];
+
+// Lines that should be excluded from English-word rule matching
+// (same exclusion strategy as the screaming enum rule).
+const ENGLISH_WORD_EXCLUSIONS = [
+  /^\s*(?:const|let|var|type|interface|enum|import|export|\/\/|\/\*|\*)\s/,
+  // className=, href=, aria-, data- attributes (not visible copy)
+  /(?:className|href|aria-\w+|data-\w+|action|name|id|value|src|alt|placeholder)\s*=\s*["'`][^"'`]*$/,
+];
+
+// Allowlist for rule 4 — "relativePath:word" pairs
+// Add with justification comment for each intentional borrowed term.
+export const ENGLISH_UI_WORD_ALLOWLIST = new Set<string>([
+  // (empty — no intentional denylisted words in the repo at time of writing)
+]);
+
+// ---------------------------------------------------------------------------
 // File globbing
 // ---------------------------------------------------------------------------
 
@@ -307,6 +345,27 @@ function runScan(): void {
     });
   }
 
+  // --- Rule 4: Raw English UI words in JSX text ---
+  for (const file of STANDARD_FILES) {
+    const relPath = normalizeRelPath(file);
+    const lines = readFileSync(file, "utf8").split(/\r?\n/);
+    lines.forEach((line, i) => {
+      if (ENGLISH_WORD_EXCLUSIONS.some((re) => re.test(line))) return;
+      for (const { word, suggestion, re } of ENGLISH_UI_WORDS) {
+        re.lastIndex = 0;
+        for (const match of line.matchAll(re)) {
+          if (!looksLikeJsxText(line, word)) continue;
+          const key = `${relPath}:${word}`;
+          if (ENGLISH_UI_WORD_ALLOWLIST.has(key)) continue;
+          console.error(
+            `${file}:${i + 1}:${(match.index ?? 0) + 1}: raw English UI word "${word}" in JSX text — use "${suggestion}" instead`,
+          );
+          hits += 1;
+        }
+      }
+    });
+  }
+
   // --- Rule 3: Missing es-AR accents ---
   for (const file of STANDARD_FILES) {
     const relPath = normalizeRelPath(file);
@@ -334,7 +393,7 @@ function runScan(): void {
     process.exit(1);
   }
   console.log(
-    `✓ UI invariants clean — touch targets, enum text, accents OK across ${TOUCH_TARGET_FILES.length}+${STANDARD_FILES.length} files.`,
+    `✓ UI invariants clean — touch targets, enum text, english copy, accents OK across ${TOUCH_TARGET_FILES.length}+${STANDARD_FILES.length} files.`,
   );
 }
 
