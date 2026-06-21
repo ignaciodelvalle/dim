@@ -244,6 +244,7 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     label: "Registro y aprobaciones",
     items: [
       { href: "/gob/censo", label: "Censo", matchPrefix: "/gob/censo" },
+      { href: "/gob/adopciones", label: "Adopciones", matchPrefix: "/gob/adopciones" },
       { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
       { href: "/gob/organizaciones", label: "Organizaciones", matchPrefix: "/gob/organizaciones" },
       { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
@@ -298,6 +299,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
     label: "Confiabilidad",
     items: [
       { href: "/admin/censo", label: "Censo", matchPrefix: "/admin/censo" },
+      { href: "/admin/adopciones", label: "Adopciones", matchPrefix: "/admin/adopciones" },
       { href: "/admin/poblacion", label: "Población", matchPrefix: "/admin/poblacion" },
       { href: "/admin/sistema", label: "Sistema", matchPrefix: "/admin/sistema" },
       { href: "/admin/outbox", label: "Outbox", matchPrefix: "/admin/outbox" },

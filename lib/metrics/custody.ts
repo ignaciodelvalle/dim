@@ -1,0 +1,461 @@
+// lib/metrics/custody.ts — Paquete F: pipeline de custodia & adopción.
+//
+// Async fetchers built on ProjectionContext, scoped and period-aware:
+//
+//   fetchCustodyFunnel(ctx)           → intake→foster→adoption→reversed counts
+//   fetchTimeInState(ctx)             → median/p75 days per custody role
+//   fetchReturnRate(ctx)              → adoption_reversed / adoption_finalized (null if den=0)
+//   fetchFosterPoolUtilization(ctx)   → volunteer pool + active placements
+//   fetchShelterOccupancyNational(ctx)→ occupied / capacity / pct (national aggregate)
+//   fetchAdoptionTrend(ctx)           → reuses fetchKpiTrend("adoption_finalized", ctx)
+//
+// PURE HELPERS (unit-testable, DB-free):
+// ---------------------------------------
+// funnelWithinUniverse, timeInStateNonNegative, returnRate
+//
+// EVENT TYPES USED:
+//   pet_events.event_type:
+//     'shelter_intake_recorded'  → shelter intake
+//     'foster_assigned'          → foster placement
+//     'adoption_finalized'       → adoption completed
+//     'adoption_reversed'        → adoption reversed (devolución)
+//
+// TABLES / COLUMNS USED:
+//   ownerships: role ('shelter_custody' | 'foster'), started_at, ended_at
+//   foster_volunteers: status ('active'), available_slots
+//   organizations: capacity_total, org_type (shelter)
+//
+// SCOPE:
+//   - pet_events funnel → scoped via petsScopeClause (INNER JOIN pets)
+//   - ownerships time-in-state → scoped via petsScopeClause (INNER JOIN pets)
+//   - foster_volunteers → scoped via jurisdiction columns where present
+//   - shelter occupancy national → aggregate across all shelter orgs (admin global only)
+
+import { and, count, eq, gte, isNull, lte, sql } from "drizzle-orm";
+
+import { db, fosterVolunteers, organizations, ownerships, petEvents, pets } from "@/db";
+
+import type { ProjectionContext } from "./context";
+import { petsScopeClause } from "./scope";
+import type { SingleSeriesTrend } from "./trends";
+import { fetchKpiTrend } from "./trends";
+
+// ---------------------------------------------------------------------------
+// Pure helpers (unit-testable, DB-free)
+// ---------------------------------------------------------------------------
+
+/**
+ * Adoption funnel stages, ordered from broadest to narrowest.
+ * Each stage count comes from the DB; this type makes the relationship explicit.
+ */
+export type FunnelCounts = {
+  intake: number;
+  foster: number;
+  adoption: number;
+  reversed: number;
+};
+
+/**
+ * Per-stage percentage relative to intake (the universe).
+ *
+ * Returns percents rounded to one decimal.
+ * Guards against intake=0 (returns 0 for all downstream stages).
+ *
+ * Downstream stages CAN exceed intake in pathological data (events recorded
+ * in-period for animals whose intake was outside the period window); this
+ * function caps at 100 to keep UI bars sensible.
+ *
+ * @param stages - Raw funnel counts from fetchCustodyFunnel.
+ */
+export function funnelWithinUniverse(stages: FunnelCounts): {
+  intakePct: number;
+  fosterPct: number;
+  adoptionPct: number;
+  reversedPct: number;
+} {
+  const { intake, foster, adoption, reversed } = stages;
+  if (intake === 0) {
+    return { intakePct: 100, fosterPct: 0, adoptionPct: 0, reversedPct: 0 };
+  }
+  const cap = (n: number) => Math.min(100, Math.round((n / intake) * 1000) / 10);
+  return {
+    intakePct: 100,
+    fosterPct: cap(foster),
+    adoptionPct: cap(adoption),
+    reversedPct: cap(reversed),
+  };
+}
+
+/**
+ * Guard: time-in-state must be non-negative.
+ * Returns the value clamped to 0 when negative (defensive against clock skew or
+ * NULL endedAt resolved to now() producing a tiny negative due to microseconds).
+ *
+ * @param days - Duration in days (may be negative from floating-point rounding).
+ */
+export function timeInStateNonNegative(days: number): number {
+  return Math.max(0, days);
+}
+
+/**
+ * Return rate: reversed adoptions / finalized adoptions.
+ *
+ * @param reversed  - Count of adoption_reversed events in period.
+ * @param finalized - Count of adoption_finalized events in period.
+ * @returns Ratio (0–1+), or null when finalized === 0 (undefined rate).
+ */
+export function returnRate(reversed: number, finalized: number): number | null {
+  if (finalized === 0) return null;
+  return reversed / finalized;
+}
+
+// ---------------------------------------------------------------------------
+// DB-bound types
+// ---------------------------------------------------------------------------
+
+/** Custody event funnel counts for the period. */
+export type CustodyFunnel = FunnelCounts;
+
+/** Median and p75 time-in-state per custody role. */
+export type TimeInStateRow = {
+  /** 'shelter_custody' or 'foster' */
+  role: string;
+  /** Median days in this state (null when no records). */
+  medianDays: number | null;
+  /** 75th-percentile days in this state (null when no records). */
+  p75Days: number | null;
+  /** Number of ownership records in scope. */
+  n: number;
+};
+
+/** Foster volunteer pool utilization summary. */
+export type FosterPoolUtilization = {
+  /** COUNT of foster_volunteers WHERE status='active'. */
+  activeVolunteers: number;
+  /** COUNT of foster_volunteers WHERE status='active' AND available_slots>0. */
+  withCapacity: number;
+  /** COUNT of ownerships WHERE role='foster' AND ended_at IS NULL. */
+  activeFosterPlacements: number;
+};
+
+/** National shelter occupancy (admin-only: aggregate across all shelter orgs). */
+export type ShelterOccupancy = {
+  /** SUM of active shelter_custody ownerships (occupied slots). */
+  occupied: number;
+  /** SUM of organizations.capacity_total for shelter orgs (null when no capacity declared). */
+  capacity: number | null;
+  /** Occupancy percentage (0–100+), or null when capacity is null. */
+  pct: number | null;
+};
+
+// ---------------------------------------------------------------------------
+// Shared guard
+// ---------------------------------------------------------------------------
+
+/** True when a govt actor has no assigned jurisdictions — queries return zeros. */
+function isEmptyScope(ctx: ProjectionContext): boolean {
+  return ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0;
+}
+
+// ---------------------------------------------------------------------------
+// fetchCustodyFunnel — shelter_intake_recorded → foster_assigned →
+//                      adoption_finalized → adoption_reversed
+// ---------------------------------------------------------------------------
+
+/**
+ * Counts custody pipeline events in the projection period, scoped to the
+ * viewer's jurisdiction via pet JOIN + petsScopeClause.
+ *
+ * Each stage is an INDEPENDENT count of events in the period — not a
+ * "cohort following the same animals". This matches how all other event
+ * funnel surfaces (mortalidad Disposición) work in this codebase.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchCustodyFunnel(ctx: ProjectionContext): Promise<CustodyFunnel> {
+  const empty: CustodyFunnel = { intake: 0, foster: 0, adoption: 0, reversed: 0 };
+  if (isEmptyScope(ctx)) return empty;
+
+  const scope = petsScopeClause(ctx);
+
+  const eventTypes = [
+    "shelter_intake_recorded",
+    "foster_assigned",
+    "adoption_finalized",
+    "adoption_reversed",
+  ] as const;
+
+  const results = await Promise.all(
+    eventTypes.map((eventType) => {
+      const conditions = [
+        eq(petEvents.eventType, eventType),
+        gte(petEvents.occurredAt, ctx.period.since),
+        lte(petEvents.occurredAt, ctx.period.until),
+      ];
+      if (scope) conditions.push(sql`(${scope})`);
+
+      return db
+        .select({ n: count() })
+        .from(petEvents)
+        .innerJoin(pets, eq(pets.id, petEvents.petId))
+        .where(and(...conditions))
+        .then((rows) => rows[0]?.n ?? 0);
+    }),
+  );
+
+  return {
+    intake: results[0],
+    foster: results[1],
+    adoption: results[2],
+    reversed: results[3],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// fetchTimeInState — median + p75 days per ownerships role
+// ---------------------------------------------------------------------------
+
+/**
+ * Median and p75 time-in-state per custody role (shelter_custody, foster),
+ * computed directly in Postgres via percentile_cont WITHIN GROUP.
+ *
+ * Duration = EXTRACT(epoch FROM COALESCE(ended_at, now()) - started_at) / 86400
+ * (active ownerships use now() as the upper bound).
+ *
+ * Scoped by INNER JOIN pets + petsScopeClause. Results are clamped via
+ * timeInStateNonNegative to guard against floating-point edge cases.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchTimeInState(ctx: ProjectionContext): Promise<TimeInStateRow[]> {
+  if (isEmptyScope(ctx)) return [];
+
+  const scope = petsScopeClause(ctx);
+
+  // Build the WHERE clause: role IN ('shelter_custody','foster') + optional scope.
+  const conditions = [
+    sql`${ownerships.role} IN ('shelter_custody', 'foster')`,
+    // Include ownerships that OVERLAP the period: started before period end
+    // and either ended after period start or still active.
+    lte(ownerships.startedAt, ctx.period.until),
+    sql`(${ownerships.endedAt} IS NULL OR ${ownerships.endedAt} >= ${ctx.period.since})`,
+  ];
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const rows = await db
+    .select({
+      role: ownerships.role,
+      medianDays: sql<number | null>`
+        percentile_cont(0.5) WITHIN GROUP (
+          ORDER BY EXTRACT(epoch FROM COALESCE(${ownerships.endedAt}, NOW()) - ${ownerships.startedAt}) / 86400.0
+        )
+      `,
+      p75Days: sql<number | null>`
+        percentile_cont(0.75) WITHIN GROUP (
+          ORDER BY EXTRACT(epoch FROM COALESCE(${ownerships.endedAt}, NOW()) - ${ownerships.startedAt}) / 86400.0
+        )
+      `,
+      n: count(),
+    })
+    .from(ownerships)
+    .innerJoin(pets, eq(pets.id, ownerships.petId))
+    .where(and(...conditions))
+    .groupBy(ownerships.role);
+
+  return rows.map((r) => ({
+    role: r.role,
+    medianDays: r.medianDays != null ? timeInStateNonNegative(Number(r.medianDays)) : null,
+    p75Days: r.p75Days != null ? timeInStateNonNegative(Number(r.p75Days)) : null,
+    n: r.n,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// fetchReturnRate — adoption_reversed / adoption_finalized in period
+// ---------------------------------------------------------------------------
+
+/**
+ * Return rate: fraction of finalized adoptions that were subsequently reversed.
+ *
+ * Both numerator and denominator are event counts in the projection period —
+ * they are NOT guaranteed to represent the same cohort (a reversal in-period
+ * may refer to an adoption that was finalized before the period start).
+ * This matches the "events in window" approach used elsewhere.
+ *
+ * @param ctx - ProjectionContext.
+ * @returns returnRate (0–1+) or null when adoption_finalized === 0.
+ */
+export async function fetchReturnRate(ctx: ProjectionContext): Promise<number | null> {
+  if (isEmptyScope(ctx)) return null;
+
+  const scope = petsScopeClause(ctx);
+
+  const makeConditions = (eventType: string) => {
+    const conds = [
+      eq(petEvents.eventType, eventType),
+      gte(petEvents.occurredAt, ctx.period.since),
+      lte(petEvents.occurredAt, ctx.period.until),
+    ];
+    if (scope) conds.push(sql`(${scope})`);
+    return conds;
+  };
+
+  const [adoptionRows, reversedRows] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
+      .where(and(...makeConditions("adoption_finalized"))),
+    db
+      .select({ n: count() })
+      .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
+      .where(and(...makeConditions("adoption_reversed"))),
+  ]);
+
+  const adoption = adoptionRows[0]?.n ?? 0;
+  const reversed = reversedRows[0]?.n ?? 0;
+  return returnRate(reversed, adoption);
+}
+
+// ---------------------------------------------------------------------------
+// fetchFosterPoolUtilization — volunteer pool + active placements
+// ---------------------------------------------------------------------------
+
+/**
+ * Foster pool utilization: active volunteers, those with open slots, and
+ * current active foster placements (ownerships.role='foster', ended_at IS NULL).
+ *
+ * foster_volunteers is scoped by jurisdiction columns when the ctx is
+ * jurisdiction-scoped (province + locality filter on the volunteer table).
+ * When the scope is global (admin) no filtering is applied.
+ *
+ * @param ctx - ProjectionContext.
+ */
+export async function fetchFosterPoolUtilization(
+  ctx: ProjectionContext,
+): Promise<FosterPoolUtilization> {
+  const empty: FosterPoolUtilization = {
+    activeVolunteers: 0,
+    withCapacity: 0,
+    activeFosterPlacements: 0,
+  };
+  if (isEmptyScope(ctx)) return empty;
+
+  // Jurisdiction filter for foster_volunteers (using jurisdiction columns).
+  const volunteerScopeConditions: ReturnType<typeof sql>[] = [];
+  if (ctx.scope.kind === "jurisdictions") {
+    const { jurisdictions } = ctx.scope;
+    if (jurisdictions.length === 0) return empty;
+    const pairs = jurisdictions.map(
+      (j) =>
+        sql`(${fosterVolunteers.jurisdictionProvince} = ${j.province} AND ${fosterVolunteers.jurisdictionLocality} = ${j.locality})`,
+    );
+    volunteerScopeConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+  }
+
+  const petsScope = petsScopeClause(ctx);
+
+  const [volunteerRows, placementRows] = await Promise.all([
+    // Active volunteers and those with capacity — from foster_volunteers table.
+    db
+      .select({
+        activeVolunteers: sql<number>`COUNT(*) FILTER (WHERE ${fosterVolunteers.status} = 'active')::int`,
+        withCapacity: sql<number>`COUNT(*) FILTER (WHERE ${fosterVolunteers.status} = 'active' AND ${fosterVolunteers.availableSlots} > 0)::int`,
+      })
+      .from(fosterVolunteers)
+      .where(volunteerScopeConditions.length > 0 ? and(...volunteerScopeConditions) : undefined),
+
+    // Active foster placements — from ownerships (scoped via pets JOIN).
+    db
+      .select({ n: count() })
+      .from(ownerships)
+      .innerJoin(pets, eq(pets.id, ownerships.petId))
+      .where(
+        and(
+          eq(ownerships.role, "foster"),
+          isNull(ownerships.endedAt),
+          ...(petsScope ? [sql`(${petsScope})`] : []),
+        ),
+      ),
+  ]);
+
+  return {
+    activeVolunteers: volunteerRows[0]?.activeVolunteers ?? 0,
+    withCapacity: volunteerRows[0]?.withCapacity ?? 0,
+    activeFosterPlacements: placementRows[0]?.n ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// fetchShelterOccupancyNational — aggregate across all shelter orgs
+// ---------------------------------------------------------------------------
+
+/**
+ * National shelter occupancy: SUM of active shelter_custody ownerships vs
+ * SUM of organizations.capacity_total for shelter-type orgs.
+ *
+ * This is an ADMIN-ONLY metric (national aggregate). When the ctx scope is
+ * jurisdiction-scoped the function still runs but the pet join scopes it to
+ * the assigned jurisdictions (useful for a gob view of their territory).
+ *
+ * Reuses lib/org-census.ts mental model (active shelter_custody ownerships
+ * = occupied slots) but aggregates NATIONALLY rather than per-org.
+ *
+ * @param ctx - ProjectionContext.
+ */
+export async function fetchShelterOccupancyNational(
+  ctx: ProjectionContext,
+): Promise<ShelterOccupancy> {
+  const empty: ShelterOccupancy = { occupied: 0, capacity: null, pct: null };
+  if (isEmptyScope(ctx)) return empty;
+
+  const petsScope = petsScopeClause(ctx);
+
+  // Active shelter_custody ownerships (occupied slots).
+  const occupiedConditions = [
+    eq(ownerships.role, "shelter_custody"),
+    isNull(ownerships.endedAt),
+    ...(petsScope ? [sql`(${petsScope})`] : []),
+  ];
+
+  const [occupiedRows, capacityRows] = await Promise.all([
+    db
+      .select({ occupied: count() })
+      .from(ownerships)
+      .innerJoin(pets, eq(pets.id, ownerships.petId))
+      .where(and(...occupiedConditions)),
+
+    // SUM of capacity_total for shelter orgs (all, not scoped — capacity is org config).
+    db
+      .select({
+        totalCapacity: sql<number | null>`SUM(${organizations.capacityTotal})`,
+      })
+      .from(organizations)
+      .where(eq(organizations.orgType, "shelter")),
+  ]);
+
+  const occupied = occupiedRows[0]?.occupied ?? 0;
+  const rawCapacity = capacityRows[0]?.totalCapacity;
+  const capacity = rawCapacity != null ? Number(rawCapacity) : null;
+  const pct =
+    capacity != null && capacity > 0 ? Math.round((occupied / capacity) * 1000) / 10 : null;
+
+  return { occupied, capacity, pct };
+}
+
+// ---------------------------------------------------------------------------
+// fetchAdoptionTrend — reuses fetchKpiTrend("adoption_finalized", ctx)
+// ---------------------------------------------------------------------------
+
+/**
+ * Adoption trend: bucketed counts of adoption_finalized events in the period.
+ *
+ * Directly reuses fetchKpiTrend from lib/metrics/trends.ts — same
+ * petEventsScopeClause, same date_trunc, same k-anonymity suppression.
+ *
+ * @param ctx - ProjectionContext.
+ */
+export async function fetchAdoptionTrend(ctx: ProjectionContext): Promise<SingleSeriesTrend> {
+  return fetchKpiTrend("adoption_finalized", ctx);
+}

@@ -44,6 +44,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/outreach", // Item 21 — actionable outreach pipelines
   "/gob/censo", // Paquete E — censo poblacional & salud del registro
   "/gob/poblacion", // Paquete G — control poblacional (North Star)
+  "/gob/adopciones", // Paquete F — pipeline de custodia & adopción
 ]);
 
 const ADMIN_HREF_SNAPSHOT = new Set([
@@ -64,6 +65,7 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/casos",
   "/admin/jurisdicciones",
   "/admin/censo", // Paquete E — censo poblacional & salud del registro
+  "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
   "/admin/poblacion", // Paquete G — control poblacional (North Star)
 ]);
 

@@ -262,6 +262,10 @@ describe("GOB_NAV — no route regression", () => {
   it("contains /gob/poblacion (Paquete G — control poblacional)", () => {
     expect(hrefs).toContain("/gob/poblacion");
   });
+
+  it("contains /gob/adopciones (Paquete F — pipeline de custodia & adopción)", () => {
+    expect(hrefs).toContain("/gob/adopciones");
+  });
 });
 
 describe("ADMIN_NAV — no route regression", () => {
@@ -298,6 +302,10 @@ describe("ADMIN_NAV — no route regression", () => {
   it("contains /admin/poblacion (Paquete G — control poblacional)", () => {
     expect(hrefs).toContain("/admin/poblacion");
   });
+
+  it("contains /admin/adopciones (Paquete F — pipeline de custodia & adopción)", () => {
+    expect(hrefs).toContain("/admin/adopciones");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -330,6 +338,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/outreach", // Item 21 — actionable outreach pipelines
   "/gob/censo", // Paquete E — censo poblacional & salud del registro
   "/gob/poblacion", // Paquete G — control poblacional (North Star)
+  "/gob/adopciones", // Paquete F — pipeline de custodia & adopción
 ]);
 
 describe("GOB_NAV_SECTIONS — section invariants", () => {
@@ -424,6 +433,7 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/casos",
   "/admin/jurisdicciones",
   "/admin/censo", // Paquete E — censo poblacional & salud del registro
+  "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
   "/admin/poblacion", // Paquete G — control poblacional (North Star)
 ]);
 

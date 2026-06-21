@@ -73,6 +73,26 @@ export {
 } from "./census";
 export type { FunnelStages, ProvinceRegistryRow, RegistryCounts } from "./census";
 
+// Paquete F — pipeline de custodia & adopción.
+export {
+  funnelWithinUniverse,
+  returnRate,
+  timeInStateNonNegative,
+  fetchAdoptionTrend,
+  fetchCustodyFunnel,
+  fetchFosterPoolUtilization,
+  fetchReturnRate,
+  fetchShelterOccupancyNational,
+  fetchTimeInState,
+} from "./custody";
+export type {
+  CustodyFunnel,
+  FosterPoolUtilization,
+  FunnelCounts,
+  ShelterOccupancy,
+  TimeInStateRow,
+} from "./custody";
+
 // Paquete G — control poblacional.
 export {
   computeNetGrowth,
