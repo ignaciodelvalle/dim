@@ -151,7 +151,7 @@ export default async function GobCampanasPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Performance de campañas</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Enrollment, completitud y alcance geográfico de las campañas sanitarias en tu cobertura.
+          Inscripciones, completitud y alcance geográfico de las campañas sanitarias en tu cobertura.
         </p>
       </header>
 
@@ -181,7 +181,7 @@ export default async function GobCampanasPage({
             </span>
 
             <OpKpi
-              label="Enrollment"
+              label="Inscripciones"
               value={String(dashboard.totals.enrollment)}
               tone="blue"
               deltaV2={enrollmentDelta ?? undefined}
