@@ -412,12 +412,19 @@ export default async function GobOutboxPage({
                         })}
                       </td>
                       <td className="py-2 px-3">
-                        <Link
-                          href={`/admin/outbox/${row.id}`}
-                          className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-2 hover:underline whitespace-nowrap"
-                        >
-                          {"Detalle ->"}
-                        </Link>
+                        {/* Detail page is admin-only (/admin/outbox/[id] is admin-gated).
+                            A scoped /gob/outbox/[id] is a follow-up; the list already
+                            carries status/SLA/target so govt has no dead-end link. */}
+                        {profile.role === "admin" ? (
+                          <Link
+                            href={`/admin/outbox/${row.id}`}
+                            className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-2 hover:underline whitespace-nowrap"
+                          >
+                            {"Detalle ->"}
+                          </Link>
+                        ) : (
+                          <span className="text-[11px] text-ln-op-mute">—</span>
+                        )}
                       </td>
                     </tr>
                   );
