@@ -46,6 +46,24 @@ export type AggregationLevel = "locality" | "province";
  */
 export type LayerPrivacy = "none" | "coarse" | "gated";
 
+/**
+ * The data-type taxonomy used for F1 aggregation routing (Panorama v2).
+ *
+ *  - `"rate"`      — current-state rollup expressing a *rate/coverage* (cobertura).
+ *                    Rendered as a province/locality choropleth. Not aggregated by
+ *                    the per-unit point aggregation path.
+ *  - `"density"`   — event-count-based density layer (perdidas, mordeduras, denuncias).
+ *                    F1: one graduated circle per administrative unit (province or
+ *                    locality) encoding the event count. Toggle axis applies.
+ *  - `"signal"`    — public-health surveillance signal layer (zoonosis).
+ *                    Same graduated-circle aggregation as density in F1.
+ *  - `"reference"` — individual operational locations that MUST NOT be aggregated
+ *                    (refugios, decomisos). Each represents a distinct entity or
+ *                    expediente; spatial merging would destroy that identity.
+ *                    Rendered as discrete pins regardless of the toggle axis.
+ */
+export type LayerDataType = "rate" | "density" | "signal" | "reference";
+
 /** Declarative registry entry. The layer list IS the legend (spec §4). */
 export type PanoramaLayer = {
   id: LayerId;
@@ -69,6 +87,13 @@ export type PanoramaLayer = {
    *           These are DIMMED while a scrub is active rather than shown as if as-of-t.
    */
   temporal: boolean;
+  /**
+   * F1 data-type taxonomy. Drives which aggregation/rendering path the layer
+   * takes in Panorama v2:
+   *  - `"rate"` / `"density"` / `"signal"` → see LayerDataType JSDoc.
+   *  - `"reference"` → discrete pins; never aggregated by the point-aggregation path.
+   */
+  dataType: LayerDataType;
 };
 
 // --- Typed GeoJSON (minimal subset the layers emit; RFC 7946) ----------------

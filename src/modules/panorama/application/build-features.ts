@@ -286,6 +286,79 @@ export function buildChoroplethFeatures(
   return featureCollection(features);
 }
 
+// --- F1 aggregated point layer (one graduated symbol per administrative unit) -
+
+/**
+ * A per-unit aggregation cell for a density or signal point layer (F1).
+ *
+ * The repository produces one row per (province) or (province, locality) group
+ * by executing COUNT(*) over the relevant event table. The centroid resolves
+ * from ar_localities for locality-level cells; province-level cells carry the
+ * province centroid (or null when no centroid is available for that province).
+ *
+ * `count` is ALWAYS the real event count — suppression at k=5 is applied before
+ * the row reaches this transform for locality-level cells (matching the choropleth
+ * path). Province-level cells carry the real count without suppression (province
+ * cells are large; same asymmetry as the choropleth province path).
+ */
+export type AggregatedPointCell = {
+  /** Composite key: `"${province}"` at province level, `"${province}|${locality}"` at locality. */
+  key: string;
+  province: string;
+  locality?: string | null;
+  /** Latitude of the centroid (province or locality). */
+  centroidLat: string | null;
+  /** Longitude of the centroid. */
+  centroidLng: string | null;
+  /** Event count for this unit. For suppressed locality cells this is null
+   * (the real count never leaves the repository for k-anon). */
+  count: number | null;
+  /** True for suppressed locality cells (count < k=5). Province cells are never
+   * suppressed. Suppressed cells render muted; their popup says "suprimido". */
+  suppressed: boolean;
+};
+
+export type AggregatedPointProps = {
+  /** The administrative unit label (locality + province, or province alone). */
+  place: string;
+  province: string;
+  locality: string | null;
+  /** "province" or "locality" — lets the popup and legend know the aggregation level. */
+  level: "province" | "locality";
+  /** Event count for this unit; null for k-anon suppressed cells. */
+  count: number | null;
+  suppressed: boolean;
+};
+
+/**
+ * Build a graduated-symbol FeatureCollection from per-unit aggregation cells
+ * (F1 density+signal layers). One Point feature per unit at its centroid;
+ * cells without a resolvable centroid are dropped. Suppressed locality cells keep
+ * their location but carry count=null so the map renders them muted.
+ *
+ * This is the pure-function counterpart to `buildChoroplethFeatures`: identical
+ * in shape but driven by event counts rather than pet-state rollups.
+ */
+export function buildAggregatedPointFeatures(
+  cells: readonly AggregatedPointCell[],
+): FeatureCollection<AggregatedPointProps> {
+  const features = cells
+    .map((c) => {
+      const level: "province" | "locality" = c.locality != null ? "locality" : "province";
+      const place = c.locality != null ? `${c.locality}, ${c.province}` : c.province;
+      return pointFeature<AggregatedPointProps>(c.centroidLat, c.centroidLng, {
+        place,
+        province: c.province,
+        locality: c.locality ?? null,
+        level,
+        count: c.suppressed ? null : c.count,
+        suppressed: c.suppressed,
+      });
+    })
+    .filter((f) => f.geometry !== null);
+  return featureCollection(features);
+}
+
 // --- province choropleth (U5: filled polygons, no centroid geometry) ---------
 
 /**

@@ -15,15 +15,18 @@ import { AggregationToggle } from "@/components/panorama/AggregationToggle";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPanel";
 import { PanoramaKpiStrip } from "@/components/panorama/PanoramaKpiStrip";
-import type { ActiveLayer } from "@/components/panorama/SituationalMap";
+import type { ActiveLayer, PointRenderMode } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import {
+  AGGREGATED_POINT_IDS,
+  AGGREGATED_POINT_LAYERS,
   CHOROPLETH_LAYERS,
   PANORAMA_LAYERS,
   getLayer,
+  isAggregatedPointLayer,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
 import type {
@@ -159,14 +162,15 @@ export function PanoramaConsole({
   const scrubbing = asOf !== null;
 
   // A new period/scope window invalidates the as-of cache and parks at live. It
-  // also invalidates the province-level choropleth cache and the LOCALITY
-  // choropleth entries in dataRef (point layers keep their cache — they refetch
-  // on toggle as before).
+  // also invalidates the province-level cache and the LOCALITY-level entries in
+  // dataRef for choropleth layers AND aggregated point layers (their counts are
+  // period-sensitive). Reference layers keep their cache — they refetch on toggle.
   // biome-ignore lint/correctness/useExhaustiveDependencies: qs identity is the intended trigger.
   useEffect(() => {
     asOfDataRef.current.clear();
     provinceDataRef.current.clear();
     for (const id of CHOROPLETH_IDS) dataRef.current.delete(id);
+    for (const l of AGGREGATED_POINT_LAYERS) dataRef.current.delete(l.id);
     setAsOf(null);
   }, [searchParams]);
 
@@ -242,23 +246,36 @@ export function PanoramaConsole({
     for (const l of PANORAMA_LAYERS) {
       if (!states[l.id]?.active) continue;
       const temporal = isTemporalLayer(l.id);
-      // U5: a choropleth layer in "province" mode reads the province cache and
-      // renders as a filled polygon. Point + locality-mode layers are unchanged.
-      const isProvinceChoropleth = CHOROPLETH_IDS.has(l.id) && level === "province";
-      const features = isProvinceChoropleth
+      const isAggregatedPoint = AGGREGATED_POINT_IDS.has(l.id);
+      // Choropleth layers in province mode fill basemap polygons (province cache).
+      // Aggregated point layers (F1 density+signal) in province mode also read the
+      // province cache — the server returned province-grouped AggregatedPointCells.
+      const usesProvinceCache =
+        (CHOROPLETH_IDS.has(l.id) || isAggregatedPoint) && level === "province";
+      const features = usesProvinceCache
         ? (provinceDataRef.current.get(l.id) ?? EMPTY_FC)
         : scrubbing && temporal
           ? (asOfDataRef.current.get(l.id) ?? EMPTY_FC)
           : (dataRef.current.get(l.id) ?? EMPTY_FC);
+
+      // Resolve the point render mode (F1 Panorama v2):
+      //   - density+signal → "graduated" (per-unit circles, no clustering)
+      //   - reference (refugios/decomisos) → "reference" (discrete pins + clustering)
+      //   - choropleth layers → renderMode omitted (handled by geomType path)
+      const renderMode: PointRenderMode | undefined =
+        l.geomType === "point" ? (isAggregatedPoint ? "graduated" : "reference") : undefined;
+
       out.push({
         id: l.id,
         color: l.color,
         label: l.label,
         geomType: l.geomType,
+        renderMode,
         features,
-        // Choropleth layers carry the active aggregation level so the map fills
-        // polygons (province) or plots centroids (locality). Point layers omit it.
-        level: l.geomType === "choropleth" ? level : undefined,
+        // Choropleth layers + aggregated point layers carry the active aggregation
+        // level so the map can use it for popup labeling (e.g. "province" means
+        // the feature represents a whole province). Reference layers omit it.
+        level: l.geomType === "choropleth" || isAggregatedPoint ? level : undefined,
         // Non-temporal layers can't be reproduced in time — mute them while scrubbing.
         dimmed: scrubbing && !temporal,
       });
@@ -311,16 +328,21 @@ export function PanoramaConsole({
     [searchParams],
   );
 
-  // U5: switch the aggregation axis. Refetch the ACTIVE choropleth layers at the
-  // new level if not already cached, then repaint. Non-choropleth layers are
-  // untouched (the level doesn't apply to them). Cheap re-toggle: a cached level
-  // repaints instantly without a network round-trip.
+  // Switch the aggregation axis. Refetch the ACTIVE choropleth layers AND the
+  // active density+signal point layers (F1 Panorama v2) at the new level if not
+  // already cached, then repaint. Reference layers are not affected.
+  // Cheap re-toggle: a cached level repaints instantly without a network round-trip.
   const onLevelChange = useCallback(
     (next: AggregationLevel) => {
       if (next === levelRef.current) return;
       setLevel(next);
-      const activeChoropleths = CHOROPLETH_LAYERS.filter((l) => statesRef.current[l.id]?.active);
-      const needFetch = activeChoropleths.filter((l) =>
+
+      // Layers affected by the axis change: choropleth + aggregated point layers.
+      const affectedLayers = [...CHOROPLETH_LAYERS, ...AGGREGATED_POINT_LAYERS].filter(
+        (l) => statesRef.current[l.id]?.active,
+      );
+
+      const needFetch = affectedLayers.filter((l) =>
         next === "province" ? !provinceDataRef.current.has(l.id) : !dataRef.current.has(l.id),
       );
       if (needFetch.length === 0) {
@@ -362,10 +384,12 @@ export function PanoramaConsole({
         return;
       }
 
-      // U5: a choropleth layer toggled on while the axis is "Provincia" resolves
-      // at the province level (filled polygons), reading/writing the province
-      // cache. Locality mode falls through to the standard path below.
-      if (CHOROPLETH_IDS.has(id) && levelRef.current === "province") {
+      // Choropleth or aggregated-point layer toggled on while the axis is
+      // "Provincia": resolve at province level, reading/writing the province cache.
+      // Locality mode falls through to the standard fetch path below.
+      const useProvinceCache =
+        (CHOROPLETH_IDS.has(id) || isAggregatedPointLayer(id)) && levelRef.current === "province";
+      if (useProvinceCache) {
         if (provinceDataRef.current.has(id)) {
           const fc = provinceDataRef.current.get(id) ?? EMPTY_FC;
           setStates((s) => ({
@@ -408,10 +432,14 @@ export function PanoramaConsole({
       }
 
       // Fetch the layer, threading the active scope/period searchParams so the
-      // server scopes it identically to the page-load render.
+      // server scopes it identically to the page-load render. For aggregated
+      // point layers (density+signal), also pass the current level so the server
+      // groups at the right granularity (province or locality).
       setStates((s) => ({ ...s, [id]: { ...s[id], active: true, loading: true } }));
       try {
-        const qs = searchParams.toString();
+        const params = new URLSearchParams(searchParams.toString());
+        if (isAggregatedPointLayer(id)) params.set("level", levelRef.current);
+        const qs = params.toString();
         const res = await fetch(`/api/panorama/${id}${qs ? `?${qs}` : ""}`, {
           headers: { accept: "application/json" },
         });
@@ -444,10 +472,11 @@ export function PanoramaConsole({
     [searchParams, states, asOf, fetchAsOfFor, fetchChoroplethAt],
   );
 
-  // Whether any choropleth layer is active — the toggle only affects those, so
-  // the control hints when it has no current effect (all active layers are points).
+  // Whether any aggregation-axis-sensitive layer is active (choropleth or
+  // density/signal point layers). The toggle hints when it has no current effect
+  // (all active layers are reference pins).
   const anyChoroplethActive = useMemo(
-    () => CHOROPLETH_LAYERS.some((l) => states[l.id]?.active),
+    () => [...CHOROPLETH_LAYERS, ...AGGREGATED_POINT_LAYERS].some((l) => states[l.id]?.active),
     [states],
   );
 

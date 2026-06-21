@@ -4,7 +4,10 @@
 // switches on `source` to load features; the LayerPanel renders this list as
 // the legend (color + label). NO @/db / next imports (domain purity).
 
-import type { LayerId, PanoramaLayer } from "./types";
+import type { LayerDataType, LayerId, PanoramaLayer } from "./types";
+
+// Re-export so callers that need the taxonomy do not also import from types.ts.
+export type { LayerDataType };
 
 /**
  * v1 layer catalogue. Colors are a colorblind-distinguishable categorical set
@@ -23,6 +26,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     scopeFilterable: true,
     privacy: "none",
     temporal: true,
+    // Lost/sighting events — event density, aggregated by unit in F1.
+    dataType: "density",
   },
   {
     id: "mordeduras",
@@ -33,6 +38,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     scopeFilterable: true,
     privacy: "none",
     temporal: true,
+    // Bite incident events — event density, aggregated by unit in F1.
+    dataType: "density",
   },
   {
     id: "denuncias",
@@ -43,6 +50,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     scopeFilterable: true,
     privacy: "coarse",
     temporal: true,
+    // Welfare report events — event density, aggregated by unit in F1.
+    dataType: "density",
   },
   {
     id: "zoonosis",
@@ -53,6 +62,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     scopeFilterable: true,
     privacy: "none",
     temporal: true,
+    // Public-health surveillance signals — aggregated by unit in F1.
+    dataType: "signal",
   },
   {
     id: "refugios",
@@ -64,6 +75,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     privacy: "none",
     // No time dimension — shelters are a current directory, not an event stream.
     temporal: false,
+    // Individual shelter locations — NEVER aggregated (each is a distinct entity).
+    dataType: "reference",
   },
   {
     id: "decomisos",
@@ -74,6 +87,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     scopeFilterable: true,
     privacy: "none",
     temporal: true,
+    // Individual decomiso expedientes — NEVER aggregated (each is a distinct case).
+    dataType: "reference",
   },
   // --- choropleth (locality rollups via lib/metrics) ---
   {
@@ -86,6 +101,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     privacy: "none",
     // CURRENT-STATE rollup (EXISTS vaccination) — not event-windowed in v1.
     temporal: false,
+    // Coverage rate — rendered as choropleth, NOT via the point-aggregation path.
+    dataType: "rate",
   },
   {
     id: "mortalidad",
@@ -97,6 +114,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     privacy: "none",
     // CURRENT-STATE rollup (pets.status='deceased') — not event-windowed in v1.
     temporal: false,
+    // Mortality density — rendered as choropleth, NOT via the point-aggregation path.
+    dataType: "density",
   },
 ] as const;
 
@@ -129,4 +148,36 @@ export const TEMPORAL_LAYERS: readonly PanoramaLayer[] = PANORAMA_LAYERS.filter(
 /** True when the layer is event-windowable in time (F4 temporal reproduction). */
 export function isTemporalLayer(id: LayerId): boolean {
   return LAYER_BY_ID.get(id)?.temporal ?? false;
+}
+
+// ---------------------------------------------------------------------------
+// F1 data-type taxonomy helpers (Panorama v2).
+// ---------------------------------------------------------------------------
+
+/**
+ * Point layers whose events are AGGREGATED per administrative unit in F1.
+ * These are the density (perdidas, mordeduras, denuncias) and signal (zoonosis)
+ * layers. They do NOT include reference layers (refugios, decomisos) — those
+ * always render as discrete pins.
+ */
+export const AGGREGATED_POINT_LAYERS: readonly PanoramaLayer[] = PANORAMA_LAYERS.filter(
+  (l) => l.geomType === "point" && (l.dataType === "density" || l.dataType === "signal"),
+);
+
+/** Ids of the density+signal point layers, for fast membership tests. */
+export const AGGREGATED_POINT_IDS: ReadonlySet<LayerId> = new Set(
+  AGGREGATED_POINT_LAYERS.map((l) => l.id),
+);
+
+/**
+ * Reference point layers — individual locations/expedientes that are NEVER
+ * aggregated (refugios, decomisos). Their discrete-pin rendering is unchanged.
+ */
+export const REFERENCE_LAYERS: readonly PanoramaLayer[] = PANORAMA_LAYERS.filter(
+  (l) => l.geomType === "point" && l.dataType === "reference",
+);
+
+/** True for density/signal point layers that F1 aggregates per unit. */
+export function isAggregatedPointLayer(id: LayerId): boolean {
+  return AGGREGATED_POINT_IDS.has(id);
 }

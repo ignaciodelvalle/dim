@@ -1,15 +1,17 @@
 "use client";
 
-// AggregationToggle — the U5 granularity control: "Provincia / Localidad".
+// AggregationToggle — the aggregation-axis control: "Provincia / Localidad".
 //
-// IMPORTANT (spec §U5): this is the AGGREGATION AXIS, NOT the scope filter. The
+// IMPORTANT: this is the AGGREGATION AXIS, NOT the scope filter. The
 // JurisdictionSwitcher above narrows WHAT the operator sees (province/locality
-// scope); this control changes HOW the choropleth layers are aggregated and
-// rendered:
-//   - Provincia → coropleta rellena sobre los polígonos de provincia.
-//   - Localidad → símbolos graduados en el centroide de cada localidad.
-// Point layers ignore it. The label + help text make the distinction explicit so
-// it is never confused with the scope filter.
+// scope); this control changes HOW all aggregated layers are grouped and rendered:
+//   - Provincia → choropleth layers fill province polygons; density+signal point
+//     layers (perdidas, mordeduras, denuncias, zoonosis) show one graduated circle
+//     per province aggregating all events in that province.
+//   - Localidad → choropleth layers show graduated locality centroids; density+signal
+//     layers show one graduated circle per locality (k-anon k=5 suppression applies).
+// Reference layers (refugios, decomisos) are NOT affected — they always render as
+// individual pins because each represents a distinct entity.
 
 import type { AggregationLevel } from "@/src/modules/panorama/domain/types";
 
@@ -58,11 +60,11 @@ export function AggregationToggle({ level, onChange, relevant = true }: Props) {
         })}
       </div>
       <p className="text-[10px] leading-snug text-ln-op-mute">
-        Cómo se agregan las capas de superficie (cobertura, mortalidad). Es distinto del filtro de
-        alcance de arriba.
+        Eje de agrupación de todas las capas de eventos (perdidas, denuncias, mordeduras, zoonosis)
+        y de superficie (cobertura, mortalidad). Distinto del filtro de alcance de arriba.
         {!relevant && (
           <span className="mt-0.5 block text-ln-op-mute/80">
-            Activá una capa de superficie para ver el efecto.
+            Activá una capa de eventos o superficie para ver el efecto.
           </span>
         )}
       </p>

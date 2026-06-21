@@ -18,7 +18,7 @@
 // govt → intersection with its assignments. The scope clauses are the SAME
 // tested helpers the /gob dashboards use.
 
-import { type SQL, and, countDistinct, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
+import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
 import { arLocalities, cases, db, organizations, petEvents, pets, welfareReports } from "@/db";
 import {
@@ -32,6 +32,7 @@ import {
 import { windows } from "@/lib/metrics/period";
 
 import type {
+  AggregatedPointCell,
   BiteRow,
   ChoroplethCell,
   DecomisoRow,
@@ -718,4 +719,460 @@ export function loadChoroplethByLevel(
   return metric === "rabies-coverage"
     ? loadRabiesCoverage(actor, jurisdictions)
     : loadMortality(actor, jurisdictions);
+}
+
+// ---------------------------------------------------------------------------
+// F1 Panorama v2 — per-unit aggregation loaders for DENSITY + SIGNAL layers.
+//
+// For each density/signal point layer, instead of fetching one row per event
+// (which then gets cluster-merged client-side via MapLibre), these loaders
+// COUNT(*) GROUP BY (province) or (province, locality) server-side, joining
+// ar_localities for the centroid, and apply suppressSmallCells (k=5) at the
+// locality level (same privacy invariant as the choropleth loaders).
+//
+// Result shape: AggregatedPointCell[] — consumed by buildAggregatedPointFeatures.
+// Province level: no k-anon (matching choropleth asymmetry); no centroid join
+// (the province centroid is approximated from ar_localities as a MIN across
+// localities within that province to avoid embedding a separate centroids table).
+// Locality level: left-join ar_localities for centroid; k-anon k=5.
+//
+// These loaders are NOT unit-testable without a DB (they depend on @/db). The
+// pure build-features transform (buildAggregatedPointFeatures) is fully unit-
+// tested in build-features-aggregated.test.ts.
+// ---------------------------------------------------------------------------
+
+/** Result envelope for a per-unit aggregated point layer loader (F1). */
+export type AggregatedPointRows = {
+  cells: AggregatedPointCell[];
+  suppressedCount: number;
+  truncated: boolean;
+};
+
+/**
+ * Convert a raw event-count rollup to AggregatedPointCell[] applying k-anon
+ * suppression at k=5 (locality level only — `applyKAnon` controls this).
+ */
+function toAggregatedCells(
+  rollup: RollupRow[],
+  applyKAnon: boolean,
+): { cells: AggregatedPointCell[]; suppressedCount: number } {
+  if (!applyKAnon) {
+    // Province level — no suppression, carry the real count.
+    return {
+      cells: rollup.map((r) => ({
+        key: r.key,
+        province: r.province,
+        locality: r.locality !== "" ? r.locality : null,
+        centroidLat: r.centroidLat,
+        centroidLng: r.centroidLng,
+        count: r.count,
+        suppressed: false,
+      })),
+      suppressedCount: 0,
+    };
+  }
+  // Locality level — route through suppressSmallCells (k=5).
+  const { visible, suppressed, suppressedCount } = suppressSmallCells(rollup, {
+    count: (r) => r.count,
+    key: (r) => r.key,
+    k: 5,
+  });
+  const cells: AggregatedPointCell[] = [];
+  for (const r of visible as unknown as readonly RollupRow[]) {
+    cells.push({
+      key: r.key,
+      province: r.province,
+      locality: r.locality !== "" ? r.locality : null,
+      centroidLat: r.centroidLat,
+      centroidLng: r.centroidLng,
+      count: r.count,
+      suppressed: false,
+    });
+  }
+  for (const r of suppressed) {
+    cells.push({
+      key: r.key,
+      province: r.province,
+      locality: r.locality !== "" ? r.locality : null,
+      centroidLat: r.centroidLat,
+      centroidLng: r.centroidLng,
+      count: null,
+      suppressed: true,
+    });
+  }
+  return { cells, suppressedCount };
+}
+
+// ---------------------------------------------------------------------------
+// pet_events:lost (perdidas) — per-unit aggregation.
+//
+// Counts lost/sighting events (pet_events where kind in
+// 'pet_lost'/'pet_found_sighting') grouped by (province) or (province, locality).
+// Applies the SAME scope + period clauses as loadBiteEvents (petEventsScope).
+// ---------------------------------------------------------------------------
+
+export async function loadPerdidasByUnit(
+  level: AggregationLevel,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+): Promise<AggregatedPointRows> {
+  const scope = petEventsScope(actor, jurisdictions);
+  const conditions: SQL[] = [
+    // lost/sighting pet events (F1 — matches the per-event perdidas loader logic).
+    sql`(${petEvents.payload}->>'kind') IN ('pet_lost', 'pet_found_sighting')`,
+    gte(petEvents.occurredAt, since),
+    isNotNull(sql`(${petEvents.payload}->>'province')`),
+  ];
+  if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
+  if (scope) conditions.push(sql`(${scope})`);
+
+  if (level === "province") {
+    const rows = await db
+      .select({
+        province: sql<string>`(${petEvents.payload}->>'province')`,
+        centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
+        centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+        n: count(),
+      })
+      .from(petEvents)
+      .leftJoin(
+        arLocalities,
+        and(
+          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
+          sql`${arLocalities.removedAt} IS NULL`,
+        ),
+      )
+      .where(and(...conditions))
+      .groupBy(sql`(${petEvents.payload}->>'province')`)
+      .limit(PER_LAYER_CAP);
+    const rollup: RollupRow[] = rows
+      .filter((r) => r.province)
+      .map((r) => ({
+        key: r.province,
+        province: r.province,
+        locality: "",
+        centroidLat: r.centroidLat,
+        centroidLng: r.centroidLng,
+        count: r.n,
+      }));
+    const { cells, suppressedCount } = toAggregatedCells(rollup, false);
+    return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  }
+
+  // Locality level: group by (province, locality), left-join ar_localities for centroid.
+  const rows = await db
+    .select({
+      province: sql<string>`(${petEvents.payload}->>'province')`,
+      locality: sql<string>`(${petEvents.payload}->>'locality')`,
+      centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
+      centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+      n: count(),
+    })
+    .from(petEvents)
+    .leftJoin(
+      arLocalities,
+      and(
+        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
+        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`(${petEvents.payload}->>'locality')`)}`,
+        sql`${arLocalities.removedAt} IS NULL`,
+      ),
+    )
+    .where(and(...conditions, isNotNull(sql`(${petEvents.payload}->>'locality')`)))
+    .groupBy(sql`(${petEvents.payload}->>'province')`, sql`(${petEvents.payload}->>'locality')`)
+    .limit(PER_LAYER_CAP);
+  const rollup: RollupRow[] = rows
+    .filter((r) => r.province && r.locality)
+    .map((r) => ({
+      key: `${r.province}|${r.locality}`,
+      province: r.province,
+      locality: r.locality,
+      centroidLat: r.centroidLat,
+      centroidLng: r.centroidLng,
+      count: r.n,
+    }));
+  const { cells, suppressedCount } = toAggregatedCells(rollup, true);
+  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+// ---------------------------------------------------------------------------
+// pet_events:bite (mordeduras) — per-unit aggregation.
+//
+// Counts bite incident events grouped by (province) or (province, locality).
+// Mirrors loadBiteEvents in predicate; the aggregation groups rather than fetches
+// individual events.
+// ---------------------------------------------------------------------------
+
+export async function loadMordedurassByUnit(
+  level: AggregationLevel,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+): Promise<AggregatedPointRows> {
+  const scope = petEventsScope(actor, jurisdictions);
+  const conditions: SQL[] = [
+    eq(petEvents.eventType, "incident_reported"),
+    sql`(${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered')`,
+    gte(petEvents.occurredAt, since),
+    isNotNull(sql`(${petEvents.payload}->>'province')`),
+  ];
+  if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
+  if (scope) conditions.push(sql`(${scope})`);
+
+  if (level === "province") {
+    const rows = await db
+      .select({
+        province: sql<string>`(${petEvents.payload}->>'province')`,
+        centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
+        centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+        n: count(),
+      })
+      .from(petEvents)
+      .leftJoin(
+        arLocalities,
+        and(
+          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
+          sql`${arLocalities.removedAt} IS NULL`,
+        ),
+      )
+      .where(and(...conditions))
+      .groupBy(sql`(${petEvents.payload}->>'province')`)
+      .limit(PER_LAYER_CAP);
+    const rollup: RollupRow[] = rows
+      .filter((r) => r.province)
+      .map((r) => ({
+        key: r.province,
+        province: r.province,
+        locality: "",
+        centroidLat: r.centroidLat,
+        centroidLng: r.centroidLng,
+        count: r.n,
+      }));
+    const { cells, suppressedCount } = toAggregatedCells(rollup, false);
+    return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  }
+
+  const rows = await db
+    .select({
+      province: sql<string>`(${petEvents.payload}->>'province')`,
+      locality: sql<string>`(${petEvents.payload}->>'locality')`,
+      centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
+      centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+      n: count(),
+    })
+    .from(petEvents)
+    .leftJoin(
+      arLocalities,
+      and(
+        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
+        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`(${petEvents.payload}->>'locality')`)}`,
+        sql`${arLocalities.removedAt} IS NULL`,
+      ),
+    )
+    .where(and(...conditions, isNotNull(sql`(${petEvents.payload}->>'locality')`)))
+    .groupBy(sql`(${petEvents.payload}->>'province')`, sql`(${petEvents.payload}->>'locality')`)
+    .limit(PER_LAYER_CAP);
+  const rollup: RollupRow[] = rows
+    .filter((r) => r.province && r.locality)
+    .map((r) => ({
+      key: `${r.province}|${r.locality}`,
+      province: r.province,
+      locality: r.locality,
+      centroidLat: r.centroidLat,
+      centroidLng: r.centroidLng,
+      count: r.n,
+    }));
+  const { cells, suppressedCount } = toAggregatedCells(rollup, true);
+  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+// ---------------------------------------------------------------------------
+// welfare_reports (denuncias) — per-unit aggregation (COARSE).
+//
+// Counts welfare reports grouped by (province) or (province, locality), joining
+// ar_localities for the unit centroid. The exact report coordinate is NEVER used
+// here — the entire loader uses jurisdiction columns (not lat/lng) for grouping.
+// Mirrors loadDenunciaCentroids in scope + moderation filter.
+// ---------------------------------------------------------------------------
+
+export async function loadDenunciasByUnit(
+  level: AggregationLevel,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+): Promise<AggregatedPointRows> {
+  const scope = jurisdictionColumnsScope(
+    actor,
+    jurisdictions,
+    sql`${welfareReports.jurisdictionProvince}`,
+    sql`${welfareReports.jurisdictionLocality}`,
+  );
+  const conditions: SQL[] = [
+    gte(welfareReports.createdAt, since),
+    // Same moderation filter as loadDenunciaCentroids.
+    sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+    isNotNull(welfareReports.jurisdictionProvince),
+  ];
+  if (asOf) conditions.push(lte(welfareReports.createdAt, asOf));
+  if (scope) conditions.push(sql`(${scope})`);
+
+  if (level === "province") {
+    const rows = await db
+      .select({
+        province: welfareReports.jurisdictionProvince,
+        centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
+        centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+        n: count(),
+      })
+      .from(welfareReports)
+      .leftJoin(
+        arLocalities,
+        and(
+          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${welfareReports.jurisdictionProvince}`)}`,
+          sql`${arLocalities.removedAt} IS NULL`,
+        ),
+      )
+      .where(and(...conditions))
+      .groupBy(welfareReports.jurisdictionProvince)
+      .limit(PER_LAYER_CAP);
+    const rollup: RollupRow[] = rows
+      .filter((r) => r.province)
+      .map((r) => ({
+        key: r.province as string,
+        province: r.province as string,
+        locality: "",
+        centroidLat: r.centroidLat,
+        centroidLng: r.centroidLng,
+        count: r.n,
+      }));
+    const { cells, suppressedCount } = toAggregatedCells(rollup, false);
+    return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  }
+
+  const rows = await db
+    .select({
+      province: welfareReports.jurisdictionProvince,
+      locality: welfareReports.jurisdictionLocality,
+      centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
+      centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+      n: count(),
+    })
+    .from(welfareReports)
+    .leftJoin(
+      arLocalities,
+      and(
+        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${welfareReports.jurisdictionProvince}`)}`,
+        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`${welfareReports.jurisdictionLocality}`)}`,
+        sql`${arLocalities.removedAt} IS NULL`,
+      ),
+    )
+    .where(and(...conditions, isNotNull(welfareReports.jurisdictionLocality)))
+    .groupBy(welfareReports.jurisdictionProvince, welfareReports.jurisdictionLocality)
+    .limit(PER_LAYER_CAP);
+  const rollup: RollupRow[] = rows
+    .filter((r) => r.province && r.locality)
+    .map((r) => ({
+      key: `${r.province as string}|${r.locality as string}`,
+      province: r.province as string,
+      locality: r.locality as string,
+      centroidLat: r.centroidLat,
+      centroidLng: r.centroidLng,
+      count: r.n,
+    }));
+  const { cells, suppressedCount } = toAggregatedCells(rollup, true);
+  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+// ---------------------------------------------------------------------------
+// outbreak_signals (zoonosis) — per-unit aggregation (SIGNAL).
+//
+// Counts outbreak_signal pet_events grouped by (province) or (province, locality),
+// joining ar_localities for the unit centroid. Mirrors loadOutbreakSignals in
+// scope + period clauses.
+// ---------------------------------------------------------------------------
+
+export async function loadZoonosisByUnit(
+  level: AggregationLevel,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+): Promise<AggregatedPointRows> {
+  const scope = petEventsScope(actor, jurisdictions);
+  const conditions: SQL[] = [
+    eq(petEvents.eventType, "outbreak_signal"),
+    gte(petEvents.occurredAt, since),
+    isNotNull(sql`(${petEvents.payload}->>'province')`),
+  ];
+  if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
+  if (scope) conditions.push(sql`(${scope})`);
+
+  if (level === "province") {
+    const rows = await db
+      .select({
+        province: sql<string>`(${petEvents.payload}->>'province')`,
+        centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
+        centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+        n: count(),
+      })
+      .from(petEvents)
+      .leftJoin(
+        arLocalities,
+        and(
+          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
+          sql`${arLocalities.removedAt} IS NULL`,
+        ),
+      )
+      .where(and(...conditions))
+      .groupBy(sql`(${petEvents.payload}->>'province')`)
+      .limit(PER_LAYER_CAP);
+    const rollup: RollupRow[] = rows
+      .filter((r) => r.province)
+      .map((r) => ({
+        key: r.province,
+        province: r.province,
+        locality: "",
+        centroidLat: r.centroidLat,
+        centroidLng: r.centroidLng,
+        count: r.n,
+      }));
+    const { cells, suppressedCount } = toAggregatedCells(rollup, false);
+    return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  }
+
+  const rows = await db
+    .select({
+      province: sql<string>`(${petEvents.payload}->>'province')`,
+      locality: sql<string>`(${petEvents.payload}->>'locality')`,
+      centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
+      centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+      n: count(),
+    })
+    .from(petEvents)
+    .leftJoin(
+      arLocalities,
+      and(
+        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
+        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`(${petEvents.payload}->>'locality')`)}`,
+        sql`${arLocalities.removedAt} IS NULL`,
+      ),
+    )
+    .where(and(...conditions, isNotNull(sql`(${petEvents.payload}->>'locality')`)))
+    .groupBy(sql`(${petEvents.payload}->>'province')`, sql`(${petEvents.payload}->>'locality')`)
+    .limit(PER_LAYER_CAP);
+  const rollup: RollupRow[] = rows
+    .filter((r) => r.province && r.locality)
+    .map((r) => ({
+      key: `${r.province}|${r.locality}`,
+      province: r.province,
+      locality: r.locality,
+      centroidLat: r.centroidLat,
+      centroidLng: r.centroidLng,
+      count: r.n,
+    }));
+  const { cells, suppressedCount } = toAggregatedCells(rollup, true);
+  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
 }

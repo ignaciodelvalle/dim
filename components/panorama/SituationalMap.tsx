@@ -36,18 +36,39 @@ import { COLOR_NO_DATA, COLOR_SUPPRESSED, RAMP_BLUE } from "@/lib/viz-scales";
 // render. Perdidas is the default-on layer (mounted by the parent on load).
 // ---------------------------------------------------------------------------
 
-/** One active layer the map must render. `geomType` decides point-cluster vs.
- * graduated-symbol rendering. */
+/**
+ * The rendering mode for a point-geometry layer (F1 Panorama v2).
+ *
+ *  - `"graduated"` — density+signal layers: one NON-clustered circle per
+ *    administrative unit, radius scaled by the feature's `count` property.
+ *    The toggle axis (province/locality) drives which granularity was used
+ *    server-side; the client renders whatever the server sent.
+ *  - `"reference"` — individual-entity layers (refugios, decomisos): discrete
+ *    pins with MapLibre native clustering. The toggle axis is ignored for these.
+ */
+export type PointRenderMode = "graduated" | "reference";
+
+/** One active layer the map must render. `geomType` decides point vs choropleth;
+ * for point layers, `renderMode` further decides graduated (F1) vs discrete pins. */
 export type ActiveLayer = {
   id: string;
   color: string;
   label: string;
   geomType: "point" | "choropleth";
+  /**
+   * Point-layer rendering mode (F1 Panorama v2). Only set for geomType="point":
+   *   - `"graduated"` → density/signal layers: per-unit circles sized by count.
+   *   - `"reference"` → reference layers: discrete pins with native MapLibre clustering.
+   * Undefined (or ignored) for choropleth layers.
+   */
+  renderMode?: PointRenderMode;
   features: FeatureCollection;
   /**
-   * U5 aggregation axis (choropleth layers only). "province" → fill the local
-   * ar-provinces polygons by value (data-join on provinceCode); "locality" →
-   * the existing centroid graduated symbols. Point layers leave this undefined.
+   * U5 aggregation axis (choropleth layers only, and graduated point layers).
+   * For choropleth: "province" → fill the local ar-provinces polygons by value;
+   * "locality" → centroid graduated symbols. For graduated point layers: reflects
+   * which grouping the server used (province or locality). Reference layers and
+   * choropleth layers leave this following U5 semantics.
    */
   level?: AggregationLevel;
   /** F4: muted while a time scrub is active because the layer has no time
@@ -248,8 +269,12 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
       } else {
         if (layer.geomType === "choropleth") {
           addChoroplethLayer(map, layer, data);
+        } else if (layer.renderMode === "graduated") {
+          // F1: density+signal layers render as per-unit graduated circles (no clustering).
+          addGraduatedPointLayer(map, layer, data);
         } else {
-          addPointLayer(map, layer, data);
+          // Reference layers (refugios, decomisos): discrete pins with native clustering.
+          addReferencePointLayer(map, layer, data);
         }
         mountedRef.current.add(layer.id);
       }
@@ -260,7 +285,78 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
     }
   }
 
-  function addPointLayer(map: maplibregl.Map, layer: ActiveLayer, data: GeoJSON.FeatureCollection) {
+  /**
+   * F1 Panorama v2: graduated circles for density+signal layers.
+   *
+   * One NON-clustered circle per administrative unit (province or locality).
+   * `circle-radius` is a step expression on the feature's `count` property so
+   * higher event counts render as larger circles. Suppressed cells (count null
+   * → coalesced to 0) render at a fixed small muted radius, same as the
+   * choropleth's suppressed-cell treatment.
+   *
+   * This replaces MapLibre's generic point clustering for these layers so the
+   * map shows a STABLE, DETERMINISTIC symbol per unit regardless of zoom level.
+   */
+  function addGraduatedPointLayer(
+    map: maplibregl.Map,
+    layer: ActiveLayer,
+    data: GeoJSON.FeatureCollection,
+  ) {
+    // Non-clustered source — one feature per unit is already the aggregation unit.
+    map.addSource(srcId(layer.id), { type: "geojson", data });
+    map.addLayer({
+      id: pointLayerId(layer.id),
+      type: "circle",
+      source: srcId(layer.id),
+      paint: {
+        "circle-color": [
+          "case",
+          ["==", ["get", "suppressed"], true],
+          COLOR_SUPPRESSED,
+          layer.color,
+        ],
+        "circle-opacity": ["case", ["==", ["get", "suppressed"], true], 0.45, 0.82],
+        // Graduated radius by count. Suppressed cells render at a fixed small
+        // radius (coalesce null → 0 then the case catches suppressed before
+        // the interpolate). Province-level units carry larger counts so the
+        // higher end of the scale is wider.
+        "circle-radius": [
+          "case",
+          ["==", ["get", "suppressed"], true],
+          5,
+          [
+            "interpolate",
+            ["linear"],
+            ["coalesce", ["get", "count"], 0],
+            0,
+            6,
+            10,
+            10,
+            50,
+            16,
+            200,
+            24,
+            500,
+            32,
+          ],
+        ],
+        "circle-stroke-color": COLOR_CANVAS,
+        "circle-stroke-width": 1.5,
+      },
+    });
+    wireGraduatedPointInteractions(map, layer);
+  }
+
+  /**
+   * Reference-layer rendering: discrete pins with MapLibre native clustering.
+   * Used for refugios and decomisos — each feature represents an individual
+   * entity (shelter / expediente) that must not be spatially merged.
+   */
+  function addReferencePointLayer(
+    map: maplibregl.Map,
+    layer: ActiveLayer,
+    data: GeoJSON.FeatureCollection,
+  ) {
     map.addSource(srcId(layer.id), {
       type: "geojson",
       data,
@@ -295,7 +391,7 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
         "circle-stroke-width": 1.5,
       },
     });
-    wirePointInteractions(map, layer);
+    wireReferencePointInteractions(map, layer);
   }
 
   function addChoroplethLayer(
@@ -429,7 +525,54 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
     });
   }
 
-  function wirePointInteractions(map: maplibregl.Map, layer: ActiveLayer) {
+  /**
+   * Interactions for graduated-circle layers (F1 density+signal).
+   * No cluster — every feature is already one unit. Hover shows the count;
+   * click opens the DetailDrawer.
+   */
+  function wireGraduatedPointInteractions(map: maplibregl.Map, layer: ActiveLayer) {
+    const popup = popupRef.current;
+    if (!popup) return;
+    const pl = pointLayerId(layer.id);
+
+    map.on("mouseenter", pl, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", pl, () => {
+      map.getCanvas().style.cursor = "";
+      popup.remove();
+    });
+    map.on("mousemove", pl, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const p = f.properties as {
+        place?: string;
+        count?: number | null;
+        suppressed?: boolean;
+      };
+      const place = p.place ?? "—";
+      const valueLine = p.suppressed
+        ? `<span style="color:#94a3b8">Suprimido (privacidad)</span>`
+        : `<strong>${(p.count ?? 0).toLocaleString("es-AR")}</strong>`;
+      popup
+        .setLngLat(e.lngLat)
+        .setHTML(
+          `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${place}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${layer.label}</em></div>`,
+        )
+        .addTo(map);
+    });
+    map.on("click", pl, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
+    });
+  }
+
+  /**
+   * Interactions for reference-layer discrete pins (refugios, decomisos).
+   * Cluster bubbles zoom in; unclustered points open the DetailDrawer.
+   */
+  function wireReferencePointInteractions(map: maplibregl.Map, layer: ActiveLayer) {
     const popup = popupRef.current;
     if (!popup) return;
     const cl = clusterLayerId(layer.id);
@@ -539,6 +682,23 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
     .map((l) => ({ layer: l, bounds: provinceValueBounds(l.features) }))
     .filter((x): x is { layer: ActiveLayer; bounds: ScaleBounds } => x.bounds !== null);
 
+  // F1 Panorama v2: FIXED graduated-circle legend for density+signal layers.
+  // Shows the circle-size → count-bucket mapping from the step expression in
+  // addGraduatedPointLayer. Independent of zoom (circles are non-clustered, one
+  // per unit, so this legend is always accurate). Shown when at least one
+  // graduated layer is active.
+  const hasGraduatedLayer = layers.some((l) => l.renderMode === "graduated");
+
+  // Graduated-circle legend buckets: [radius-px, label]. Mirrors the step
+  // expression in addGraduatedPointLayer: 0→6, 10→10, 50→16, 200→24, 500→32.
+  const GRADUATED_BUCKETS: Array<{ r: number; label: string }> = [
+    { r: 6, label: "1–9" },
+    { r: 10, label: "10–49" },
+    { r: 16, label: "50–199" },
+    { r: 24, label: "200–499" },
+    { r: 32, label: "500+" },
+  ];
+
   return (
     <div className="relative w-full" style={{ height }}>
       <div
@@ -584,6 +744,44 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {/* F1 graduated-circle legend: fixed size → count-bucket mapping.
+          Shown bottom-right when any density/signal layer is active.
+          Does NOT depend on zoom — the circles are non-clustered, one per unit. */}
+      {hasGraduatedLayer && (
+        <div className="pointer-events-none absolute bottom-3 right-12 rounded-[6px] bg-black/55 px-3 py-2 text-[11px] text-white/90">
+          <div className="mb-1.5 font-medium text-white/80">Eventos por unidad</div>
+          <div className="flex flex-col gap-1">
+            {GRADUATED_BUCKETS.map((b) => (
+              <div key={b.label} className="flex items-center gap-2">
+                <span
+                  className="flex-none rounded-full"
+                  style={{
+                    width: b.r * 2,
+                    height: b.r * 2,
+                    background: "rgba(255,255,255,0.25)",
+                    border: "1.5px solid rgba(255,255,255,0.5)",
+                  }}
+                  aria-hidden="true"
+                />
+                <span className="tabular-nums text-white/70">{b.label}</span>
+              </div>
+            ))}
+            <div className="mt-0.5 flex items-center gap-2">
+              <span
+                className="flex-none rounded-full"
+                style={{
+                  width: 10,
+                  height: 10,
+                  background: COLOR_SUPPRESSED,
+                  opacity: 0.6,
+                }}
+                aria-hidden="true"
+              />
+              <span className="text-white/50">Suprimido</span>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -632,6 +830,21 @@ function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
     );
     return;
   }
+  // F1 graduated point layers: single circle per unit (no cluster layer).
+  if (layer.renderMode === "graduated") {
+    const pl = pointLayerId(layer.id);
+    if (map.getLayer(pl)) {
+      map.setPaintProperty(
+        pl,
+        "circle-opacity",
+        dim
+          ? DIM_OPACITY
+          : (["case", ["==", ["get", "suppressed"], true], 0.45, 0.82] as unknown as number),
+      );
+    }
+    return;
+  }
+  // Reference layers (discrete pins with clustering).
   const pl = pointLayerId(layer.id);
   const cl = clusterLayerId(layer.id);
   if (map.getLayer(pl)) map.setPaintProperty(pl, "circle-opacity", dim ? DIM_OPACITY : 1);
