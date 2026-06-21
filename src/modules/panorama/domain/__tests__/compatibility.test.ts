@@ -51,7 +51,7 @@ describe("roleOf", () => {
     expect(roleOf(layer)).toBe<LayerRole>("reference");
   });
 
-  it("covers all 8 v1 layers (no unclassified layers)", () => {
+  it("covers all 9 layers (no unclassified layers)", () => {
     const validRoles = new Set<LayerRole>(["base", "signal", "reference"]);
     for (const layer of PANORAMA_LAYERS) {
       expect(validRoles.has(roleOf(layer))).toBe(true);
@@ -65,7 +65,14 @@ describe("roleOf", () => {
 
 describe("checkCompatibility — empty active set", () => {
   it("allows any single base layer when nothing is active", () => {
-    for (const id of ["cobertura", "mortalidad", "perdidas", "mordeduras", "denuncias"] as const) {
+    for (const id of [
+      "cobertura",
+      "esterilizacion",
+      "mortalidad",
+      "perdidas",
+      "mordeduras",
+      "denuncias",
+    ] as const) {
       expect(checkCompatibility([], id, PANORAMA_LAYERS)).toEqual({ allowed: true });
     }
   });

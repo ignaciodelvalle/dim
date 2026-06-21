@@ -4,6 +4,8 @@
 // switches on `source` to load features; the LayerPanel renders this list as
 // the legend (color + label). NO @/db / next imports (domain purity).
 
+import { TARGETS } from "@/lib/metrics/targets";
+
 import type { LayerDataType, LayerId, PanoramaLayer } from "./types";
 
 // Re-export so callers that need the taxonomy do not also import from types.ts.
@@ -91,6 +93,23 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     dataType: "reference",
   },
   // --- choropleth (locality rollups via lib/metrics) ---
+  {
+    id: "esterilizacion",
+    label: "Cobertura de esterilización",
+    geomType: "choropleth",
+    source: "metrics:sterilization-coverage",
+    color: "#af7aa1",
+    scopeFilterable: true,
+    privacy: "none",
+    // CURRENT-STATE rollup (EXISTS sterilization_performed) — not event-windowed in v1.
+    temporal: false,
+    // Coverage rate — rendered as choropleth via divergent scale at complianceTarget.
+    dataType: "rate",
+    // F5: divergent choropleth anchored at the esterilización programmatic benchmark (70%).
+    // Province-level rendering anchors the divergent scale at this percentage value.
+    // V1 locality level shows count-density (see repository.ts — rate-by-locality deferred).
+    complianceTarget: TARGETS.STERILIZATION_COVERAGE_PCT,
+  },
   {
     id: "cobertura",
     label: "Cobertura antirrábica",

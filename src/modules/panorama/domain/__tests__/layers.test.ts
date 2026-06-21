@@ -18,10 +18,10 @@ import {
 import type { LayerDataType, LayerPrivacy } from "@/src/modules/panorama/domain/types";
 
 describe("PANORAMA_LAYERS registry", () => {
-  it("has the 8 v1 layers with unique ids", () => {
-    expect(PANORAMA_LAYERS).toHaveLength(8);
+  it("has the 9 v2 layers with unique ids", () => {
+    expect(PANORAMA_LAYERS).toHaveLength(9);
     const ids = PANORAMA_LAYERS.map((l) => l.id);
-    expect(new Set(ids).size).toBe(8);
+    expect(new Set(ids).size).toBe(9);
   });
 
   it("every layer declares all required fields with valid values", () => {
@@ -39,9 +39,9 @@ describe("PANORAMA_LAYERS registry", () => {
     }
   });
 
-  it("partitions cleanly into point (6) and choropleth (2) layers", () => {
+  it("partitions cleanly into point (6) and choropleth (3) layers", () => {
     expect(POINT_LAYERS).toHaveLength(6);
-    expect(CHOROPLETH_LAYERS).toHaveLength(2);
+    expect(CHOROPLETH_LAYERS).toHaveLength(3);
     expect(POINT_LAYERS.length + CHOROPLETH_LAYERS.length).toBe(PANORAMA_LAYERS.length);
   });
 
@@ -65,9 +65,10 @@ describe("PANORAMA_LAYERS registry", () => {
     expect(temporalIds).toEqual(
       ["decomisos", "denuncias", "mordeduras", "perdidas", "zoonosis"].sort(),
     );
-    // Non-temporal: refugios (no time) + the two current-state choropleths.
+    // Non-temporal: refugios (no time) + the three current-state choropleths.
     expect(isTemporalLayer("refugios")).toBe(false);
     expect(isTemporalLayer("cobertura")).toBe(false);
+    expect(isTemporalLayer("esterilizacion")).toBe(false);
     expect(isTemporalLayer("mortalidad")).toBe(false);
     expect(isTemporalLayer("perdidas")).toBe(true);
   });
@@ -83,6 +84,7 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
 
   it("assigns dataType correctly per layer", () => {
     expect(getLayer("cobertura")?.dataType).toBe("rate");
+    expect(getLayer("esterilizacion")?.dataType).toBe("rate");
     expect(getLayer("mortalidad")?.dataType).toBe("density");
     expect(getLayer("perdidas")?.dataType).toBe("density");
     expect(getLayer("mordeduras")?.dataType).toBe("density");
@@ -114,6 +116,10 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
 
   it("F5: cobertura complianceTarget is 80 (antirrábica legal goal)", () => {
     expect(getLayer("cobertura")?.complianceTarget).toBe(80);
+  });
+
+  it("F5: esterilizacion complianceTarget is 70 (TARGETS.STERILIZATION_COVERAGE_PCT)", () => {
+    expect(getLayer("esterilizacion")?.complianceTarget).toBe(70);
   });
 
   it("AGGREGATED_POINT_LAYERS contains the 4 density+signal point layers", () => {

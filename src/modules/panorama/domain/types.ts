@@ -17,6 +17,7 @@ export type LayerId =
   | "refugios"
   | "decomisos"
   | "cobertura"
+  | "esterilizacion"
   | "mortalidad";
 
 /** Point/cluster layers plot individual features; choropleth layers shade

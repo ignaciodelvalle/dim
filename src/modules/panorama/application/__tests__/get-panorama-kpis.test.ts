@@ -16,6 +16,9 @@ vi.mock("@/lib/govt-home-kpis", () => ({
   fetchActiveZoonosis: vi.fn(),
   fetchOpenWelfareReportsCount: vi.fn(),
 }));
+vi.mock("@/lib/metrics/population-control", () => ({
+  fetchSterilizationCoverage: vi.fn(),
+}));
 
 import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/govt-dashboards";
 import {
@@ -25,6 +28,7 @@ import {
   fetchRabiesCoverage,
 } from "@/lib/govt-home-kpis";
 import type { AnalyticsPeriod } from "@/lib/metrics";
+import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 
 import { getPanoramaKpis } from "../get-panorama-kpis";
 
@@ -60,6 +64,12 @@ function seedDefaults() {
     deltaWeek: 0,
   });
   vi.mocked(fetchOpenWelfareReportsCount).mockResolvedValue({ count: 4 });
+  vi.mocked(fetchSterilizationCoverage).mockResolvedValue({
+    rate: 65,
+    sterilized: 650,
+    total: 1000,
+    byProvince: [],
+  });
 }
 
 beforeEach(() => {
@@ -68,7 +78,7 @@ beforeEach(() => {
 });
 
 describe("getPanoramaKpis", () => {
-  it("returns 6 KPIs in display order, each backed by a named dashboard fetcher", async () => {
+  it("returns 7 KPIs in display order, each backed by a named dashboard fetcher", async () => {
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     expect(kpis.map((k) => k.id)).toEqual([
       "cobertura",
@@ -77,6 +87,7 @@ describe("getPanoramaKpis", () => {
       "mordeduras",
       "zoonosis",
       "denuncias",
+      "esterilizacion",
     ]);
     // Parity proof: every KPI names the fetcher that produced it.
     expect(kpis.map((k) => k.source)).toEqual([
@@ -86,6 +97,7 @@ describe("getPanoramaKpis", () => {
       "govt-home-kpis.fetchBitesPer10k",
       "govt-home-kpis.fetchActiveZoonosis",
       "govt-home-kpis.fetchOpenWelfareReportsCount",
+      "metrics.fetchSterilizationCoverage",
     ]);
   });
 
@@ -105,11 +117,30 @@ describe("getPanoramaKpis", () => {
     expect(byId.zoonosis.value).toBe("9");
     expect(byId.denuncias.value).toBe("4");
 
+    // esterilizacion KPI
+    expect(byId.esterilizacion.value).toBe("65%");
+    expect(byId.esterilizacion.bar).toBe(65);
+    expect(byId.esterilizacion.tone).toBe("warn"); // 65 < target 70
+    expect(byId.esterilizacion.sub).toBe("meta 70%");
+
     // Every KPI carries a non-empty info tooltip (the ⓘ definition).
     for (const k of kpis) {
       expect(k.info.definition.length).toBeGreaterThan(0);
       expect(k.href.startsWith("/gob/")).toBe(true);
     }
+  });
+
+  it("esterilizacion KPI is tone ok when rate >= 70", async () => {
+    vi.mocked(fetchSterilizationCoverage).mockResolvedValue({
+      rate: 75,
+      sterilized: 750,
+      total: 1000,
+      byProvince: [],
+    });
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const kpi = kpis.find((k) => k.id === "esterilizacion")!;
+    expect(kpi.tone).toBe("ok");
+    expect(kpi.value).toBe("75%");
   });
 
   it("threads the SAME (actor, jurisdictions, period) to the dashboard fetchers (no scope widening)", async () => {

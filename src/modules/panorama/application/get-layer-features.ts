@@ -204,8 +204,15 @@ export async function getLayerFeatures(
     case "cobertura": {
       // Current-state rollup (EXISTS rabies vaccination) — not event-windowed in
       // v1, so `asOf` is intentionally ignored; the console dims it under a scrub.
-      // U5: the level selects province (filled polygons) vs locality (centroids).
+      // U5: the level selects province (filled polygons, ratePct) vs locality (centroids, count).
       return choroplethResult("rabies-coverage", level, actor, jurisdictions);
+    }
+    case "esterilizacion": {
+      // Current-state rollup (EXISTS sterilization_performed) — not event-windowed in
+      // v1, so `asOf` is intentionally ignored; the console dims it under a scrub.
+      // Province level: ratePct (true percentage, divergent at complianceTarget:70).
+      // Locality level: count-density (v1 limitation; rate-by-locality deferred).
+      return choroplethResult("sterilization-coverage", level, actor, jurisdictions);
     }
     case "mortalidad": {
       // Current-state rollup (pets.status='deceased') — not event-windowed in v1;

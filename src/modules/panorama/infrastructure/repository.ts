@@ -21,6 +21,7 @@
 import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
 import { arLocalities, cases, db, organizations, petEvents, pets, welfareReports } from "@/db";
+import { fetchRabiesCoverageByProvince } from "@/lib/govt-home-kpis";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
@@ -30,6 +31,7 @@ import {
   suppressSmallCells,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 
 import type {
   AggregatedPointCell,
@@ -526,12 +528,21 @@ export type ProvinceChoroplethRows = {
 // leftJoin fan-out can never make the two disagree.
 // ---------------------------------------------------------------------------
 
-/** The supported choropleth metrics. Each maps to a single pets-table predicate
- * reused VERBATIM by both the province and the locality rollup. */
-export type ChoroplethMetric = "rabies-coverage" | "mortality";
+/** The supported choropleth metrics.
+ *  RATE metrics (rabies-coverage, sterilization-coverage): value = ratePct (0-100).
+ *  DENSITY metrics (mortality): value = raw count.
+ *  The distinction matters for the divergent choropleth scale: rate layers anchor
+ *  at complianceTarget (a percentage), so value MUST be a percentage too. */
+export type ChoroplethMetric = "rabies-coverage" | "sterilization-coverage" | "mortality";
 
-/** Build the metric-specific pets predicate. Defined ONCE so province and
- * locality rollups can NEVER drift apart on the numerator definition (U5). */
+/** Build the metric-specific pets predicate for LOCALITY-level loaders.
+ * Defined ONCE so province and locality rollups can NEVER drift apart on the
+ * numerator definition (U5).
+ * For RATE metrics at LOCALITY level (count-density, v1 limitation) this is the
+ * numerator predicate. For DENSITY metrics (mortality) this IS the full predicate.
+ * Province-level RATE metrics delegate to the canonical fetchers instead of using
+ * this predicate — see loadRabiesCoverageByProvince and
+ * loadSterilizationCoverageByProvince. */
 function metricPredicate(metric: ChoroplethMetric): SQL {
   if (metric === "rabies-coverage") {
     // Pets in scope with at least one rabies vaccination event (vaccine_name
@@ -542,6 +553,19 @@ function metricPredicate(metric: ChoroplethMetric): SQL {
       WHERE pe_rabies.pet_id = ${pets.id}
         AND pe_rabies.event_type = 'vaccination_administered'
         AND unaccent(lower(coalesce(pe_rabies.payload->>'vaccine_name', ''))) LIKE '%rabi%'
+    )`;
+  }
+  if (metric === "sterilization-coverage") {
+    // Pets in scope with at least one sterilization_performed event.
+    // Mirrors fetchSterilizationCoverage in lib/metrics/population-control.ts EXACTLY
+    // (same EXISTS pattern, same event_type) to guarantee parity between the
+    // Panorama choropleth and the /gob/poblacion dashboard number.
+    // sterilization_performed is a real event type (confirmed in db/schema.ts +
+    // app/actions/pregnancy.ts in the Paquete G implementation).
+    return sql`EXISTS (
+      SELECT 1 FROM ${petEvents} pe_steril
+      WHERE pe_steril.pet_id = ${pets.id}
+        AND pe_steril.event_type = 'sterilization_performed'
     )`;
   }
   // mortality — pets currently in status='deceased'.
@@ -629,9 +653,9 @@ async function rollupPetsPerProvince(
     .map((r) => ({ province: r.province as string, count: r.n }));
 }
 
-/** Map a raw province rollup to ProvinceChoroplethCell[] (resolve ISO code +
- * label). Provinces whose name has no ISO code are dropped — the basemap can
- * only fill a polygon it can join by code. */
+/** Map a raw province density rollup to ProvinceChoroplethCell[] (resolve ISO
+ * code + label). Provinces whose name has no ISO code are dropped — the basemap
+ * can only fill a polygon it can join by code. */
 function toProvinceChoroplethCells(rollup: ProvinceRollupRow[]): ProvinceChoroplethCell[] {
   const cells: ProvinceChoroplethCell[] = [];
   for (const r of rollup) {
@@ -644,12 +668,33 @@ function toProvinceChoroplethCells(rollup: ProvinceRollupRow[]): ProvinceChoropl
 
 // metrics:rabies-coverage (cobertura) — count of pets in scope with a valid
 // rabies vaccination, at the LOCALITY level (centroid graduated symbols, k-anon).
+// V1 LIMITATION: locality level uses count-density (not ratePct) because rate-by-
+// locality needs k-anonymised num/den (both arms exposed → privacy leakage risk when
+// suppressed). The divergent-vs-meta rendering is PROVINCE-ONLY (province choropleth
+// renders ratePct; locality renders count). This is a known v1 limitation; a future
+// version should provide k-anon'd num+den at locality level for rate rendering.
 export async function loadRabiesCoverage(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
 ): Promise<ChoroplethRows> {
   const scope = petsScope(actor, jurisdictions);
   const rollup = await rollupPetsPerLocality([metricPredicate("rabies-coverage")], scope);
+  const { cells, suppressedCount } = toChoroplethCells(rollup);
+  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+// metrics:sterilization-coverage (esterilizacion) — count of sterilized pets at the
+// LOCALITY level (centroid graduated symbols, k-anon).
+// V1 LIMITATION: locality level uses count-density (not ratePct) — same reason as
+// loadRabiesCoverage above. The divergent-vs-meta rendering is PROVINCE-ONLY in v1;
+// rate-by-locality (k-anon'd num/den) is deferred. See loadSterilizationCoverageByProvince
+// for the correct rate rendering at province level.
+export async function loadSterilizationCoverage(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<ChoroplethRows> {
+  const scope = petsScope(actor, jurisdictions);
+  const rollup = await rollupPetsPerLocality([metricPredicate("sterilization-coverage")], scope);
   const { cells, suppressedCount } = toChoroplethCells(rollup);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
@@ -666,16 +711,61 @@ export async function loadMortality(
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
-// U5: PROVINCE-level loaders. Same metric/scope as the locality loaders above,
-// grouped by province (no k-anon). Used when the aggregation toggle is on
-// "Provincia" — the use-case routes to these for the filled choropleth.
+// U5: PROVINCE-level loaders. Used when the aggregation toggle is on "Provincia".
+//
+// RATE METRICS (rabies-coverage, sterilization-coverage): delegate to the canonical
+// dashboard fetchers so the choropleth uses THE SAME denominator as the KPI tiles:
+//   - sterilization: fetchSterilizationCoverage.byProvince → denominator = active pets
+//     (activePetsCondition from lib/metrics/population). Numerator = active pets with
+//     EXISTS sterilization_performed.
+//   - rabies: fetchRabiesCoverageByProvince → denominator = DOGS only (species='dog').
+//     Numerator = distinct dogs with a qualifying rabies vaccination event.
+//
+// The generic all-pets rollup (rollupRatePerProvince, previously used here) was
+// rejected: it used COUNT(*) = ALL pets as the denominator, diverging from the
+// canonical metrics (off by deceased pets for sterilization; off by all non-dog
+// species for rabies). Parity is now guaranteed by reuse, not by local approximation.
+//
+// DENSITY metrics (mortality): keep raw count rollup (density, not a rate).
+
+// metrics:rabies-coverage (cobertura) — per-province rabies rate via the canonical
+// dogs-based fetcher. Delegates to fetchRabiesCoverageByProvince (lib/govt-home-kpis).
+// value = ratePct (dogs-based %, matching the national KPI definition).
 export async function loadRabiesCoverageByProvince(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
 ): Promise<ProvinceChoroplethRows> {
-  const scope = petsScope(actor, jurisdictions);
-  const rollup = await rollupPetsPerProvince([metricPredicate("rabies-coverage")], scope);
-  return { cells: toProvinceChoroplethCells(rollup), truncated: rollup.length >= PER_LAYER_CAP };
+  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m());
+  const byProvince = await fetchRabiesCoverageByProvince(ctx);
+  const cells: ProvinceChoroplethCell[] = [];
+  for (const r of byProvince) {
+    const code = PROVINCE_ISO[r.province];
+    if (!code) continue;
+    cells.push({ provinceCode: code, label: r.province, value: r.ratePct });
+  }
+  return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
+}
+
+// metrics:sterilization-coverage (esterilizacion) — per-province sterilization rate
+// via the canonical active-pets-based fetcher. Delegates to fetchSterilizationCoverage
+// (lib/metrics/population-control). value = ratePct (active-pets denominator, matching
+// /gob/poblacion). Parity guaranteed by reuse.
+// V1 NOTE: locality-level sterilization coverage uses count-density (see
+// loadSterilizationCoverage below) — rate-by-locality needs k-anonymised num/den
+// which is deferred to v2.
+export async function loadSterilizationCoverageByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<ProvinceChoroplethRows> {
+  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m());
+  const { byProvince } = await fetchSterilizationCoverage(ctx);
+  const cells: ProvinceChoroplethCell[] = [];
+  for (const r of byProvince) {
+    const code = PROVINCE_ISO[r.province];
+    if (!code) continue;
+    cells.push({ provinceCode: code, label: r.province, value: r.ratePct });
+  }
+  return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
 }
 
 export async function loadMortalityByProvince(
@@ -692,6 +782,15 @@ export async function loadMortalityByProvince(
  * Reused by the Panorama use-case AND available to the dashboard distribution
  * widgets so both share ONE source of numbers (spec §U5.4). Province returns
  * filled-polygon cells (no k-anon); locality returns centroid cells (k-anon).
+ *
+ * RATE vs DENSITY routing:
+ *  - RATE metrics (rabies-coverage, sterilization-coverage): province level emits
+ *    ratePct values (0-100) by delegating to the canonical dashboard fetchers
+ *    (fetchRabiesCoverageByProvince / fetchSterilizationCoverage.byProvince).
+ *    This guarantees parity with the KPI tiles — dogs-based denominator for
+ *    rabies, active-pets denominator for sterilization.
+ *    Locality level emits count-density (v1 limitation — rate-by-locality deferred).
+ *  - DENSITY metrics (mortality): both levels emit raw count.
  */
 export function loadChoroplethByLevel(
   metric: ChoroplethMetric,
@@ -712,13 +811,15 @@ export function loadChoroplethByLevel(
   jurisdictions: DashboardJurisdiction[],
 ): Promise<ChoroplethRows | ProvinceChoroplethRows> {
   if (level === "province") {
-    return metric === "rabies-coverage"
-      ? loadRabiesCoverageByProvince(actor, jurisdictions)
-      : loadMortalityByProvince(actor, jurisdictions);
+    if (metric === "rabies-coverage") return loadRabiesCoverageByProvince(actor, jurisdictions);
+    if (metric === "sterilization-coverage")
+      return loadSterilizationCoverageByProvince(actor, jurisdictions);
+    return loadMortalityByProvince(actor, jurisdictions);
   }
-  return metric === "rabies-coverage"
-    ? loadRabiesCoverage(actor, jurisdictions)
-    : loadMortality(actor, jurisdictions);
+  // Locality level.
+  if (metric === "rabies-coverage") return loadRabiesCoverage(actor, jurisdictions);
+  if (metric === "sterilization-coverage") return loadSterilizationCoverage(actor, jurisdictions);
+  return loadMortality(actor, jurisdictions);
 }
 
 // ---------------------------------------------------------------------------

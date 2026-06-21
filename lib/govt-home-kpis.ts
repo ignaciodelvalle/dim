@@ -133,6 +133,106 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
 }
 
 // ---------------------------------------------------------------------------
+// KPI 1b — Rabies vaccination coverage, per province
+// ---------------------------------------------------------------------------
+
+export type RabiesCoverageByProvinceRow = {
+  /** Province name as stored in pets.jurisdiction_province. */
+  province: string;
+  /** Coverage rate as a percentage (0–100): vaccinated dogs / total dogs * 100, rounded. */
+  ratePct: number;
+  /** Count of distinct vaccinated dogs in the province (numerator). */
+  vaccinated: number;
+  /** Total dogs in scope in the province (denominator). */
+  total: number;
+};
+
+/**
+ * Per-province rabies vaccination coverage.
+ *
+ * Mirrors `fetchRabiesCoverage` EXACTLY — same dogsCondition (species='dog' +
+ * scope), same rabiesVaccConditions (regex-based accent-aware match), same 12m
+ * window — but groups by `pets.jurisdiction_province` instead of aggregating
+ * into a single national figure.
+ *
+ * Used by the Panorama choropleth to guarantee per-province rates are computed
+ * with the same dogs-based denominator as the national KPI that the map links to.
+ *
+ * ratePct = total > 0 ? round(vaccinated / total * 100) : 0.
+ */
+export async function fetchRabiesCoverageByProvince(
+  ctx: ProjectionContext,
+): Promise<RabiesCoverageByProvinceRow[]> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
+    return [];
+  }
+
+  const since12m = ctx.period.since;
+
+  const eventsScope = petEventsScopeClause(ctx);
+  const dogsCondition = dogsInScopeCondition(ctx);
+
+  // Rabies vaccination event conditions — SAME as fetchRabiesCoverage (regex,
+  // not ILIKE, to match the accented canonical form "Antirrábica").
+  const rabiesVaccConditions = [
+    eq(petEvents.eventType, "vaccination_administered"),
+    sql`(${petEvents.payload}->>'vaccine_name') ~* '(antirr[áa]bica|rabies)'`,
+    gte(petEvents.occurredAt, since12m),
+  ];
+  if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
+  if (ctx.scope.kind === "jurisdictions") {
+    const pairs = ctx.scope.jurisdictions.map(
+      (j) =>
+        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    );
+    rabiesVaccConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+  }
+  rabiesVaccConditions.push(sql`${pets.species} = ${"dog"}`);
+
+  // Per-province total dogs (same dogsCondition as the national KPI).
+  const totalByProvince = await db
+    .select({
+      province: pets.jurisdictionProvince,
+      n: count(),
+    })
+    .from(pets)
+    .where(and(dogsCondition, sql`${pets.jurisdictionProvince} IS NOT NULL`))
+    .groupBy(pets.jurisdictionProvince);
+
+  // Per-province vaccinated dogs: distinct dog petIds with a qualifying rabies
+  // vax event, grouped by the pet's province.
+  const vaccinatedByProvince = await db
+    .select({
+      province: pets.jurisdictionProvince,
+      n: countDistinct(petEvents.petId),
+    })
+    .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
+    .where(and(...rabiesVaccConditions, sql`${pets.jurisdictionProvince} IS NOT NULL`))
+    .groupBy(pets.jurisdictionProvince);
+
+  // Merge totals and vaccinated counts into per-province rows.
+  const vaccinatedMap = new Map<string, number>(
+    vaccinatedByProvince
+      .filter((r): r is typeof r & { province: string } => r.province !== null)
+      .map((r) => [r.province, r.n]),
+  );
+
+  return totalByProvince
+    .filter((r): r is typeof r & { province: string } => r.province !== null)
+    .map((r) => {
+      const vaccinated = vaccinatedMap.get(r.province) ?? 0;
+      const total = r.n;
+      return {
+        province: r.province,
+        ratePct: total > 0 ? Math.round((vaccinated / total) * 100) : 0,
+        vaccinated,
+        total,
+      };
+    });
+}
+
+// ---------------------------------------------------------------------------
 // KPI 2 — Sterilization metrics
 // ---------------------------------------------------------------------------
 

@@ -25,8 +25,8 @@ import type { LayerId } from "@/src/modules/panorama/domain/types";
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — catalogue integrity", () => {
-  it("contains exactly 4 presets", () => {
-    expect(PANORAMA_PRESETS).toHaveLength(4);
+  it("contains exactly 5 presets", () => {
+    expect(PANORAMA_PRESETS).toHaveLength(5);
   });
 
   it("all preset ids are unique", () => {
@@ -34,12 +34,13 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("all 4 expected preset ids are present", () => {
+  it("all 5 expected preset ids are present", () => {
     const ids = new Set(PANORAMA_PRESETS.map((p) => p.id));
     expect(ids.has("brotes-activos")).toBe(true);
     expect(ids.has("sintomas")).toBe(true);
     expect(ids.has("cumplimiento")).toBe(true);
     expect(ids.has("bienestar")).toBe(true);
+    expect(ids.has("control-poblacional")).toBe(true);
   });
 
   it("every preset has a non-empty label", () => {
@@ -178,7 +179,12 @@ describe("PANORAMA_PRESETS — F2 compatibility (activation sequence)", () => {
     assertPresetIsCompatible(p);
   });
 
-  it("all 4 presets pass the compatibility replay (parametric)", () => {
+  it("control-poblacional: each layer in activation order is allowed by checkCompatibility", () => {
+    const p = PANORAMA_PRESETS.find((x) => x.id === "control-poblacional")!;
+    assertPresetIsCompatible(p);
+  });
+
+  it("all 5 presets pass the compatibility replay (parametric)", () => {
     for (const p of PANORAMA_PRESETS) {
       assertPresetIsCompatible(p);
     }

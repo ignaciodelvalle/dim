@@ -345,9 +345,10 @@ describe("getLayerFeatures — mortalidad (LOCALITY choropleth)", () => {
 });
 
 describe("getLayerFeatures — cobertura (PROVINCE choropleth)", () => {
-  it("delegates to loadChoroplethByLevel at province level (filled polygons)", async () => {
+  it("delegates to loadChoroplethByLevel at province level (filled polygons, ratePct values)", async () => {
     mockLoadChoropleth.mockResolvedValue({
       cells: [
+        // value = ratePct (true percentage, not raw count) — the rate-as-count fix.
         { provinceCode: "AR-B", label: "Buenos Aires", value: 61 },
         { provinceCode: "AR-X", label: "Córdoba", value: 9 },
       ],
@@ -377,5 +378,62 @@ describe("getLayerFeatures — cobertura (PROVINCE choropleth)", () => {
       suppressed: false,
     });
     expect(result.suppressedCount).toBe(0);
+  });
+});
+
+describe("getLayerFeatures — esterilizacion (North-Star PROVINCE choropleth)", () => {
+  it("routes to sterilization-coverage metric (ratePct values, divergent at target 70)", async () => {
+    mockLoadChoropleth.mockResolvedValue({
+      cells: [
+        { provinceCode: "AR-B", label: "Buenos Aires", value: 72 },
+        { provinceCode: "AR-X", label: "Córdoba", value: 58 },
+      ],
+      truncated: false,
+    } as unknown as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "esterilizacion",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "province",
+    );
+
+    expect(mockLoadChoropleth).toHaveBeenCalledWith(
+      "sterilization-coverage",
+      "province",
+      { role: "admin" },
+      [],
+    );
+    expect(result.level).toBe("province");
+    expect(result.features.features).toHaveLength(2);
+    expect(result.features.features[0].properties).toMatchObject({
+      provinceCode: "AR-B",
+      value: 72,
+    });
+  });
+
+  it("routes to sterilization-coverage at locality level (count-density, v1)", async () => {
+    mockLoadChoropleth.mockResolvedValue({
+      cells: [],
+      suppressedCount: 0,
+      truncated: false,
+    } as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "esterilizacion",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "locality",
+    );
+
+    expect(mockLoadChoropleth).toHaveBeenCalledWith(
+      "sterilization-coverage",
+      "locality",
+      { role: "admin" },
+      [],
+    );
+    expect(result.level).toBe("locality");
   });
 });

@@ -33,6 +33,8 @@ import {
   type DashboardJurisdiction,
   buildProjectionContext,
 } from "@/lib/metrics";
+import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
+import { TARGETS } from "@/lib/metrics/targets";
 
 import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/govt-dashboards";
 import {
@@ -55,7 +57,14 @@ export type KpiInfo = {
 /** One headline KPI, ready to feed an OpKpi tile. */
 export type PanoramaKpi = {
   /** Stable id (used as a React key + a test handle). */
-  id: "cobertura" | "mascotas" | "perdidas" | "mordeduras" | "zoonosis" | "denuncias";
+  id:
+    | "cobertura"
+    | "mascotas"
+    | "perdidas"
+    | "mordeduras"
+    | "zoonosis"
+    | "denuncias"
+    | "esterilizacion";
   /** es-AR label. */
   label: string;
   /** Pre-formatted display value (es-AR number formatting applied here). */
@@ -108,20 +117,24 @@ export async function getPanoramaKpis(
   // that take (actor, jurisdictions, opts) get the same period via opts.since.
   const ctx = buildProjectionContext(actor, jurisdictions, period);
 
-  const [coverage, analytics, perdidas, bites, zoonosis, welfare] = await Promise.all([
-    // 1. Cobertura antirrábica — lib/govt-home-kpis.fetchRabiesCoverage (ctx).
-    fetchRabiesCoverage(ctx),
-    // 2. Mascotas en cobertura (totalPets) — lib/govt-dashboards.fetchAnalyticsMetrics.
-    fetchAnalyticsMetrics(actor, jurisdictions, { since: period.since }),
-    // 3. Pérdidas activas — lib/govt-dashboards.fetchPerdidasMetrics (population metric).
-    fetchPerdidasMetrics(actor, jurisdictions),
-    // 4. Mordeduras / 10k hab. — lib/govt-home-kpis.fetchBitesPer10k (ctx).
-    fetchBitesPer10k(ctx),
-    // 5. Zoonosis activas — lib/govt-home-kpis.fetchActiveZoonosis (ctx).
-    fetchActiveZoonosis(ctx),
-    // 6. Denuncias activas — lib/govt-home-kpis.fetchOpenWelfareReportsCount (ctx).
-    fetchOpenWelfareReportsCount(ctx),
-  ]);
+  const [coverage, analytics, perdidas, bites, zoonosis, welfare, sterilization] =
+    await Promise.all([
+      // 1. Cobertura antirrábica — lib/govt-home-kpis.fetchRabiesCoverage (ctx).
+      fetchRabiesCoverage(ctx),
+      // 2. Mascotas en cobertura (totalPets) — lib/govt-dashboards.fetchAnalyticsMetrics.
+      fetchAnalyticsMetrics(actor, jurisdictions, { since: period.since }),
+      // 3. Pérdidas activas — lib/govt-dashboards.fetchPerdidasMetrics (population metric).
+      fetchPerdidasMetrics(actor, jurisdictions),
+      // 4. Mordeduras / 10k hab. — lib/govt-home-kpis.fetchBitesPer10k (ctx).
+      fetchBitesPer10k(ctx),
+      // 5. Zoonosis activas — lib/govt-home-kpis.fetchActiveZoonosis (ctx).
+      fetchActiveZoonosis(ctx),
+      // 6. Denuncias activas — lib/govt-home-kpis.fetchOpenWelfareReportsCount (ctx).
+      fetchOpenWelfareReportsCount(ctx),
+      // 7. Cobertura de esterilización — lib/metrics/population-control.fetchSterilizationCoverage.
+      // Same fetcher as /gob/poblacion → dashboard parity guaranteed.
+      fetchSterilizationCoverage(ctx),
+    ]);
 
   const kpis: PanoramaKpi[] = [
     {
@@ -224,6 +237,24 @@ export async function getPanoramaKpis(
         formula: "COUNT(welfare_reports donde status NOT IN ('closed', 'duplicate')) en alcance",
         caveat:
           "La ubicación en el mapa es aproximada (centroide de localidad); el conteo refleja el alcance, no el recuadro visible.",
+      },
+    },
+    {
+      id: "esterilizacion",
+      label: "Cobertura de esterilización",
+      value: `${sterilization.rate}%`,
+      sub: `meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`,
+      bar: sterilization.rate,
+      tone: sterilization.rate >= TARGETS.STERILIZATION_COVERAGE_PCT ? "ok" : "warn",
+      href: "/gob/poblacion",
+      source: "metrics.fetchSterilizationCoverage",
+      info: {
+        definition:
+          "Porcentaje de mascotas activas en la jurisdicción con al menos un evento sterilization_performed registrado. Meta programática: 70% (indicador de control poblacional).",
+        formula:
+          "COUNT DISTINCT mascotas con sterilization_performed / COUNT DISTINCT mascotas activas en alcance",
+        caveat:
+          "Solo se cuentan esterilizaciones registradas en MiMAR. La cobertura real puede ser mayor si hay esterilizaciones fuera del sistema.",
       },
     },
   ];

@@ -12,7 +12,12 @@ import type { AggregationLevel, LayerId } from "./types";
 // Types
 // ---------------------------------------------------------------------------
 
-export type PresetId = "brotes-activos" | "sintomas" | "cumplimiento" | "bienestar";
+export type PresetId =
+  | "brotes-activos"
+  | "sintomas"
+  | "cumplimiento"
+  | "bienestar"
+  | "control-poblacional";
 
 export type PanoramaPreset = {
   id: PresetId;
@@ -92,6 +97,16 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // references: decomisos as contextual reference pins.
     references: ["decomisos"],
     level: "locality",
+    periodPreset: "90d",
+  },
+  {
+    id: "control-poblacional",
+    label: "Control poblacional",
+    description: "¿Estamos conteniendo la población? Cobertura de esterilización vs meta.",
+    // base: esterilizacion (rate choropleth) — North-Star layer for population control.
+    // Province level with divergent scale anchored at TARGETS.STERILIZATION_COVERAGE_PCT (70%).
+    base: "esterilizacion",
+    level: "province",
     periodPreset: "90d",
   },
 ] as const;
