@@ -141,6 +141,10 @@ const {
   cases,
   enoProcessingQueue,
   eventNotificationOutbox,
+  serviceOfferings,
+  serviceScheduleRules,
+  timeSlots,
+  appointments,
 } = await import("../db");
 const { writePoint } = await import("../lib/location");
 const { PROVINCES } = await import("../lib/ar-provincias");
@@ -173,6 +177,16 @@ const DANGEROUS_BREED_FLAG_RATE = Number(process.env.PANO_DANGEROUS_BREED_RATE ?
 const PPP_ATTEST_RATE = Number(process.env.PANO_PPP_ATTEST_RATE ?? "0.45"); // of flagged pets
 const ADOPTION_ACQUISITION_RATE = Number(process.env.PANO_ADOPTION_RATE ?? "0.12");
 const REUNIFICATION_RATE = Number(process.env.PANO_REUNIFICATION_RATE ?? "0.45"); // of lost pets
+
+// ─── Health campaign rates (env-tunable) — feeds /gob/campanas ──────────────
+// A health campaign is a service_offering (vacunación / desparasitación /
+// esterilización) hosted by a seeded org. Slots are booked at a per-province
+// rate; each booking resolves to a mixed outcome so enrollment / completion /
+// no-show / geographic-reach KPIs all populate with varied-by-jurisdiction data.
+// CAMPAIGN_BOOKING_RATE is the baseline share of materialized slot capacity that
+// gets booked; a per-province multiplier (see PROVINCE_CAMPAIGN_DEMAND) layers
+// jurisdiction spread on top.
+const CAMPAIGN_BOOKING_RATE = Number(process.env.PANO_CAMPAIGN_BOOKING_RATE ?? "0.62");
 
 type LogTag = "STEP" | "OK" | "SKIP" | "WARN" | "INFO" | "DONE" | "FAIL";
 function log(tag: LogTag, msg: string): void {
@@ -748,6 +762,47 @@ async function findOrCreateSeedOwnerProfileId(): Promise<string> {
 
 async function runClean(): Promise<void> {
   log("STEP", "--clean / pre-clean: removing all PANO-tagged data");
+
+  // 10-pre. Health campaigns (service_offerings + slots + appointments).
+  // FK-safe order is appointments → time_slots → service_schedule_rules →
+  // service_offerings. appointments.slot_id is ON DELETE RESTRICT, so the
+  // bookings MUST go before their slots. We MUST also run this BEFORE the pet
+  // delete below: appointments.pet_id is ON DELETE CASCADE, so deleting PANO
+  // pets first would silently remove the bookings and leave orphaned PANO slots
+  // + offerings (which then never get cleaned, breaking idempotency). Keyed off
+  // the deterministic PANO-SVO- offering token (offerings are the root of the
+  // cascade) plus the PANO-APT- appointment token as a belt-and-suspenders.
+  const panoOfferings = await db
+    .select({ id: serviceOfferings.id })
+    .from(serviceOfferings)
+    .where(like(serviceOfferings.publicToken, "PANO-SVO-%"));
+
+  if (panoOfferings.length > 0) {
+    const offeringIds = panoOfferings.map((o) => o.id);
+
+    const panoSlots = await db
+      .select({ id: timeSlots.id })
+      .from(timeSlots)
+      .where(inArray(timeSlots.serviceOfferingId, offeringIds));
+    const slotIds = panoSlots.map((s) => s.id);
+
+    if (slotIds.length > 0) {
+      await db.delete(appointments).where(inArray(appointments.slotId, slotIds));
+    }
+    // Belt-and-suspenders: any stray PANO-APT- appointments not covered above.
+    await db.delete(appointments).where(like(appointments.publicToken, "PANO-APT-%"));
+    if (slotIds.length > 0) {
+      await db.delete(timeSlots).where(inArray(timeSlots.id, slotIds));
+    }
+    await db
+      .delete(serviceScheduleRules)
+      .where(inArray(serviceScheduleRules.serviceOfferingId, offeringIds));
+    await db.delete(serviceOfferings).where(inArray(serviceOfferings.id, offeringIds));
+    log(
+      "OK",
+      `  Deleted ${panoOfferings.length} PANO campaigns (offerings + ${slotIds.length} slots + appointments)`,
+    );
+  }
 
   // 10a. Pets tagged with PANO-
   const panoPets = await db
@@ -2059,6 +2114,314 @@ async function seedEnforcementCases(): Promise<{ decomisos: number; disputes: nu
 }
 
 // ---------------------------------------------------------------------------
+// 15d. Health campaigns — service_offerings + time_slots + appointments
+// ---------------------------------------------------------------------------
+// Backs /gob/campanas (lib/campaign-metrics.ts → fetchCampaignDashboard). A
+// "campaign" is a health-service offering (vacunación / desparasitación /
+// esterilización) hosted by a seeded org. The projection aggregates:
+//   enrollment  = appointments in {confirmed, attended, no_show}     (period)
+//   completion  = appointments status='attended'
+//   no_show     = appointments status='no_show'
+//   geo_reach   = distinct service_offerings.jurisdiction_locality with ≥1
+//                 attended appointment
+// The hasData gate is simply offerings-in-scope > 0, but we book a mixed-outcome
+// distribution so every KPI populates with non-trivial, varied-by-jurisdiction
+// values. Dates are ANCHOR-relative (NOT new Date) and land within the last ~28
+// days of the anchor so the 30d preset AND the 12m default window both catch
+// them; a few older slots feed the 6-month enrollment sparkline.
+//
+// Per-province demand multiplier — layered on CAMPAIGN_BOOKING_RATE to spread
+// enrollment/attendance across jurisdictions (mirrors PROVINCE_COVERAGE intent).
+const PROVINCE_CAMPAIGN_DEMAND: Record<string, { demand: number; attend: number }> = {
+  "Buenos Aires": { demand: 1.0, attend: 0.72 },
+  CABA: { demand: 0.95, attend: 0.78 },
+  Córdoba: { demand: 0.85, attend: 0.66 },
+  "Santa Fe": { demand: 0.8, attend: 0.63 },
+  Salta: { demand: 0.6, attend: 0.52 },
+  Chaco: { demand: 0.5, attend: 0.45 },
+};
+
+// Campaign offering templates. serviceKind values are free text in the DB but
+// align with lib/service-kinds (vaccination / deworming / sterilization) so the
+// per-offering table renders a human label.
+const CAMPAIGN_TEMPLATES: ReadonlyArray<{
+  readonly kind: string;
+  readonly label: string;
+  readonly durationMinutes: number;
+  readonly slotCapacity: number;
+  readonly species: readonly string[];
+}> = [
+  {
+    kind: "vaccination",
+    label: "Campaña de vacunación antirrábica",
+    durationMinutes: 15,
+    slotCapacity: 8,
+    species: ["dog", "cat"],
+  },
+  {
+    kind: "deworming",
+    label: "Campaña de desparasitación",
+    durationMinutes: 10,
+    slotCapacity: 10,
+    species: ["dog", "cat"],
+  },
+  {
+    kind: "sterilization",
+    label: "Campaña de esterilización gratuita",
+    durationMinutes: 45,
+    slotCapacity: 4,
+    species: ["dog", "cat"],
+  },
+];
+
+async function seedHealthCampaigns(
+  ownerUserId: string,
+  shelterOrgs: PanoOrg[],
+): Promise<{
+  offerings: number;
+  slots: number;
+  appointments: number;
+  attended: number;
+  noShow: number;
+  confirmed: number;
+}> {
+  log("STEP", "Seeding health campaigns (service_offerings + slots + appointments)…");
+
+  if (shelterOrgs.length === 0) {
+    log("WARN", "  No PANO orgs available — skipping campaigns");
+    return { offerings: 0, slots: 0, appointments: 0, attended: 0, noShow: 0, confirmed: 0 };
+  }
+
+  // Pre-fetch a pool of PANO pet IDs per province (appointments.pet_id NOT NULL,
+  // FK → pets, ON DELETE CASCADE). Reuse existing PANO pets so the cleanup
+  // cascade stays consistent.
+  const petPoolRows = await db
+    .select({ id: pets.id, province: pets.jurisdictionProvince })
+    .from(pets)
+    .where(like(pets.name, `${PANO_TAG}%`));
+
+  const petsByProvince = new Map<string, string[]>();
+  for (const r of petPoolRows) {
+    const key = r.province ?? "Buenos Aires";
+    if (!petsByProvince.has(key)) petsByProvince.set(key, []);
+    petsByProvince.get(key)!.push(r.id);
+  }
+  const allPetIds = petPoolRows.map((r) => r.id);
+  if (allPetIds.length === 0) {
+    log("WARN", "  No PANO pets found — skipping campaigns");
+    return { offerings: 0, slots: 0, appointments: 0, attended: 0, noShow: 0, confirmed: 0 };
+  }
+
+  let svoIdx = 0;
+  let aptIdx = 0;
+  let totalSlots = 0;
+  let totalAppointments = 0;
+  let attendedCount = 0;
+  let noShowCount = 0;
+  let confirmedCount = 0;
+
+  for (const org of shelterOrgs) {
+    const demand = PROVINCE_CAMPAIGN_DEMAND[org.provinceName] ?? { demand: 0.5, attend: 0.5 };
+
+    // Each org hosts 1–2 campaign offerings (the larger metros host both
+    // vaccination + one rotating second kind) so we get several offerings
+    // spread across jurisdictions without flooding the dataset.
+    const offeringCount = demand.demand >= 0.8 ? 2 : 1;
+
+    for (let t = 0; t < offeringCount; t++) {
+      const template = CAMPAIGN_TEMPLATES[(svoIdx + t) % CAMPAIGN_TEMPLATES.length];
+      const svoToken = `PANO-SVO-${String(svoIdx).padStart(4, "0")}`;
+      svoIdx++;
+
+      const [offeringRow] = await db
+        .insert(serviceOfferings)
+        .values({
+          publicToken: svoToken,
+          organizationId: org.id,
+          jurisdictionCountry: "AR",
+          jurisdictionProvince: org.provinceName,
+          jurisdictionLocality: org.locality,
+          serviceKind: template.kind,
+          displayName: `PANO — ${template.label} (${org.locality})`,
+          description: "Campaña sanitaria sintética de demostración (seed-panorama)",
+          durationMinutes: template.durationMinutes,
+          slotCapacity: template.slotCapacity,
+          eligibilitySpecies: [...template.species],
+          status: "approved",
+          isPublic: false,
+        } as Parameters<typeof db.insert<typeof serviceOfferings>>[0] extends {
+          values: (v: infer V) => unknown;
+        }
+          ? V
+          : never)
+        .returning({ id: serviceOfferings.id });
+
+      // One weekly schedule rule (Mon/Wed/Fri mornings). effective_* are date
+      // strings; anchor the window around ANCHOR so it reads as a live campaign.
+      const effFrom = new Date(ANCHOR_MS - 45 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const effUntil = new Date(ANCHOR_MS + 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const [ruleRow] = await db
+        .insert(serviceScheduleRules)
+        .values({
+          serviceOfferingId: offeringRow.id,
+          daysOfWeek: [1, 3, 5],
+          startTimeLocal: "09:00:00",
+          endTimeLocal: "12:00:00",
+          effectiveFrom: effFrom,
+          effectiveUntil: effUntil,
+          status: "active",
+        } as Parameters<typeof db.insert<typeof serviceScheduleRules>>[0] extends {
+          values: (v: infer V) => unknown;
+        }
+          ? V
+          : never)
+        .returning({ id: serviceScheduleRules.id });
+
+      // Materialize slots. Most land within the last 28 days of the anchor (so
+      // the 30d window catches them); a handful are placed 35–150 days back to
+      // populate the 6-month enrollment sparkline; a couple are future-dated for
+      // the "confirmed (booked)" enrollment bucket.
+      const slotPlan: Array<{ daysFromAnchor: number; future: boolean }> = [];
+      // 8 recent slots within the 28d window (past).
+      for (let s = 0; s < 8; s++) slotPlan.push({ daysFromAnchor: randInt(1, 27), future: false });
+      // 3 older slots for the sparkline (35–150 days back).
+      for (let s = 0; s < 3; s++)
+        slotPlan.push({ daysFromAnchor: randInt(35, 150), future: false });
+      // 2 future slots (1–14 days ahead) for confirmed/booked-future bookings.
+      for (let s = 0; s < 2; s++) slotPlan.push({ daysFromAnchor: randInt(1, 14), future: true });
+
+      // Each slot gets a distinct hour offset (the morning campaign block runs
+      // 09:00–12:00 → 12:00–15:00Z), so two slots that draw the same day still
+      // produce a unique starts_at and never collide on the
+      // time_slots_unique_starts (service_offering_id, starts_at) constraint.
+
+      // Province pet pool (fallback to national pool when the province is sparse).
+      const provincePets = petsByProvince.get(org.provinceName) ?? [];
+      const pool = provincePets.length >= 4 ? provincePets : allPetIds;
+
+      // Per-offering booking probability, layered with the province demand.
+      const bookingProb = Math.min(0.95, CAMPAIGN_BOOKING_RATE * demand.demand + 0.1);
+
+      for (let slotSeq = 0; slotSeq < slotPlan.length; slotSeq++) {
+        const plan = slotPlan[slotSeq];
+        const offsetMs = plan.daysFromAnchor * 24 * 3600 * 1000;
+        const slotStartMs = plan.future ? ANCHOR_MS + offsetMs : ANCHOR_MS - offsetMs;
+        // 12:00Z base (~09:00 local) + a per-slot hour offset (0–12h) so every
+        // slot in an offering has a unique starts_at even on a colliding day.
+        const hourOffset = (slotSeq % 13) * 3600 * 1000;
+        const startsAt = new Date(slotStartMs + 12 * 3600 * 1000 + hourOffset);
+        const endsAt = new Date(startsAt.getTime() + template.durationMinutes * 60 * 1000);
+        const capacity = template.slotCapacity;
+
+        // How many of the slot's capacity get booked.
+        let bookings = 0;
+        for (let c = 0; c < capacity; c++) {
+          if (rng() < bookingProb) bookings++;
+        }
+        // Guarantee at least one booking on recent past slots so every offering
+        // shows enrollment (and the within-capacity CHECK still holds).
+        if (bookings === 0 && !plan.future && plan.daysFromAnchor <= 27) bookings = 1;
+
+        const slotStatus = bookings >= capacity ? "full" : "open";
+        const [slotRow] = await db
+          .insert(timeSlots)
+          .values({
+            serviceOfferingId: offeringRow.id,
+            ruleId: ruleRow.id,
+            startsAt,
+            endsAt,
+            capacity,
+            bookingsCount: bookings,
+            status: slotStatus,
+          } as Parameters<typeof db.insert<typeof timeSlots>>[0] extends {
+            values: (v: infer V) => unknown;
+          }
+            ? V
+            : never)
+          .returning({ id: timeSlots.id });
+        totalSlots++;
+
+        if (bookings === 0) continue;
+
+        const apptRows: Array<Record<string, unknown>> = [];
+        for (let b = 0; b < bookings; b++) {
+          const petId = pool[Math.floor(rng() * pool.length)];
+          const aptToken = `PANO-APT-${String(aptIdx).padStart(5, "0")}`;
+          aptIdx++;
+
+          // Outcome resolution:
+          //   future slot          → always "confirmed" (booked, not yet held)
+          //   past slot            → attended (per-province attend rate) /
+          //                          no_show (the rest) — mixed by jurisdiction
+          let status: "confirmed" | "attended" | "no_show";
+          let attendedAt: Date | null = null;
+          let noShowMarkedAt: Date | null = null;
+          if (plan.future) {
+            status = "confirmed";
+            confirmedCount++;
+          } else if (rng() < demand.attend) {
+            status = "attended";
+            attendedAt = new Date(startsAt.getTime() + template.durationMinutes * 60 * 1000);
+            attendedCount++;
+          } else {
+            status = "no_show";
+            noShowMarkedAt = new Date(startsAt.getTime() + 30 * 60 * 1000);
+            noShowCount++;
+          }
+
+          // createdAt drives the projection window: book a few days before the
+          // slot start, but never in the future relative to the anchor (so the
+          // 30d/12m windows that end at "now" still include them).
+          const leadDays = randInt(2, 10);
+          let createdMs = startsAt.getTime() - leadDays * 24 * 3600 * 1000;
+          if (createdMs > ANCHOR_MS) createdMs = ANCHOR_MS - randInt(1, 5) * 24 * 3600 * 1000;
+          const createdAt = new Date(createdMs);
+
+          apptRows.push({
+            publicToken: aptToken,
+            slotId: slotRow.id,
+            petId,
+            ownerUserId,
+            serviceOfferingId: offeringRow.id,
+            organizationId: org.id,
+            status,
+            ...(attendedAt ? { attendedAt, attendedByUserId: ownerUserId } : {}),
+            ...(noShowMarkedAt ? { noShowMarkedAt } : {}),
+            createdAt,
+            updatedAt: createdAt,
+          });
+          totalAppointments++;
+        }
+
+        if (apptRows.length > 0) {
+          await db.insert(appointments).values(
+            apptRows as Parameters<typeof db.insert<typeof appointments>>[0] extends {
+              values: (v: infer V) => unknown;
+            }
+              ? V
+              : never,
+          );
+        }
+      }
+    }
+  }
+
+  log(
+    "INFO",
+    `  Campaigns: ${svoIdx} offerings, ${totalSlots} slots, ${totalAppointments} appointments ` +
+      `(${attendedCount} attended / ${noShowCount} no-show / ${confirmedCount} confirmed)`,
+  );
+  return {
+    offerings: svoIdx,
+    slots: totalSlots,
+    appointments: totalAppointments,
+    attended: attendedCount,
+    noShow: noShowCount,
+    confirmed: confirmedCount,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 16. Main entry point
 // ---------------------------------------------------------------------------
 
@@ -2139,6 +2502,9 @@ async function main(): Promise<void> {
   // Seed enforcement cases (decomisos + custody disputes).
   const enforcement = await seedEnforcementCases();
 
+  // Seed health campaigns (service_offerings + slots + appointments) → /gob/campanas.
+  const campaigns = await seedHealthCampaigns(ownerUserId, shelterOrgs);
+
   // Final summary
   const totalEvents = Object.values(eventCounts).reduce((s, v) => s + v, 0);
 
@@ -2155,6 +2521,13 @@ async function main(): Promise<void> {
   log("INFO", `ENO outbox rows         : ${vigilance.outbox}`);
   log("INFO", `Decomisos (cases)       : ${enforcement.decomisos}`);
   log("INFO", `Custody disputes (cases): ${enforcement.disputes}`);
+  log("INFO", `Campaign offerings      : ${campaigns.offerings}`);
+  log("INFO", `Campaign time slots     : ${campaigns.slots}`);
+  log(
+    "INFO",
+    `Campaign appointments   : ${campaigns.appointments} ` +
+      `(${campaigns.attended} attended / ${campaigns.noShow} no-show / ${campaigns.confirmed} confirmed)`,
+  );
   log("INFO", "Event breakdown:");
   for (const [k, v] of Object.entries(eventCounts).sort((a, b) => b[1] - a[1])) {
     log("INFO", `  ${k.padEnd(35)}: ${v}`);
