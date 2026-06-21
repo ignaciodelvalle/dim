@@ -76,6 +76,69 @@ test("/p/[invalid token] → branded Spanish not-found (not the English default)
   await expect(page.getByText(/this page could not be found/i)).not.toBeVisible();
 });
 
+// A VALID lost-mode credential must render (200, no error boundary).
+// UX audit remediation — Fase 0 item 0.1, the WORST crash: a stranger scanning
+// the QR of a LOST pet got "Algo salió mal" instead of the contact/sighting
+// credential. The lost render path threw in a Server Components render.
+// /perdidas lists lost pets and links each to /p/[token]; we discover one
+// (no hardcoded DB token) and assert the lost path no longer throws. Skips
+// cleanly when no lost pets are seeded so it never flakes on an empty DB.
+test("/p/[token] lost-mode credential → 200, no error boundary (UX 0.1 regression)", async ({
+  page,
+}) => {
+  await page.goto("/perdidas");
+  await page.waitForLoadState("networkidle");
+
+  const credLink = page.locator('a[href^="/p/"]').first();
+  test.skip(
+    (await credLink.count()) === 0,
+    "No lost pets seeded — skipping lost-credential smoke.",
+  );
+
+  const href = await credLink.getAttribute("href");
+  expect(href).toBeTruthy();
+
+  const response = await page.goto(href as string);
+
+  // The lost render path must not 5xx (0.1 was a Server Components render throw).
+  expect(response?.status()).toBeLessThan(500);
+
+  // No React error boundary / branded error screen.
+  await expect(page.getByText(/application error/i)).not.toBeVisible();
+  await expect(page.getByText(/internal server error/i)).not.toBeVisible();
+  await expect(page.getByText(/algo salió mal/i)).not.toBeVisible();
+
+  // It rendered a real credential — not the invalid-token not-found.
+  await expect(page.getByText(/no encontramos esa credencial/i)).not.toBeVisible();
+  await expect(page.locator("main").first()).toBeVisible();
+});
+
+// A11y on a VALID lost-mode credential — the hero moment, and Ley 26.653 applies.
+// The file header notes /p/[token] was not axe-tested directly because it isn't
+// linked from any public page; /perdidas DOES link lost credentials, so we can
+// now cover the lost-mode render. Skips cleanly when no lost pets are seeded.
+test("a11y(axe) /p/[token] lost-mode credential — WCAG 2.1 AA", async ({ page }) => {
+  await page.goto("/perdidas");
+  await page.waitForLoadState("networkidle");
+
+  const credLink = page.locator('a[href^="/p/"]').first();
+  test.skip(
+    (await credLink.count()) === 0,
+    "No lost pets seeded — skipping lost-credential a11y check.",
+  );
+
+  const href = await credLink.getAttribute("href");
+  await page.goto(href as string);
+  await page.waitForLoadState("networkidle");
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .disableRules(["color-contrast"]) // contrast validated via design tokens separately
+    .analyze();
+
+  expect(results.violations).toEqual([]);
+});
+
 // A11y checks on static public pages (no auth / no dynamic token required).
 // Scoped to WCAG 2.1 AA; color-contrast is excluded because design-token
 // contrast ratios are validated separately (P-1 in the a11y audit).
