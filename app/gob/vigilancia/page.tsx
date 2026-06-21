@@ -131,7 +131,7 @@ export default async function GobVigilanciaPage({
       : Promise.resolve(null),
     fetchSurveillanceCompliance(complianceCtx),
     // Sparklines for KPI tiles (Fase 0).
-    fetchKpiTrend("outbreak_signal_opened", complianceCtx),
+    fetchKpiTrend("outbreak_signal", complianceCtx),
     fetchKpiTrend("rabies_observation_started", complianceCtx),
     fetchKpiTrend("vaccination_administered", complianceCtx),
   ]);
