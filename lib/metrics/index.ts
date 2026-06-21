@@ -58,3 +58,17 @@ export {
 // Fase 0 additions — targets, tone, delta, freshness.
 export { TARGETS, computeDeltaPct, toneForTarget } from "./targets";
 export { lastIngestAt } from "./freshness";
+
+// Paquete E — censo poblacional & salud del registro.
+export {
+  DORMANT_MONTHS_DEFAULT,
+  assertFunnelMonotonic,
+  classifyDormant,
+  funnelPercents,
+  identificationFunnel,
+  isIncompleteProfile,
+  registryCounts,
+  registrationTrend,
+  registryByProvince,
+} from "./census";
+export type { FunnelStages, ProvinceRegistryRow, RegistryCounts } from "./census";

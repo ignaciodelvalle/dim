@@ -55,6 +55,12 @@ export const TARGETS = {
    * Lower-is-better metric: values ABOVE this threshold are a breach.
    */
   DISPOSAL_UNKNOWN_BREACH_PCT: 25,
+
+  /**
+   * Months of owner inactivity before a pet is classified as dormant (Paquete E).
+   * Used as the tooltip reference value in the Dormant KPI.
+   */
+  DORMANT_MONTHS: 12,
 } as const;
 
 // ---------------------------------------------------------------------------

@@ -320,6 +320,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/decomisos",
   "/gob/campanas", // Item 20 — campaign performance
   "/gob/outreach", // Item 21 — actionable outreach pipelines
+  "/gob/censo", // Paquete E — censo poblacional & salud del registro
 ]);
 
 describe("GOB_NAV_SECTIONS — section invariants", () => {
@@ -408,6 +409,7 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/moderacion",
   "/admin/casos",
   "/admin/jurisdicciones",
+  "/admin/censo", // Paquete E — censo poblacional & salud del registro
 ]);
 
 describe("ADMIN_NAV_SECTIONS — section invariants", () => {

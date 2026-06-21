@@ -41,6 +41,10 @@ describe("TARGETS constant values", () => {
   it("DISPOSAL_UNKNOWN_BREACH_PCT is 25", () => {
     expect(TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT).toBe(25);
   });
+
+  it("DORMANT_MONTHS is 12 (Paquete E dormancy threshold)", () => {
+    expect(TARGETS.DORMANT_MONTHS).toBe(12);
+  });
 });
 
 // ---------------------------------------------------------------------------

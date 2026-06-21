@@ -42,6 +42,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/decomisos",
   "/gob/campanas",
   "/gob/outreach", // Item 21 — actionable outreach pipelines
+  "/gob/censo", // Paquete E — censo poblacional & salud del registro
 ]);
 
 const ADMIN_HREF_SNAPSHOT = new Set([
@@ -61,6 +62,7 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/moderacion",
   "/admin/casos",
   "/admin/jurisdicciones",
+  "/admin/censo", // Paquete E — censo poblacional & salud del registro
 ]);
 
 const ALL_ORG_CAPS = new Set(["intake.create", "adoption.review", "capability.grant"]);
