@@ -20,6 +20,7 @@ import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynam
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { checkCompatibility } from "@/src/modules/panorama/domain/compatibility";
 import {
   AGGREGATED_POINT_IDS,
   AGGREGATED_POINT_LAYERS,
@@ -375,14 +376,83 @@ export function PanoramaConsole({
     [fetchChoroplethAt],
   );
 
+  /**
+   * F2: Recompute compatibility hints for all INACTIVE layers given the
+   * provided `activeIds` set. Returns a partial state patch so the caller can
+   * merge it in a single `setStates` call.
+   *
+   * Inactive layers that are blocked get a `compatibilityHint`; those that
+   * are no longer blocked have their hint cleared (set to undefined).
+   * Active layers are never patched here — a hint on an active layer makes
+   * no sense and would be confusing.
+   */
+  const computeHints = useCallback(
+    (activeIds: LayerId[]): Partial<Record<LayerId, Partial<LayerPanelState>>> => {
+      const patch: Partial<Record<LayerId, Partial<LayerPanelState>>> = {};
+      for (const layer of PANORAMA_LAYERS) {
+        if (activeIds.includes(layer.id)) continue; // active — skip
+        const result = checkCompatibility(activeIds, layer.id, PANORAMA_LAYERS);
+        patch[layer.id] = { compatibilityHint: result.allowed ? undefined : result.hint };
+      }
+      return patch;
+    },
+    [],
+  );
+
   const onToggle = useCallback(
     async (id: LayerId) => {
       const wasActive = states[id]?.active ?? false;
       if (wasActive) {
         // Turn off — keep cached data so a re-toggle is instant.
-        setStates((s) => ({ ...s, [id]: { ...s[id], active: false } }));
+        // Recompute hints: removing this layer may unblock others.
+        setStates((s) => {
+          const nextActiveIds = PANORAMA_LAYERS.filter(
+            (l) => l.id !== id && (s[l.id]?.active ?? false),
+          ).map((l) => l.id);
+          const hints = computeHints(nextActiveIds);
+          const next = { ...s, [id]: { ...s[id], active: false, compatibilityHint: undefined } };
+          for (const [lid, patch] of Object.entries(hints) as [
+            LayerId,
+            Partial<LayerPanelState>,
+          ][]) {
+            next[lid] = { ...next[lid], ...patch };
+          }
+          return next;
+        });
         return;
       }
+
+      // F2: check compatibility BEFORE activating the layer.
+      const activeIds = PANORAMA_LAYERS.filter((l) => states[l.id]?.active ?? false).map(
+        (l) => l.id,
+      );
+      const compat = checkCompatibility(activeIds, id, PANORAMA_LAYERS);
+      if (!compat.allowed) {
+        // Block the toggle — set the hint on this layer so the panel can explain why.
+        setStates((s) => ({
+          ...s,
+          [id]: { ...s[id], compatibilityHint: compat.hint },
+        }));
+        return;
+      }
+
+      // Helper: apply F2 hint recomputation after `id` becomes active.
+      // `nextActiveIds` is the new active set (including `id`).
+      // Returns a function compatible with `setStates` updater so it can
+      // be composed inside a single state update or called immediately after.
+      const applyHintsAfterActivate = (
+        s: Record<LayerId, LayerPanelState>,
+        nextActiveIds: LayerId[],
+      ): Record<LayerId, LayerPanelState> => {
+        const hints = computeHints(nextActiveIds);
+        const next = { ...s };
+        for (const [lid, patch] of Object.entries(hints) as [LayerId, Partial<LayerPanelState>][]) {
+          if (lid !== id) next[lid] = { ...next[lid], ...patch };
+        }
+        // The newly activated layer never carries a compatibility hint.
+        next[id] = { ...next[id], compatibilityHint: undefined };
+        return next;
+      };
 
       // Choropleth or aggregated-point layer toggled on while the axis is
       // "Provincia": resolve at province level, reading/writing the province cache.
@@ -392,18 +462,22 @@ export function PanoramaConsole({
       if (useProvinceCache) {
         if (provinceDataRef.current.has(id)) {
           const fc = provinceDataRef.current.get(id) ?? EMPTY_FC;
-          setStates((s) => ({
-            ...s,
-            [id]: { ...s[id], active: true, loading: false, count: fc.features.length },
-          }));
+          setStates((s) => {
+            const nextActive = activeIds.concat(id);
+            const base = {
+              ...s,
+              [id]: { ...s[id], active: true, loading: false, count: fc.features.length },
+            };
+            return applyHintsAfterActivate(base, nextActive);
+          });
           setLevelVersion((v) => v + 1);
           return;
         }
         setStates((s) => ({ ...s, [id]: { ...s[id], active: true, loading: true } }));
         const body = await fetchChoroplethAt(id, "province");
-        setStates((s) => ({
-          ...s,
-          [id]: body
+        setStates((s) => {
+          const nextActive = activeIds.concat(id);
+          const layerState: LayerPanelState = body
             ? {
                 active: true,
                 loading: false,
@@ -411,8 +485,10 @@ export function PanoramaConsole({
                 suppressedCount: body.suppressedCount,
                 truncated: body.truncated,
               }
-            : { active: false, loading: false, count: 0, suppressedCount: 0, truncated: false },
-        }));
+            : { active: false, loading: false, count: 0, suppressedCount: 0, truncated: false };
+          const base = { ...s, [id]: layerState };
+          return applyHintsAfterActivate(base, body ? nextActive : activeIds);
+        });
         setLevelVersion((v) => v + 1);
         return;
       }
@@ -420,10 +496,14 @@ export function PanoramaConsole({
       // If we already have data cached (e.g. the default layer), just re-activate.
       if (dataRef.current.has(id)) {
         const fc = dataRef.current.get(id) ?? EMPTY_FC;
-        setStates((s) => ({
-          ...s,
-          [id]: { ...s[id], active: true, loading: false, count: fc.features.length },
-        }));
+        setStates((s) => {
+          const nextActive = activeIds.concat(id);
+          const base = {
+            ...s,
+            [id]: { ...s[id], active: true, loading: false, count: fc.features.length },
+          };
+          return applyHintsAfterActivate(base, nextActive);
+        });
         // Mid-scrub: also resolve this temporal layer's as-of view if missing.
         if (asOf !== null && isTemporalLayer(id) && !asOfDataRef.current.has(id)) {
           void fetchAsOfFor(id, asOf);
@@ -446,16 +526,20 @@ export function PanoramaConsole({
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const body = (await res.json()) as ApiResponse;
         dataRef.current.set(id, body.features);
-        setStates((s) => ({
-          ...s,
-          [id]: {
-            active: true,
-            loading: false,
-            count: body.features.features.length,
-            suppressedCount: body.suppressedCount,
-            truncated: body.truncated,
-          },
-        }));
+        setStates((s) => {
+          const nextActive = activeIds.concat(id);
+          const base = {
+            ...s,
+            [id]: {
+              active: true,
+              loading: false,
+              count: body.features.features.length,
+              suppressedCount: body.suppressedCount,
+              truncated: body.truncated,
+            },
+          };
+          return applyHintsAfterActivate(base, nextActive);
+        });
         // Mid-scrub: also resolve this temporal layer's as-of view.
         if (asOf !== null && isTemporalLayer(id)) {
           void fetchAsOfFor(id, asOf);
@@ -469,7 +553,7 @@ export function PanoramaConsole({
         }));
       }
     },
-    [searchParams, states, asOf, fetchAsOfFor, fetchChoroplethAt],
+    [searchParams, states, asOf, fetchAsOfFor, fetchChoroplethAt, computeHints],
   );
 
   // Whether any aggregation-axis-sensitive layer is active (choropleth or

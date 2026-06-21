@@ -21,6 +21,14 @@ export type LayerPanelState = {
   suppressedCount: number;
   /** The 2.000 per-layer cap clipped the result. */
   truncated: boolean;
+  /**
+   * F2 compatibility: set when this inactive layer cannot be toggled on due
+   * to a compatibility conflict (e.g. a second base or a second signal).
+   * The string is an es-AR hint explaining WHY the layer is blocked.
+   * Only present on inactive layers — active layers never carry a hint.
+   * Cleared automatically once the conflict is resolved.
+   */
+  compatibilityHint?: string;
 };
 
 type Props = {
@@ -43,18 +51,28 @@ export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
           // Under a scrub, layers with no time dimension can't be reproduced
           // as-of-t — flag and visually de-emphasise them in the legend.
           const notReproducible = scrubbing && !isTemporalLayer(layer.id);
+          // F2 compatibility: an inactive layer may be blocked due to a
+          // conflict with the currently active set. The hint explains why.
+          const compatibilityHint = !active ? (st?.compatibilityHint ?? undefined) : undefined;
+          const isBlocked = Boolean(compatibilityHint);
           return (
             <li key={layer.id}>
               <label
-                className={`flex cursor-pointer items-center gap-2.5 rounded-[6px] px-1.5 py-1 text-[12px] text-ln-op-ink-2 hover:bg-ln-op-card ${
-                  notReproducible ? "opacity-50" : ""
-                }`}
+                className={`flex items-center gap-2.5 rounded-[6px] px-1.5 py-1 text-[12px] text-ln-op-ink-2 ${
+                  isBlocked ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-ln-op-card"
+                } ${notReproducible ? "opacity-50" : ""}`}
+                title={compatibilityHint}
               >
                 <input
                   type="checkbox"
                   className="h-3.5 w-3.5 accent-current"
                   checked={active}
-                  onChange={() => onToggle(layer.id)}
+                  disabled={isBlocked}
+                  aria-disabled={isBlocked}
+                  aria-describedby={isBlocked ? `compat-hint-${layer.id}` : undefined}
+                  onChange={() => {
+                    if (!isBlocked) onToggle(layer.id);
+                  }}
                 />
                 <span
                   className="inline-block h-3 w-3 shrink-0 rounded-full border border-ln-op-line"
@@ -96,7 +114,27 @@ export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
                     capá al máximo (2.000)
                   </span>
                 )}
+                {isBlocked && (
+                  <span
+                    className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-[10px] text-ln-op-mute"
+                    aria-hidden="true"
+                  >
+                    bloqueada
+                  </span>
+                )}
               </label>
+              {/* Inline helper text — visible (not color-only), associated to the
+                  checkbox via aria-describedby. Placed outside the <label> so it
+                  renders below the row and is perceivable without relying on color. */}
+              {isBlocked && compatibilityHint && (
+                <p
+                  id={`compat-hint-${layer.id}`}
+                  className="mt-0.5 px-1.5 text-[10px] text-ln-op-mute"
+                  role="note"
+                >
+                  {compatibilityHint}
+                </p>
+              )}
             </li>
           );
         })}
