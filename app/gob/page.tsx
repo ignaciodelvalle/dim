@@ -13,6 +13,7 @@ import Link from "next/link";
 
 import { CaseBadge } from "@/components/CaseBadge";
 import { JurisdictionFilterBar } from "@/components/JurisdictionFilterBar";
+import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { readFilterParams } from "@/components/jurisdiction-filter-params";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { auditLog, db } from "@/db";
@@ -30,7 +31,7 @@ import {
   fetchRabiesCoverage,
   fetchSterilizationMetrics,
 } from "@/lib/govt-home-kpis";
-import { buildProjectionContext } from "@/lib/metrics";
+import { buildProjectionContext, fetchBitesTrend } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -134,6 +135,7 @@ export default async function GobiernoDashboardPage({
     openWelfareReports,
     microchipPenetration,
     breedCompliance,
+    bitesTrend,
   ] = await Promise.all([
     // Dashboard preview — not a paginated surface: intentionally passes limit without cursor.
     fetchVisiblePendingRequests(profile, jurisdictions, undefined, { limit: 200 }),
@@ -157,7 +159,14 @@ export default async function GobiernoDashboardPage({
     // is carried for ctx consistency but not used as a numerator filter.
     fetchMicrochipPenetration(ctx12m),
     fetchDangerousBreedCompliance(ctx12m),
+    // D1 — mordeduras por período (trend), so the operator sees direction, not
+    // just the "Mordeduras / 10k hab." snapshot KPI above. Reuses the 12m ctx.
+    fetchBitesTrend(ctx12m),
   ]);
+
+  // Shape the bites trend for TimeSeriesChart (x/y points).
+  const bitesTrendPoints = bitesTrend.points.map((p) => ({ x: p.x, y: p.y }));
+  const bitesBucketWord = bitesTrend.granularity === "month" ? "mes" : "semana";
 
   // --- Casos regulatorios (open/escalated, top 5) -------------------------
   // Status filter + LIMIT 5 are pushed into SQL: admin sees universal scope,
@@ -344,6 +353,41 @@ export default async function GobiernoDashboardPage({
           }}
         />
       </section>
+
+      {/* D1 — mordeduras por período (tendencia) */}
+      <OpCard aria-labelledby="panel-bites-trend-titulo">
+        <OpCardHead
+          title={
+            <span id="panel-bites-trend-titulo">
+              Mordeduras por {bitesBucketWord}{" "}
+              <span className="text-[11px] font-normal text-ln-op-mute">últimos 12 meses</span>
+            </span>
+          }
+          actions={
+            bitesTrend.suppressedCount > 0 ? (
+              <span className="text-[12px] font-normal text-ln-op-mute">
+                {bitesTrend.suppressedCount}{" "}
+                {bitesTrend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"}{" "}
+                (privacidad)
+              </span>
+            ) : null
+          }
+        />
+        <OpCardBody>
+          {bitesTrendPoints.length === 0 ? (
+            <p className="text-[13px] text-ln-op-mute">
+              No hay incidentes de mordedura registrados en tu cobertura en el período.
+            </p>
+          ) : (
+            <TimeSeriesChartDynamic
+              data={bitesTrendPoints}
+              seriesLabel="Mordeduras"
+              variant="area"
+              fallbackTableLabel={`Mordeduras por ${bitesBucketWord}`}
+            />
+          )}
+        </OpCardBody>
+      </OpCard>
 
       {/* Main 2-col grid */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">

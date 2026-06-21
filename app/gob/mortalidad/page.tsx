@@ -16,6 +16,7 @@
 // ProjectionContext is built once at this page boundary (like app/gob/page.tsx)
 // and passed to the single fetcher.
 
+import { StackedTimeSeriesChartDynamic } from "@/components/charts/StackedTimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -36,7 +37,7 @@ import {
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
 } from "@/lib/govt-dashboards";
-import { buildProjectionContext } from "@/lib/metrics";
+import { buildProjectionContext, fetchDeathCausesTrend } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchMortalityDisposition } from "@/lib/mortality-metrics";
 
@@ -113,7 +114,12 @@ export default async function GobMortalidadPage({
 
   const period = resolveAnalyticsPeriod(sp);
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
-  const m = await fetchMortalityDisposition(ctx);
+  // Snapshot projection + the D1 cause-by-period trend run in parallel over the
+  // same scoped death_recorded population.
+  const [m, causesTrend] = await Promise.all([
+    fetchMortalityDisposition(ctx),
+    fetchDeathCausesTrend(ctx),
+  ]);
 
   const allowedProvinces =
     profile.role === "admin"
@@ -131,6 +137,12 @@ export default async function GobMortalidadPage({
   const panelCtxId = "panel-contexto-titulo";
   const panelCauseId = "panel-causas-titulo";
   const panelLocId = "panel-localidad-titulo";
+
+  // D1 — "Causas por semana" is now a stacked time-series. The bucket unit
+  // follows the selected period (week for short windows, month for long ones).
+  const causeBucketWord = causesTrend.granularity === "month" ? "mes" : "semana";
+  const causesCardTitle = `Causas por ${causeBucketWord}`;
+  const hasCausesTrend = causesTrend.series.points.length > 0;
 
   return (
     <div className="space-y-6">
@@ -298,45 +310,34 @@ export default async function GobMortalidadPage({
         </OpCard>
       </div>
 
-      {/* Causas — B1 cause-by-week */}
+      {/* Causas — B1 cause-by-period (D1: stacked time-series, was a flat table) */}
       <OpCard aria-labelledby={panelCauseId}>
-        <OpCardHead title={<span id={panelCauseId}>Causas por semana</span>} />
-        <OpCardBody className="p-0">
-          {m.byCauseWeek.length === 0 ? (
-            <p className="px-4 py-3 text-[13px] text-ln-op-mute">
-              No hay fallecimientos en el período seleccionado.
-            </p>
+        <OpCardHead
+          title={<span id={panelCauseId}>{causesCardTitle}</span>}
+          actions={
+            causesTrend.suppressedCount > 0 ? (
+              <span className="text-[12px] font-normal text-ln-op-mute">
+                {causesTrend.suppressedCount}{" "}
+                {causesTrend.suppressedCount === 1 ? "celda oculta" : "celdas ocultas"} (privacidad)
+              </span>
+            ) : null
+          }
+        />
+        <OpCardBody>
+          {!hasCausesTrend ? (
+            <LnEmptyState
+              icon="chart-line"
+              title="Sin fallecimientos en el período"
+              description="No hay eventos de fallecimiento en el rango y la cobertura seleccionados."
+            />
           ) : (
-            <table className="w-full text-[13px]">
-              <caption className="sr-only">Causas de fallecimiento por semana ISO</caption>
-              <thead>
-                <tr className="border-b border-ln-op-line-2 text-left text-ln-op-mute">
-                  <th scope="col" className="px-4 py-2 font-medium">
-                    Semana ISO
-                  </th>
-                  <th scope="col" className="px-4 py-2 font-medium">
-                    Causa
-                  </th>
-                  <th scope="col" className="px-4 py-2 text-right font-medium">
-                    Muertes
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {m.byCauseWeek.map((row) => (
-                  <tr
-                    key={`${row.week}-${row.cause}`}
-                    className="border-b border-ln-op-line-2 odd:bg-ln-op-stripe"
-                  >
-                    <td className="px-4 py-2 tabular-nums text-ln-op-ink">{row.week}</td>
-                    <td className="px-4 py-2 text-ln-op-ink">{deathCauseLabel(row.cause)}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-ln-op-ink">
-                      {row.count}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <StackedTimeSeriesChartDynamic
+              seriesKeys={causesTrend.series.seriesKeys}
+              points={causesTrend.series.points}
+              seriesLabel={deathCauseLabel}
+              yLabel="Fallecimientos"
+              fallbackTableLabel={`Fallecimientos por ${causeBucketWord} y causa`}
+            />
           )}
         </OpCardBody>
       </OpCard>
