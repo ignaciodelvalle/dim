@@ -17,6 +17,7 @@ import {
   provinceDivergentColorExpr,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
+import { escapeHtml } from "@/lib/escape-html";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED, RAMP_BLUE } from "@/lib/viz-scales";
 
 // ---------------------------------------------------------------------------
@@ -534,7 +535,7 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
       popup
         .setLngLat(e.lngLat)
         .setHTML(
-          `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${place}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${layer.label}</em></div>`,
+          `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${escapeHtml(place)}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${escapeHtml(layer.label)}</em></div>`,
         )
         .addTo(map);
     });
@@ -585,7 +586,7 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
       popup
         .setLngLat(e.lngLat)
         .setHTML(
-          `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${place}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${layer.label}</em></div>`,
+          `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${escapeHtml(place)}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${escapeHtml(layer.label)}</em></div>`,
         )
         .addTo(map);
     });
@@ -687,7 +688,7 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
       popup
         .setLngLat(e.lngLat)
         .setHTML(
-          `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${place}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${layer.label}</em></div>`,
+          `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${escapeHtml(place)}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${escapeHtml(layer.label)}</em></div>`,
         )
         .addTo(map);
     });
@@ -933,17 +934,17 @@ function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
 function pointPopupHtml(layer: ActiveLayer, props: Record<string, unknown>): string {
   if (layer.id === "denuncias") {
     const place = [props.locality, props.province].filter(Boolean).join(", ") || "Localidad";
-    return `<div style="font-size:12px;padding:2px 6px"><strong>${place}</strong><br/><em style="font-size:11px;color:#94a3b8">Ubicación aproximada (centroide de localidad)</em></div>`;
+    return `<div style="font-size:12px;padding:2px 6px"><strong>${escapeHtml(place)}</strong><br/><em style="font-size:11px;color:#94a3b8">Ubicación aproximada (centroide de localidad)</em></div>`;
   }
   if (layer.id === "refugios") {
     const name = String(props.name ?? "Refugio");
     const v = props.verified ? " · verificado" : "";
-    return `<div style="font-size:12px;padding:2px 6px"><strong>${name}</strong><span style="color:#94a3b8">${v}</span></div>`;
+    return `<div style="font-size:12px;padding:2px 6px"><strong>${escapeHtml(name)}</strong><span style="color:#94a3b8">${v}</span></div>`;
   }
   // Generic: a primary label + a meta line built from common props.
   const primary = String(props.name ?? props.code ?? props.diseaseLabel ?? layer.label);
   const meta = [props.incidentType, props.severity, props.status, props.diseaseCode]
     .filter(Boolean)
     .join(" · ");
-  return `<div style="font-size:12px;padding:2px 6px"><strong>${primary}</strong>${meta ? `<br/><span style="color:#94a3b8">${meta}</span>` : ""}</div>`;
+  return `<div style="font-size:12px;padding:2px 6px"><strong>${escapeHtml(primary)}</strong>${meta ? `<br/><span style="color:#94a3b8">${escapeHtml(meta)}</span>` : ""}</div>`;
 }
