@@ -1,0 +1,353 @@
+// UI invariants linter — CI guardrails for UX-audit regressions.
+//
+// Rules enforced:
+//   1. Touch target ≥ 44px  — flags h-9/min-h-9/min-w-9 inside className on tsx files
+//   2. No raw SCREAMING_CASE enum in JSX text  — catches un-localized event codes
+//   3. es-AR missing accents  — known missing-accent regressions in Spanish copy
+//
+// Run: pnpm tsx scripts/check-ui-invariants.ts
+// Or:  pnpm lint:ui
+//
+// Exits 1 with file:line:col on each hit. Exits 0 if clean.
+//
+// Post-filter approach: glob all files then filter by path.
+// Follows the same shape as scripts/check-design-tokens.ts.
+
+import { globSync, readFileSync } from "node:fs";
+
+// ---------------------------------------------------------------------------
+// Rule 1 — Touch target ≥ 44px
+// ---------------------------------------------------------------------------
+// Flags h-9, min-h-9, min-w-9, w-9 that appear inside a className attribute
+// value in .tsx files.  These tokens produce 36px elements, below the 44px
+// WCAG minimum for interactive controls.
+//
+// Scope: all components/**/*.tsx INCLUDING components/ui/ (that exclusion only
+// applies to the design-token linter — touch targets matter everywhere).
+// app/**/*.tsx is also scanned.
+//
+// Heuristic: we scan at the line level for className strings containing the
+// token. Full multi-line JSX parsing is out of scope. To avoid false positives
+// on legitimately-small NON-interactive elements (avatar images, icon dots,
+// spinners, decorative containers), we maintain an ALLOWLIST keyed by
+// "relativePath:lineNumber" OR "relativePath:classToken".
+//
+// Allowlist format: "file/path.tsx:TOKEN" where file path is relative with
+// forward slashes from the repo root.
+//
+// PREFER to fix real interactive hits to h-11/min-h-11/min-w-11.
+// Only allowlist verified non-interactive elements.
+export const TOUCH_TARGET_TOKENS = /\b(h-9|min-h-9|min-w-9|w-9)\b/g;
+
+// Regex to detect className attribute presence on the same or nearby line.
+// We flag any line that contains className= AND one of the touch-target tokens
+// (both in the same line), OR a line containing the token inside a template
+// literal that is the continuation of a className=.
+// For simplicity: flag any tsx line where the class token appears inside a
+// quoted/template className value.  The className check isn't strictly required
+// because the token is only meaningful as a Tailwind class anyway.
+//
+// Allowlist: "relativePath:token" pairs (path uses forward slashes).
+// Add entries with a justification comment for each allowlisted case.
+export const TOUCH_TARGET_ALLOWLIST = new Set<string>([
+  // components/CasesWidget.tsx — aria-hidden <span> icon container,
+  // non-interactive decorative element.
+  "components/CasesWidget.tsx:h-9",
+  "components/CasesWidget.tsx:w-9",
+
+  // components/pet-profile/LostScanFeed.tsx — aria-hidden emoji <span>
+  // icon container, non-interactive.
+  "components/pet-profile/LostScanFeed.tsx:h-9",
+  "components/pet-profile/LostScanFeed.tsx:w-9",
+
+  // components/ui/dashboard/OpCallout.tsx — decorative icon <div>,
+  // non-interactive display element.
+  "components/ui/dashboard/OpCallout.tsx:h-9",
+  "components/ui/dashboard/OpCallout.tsx:w-9",
+
+  // app/(app)/inicio/_components/QuickCaptureWidget.tsx — <img> and avatar
+  // <div> displaying a pet photo inside a <Link>; the photo is purely
+  // presentational, the Link itself is the interactive target.
+  "app/(app)/inicio/_components/QuickCaptureWidget.tsx:w-9",
+  "app/(app)/inicio/_components/QuickCaptureWidget.tsx:h-9",
+
+  // app/(public)/denuncias/page.tsx — decorative icon <div> (aria-hidden SVG)
+  // inside a <Link> that is the actual touch target.
+  "app/(public)/denuncias/page.tsx:h-9",
+  "app/(public)/denuncias/page.tsx:w-9",
+]);
+
+// ---------------------------------------------------------------------------
+// Rule 2 — No raw SCREAMING_CASE enum in JSX text
+// ---------------------------------------------------------------------------
+// Catches event-type/enum codes rendered as visible text.
+// Regressions like LOST_EPISODE_RESOLVED_OWNER or PPP_BREED_LIST_UPDATED
+// rendered directly in JSX instead of going through a label map.
+//
+// Detection heuristic (precision over recall):
+// Only flag tokens that appear in JSX TEXT content — i.e. the trimmed line
+// looks like JSX text: it starts with a word character or ">" or "{" (after
+// optional whitespace) and contains the SCREAMING token not inside an
+// identifier, import, className, href, or code expression.
+//
+// Patterns that indicate JSX text position:
+//   >\s*SOME_ENUM\s*<         direct JSX text child
+//   {"SOME_ENUM"}             JSX expression string child
+//   {`SOME_ENUM`}             JSX expression template child
+//
+// We do NOT flag:
+//   const FOO_BAR = ...       variable declarations
+//   import FOO_BAR            imports
+//   type Foo = "FOO_BAR"      TypeScript type literals (in type/enum positions)
+//   className="..."           class attributes
+//   href="..."                link targets
+//   aria-label="FOO_BAR"      accessibility strings (these should use labels but
+//                              are not user-visible in the same way)
+export const SCREAMING_ENUM = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+){2,}\b/g;
+
+// Lines that match SCREAMING_ENUM in JSX text position:
+// A line is "JSX text" if, after stripping leading whitespace, it matches one
+// of:  />ENUM</  or  {"ENUM"}  or  {`ENUM`}  or just bare text like  ENUM
+// But we require the line NOT to be a TS statement (const/let/type/import/export).
+const JSX_TEXT_EXCLUSIONS = [
+  /^\s*(?:const|let|var|type|interface|enum|import|export|\/\/|\/\*|\*)\s/,
+  // className=, href=, aria-, data-, action=, name=, id= attributes
+  /(?:className|href|aria-\w+|data-\w+|action|name|id|value|src|alt|placeholder)\s*=\s*["'`][^"'`]*$/,
+  // Inside a TS object key position: "FOO": or FOO:
+  /^\s*["']?[A-Z_]+["']?\s*:/,
+  // TypeScript type/enum member: | "FOO_BAR" or = "FOO_BAR"
+  /(?:\||\=)\s*["'`][A-Z_]+["'`]/,
+];
+
+// JSX text indicators — at least one must be true for us to flag.
+// We ONLY flag unambiguous literal cases.  Key distinction:
+//   LITERAL (flag):     >SOME_ENUM<   {"SOME_ENUM"}   {'SOME_ENUM'}   {`SOME_ENUM`}
+//   IDENTIFIER (skip):  {SOME_MAP[key]}   const SOME_MAP   import SOME_CONST
+//   EXPRESSION (skip):  ? SOME_MAP   GOB_ALL_PROVINCES,   IDENT.property
+//
+// MUST NOT flag TypeScript identifiers, imports, or expressions —
+// false positives that break CI are worse than missed catches.
+function looksLikeJsxText(line: string, token: string): boolean {
+  // >TOKEN< — token as a literal JSX text child between open/close tags
+  if (new RegExp(`>\\s*${token}\\s*<`).test(line)) return true;
+  // {"TOKEN"} or {'TOKEN'} or {`TOKEN`} — JSX expression STRING literal child
+  if (new RegExp(`\\{["'\`]${token}["'\`]\\}`).test(line)) return true;
+  // DO NOT flag anything else.  Identifiers, object keys, imports, ternaries,
+  // multi-line import entries, and JS expressions cannot be reliably
+  // distinguished without a parser.
+  return false;
+}
+
+// Allowlist for rule 2 — "relativePath:TOKEN" pairs
+export const SCREAMING_ENUM_ALLOWLIST = new Set<string>([
+  // (empty — the repo should be clean after UX 3.4 localization)
+]);
+
+// ---------------------------------------------------------------------------
+// Rule 3 — es-AR missing accents
+// ---------------------------------------------------------------------------
+// Flags known missing-accent regressions in Spanish user-facing copy.
+// Only flags tokens that appear as visible Spanish copy (JSX text or string
+// literals in JSX position) — NOT in identifiers, URLs, imports, or code.
+//
+// Each entry: [unaccented, accented, regex]
+// Regex uses \b word boundaries and is case-sensitive.
+// We do NOT flag words inside URLs, hrefs, classNames, or code identifiers.
+// NOTE on word selection: only add words that are (a) real Spanish copy in the
+// repo and (b) very unlikely to be a code identifier. Identifiers in this
+// codebase are English (description, configuration, …), so adverbs/connectors
+// and Spanish-only nouns are safe; words that double as common variable/prop
+// names (descripcion, version, opcion, numero) are NOT added — they would
+// false-positive on JSX expressions like {descripcion}.
+export const ACCENT_WORDS: Array<{ bad: string; good: string; re: RegExp }> = [
+  { bad: "Ultimas", good: "Últimas", re: /\bUltimas\b/g },
+  { bad: "notificacion", good: "notificación", re: /\bnotificacion\b/g },
+  { bad: "pais", good: "país", re: /\bpais\b/g },
+  { bad: "evaluan", good: "evalúan", re: /\bevaluan\b/g },
+  { bad: "duenos", good: "dueños", re: /\bduenos\b/g },
+  { bad: "accion", good: "acción", re: /\baccion\b/g },
+  { bad: "jurisdiccion", good: "jurisdicción", re: /\bjurisdiccion\b/g },
+  { bad: "auditoria", good: "auditoría", re: /\bauditoria\b/g },
+  // Adverbs/connectors + administración — never identifiers in this codebase.
+  { bad: "administracion", good: "administración", re: /\badministracion\b/g },
+  { bad: "todavia", good: "todavía", re: /\btodavia\b/g },
+  { bad: "aqui", good: "aquí", re: /\baqui\b/g },
+  { bad: "ademas", good: "además", re: /\bademas\b/g },
+  { bad: "despues", good: "después", re: /\bdespues\b/g },
+];
+
+// Lines that should be excluded from accent rule matching:
+// - Pure TypeScript/import lines
+// - URL/path strings (contain / or :// )
+// - className attributes
+// - href attributes
+// - Comments
+function isCodeOnlyLine(line: string): boolean {
+  const t = line.trim();
+  // TypeScript statement lines
+  if (/^(?:const|let|var|type|interface|enum|import|export|\/\/|\/\*|\*)\s/.test(t)) return true;
+  // className attribute line (the word is in a class value, not text)
+  if (/className\s*=/.test(t)) return true;
+  // href attribute — URL paths containing the unaccented word (e.g. /admin/auditoria)
+  if (/href\s*=/.test(t)) return true;
+  // action= form attribute
+  if (/\baction\s*=/.test(t)) return true;
+  // Arrow function or object key mapping: `pais: "..."` or `{ pais }`
+  // (but we want to keep JSX text like "nivel pais")
+  return false;
+}
+
+// For accent rule: also skip matches that appear inside URL path segments
+// (i.e., surrounded by / characters or preceded by /)
+function isInsidePath(line: string, matchIndex: number, token: string): boolean {
+  const before = line.slice(0, matchIndex);
+  const after = line.slice(matchIndex + token.length);
+  // Preceded by / — URL segment
+  if (/[/]$/.test(before)) return true;
+  // Followed by / — URL segment
+  if (/^[/]/.test(after)) return true;
+  // Inside a string that looks like a URL path: "/admin/auditoria"
+  // Check if the nearest enclosing quote contains /
+  const surroundingQuote = line.slice(Math.max(0, matchIndex - 50), matchIndex + token.length + 50);
+  if (/["'`][^"'`]*\/[^"'`]*["'`]/.test(surroundingQuote)) return true;
+  return false;
+}
+
+// Allowlist for rule 3 — "relativePath:bad_word" pairs
+// Add with justification comment when the word is legit code (not user copy).
+export const ACCENT_ALLOWLIST = new Set<string>([
+  // app/admin/jurisdicciones/page.tsx — "nivel pais" appears as part of a
+  // template string rendered as UI text; fix it directly in source (see below).
+  // (No allowlist entries — we fix all real JSX text hits.)
+  // app/gob/reglas/page.tsx:26 — SOURCE_LABEL object constant value
+  // "Override pais (AR)" — this IS user-visible copy; fix it.
+  // (not allowlisted — fixing instead)
+  // app/gob/decomisos/page.tsx:10 — comment line (// Columns: ... accion ...)
+  // Code comment, not JSX text. The isCodeOnlyLine() check handles this via //
+  // detection. No explicit entry needed.
+  // app/admin/historial/page.tsx:192 — "No registraste acciones todavia."
+  // "acciones" is the plural with correct accent already. "todavia" → "todavía"
+  // but that word is NOT in the accent wordlist, so no false positive.
+  // "accion" singular does not appear here. No entry needed.
+]);
+
+// ---------------------------------------------------------------------------
+// File globbing
+// ---------------------------------------------------------------------------
+
+const EXCLUDE_PATH_PREFIXES_DEFAULT = ["node_modules/"];
+
+// Touch-target rule: scan components/ INCLUDING components/ui/ + app/
+const TOUCH_TARGET_FILES = globSync("{app,components}/**/*.tsx").filter((f) => {
+  const p = f.replaceAll("\\", "/");
+  return !EXCLUDE_PATH_PREFIXES_DEFAULT.some(
+    (prefix) => p.startsWith(prefix) || p.includes(`/${prefix}`),
+  );
+});
+
+// Screaming enum + accent rules: exclude components/ui/ (same as token linter)
+const EXCLUDE_PATH_PREFIXES_NOUI = [...EXCLUDE_PATH_PREFIXES_DEFAULT, "components/ui/"];
+const STANDARD_FILES = globSync("{app,components}/**/*.{ts,tsx}").filter((f) => {
+  const p = f.replaceAll("\\", "/");
+  return !EXCLUDE_PATH_PREFIXES_NOUI.some(
+    (prefix) => p.startsWith(prefix) || p.includes(`/${prefix}`),
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Main scan — only runs when invoked directly (not when imported by tests)
+// ---------------------------------------------------------------------------
+
+function normalizeRelPath(filePath: string): string {
+  return filePath.replaceAll("\\", "/");
+}
+
+function runScan(): void {
+  let hits = 0;
+
+  // --- Rule 1: Touch target ---
+  for (const file of TOUCH_TARGET_FILES) {
+    const relPath = normalizeRelPath(file);
+    const lines = readFileSync(file, "utf8").split(/\r?\n/);
+    lines.forEach((line, i) => {
+      // Only flag lines that have className in them or continuation template
+      // literals — prevents flagging utility code that mentions h-9 in comments.
+      if (!line.includes("className") && !line.includes("`") && !line.includes('"')) return;
+      for (const match of line.matchAll(TOUCH_TARGET_TOKENS)) {
+        const token = match[1] as string;
+        const key = `${relPath}:${token}`;
+        if (TOUCH_TARGET_ALLOWLIST.has(key)) continue;
+        console.error(
+          `${file}:${i + 1}:${(match.index ?? 0) + 1}: touch-target "${token}" is 36px — use ${token.replace("9", "11")} (44px) for interactive elements`,
+        );
+        hits += 1;
+      }
+    });
+  }
+
+  // --- Rule 2: Screaming enum in JSX text ---
+  for (const file of STANDARD_FILES) {
+    const relPath = normalizeRelPath(file);
+    const lines = readFileSync(file, "utf8").split(/\r?\n/);
+    lines.forEach((line, i) => {
+      // Quick bail: if line has no uppercase-underscore pattern, skip
+      if (!/[A-Z][A-Z0-9]*_[A-Z0-9]/.test(line)) return;
+      // Skip excluded line types
+      if (JSX_TEXT_EXCLUSIONS.some((re) => re.test(line))) return;
+      for (const match of line.matchAll(SCREAMING_ENUM)) {
+        const token = match[0];
+        if (!looksLikeJsxText(line, token)) continue;
+        const key = `${relPath}:${token}`;
+        if (SCREAMING_ENUM_ALLOWLIST.has(key)) continue;
+        console.error(
+          `${file}:${i + 1}:${(match.index ?? 0) + 1}: raw enum "${token}" rendered as JSX text — map through a label function`,
+        );
+        hits += 1;
+      }
+    });
+  }
+
+  // --- Rule 3: Missing es-AR accents ---
+  for (const file of STANDARD_FILES) {
+    const relPath = normalizeRelPath(file);
+    const lines = readFileSync(file, "utf8").split(/\r?\n/);
+    lines.forEach((line, i) => {
+      if (isCodeOnlyLine(line)) return;
+      for (const { bad, good, re } of ACCENT_WORDS) {
+        re.lastIndex = 0;
+        for (const match of line.matchAll(re)) {
+          const key = `${relPath}:${bad}`;
+          if (ACCENT_ALLOWLIST.has(key)) continue;
+          // Skip matches inside URL path segments
+          if (isInsidePath(line, match.index ?? 0, bad)) continue;
+          console.error(
+            `${file}:${i + 1}:${(match.index ?? 0) + 1}: missing accent "${bad}" → "${good}" in Spanish copy`,
+          );
+          hits += 1;
+        }
+      }
+    });
+  }
+
+  if (hits > 0) {
+    console.error(`\n✗ ${hits} UI invariant violation(s).`);
+    process.exit(1);
+  }
+  console.log(
+    `✓ UI invariants clean — touch targets, enum text, accents OK across ${TOUCH_TARGET_FILES.length}+${STANDARD_FILES.length} files.`,
+  );
+}
+
+// Guard: only execute scan when this file is run directly.
+// When imported by tests, the exports (regexes/helpers) are available without
+// triggering the filesystem scan.
+const isMain =
+  typeof process !== "undefined" &&
+  process.argv[1] !== undefined &&
+  (process.argv[1].endsWith("check-ui-invariants.ts") ||
+    process.argv[1].endsWith("check-ui-invariants.js") ||
+    import.meta.url === `file:///${process.argv[1].replaceAll("\\", "/")}`);
+
+if (isMain) {
+  runScan();
+}

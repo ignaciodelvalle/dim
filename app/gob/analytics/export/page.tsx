@@ -63,7 +63,7 @@ export default async function GobAnalyticsExportPage({
         <LnEmptyState
           icon="lock"
           title="Sin acceso"
-          description="Tu rol no tiene acceso a la exportacion de datos. Pedile al admin que te asigne una jurisdiccion."
+          description="Tu rol no tiene acceso a la exportación de datos. Pedile al admin que te asigne una jurisdicción."
         />
       </div>
     );

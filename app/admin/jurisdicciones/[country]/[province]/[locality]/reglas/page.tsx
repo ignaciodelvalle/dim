@@ -32,7 +32,7 @@ const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
 };
 
 const RULE_TYPE_DESCRIPTION: Record<GovtBusinessRuleType, string> = {
-  ppp_breed_list: "Que razas se consideran Potencialmente Peligrosas en esta jurisdiccion.",
+  ppp_breed_list: "Que razas se consideran Potencialmente Peligrosas en esta jurisdicción.",
   ppp_weight_threshold: "Si el peso del animal por si solo dispara el status PPP, y a que kilos.",
   ppp_attestation_required_registries:
     "En que registros oficiales el dueno debe atestar a su mascota PPP.",
@@ -111,7 +111,7 @@ export default async function AdminJurisdiccionReglasPage({
         </p>
         {rows.length === 0 && (
           <p className="text-[13px] text-ln-op-mute">
-            Esta jurisdiccion no tiene overrides. Toda regla cae a la cascada superior.
+            Esta jurisdicción no tiene overrides. Toda regla cae a la cascada superior.
           </p>
         )}
         {rows.map(({ rule, updatedBy }) => (

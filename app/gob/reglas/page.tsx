@@ -23,7 +23,7 @@ const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
 
 const SOURCE_LABEL: Record<string, string> = {
   default: "Default nacional",
-  country: "Override pais (AR)",
+  country: "Override país (AR)",
   province: "Override provincia",
   locality: "Override localidad",
 };
@@ -63,10 +63,10 @@ export default async function GobReglasPage() {
           MiMAR Gobierno · Reglas
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">
-          Reglas que aplican a tu jurisdiccion
+          Reglas que aplican a tu jurisdicción
         </h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Vista de solo lectura. La administracion de reglas la hace el admin nacional desde{" "}
+          Vista de solo lectura. La administración de reglas la hace el admin nacional desde{" "}
           <Link
             href="/admin/jurisdicciones"
             className="underline underline-offset-4 text-ln-op-azul"
@@ -80,7 +80,7 @@ export default async function GobReglasPage() {
       {groups.map((g, idx) => (
         <OpCard key={`${g.scope.province ?? "country"}-${g.scope.locality ?? "all"}-${idx}`}>
           <OpCardHead
-            title={`AR · ${g.scope.province ?? "(nivel pais)"} · ${g.scope.locality ?? "(toda la provincia)"}`}
+            title={`AR · ${g.scope.province ?? "(nivel país)"} · ${g.scope.locality ?? "(toda la provincia)"}`}
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line-2">
