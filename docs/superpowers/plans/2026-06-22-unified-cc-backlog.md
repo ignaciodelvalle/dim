@@ -28,11 +28,11 @@ bind param y la query falla:
 **Test:** unit de cada trend fn devuelve filas; e2e GET 200 de `/gob/mortalidad` y `/gob/analytics`.
 
 ### P1 — 🟡 pre-entrega al ejecutivo (cerrar gate)
-**U2 · Verificar/cerrar residuos de admin & dashboards** (detalle en `2026-06-22-admin-fresh-sweep-fixes.md` A1-A7 y `2026-06-22-dashboards-deep-dive.md` D1-D7):
-- A2 🟡 **RuleImpactBanner no calcula** ("No se pudo calcular el impacto") — operador crea regla PPP province-wide a ciegas. (No re-verificado este pase.)
-- D3 🟡 **enums/inglés restantes**: validar `/gob/analytics` H1 ("Analytics"→"Analítica"), causas "illness/Euthanasia", y el nit nuevo **"Enrollment"** en el subtítulo de Campañas.
-- D4 🟡 **disposición reconcilia** (Trazabilidad vs Desconocida vs 100%) — desbloquea al arreglar U1 (mortalidad).
-- A7 🟢 cuentas `system:*` separadas en `/admin/admins`. A3 🟢 barrer acentos restantes (sistema/organizaciones/servicios) + el **copy-lint** que lo previene.
+**U2 — ✅ HECHO** (sesión 2026-06-21, en `review/all-session-prs`; detalle en `2026-06-22-admin-fresh-sweep-fixes.md` A1-A7 y `2026-06-22-dashboards-deep-dive.md` D1-D7):
+- A2 ✅ **RuleImpactBanner** — verificado ya arreglado en #702: `lib/rule-impact.ts` usa `inArray()` con params tipados; el "No se pudo calcular el impacto" solo aparece ante errores reales (red/auth) como fallback no-bloqueante intencional.
+- D3 ✅ **enums/inglés**: `/gob/analytics` H1 "Analítica" + eyebrow "Vigilancia sanitaria · Analítica" (era el único kicker en inglés); causas de muerte mapeadas en `lib/format.ts` (`DEATH_CAUSE_LABELS`; "illness" no existe en el enum, es "disease"); **"Enrollment" → "Inscripciones"** en la card de `/gob/campanas`.
+- D4 ✅ **disposición**: no es bug — Trazabilidad (B3) y Desconocida (B4) son métricas independientes (no suman 100% por diseño: método conocido sin instalación no es ni trazable ni desconocida), documentado en los tooltips `info` (`lib/disposition.ts` + test).
+- A3 ✅ acentos barridos (Clínica, Duración, Decisión×3, "últimos") en admin + **copy-lint nuevo (Regla 4)** en `scripts/check-ui-invariants.ts`: denylist opt-in de palabras inglesas en texto JSX (caza "Enrollment", respeta el término prestado "Outreach"), con fixture tests. A7 🟢 cuentas `system:*` ya separadas (#702).
 
 **U3 · Exec gate [VERIFICAR]** (detalle en `2026-06-22-executive-e2e-readiness.md`): magic-link primer login, páginas de detalle/drill, sub-dashboards (zoonosis/investigaciones/decomisos/disputas), **descarga real del CSV**, **mobile en dispositivo**, y 1 workflow de aprobación end-to-end. (Yo hago esta pasada en vivo cuando U1 esté tapado.)
 
@@ -91,4 +91,4 @@ Outreach fechas ✓ · **mortalidad + analytics CRASHEAN (U1)** · "Enrollment" 
 `2026-06-22-dashboards-deep-dive.md` · `2026-06-22-executive-e2e-readiness.md` · `2026-06-21-design-system-hardening.md` ·
 `2026-06-20-ux-audit-remediation.md`.
 
-> Al cerrar cada item, marcar acá y en `docs/superpowers/README.md`. Orden: **U1 ya** → U2/U3/U4 (gate) → U5 (feature) → U6 (durable).
+> Al cerrar cada item, marcar acá y en `docs/superpowers/README.md`. Estado: **U1 ✅ · U2 ✅ · U4 ✅ · U5 ✅** (todo lo code-completable cerrado). **Queda: U3** — verificación EN VIVO (magic-link primer login, descarga real del CSV, mobile en dispositivo, 1 workflow de aprobación end-to-end), depende del owner. **U6** — durable: executive-smoke #704 ✅ + `lint:ui` (con Regla 4) ✅ + `/design` ✅; **Fase E (visual-regression) bloqueada** por servicio externo.
