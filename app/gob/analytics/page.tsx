@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
+import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -20,6 +21,7 @@ import {
   fetchDeathCauses,
   fetchOutbreakHistory,
 } from "@/lib/govt-dashboards";
+import { buildProjectionContext, fetchOutbreakSignalsTrend } from "@/lib/metrics";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
 import { RegionRankingTable } from "./_components/RegionRankingTable";
@@ -89,17 +91,32 @@ export default async function GobAnalyticsPage({
     }
   }
 
-  const { since } = resolveAnalyticsPeriod(sp);
+  const period = resolveAnalyticsPeriod(sp);
+  const { since } = period;
+  // ProjectionContext for the D1 trend fetcher (scope-aware, period-aware).
+  const trendCtx = buildProjectionContext(actor, filteredJurisdictions, period);
 
-  const [metrics, acquisitionTrend, deathCauses, outbreakHistory, casesPerCapita, regionRanking] =
-    await Promise.all([
-      fetchAnalyticsMetrics(actor, filteredJurisdictions, { since }),
-      fetchAcquisitionTrend(actor, filteredJurisdictions, { since }),
-      fetchDeathCauses(actor, filteredJurisdictions, { since }),
-      fetchOutbreakHistory(actor, filteredJurisdictions),
-      fetchCasesPerCapita(actor, filteredJurisdictions),
-      fetchRegionRanking(actor, filteredJurisdictions),
-    ]);
+  const [
+    metrics,
+    acquisitionTrend,
+    deathCauses,
+    outbreakHistory,
+    casesPerCapita,
+    regionRanking,
+    signalsTrend,
+  ] = await Promise.all([
+    fetchAnalyticsMetrics(actor, filteredJurisdictions, { since }),
+    fetchAcquisitionTrend(actor, filteredJurisdictions, { since }),
+    fetchDeathCauses(actor, filteredJurisdictions, { since }),
+    fetchOutbreakHistory(actor, filteredJurisdictions),
+    fetchCasesPerCapita(actor, filteredJurisdictions),
+    fetchRegionRanking(actor, filteredJurisdictions),
+    fetchOutbreakSignalsTrend(trendCtx),
+  ]);
+
+  // Shape the outbreak-signals trend for TimeSeriesChart.
+  const signalsTrendPoints = signalsTrend.points.map((p) => ({ x: p.x, y: p.y }));
+  const signalsBucketWord = signalsTrend.granularity === "month" ? "mes" : "semana";
 
   // Build allowedProvinces for <JurisdictionSwitcher>.
   const allowedProvinces =
@@ -211,6 +228,40 @@ export default async function GobAnalyticsPage({
             />
           ) : (
             <AcquisitionChartDynamic data={acquisitionTrend} />
+          )}
+        </OpCardBody>
+      </OpCard>
+
+      {/* D1 — señales de brote por período (tendencia) */}
+      <OpCard aria-labelledby="panel-signals-trend-titulo">
+        <OpCardHead
+          title={
+            <span id="panel-signals-trend-titulo">Señales de brote por {signalsBucketWord}</span>
+          }
+          actions={
+            signalsTrend.suppressedCount > 0 ? (
+              <span className="text-[12px] font-normal text-ln-op-mute">
+                {signalsTrend.suppressedCount}{" "}
+                {signalsTrend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"}{" "}
+                (privacidad)
+              </span>
+            ) : null
+          }
+        />
+        <OpCardBody>
+          {signalsTrendPoints.length === 0 ? (
+            <LnEmptyState
+              icon="chart-line"
+              title="Sin señales en el período"
+              description="No se registraron señales de brote en el rango y la cobertura seleccionados."
+            />
+          ) : (
+            <TimeSeriesChartDynamic
+              data={signalsTrendPoints}
+              seriesLabel="Señales"
+              variant="area"
+              fallbackTableLabel={`Señales de brote por ${signalsBucketWord}`}
+            />
           )}
         </OpCardBody>
       </OpCard>

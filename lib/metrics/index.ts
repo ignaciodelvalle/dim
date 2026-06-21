@@ -28,3 +28,28 @@ export { cachedActivePetCount, cachedDogCount } from "./cache";
 
 export { resolveAnalyticsPeriod, windows } from "./period";
 export type { AnalyticsPeriod, PeriodSearchParams } from "./period";
+
+// Bucketed time-series (trend) projections — D1. Pure transforms live in
+// ./timeseries; the DB-bound scope-aware fetchers live in ./trends.
+export type {
+  BucketGranularity,
+  SeriesBucketRow,
+  StackedPoint,
+  StackedSeries,
+} from "./timeseries";
+export {
+  bucketGranularityFor,
+  dateTruncUnit,
+  formatBucketLabel,
+  isoWeekLabel,
+  pivotStackedSeries,
+  suppressSmallBuckets,
+  suppressSmallStackedCells,
+} from "./timeseries";
+export type { SingleSeriesTrend, StackedTrend } from "./trends";
+export {
+  fetchBitesTrend,
+  fetchDeathCausesTrend,
+  fetchOutbreakSignalsTrend,
+  fetchRabiesVaccinationTrend,
+} from "./trends";
