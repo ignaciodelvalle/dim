@@ -211,10 +211,13 @@ export function buildOrgNavFlat(orgToken: string, opts: OrgNavOptions = {}): Nav
 // ---------------------------------------------------------------------------
 
 export const GOB_NAV_SECTIONS: NavSection[] = [
-  // Unlabeled — the Panel root link sits alone above the groups.
+  // Unlabeled — the Panel root + the Panorama console sit above the groups.
   {
     label: "",
-    items: [{ href: "/gob", label: "Panel" }],
+    items: [
+      { href: "/gob", label: "Panel" },
+      { href: "/gob/panorama", label: "Panorama", matchPrefix: "/gob/panorama" },
+    ],
   },
   {
     label: "Vigilancia sanitaria",
@@ -272,10 +275,13 @@ export const GOB_NAV: NavItem[] = GOB_NAV_FLAT;
 // ---------------------------------------------------------------------------
 
 export const ADMIN_NAV_SECTIONS: NavSection[] = [
-  // Unlabeled — the Dashboard root link sits alone above the groups.
+  // Unlabeled — the Dashboard root + the Panorama console sit above the groups.
   {
     label: "",
-    items: [{ href: "/admin", label: "Dashboard" }],
+    items: [
+      { href: "/admin", label: "Dashboard" },
+      { href: "/admin/panorama", label: "Panorama", matchPrefix: "/admin/panorama" },
+    ],
   },
   {
     label: "Operaciones",
