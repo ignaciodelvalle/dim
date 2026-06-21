@@ -14,6 +14,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
+import { CopyButton } from "@/components/ui/CopyButton";
 import { OpCallout, OpCrumbs } from "@/components/ui/dashboard";
 
 import { OrgMascotasBulkList } from "./OrgMascotasBulkList";
@@ -203,6 +204,7 @@ export default async function OrgMascotasPage({
             body={
               <>
                 Token público: <code className="font-ln-mono">{recentlyCreated}</code>.
+                <CopyButton text={recentlyCreated} />
               </>
             }
             icon={<Icon name="check-circle" decorative />}
@@ -214,6 +216,7 @@ export default async function OrgMascotasPage({
             body={
               <>
                 Tránsito asignado para <code className="font-ln-mono">{recentlyFostered}</code>.
+                <CopyButton text={recentlyFostered} />
               </>
             }
             icon={<Icon name="casa" decorative />}
@@ -225,6 +228,7 @@ export default async function OrgMascotasPage({
             body={
               <>
                 Tránsito cerrado para <code className="font-ln-mono">{recentlyFosterEnded}</code>.
+                <CopyButton text={recentlyFosterEnded} />
               </>
             }
             icon={<Icon name="check-circle" decorative />}
@@ -236,8 +240,9 @@ export default async function OrgMascotasPage({
             body={
               <>
                 Custodia transferida para{" "}
-                <code className="font-ln-mono">{recentlyTransferred}</code>. El animal sale del
-                listado y aparece en el destino.
+                <code className="font-ln-mono">{recentlyTransferred}</code>.
+                <CopyButton text={recentlyTransferred} /> El animal sale del listado y aparece en el
+                destino.
               </>
             }
             icon={<Icon name="transferencia" decorative />}
@@ -248,8 +253,9 @@ export default async function OrgMascotasPage({
             title="Adopción finalizada"
             body={
               <>
-                Adopción finalizada para <code className="font-ln-mono">{recentlyAdopted}</code>. El
-                animal pasa a un nuevo dueño y sale del listado de custodia.
+                Adopción finalizada para <code className="font-ln-mono">{recentlyAdopted}</code>.
+                <CopyButton text={recentlyAdopted} /> El animal pasa a un nuevo dueño y sale del
+                listado de custodia.
               </>
             }
             icon={<Icon name="check-circle" decorative />}

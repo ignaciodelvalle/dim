@@ -178,7 +178,8 @@ Elegir uno de cada duplicado, migrar, borrar el gemelo (sube calidad y baja mant
 - Revert de lost ("Marcar encontrada/o") sin confirmación → confirm liviano (opcional, es reversible).
 - Contacto del finder es un solo campo "Teléfono o email" sin `inputMode`; contacto de credencial activa detrás de un `<details>` de un tap → optimizar/expandir.
 
-### 3.6 🟢 Org / Admin — polish (de las pasadas en vivo + estática)
+### 3.6 ✅ Org / Admin — polish (de las pasadas en vivo + estática)
+> **Implementado (este PR).** (a) hint "pedir acceso" en el panel apoyándose en la tabla de permisos existente · (b) módulos por `org_type` (clínica → agenda/servicios; autoridad sanitaria → casos/mordeduras), capability-gated para no crear dead-ends · (c) `CopyButton` reusable en los 5 tokens de `org/.../mascotas` · (d) señal de truncado en adopciones (casos ya tenía hint vía `CaseQueue`; miembros muestra count, sin cap real) · (e) "Guardar y cargar otro" en intake preservando los campos compartidos del lote · (f) `RuleImpactBanner` ya estaba cableado en el create+edit path — se agregó fallback en error (no más render `null`).
 - Items de nav gated por capability desaparecen en silencio (sin "pedir acceso") → mostrar entry lockeable o hint en el panel.
 - Panel de org gatea los módulos accionables a `shelter` → módulos por tipo de org (clínica → agenda; autoridad sanitaria → casos/mordeduras).
 - Tokens generados mostrados como `<code>` sin copiar (`org/.../mascotas`) → botón copiar (igual que InviteForm).
