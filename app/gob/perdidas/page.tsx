@@ -232,7 +232,11 @@ export default async function GobPerdidasPage({
       <OpCard aria-labelledby={panelMapId}>
         <OpCardHead title={<span id={panelMapId}>Episodios por jurisdicción</span>} />
         <OpCardBody>
-          <MapChoropleth data={choroplethData} />
+          <MapChoropleth
+            data={choroplethData}
+            scaleLabel="Mascotas perdidas"
+            fallbackTableLabel="Mascotas perdidas por provincia"
+          />
         </OpCardBody>
       </OpCard>
 

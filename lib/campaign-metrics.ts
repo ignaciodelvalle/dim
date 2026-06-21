@@ -48,6 +48,8 @@ export type CampaignOfferingStats = {
 export type CampaignGeoReach = {
   /** Locality name (from service_offering.jurisdiction_locality). */
   locality: string;
+  /** Province name (from service_offering.jurisdiction_province). Null when not set. */
+  province: string | null;
   /** Number of attended appointments in that locality. */
   attendedCount: number;
 };
@@ -230,6 +232,7 @@ async function fetchGeoReach(
   const rows = await db
     .select({
       locality: serviceOfferings.jurisdictionLocality,
+      province: serviceOfferings.jurisdictionProvince,
       attendedCount: count(appointments.id),
     })
     .from(serviceOfferings)
@@ -243,11 +246,18 @@ async function fetchGeoReach(
       ),
     )
     .where(inArray(serviceOfferings.id, offeringIds))
-    .groupBy(serviceOfferings.jurisdictionLocality);
+    .groupBy(serviceOfferings.jurisdictionLocality, serviceOfferings.jurisdictionProvince);
 
   return rows
-    .filter((r): r is { locality: string; attendedCount: number } => r.locality !== null)
-    .map((r) => ({ locality: r.locality, attendedCount: Number(r.attendedCount) }))
+    .filter(
+      (r): r is { locality: string; province: string | null; attendedCount: number } =>
+        r.locality !== null,
+    )
+    .map((r) => ({
+      locality: r.locality,
+      province: r.province,
+      attendedCount: Number(r.attendedCount),
+    }))
     .sort((a, b) => b.attendedCount - a.attendedCount);
 }
 

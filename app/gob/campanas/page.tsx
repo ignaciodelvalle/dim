@@ -133,13 +133,26 @@ export default async function GobCampanasPage({
     periodLabel,
   );
 
-  // Choropleth: geo reach data — localities by attendance count.
-  // Values are attendance counts; color scale is blue sequential.
-  const maxReach = dashboard.geoReach.reduce((m, r) => Math.max(m, r.attendedCount), 0);
-  const choroplethData = dashboard.geoReach.map((r) => ({
-    code: r.locality,
-    value: r.attendedCount,
-    label: `${r.attendedCount} asistencia${r.attendedCount !== 1 ? "s" : ""} en ${r.locality}`,
+  // Choropleth: aggregate geoReach by province for the province-level map.
+  // The basemap GeoJSON joins on province ISO code — locality-level codes would
+  // produce orphan data and render nothing. Sum attendedCount per province.
+  const provinceAttendance = new Map<string, { isoCode: string; name: string; count: number }>();
+  for (const r of dashboard.geoReach) {
+    const provinceName = r.province;
+    if (!provinceName) continue;
+    const isoCode = PROVINCE_ISO_MAP[provinceName];
+    if (!isoCode) continue;
+    const existing = provinceAttendance.get(isoCode);
+    if (existing) {
+      existing.count += r.attendedCount;
+    } else {
+      provinceAttendance.set(isoCode, { isoCode, name: provinceName, count: r.attendedCount });
+    }
+  }
+  const choroplethData = Array.from(provinceAttendance.values()).map((p) => ({
+    code: p.isoCode,
+    value: p.count,
+    label: `${p.count} inscripción${p.count !== 1 ? "es" : ""} en ${p.name}`,
   }));
 
   const hasData = dashboard.offerings.length > 0;
@@ -370,10 +383,18 @@ export default async function GobCampanasPage({
                 }
               />
               <OpCardBody>
-                {/* Locality-level choropleth — uses province GeoJSON as proxy;
-                    full barrio-level drill available when geo level is CABA.
+                {/* Province-level choropleth — joins on province ISO code from
+                    the basemap GeoJSON. geoReach rows are aggregated by province
+                    so every region renders; localities without an ISO-mapped province
+                    are silently dropped (they show as COLOR_NO_DATA).
                     The colorScale comes from viz-scales (no arbitrary hex). */}
-                <MapChoroplethDynamic data={choroplethData} colorScale={RAMP_BLUE} />
+                <MapChoroplethDynamic
+                  data={choroplethData}
+                  level="province"
+                  colorScale={RAMP_BLUE}
+                  scaleLabel="Inscripciones"
+                  fallbackTableLabel="Inscripciones por provincia en campañas sanitarias"
+                />
 
                 {/* Accessibility: data table below the map */}
                 <details className="mt-3">
@@ -382,12 +403,15 @@ export default async function GobCampanasPage({
                   </summary>
                   <table className="mt-2 w-full text-[12px] border-collapse">
                     <caption className="sr-only">
-                      Asistencias por localidad en campañas sanitarias
+                      Inscripciones por localidad en campañas sanitarias
                     </caption>
                     <thead>
                       <tr className="border-b border-ln-op-line">
                         <th scope="col" className="py-1 text-left font-semibold text-ln-op-mute">
                           Localidad
+                        </th>
+                        <th scope="col" className="py-1 text-left font-semibold text-ln-op-mute">
+                          Provincia
                         </th>
                         <th scope="col" className="py-1 text-right font-semibold text-ln-op-mute">
                           Asistencias
@@ -398,6 +422,7 @@ export default async function GobCampanasPage({
                       {dashboard.geoReach.map((r) => (
                         <tr key={r.locality} className="border-b border-ln-op-line/50">
                           <td className="py-1 text-ln-op-ink">{r.locality}</td>
+                          <td className="py-1 text-ln-op-mute">{r.province ?? "—"}</td>
                           <td className="py-1 text-right tabular-nums text-ln-op-ink">
                             {r.attendedCount}
                           </td>

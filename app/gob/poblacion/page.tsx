@@ -330,7 +330,9 @@ export default async function GobPoblacionPage({
             <MapChoroplethDynamic
               data={choroplethData}
               level="province"
-              scaleLabel="Cobertura (%)"
+              scaleMode="divergent"
+              target={TARGETS.STERILIZATION_COVERAGE_PCT}
+              scaleLabel="Cobertura de esterilización (%)"
               fallbackTableLabel="Cobertura de esterilización por provincia"
               height={400}
             />

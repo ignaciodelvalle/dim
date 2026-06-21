@@ -134,16 +134,15 @@ export default async function GobAnalyticsPage({
           .filter((p) => p.code !== "");
 
   // Shape map data -- per-capita rate per province (casos por 10k hab., INDEC 2022).
-  // Falls back to raw count label when census row is absent for a province.
+  // Provinces with no census row (ratePer10k === null) are omitted so the map
+  // renders them as COLOR_NO_DATA ("sin datos") instead of mixing a raw count
+  // onto the per-capita scale (which would produce false hotspots).
   const choroplethData = casesPerCapita
-    .filter((row) => row.code !== "")
+    .filter((row) => row.code !== "" && row.ratePer10k !== null)
     .map((row) => ({
       code: row.code,
-      value: row.ratePer10k ?? row.count,
-      label:
-        row.ratePer10k !== null
-          ? `${row.ratePer10k.toFixed(1)} casos por 10k hab.`
-          : `${row.count} caso${row.count !== 1 ? "s" : ""} abierto${row.count !== 1 ? "s" : ""}`,
+      value: row.ratePer10k as number,
+      label: `${(row.ratePer10k as number).toFixed(1)} casos por 10k hab.`,
     }));
 
   // Compute bar chart max for death causes.
@@ -302,7 +301,11 @@ export default async function GobAnalyticsPage({
           }
         />
         <OpCardBody>
-          <MapChoroplethDynamic data={choroplethData} />
+          <MapChoroplethDynamic
+            data={choroplethData}
+            scaleLabel="Casos por 10k hab."
+            fallbackTableLabel="Casos por 10.000 habitantes por provincia"
+          />
         </OpCardBody>
       </OpCard>
 
