@@ -82,6 +82,8 @@ type TrendBucket = {
 };
 
 type UnitHistoryResult = {
+  /** True when the locality's total event count is below the k-anon threshold (k=5). */
+  suppressed?: boolean;
   events: UnitHistoryEvent[];
   trend: TrendBucket[];
   byType: Record<string, number>;
@@ -439,7 +441,13 @@ function UnitHistorySection({
         </p>
       )}
 
-      {state.status === "ok" && (
+      {state.status === "ok" && state.data.suppressed && (
+        <p className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-[12px] text-ln-op-ink-2">
+          Suprimido por k-anonimato (menos de 5 eventos en el período).
+        </p>
+      )}
+
+      {state.status === "ok" && !state.data.suppressed && (
         <div className="flex flex-col gap-3">
           {/* Sparkline — daily trend over the active period */}
           {state.data.trend.length > 0 && (

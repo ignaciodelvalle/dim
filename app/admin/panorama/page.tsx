@@ -57,8 +57,11 @@ export default async function AdminPanoramaPage({
   const layer = getLayer("perdidas")!;
   // Default layer features + the headline KPIs resolve concurrently. The KPIs
   // reuse the tested dashboard fetchers (parity) and are scoped+period-aware.
+  // Seed the default layer at PROVINCE level (matching the PanoramaConsole default
+  // aggregation axis of "province"). Seeding at locality level would leave the
+  // provinceDataRef cache empty on first render and produce a blank map (C2).
   const [result, kpis] = await Promise.all([
-    getLayerFeatures("perdidas", actor, scoped, { since }),
+    getLayerFeatures("perdidas", actor, scoped, { since }, "province"),
     getPanoramaKpis(actor, scoped, period),
   ]);
 

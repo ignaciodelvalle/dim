@@ -1,118 +1,309 @@
-// Unit test for the perdidas use-case. fetchLostPets is mocked, so this runs
-// with NO database — it verifies the orchestration + row mapping + that scope
-// is passed through to the tested fetcher untouched.
+// Unit tests for getLayerFeatures (F1 Panorama v2 contract).
 //
-// The infrastructure repository is also mocked so the not-yet-loaded-layer path
-// and the perdidas path never reach @/db (the use-case statically imports the
-// repository for the F2 switch arms).
+// The infrastructure repository is mocked entirely — no DB, no network. All
+// tests verify the use-case orchestration: correct loader is called with the
+// right arguments, return value matches the envelope contract.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/govt-dashboards", () => ({ fetchLostPets: vi.fn() }));
 vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
-  loadBiteEvents: vi.fn(),
-  loadDenunciaCentroids: vi.fn(),
-  loadOutbreakSignals: vi.fn(),
+  loadPerdidasByUnit: vi.fn(),
+  loadMordedurassByUnit: vi.fn(),
+  loadDenunciasByUnit: vi.fn(),
+  loadZoonosisByUnit: vi.fn(),
   loadShelters: vi.fn(),
   loadDecomisos: vi.fn(),
   loadChoroplethByLevel: vi.fn(),
 }));
 
-import { type LostPetRow, fetchLostPets } from "@/lib/govt-dashboards";
-import type { ChoroplethRows } from "@/src/modules/panorama/infrastructure/repository";
+import type {
+  AggregatedPointRows,
+  ChoroplethRows,
+} from "@/src/modules/panorama/infrastructure/repository";
+import {
+  loadChoroplethByLevel,
+  loadDecomisos,
+  loadDenunciasByUnit,
+  loadMordedurassByUnit,
+  loadPerdidasByUnit,
+  loadShelters,
+  loadZoonosisByUnit,
+} from "@/src/modules/panorama/infrastructure/repository";
 
 import { getLayerFeatures } from "../get-layer-features";
 
-const mockFetch = vi.mocked(fetchLostPets);
+// ---------------------------------------------------------------------------
+// Shared mock factories
+// ---------------------------------------------------------------------------
 
-const lostRow = (over: Partial<LostPetRow> = {}): LostPetRow => ({
-  petId: "1",
-  petPublicToken: "DIM-A",
-  petName: "Luna",
-  species: "dog",
-  petStatus: "lost",
-  province: "Buenos Aires",
-  locality: "La Plata",
-  markedLostAt: new Date("2026-06-18T00:00:00.000Z"),
-  lastSeenLat: -34.92,
-  lastSeenLng: -57.95,
-  ownerDisplayName: null,
-  ...over,
+/** A minimal AggregatedPointRows envelope for the per-unit loaders. */
+function aggRows(over: Partial<AggregatedPointRows> = {}): AggregatedPointRows {
+  return {
+    cells: [
+      {
+        key: "Buenos Aires",
+        province: "Buenos Aires",
+        locality: null,
+        centroidLat: "-34.6037000",
+        centroidLng: "-58.3816000",
+        count: 12,
+        suppressed: false,
+      },
+    ],
+    suppressedCount: 0,
+    truncated: false,
+    ...over,
+  };
+}
+
+const mockLoadPerdidas = vi.mocked(loadPerdidasByUnit);
+const mockLoadMordeduras = vi.mocked(loadMordedurassByUnit);
+const mockLoadDenuncias = vi.mocked(loadDenunciasByUnit);
+const mockLoadZoonosis = vi.mocked(loadZoonosisByUnit);
+const mockLoadShelters = vi.mocked(loadShelters);
+const mockLoadDecomisos = vi.mocked(loadDecomisos);
+const mockLoadChoropleth = vi.mocked(loadChoroplethByLevel);
+
+beforeEach(() => {
+  vi.resetAllMocks();
 });
 
-beforeEach(() => mockFetch.mockReset());
+// ---------------------------------------------------------------------------
+// F1 density+signal loaders — aggregated point contract
+// ---------------------------------------------------------------------------
 
-describe("getLayerFeatures — perdidas", () => {
-  it("maps scoped lost pets to a [lng,lat] FeatureCollection, dropping non-located", async () => {
-    mockFetch.mockResolvedValue([
-      lostRow(),
-      lostRow({ petPublicToken: "DIM-B", lastSeenLat: null, lastSeenLng: null }),
-    ]);
+describe("getLayerFeatures — perdidas (F1 aggregated point)", () => {
+  it("calls loadPerdidasByUnit with (level, actor, jurisdictions, since, asOf) and returns aggregated envelope", async () => {
+    const rows = aggRows();
+    mockLoadPerdidas.mockResolvedValue(rows);
 
-    const result = await getLayerFeatures(
-      "perdidas",
-      { role: "govt" },
-      [{ province: "Buenos Aires", locality: "La Plata" }],
-      { since: new Date("2026-06-01T00:00:00.000Z") },
-    );
+    const actor = { role: "govt" as const };
+    const jur = [{ province: "Buenos Aires", locality: "La Plata" }];
+    const since = new Date("2026-06-01T00:00:00.000Z");
+    const asOf = new Date("2026-06-15T00:00:00.000Z");
 
-    expect(result.features.features).toHaveLength(1);
-    expect(result.features.features[0].geometry?.coordinates).toEqual([-57.95, -34.92]);
-    expect(result.features.features[0].properties.token).toBe("DIM-A");
+    const result = await getLayerFeatures("perdidas", actor, jur, { since, asOf }, "province");
+
+    expect(mockLoadPerdidas).toHaveBeenCalledOnce();
+    expect(mockLoadPerdidas).toHaveBeenCalledWith("province", actor, jur, since, asOf);
+
+    // Return shape: aggregated features + envelope.
+    expect(result.level).toBe("province");
     expect(result.truncated).toBe(false);
     expect(result.suppressedCount).toBe(0);
+    // One feature per cell.
+    expect(result.features.features).toHaveLength(1);
   });
 
-  it("passes the viewer's actor + jurisdictions through to fetchLostPets (scope inherited)", async () => {
-    mockFetch.mockResolvedValue([]);
+  it("threads asOf into the loader — asOf is NOT a post-fetch filter", async () => {
+    mockLoadPerdidas.mockResolvedValue(aggRows());
+
+    const asOf = new Date("2026-06-08T00:00:00.000Z");
+    await getLayerFeatures(
+      "perdidas",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z"), asOf },
+      "locality",
+    );
+
+    expect(mockLoadPerdidas).toHaveBeenCalledWith(
+      "locality",
+      { role: "admin" },
+      [],
+      expect.any(Date),
+      asOf,
+    );
+  });
+
+  it("passes actor+jurisdictions through without widening scope", async () => {
+    mockLoadPerdidas.mockResolvedValue(aggRows());
     const jur = [{ province: "Salta", locality: "Salta" }];
 
     await getLayerFeatures("perdidas", { role: "govt" }, jur, {
       since: new Date("2026-06-01T00:00:00.000Z"),
     });
 
-    expect(mockFetch).toHaveBeenCalledWith({ role: "govt" }, jur, {
-      since: expect.any(Date),
-      status: "lost",
-    });
+    expect(mockLoadPerdidas).toHaveBeenCalledWith(
+      expect.any(String),
+      { role: "govt" },
+      jur,
+      expect.any(Date),
+      undefined,
+    );
   });
 
-  it("applies asOf as a post-fetch upper bound on perdidas (drops pets lost after asOf)", async () => {
-    mockFetch.mockResolvedValue([
-      lostRow({ petPublicToken: "DIM-EARLY", markedLostAt: new Date("2026-06-05T00:00:00.000Z") }),
-      lostRow({ petPublicToken: "DIM-LATE", markedLostAt: new Date("2026-06-12T00:00:00.000Z") }),
-    ]);
+  it("returns buildAggregatedPointFeatures output with correct level in envelope", async () => {
+    mockLoadPerdidas.mockResolvedValue(aggRows({ truncated: true, suppressedCount: 2 }));
 
     const result = await getLayerFeatures(
       "perdidas",
       { role: "admin" },
       [],
-      // asOf = 2026-06-08 → only the pet lost on 06-05 survives.
-      { since: new Date("2026-06-01T00:00:00.000Z"), asOf: new Date("2026-06-08T00:00:00.000Z") },
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "locality",
     );
 
-    expect(result.features.features).toHaveLength(1);
-    expect(result.features.features[0].properties.token).toBe("DIM-EARLY");
+    expect(result.level).toBe("locality");
+    expect(result.truncated).toBe(true);
+    expect(result.suppressedCount).toBe(2);
+    expect(result.features.type).toBe("FeatureCollection");
   });
+});
 
-  it("threads asOf into a point loader (mordeduras) as the upper bound", async () => {
-    const { loadBiteEvents } = await import("@/src/modules/panorama/infrastructure/repository");
-    vi.mocked(loadBiteEvents).mockResolvedValue({ rows: [], truncated: false });
+describe("getLayerFeatures — mordeduras (F1 aggregated point)", () => {
+  it("calls loadMordedurassByUnit with correct args and returns envelope", async () => {
+    mockLoadMordeduras.mockResolvedValue(aggRows());
+
+    const actor = { role: "admin" as const };
     const asOf = new Date("2026-06-08T00:00:00.000Z");
 
-    await getLayerFeatures("mordeduras", { role: "admin" }, [], {
-      since: new Date("2026-06-01T00:00:00.000Z"),
-      asOf,
+    const result = await getLayerFeatures(
+      "mordeduras",
+      actor,
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z"), asOf },
+      "province",
+    );
+
+    expect(mockLoadMordeduras).toHaveBeenCalledWith("province", actor, [], expect.any(Date), asOf);
+    expect(result.level).toBe("province");
+  });
+});
+
+describe("getLayerFeatures — denuncias (F1 aggregated point)", () => {
+  it("calls loadDenunciasByUnit — exact coordinate never leaves repository", async () => {
+    const rows = aggRows({
+      cells: [
+        {
+          key: "Córdoba|Córdoba",
+          province: "Córdoba",
+          locality: "Córdoba",
+          centroidLat: "-31.4200000",
+          centroidLng: "-64.1800000",
+          count: 7,
+          suppressed: false,
+        },
+      ],
+    });
+    mockLoadDenuncias.mockResolvedValue(rows);
+
+    const jur = [{ province: "Córdoba", locality: "Córdoba" }];
+    const result = await getLayerFeatures(
+      "denuncias",
+      { role: "govt" },
+      jur,
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "locality",
+    );
+
+    expect(mockLoadDenuncias).toHaveBeenCalledWith(
+      "locality",
+      { role: "govt" },
+      jur,
+      expect.any(Date),
+      undefined,
+    );
+    expect(result.features.features).toHaveLength(1);
+    expect(result.level).toBe("locality");
+  });
+});
+
+describe("getLayerFeatures — zoonosis (F1 aggregated signal point)", () => {
+  it("calls loadZoonosisByUnit and returns aggregated envelope", async () => {
+    mockLoadZoonosis.mockResolvedValue(aggRows());
+
+    const result = await getLayerFeatures(
+      "zoonosis",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "province",
+    );
+
+    expect(mockLoadZoonosis).toHaveBeenCalledWith(
+      "province",
+      { role: "admin" },
+      [],
+      expect.any(Date),
+      undefined,
+    );
+    expect(result.level).toBe("province");
+    expect(result.features.type).toBe("FeatureCollection");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reference layers — discrete pins, unaffected by the aggregation axis.
+// ---------------------------------------------------------------------------
+
+describe("getLayerFeatures — refugios (reference layer)", () => {
+  it("calls loadShelters (no period, no level) and returns point features", async () => {
+    mockLoadShelters.mockResolvedValue({
+      rows: [
+        {
+          id: "org-1",
+          publicToken: "SH-001",
+          displayName: "Refugio Luna",
+          locationLat: "-34.92",
+          locationLng: "-57.95",
+          verified: true,
+        },
+      ],
+      truncated: false,
     });
 
-    expect(loadBiteEvents).toHaveBeenCalledWith({ role: "admin" }, [], expect.any(Date), asOf);
-  });
-
-  it("delegates a LOCALITY choropleth (mortalidad) to its loader, echoing the envelope", async () => {
-    const { loadChoroplethByLevel } = await import(
-      "@/src/modules/panorama/infrastructure/repository"
+    const result = await getLayerFeatures(
+      "refugios",
+      { role: "govt" },
+      [{ province: "Buenos Aires", locality: "La Plata" }],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      // level is ignored by reference layers
+      "province",
     );
-    vi.mocked(loadChoroplethByLevel).mockResolvedValue({
+
+    expect(mockLoadShelters).toHaveBeenCalledOnce();
+    expect(result.truncated).toBe(false);
+    expect(result.suppressedCount).toBe(0);
+    expect(result.features.features).toHaveLength(1);
+    // Reference layers return level="locality" (envelope default — not driven by toggle).
+    expect(result.level).toBe("locality");
+  });
+});
+
+describe("getLayerFeatures — decomisos (reference layer)", () => {
+  it("calls loadDecomisos and returns point features", async () => {
+    mockLoadDecomisos.mockResolvedValue({
+      rows: [
+        {
+          id: "case-1",
+          publicCode: "DEC-001",
+          status: "open",
+          centroidLat: "-34.92",
+          centroidLng: "-57.95",
+          openedAt: "2026-06-01T00:00:00.000Z",
+        },
+      ],
+      truncated: false,
+    });
+
+    const result = await getLayerFeatures("decomisos", { role: "admin" }, [], {
+      since: new Date("2026-06-01T00:00:00.000Z"),
+    });
+
+    expect(mockLoadDecomisos).toHaveBeenCalledOnce();
+    expect(result.features.features).toHaveLength(1);
+    expect(result.level).toBe("locality");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Choropleth layers — unchanged contract, both levels.
+// ---------------------------------------------------------------------------
+
+describe("getLayerFeatures — mortalidad (LOCALITY choropleth)", () => {
+  it("delegates to loadChoroplethByLevel at locality level and echoes the envelope", async () => {
+    mockLoadChoropleth.mockResolvedValue({
       cells: [
         {
           key: "Buenos Aires|La Plata",
@@ -135,21 +326,14 @@ describe("getLayerFeatures — perdidas", () => {
       ],
       suppressedCount: 1,
       truncated: false,
-    });
+    } as ChoroplethRows);
 
     // Default level is "locality".
     const result = await getLayerFeatures("mortalidad", { role: "admin" }, [], {
       since: new Date("2026-06-01T00:00:00.000Z"),
     });
 
-    // The loader was asked for the mortality metric at the LOCALITY level.
-    expect(loadChoroplethByLevel).toHaveBeenCalledWith(
-      "mortality",
-      "locality",
-      { role: "admin" },
-      [],
-    );
-    // Both cells plot (each has a centroid); the suppressed one carries value=null.
+    expect(mockLoadChoropleth).toHaveBeenCalledWith("mortality", "locality", { role: "admin" }, []);
     expect(result.features.features).toHaveLength(2);
     expect(result.suppressedCount).toBe(1);
     expect(result.level).toBe("locality");
@@ -157,17 +341,12 @@ describe("getLayerFeatures — perdidas", () => {
       (f) => (f.properties as { suppressed?: boolean }).suppressed === true,
     );
     expect((suppressed?.properties as { value: number | null }).value).toBeNull();
-    expect(mockFetch).not.toHaveBeenCalled();
   });
+});
 
-  it("delegates a PROVINCE choropleth (cobertura) to the province loader (filled polygons)", async () => {
-    const { loadChoroplethByLevel } = await import(
-      "@/src/modules/panorama/infrastructure/repository"
-    );
-    vi.mocked(loadChoroplethByLevel).mockResolvedValue({
-      // vi.mocked resolves the mock to the first overload (ChoroplethRows); the
-      // use-case routes by `level` to the province loader, so a province-shaped
-      // result is the correct value here — cast through unknown for the mock type.
+describe("getLayerFeatures — cobertura (PROVINCE choropleth)", () => {
+  it("delegates to loadChoroplethByLevel at province level (filled polygons)", async () => {
+    mockLoadChoropleth.mockResolvedValue({
       cells: [
         { provinceCode: "AR-B", label: "Buenos Aires", value: 61 },
         { provinceCode: "AR-X", label: "Córdoba", value: 9 },
@@ -183,16 +362,13 @@ describe("getLayerFeatures — perdidas", () => {
       "province",
     );
 
-    // Routed to the rabies-coverage metric at the PROVINCE level.
-    expect(loadChoroplethByLevel).toHaveBeenCalledWith(
+    expect(mockLoadChoropleth).toHaveBeenCalledWith(
       "rabies-coverage",
       "province",
       { role: "admin" },
       [],
     );
     expect(result.level).toBe("province");
-    // Province features carry no geometry (the basemap polygon is the geometry)
-    // and a provinceCode the map joins on. No k-anon at province level.
     expect(result.features.features).toHaveLength(2);
     expect(result.features.features[0].geometry).toBeNull();
     expect(result.features.features[0].properties).toMatchObject({

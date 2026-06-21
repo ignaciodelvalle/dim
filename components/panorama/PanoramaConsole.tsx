@@ -8,7 +8,7 @@
 // (dynamic) SituationalMap. Perdidas is mounted server-side and seeded here as
 // the default-on layer, so its features paint on first render without a fetch.
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AggregationToggle } from "@/components/panorama/AggregationToggle";
@@ -82,12 +82,11 @@ export function PanoramaConsole({
   defaultSuppressedCount = 0,
   initialKpis,
 }: Props) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   // Feature data per layer (the default is seeded; others fetched on toggle).
   // This is the LIVE cache (asOf=null). The temporal as-of cache is separate.
-  const dataRef = useRef<Map<LayerId, FeatureCollection>>(
-    new Map([[defaultLayerId, defaultFeatures]]),
-  );
+  const dataRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
   // As-of feature cache (F4): per (layer, asOf-iso) the features the layer had at
   // that instant. Refreshed when the scrubber moves; cleared when the period/scope
   // changes (a new window invalidates the axis). Live layers stay in dataRef.
@@ -97,7 +96,17 @@ export function PanoramaConsole({
   // layers. Keyed by layer id; populated lazily when the toggle is on "Provincia"
   // and the layer is active. Cleared (with dataRef's choropleth entries) when the
   // scope/period changes so a new window refetches at the active level.
-  const provinceDataRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
+  //
+  // C2 fix: seed the default layer (perdidas, an aggregated point layer) into the
+  // PROVINCE cache because the console's default aggregation axis is "province".
+  // The server resolves the default seed at province level (app/*/panorama/page.tsx).
+  // Seeding into dataRef (locality cache) would leave provinceDataRef empty on
+  // first render, causing the activeLayers memo to find EMPTY_FC → blank map.
+  const provinceDataRef = useRef<Map<LayerId, FeatureCollection>>(
+    isAggregatedPointLayer(defaultLayerId)
+      ? new Map([[defaultLayerId, defaultFeatures]])
+      : new Map(),
+  );
 
   // U5 aggregation axis — the granularity TOGGLE. Distinct from the scope filter
   // (JurisdictionSwitcher narrows WHAT is shown; this changes HOW the choropleth
@@ -173,14 +182,84 @@ export function PanoramaConsole({
   // also invalidates the province-level cache and the LOCALITY-level entries in
   // dataRef for choropleth layers AND aggregated point layers (their counts are
   // period-sensitive). Reference layers keep their cache — they refetch on toggle.
+  //
+  // W2 fix: after clearing the caches, refetch any CURRENTLY ACTIVE layers that
+  // are period-sensitive (aggregated point + choropleth). This is required so a
+  // preset's period change (router.replace) fetches at the NEW params rather than
+  // having the active-preset layers go blank (cache cleared, no refetch triggered).
+  // The fetch uses the NEW searchParams (post-replace) via the effect closure.
+  // Mount guard for the cache-invalidation effect below: the server already
+  // seeded the default layer at the initial params (C2), so skip the first run.
+  const layerSeededQsRef = useRef<string | null>(qs);
   // biome-ignore lint/correctness/useExhaustiveDependencies: qs identity is the intended trigger.
   useEffect(() => {
+    // Skip the FIRST run (mount): clearing + refetching here would wipe the C2
+    // seed in provinceDataRef and flash a redundant load. Only react to ACTUAL
+    // param changes (period/scope toggles, preset router.replace).
+    if (layerSeededQsRef.current === qs) {
+      layerSeededQsRef.current = null;
+      return;
+    }
     asOfDataRef.current.clear();
     provinceDataRef.current.clear();
     for (const id of CHOROPLETH_IDS) dataRef.current.delete(id);
     for (const l of AGGREGATED_POINT_LAYERS) dataRef.current.delete(l.id);
     setAsOf(null);
-  }, [searchParams]);
+
+    // Refetch active period-sensitive layers at the new params.
+    const activePeriodSensitive = [...CHOROPLETH_LAYERS, ...AGGREGATED_POINT_LAYERS].filter(
+      (l) => statesRef.current[l.id]?.active,
+    );
+    if (activePeriodSensitive.length === 0) return;
+
+    // Mark them loading before the async fetch.
+    setStates((s) => {
+      const next = { ...s };
+      for (const l of activePeriodSensitive) {
+        next[l.id] = { ...s[l.id], loading: true };
+      }
+      return next;
+    });
+
+    const currentQs = new URLSearchParams(window.location.search).toString();
+    const currentLevel = levelRef.current;
+
+    void Promise.all(
+      activePeriodSensitive.map(async (l) => {
+        const params = new URLSearchParams(currentQs);
+        if (currentLevel === "province") params.set("level", "province");
+        else if (isAggregatedPointLayer(l.id)) params.set("level", "locality");
+        try {
+          const res = await fetch(
+            `/api/panorama/${l.id}${params.toString() ? `?${params.toString()}` : ""}`,
+            { headers: { accept: "application/json" } },
+          );
+          if (!res.ok) return;
+          const body = (await res.json()) as ApiResponse;
+          if (currentLevel === "province") {
+            provinceDataRef.current.set(l.id, body.features);
+          } else {
+            dataRef.current.set(l.id, body.features);
+          }
+          setStates((s) => ({
+            ...s,
+            [l.id]: {
+              ...s[l.id],
+              loading: false,
+              count: body.features.features.length,
+              suppressedCount: body.suppressedCount,
+              truncated: body.truncated,
+            },
+          }));
+        } catch {
+          setStates((s) => ({
+            ...s,
+            [l.id]: { ...s[l.id], loading: false },
+          }));
+        }
+      }),
+    ).then(() => setLevelVersion((v) => v + 1));
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When the as-of moves, refetch the ACTIVE TEMPORAL layers at that instant and
   // repaint. Non-temporal layers are not refetched (they are dimmed instead).
@@ -417,12 +496,8 @@ export function PanoramaConsole({
 
   const onToggle = useCallback(
     async (id: LayerId) => {
-      // A manual toggle exits preset mode. Guard: skip when onPreset is
-      // activating layers sequentially (presetActivatingRef prevents clearing
-      // the preset id that was just set).
-      if (!presetActivatingRef.current) {
-        setActivePresetId(null);
-      }
+      // A manual toggle exits preset mode.
+      setActivePresetId(null);
       const wasActive = states[id]?.active ?? false;
       if (wasActive) {
         // Turn off — keep cached data so a re-toggle is instant.
@@ -580,75 +655,73 @@ export function PanoramaConsole({
 
   // F3: active preset — null when the operator is in manual "modo avanzado".
   const [activePresetId, setActivePresetId] = useState<PresetId | null>(null);
-  // True while onPreset is sequentially activating layers, so onToggle does
-  // not clear the preset id mid-activation.
-  const presetActivatingRef = useRef(false);
 
   /**
    * F3: Activate a preset.
    *
-   * 1. Deactivate all currently active layers (no fetch needed — just flip state
-   *    and clear the cache entries so the next toggle triggers a fresh fetch).
-   * 2. Activate the preset's layers in order [base, signal?, ...references?].
-   *    Each step goes through the standard onToggle path so F2 compatibility
-   *    checks and the province-level cache are respected automatically.
-   * 3. Switch the aggregation level to the preset's level.
-   * 4. Period: push the preset's periodPreset as the ?period searchParam so the
-   *    existing PeriodPicker/resolveAnalyticsPeriod path picks it up. This is
-   *    the same mechanism a user clicking a period button uses (router.push),
-   *    which invalidates the scope/period caches and triggers a refetch — giving
-   *    a clean slate identical to a page navigation with the new period.
-   * 5. Record the active preset id so PresetPanel highlights the active button.
+   * W2 fix: previously this called window.history.pushState then immediately
+   * awaited onToggle for each preset layer. Those fetches closed over the OLD
+   * searchParams (before the pushState re-render), so the period was wrong.
+   * Then the [searchParams] effect fired (triggered by pushState), cleared the
+   * cache entries for aggregated-point layers, blanking the map.
+   *
+   * Correct ordering:
+   * 1. Deactivate all currently active layers + clear all caches.
+   * 2. Set level + mark the preset's layers active (loading=true) in state —
+   *    no fetch here.
+   * 3. Call router.replace with the new period — this triggers the
+   *    [searchParams] effect, which clears period-sensitive caches (already
+   *    empty) and then refetches the NOW-ACTIVE layers at the CORRECT period.
+   *    The effect reads the layers from statesRef (which already has the preset
+   *    layers marked active), so the refetch picks up exactly the right set.
+   * 4. Record the preset id for the PresetPanel highlight.
    */
   const onPreset = useCallback(
-    async (id: PresetId) => {
+    (id: PresetId) => {
       const preset = getPreset(id);
       if (!preset) return;
 
-      // Deactivate all currently active layers.
+      // Clear all caches — preset always starts fresh.
+      dataRef.current.clear();
+      provinceDataRef.current.clear();
+      asOfDataRef.current.clear();
+
+      // Switch aggregation level immediately so statesRef and the refetch in the
+      // [searchParams] effect both see the correct level.
+      setLevel(preset.level);
+      levelRef.current = preset.level;
+
+      const presetIds = presetLayerIds(preset);
+
+      // Flip all layers: deactivate current ones; mark preset layers active+loading.
       setStates((s) => {
         const next = { ...s };
         for (const l of PANORAMA_LAYERS) {
-          if (s[l.id]?.active) {
+          if (presetIds.includes(l.id)) {
+            next[l.id] = {
+              active: true,
+              loading: true,
+              count: 0,
+              suppressedCount: 0,
+              truncated: false,
+            };
+          } else if (s[l.id]?.active) {
             next[l.id] = { ...s[l.id], active: false, compatibilityHint: undefined };
           }
         }
         return next;
       });
-      // Clear the feature caches for all layers so the preset's layers always
-      // fetch fresh data at the correct level/period (avoids showing stale data
-      // from a previous manual configuration in the same session).
-      dataRef.current.clear();
-      provinceDataRef.current.clear();
-      asOfDataRef.current.clear();
-
-      // Switch aggregation level (fire-and-forget; the refetch below respects it).
-      setLevel(preset.level);
-      levelRef.current = preset.level;
-
-      // Push the period searchParam so the existing PeriodPicker/resolveAnalyticsPeriod
-      // path refreshes the window. This is the same URL-driven mechanism that the
-      // period control uses, so KPI refetches and cache invalidation happen automatically.
-      const nextParams = new URLSearchParams(searchParams.toString());
-      nextParams.set("period", preset.periodPreset);
-      // We reach router via window.history to avoid importing useRouter (the
-      // console already reads searchParams via useSearchParams, which re-renders
-      // the component when the URL changes via any mechanism).
-      window.history.pushState(null, "", `?${nextParams.toString()}`);
-
-      // Activate the preset's layers sequentially using the existing onToggle
-      // handler so F2 checks, cache logic, and loading states all work correctly.
-      // The presetActivatingRef prevents onToggle from clearing the preset id.
-      presetActivatingRef.current = true;
-      const ids = presetLayerIds(preset);
-      for (const layerId of ids) {
-        await onToggle(layerId);
-      }
-      presetActivatingRef.current = false;
 
       setActivePresetId(id);
+
+      // Replace the URL with the preset period. This triggers the [searchParams]
+      // effect, which (W2 fix) now also refetches the active period-sensitive
+      // layers at the new params — picking them up from statesRef.
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.set("period", preset.periodPreset);
+      router.replace(`?${nextParams.toString()}`);
     },
-    [searchParams, onToggle],
+    [searchParams, router],
   );
 
   // Whether any aggregation-axis-sensitive layer is active (choropleth or

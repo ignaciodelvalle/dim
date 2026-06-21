@@ -1212,6 +1212,12 @@ export type TrendBucket = {
 
 /** The full result of a unit-history query. */
 export type UnitHistoryResult = {
+  /**
+   * True when the locality's total event count is below the k-anon threshold
+   * (k=5). The client must not render counts or event lists when this is true.
+   * Always false at province level (no suppression for coarse cells).
+   */
+  suppressed?: boolean;
   /** Most recent events for this unit (newest first), up to 20 entries. */
   events: UnitHistoryEvent[];
   /** Daily buckets over the requested window (for the sparkline). */
@@ -1274,6 +1280,165 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
   }
 
   const EVENT_LIMIT = 20;
+  // k-anon threshold (mirrors suppressSmallCells k=5 used by the per-unit loaders).
+  const K_ANON = 5;
+
+  // ---------------------------------------------------------------------------
+  // W1 — k-anon guard for locality-level history.
+  //
+  // When the caller is drilling into a LOCALITY (locality is set), we count the
+  // total events for this unit over [since, until] before returning any detail.
+  // If the count is < K_ANON we return a suppressed result — the same cell that
+  // was suppressed on the map must not be re-identified via the history panel.
+  // Province-level requests are exempt (no suppression, matching the loaders).
+  // ---------------------------------------------------------------------------
+  if (locality) {
+    // Each layer stores its events in a different table / column. We mirror the
+    // predicates from queryEvents() below (same WHERE clause, just COUNT(*)).
+    let totalCount = 0;
+
+    switch (layer) {
+      case "perdidas": {
+        const scope = petEventsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          sql`(${petEvents.payload}->>'kind') IN ('pet_lost', 'pet_found_sighting')`,
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          sql`(${petEvents.payload}->>'province') = ${province}`,
+          sql`(${petEvents.payload}->>'locality') = ${locality}`,
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const [row] = await db
+          .select({ n: count() })
+          .from(petEvents)
+          .where(and(...conditions));
+        totalCount = row?.n ?? 0;
+        break;
+      }
+      case "mordeduras": {
+        const scope = petEventsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "incident_reported"),
+          sql`(${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered')`,
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          sql`(${petEvents.payload}->>'province') = ${province}`,
+          sql`(${petEvents.payload}->>'locality') = ${locality}`,
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const [row] = await db
+          .select({ n: count() })
+          .from(petEvents)
+          .where(and(...conditions));
+        totalCount = row?.n ?? 0;
+        break;
+      }
+      case "denuncias": {
+        const scope = jurisdictionColumnsScope(
+          actor,
+          jurisdictions,
+          sql`${welfareReports.jurisdictionProvince}`,
+          sql`${welfareReports.jurisdictionLocality}`,
+        );
+        const conditions: SQL[] = [
+          gte(welfareReports.createdAt, since),
+          lte(welfareReports.createdAt, until),
+          sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+          sql`${welfareReports.jurisdictionProvince} = ${province}`,
+          sql`${welfareReports.jurisdictionLocality} = ${locality}`,
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const [row] = await db
+          .select({ n: count() })
+          .from(welfareReports)
+          .where(and(...conditions));
+        totalCount = row?.n ?? 0;
+        break;
+      }
+      case "zoonosis": {
+        const scope = petEventsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "outbreak_signal"),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          sql`(${petEvents.payload}->>'province') = ${province}`,
+          sql`(${petEvents.payload}->>'locality') = ${locality}`,
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const [row] = await db
+          .select({ n: count() })
+          .from(petEvents)
+          .where(and(...conditions));
+        totalCount = row?.n ?? 0;
+        break;
+      }
+      case "decomisos": {
+        const scope = jurisdictionColumnsScope(
+          actor,
+          jurisdictions,
+          sql`${cases.jurisdictionProvince}`,
+          sql`${cases.jurisdictionLocality}`,
+        );
+        const conditions: SQL[] = [
+          eq(cases.caseKind, "custody_episode"),
+          gte(cases.openedAt, since),
+          lte(cases.openedAt, until),
+          sql`${cases.jurisdictionProvince} = ${province}`,
+          sql`${cases.jurisdictionLocality} = ${locality}`,
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const [row] = await db
+          .select({ n: count() })
+          .from(cases)
+          .where(and(...conditions));
+        totalCount = row?.n ?? 0;
+        break;
+      }
+      case "cobertura": {
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "vaccination_administered"),
+          sql`unaccent(lower(coalesce(${petEvents.payload}->>'vaccine_name', ''))) LIKE '%rabi%'`,
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          sql`${pets.jurisdictionProvince} = ${province}`,
+          sql`${pets.jurisdictionLocality} = ${locality}`,
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const [row] = await db
+          .select({ n: count() })
+          .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .where(and(...conditions));
+        totalCount = row?.n ?? 0;
+        break;
+      }
+      case "mortalidad": {
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "death_recorded"),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          sql`${pets.jurisdictionProvince} = ${province}`,
+          sql`${pets.jurisdictionLocality} = ${locality}`,
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const [row] = await db
+          .select({ n: count() })
+          .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .where(and(...conditions));
+        totalCount = row?.n ?? 0;
+        break;
+      }
+      default:
+        totalCount = K_ANON; // Unknown layers are exempt from suppression.
+    }
+
+    if (totalCount < K_ANON) {
+      return { suppressed: true, events: [], trend: [], byType: {} };
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Route by layer source to the correct event table + predicate.
