@@ -138,6 +138,9 @@ const {
   welfareReports,
   arLocalities,
   jurisdictionsCensus,
+  cases,
+  enoProcessingQueue,
+  eventNotificationOutbox,
 } = await import("../db");
 const { writePoint } = await import("../lib/location");
 const { PROVINCES } = await import("../lib/ar-provincias");
@@ -160,6 +163,16 @@ const PETS_PER_CAPITA = Number(process.env.PETS_PER_CAPITA ?? "0.5");
 const SCALE = Number(process.env.SCALE ?? "0.002");
 
 const BATCH_SIZE = 500;
+
+// ─── Operational / derived family rates (env-tunable) ───────────────────────
+// These drive the families that were structurally empty before this seed:
+// sterilization, PPP attestation, adoption, reunification, dangerous-breed flag.
+// All are fractions [0..1]; per-province spread is layered on top (see helpers).
+const STERILIZATION_RATE = Number(process.env.PANO_STERILIZATION_RATE ?? "0.28");
+const DANGEROUS_BREED_FLAG_RATE = Number(process.env.PANO_DANGEROUS_BREED_RATE ?? "0.04");
+const PPP_ATTEST_RATE = Number(process.env.PANO_PPP_ATTEST_RATE ?? "0.45"); // of flagged pets
+const ADOPTION_ACQUISITION_RATE = Number(process.env.PANO_ADOPTION_RATE ?? "0.12");
+const REUNIFICATION_RATE = Number(process.env.PANO_REUNIFICATION_RATE ?? "0.45"); // of lost pets
 
 type LogTag = "STEP" | "OK" | "SKIP" | "WARN" | "INFO" | "DONE" | "FAIL";
 function log(tag: LogTag, msg: string): void {
@@ -281,31 +294,31 @@ const SEXES = ["male", "female", "unknown"] as const;
  * Intentionally varied to produce spread in the choropleth.
  * Values represent % of pets in that province with a vaccination event.
  */
-const PROVINCE_COVERAGE: Record<string, { vacc: number; chip: number }> = {
-  "Buenos Aires": { vacc: 0.45, chip: 0.15 },
-  CABA: { vacc: 0.4, chip: 0.12 },
-  Córdoba: { vacc: 0.35, chip: 0.1 },
-  "Santa Fe": { vacc: 0.32, chip: 0.09 },
-  Mendoza: { vacc: 0.28, chip: 0.08 },
-  Tucumán: { vacc: 0.2, chip: 0.06 },
-  Salta: { vacc: 0.15, chip: 0.04 },
-  "Entre Ríos": { vacc: 0.25, chip: 0.07 },
-  Misiones: { vacc: 0.18, chip: 0.05 },
-  Chaco: { vacc: 0.12, chip: 0.03 },
-  Corrientes: { vacc: 0.14, chip: 0.04 },
-  Jujuy: { vacc: 0.1, chip: 0.03 },
-  "Río Negro": { vacc: 0.22, chip: 0.07 },
-  Neuquén: { vacc: 0.24, chip: 0.07 },
-  Formosa: { vacc: 0.08, chip: 0.02 },
-  "San Juan": { vacc: 0.18, chip: 0.05 },
-  "San Luis": { vacc: 0.19, chip: 0.05 },
-  Catamarca: { vacc: 0.11, chip: 0.03 },
-  "La Pampa": { vacc: 0.21, chip: 0.06 },
-  "La Rioja": { vacc: 0.1, chip: 0.03 },
-  "Santiago del Estero": { vacc: 0.09, chip: 0.02 },
-  Chubut: { vacc: 0.2, chip: 0.06 },
-  "Santa Cruz": { vacc: 0.17, chip: 0.05 },
-  "Tierra del Fuego": { vacc: 0.3, chip: 0.09 },
+const PROVINCE_COVERAGE: Record<string, { vacc: number; chip: number; ster: number }> = {
+  "Buenos Aires": { vacc: 0.45, chip: 0.18, ster: 0.4 },
+  CABA: { vacc: 0.4, chip: 0.2, ster: 0.38 },
+  Córdoba: { vacc: 0.35, chip: 0.13, ster: 0.34 },
+  "Santa Fe": { vacc: 0.32, chip: 0.12, ster: 0.32 },
+  Mendoza: { vacc: 0.28, chip: 0.1, ster: 0.28 },
+  Tucumán: { vacc: 0.2, chip: 0.08, ster: 0.22 },
+  Salta: { vacc: 0.15, chip: 0.06, ster: 0.18 },
+  "Entre Ríos": { vacc: 0.25, chip: 0.09, ster: 0.26 },
+  Misiones: { vacc: 0.18, chip: 0.07, ster: 0.2 },
+  Chaco: { vacc: 0.12, chip: 0.05, ster: 0.16 },
+  Corrientes: { vacc: 0.14, chip: 0.06, ster: 0.17 },
+  Jujuy: { vacc: 0.1, chip: 0.05, ster: 0.15 },
+  "Río Negro": { vacc: 0.22, chip: 0.09, ster: 0.27 },
+  Neuquén: { vacc: 0.24, chip: 0.09, ster: 0.29 },
+  Formosa: { vacc: 0.08, chip: 0.05, ster: 0.14 },
+  "San Juan": { vacc: 0.18, chip: 0.07, ster: 0.21 },
+  "San Luis": { vacc: 0.19, chip: 0.07, ster: 0.22 },
+  Catamarca: { vacc: 0.11, chip: 0.05, ster: 0.16 },
+  "La Pampa": { vacc: 0.21, chip: 0.08, ster: 0.25 },
+  "La Rioja": { vacc: 0.1, chip: 0.05, ster: 0.15 },
+  "Santiago del Estero": { vacc: 0.09, chip: 0.05, ster: 0.15 },
+  Chubut: { vacc: 0.2, chip: 0.08, ster: 0.24 },
+  "Santa Cruz": { vacc: 0.17, chip: 0.07, ster: 0.2 },
+  "Tierra del Fuego": { vacc: 0.3, chip: 0.11, ster: 0.36 },
 };
 
 /**
@@ -761,6 +774,33 @@ async function runClean(): Promise<void> {
       const batch = panoIds.slice(start, start + DEL_BATCH);
 
       await db.transaction(async (tx) => {
+        // FK-safe order for the derived families seeded by the vigilancia +
+        // enforcement steps. These reference PANO pet_events / pets and MUST be
+        // removed before the pet_events / pets deletes below:
+        //   1. eno_processing_queue.pet_event_id — NO FK (just a unique idx), so
+        //      it never cascades; delete explicitly by the PANO pet_event IDs.
+        //   2. event_notification_outbox.source_event_id — ON DELETE CASCADE on
+        //      pet_events (auto-cleans), but we delete explicitly for clarity.
+        //   3. cases.primary_pet_id — ON DELETE CASCADE on pets (auto-cleans);
+        //      seeded cases never set pet_events.case_id (which is ON DELETE
+        //      RESTRICT), so there is no restrict dependency to order around.
+        const batchEventIds = (
+          await tx
+            .select({ id: petEvents.id })
+            .from(petEvents)
+            .where(inArray(petEvents.petId, batch))
+        ).map((r) => r.id);
+
+        if (batchEventIds.length > 0) {
+          await tx
+            .delete(enoProcessingQueue)
+            .where(inArray(enoProcessingQueue.petEventId, batchEventIds));
+          await tx
+            .delete(eventNotificationOutbox)
+            .where(inArray(eventNotificationOutbox.sourceEventId, batchEventIds));
+        }
+        await tx.delete(cases).where(inArray(cases.primaryPetId, batch));
+
         if (actorId) {
           await tx.execute(sql`SELECT set_config('app.allow_event_mutation', 'true', true)`);
           await tx.execute(
@@ -775,6 +815,14 @@ async function runClean(): Promise<void> {
       log("OK", `  Deleted pet batch [${start}..${start + batch.length - 1}]`);
     }
   }
+
+  // 10a-bis. Belt-and-suspenders: remove any PANO-CASE-tagged cases that, for
+  // whatever reason, did not cascade with their primary pet (e.g. a case whose
+  // pet was already gone). Keyed off the deterministic public_code prefix.
+  const deletedCases = await db.execute(
+    sql`DELETE FROM cases WHERE public_code LIKE 'PANO-CASE-%'`,
+  );
+  log("OK", `  Deleted PANO cases (${JSON.stringify(deletedCases)})`);
 
   // 10b. PANO organizations
   const panoOrgs = await db
@@ -892,9 +940,20 @@ function buildPetEvents(
   lat: number,
   lng: number,
   petIndex: number,
+  opts: { shelterOrgId: string | null; dangerousBreed: boolean },
 ): Array<Record<string, unknown>> {
   const events: Array<Record<string, unknown>> = [];
-  const coverage = PROVINCE_COVERAGE[provinceName] ?? { vacc: 0.15, chip: 0.05 };
+  const coverage = PROVINCE_COVERAGE[provinceName] ?? { vacc: 0.15, chip: 0.05, ster: 0.18 };
+
+  // Acquisition method (D-adoption): a fraction of registrations are "adopted".
+  // /gob/analytics derives the adoption rate from this pet_registered payload
+  // field (acquisition_method='adopted'), NOT from adoption_finalized — so the
+  // KPI only moves when this is populated. Shelter-custody pets always count
+  // as adopted; the rest pick up the baseline rate.
+  const acquisitionMethod: string =
+    opts.shelterOrgId !== null || rng() < ADOPTION_ACQUISITION_RATE
+      ? "adopted"
+      : pick(["purchased", "found_stray", "gift", "born_in_litter", "other"] as const);
 
   // Always: pet_registered
   const registeredAt = randomWindowDate(WINDOW_DAYS + 180); // can be older than window
@@ -905,7 +964,13 @@ function buildPetEvents(
     recordedByUserId: ownerUserId,
     authorRole: "owner",
     authorVerified: false,
-    payload: { source: "seed-panorama", species, pet_index: petIndex },
+    payload: {
+      source: "seed-panorama",
+      species,
+      pet_index: petIndex,
+      acquisition_method: acquisitionMethod,
+      potentially_dangerous_breed: opts.dangerousBreed,
+    },
     ...writePoint(jitteredCoord(lat, lng, 0.02)),
   });
 
@@ -948,6 +1013,53 @@ function buildPetEvents(
         location_on_body: "interscapular",
         implant_date_known: true,
       },
+    });
+  }
+
+  // Sterilization: per-province rate × global multiplier. The KPI
+  // (fetchSterilizationMetrics) counts events in the LAST 30 DAYS and the
+  // distinct author orgs, so we date these within the 28-day window and
+  // attribute a share to the shelter org (org ranking) — the rest stay
+  // owner-vet logged.
+  if (rng() < coverage.ster * (STERILIZATION_RATE / 0.28)) {
+    const attributeToOrg = opts.shelterOrgId !== null || rng() < 0.35;
+    events.push({
+      petId,
+      eventType: "sterilization_performed" satisfies EventType,
+      occurredAt: randomWindowDate(28),
+      recordedByUserId: ownerUserId,
+      authorRole: attributeToOrg ? "vet" : "owner",
+      authorVerified: attributeToOrg,
+      ...(opts.shelterOrgId !== null ? { authorOrganizationId: opts.shelterOrgId } : {}),
+      payload: {
+        source: "seed-panorama",
+        procedure: species === "cat" || rng() < 0.5 ? "castration" : "spay",
+        performed_by: attributeToOrg ? "Veterinaria municipal (seed)" : null,
+        clinic: opts.shelterOrgId !== null ? "Red de esterilización (seed)" : null,
+      },
+      ...writePoint(jitteredCoord(lat, lng, 0.02)),
+    });
+  }
+
+  // Dangerous-breed attestation (PPP / C7): only a fraction of flagged pets
+  // are actually attested → Registro PPP coverage stays < 100% (the
+  // compliance-gap story). attested_at is an ISO date string per the schema.
+  if (opts.dangerousBreed && rng() < PPP_ATTEST_RATE) {
+    const attestedAt = randomWindowDate(WINDOW_DAYS + 120);
+    events.push({
+      petId,
+      eventType: "dangerous_breed_attested" satisfies EventType,
+      occurredAt: attestedAt,
+      recordedByUserId: ownerUserId,
+      authorRole: "owner",
+      authorVerified: false,
+      payload: {
+        source: "seed-panorama",
+        registry: pick(["caba_4078", "prov_14107", "other"] as const),
+        registry_id: `PPP-${String(petIndex % 99999).padStart(5, "0")}`,
+        attested_at: attestedAt.toISOString().slice(0, 10),
+      },
+      ...writePoint(jitteredCoord(lat, lng, 0.02)),
     });
   }
 
@@ -996,6 +1108,8 @@ async function seedPets(
       lng: number;
       provinceName: string;
       species: string;
+      dangerousBreed: boolean;
+      reunified: boolean;
     }> = [];
 
     for (let i = 0; i < provinceCount; i++) {
@@ -1023,6 +1137,16 @@ async function seedPets(
         deceasedPets++;
       }
 
+      // PPP flag (potentially dangerous breed). Only dogs qualify (Ley CABA
+      // 4078 / Prov 14.107). Drives the dangerous_breed_attested attestation
+      // event later so the Registro PPP shows < 100% coverage.
+      const dangerousBreed = species === "dog" && rng() < DANGEROUS_BREED_FLAG_RATE;
+
+      // Reunification (D4): a fraction of lost pets are later found/returned.
+      // The draw happens here so the per-pet RNG sequence stays stable; the
+      // found event + status flip are emitted alongside the lost event below.
+      const reunified = status === "lost" && rng() < REUNIFICATION_RATE;
+
       const publicToken = panoPublicToken(idx);
       const petName = panoName(idx, name);
 
@@ -1031,16 +1155,27 @@ async function seedPets(
         species,
         name: petName,
         sex,
-        status,
+        // A reunified pet ends back "active" — the status flip is captured by
+        // the paired lost→found status_changed events on the timeline.
+        status: status === "lost" && reunified ? "active" : status,
         jurisdictionCountry: "AR",
         jurisdictionProvince: provinceName,
         jurisdictionLocality: loc?.localityName ?? null,
-        potentiallyDangerousBreed: false,
+        potentiallyDangerousBreed: dangerousBreed,
         emergencyInfoVisible: false,
         ...(status === "deceased" ? { deceasedAt: randomWindowDate(WINDOW_DAYS) } : {}),
       });
 
-      perPetMeta.push({ index: idx, status, lat, lng, provinceName, species });
+      perPetMeta.push({
+        index: idx,
+        status,
+        lat,
+        lng,
+        provinceName,
+        species,
+        dangerousBreed,
+        reunified,
+      });
     }
 
     // Batch insert pets
@@ -1104,14 +1239,16 @@ async function seedPets(
         meta.lat,
         meta.lng,
         meta.index,
+        { shelterOrgId: shelterOrg?.id ?? null, dangerousBreed: meta.dangerousBreed },
       );
 
-      // Lost pet → status_changed event
+      // Lost pet → status_changed event (active → lost).
       if (meta.status === "lost") {
+        const lostAt = randomWindowDate(30); // recent
         evts.push({
           petId,
           eventType: "status_changed" satisfies EventType,
-          occurredAt: randomWindowDate(30), // recent
+          occurredAt: lostAt,
           recordedByUserId: ownerUserId,
           authorRole: "owner",
           authorVerified: false,
@@ -1122,6 +1259,54 @@ async function seedPets(
             location_description: "AMBA / zona de búsqueda activa",
           },
           ...writePoint(jitteredCoord(meta.lat, meta.lng, 0.04)),
+        });
+
+        // Reunification (D4): a fraction are found/returned → a second
+        // status_changed (lost → active) a few days after the loss. The pet
+        // row was created back in "active" for these so the timeline + the
+        // current status reconcile. Realistic reunification rate for /gob.
+        if (meta.reunified) {
+          evts.push({
+            petId,
+            eventType: "status_changed" satisfies EventType,
+            occurredAt: new Date(lostAt.getTime() + randInt(1, 9) * 24 * 3600 * 1000),
+            recordedByUserId: ownerUserId,
+            authorRole: "owner",
+            authorVerified: false,
+            payload: {
+              source: "seed-panorama",
+              from_status: "lost",
+              to_status: "active",
+              location_description: "Reencuentro con la familia (seed)",
+              reunified: true,
+            },
+            ...writePoint(jitteredCoord(meta.lat, meta.lng, 0.04)),
+          });
+        }
+      }
+
+      // Shelter-custody pet → adoption_finalized event (D-adoption). Models the
+      // org→owner handoff so the adoption-event family is non-empty; the
+      // analytics adoption RATE is separately driven by pet_registered
+      // acquisition_method='adopted' (set in buildPetEvents).
+      if (shelterOrg && rng() < 0.5) {
+        evts.push({
+          petId,
+          eventType: "adoption_finalized" satisfies EventType,
+          occurredAt: randomWindowDate(WINDOW_DAYS),
+          recordedByUserId: ownerUserId,
+          authorRole: "shelter",
+          authorVerified: true,
+          authorOrganizationId: shelterOrg.id,
+          payload: {
+            source: "seed-panorama",
+            previous_owner_organization_id: shelterOrg.id,
+            adopter_user_id: ownerUserId,
+            foster_user_id: null,
+            contract_attachment_id: null,
+            post_adoption_followup_months: pick([6, 12]),
+            notes: null,
+          },
         });
       }
 
@@ -1557,6 +1742,323 @@ async function seedBiteEvents(
 }
 
 // ---------------------------------------------------------------------------
+// 15b. Vigilancia chain — rabies-observation lifecycle + ENO notification SLA
+// ---------------------------------------------------------------------------
+// Materializes the surveillance surface that bite EVENTS alone never light:
+//   - rabies_observation_started / _ended pet_events (paired via
+//     payload.observation_started_event_id) + pets.rabies_observation_status
+//     in mixed states (in_progress / closed within 10d / overdue) → A8/A9
+//     compliance + the "X rabia" KPI.
+//   - open cases case_kind='rabies_observation' → fetchVigilanciaMetrics
+//     rabiesActiveCount + the /gob/vigilancia map.
+//   - eno_processing_queue rows (the worker queue) + event_notification_outbox
+//     rows target_kind='eno_authority' (what fetchEnoSla A7 actually reads),
+//     with mixed SLA (on-time delivered / overdue pending breach).
+//
+// NOTE (v2 fidelity): inserting these derived records directly is acceptable
+// for the demo dataset. Running the real bite→observation use-case
+// (reportBiteAction + the daily cron + eno-trigger) would be more faithful —
+// it would also exercise the projection in lib/projections/pet-rabies-observation.ts.
+async function seedVigilanceChain(
+  ownerUserId: string,
+  shelterOrgs: PanoOrg[],
+): Promise<{ observations: number; cases: number; enoQueue: number; outbox: number }> {
+  log("STEP", "Seeding vigilancia chain (rabies observations + ENO SLA)…");
+
+  // Attach observations to a mix: the Salta rabies set-piece pets (the bite
+  // cluster) + a thin national baseline of PANO pets. Fetch deceased/reportable
+  // set-piece pets first, then top up with random PANO pets.
+  const setpiecePets = await db
+    .select({ petId: petEvents.petId })
+    .from(petEvents)
+    .where(
+      sql`${petEvents.eventType} = 'incident_reported'
+          AND ${petEvents.payload}->>'source' = 'seed-panorama-setpiece'
+          AND ${petEvents.payload}->>'incident_type' = 'bite_inflicted'`,
+    )
+    .limit(20);
+
+  const baselinePets = await db
+    .select({ petId: petEvents.petId, province: pets.jurisdictionProvince })
+    .from(petEvents)
+    .innerJoin(pets, sql`${pets.id} = ${petEvents.petId}`)
+    .where(
+      sql`${petEvents.eventType} = 'pet_registered' AND ${petEvents.payload}->>'source' = 'seed-panorama'`,
+    )
+    .limit(30);
+
+  // Dedup pet ids; cap the chain at a demo-friendly size.
+  const seen = new Set<string>();
+  const targets: Array<{ petId: string; province: string | null }> = [];
+  for (const r of setpiecePets) {
+    if (!seen.has(r.petId)) {
+      seen.add(r.petId);
+      targets.push({ petId: r.petId, province: "Salta" });
+    }
+  }
+  for (const r of baselinePets) {
+    if (targets.length >= 24) break;
+    if (!seen.has(r.petId)) {
+      seen.add(r.petId);
+      targets.push({ petId: r.petId, province: r.province });
+    }
+  }
+
+  if (targets.length === 0) {
+    log("WARN", "  No PANO pets found for vigilancia chain — skipping");
+    return { observations: 0, cases: 0, enoQueue: 0, outbox: 0 };
+  }
+
+  const sanitaryOrg = shelterOrgs.find((o) => o.provinceName === "Chaco") ?? shelterOrgs[0] ?? null;
+
+  let observations = 0;
+  let caseCount = 0;
+  let enoQueueCount = 0;
+  let outboxCount = 0;
+
+  // Each target gets one observation in a deterministic mixed state:
+  //   0 → in_progress (recent)         → "X rabia" KPI + open case
+  //   1 → closed within 10 days        → A8 compliant
+  //   2 → overdue open (started > 10d)  → A9 live breach
+  //   3 → closed past 10 days          → A8 non-compliant
+  for (let t = 0; t < targets.length; t++) {
+    const { petId, province } = targets[t];
+    const bucket = t % 4;
+
+    // Start date: overdue/closed-late buckets start well before the 10d window.
+    const startDaysBack = bucket === 2 || bucket === 3 ? randInt(13, 25) : randInt(2, 8);
+    const startedAt = new Date(ANCHOR_MS - startDaysBack * 24 * 3600 * 1000);
+
+    const [startedEvent] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "rabies_observation_started" satisfies EventType,
+        occurredAt: startedAt,
+        recordedByUserId: ownerUserId,
+        authorRole: "vet",
+        authorVerified: true,
+        ...(sanitaryOrg ? { authorOrganizationId: sanitaryOrg.id } : {}),
+        payload: {
+          source: "seed-panorama-vigilancia",
+          incident_type: "bite_inflicted",
+          observation_days: 10,
+        },
+      } as Parameters<typeof db.insert<typeof petEvents>>[0] extends {
+        values: (v: infer V) => unknown;
+      }
+        ? V
+        : never)
+      .returning({ id: petEvents.id });
+
+    observations++;
+
+    let rabiesStatus: string;
+    if (bucket === 1 || bucket === 3) {
+      // Closed: emit a paired ended event. Bucket 1 closes within 10d,
+      // bucket 3 closes after 10d (compliance non-compliant).
+      const elapsedDays = bucket === 1 ? randInt(6, 10) : randInt(12, 16);
+      const endedAt = new Date(startedAt.getTime() + elapsedDays * 24 * 3600 * 1000);
+      await db.insert(petEvents).values({
+        petId,
+        eventType: "rabies_observation_ended" satisfies EventType,
+        occurredAt: endedAt,
+        recordedByUserId: ownerUserId,
+        authorRole: "vet",
+        authorVerified: true,
+        ...(sanitaryOrg ? { authorOrganizationId: sanitaryOrg.id } : {}),
+        payload: {
+          source: "seed-panorama-vigilancia",
+          observation_started_event_id: startedEvent.id,
+          outcome: "negative",
+        },
+      } as Parameters<typeof db.insert<typeof petEvents>>[0] extends {
+        values: (v: infer V) => unknown;
+      }
+        ? V
+        : never);
+      rabiesStatus = "completed_negative";
+    } else {
+      // Open: in_progress (bucket 0 recent, bucket 2 overdue breach).
+      rabiesStatus = "in_progress";
+    }
+
+    // Dual-write the denormalized status column on the pet (mirrors the cron).
+    await db.execute(
+      sql`UPDATE pets SET rabies_observation_status = ${rabiesStatus} WHERE id = ${petId}`,
+    );
+
+    // Open a case for in_progress observations so rabiesActiveCount + the map
+    // light up. caseKind='rabies_observation' is read literally by
+    // fetchVigilanciaMetrics; case_kind is unconstrained text in the DB.
+    if (rabiesStatus === "in_progress") {
+      const prov = province ?? "Salta";
+      await db.insert(cases).values({
+        publicCode: `PANO-CASE-RABOBS-${String(t).padStart(4, "0")}`,
+        caseKind: "rabies_observation",
+        status: "open",
+        primarySubjectKind: "registered_pet",
+        primaryPetId: petId,
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: prov,
+        openedReason: "auto: observación rábica de 10 días (seed-panorama)",
+        openedAt: startedAt,
+      } as Parameters<typeof db.insert<typeof cases>>[0] extends {
+        values: (v: infer V) => unknown;
+      }
+        ? V
+        : never);
+      caseCount++;
+    }
+
+    // ENO pipeline: enqueue a processing-queue row (the worker queue) AND an
+    // event_notification_outbox row (target_kind='eno_authority' — what A7
+    // reads). Mixed SLA: even buckets delivered on-time, odd buckets are an
+    // overdue pending breach.
+    const onTime = t % 2 === 0;
+    const createdAt = new Date(ANCHOR_MS - randInt(1, 20) * 24 * 3600 * 1000);
+    const slaHours = 48;
+    const slaDueAt = new Date(createdAt.getTime() + slaHours * 3600 * 1000);
+
+    await db.insert(enoProcessingQueue).values({
+      petEventId: startedEvent.id,
+      status: onTime ? "processed" : "pending",
+      queuedAt: createdAt,
+      ...(onTime ? { processedAt: new Date(createdAt.getTime() + 6 * 3600 * 1000) } : {}),
+      retryCount: onTime ? 0 : 1,
+    } as Parameters<typeof db.insert<typeof enoProcessingQueue>>[0] extends {
+      values: (v: infer V) => unknown;
+    }
+      ? V
+      : never);
+    enoQueueCount++;
+
+    await db.insert(eventNotificationOutbox).values({
+      sourceEventId: startedEvent.id,
+      targetKind: "eno_authority",
+      targetJurisdictionProvince: province ?? "Salta",
+      targetJurisdictionLocality: province === "Salta" || !province ? "Salta" : null,
+      payloadSnapshot: { source: "seed-panorama-vigilancia" },
+      slaDueAt,
+      // onTime → delivered before the deadline; breach → still pending past it.
+      status: onTime ? "delivered" : "pending",
+      ...(onTime
+        ? { deliveredAt: new Date(createdAt.getTime() + (slaHours - 6) * 3600 * 1000) }
+        : {}),
+      createdAt,
+    } as Parameters<typeof db.insert<typeof eventNotificationOutbox>>[0] extends {
+      values: (v: infer V) => unknown;
+    }
+      ? V
+      : never);
+    outboxCount++;
+  }
+
+  log(
+    "INFO",
+    `  Vigilancia chain: ${observations} observations, ${caseCount} rabies cases, ${enoQueueCount} ENO-queue, ${outboxCount} outbox`,
+  );
+  return {
+    observations,
+    cases: caseCount,
+    enoQueue: enoQueueCount,
+    outbox: outboxCount,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 15c. Enforcement — decomiso (Ley 14.346) + custody-dispute cases
+// ---------------------------------------------------------------------------
+// The Panorama decomisos/disputas layers + drawer and /gob/analytics
+// (custodyDisputes) read the `cases` table. There is no `decomiso` case_kind:
+// app/actions/decomiso.ts materializes a decomiso as a `custody_episode` case
+// with notes 'from_decomiso=true'. Disputes are case_kind='custody_dispute'
+// (fetchAnalyticsMetrics counts the open ones).
+//
+// IMPORTANT: registered_pet cases must NOT set location_lat/lng — the
+// cases_subject_location_consistency CHECK is a biconditional
+// (primary_subject_kind='location') = (lat/lng NOT NULL). The Panorama
+// decomisos/disputas layers + the /gob/vigilancia map read the case's
+// jurisdiction (fetchCasesPerLocality groups by province/locality), not these
+// coordinate columns, so location is correctly derived from the pet.
+async function seedEnforcementCases(): Promise<{ decomisos: number; disputes: number }> {
+  log("STEP", "Seeding enforcement cases (decomisos + custody disputes)…");
+
+  // Attach to existing PANO pets (primary_pet_id ON DELETE CASCADE → auto-clean)
+  // so the cases_subject_pet_consistency CHECK holds for registered_pet.
+  const panoPets = await db
+    .select({
+      id: pets.id,
+      province: pets.jurisdictionProvince,
+      locality: pets.jurisdictionLocality,
+    })
+    .from(pets)
+    .where(like(pets.name, `${PANO_TAG}%`))
+    .limit(40);
+
+  if (panoPets.length === 0) {
+    log("WARN", "  No PANO pets found for enforcement cases — skipping");
+    return { decomisos: 0, disputes: 0 };
+  }
+
+  const SEIZURE_MOTIVES = ["maltrato", "abandono", "tenencia_ilegal", "orden_judicial"] as const;
+
+  let decomisos = 0;
+  let disputes = 0;
+  let cursor = 0;
+
+  // 6 decomisos (custody_episode, from_decomiso=true) spread across provinces.
+  for (let k = 0; k < 6 && cursor < panoPets.length; k++, cursor++) {
+    const pet = panoPets[cursor];
+    const prov = pet.province ?? "Buenos Aires";
+    const motive = pick(SEIZURE_MOTIVES);
+    await db.insert(cases).values({
+      publicCode: `PANO-CASE-DECOMISO-${String(k).padStart(4, "0")}`,
+      caseKind: "custody_episode",
+      status: "open",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: pet.id,
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: prov,
+      jurisdictionLocality: pet.locality,
+      openedReason: `auto: decomiso motivo=${motive} (Ley 14.346) judicial_ref=sin_ref (seed)`,
+      openedAt: randomWindowDate(WINDOW_DAYS),
+    } as Parameters<typeof db.insert<typeof cases>>[0] extends {
+      values: (v: infer V) => unknown;
+    }
+      ? V
+      : never);
+    decomisos++;
+  }
+
+  // 5 custody disputes (open) → analytics custodyDisputes + Panorama drawer.
+  for (let k = 0; k < 5 && cursor < panoPets.length; k++, cursor++) {
+    const pet = panoPets[cursor];
+    const prov = pet.province ?? "Buenos Aires";
+    await db.insert(cases).values({
+      publicCode: `PANO-CASE-DISPUTE-${String(k).padStart(4, "0")}`,
+      caseKind: "custody_dispute",
+      status: "open",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: pet.id,
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: prov,
+      jurisdictionLocality: pet.locality,
+      openedReason: "auto: disputa de custodia entre partes (seed-panorama)",
+      openedAt: randomWindowDate(WINDOW_DAYS),
+    } as Parameters<typeof db.insert<typeof cases>>[0] extends {
+      values: (v: infer V) => unknown;
+    }
+      ? V
+      : never);
+    disputes++;
+  }
+
+  log("INFO", `  Enforcement: ${decomisos} decomisos, ${disputes} custody disputes`);
+  return { decomisos, disputes };
+}
+
+// ---------------------------------------------------------------------------
 // 16. Main entry point
 // ---------------------------------------------------------------------------
 
@@ -1629,6 +2131,14 @@ async function main(): Promise<void> {
   const welfareCount = Math.round(totalPets * 0.006);
   const insertedWelfare = await seedWelfareReports(localitiesByCode, census, welfareCount);
 
+  // Seed vigilancia chain (rabies observations + ENO SLA surfaces).
+  const vigilance = await seedVigilanceChain(ownerUserId, shelterOrgs);
+  eventCounts.rabies_observation_started =
+    (eventCounts.rabies_observation_started ?? 0) + vigilance.observations;
+
+  // Seed enforcement cases (decomisos + custody disputes).
+  const enforcement = await seedEnforcementCases();
+
   // Final summary
   const totalEvents = Object.values(eventCounts).reduce((s, v) => s + v, 0);
 
@@ -1639,6 +2149,12 @@ async function main(): Promise<void> {
   log("INFO", `Total events            : ${totalEvents}`);
   log("INFO", `Total welfare reports   : ${insertedWelfare}`);
   log("INFO", `Total orgs created      : ${shelterOrgs.length}`);
+  log("INFO", `Rabies observations     : ${vigilance.observations}`);
+  log("INFO", `Rabies-obs cases        : ${vigilance.cases}`);
+  log("INFO", `ENO queue rows          : ${vigilance.enoQueue}`);
+  log("INFO", `ENO outbox rows         : ${vigilance.outbox}`);
+  log("INFO", `Decomisos (cases)       : ${enforcement.decomisos}`);
+  log("INFO", `Custody disputes (cases): ${enforcement.disputes}`);
   log("INFO", "Event breakdown:");
   for (const [k, v] of Object.entries(eventCounts).sort((a, b) => b[1] - a[1])) {
     log("INFO", `  ${k.padEnd(35)}: ${v}`);
