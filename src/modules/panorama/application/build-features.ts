@@ -200,12 +200,16 @@ export function buildRefugiosFeatures(
 
 // --- decomisos (custody_episode cases point layer) --------------------------
 
+// A case row carries NO point: cases_subject_location_consistency forbids a
+// lat/lng on a registered-pet case. So a decomiso plots at its locality
+// CENTROID (resolved in the repository from the case jurisdiction) — coarse,
+// like denuncias, surfaced as such in the drawer.
 export type DecomisoRow = {
   id: string;
   publicCode: string;
   status: string;
-  locationLat: string | null;
-  locationLng: string | null;
+  centroidLat: string | null;
+  centroidLng: string | null;
   openedAt: string | null;
 };
 
@@ -213,6 +217,8 @@ export type DecomisoProps = {
   code: string;
   status: string;
   openedAt: string | null;
+  /** Plotted at the locality centroid (the case carries no exact point). */
+  coarse: true;
 };
 
 export function buildDecomisosFeatures(
@@ -220,10 +226,11 @@ export function buildDecomisosFeatures(
 ): FeatureCollection<DecomisoProps> {
   const features = rows
     .map((r) =>
-      pointFeature<DecomisoProps>(r.locationLat, r.locationLng, {
+      pointFeature<DecomisoProps>(r.centroidLat, r.centroidLng, {
         code: r.publicCode,
         status: r.status,
         openedAt: r.openedAt,
+        coarse: true,
       }),
     )
     .filter((f) => f.geometry !== null);

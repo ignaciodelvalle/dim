@@ -181,12 +181,16 @@ describe("buildDecomisosFeatures", () => {
       id: "c1",
       publicCode: "CASE-9",
       status: "open",
-      locationLat: "-32.9",
-      locationLng: "-60.7",
+      centroidLat: "-32.9",
+      centroidLng: "-60.7",
       openedAt: "2026-06-02T00:00:00.000Z",
     };
     const fc = buildDecomisosFeatures([row]);
-    expect(fc.features[0].properties).toMatchObject({ code: "CASE-9", status: "open" });
+    expect(fc.features[0].properties).toMatchObject({
+      code: "CASE-9",
+      status: "open",
+      coarse: true,
+    });
   });
 });
 

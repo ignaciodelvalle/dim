@@ -323,10 +323,12 @@ export async function loadShelters(
 }
 
 // ---------------------------------------------------------------------------
-// cases:decomiso (decomisos) — custody_episode cases with coords.
+// cases:decomiso (decomisos) — custody_episode cases at their locality centroid.
 //
 // The decomiso (Ley 14.346 seizure) case_kind is 'custody_episode' (see
-// app/gob/decomisos). Only located cases plot.
+// app/gob/decomisos). A registered-pet case stores NO point
+// (cases_subject_location_consistency biconditional), so each case plots at the
+// centroid of its jurisdiction locality — coarse, resolved like loadDenunciaCentroids.
 // ---------------------------------------------------------------------------
 
 export async function loadDecomisos(
@@ -338,7 +340,7 @@ export async function loadDecomisos(
   const conditions = [
     eq(cases.caseKind, "custody_episode"),
     gte(cases.openedAt, since),
-    isNotNull(cases.locationLat),
+    isNotNull(cases.jurisdictionLocality),
   ];
   // F4: upper-bound the decomiso (custody_episode) window for temporal reproduction.
   if (asOf) conditions.push(lte(cases.openedAt, asOf));
@@ -350,13 +352,27 @@ export async function loadDecomisos(
   );
   if (scope) conditions.push(sql`(${scope})`);
 
+  // One centroid per case (scalar MIN subqueries), same pattern as denuncias.
+  const centroidLat = sql<string | null>`(
+    SELECT MIN(al.latitude) FROM ar_localities al
+    WHERE al.province_code = ${provinceIsoMapSql(sql`${cases.jurisdictionProvince}`)}
+      AND ${normNameSql(sql`al.locality_name`)} = ${normNameSql(sql`${cases.jurisdictionLocality}`)}
+      AND al.removed_at IS NULL
+  )`;
+  const centroidLng = sql<string | null>`(
+    SELECT MIN(al.longitude) FROM ar_localities al
+    WHERE al.province_code = ${provinceIsoMapSql(sql`${cases.jurisdictionProvince}`)}
+      AND ${normNameSql(sql`al.locality_name`)} = ${normNameSql(sql`${cases.jurisdictionLocality}`)}
+      AND al.removed_at IS NULL
+  )`;
+
   const rows = await db
     .select({
       id: cases.id,
       publicCode: cases.publicCode,
       status: cases.status,
-      locationLat: cases.locationLat,
-      locationLng: cases.locationLng,
+      centroidLat,
+      centroidLng,
       openedAt: cases.openedAt,
     })
     .from(cases)
@@ -364,14 +380,16 @@ export async function loadDecomisos(
     .limit(PER_LAYER_CAP);
 
   return {
-    rows: rows.map((r) => ({
-      id: r.id,
-      publicCode: r.publicCode,
-      status: r.status,
-      locationLat: r.locationLat,
-      locationLng: r.locationLng,
-      openedAt: r.openedAt ? r.openedAt.toISOString() : null,
-    })),
+    rows: rows
+      .filter((r) => r.centroidLat !== null && r.centroidLng !== null)
+      .map((r) => ({
+        id: r.id,
+        publicCode: r.publicCode,
+        status: r.status,
+        centroidLat: r.centroidLat,
+        centroidLng: r.centroidLng,
+        openedAt: r.openedAt ? r.openedAt.toISOString() : null,
+      })),
     truncated: rows.length >= PER_LAYER_CAP,
   };
 }
