@@ -243,8 +243,8 @@ describe("GOB_NAV — no route regression", () => {
     });
   }
 
-  it("has at least 13 items (no silent drops)", () => {
-    expect(GOB_NAV.length).toBeGreaterThanOrEqual(13);
+  it("has at least 24 items (no silent drops — includes gov-vis routes)", () => {
+    expect(GOB_NAV.length).toBeGreaterThanOrEqual(24);
   });
 
   it("contains /gob/analytics (wired to nav — was deferred in PR2)", () => {
@@ -265,6 +265,18 @@ describe("GOB_NAV — no route regression", () => {
 
   it("contains /gob/adopciones (Paquete F — pipeline de custodia & adopción)", () => {
     expect(hrefs).toContain("/gob/adopciones");
+  });
+
+  it("contains /gob/programa (gov-vis — exec summary scoped to jurisdiction)", () => {
+    expect(hrefs).toContain("/gob/programa");
+  });
+
+  it("contains /gob/sistema (gov-vis — operational health scoped to jurisdiction)", () => {
+    expect(hrefs).toContain("/gob/sistema");
+  });
+
+  it("contains /gob/outbox (gov-vis — ENO SLA / notification monitor)", () => {
+    expect(hrefs).toContain("/gob/outbox");
   });
 });
 
@@ -324,6 +336,7 @@ describe("ADMIN_NAV — no route regression", () => {
 const GOB_HREF_SNAPSHOT = new Set([
   "/gob",
   "/gob/panorama", // Centro de Situación Nacional — flagship console
+  "/gob/programa", // gov-vis — exec summary scoped to jurisdiction
   "/gob/cola",
   "/gob/vigilancia",
   "/gob/mortalidad", // Item 2 — mortality & disposal dashboard
@@ -343,6 +356,8 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/censo", // Paquete E — censo poblacional & salud del registro
   "/gob/poblacion", // Paquete G — control poblacional (North Star)
   "/gob/adopciones", // Paquete F — pipeline de custodia & adopción
+  "/gob/sistema", // gov-vis — operational health scoped to jurisdiction
+  "/gob/outbox", // gov-vis — ENO SLA / notification monitor scoped to jurisdiction
 ]);
 
 describe("GOB_NAV_SECTIONS — section invariants", () => {
@@ -373,6 +388,21 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
   it("includes /gob/poblacion in the Vigilancia sanitaria section (Paquete G)", () => {
     const vigSection = GOB_NAV_SECTIONS.find((s) => s.label === "Vigilancia sanitaria");
     expect(vigSection?.items.map((i) => i.href)).toContain("/gob/poblacion");
+  });
+
+  it("includes /gob/programa in the unlabeled section (gov-vis — top/exec area)", () => {
+    const unlabeled = GOB_NAV_SECTIONS.find((s) => s.label === "");
+    expect(unlabeled?.items.map((i) => i.href)).toContain("/gob/programa");
+  });
+
+  it("includes /gob/sistema in the Confiabilidad section (gov-vis)", () => {
+    const confSection = GOB_NAV_SECTIONS.find((s) => s.label === "Confiabilidad");
+    expect(confSection?.items.map((i) => i.href)).toContain("/gob/sistema");
+  });
+
+  it("includes /gob/outbox in the Confiabilidad section (gov-vis)", () => {
+    const confSection = GOB_NAV_SECTIONS.find((s) => s.label === "Confiabilidad");
+    expect(confSection?.items.map((i) => i.href)).toContain("/gob/outbox");
   });
 
   it("no href is duplicated across sections", () => {

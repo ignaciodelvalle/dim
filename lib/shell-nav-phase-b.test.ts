@@ -26,6 +26,7 @@ import { buildSwitcher } from "./shell-nav";
 const GOB_HREF_SNAPSHOT = new Set([
   "/gob",
   "/gob/panorama", // Centro de Situación Nacional — flagship console
+  "/gob/programa", // gov-vis — exec summary scoped to jurisdiction
   "/gob/cola",
   "/gob/vigilancia",
   "/gob/mortalidad",
@@ -45,6 +46,8 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/censo", // Paquete E — censo poblacional & salud del registro
   "/gob/poblacion", // Paquete G — control poblacional (North Star)
   "/gob/adopciones", // Paquete F — pipeline de custodia & adopción
+  "/gob/sistema", // gov-vis — operational health scoped to jurisdiction
+  "/gob/outbox", // gov-vis — ENO SLA / notification monitor scoped to jurisdiction
 ]);
 
 const ADMIN_HREF_SNAPSHOT = new Set([
@@ -118,8 +121,8 @@ describe("Phase B operator parity — gob", () => {
     expect(allHrefs.length).toBe(unique.size);
   });
 
-  it("has at least 15 items (matches GOB_HREF_SNAPSHOT cardinality)", () => {
-    expect(allHrefs.length).toBeGreaterThanOrEqual(15);
+  it("has at least 24 items (matches GOB_HREF_SNAPSHOT cardinality — includes gov-vis routes)", () => {
+    expect(allHrefs.length).toBeGreaterThanOrEqual(24);
   });
 
   it("sections form the expected structure (5 groups including 1 unlabeled)", () => {

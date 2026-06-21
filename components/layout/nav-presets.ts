@@ -217,6 +217,8 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/gob", label: "Panel" },
       { href: "/gob/panorama", label: "Panorama", matchPrefix: "/gob/panorama" },
+      // Paquete gov-vis — exec summary (highest-level view, mirrors /admin/programa placement)
+      { href: "/gob/programa", label: "Programa", matchPrefix: "/gob/programa" },
     ],
   },
   {
@@ -249,6 +251,15 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
       { href: "/gob/organizaciones", label: "Organizaciones", matchPrefix: "/gob/organizaciones" },
       { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
       { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
+    ],
+  },
+  {
+    // Mirrors the "Confiabilidad" section in ADMIN_NAV_SECTIONS for operational views.
+    label: "Confiabilidad",
+    items: [
+      // Paquete gov-vis — operational health + notification SLA monitor
+      { href: "/gob/sistema", label: "Sistema", matchPrefix: "/gob/sistema" },
+      { href: "/gob/outbox", label: "Outbox", matchPrefix: "/gob/outbox" },
     ],
   },
   {
