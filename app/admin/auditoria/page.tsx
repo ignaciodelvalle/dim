@@ -133,7 +133,7 @@ export default async function AdminAuditoriaPage({
                   className="flex items-start justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
                 >
                   <div className="min-w-0 space-y-0.5">
-                    <p className="text-[13px] font-medium text-ln-op-ink">
+                    <p className="text-[13px] font-medium text-ln-op-ink" title={entry.action}>
                       {auditActionLabel(entry.action)}
                     </p>
                     <p className="text-[12px] text-ln-op-mute">
