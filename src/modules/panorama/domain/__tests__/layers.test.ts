@@ -92,6 +92,30 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
     expect(getLayer("decomisos")?.dataType).toBe("reference");
   });
 
+  it("F5: rate layers declare a complianceTarget; non-rate layers do not", () => {
+    for (const layer of PANORAMA_LAYERS) {
+      if (layer.dataType === "rate") {
+        expect(
+          layer.complianceTarget,
+          `${layer.id} is a rate layer and must declare complianceTarget`,
+        ).toBeTypeOf("number");
+        expect(
+          (layer.complianceTarget as number) > 0,
+          `${layer.id} complianceTarget must be positive`,
+        ).toBe(true);
+      } else {
+        expect(
+          layer.complianceTarget,
+          `${layer.id} is not a rate layer and must NOT have complianceTarget`,
+        ).toBeUndefined();
+      }
+    }
+  });
+
+  it("F5: cobertura complianceTarget is 80 (antirrábica legal goal)", () => {
+    expect(getLayer("cobertura")?.complianceTarget).toBe(80);
+  });
+
   it("AGGREGATED_POINT_LAYERS contains the 4 density+signal point layers", () => {
     // perdidas, mordeduras, denuncias (density) + zoonosis (signal).
     // Does NOT include refugios/decomisos (reference) or mortalidad/cobertura (choropleth).

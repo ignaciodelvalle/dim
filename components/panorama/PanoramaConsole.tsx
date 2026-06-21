@@ -291,6 +291,10 @@ export function PanoramaConsole({
         level: l.geomType === "choropleth" || isAggregatedPoint ? level : undefined,
         // Non-temporal layers can't be reproduced in time — mute them while scrubbing.
         dimmed: scrubbing && !temporal,
+        // F5: thread data-type taxonomy + compliance target from the registry so
+        // the map can choose divergent vs sequential choropleth rendering.
+        dataType: l.dataType,
+        complianceTarget: l.complianceTarget,
       });
     }
     return out;

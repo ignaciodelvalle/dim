@@ -94,6 +94,15 @@ export type PanoramaLayer = {
    *  - `"reference"` → discrete pins; never aggregated by the point-aggregation path.
    */
   dataType: LayerDataType;
+  /**
+   * F5: the legal/public-health compliance target for `dataType: "rate"` layers.
+   * When set, the province choropleth renders as a DIVERGENT scale anchored at
+   * this value (below = warning pole, above = good pole). Non-rate layers omit
+   * this field — using a diverging scale for a density count is misleading.
+   *
+   * Unit: same as the layer's `value` property (percentage for cobertura: 0–100).
+   */
+  complianceTarget?: number;
 };
 
 // --- Typed GeoJSON (minimal subset the layers emit; RFC 7946) ----------------

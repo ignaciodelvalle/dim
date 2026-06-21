@@ -9,8 +9,12 @@ import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama
 // per-map-component in this repo (see LocationMap/LocationPicker), not globally.
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
+  COLOR_DIVERGENT_ABOVE,
+  COLOR_DIVERGENT_BELOW,
+  COLOR_DIVERGENT_NEUTRAL,
   type ScaleBounds,
   provinceColorExpr,
+  provinceDivergentColorExpr,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED, RAMP_BLUE } from "@/lib/viz-scales";
@@ -75,6 +79,20 @@ export type ActiveLayer = {
    * dimension (refugios) or is a current-state rollup (cobertura/mortalidad) —
    * it shows live data, not as-of-t, so it is rendered dimmed (not as if as-of). */
   dimmed?: boolean;
+  /**
+   * F5: the layer's data-type taxonomy from the registry (threaded from
+   * PanoramaLayer.dataType). Used to choose the divergent vs sequential
+   * choropleth rendering path. Undefined for layers that pre-date F5 or for
+   * point layers where dataType drives aggregation, not coloring.
+   */
+  dataType?: "rate" | "density" | "signal" | "reference";
+  /**
+   * F5: compliance target for `dataType: "rate"` layers (e.g. 80 for the
+   * antirrábica 80% legal goal). When present alongside `dataType === "rate"`,
+   * the province choropleth renders as a DIVERGENT scale anchored at this value.
+   * Undefined for density/signal/reference layers (sequential coloring).
+   */
+  complianceTarget?: number;
 };
 
 type Props = {
@@ -434,6 +452,16 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
   // property (a local-only data-join — NO external provider, mirrors the
   // MapChoropleth color-expression approach but on the local polygons). If the
   // basemap source is missing (fetch failed), there is nothing to fill.
+  /** Choose the fill-color expression for a province choropleth based on dataType.
+   * Rate layers with a complianceTarget render as a divergent scale (F5);
+   * all others keep the sequential RAMP_BLUE path. */
+  function provinceColorExprForLayer(layer: ActiveLayer) {
+    if (layer.dataType === "rate" && typeof layer.complianceTarget === "number") {
+      return provinceDivergentColorExpr(layer.features, layer.complianceTarget);
+    }
+    return provinceColorExpr(layer.features);
+  }
+
   function addProvinceChoroplethLayer(map: maplibregl.Map, layer: ActiveLayer) {
     if (!map.getSource("ar-provinces")) return;
     const fillId = provinceFillLayerId(layer.id);
@@ -444,7 +472,7 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
         type: "fill",
         source: "ar-provinces",
         paint: {
-          "fill-color": provinceColorExpr(layer.features),
+          "fill-color": provinceColorExprForLayer(layer),
           "fill-opacity": 0.82,
         },
       });
@@ -465,7 +493,7 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
   function updateProvinceChoroplethLayer(map: maplibregl.Map, layer: ActiveLayer) {
     const fillId = provinceFillLayerId(layer.id);
     if (map.getLayer(fillId)) {
-      map.setPaintProperty(fillId, "fill-color", provinceColorExpr(layer.features));
+      map.setPaintProperty(fillId, "fill-color", provinceColorExprForLayer(layer));
     } else {
       // Basemap may have loaded after the first sync attempt — try to add now.
       addProvinceChoroplethLayer(map, layer);
@@ -674,13 +702,27 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
 
   const totalPoints = layers.reduce((sum, l) => sum + l.features.features.length, 0);
 
-  // U5: province-choropleth scale legend. One entry per active province-mode
-  // choropleth layer, with its value min→max range. Rendered as an HTML overlay
-  // (privacy: HTML only, no on-canvas text), mirroring the MapChoropleth legend.
+  // U5 + F5: province-choropleth scale legend. One entry per active province-mode
+  // choropleth layer, with its value min→max range and (for rate layers) the
+  // compliance target. Rendered as an HTML overlay — no on-canvas text (privacy).
+  // Legends are always visible (not gated on zoom) — fixes the "coropletas sin
+  // leyenda" complaint: the overlay sits on top of the map at all zoom levels.
   const provinceLegends = layers
     .filter((l) => l.geomType === "choropleth" && l.level === "province")
-    .map((l) => ({ layer: l, bounds: provinceValueBounds(l.features) }))
-    .filter((x): x is { layer: ActiveLayer; bounds: ScaleBounds } => x.bounds !== null);
+    .map((l) => ({
+      layer: l,
+      bounds: provinceValueBounds(l.features),
+      isDivergent: l.dataType === "rate" && typeof l.complianceTarget === "number",
+    }))
+    .filter(
+      (
+        x,
+      ): x is {
+        layer: ActiveLayer;
+        bounds: ScaleBounds;
+        isDivergent: boolean;
+      } => x.bounds !== null,
+    );
 
   // F1 Panorama v2: FIXED graduated-circle legend for density+signal layers.
   // Shows the circle-size → count-bucket mapping from the step expression in
@@ -717,23 +759,58 @@ export function SituationalMap({ layers, label, height = 560, onFeatureClick }: 
       )}
       {provinceLegends.length > 0 && (
         <div className="pointer-events-none absolute bottom-3 left-3 space-y-2">
-          {provinceLegends.map(({ layer, bounds }) => (
+          {provinceLegends.map(({ layer, bounds, isDivergent }) => (
             <div
               key={layer.id}
               className="rounded-[6px] bg-black/55 px-3 py-2 text-[11px] text-white/90"
             >
               <div className="mb-1 font-medium">{layer.label}</div>
-              <div className="flex items-center gap-2">
-                <span className="tabular-nums">{bounds.min.toLocaleString("es-AR")}</span>
-                <span
-                  className="h-2.5 w-24 rounded-full"
-                  style={{
-                    background: `linear-gradient(to right, ${RAMP_BLUE[0]}, ${RAMP_BLUE[1]})`,
-                  }}
-                  aria-hidden="true"
-                />
-                <span className="tabular-nums">{bounds.max.toLocaleString("es-AR")}</span>
-              </div>
+              {isDivergent && typeof layer.complianceTarget === "number" ? (
+                // F5: divergent legend — two poles with the target anchor labeled.
+                // Colorblind-safe: orange=below, white=at target, teal=above.
+                // Text labels accompany every color swatch (not color-only).
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    {/* Gradient bar: below-pole → neutral → above-pole */}
+                    <span className="tabular-nums text-white/70">bajo meta</span>
+                    <span
+                      className="h-2.5 w-28 flex-none rounded-full"
+                      style={{
+                        background: `linear-gradient(to right, ${COLOR_DIVERGENT_BELOW}, ${COLOR_DIVERGENT_NEUTRAL}, ${COLOR_DIVERGENT_ABOVE})`,
+                      }}
+                      aria-hidden="true"
+                    />
+                    <span className="tabular-nums text-white/70">sobre meta</span>
+                  </div>
+                  {/* Target anchor — the pivotal reference point */}
+                  <div className="flex items-center gap-1.5 text-white/60">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-[2px] border border-white/30"
+                      style={{ background: COLOR_DIVERGENT_NEUTRAL }}
+                      aria-hidden="true"
+                    />
+                    <span>
+                      meta{" "}
+                      <strong className="text-white/80">
+                        {layer.complianceTarget.toLocaleString("es-AR")}%
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                // Sequential legend for density/count choropleths.
+                <div className="flex items-center gap-2">
+                  <span className="tabular-nums">{bounds.min.toLocaleString("es-AR")}</span>
+                  <span
+                    className="h-2.5 w-24 rounded-full"
+                    style={{
+                      background: `linear-gradient(to right, ${RAMP_BLUE[0]}, ${RAMP_BLUE[1]})`,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span className="tabular-nums">{bounds.max.toLocaleString("es-AR")}</span>
+                </div>
+              )}
               <div className="mt-1 flex items-center gap-1.5 text-white/70">
                 <span
                   className="inline-block h-2.5 w-2.5 rounded-[2px]"

@@ -103,6 +103,9 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     temporal: false,
     // Coverage rate — rendered as choropleth, NOT via the point-aggregation path.
     dataType: "rate",
+    // F5: divergent choropleth anchored at the antirrábica legal target (80%).
+    // get-panorama-kpis.ts uses coverage.target (also 80) from fetchRabiesCoverage.
+    complianceTarget: 80,
   },
   {
     id: "mortalidad",

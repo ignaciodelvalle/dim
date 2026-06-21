@@ -12,7 +12,14 @@
 
 import type { ExpressionSpecification } from "maplibre-gl";
 
-import { COLOR_NO_DATA, RAMP_BLUE } from "@/lib/viz-scales";
+import {
+  COLOR_DIVERGENT_ABOVE,
+  COLOR_DIVERGENT_BELOW,
+  COLOR_DIVERGENT_NEUTRAL,
+  COLOR_NO_DATA,
+  RAMP_BLUE,
+  divergentStops,
+} from "@/lib/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 /** A province feature's properties (as emitted by buildProvinceChoroplethFeatures). */
@@ -62,6 +69,66 @@ export function provinceColorExpr(features: FeatureCollection): ExpressionSpecif
     ["interpolate", ["linear"], valueMatch, lo, RAMP_BLUE[0], hi, RAMP_BLUE[1]],
   ] as unknown as ExpressionSpecification;
 }
+
+/**
+ * Build the data-driven `fill-color` for a DIVERGENT province choropleth
+ * (F5 — `dataType: "rate"` layers with a `complianceTarget`).
+ *
+ * The color expression structure:
+ *  1. a `match` maps each province code → its value (default -1 = "no data");
+ *  2. provinces with no value (-1) get COLOR_NO_DATA;
+ *  3. the rest are interpolated along a diverging orange→neutral→teal ramp
+ *     anchored at `target` (warning below, good above — colorblind-safe).
+ *
+ * @param features      - Province feature collection (same shape as provinceColorExpr).
+ * @param target        - The compliance threshold (e.g. 80 for antirrábica 80%).
+ * @param domainBounds  - Optional override for [min, max]; defaults to the
+ *                        observed range so callers can pre-compute or clamp.
+ */
+export function provinceDivergentColorExpr(
+  features: FeatureCollection,
+  target: number,
+  domainBounds?: { min: number; max: number },
+): ExpressionSpecification {
+  const pairs: Array<[string, number]> = [];
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const f of features.features) {
+    const p = f.properties as ProvinceFeatureProps;
+    if (typeof p.provinceCode !== "string" || typeof p.value !== "number") continue;
+    pairs.push([p.provinceCode, p.value]);
+    if (p.value < min) min = p.value;
+    if (p.value > max) max = p.value;
+  }
+  // No data at all — paint everything neutral.
+  if (pairs.length === 0) return COLOR_NO_DATA as unknown as ExpressionSpecification;
+
+  const lo = domainBounds?.min ?? (Number.isFinite(min) ? min : 0);
+  const hi = domainBounds?.max ?? (Number.isFinite(max) ? max : lo + 1);
+
+  const valueMatch = [
+    "match",
+    ["get", "code"],
+    ...pairs.flatMap(([code, value]) => [code, value] as [string, number]),
+    -1,
+  ] as unknown as ExpressionSpecification;
+
+  // Build divergent interpolation stops anchored at the target.
+  const stops = divergentStops(target, lo, hi);
+  // Flatten stops into [v0, c0, v1, c1, ...] for MapLibre interpolate.
+  const flatStops = stops.flat();
+
+  return [
+    "case",
+    ["==", valueMatch, -1],
+    COLOR_NO_DATA,
+    ["interpolate", ["linear"], valueMatch, ...flatStops],
+  ] as unknown as ExpressionSpecification;
+}
+
+// Re-export pole colors so the legend in SituationalMap.tsx can reference
+// them without importing from lib/viz-scales directly.
+export { COLOR_DIVERGENT_BELOW, COLOR_DIVERGENT_NEUTRAL, COLOR_DIVERGENT_ABOVE };
 
 /** Compute the value min/max for a province layer's features (scale legend).
  * Returns null when the layer has no numeric values. */

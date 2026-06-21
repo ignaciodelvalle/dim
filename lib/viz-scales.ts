@@ -86,6 +86,104 @@ export const SCALE_GREEN_SEQ: ColorScale5 = [
 export const RAMP_GREEN: ColorRamp = ["#edf8e9", "#006d2c"] as const;
 
 // ---------------------------------------------------------------------------
+// Divergent (compliance) scale — blue↔orange, colorblind-safe
+//
+// Intentional hue choice: blue (above target / "good") ↔ orange/amber (below
+// target / "warning"). Blue–orange is safe for deuteranopia and protanopia —
+// the two poles are separated by hue and luminance, NOT by the red–green axis
+// which is explicitly forbidden in the colorblind comment at the top of this
+// file. ColorBrewer source: diverging "PuOr" family adapted to match the
+// existing sequential palette luminance range.
+// ---------------------------------------------------------------------------
+
+/**
+ * Warning pole (below compliance target): amber/orange.
+ * Visible against the dark government canvas and distinct from SCALE_BLUE_SEQ.
+ */
+export const COLOR_DIVERGENT_BELOW = "#f59e0b" as const; // amber-400
+
+/** Neutral midpoint (at target): near-white — minimal fill so the target is
+ * visually "zero" on the diverging scale. */
+export const COLOR_DIVERGENT_NEUTRAL = "#f8fafc" as const; // slate-50
+
+/**
+ * Good pole (above compliance target): teal/blue.
+ * Uses the teal CHART_COLOR family (not SCALE_BLUE_SEQ) to stay visually
+ * distinct from sequential density choropleths that use RAMP_BLUE.
+ */
+export const COLOR_DIVERGENT_ABOVE = "#0d9488" as const; // teal-600
+
+/**
+ * A divergent color scale for compliance/rate layers:
+ *   [far-below, below, neutral-at-target, above, far-above]
+ *
+ * The 5-stop layout mirrors ColorScale5 so callers that want a full 5-class
+ * legend can index it directly. The neutral midpoint lives at index 2.
+ */
+export const SCALE_DIVERGENT_COMPLIANCE: ColorScale5 = [
+  "#d97706", // amber-600 — far below (worst)
+  COLOR_DIVERGENT_BELOW, // amber-400 — below target
+  COLOR_DIVERGENT_NEUTRAL, // slate-50 — at target (neutral)
+  "#2dd4bf", // teal-300 — above target
+  COLOR_DIVERGENT_ABOVE, // teal-600 — far above (best)
+] as const;
+
+/**
+ * Build MapLibre linear-interpolate stops for a divergent choropleth anchored
+ * at `target`. Values below the target ramp toward the warning pole (amber);
+ * values above ramp toward the good pole (teal). The neutral midpoint maps
+ * exactly to `target`.
+ *
+ * Returns a flat array of [value, color] pairs suitable for spreading into a
+ * MapLibre `["interpolate", ["linear"], input, ...stops]` expression.
+ *
+ * Guarantees:
+ *  - At least 3 stops: [domainMin → below-pole, target → neutral, domainMax → above-pole].
+ *  - When domainMin === target (all values are at or above), the below segment
+ *    is collapsed to a 0-width degenerate pair handled by MapLibre gracefully.
+ *  - When domainMax === target (all values are at or below), same for above.
+ *  - When domainMin === domainMax, the range is widened by ±1 so MapLibre has
+ *    distinct stops and does not throw.
+ *
+ * @param target    - The compliance threshold (e.g. 80 for antirrábica 80%).
+ * @param domainMin - Minimum value observed across the province cells.
+ * @param domainMax - Maximum value observed across the province cells.
+ */
+export function divergentStops(
+  target: number,
+  domainMin: number,
+  domainMax: number,
+): Array<[number, string]> {
+  // Widen a degenerate range so interpolate has distinct stops.
+  const lo = domainMin < domainMax ? domainMin : domainMin - 1;
+  const hi = domainMin < domainMax ? domainMax : domainMax + 1;
+
+  // Clamp target to [lo, hi] so it always sits inside the domain.
+  const t = Math.max(lo, Math.min(hi, target));
+
+  const stops: Array<[number, string]> = [];
+
+  // Below-target segment: lo → t (warning pole → neutral).
+  if (lo < t) {
+    stops.push([lo, COLOR_DIVERGENT_BELOW]);
+  }
+  // Neutral midpoint: at target.
+  stops.push([t, COLOR_DIVERGENT_NEUTRAL]);
+  // Above-target segment: t → hi (neutral → good pole).
+  if (t < hi) {
+    stops.push([hi, COLOR_DIVERGENT_ABOVE]);
+  }
+
+  // Guard: MapLibre needs ≥ 2 distinct stops (lo !== hi). If we collapsed to
+  // one stop (shouldn't happen after the widen above), synthesise a second.
+  if (stops.length === 1) {
+    stops.push([lo + 1, COLOR_DIVERGENT_ABOVE]);
+  }
+
+  return stops;
+}
+
+// ---------------------------------------------------------------------------
 // "No data" color — always rendered as a separate token, never hardcoded
 // ---------------------------------------------------------------------------
 
