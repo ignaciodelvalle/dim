@@ -33,7 +33,7 @@ import {
   JurisdictionValidationError,
   normalizeLocationForWrite,
 } from "@/lib/location-normalize";
-import { validateMotivoAndAttachments } from "@/lib/revocation-validation";
+import { MOTIVO_MIN, validateMotivoAndAttachments } from "@/lib/revocation-validation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // ---------------------------------------------------------------------------
@@ -650,8 +650,15 @@ export async function deactivateGovtAction(input: {
 
 export async function resetInstitutionalCredentialsForAuthority(
   actorUserId: string,
-  input: { targetUserId: string },
+  input: { targetUserId: string; reason: string },
 ): Promise<ResetCredentialsResult> {
+  // 0. Validate reason (mirror the deactivation MOTIVO_MIN — resetting credentials
+  // logs out the live operator, so it carries the same friction as a deactivation).
+  const reasonTrimmed = (input.reason ?? "").trim();
+  if (reasonTrimmed.length < MOTIVO_MIN) {
+    return { error: `REASON_TOO_SHORT: el motivo requiere al menos ${MOTIVO_MIN} caracteres.` };
+  }
+
   // 1. Load actor + capability check
   const actorProfile = await loadActorProfile(actorUserId);
   if (!actorProfile) return { error: "CAPABILITY_DENIED" };
@@ -703,6 +710,7 @@ export async function resetInstitutionalCredentialsForAuthority(
     payload: {
       method: "magic_link",
       magic_link: magicLink,
+      reason: reasonTrimmed,
     },
   });
 
@@ -733,6 +741,7 @@ export async function resetInstitutionalCredentialsForAuthority(
 
 export async function resetInstitutionalCredentialsAction(input: {
   targetUserId: string;
+  reason: string;
 }): Promise<ResetCredentialsResult> {
   const { user } = await requireAdminOrRedirect();
   return resetInstitutionalCredentialsForAuthority(user.id, input);

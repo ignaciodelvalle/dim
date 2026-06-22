@@ -15,10 +15,8 @@
 //   fetchMicrochipPenetration  ← lib/compliance-metrics.ts
 //   evaluateAlertSubscriptions ← lib/metrics/alert-evaluation.ts
 
-import {
-  deleteAlertSubscriptionAction,
-  toggleAlertSubscriptionAction,
-} from "@/app/actions/alert-subscriptions";
+import { toggleAlertSubscriptionAction } from "@/app/actions/alert-subscriptions";
+import { DeleteAlertSubscriptionButton } from "@/app/admin/programa/DeleteAlertSubscriptionButton";
 import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
@@ -601,17 +599,8 @@ export default async function AdminProgramaPage({
                         {a.isActive ? "Pausar" : "Activar"}
                       </button>
                     </form>
-                    {/* Delete */}
-                    <form action={deleteAlertSubscriptionAction}>
-                      <input type="hidden" name="id" value={a.id} />
-                      <button
-                        type="submit"
-                        className="h-11 rounded-[6px] border border-ln-op-danger-bd px-3 text-[12px] text-ln-op-danger hover:bg-ln-op-danger-bg"
-                        aria-label="Eliminar suscripción"
-                      >
-                        Eliminar
-                      </button>
-                    </form>
+                    {/* Delete — 2-step inline confirmation (C10) */}
+                    <DeleteAlertSubscriptionButton subscriptionId={a.id} />
                   </li>
                 ))}
               </ul>
