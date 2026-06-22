@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentialsButton";
 import { DeactivateAdminActions } from "@/app/admin/admins/_components/DeactivateAdminForm";
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
+import { describeAuditEntry } from "@/lib/audit-entry-view";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -71,6 +72,7 @@ export default async function AdminDetailPage({
     .select({
       id: auditLog.id,
       action: auditLog.action,
+      actorUserId: auditLog.actorUserId,
       payload: auditLog.payload,
       performedAt: auditLog.performedAt,
     })
@@ -78,6 +80,19 @@ export default async function AdminDetailPage({
     .where(eq(auditLog.targetUserId, userId))
     .orderBy(desc(auditLog.performedAt))
     .limit(10);
+
+  // Resolve actor display names in one batch query
+  const auditActorIds = Array.from(
+    new Set(auditEntries.map((e) => e.actorUserId).filter((id): id is string => id !== null)),
+  );
+  const auditActorNamesById = new Map<string, string>();
+  if (auditActorIds.length > 0) {
+    const rows = await db
+      .select({ id: profiles.id, displayName: profiles.displayName })
+      .from(profiles)
+      .where(inArray(profiles.id, auditActorIds));
+    for (const r of rows) auditActorNamesById.set(r.id, r.displayName);
+  }
 
   const isActive = target.deactivatedAt === null;
   const isSelf = actorUser.id === userId;
@@ -161,20 +176,51 @@ export default async function AdminDetailPage({
         {/* Audit log tail */}
         <section className="space-y-3">
           <h2 className="text-[13px] font-semibold text-ln-op-ink">
-            Audit log (ultimas {auditEntries.length} entradas)
+            Audit log (últimas {auditEntries.length} entradas)
           </h2>
           {auditEntries.length === 0 ? (
             <p className="text-[12px] text-ln-op-mute">Sin registros.</p>
           ) : (
-            <ul className="space-y-1">
-              {auditEntries.map((entry) => (
-                <li key={entry.id} className="text-[12px] text-ln-op-ink-2 flex items-center gap-3">
-                  <span className="tabular-nums text-ln-op-mute shrink-0">
-                    {entry.performedAt.toLocaleDateString("es-AR")}
-                  </span>
-                  <OpCodeBadge tone="neutral">{entry.action}</OpCodeBadge>
-                </li>
-              ))}
+            <ul className="divide-y divide-ln-op-line-2">
+              {auditEntries.map((entry) => {
+                const view = describeAuditEntry(entry.action, entry.payload);
+                const actorName = entry.actorUserId
+                  ? (auditActorNamesById.get(entry.actorUserId) ?? "Desconocido")
+                  : "Sistema";
+                return (
+                  <li key={entry.id} className="py-2 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[13px] font-medium text-ln-op-ink" title={entry.action}>
+                        {view.label}
+                      </span>
+                      <OpCodeBadge tone="neutral">{entry.action}</OpCodeBadge>
+                    </div>
+                    <p className="text-[12px] text-ln-op-mute">
+                      {actorName}
+                      <span className="mx-1 text-ln-op-faint">·</span>
+                      <span className="tabular-nums">
+                        {entry.performedAt.toLocaleString("es-AR", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </span>
+                    </p>
+                    {view.reason && (
+                      <p className="text-[12px] text-ln-op-ink-2">
+                        <span className="text-ln-op-mute">Motivo:</span> {view.reason}
+                      </p>
+                    )}
+                    {view.evidenceCount !== undefined && (
+                      <p className="text-[12px] text-ln-op-mute">
+                        {view.evidenceCount} archivo(s) de evidencia
+                      </p>
+                    )}
+                    {view.resetMethod && (
+                      <p className="text-[12px] text-ln-op-mute">Método: {view.resetMethod}</p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
