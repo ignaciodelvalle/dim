@@ -1,10 +1,11 @@
 import Link from "next/link";
 
-import { OpCallout, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
+import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchDecisionsMetrics, fetchQueueHealth, fetchUserMetrics } from "@/lib/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { buildProjectionContext, computeDeltaPct } from "@/lib/metrics";
+import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 
 export default async function AdminDashboardPage() {
@@ -20,16 +21,11 @@ export default async function AdminDashboardPage() {
     fetchDecisionsMetrics(),
   ]);
 
-  // deltaV2 for decisions: compare 7d vs the preceding 7d window.
-  // fetchDecisionsMetrics already returns approved30d/rejected30d; the prior 7d
-  // is: total30d − total7d (first 23 days). That is an approximation; it is the
-  // cleanest delta we can derive without adding a new fetcher field.
+  // deltaV2 for decisions: compare 7d vs the approximated prior 7d window.
+  // Shared helper (decisionsDeltaPct) is the single source of truth — same
+  // approximation as /admin/sistema, so the two strips can't drift (C28).
   const total7d = decisions.approved7d + decisions.rejected7d;
-  const total30d = decisions.approved30d + decisions.rejected30d;
-  const prior23d = total30d - total7d; // approx prior 7d baseline ≈ prior23d/23*7
-  // Use the simpler "30d vs 7d" ratio — if prior23d is 0 we skip deltaV2.
-  const decisionsDelta =
-    prior23d > 0 ? computeDeltaPct(total7d, Math.round((prior23d / 23) * 7)) : null;
+  const decisionsDelta = decisionsDeltaPct(decisions);
 
   return (
     <div className="space-y-6">
@@ -40,52 +36,25 @@ export default async function AdminDashboardPage() {
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Panel de administración</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Gestión de cuentas institucionales: govts y admins del sistema. Las aprobaciones de cola,
-          búsqueda de usuarios y verificación de orgs viven en el portal de Gobierno.
+          Operás con alcance universal: la cola de aprobaciones, la búsqueda de usuarios y la
+          verificación de organizaciones son tuyas y abarcan todas las jurisdicciones. Estas colas
+          se comparten con Gobierno, que las trabaja acotadas a su jurisdicción.
         </p>
       </header>
 
-      {/* Live system metrics — spec AC3 (audit-internal-roles-pages PR5) */}
-      <section aria-label="Estado del sistema" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <OpKpi
-          label="Usuarios personales"
-          value={users.totalPersonal}
-          href="/admin/usuarios"
-          info={{
-            definition: "Total de cuentas personales activas en la plataforma.",
-            formula: "count(*) where account_type = 'personal'",
+      {/* Live system metrics — shared operational strip (C26). Leads the landing
+          so the North-Star numbers come before the account cards. */}
+      <section aria-label="Estado del sistema">
+        <AdminKpiStrip
+          data={{
+            totalPersonal: users.totalPersonal,
+            pendingTotal: queue.pendingTotal,
+            oldestPendingDaysAgo: queue.oldestPendingDaysAgo,
+            decisionsTotal7d: total7d,
+            approved7d: decisions.approved7d,
+            rejected7d: decisions.rejected7d,
+            decisionsDelta,
           }}
-        />
-        <OpKpi
-          label="Solicitudes pendientes"
-          value={queue.pendingTotal}
-          tone={queue.pendingTotal > 0 ? "warn" : "neutral"}
-          sub={
-            queue.oldestPendingDaysAgo != null
-              ? `Más vieja: ${queue.oldestPendingDaysAgo}d`
-              : undefined
-          }
-          href="/admin/cola"
-          info={{
-            definition: "Solicitudes de aprobación en estado pendiente en este momento.",
-            caveat: "Incluye solicitudes de todas las jurisdicciones.",
-          }}
-        />
-        <OpKpi
-          label="Decisiones (últimos 7d)"
-          value={total7d}
-          tone="ok"
-          sub={`${decisions.approved7d} aprobadas · ${decisions.rejected7d} rechazadas`}
-          href="/admin/auditoria"
-          info={{
-            definition: "Decisiones tomadas (aprobaciones + rechazos) en los últimos 7 días.",
-            formula: "request_approved + request_rejected en audit_log (últimos 7d)",
-          }}
-          deltaV2={
-            decisionsDelta !== null
-              ? { value: decisionsDelta, period: "vs 7d anteriores (aprox.)" }
-              : undefined
-          }
         />
       </section>
 
@@ -120,19 +89,19 @@ export default async function AdminDashboardPage() {
         </OpCardBody>
       </OpCard>
 
-      {/* Callout: link to govt portal */}
+      {/* Callout: context switch to the govt portal (not "the queue lives there"). */}
       <OpCallout
         icon={<span>&#127970;</span>}
-        title="Cola de solicitudes y búsqueda de usuarios"
+        title="¿Necesitás la vista de una jurisdicción?"
         body={
           <>
-            Las aprobaciones, rechazos, propuestas de rol y revocaciones viven en el panel de
-            Gobierno.{" "}
+            Tu cola, usuarios y organizaciones acá abarcan todo el país. Para ver cómo trabaja una
+            jurisdicción acotada, cambiá de contexto al portal de Gobierno.{" "}
             <Link
               href="/gob"
               className="font-semibold text-ln-op-azul underline underline-offset-4 hover:text-ln-op-azul-700"
             >
-              Ir a Gobierno {"→"}&nbsp;
+              Ver el portal de Gobierno {"→"}&nbsp;
             </Link>
           </>
         }
