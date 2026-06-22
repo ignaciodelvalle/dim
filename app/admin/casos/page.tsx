@@ -4,27 +4,60 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { CaseBadge } from "@/components/CaseBadge";
+import { PROVINCES } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listCasesForAdmin } from "@/lib/case-queries";
 import { formatDate } from "@/lib/format";
 import { newerHref, olderHref } from "@/lib/keyset-pagination";
+import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 const ADMIN_CASOS_PAGE_LIMIT = 500;
+
+// Status options for the filter form.
+const STATUS_OPTIONS = [
+  { value: "", label: "Todos los estados" },
+  { value: "open", label: "Abiertos" },
+  { value: "closed", label: "Cerrados" },
+] as const;
 
 export default async function AdminCasosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cursor?: string }>;
+  searchParams: Promise<{
+    cursor?: string;
+    status?: string;
+    kind?: string;
+    province?: string;
+  }>;
 }) {
   const session = await requireAdminOrGovtOrRedirect();
   if (session.profile.role !== "admin") redirect("/gob/casos");
 
-  const { cursor: rawCursor } = await searchParams;
+  const sp = await searchParams;
+  const { cursor: rawCursor } = sp;
+
+  // Parse filters from searchParams — push them all into SQL, not JS.
+  const statusFilter = sp.status === "open" || sp.status === "closed" ? sp.status : null;
+  const kindFilter =
+    sp.kind && CASE_KINDS.includes(sp.kind as CaseKind) ? (sp.kind as CaseKind) : null;
+  const provinceFilter = sp.province?.trim() || null;
+
+  const filterParams: Record<string, string | undefined> = {
+    ...(statusFilter ? { status: statusFilter } : {}),
+    ...(kindFilter ? { kind: kindFilter } : {}),
+    ...(provinceFilter ? { province: provinceFilter } : {}),
+  };
+  const hasFilters = statusFilter !== null || kindFilter !== null || provinceFilter !== null;
 
   // Fetch limit+1 to detect hasMore.
   const rawItems = await listCasesForAdmin({
     limit: ADMIN_CASOS_PAGE_LIMIT + 1,
     cursor: rawCursor,
+    filters: {
+      status: statusFilter,
+      kind: kindFilter,
+      province: provinceFilter,
+    },
   });
   const hasMore = rawItems.length > ADMIN_CASOS_PAGE_LIMIT;
   const items = hasMore ? rawItems.slice(0, ADMIN_CASOS_PAGE_LIMIT) : rawItems;
@@ -32,9 +65,9 @@ export default async function AdminCasosPage({
   const lastItem = items.at(-1);
   const olderLink =
     hasMore && lastItem
-      ? olderHref("/admin/casos", {}, { ts: lastItem.openedAt, id: lastItem.id })
+      ? olderHref("/admin/casos", filterParams, { ts: lastItem.openedAt, id: lastItem.id })
       : null;
-  const newerLink = rawCursor ? newerHref("/admin/casos", {}) : null;
+  const newerLink = rawCursor ? newerHref("/admin/casos", filterParams) : null;
 
   return (
     <div className="space-y-6">
@@ -45,9 +78,83 @@ export default async function AdminCasosPage({
         </p>
       </header>
 
+      {/* Filter form */}
+      <form action="/admin/casos" method="get" className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="casos-status" className="text-[11px] font-medium text-ln-op-mute">
+            Estado
+          </label>
+          <select
+            id="casos-status"
+            name="status"
+            defaultValue={statusFilter ?? ""}
+            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          >
+            {STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="casos-kind" className="text-[11px] font-medium text-ln-op-mute">
+            Tipo
+          </label>
+          <select
+            id="casos-kind"
+            name="kind"
+            defaultValue={kindFilter ?? ""}
+            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          >
+            <option value="">Todos los tipos</option>
+            {CASE_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {caseKindLabel(k)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="casos-province" className="text-[11px] font-medium text-ln-op-mute">
+            Provincia
+          </label>
+          <select
+            id="casos-province"
+            name="province"
+            defaultValue={provinceFilter ?? ""}
+            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          >
+            <option value="">Todas las provincias</option>
+            {PROVINCES.map((p) => (
+              <option key={p.code} value={p.name}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          type="submit"
+          className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
+        >
+          Filtrar
+        </button>
+        {hasFilters && (
+          <a
+            href="/admin/casos"
+            className="text-[12px] text-ln-op-mute underline underline-offset-4"
+          >
+            Limpiar filtros
+          </a>
+        )}
+      </form>
+
       {items.length === 0 ? (
         <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          Sin casos registrados todavía.
+          Sin casos registrados para los filtros aplicados.
         </p>
       ) : (
         <ul className="space-y-2">
@@ -73,7 +180,7 @@ export default async function AdminCasosPage({
               </div>
               {c.primaryPetPublicToken && c.primaryPetName ? (
                 <Link
-                  href={`/mis-mascotas/${c.primaryPetPublicToken}`}
+                  href={`/p/${c.primaryPetPublicToken}`}
                   className="inline-flex items-center rounded-full bg-ln-op-stripe px-3 py-1.5 text-[13px] text-ln-op-ink-2 no-underline transition-colors hover:bg-ln-op-line"
                 >
                   &#128062; {c.primaryPetName}

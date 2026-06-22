@@ -24,6 +24,8 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchCronRuns, fetchQueueHealth } from "@/lib/admin-metrics";
+import { adminProvinceHref } from "@/lib/admin-province-link";
+import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics-period";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { fetchMicrochipPenetration } from "@/lib/compliance-metrics";
 import {
@@ -150,7 +152,7 @@ export default async function AdminProgramaPage({
 
       {/* Period filter */}
       <div className="flex justify-end">
-        <PeriodPicker defaultPreset="ytd" />
+        <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
       </div>
 
       {/* North-Star KPI strip */}
@@ -277,47 +279,61 @@ export default async function AdminProgramaPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {outliers.map((row, i) => (
-                    <tr
-                      key={`${row.province}-${row.metric}-${i}`}
-                      className={[
-                        "border-b border-ln-op-line last:border-0",
-                        row.isOutlier
-                          ? "bg-ln-op-danger-bg/30"
-                          : "hover:bg-ln-op-stripe/50 transition-colors",
-                      ].join(" ")}
-                      aria-label={`${row.province} — ${METRIC_LABEL[row.metric] ?? row.metric}: ${row.rate}% (meta ${row.target}%)${row.isOutlier ? ", bajo meta" : ""}`}
-                    >
-                      <td className="py-2 pr-4">{row.province}</td>
-                      <td className="py-2 pr-4 text-ln-op-ink-2">
-                        {METRIC_LABEL[row.metric] ?? row.metric}
-                      </td>
-                      <td
+                  {outliers.map((row, i) => {
+                    const drillHref = adminProvinceHref(row.province);
+                    return (
+                      <tr
+                        key={`${row.province}-${row.metric}-${i}`}
                         className={[
-                          "py-2 pr-4 text-right tabular-nums font-medium",
-                          row.isOutlier ? "text-ln-op-danger" : "text-ln-op-verde",
+                          "border-b border-ln-op-line last:border-0",
+                          row.isOutlier
+                            ? "bg-ln-op-danger-bg/30"
+                            : "hover:bg-ln-op-stripe/50 transition-colors",
                         ].join(" ")}
-                        aria-label={`Cobertura: ${row.rate}%`}
+                        aria-label={`${row.province} — ${METRIC_LABEL[row.metric] ?? row.metric}: ${row.rate}% (meta ${row.target}%)${row.isOutlier ? ", bajo meta" : ""}`}
                       >
-                        {row.rate}%
-                      </td>
-                      <td className="py-2 pr-4 text-right tabular-nums text-ln-op-mute">
-                        {row.target}%
-                      </td>
-                      <td
-                        className={[
-                          "py-2 text-right tabular-nums",
-                          row.isOutlier ? "text-ln-op-danger" : "text-ln-op-mute",
-                        ].join(" ")}
-                      >
-                        {row.gap > 0
-                          ? `−${row.gap}%`
-                          : row.gap < 0
-                            ? `+${Math.abs(row.gap)}%`
-                            : "—"}
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="py-2 pr-4">
+                          {drillHref ? (
+                            <a
+                              href={drillHref}
+                              className="text-ln-op-azul underline-offset-2 hover:underline"
+                            >
+                              {row.province}
+                            </a>
+                          ) : (
+                            row.province
+                          )}
+                        </td>
+                        <td className="py-2 pr-4 text-ln-op-ink-2">
+                          {METRIC_LABEL[row.metric] ?? row.metric}
+                        </td>
+                        <td
+                          className={[
+                            "py-2 pr-4 text-right tabular-nums font-medium",
+                            row.isOutlier ? "text-ln-op-danger" : "text-ln-op-verde",
+                          ].join(" ")}
+                          aria-label={`Cobertura: ${row.rate}%`}
+                        >
+                          {row.rate}%
+                        </td>
+                        <td className="py-2 pr-4 text-right tabular-nums text-ln-op-mute">
+                          {row.target}%
+                        </td>
+                        <td
+                          className={[
+                            "py-2 text-right tabular-nums",
+                            row.isOutlier ? "text-ln-op-danger" : "text-ln-op-mute",
+                          ].join(" ")}
+                        >
+                          {row.gap > 0
+                            ? `−${row.gap}%`
+                            : row.gap < 0
+                              ? `+${Math.abs(row.gap)}%`
+                              : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

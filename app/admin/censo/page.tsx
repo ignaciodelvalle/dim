@@ -15,6 +15,8 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { adminProvinceHref } from "@/lib/admin-province-link";
+import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics-period";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import {
   DORMANT_MONTHS_DEFAULT,
@@ -82,7 +84,7 @@ export default async function AdminCensoPage({
 
       {/* Period filter (no JurisdictionSwitcher for admin — universal scope) */}
       <div className="flex justify-end">
-        <PeriodPicker defaultPreset="ytd" />
+        <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
       </div>
 
       {/* KPI row */}
@@ -351,6 +353,7 @@ export default async function AdminCensoPage({
                   {provinceRows.map((row, i) => {
                     const sharePct =
                       counts.total > 0 ? Math.round((row.count / counts.total) * 1000) / 10 : 0;
+                    const drillHref = adminProvinceHref(row.province);
                     return (
                       <tr
                         key={row.province}
@@ -360,7 +363,16 @@ export default async function AdminCensoPage({
                           <span className="text-[11px] tabular-nums text-ln-op-mute mr-2">
                             {i + 1}.
                           </span>
-                          {row.province}
+                          {drillHref ? (
+                            <a
+                              href={drillHref}
+                              className="text-ln-op-azul underline-offset-2 hover:underline"
+                            >
+                              {row.province}
+                            </a>
+                          ) : (
+                            row.province
+                          )}
                         </td>
                         <td className="py-2 text-right tabular-nums">
                           {row.count.toLocaleString("es-AR")}
