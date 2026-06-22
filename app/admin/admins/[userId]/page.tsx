@@ -49,7 +49,9 @@ export default async function AdminDetailPage({
     .where(eq(profiles.id, actorUser.id))
     .limit(1);
 
-  // Count active admins for last-admin guard
+  // Count active HUMAN admins for the last-admin guard (C21). System/service
+  // accounts (profiles.is_system = true) are excluded so the UI floor matches
+  // the server-side human-only floor in deactivateAdminForAuthority.
   const [{ activeCount }] = await db
     .select({ activeCount: count(profiles.id) })
     .from(profiles)
@@ -58,6 +60,7 @@ export default async function AdminDetailPage({
         eq(profiles.role, "admin"),
         eq(profiles.accountType, "institutional"),
         isNull(profiles.deactivatedAt),
+        eq(profiles.isSystem, false),
       ),
     );
 

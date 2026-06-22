@@ -5,12 +5,8 @@ import { count, eq, isNull } from "drizzle-orm";
 import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, govtAssignments, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { createAdminClient } from "@/lib/supabase/admin";
-
-// Scaling note: auth.admin.listUsers() called once with perPage=200 and
-// email fetched in-memory per row. Safe for v1 volume (<100 govts).
-// At 200+ institutional operators this query should be replaced with a
-// server-side join strategy. See ADR-8.
+import { isDeadGovt } from "@/lib/govt-roster";
+import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
 
 export default async function GovtsPage() {
   await requireAdminOrRedirect();
@@ -41,9 +37,9 @@ export default async function GovtsPage() {
 
   const localityCountMap = new Map(localityCounts.map((r) => [r.userId, Number(r.activeCount)]));
 
-  // Fetch emails from auth.users via service-role client (no email column on profiles)
-  const { data: authUsers } = await supabase.auth.admin.listUsers({ perPage: 200 });
-  const emailMap = new Map(authUsers?.users.map((u) => [u.id, u.email ?? ""]) ?? []);
+  // Fetch emails from auth.users via service-role client (no email column on
+  // profiles). C21: page through ALL auth users so emails stay complete past 200.
+  const emailMap = await buildAuthEmailMap(supabase);
 
   const govts = govtRows.map((g) => ({
     ...g,
@@ -125,6 +121,10 @@ type GovtRowProps = {
 
 function GovtRow({ govt }: GovtRowProps) {
   const isActive = govt.deactivatedAt === null;
+  // C24: an active govt with 0 active localities cannot enter /gob (needs ≥1
+  // assignment) — a dead account that must be flagged, not shown as a healthy
+  // "Activo · 0 localidades".
+  const isDead = isDeadGovt(isActive, govt.activeLocalityCount);
 
   return (
     <li>
@@ -141,6 +141,8 @@ function GovtRow({ govt }: GovtRowProps) {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
+            {/* C24: "open" is the OpPill warn (amber) palette — see OpPill tones. */}
+            {isDead && <OpPill tone="open">sin localidades — no puede operar</OpPill>}
             <span className="text-[12px] text-ln-op-mute">
               {govt.activeLocalityCount} localidad{govt.activeLocalityCount !== 1 ? "es" : ""}
             </span>

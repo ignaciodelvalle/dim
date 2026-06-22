@@ -384,15 +384,22 @@ export async function deactivateAdminForAuthority(
       // We use raw SQL here because drizzle ORM doesn't expose FOR UPDATE in SELECT directly.
       // With drizzle-orm/postgres-js, tx.execute returns the raw postgres-js result which
       // behaves as an array-like iterable of row objects.
+      // C21: select is_system alongside id so the last-admin floor counts only
+      // HUMAN admins (is_system = false). A system/service admin must never keep
+      // the count above the floor — otherwise the last human admin could be
+      // deactivated while a machine account masks the gap. We still lock the full
+      // active-admin set (the system rows included) so concurrent writers to any
+      // admin row serialize correctly.
       const lockResult = await tx.execute(
-        sql`SELECT id FROM profiles WHERE account_type = 'institutional' AND role = 'admin' AND deactivated_at IS NULL FOR UPDATE`,
+        sql`SELECT id, is_system FROM profiles WHERE account_type = 'institutional' AND role = 'admin' AND deactivated_at IS NULL FOR UPDATE`,
       );
       // postgres-js with drizzle returns the SQL result directly as an iterable array.
       // Cast to unknown first, then spread into a regular array for safe iteration.
-      const adminRows: Array<{ id: string }> = [
-        ...(lockResult as unknown as Iterable<{ id: string }>),
+      const adminRows: Array<{ id: string; is_system: boolean }> = [
+        ...(lockResult as unknown as Iterable<{ id: string; is_system: boolean }>),
       ];
-      const adminCount = adminRows.length;
+      // Human-admin floor: ignore system/service accounts in the count.
+      const humanAdminCount = adminRows.filter((r) => r.is_system === false).length;
 
       // Idempotency: if target is NOT in the active set, it's already deactivated
       const targetIsActive = adminRows.some((r) => r.id === input.targetAdminUserId);
@@ -400,8 +407,8 @@ export async function deactivateAdminForAuthority(
         throw new Error("NO_OP");
       }
 
-      // Last-admin guard: count - 1 must be ≥ 1
-      if (adminCount - 1 < 1) {
+      // Last-admin guard: at least one HUMAN admin must remain after this one.
+      if (humanAdminCount - 1 < 1) {
         throw new Error("LAST_ADMIN");
       }
 
@@ -426,7 +433,7 @@ export async function deactivateAdminForAuthority(
           payload: {
             reason: input.motivo.trim(),
             evidence_attachment_ids: input.attachmentIds,
-            remaining_admins_count: adminCount - 1,
+            remaining_admins_count: humanAdminCount - 1,
           },
         })
         .returning({ id: auditLog.id });
