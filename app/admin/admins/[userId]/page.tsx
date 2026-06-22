@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull, notLike } from "drizzle-orm";
 
 import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentialsButton";
 import { DeactivateAdminActions } from "@/app/admin/admins/_components/DeactivateAdminForm";
@@ -49,7 +49,10 @@ export default async function AdminDetailPage({
     .where(eq(profiles.id, actorUser.id))
     .limit(1);
 
-  // Count active admins for last-admin guard
+  // Count active HUMAN admins for the last-admin guard UI. `system:` service
+  // accounts are excluded so the count matches the server guard, which never
+  // lets a service account prop up the human-admin floor (C22). Stopgap
+  // heuristic on display_name — replace with profiles.is_system (C21).
   const [{ activeCount }] = await db
     .select({ activeCount: count(profiles.id) })
     .from(profiles)
@@ -58,6 +61,7 @@ export default async function AdminDetailPage({
         eq(profiles.role, "admin"),
         eq(profiles.accountType, "institutional"),
         isNull(profiles.deactivatedAt),
+        notLike(profiles.displayName, "system:%"),
       ),
     );
 

@@ -35,7 +35,10 @@ export default async function AdminUsuariosPage({
   const results = await searchUsers(query);
 
   if (query) {
-    void logPiiQueryForAuthority(user.id, query, results.length, "users");
+    // Await the audit write (Ley 25.326): a fire-and-forget promise can be
+    // dropped when the server component returns, weakening the PII-access
+    // accountability guarantee (C3).
+    await logPiiQueryForAuthority(user.id, query, results.length, "users");
   }
 
   return (
