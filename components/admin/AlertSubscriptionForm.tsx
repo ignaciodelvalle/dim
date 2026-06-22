@@ -7,7 +7,10 @@
 import { useRef, useState, useTransition } from "react";
 
 import { createAlertSubscriptionAction } from "@/app/actions/alert-subscriptions";
-import { ALERT_DIRECTIONS, ALERT_METRIC_KEYS } from "@/db";
+// Import the const arrays from the SCHEMA module, NOT "@/db" (the barrel that
+// also exports the postgres client) — this is a client component, and "@/db"
+// would pull the Node `net`/`tls` driver into the client bundle.
+import { ALERT_DIRECTIONS, ALERT_METRIC_KEYS } from "@/db/schema";
 
 // ---------------------------------------------------------------------------
 // es-AR labels for metric keys and directions

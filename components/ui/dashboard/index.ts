@@ -37,4 +37,9 @@ export {
   OpTextarea,
   OpSubmitButton,
 } from "./OpField";
-export { DashboardFreshnessFooter } from "./DashboardFreshnessFooter";
+// NOTE: DashboardFreshnessFooter is a SERVER component (queries the DB via
+// lib/metrics/freshness → db → postgres). It must NOT be re-exported here —
+// this barrel is imported by client components (e.g. PanoramaConsole →
+// PanoramaKpiStrip), and re-exporting a server-only module pulls `postgres`
+// (Node `net`/`tls`) into the client bundle ("Can't resolve 'net'"). Import it
+// directly from "@/components/ui/dashboard/DashboardFreshnessFooter" instead.

@@ -1,6 +1,12 @@
 // Database client. Use this `db` export from server-side code (server components,
 // server actions, route handlers). NEVER import this file into client components.
 
+// Enforced boundary: pulling this module into a CLIENT bundle is now a hard build
+// error with a clear message, instead of the cryptic postgres "Can't resolve 'net'".
+// (Type-only `import type { ... } from "@/db"` is erased and unaffected. For const
+// values/enums from the schema, import from "@/db/schema" in client code.)
+import "server-only";
+
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";

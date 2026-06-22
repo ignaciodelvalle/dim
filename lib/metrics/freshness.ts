@@ -1,3 +1,6 @@
+// Server-only: this module queries the DB. A client import is a hard build error.
+import "server-only";
+
 // lib/metrics/freshness.ts — "last event ingested" helper for dashboard footers.
 //
 // DB-BOUND — tsc-only verification; do NOT unit-test with a live DB here.
