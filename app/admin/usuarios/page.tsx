@@ -89,7 +89,6 @@ export default async function AdminUsuariosPage({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-0.5">
                       <p className="text-[13px] font-medium text-ln-op-ink">{u.displayName}</p>
-                      <p className="text-[10px] font-mono text-ln-op-mute">{u.id}</p>
                     </div>
                     <OpPill tone={ROLE_TONES[u.role] ?? "neutral"}>
                       {ROLE_LABELS[u.role] ?? u.role}

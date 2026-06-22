@@ -1,4 +1,5 @@
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
@@ -10,7 +11,7 @@ import {
   OpCrumbs,
   OpPill,
 } from "@/components/ui/dashboard";
-import { db, welfareReportAttachments, welfareReports } from "@/db";
+import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
 
 // Admin moderation projection — all PII fields included (admin role).
 // Performance projection only: drops reporter contact fields, workflow/triage
@@ -95,6 +96,17 @@ export default async function ModeracionDetailPage({
 
   const reasons = (report.flagReasons as string[]) ?? [];
 
+  // Resolve subjectPetId → publicToken for an operator-safe link to /p/{token}.
+  let subjectPetPublicToken: string | null = null;
+  if (report.subjectKind === "registered_pet" && report.subjectPetId) {
+    const [petRow] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, report.subjectPetId))
+      .limit(1);
+    subjectPetPublicToken = petRow?.publicToken ?? null;
+  }
+
   const attachmentRows = await db
     .select()
     .from(welfareReportAttachments)
@@ -170,10 +182,13 @@ export default async function ModeracionDetailPage({
         <OpCardBody>
           <p className="text-[13px] text-ln-op-ink">
             {welfareReportSubjectKindLabel(report.subjectKind)}
-            {report.subjectPetId && (
-              <span className="ml-2 font-mono text-[11px] text-ln-op-mute">
-                {report.subjectPetId}
-              </span>
+            {report.subjectPetId && subjectPetPublicToken && (
+              <Link
+                href={`/p/${subjectPetPublicToken}`}
+                className="ml-2 font-mono text-[11px] text-ln-op-azul underline underline-offset-4 hover:opacity-80"
+              >
+                {subjectPetPublicToken}
+              </Link>
             )}
           </p>
           {report.subjectDescription && (
