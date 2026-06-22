@@ -46,8 +46,8 @@ export default async function AdminUsuariosPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Usuarios</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Busca por nombre o DNI y propone cambios de rol. Vista universal — todas las
-          jurisdicciones. Las busquedas quedan en el audit log.
+          Busca por nombre y propone cambios de rol. Vista universal — todas las jurisdicciones. Las
+          busquedas quedan en el audit log.
         </p>
       </header>
 
@@ -56,7 +56,7 @@ export default async function AdminUsuariosPage({
           type="text"
           name="q"
           defaultValue={query}
-          placeholder="Buscar por nombre o DNI"
+          placeholder="Buscar por nombre"
           className="flex-1 text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <button

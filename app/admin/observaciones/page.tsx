@@ -4,6 +4,7 @@ import Link from "next/link";
 import { OpBreach, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { surveillanceEyebrow } from "@/lib/surveillance-eyebrow";
 import type { RabiesObservationStatus } from "@/src/modules/surveillance/domain/rabies-observation";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -41,6 +42,7 @@ function formatRelative(date: Date | null): string {
 
 export default async function ObservacionesPage() {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const eyebrow = surveillanceEyebrow(profile.role);
 
   // Active observations + recently completed (last 30 days).
   const since30 = new Date(Date.now() - 30 * DAY_MS);
@@ -62,7 +64,7 @@ export default async function ObservacionesPage() {
         <div className="space-y-6">
           <header className="space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-              {"Admin · Vigilancia"}
+              {eyebrow}
             </p>
             <h1 className="text-[22px] font-semibold text-ln-op-ink">Observaciones antirrábicas</h1>
           </header>
