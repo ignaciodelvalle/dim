@@ -67,6 +67,7 @@ export function CreateAdminForm() {
         email={success.email}
         profileId={success.profileId}
         detailPath={`/admin/admins/${success.profileId}`}
+        variant="create"
         onCreateAnother={handleCreateAnother}
       />
     );
