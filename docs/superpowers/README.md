@@ -97,6 +97,15 @@ Auditado 2026-05-19 contra `develop`: varios items que estaban acá ya están en
 > - **J2 — wiring aditivo** (únicas ediciones a páginas existentes, card nueva por página): `/admin/poblacion` card "Proyección de esterilizaciones" (reusa el trend ya fetcheado) · `/admin/programa` card "Proyección de vacunación antirrábica" (`fetchRabiesVaccinationTrend`). **§J-D3 respetado**: ambas series son **conteos de eventos** (flujo) y la meta legal es **cobertura %** (stock, otra unidad) → **no se pinta línea de meta-% sobre el eje de conteos**; la banda de volumen va sola. El forecast de cobertura-% es J3.
 > - **Tests**: `lib/metrics/forecast.test.ts` (18) + `__tests__/forecast-chart.test.tsx` (11) + `__tests__/forecast-pages-smoke.test.tsx` (4). renderToStaticMarkup no renderiza los hijos del `ResponsiveContainer` de recharts en SSR → los asserts del chart usan marcadores `data-forecast-*` en el `<figure>` + la tabla accesible.
 
+### Ciclo de población/custodia — nav *deferred* (admin) 🟡 listo para CC
+
+> [`plans/2026-06-23-population-cycle-deferred-nav-handoff.md`](./plans/2026-06-23-population-cycle-deferred-nav-handoff.md) — del critique del perfil admin (2026-06-23): el **ciclo de población/custodia** (la North Star) está casi sin proyectar (ver `specs/2026-06-23-dashboards-vnext-roadmap.md` §1). Decisión de producto: **no construir las consolas todavía**, pero dejar el hueco **legible** en la IA. Agrega un estado `deferred` al modelo de nav + dos botones greyed/"Próximamente" no-clickeables en la sección Analítica del riel admin — **Control poblacional** (⭐ Paquete G) y **Custodia & tránsito** (Paquete F). **Sin schema · sin rutas reales · sin migraciones** — puro chrome de nav. Branch `feat/nav-deferred-population-cycle`.
+>
+> - **D1 — modelo**: `NavItem.deferred?: boolean` aditivo (`components/layout/HeaderNav.tsx`), back-compat total. `href` sentinel `#defer-…` → nunca es ruta ni matchea las reglas 308.
+> - **D2/D3 — render**: riel (`OpRailNav`) + drawer (`OpMobileDrawer`) pintan deferred como `<span>` (no `<Link>`), `aria-disabled="true"`, fuera del tab order, token `text-ln-op-rail-mute`, pill textual "Próximamente" (no solo color, Ley 26.653). **D4**: `isActive` excluye deferred en ambos renderers.
+> - **D5 — entradas**: 2 items al final de la sección "Analítica" de `ADMIN_NAV_SECTIONS`. **D6**: invariante 308 filtra deferred + snapshots (`nav-presets.test.ts`, `shell-nav-phase-b.test.ts`, `shell-nav.test.ts`). **D7**: test de render deferred (`OpRailNav.test.tsx`).
+> - **Diferido**: paridad GOB + construcción de las consolas reales (Paquetes F/G, cross-ref `specs/2026-06-23-dashboards-vnext-roadmap.md`) + consolidación analítica (`2026-06-22-gob-analytics-retirement.md`). Convertir un botón en real luego = cambio aditivo de una línea (`deferred: true` → `href`/`matchPrefix`).
+
 ## All specs & plans
 
 > Reconciliado 2026-06-19 contra `develop`: la mayoría de los items 🟢 ya estaban en código (ver `git log`).
