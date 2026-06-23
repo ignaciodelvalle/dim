@@ -3,13 +3,14 @@ import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { ADMIN_NAV_SECTIONS } from "@/components/layout/nav-presets";
-import { DemoModeBanner, shouldShowDemoBanner } from "@/components/ui/DemoModeBanner";
+import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
 import type { NavSection } from "@/components/ui/dashboard";
 import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { shouldShowDemoBanner } from "@/lib/demo-mode";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
 import { countOutboxBreaches } from "@/lib/outbox-queries";
 import { getProfileCached } from "@/lib/request-cache";
@@ -84,6 +85,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     </div>
   );
 
+  // Demo banner flag (A1): shouldShowDemoBanner now lives in the server-safe
+  // lib/demo-mode module, so the server layout can call it directly without
+  // pulling in the "use client" banner module (which crashed /admin before).
   const demoMode = shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE);
 
   return (
