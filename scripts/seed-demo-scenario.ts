@@ -586,22 +586,21 @@ async function seedAmendedEvent(
 // 10. D0-4 — Alert subscription + materialize firing
 // ---------------------------------------------------------------------------
 
-// The subscription metric: sterilization_coverage_pct below 30.
-// CABA has ~38% coverage in panorama data but the DEMO- pets add more
-// UN-sterilized pets (registration events without sterilization), which
-// keeps the marginal coverage below the 30% threshold when measured over
-// the full registered base. We set threshold at 99 to guarantee breach
-// regardless of exact coverage numbers.
+// The subscription metric: sterilization_coverage_pct below the programmatic
+// target. CABA has ~38% coverage in the panorama data, so a 70% target (the
+// TARGETS.STERILIZATION_COVERAGE_PCT benchmark) is breached. The threshold is
+// the real programmatic META — the alert reads "observado 38 · meta 70" (D3),
+// not a meaningless "38 ≤ 99".
 const ALERT_METRIC_KEY = "sterilization_coverage_pct" as const;
 const ALERT_DIRECTION = "below" as const;
-const ALERT_THRESHOLD = "99"; // Always breaches since coverage is <100%
+const ALERT_THRESHOLD = "70"; // programmatic target; CABA ~38% breaches it
 
 const DEMO_ALERT_LABEL = "DEMO-alert-sterilization-caba";
 
 async function ensureAlertSubscription(adminUserId: string): Promise<string> {
   log(
     "STEP",
-    "D0-4: ensuring alert_subscriptions for admin (CABA sterilization_coverage_pct below 99)",
+    "D0-4: ensuring alert_subscriptions for admin (CABA sterilization_coverage_pct below 70)",
   );
 
   // Check for existing subscription with DEMO label.
@@ -666,7 +665,7 @@ async function materializeAlertFiring(
 
   // Directly insert a "disparada" firing (mirrors recordFiringsForUser logic
   // but bypasses evaluateAlertSubscriptions which requires Next.js server context).
-  // We know the threshold (99%) is breached by real CABA data.
+  // We know the 70% target is breached by real CABA data (~38% coverage).
   await db.insert(alertFirings).values({
     subscriptionId,
     metricKey: ALERT_METRIC_KEY,

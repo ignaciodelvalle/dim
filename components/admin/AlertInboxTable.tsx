@@ -55,11 +55,6 @@ const STATUS_CLASSES: Record<AlertFiringStatus, string> = {
   descartada: "bg-ln-op-stripe text-ln-op-mute border-ln-op-line",
 };
 
-const DIRECTION_LABEL: Record<string, string> = {
-  above: "≥",
-  below: "≤",
-};
-
 // A `disparada` firing older than this (days) is in breach of the triage SLA.
 const BREACH_DAYS = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -122,7 +117,7 @@ export function AlertInboxTable({ rows }: { rows: AlertInboxRow[] }) {
               Jurisdicción
             </th>
             <th scope="col" className="py-2 pr-4 text-right font-semibold text-ln-op-mute">
-              Observado / Umbral
+              Observado · Meta
             </th>
             <th scope="col" className="py-2 pr-4 text-right font-semibold text-ln-op-mute">
               Antigüedad
@@ -159,12 +154,14 @@ export function AlertInboxTable({ rows }: { rows: AlertInboxRow[] }) {
                 </td>
                 <td className="py-2.5 pr-4 text-ln-op-ink-2">{jurisdiction}</td>
                 <td className="py-2.5 pr-4 text-right tabular-nums">
+                  {/* "observado X · meta Y" — explicit framing instead of a bare
+                      "X ≤ Y" comparison the operator has to decode (D3). */}
+                  <span className="text-ln-op-mute">observado </span>
                   <span className="font-semibold text-ln-op-ink">
                     {Number(row.observedValue).toLocaleString("es-AR")}
                   </span>
                   <span className="text-ln-op-mute">
-                    {" "}
-                    {DIRECTION_LABEL[row.direction] ?? row.direction}{" "}
+                    {" · meta "}
                     {Number(row.threshold).toLocaleString("es-AR")}
                   </span>
                 </td>

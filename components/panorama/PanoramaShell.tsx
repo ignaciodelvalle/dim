@@ -1,6 +1,7 @@
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { PanoramaConsole } from "@/components/panorama/PanoramaConsole";
+import { PanoramaDemoDisclosure } from "@/components/panorama/PanoramaDemoDisclosure";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import type { FeatureCollection, PanoramaLayer } from "@/src/modules/panorama/domain/types";
 
@@ -36,6 +37,12 @@ type Props = {
    * leaves this undefined to keep the national/data-extent view.
    */
   initialBounds?: [[number, number], [number, number]];
+  /**
+   * Suppress PanoramaShell's own "Datos de demostración" notice when a GLOBAL
+   * demo banner already covers the page (e.g. /admin with NEXT_PUBLIC_DEMO_MODE=
+   * true) — avoids stacking two identical disclosures (D3).
+   */
+  suppressDemoDisclosure?: boolean;
 };
 
 export function PanoramaShell({
@@ -48,6 +55,7 @@ export function PanoramaShell({
   localities,
   kpis,
   initialBounds,
+  suppressDemoDisclosure = false,
 }: Props) {
   return (
     <div className="space-y-4">
@@ -76,11 +84,9 @@ export function PanoramaShell({
         <PeriodPicker defaultPreset="30d" />
       </div>
 
-      {/* Demo-data disclosure — this is a synthetic dataset (exec-gate credibility). */}
-      <p className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-1.5 text-[11px] text-ln-op-ink-2">
-        <span className="font-semibold">Datos de demostración.</span> El dataset cargado es
-        sintético (densidad ponderada por Censo 2022); no representa casos reales.
-      </p>
+      {/* Demo-data disclosure — synthetic dataset (exec-gate credibility).
+          Suppressed when a global demo banner already covers the page (D3). */}
+      <PanoramaDemoDisclosure hidden={suppressDemoDisclosure} />
 
       {/* Methodology / "acerca de estas métricas" — for a government data product
           the operator must be able to see how each indicator is computed, its

@@ -4,6 +4,7 @@ import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import type { ProvinceCode } from "@/lib/ar-provincias";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { shouldShowDemoBanner } from "@/lib/demo-mode";
 import { GOB_ALL_PROVINCES } from "@/lib/govt-dashboards";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { getLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
@@ -75,6 +76,9 @@ export default async function AdminPanoramaPage({
       allowedProvinces={GOB_ALL_PROVINCES}
       localities={localities}
       kpis={kpis}
+      // /admin shows the global DemoModeBanner (admin layout); suppress
+      // Panorama's own notice so the page never stacks two disclosures (D3).
+      suppressDemoDisclosure={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)}
     />
   );
 }
