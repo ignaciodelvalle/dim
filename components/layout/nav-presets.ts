@@ -354,6 +354,8 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
         matchPrefix: "/admin/jurisdicciones",
       },
       { href: "/admin/historial", label: "Historial", matchPrefix: "/admin/historial" },
+      // WS-L — Libro de eventos (event-sourcing visible; read-only).
+      { href: "/admin/libro", label: "Libro de eventos", matchPrefix: "/admin/libro" },
       { href: "/admin/servicios", label: "Servicios", matchPrefix: "/admin/servicios" },
     ],
   },
