@@ -79,6 +79,9 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   // Carries jurisdiction + actor FKs (acknowledged_by / contacted / resolved);
   // admin-only reads/writes go through Drizzle BYPASSRLS server actions.
   "alert_firings",
+  // Threshold alert subscriptions (migration 0108): owner-scoped via
+  // actor_user_id, RLS enabled with read/write-by-owner(+admin) policies.
+  "alert_subscriptions",
 ];
 
 // ---------------------------------------------------------------------------

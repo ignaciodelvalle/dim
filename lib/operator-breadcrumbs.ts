@@ -51,6 +51,12 @@ const ADMIN_SEGMENT_MAP = buildSegmentMap(ADMIN_NAV_SECTIONS, "/admin");
 // presets) but show up as crumbs — without these they fell to capitalise() and
 // rendered as raw English/segment text ("Govts", "New", "Admins"). Admin
 // fresh-sweep A4.
+//
+// NOTE: do NOT list a segment here if it IS a top-level nav item — the static
+// label wins over the nav preset (see labelForSegment) and would override a
+// portal-specific label. "servicios" is such a case: /gob/servicios is
+// "Catálogo" but /admin/servicios is "Servicios", so it must fall through to the
+// per-portal nav label, not a fixed string here.
 const STATIC_SEGMENT_LABELS: Record<string, string> = {
   govts: "Gobiernos",
   admins: "Administradores",
@@ -60,7 +66,6 @@ const STATIC_SEGMENT_LABELS: Record<string, string> = {
   reglas: "Reglas",
   editar: "Editar",
   usuarios: "Usuarios",
-  servicios: "Servicios",
 };
 
 /** Localized label for a path segment. The static map wins over the nav-preset
