@@ -2078,6 +2078,9 @@ export const auditLog = pgTable(
       table.targetOrganizationId,
     ),
     actionIdx: index("audit_log_action_idx").on(table.action, table.performedAt),
+    // WS-PERF P1: default ORDER BY (performed_at DESC, id DESC) now hits this
+    // index directly instead of doing a full sort on every unfiltered page load.
+    performedAtIdx: index("audit_log_performed_at_idx").on(table.performedAt, table.id),
   }),
 );
 

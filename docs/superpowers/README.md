@@ -73,6 +73,10 @@ Auditado 2026-05-19 contra `develop`: varios items que estaban acá ya están en
 >
 > Cada PR: SDD test-first, `pnpm verify` (tsc + Biome + lint:tokens + lint:ui + next build) + `pnpm test` verdes, cero regresiones sobre el baseline pre-existente. No duplica el fresh-sweep (A2/A3/A5/A7 ya cerrados, cross-referenciados).
 
+### Performance fixes — WS-PERF (P1 + P2) ✅
+
+> Branch `perf/admin-audit-casos`. P1: `audit_log_performed_at_idx` (migration 0110) — leading `(performed_at DESC, id DESC)` index eliminates the full sort on every unfiltered `/admin/auditoria` load. P2: `/admin/casos` now defaults to `status=open` (the triager's actionable view); explicit `status=all` or `status=closed` still shows closed cases; the UI status select reflects "Abiertos" as the default. Tests: `__tests__/perf-indexes-fitness.test.ts` (index presence + validity) + `__tests__/ws-perf.test.ts` (index + filter unit + integration).
+
 ### Access-control hardening — WS-AC (AC1-AC4) ✅
 
 > [`plans/2026-06-22-access-control-hardening.md`](./plans/2026-06-22-access-control-hardening.md) — extiende el barrido admin 2026-06-22 desde el *critique del modelo de acceso* (control · acceso a la información · seguridad) sobre `/gob` y `/admin`. **✅ Completo** (rama `fix/ac-access-control-hardening`, SDD test-first):
