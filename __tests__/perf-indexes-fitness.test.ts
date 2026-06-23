@@ -25,7 +25,7 @@ import { describe, expect, it } from "vitest";
 import { db } from "@/db";
 
 // table → index names that MUST exist. Names match db/schema.ts and the
-// migrations that created them (0025, 0033, 0035, 0090).
+// migrations that created them (0025, 0033, 0035, 0090, 0110).
 const EXPECTED_INDEXES: Record<string, string[]> = {
   pet_events: [
     // Genuinely new in migration 0090 (V1-8).
@@ -57,6 +57,8 @@ const EXPECTED_INDEXES: Record<string, string[]> = {
     "custody_dispute_parties_user_idx",
     "custody_dispute_parties_org_idx",
   ],
+  // WS-PERF P1: leading performed_at index for the default /admin/auditoria sort.
+  audit_log: ["audit_log_performed_at_idx"],
 };
 
 describe("V1-8 perf indexes — presence in live schema", () => {

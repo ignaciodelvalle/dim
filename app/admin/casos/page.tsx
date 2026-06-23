@@ -14,9 +14,11 @@ import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/do
 const ADMIN_CASOS_PAGE_LIMIT = 500;
 
 // Status options for the filter form.
+// "all" is a UI sentinel that maps to statusFilter=null (no SQL filter).
+// "open" is the default when no explicit status param is present.
 const STATUS_OPTIONS = [
-  { value: "", label: "Todos los estados" },
   { value: "open", label: "Abiertos" },
+  { value: "all", label: "Todos los estados" },
   { value: "closed", label: "Cerrados" },
 ] as const;
 
@@ -37,17 +39,37 @@ export default async function AdminCasosPage({
   const { cursor: rawCursor } = sp;
 
   // Parse filters from searchParams — push them all into SQL, not JS.
-  const statusFilter = sp.status === "open" || sp.status === "closed" ? sp.status : null;
+  // WS-PERF P2: default to "open" when no explicit status param is present so
+  // the triager's first paint is the actionable open-case view (fast + relevant)
+  // rather than a 500-row full scan across all statuses. An explicit status=
+  // (including the "all" sentinel value) overrides the default.
+  const rawStatus = sp.status;
+  const statusFilter: "open" | "closed" | null =
+    rawStatus === "open" || rawStatus === "closed"
+      ? rawStatus
+      : rawStatus === "all"
+        ? null
+        : "open"; // default: show open cases
   const kindFilter =
     sp.kind && CASE_KINDS.includes(sp.kind as CaseKind) ? (sp.kind as CaseKind) : null;
   const provinceFilter = sp.province?.trim() || null;
 
+  // Whether the user explicitly changed from the default (open, no kind, no province).
+  // Used to show/hide the "Limpiar filtros" link — the default open view is not
+  // considered an active filter.
+  const statusExplicitlyOverridden = rawStatus === "closed" || rawStatus === "all";
+  const hasFilters = statusExplicitlyOverridden || kindFilter !== null || provinceFilter !== null;
+
   const filterParams: Record<string, string | undefined> = {
-    ...(statusFilter ? { status: statusFilter } : {}),
+    // Carry status in pagination links only when it differs from the default (open).
+    // For status=all (null filter), use the "all" sentinel so the paginator
+    // preserves the user's explicit choice.
+    ...(statusExplicitlyOverridden
+      ? { status: rawStatus === "all" ? "all" : (statusFilter ?? undefined) }
+      : {}),
     ...(kindFilter ? { kind: kindFilter } : {}),
     ...(provinceFilter ? { province: provinceFilter } : {}),
   };
-  const hasFilters = statusFilter !== null || kindFilter !== null || provinceFilter !== null;
 
   // Fetch limit+1 to detect hasMore.
   const rawItems = await listCasesForAdmin({
@@ -74,7 +96,15 @@ export default async function AdminCasosPage({
       <header className="space-y-1">
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Casos</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Expedientes registrados en el sistema. Vista universal admin.
+          Expedientes abiertos en el sistema. Vista universal admin.{" "}
+          {!statusExplicitlyOverridden && (
+            <a
+              href="/admin/casos?status=all"
+              className="underline underline-offset-2 hover:text-ln-op-ink"
+            >
+              Ver todos
+            </a>
+          )}
         </p>
       </header>
 
@@ -87,7 +117,7 @@ export default async function AdminCasosPage({
           <select
             id="casos-status"
             name="status"
-            defaultValue={statusFilter ?? ""}
+            defaultValue={rawStatus === "all" ? "all" : (statusFilter ?? "open")}
             className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             {STATUS_OPTIONS.map((o) => (
