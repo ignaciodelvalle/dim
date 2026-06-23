@@ -19,8 +19,10 @@ import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynam
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { adminProvinceHref } from "@/lib/admin-province-link";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics-load";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics-period";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import {
@@ -53,15 +55,46 @@ export default async function AdminPoblacionPage({
 
   const ctx = buildProjectionContext({ role: "admin" }, [], period);
 
-  const [coverage, activePregnancies, outcomes, netGrowth, sterilNatalidadRatio, sterilTrend] =
-    await Promise.all([
+  // Page header — rendered in both the data and degraded (D2) branches.
+  const header = (
+    <header className="space-y-2">
+      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        Admin · Control poblacional nacional
+      </p>
+      <h1 className="text-[22px] font-semibold text-ln-op-ink">Control poblacional</h1>
+      <p className="text-[13px] text-ln-op-mute">
+        Vista nacional: cobertura de esterilización, reproducción y balance, con ranking por
+        provincia.
+      </p>
+    </header>
+  );
+
+  // D2: bound the fetcher set with a deadline (see /admin/censo).
+  const load = await loadWithTimeout(
+    Promise.all([
       fetchSterilizationCoverage(ctx),
       fetchActivePregnancies(ctx),
       fetchReproductiveOutcomes(ctx),
       fetchNetGrowth(ctx),
       fetchSterilizationNatalidadRatio(ctx),
       fetchSterilizationTrend(ctx),
-    ]);
+    ]),
+  );
+
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/admin/poblacion", sp)}
+        />
+      </div>
+    );
+  }
+
+  const [coverage, activePregnancies, outcomes, netGrowth, sterilNatalidadRatio, sterilTrend] =
+    load.value;
 
   const hasData = coverage.total > 0;
   const hasTrend = sterilTrend.points.length > 0;
@@ -83,16 +116,7 @@ export default async function AdminPoblacionPage({
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Admin · Control poblacional nacional
-        </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Control poblacional</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          Vista nacional: cobertura de esterilización, reproducción y balance, con ranking por
-          provincia.
-        </p>
-      </header>
+      {header}
 
       {/* Period filter (no JurisdictionSwitcher for admin — universal scope) */}
       <div className="flex justify-end">

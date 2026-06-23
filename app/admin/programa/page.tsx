@@ -23,10 +23,12 @@ import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm"
 import { ForecastChartDynamic } from "@/components/charts/ForecastChartDynamic";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, profiles } from "@/db";
 import { fetchCronRuns, fetchQueueHealth } from "@/lib/admin-metrics";
 import { adminProvinceHref } from "@/lib/admin-province-link";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics-load";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics-period";
 import { auditActionLabel } from "@/lib/audit-action-labels";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
@@ -102,6 +104,50 @@ export default async function AdminProgramaPage({
 
   const adminCtx = buildProjectionContext({ role: "admin" }, [], period);
 
+  // Page header — rendered in both the data and degraded (D2) branches.
+  const header = (
+    <header className="space-y-2">
+      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        Admin · Resumen ejecutivo
+      </p>
+      <h1 className="text-[22px] font-semibold text-ln-op-ink">Salud del programa</h1>
+      <p className="text-[13px] text-ln-op-mute">
+        KPIs North-Star, outliers por jurisdicción, calidad de datos y oversight de PII.
+      </p>
+    </header>
+  );
+
+  // D2: bound the fetcher set with a deadline (see /admin/censo).
+  const load = await loadWithTimeout(
+    Promise.all([
+      registryCounts(adminCtx, DORMANT_MONTHS_DEFAULT),
+      fetchSterilizationCoverage(adminCtx),
+      fetchMicrochipPenetration(adminCtx),
+      fetchEnoSla(adminCtx),
+      fetchQueueHealth(),
+      fetchCronRuns(),
+      fetchDataQuality(adminCtx),
+      fetchCrossJurisdictionOutliers(adminCtx),
+      fetchPiiOversight(adminCtx),
+      currentUserId
+        ? evaluateAlertSubscriptions(currentUserId, { role: "admin" })
+        : Promise.resolve([]),
+      fetchRabiesVaccinationTrend(adminCtx),
+    ]),
+  );
+
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/admin/programa", sp)}
+        />
+      </div>
+    );
+  }
+
   const [
     registry,
     sterilization,
@@ -114,21 +160,7 @@ export default async function AdminProgramaPage({
     piiOversight,
     alertEvals,
     rabiesTrend,
-  ] = await Promise.all([
-    registryCounts(adminCtx, DORMANT_MONTHS_DEFAULT),
-    fetchSterilizationCoverage(adminCtx),
-    fetchMicrochipPenetration(adminCtx),
-    fetchEnoSla(adminCtx),
-    fetchQueueHealth(),
-    fetchCronRuns(),
-    fetchDataQuality(adminCtx),
-    fetchCrossJurisdictionOutliers(adminCtx),
-    fetchPiiOversight(adminCtx),
-    currentUserId
-      ? evaluateAlertSubscriptions(currentUserId, { role: "admin" })
-      : Promise.resolve([]),
-    fetchRabiesVaccinationTrend(adminCtx),
-  ]);
+  ] = load.value;
 
   // Paquete J — forward projection over the antirrábica vaccination FLOW series
   // (distinct dogs vaccinated/bucket). §J-D3: the LEGAL target is COVERAGE %
@@ -171,15 +203,7 @@ export default async function AdminProgramaPage({
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Admin · Resumen ejecutivo
-        </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Salud del programa</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          KPIs North-Star, outliers por jurisdicción, calidad de datos y oversight de PII.
-        </p>
-      </header>
+      {header}
 
       {/* Period filter */}
       <div className="flex justify-end">
