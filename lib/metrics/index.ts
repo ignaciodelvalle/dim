@@ -55,6 +55,17 @@ export {
   fetchRabiesVaccinationTrend,
 } from "./trends";
 
+// Paquete J — pure trend projection (forecast) over flow series.
+export type {
+  CrossingDirection,
+  ForecastMethod,
+  ForecastOpts,
+  ForecastPoint,
+  ForecastResult,
+  SeriesPoint,
+} from "./forecast";
+export { DEFAULT_HORIZON, MIN_POINTS, projectSeries, targetCrossing } from "./forecast";
+
 // Fase 0 additions — targets, tone, delta, freshness.
 export { TARGETS, computeDeltaPct, decisionsDeltaPct, toneForTarget } from "./targets";
 export { lastIngestAt } from "./freshness";

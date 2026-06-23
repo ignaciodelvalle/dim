@@ -20,6 +20,7 @@ import { inArray } from "drizzle-orm";
 import { toggleAlertSubscriptionAction } from "@/app/actions/alert-subscriptions";
 import { DeleteAlertSubscriptionButton } from "@/app/admin/programa/DeleteAlertSubscriptionButton";
 import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm";
+import { ForecastChartDynamic } from "@/components/charts/ForecastChartDynamic";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -37,6 +38,8 @@ import {
   fetchCrossJurisdictionOutliers,
   fetchDataQuality,
   fetchPiiOversight,
+  fetchRabiesVaccinationTrend,
+  projectSeries,
   toneForTarget,
 } from "@/lib/metrics";
 import { DORMANT_MONTHS_DEFAULT, registryCounts } from "@/lib/metrics/census";
@@ -110,6 +113,7 @@ export default async function AdminProgramaPage({
     outliers,
     piiOversight,
     alertEvals,
+    rabiesTrend,
   ] = await Promise.all([
     registryCounts(adminCtx, DORMANT_MONTHS_DEFAULT),
     fetchSterilizationCoverage(adminCtx),
@@ -123,7 +127,16 @@ export default async function AdminProgramaPage({
     currentUserId
       ? evaluateAlertSubscriptions(currentUserId, { role: "admin" })
       : Promise.resolve([]),
+    fetchRabiesVaccinationTrend(adminCtx),
   ]);
+
+  // Paquete J — forward projection over the antirrábica vaccination FLOW series
+  // (distinct dogs vaccinated/bucket). §J-D3: the LEGAL target is COVERAGE %
+  // (a stock, 80%), which is a DIFFERENT unit than these vaccination COUNTS — so
+  // we project the volume band WITHOUT painting a %-meta ReferenceLine on the
+  // counts axis. The coverage-% forecast is deferred to Fase J3.
+  const rabiesForecast = projectSeries(rabiesTrend.points, { horizon: 3 });
+  const hasRabiesTrend = rabiesTrend.points.length > 0;
 
   const breachingAlerts = alertEvals.filter((a) => a.breaching);
 
@@ -148,6 +161,7 @@ export default async function AdminProgramaPage({
   const sterilRatePct = sterilization.rate;
 
   // Panel element IDs for accessible aria-labelledby.
+  const panelRabiesForecastId = "admin-programa-rabies-proyeccion-titulo";
   const panelOutliersId = "admin-programa-outliers-titulo";
   const panelPiiId = "admin-programa-pii-titulo";
   const panelQualityId = "admin-programa-calidad-titulo";
@@ -259,6 +273,35 @@ export default async function AdminProgramaPage({
           }}
         />
       </section>
+
+      {/* Antirrábica vaccination forecast — Paquete J (additive) */}
+      <OpCard aria-labelledby={panelRabiesForecastId}>
+        <OpCardHead
+          title={<span id={panelRabiesForecastId}>Proyección de vacunación antirrábica</span>}
+          actions={
+            rabiesTrend.suppressedCount > 0 ? (
+              <span className="text-[11px] text-ln-op-mute">
+                {rabiesTrend.suppressedCount}{" "}
+                {rabiesTrend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"}{" "}
+                (privacidad)
+              </span>
+            ) : null
+          }
+        />
+        <OpCardBody>
+          {!hasRabiesTrend ? (
+            <p className="text-[13px] text-ln-op-mute">
+              Sin eventos de vacunación antirrábica en el período para proyectar.
+            </p>
+          ) : (
+            <ForecastChartDynamic
+              result={rabiesForecast}
+              seriesLabel="Vacunación antirrábica"
+              unit="perros vacunados"
+            />
+          )}
+        </OpCardBody>
+      </OpCard>
 
       {/* Outliers table */}
       <OpCard aria-labelledby={panelOutliersId}>
