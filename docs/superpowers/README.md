@@ -86,6 +86,15 @@ Auditado 2026-05-19 contra `develop`: varios items que estaban acá ya están en
 > - **AC3 🟡 — páginas admin muertas + nav cruzaba de portal vía 308.** Borradas las carpetas `app/admin/{cola,usuarios,organizaciones}/`; `ADMIN_NAV_SECTIONS` (`components/layout/nav-presets.ts`) y los KPI links (`AdminKpiStrip`, `/admin/programa`, `/admin/historial`) repuntados a `/gob/*`. Los 308 del middleware se mantienen para bookmarks externos. Invariante de nav extendido: ningún href de `ADMIN_NAV_SECTIONS` matchea una regla 308 (`components/layout/nav-presets.test.ts`); snapshots actualizados en `nav-presets.test.ts` + `lib/shell-nav-phase-b.test.ts`.
 > - **AC4 🟡 — reglas a nivel localidad inalcanzables por UI.** `app/admin/jurisdicciones/page.tsx` gana un drill-down por provincia (`LocalityRuleDrilldown`, typeahead sobre el catálogo INDEC `ar_localities`) que navega con la localidad **real** en el segmento (no `"_"`), permitiendo crear un override de localidad nuevo. Resolver puro `lib/jurisdiction-rules-href.ts`. Test: `__tests__/jurisdiction-rules-href.test.ts` (segmento de localidad ≠ `"_"`).
 
+### Libro de eventos — WS-L ✅
+
+> [`plans/2026-06-22-event-ledger-libro.md`](./plans/2026-06-22-event-ledger-libro.md) — vista admin **read-only** que hace tangible el event-sourcing en 3 beats: (1) **stream** append-only de `pet_events`, (2) **enmienda, no edición** (las correcciones son eventos nuevos `event_amended` que referencian al original; el original se conserva) y (3) **reproducción temporal** (deep-link `/admin/panorama?asOf=<occurredAt>`). **Sin schema · sin nuevos event types · sin migraciones** — pura proyección (`lib/metrics`) + UI read-only. Branch `feat/ws-l-libro`.
+>
+> - **Portal surface**: `/admin/libro` (**Admin — Live**), sección "Gobernanza" del nav admin.
+> - **Proyección**: `lib/metrics/event-ledger.ts` — `fetchEventLedger(ctx, filters, cursor?, limit?)` scopeado vía `petEventsScopeClause` (admin universal · govt intersect-jurisdicción), **paginación keyset** sobre `(occurred_at DESC, id DESC)` (sin OFFSET), `hasAmendment` resuelto en batch (sin N+1), **PII gating** (solo token público + rol/org del actor, nunca datos del dueño). Audit obligatorio `logEventLedgerView` → `pii_queried` (`surface='event_ledger'`), modelado sobre `logOutreachPiiQuery`.
+> - **UI**: `app/admin/libro/{page,loading,EventLedgerRow,view,actions}.tsx` + `components/admin/EventLedgerTable.tsx`. Labels es-AR reusando `eventTypeLabel` (`lib/format`), `<AmendedBadge>`, `DashboardFreshnessFooter`. A11y: tabla `scope="col"` + `<caption>`, toggle `aria-expanded`, foco al expandir, icono+texto (no color solo).
+> - **Tests**: `lib/metrics/event-ledger.test.ts` (scope · keyset · filtros · hasAmendment · PII · audit, contra Postgres local) + `__tests__/event-ledger-ui.test.tsx` (a11y · stream · enmienda · filtro tipo · deep-link round-trip `parseAsOf`). Snapshots de nav actualizados: `nav-presets.test.ts` + `lib/shell-nav-phase-b.test.ts`.
+
 ## All specs & plans
 
 > Reconciliado 2026-06-19 contra `develop`: la mayoría de los items 🟢 ya estaban en código (ver `git log`).

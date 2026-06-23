@@ -301,6 +301,7 @@ describe("ADMIN_NAV — no route regression", () => {
     "/admin/moderacion",
     "/admin/casos",
     "/admin/jurisdicciones",
+    "/admin/libro", // WS-L — Libro de eventos
   ];
 
   for (const route of expectedRoutes) {
@@ -474,6 +475,7 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
   "/admin/poblacion", // Paquete G — control poblacional (North Star)
   "/admin/programa", // Paquete H — resumen ejecutivo del programa
+  "/admin/libro", // WS-L — Libro de eventos (event-sourcing visible)
 ]);
 
 describe("ADMIN_NAV_SECTIONS — section invariants", () => {
@@ -537,6 +539,14 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
     expect(hrefs).not.toContain("/admin/censo");
     expect(hrefs).not.toContain("/admin/adopciones");
     expect(hrefs).not.toContain("/admin/poblacion");
+  });
+
+  it("includes /admin/libro in the Gobernanza section (WS-L — Libro de eventos)", () => {
+    const govSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Gobernanza");
+    expect(govSection?.items.map((i) => i.href)).toContain("/admin/libro");
+    const libro = govSection?.items.find((i) => i.href === "/admin/libro");
+    expect(libro?.label).toBe("Libro de eventos");
+    expect(libro?.matchPrefix).toBe("/admin/libro");
   });
 
   it("C27 regroup is href-preserving: section union equals the frozen snapshot exactly", () => {

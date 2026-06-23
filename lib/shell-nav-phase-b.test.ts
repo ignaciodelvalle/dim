@@ -72,6 +72,7 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
   "/admin/poblacion", // Paquete G — control poblacional (North Star)
   "/admin/programa", // Paquete H — resumen ejecutivo del programa
+  "/admin/libro", // WS-L — Libro de eventos (event-sourcing visible)
 ]);
 
 const ALL_ORG_CAPS = new Set(["intake.create", "adoption.review", "capability.grant"]);
