@@ -5,10 +5,12 @@
 // State machine: idle → confirming → submitting → done | error
 // Mirrors DeactivateAdminForm.tsx structure — design §8.8.
 //
-// Evidence upload flow (design §3, spec REQ-6):
-//   1. User picks files via <input type="file">
-//   2. Each file is uploaded to Supabase Storage then registered via uploadRevocationEvidence.
-//   3. On submit, attachmentIds[] are passed to deactivateGovtAction.
+// Evidence upload flow (design §3, spec REQ-6; C23):
+//   1. User picks files via <input type="file"> — held in state, NOT uploaded.
+//   2. On SUBMIT the files are uploaded to Supabase Storage (namespaced by the
+//      TARGET govt) then registered via uploadRevocationEvidence.
+//   3. attachmentIds[] are then passed to deactivateGovtAction.
+// Cancelling never uploads, so no orphaned objects are left in the bucket.
 //
 // Cascading effect: deactivating a govt also revokes all their active locality
 // assignments (handled server-side in deactivateGovtForAuthority).
@@ -16,18 +18,15 @@
 import { useRef, useState, useTransition } from "react";
 
 import { deactivateGovtAction } from "@/app/actions/admin-institutional";
-import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
-import { createClient } from "@/lib/supabase/client";
+import { useEvidenceUpload } from "@/lib/use-evidence-upload";
 
 type Target = {
   id: string;
   displayName: string;
   activeLocalityCount: number;
 };
-
-type UploadedFile = { name: string; attachmentId: string };
 
 type Mode = "idle" | "confirming" | "done";
 
@@ -88,75 +87,36 @@ function DeactivateGovtForm({
   const [pending, startTransition] = useTransition();
   const [motivo, setMotivo] = useState("");
   const [confirm, setConfirm] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const { selectedFiles, uploading, addFiles, removeFile, uploadAll } = useEvidenceUpload();
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const motivoTrimmed = motivo.trim();
   const motivoValid = motivoTrimmed.length >= MOTIVO_MIN;
-  const canSubmit = motivoValid && uploadedFiles.length >= 1 && confirm && !pending && !uploading;
+  const canSubmit = motivoValid && selectedFiles.length >= 1 && confirm && !pending && !uploading;
 
-  async function handleFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
     setError(null);
-    setUploading(true);
-
-    const supabase = createClient();
-    const newFiles: UploadedFile[] = [];
-
-    for (const file of files) {
-      try {
-        const ext = file.name.split(".").pop() ?? "bin";
-        const path = `${actorUserId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-        const { error: storageError } = await supabase.storage
-          .from("revocations")
-          .upload(path, file, { contentType: file.type });
-
-        if (storageError) {
-          setError(`Error al subir ${file.name}: ${storageError.message}`);
-          setUploading(false);
-          return;
-        }
-
-        const result = await uploadRevocationEvidence(actorUserId, {
-          storagePath: path,
-          mimeType: file.type,
-          fileSize: file.size,
-        });
-
-        if ("error" in result) {
-          setError(`Error al registrar ${file.name}: ${result.error}`);
-          setUploading(false);
-          return;
-        }
-
-        newFiles.push({ name: file.name, attachmentId: result.attachmentId });
-      } catch {
-        setError(`Error inesperado subiendo ${file.name}.`);
-        setUploading(false);
-        return;
-      }
-    }
-
-    setUploadedFiles((prev) => [...prev, ...newFiles]);
-    setUploading(false);
+    addFiles(files);
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  function removeFile(attachmentId: string) {
-    setUploadedFiles((prev) => prev.filter((f) => f.attachmentId !== attachmentId));
   }
 
   function submit() {
     setError(null);
     startTransition(async () => {
+      // C23: upload on submit, namespaced by the TARGET govt id.
+      const uploaded = await uploadAll(target.id, actorUserId);
+      if ("error" in uploaded) {
+        setError(uploaded.error);
+        return;
+      }
+
       const result = await deactivateGovtAction({
         targetGovtUserId: target.id,
         motivo: motivoTrimmed,
-        attachmentIds: uploadedFiles.map((f) => f.attachmentId),
+        attachmentIds: uploaded.attachmentIds,
       });
       if ("error" in result) {
         setError(result.error);
@@ -202,18 +162,16 @@ function DeactivateGovtForm({
           className="text-[12px] text-ln-op-ink-2"
         />
         {uploading && <p className="text-[10px] text-ln-op-mute">Subiendo...</p>}
-        {uploadedFiles.length > 0 && (
+        {selectedFiles.length > 0 && (
           <ul className="space-y-0.5">
-            {uploadedFiles.map((f) => (
-              <li
-                key={f.attachmentId}
-                className="flex items-center gap-2 text-[10px] text-ln-op-ink-2"
-              >
-                <span className="truncate max-w-[200px]">{f.name}</span>
+            {selectedFiles.map((f) => (
+              <li key={f.key} className="flex items-center gap-2 text-[10px] text-ln-op-ink-2">
+                <span className="truncate max-w-[200px]">{f.file.name}</span>
                 <button
                   type="button"
-                  onClick={() => removeFile(f.attachmentId)}
-                  className="text-ln-op-danger hover:underline shrink-0"
+                  onClick={() => removeFile(f.key)}
+                  disabled={pending || uploading}
+                  className="text-ln-op-danger hover:underline shrink-0 disabled:opacity-50"
                 >
                   Quitar
                 </button>

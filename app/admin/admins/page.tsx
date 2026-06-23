@@ -5,10 +5,7 @@ import { eq } from "drizzle-orm";
 import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { createAdminClient } from "@/lib/supabase/admin";
-
-// Scaling note: auth.admin.listUsers() perPage=200. At 200+ admins this
-// needs pagination or a different strategy. See ADR-8.
+import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
 
 export default async function AdminsPage() {
   const { user } = await requireAdminOrRedirect();
@@ -21,12 +18,13 @@ export default async function AdminsPage() {
       displayName: profiles.displayName,
       deactivatedAt: profiles.deactivatedAt,
       createdAt: profiles.createdAt,
+      isSystem: profiles.isSystem,
     })
     .from(profiles)
     .where(eq(profiles.role, "admin"));
 
-  const { data: authUsers } = await supabase.auth.admin.listUsers({ perPage: 200 });
-  const emailMap = new Map(authUsers?.users.map((u) => [u.id, u.email ?? ""]) ?? []);
+  // C21: page through ALL auth users so emails are complete past 200 operators.
+  const emailMap = await buildAuthEmailMap(supabase);
 
   const admins = adminRows.map((a) => ({
     ...a,
@@ -37,13 +35,12 @@ export default async function AdminsPage() {
   const activeAdmins = admins.filter((a) => a.deactivatedAt === null);
   const deactivatedAdmins = admins.filter((a) => a.deactivatedAt !== null);
 
-  // A7: keep service/system accounts (created by backfill scripts, named
-  // "system:…") out of the human admin list — they aren't people and clutter
-  // the roster. Shown in a separate collapsed section below.
-  const isSystem = (a: (typeof admins)[number]) =>
-    a.displayName.startsWith("system:") || a.email.startsWith("system:");
-  const humanActive = activeAdmins.filter((a) => !isSystem(a));
-  const systemActive = activeAdmins.filter(isSystem);
+  // C21/A7: keep service/system accounts out of the human admin list — they
+  // aren't people and clutter the roster. Shown in a separate collapsed section
+  // below. Partition by the DB flag (profiles.is_system), not a display-name
+  // heuristic that broke once auth-user enumeration exceeded one page.
+  const humanActive = activeAdmins.filter((a) => !a.isSystem);
+  const systemActive = activeAdmins.filter((a) => a.isSystem);
 
   return (
     <main className="px-6 py-8">

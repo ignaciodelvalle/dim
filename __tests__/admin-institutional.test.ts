@@ -413,6 +413,25 @@ async function seedAdminUser(email: string): Promise<string> {
   return id;
 }
 
+// C21: a system/service admin. The last-admin guard must NOT count these toward
+// the human-admin floor. The migration backfills is_system from a `system:%`
+// display name, but accounts seeded AFTER the migration won't be caught by that
+// one-shot backfill — so we set is_system explicitly here.
+async function seedSystemAdminUser(email: string): Promise<string> {
+  await deleteTestUser(email);
+  const id = await createUserOrThrow(email);
+  await db
+    .update(profiles)
+    .set({
+      role: "admin",
+      accountType: "institutional",
+      displayName: `system:${email.split("@")[0]}`,
+      isSystem: true,
+    })
+    .where(eq(profiles.id, id));
+  return id;
+}
+
 async function seedGovtUser(
   email: string,
   localities: { province: string; locality: string }[] = [],
@@ -786,6 +805,169 @@ describe("deactivateAdminForAuthority — concurrency: last-admin race", () => {
       }
     }
   }, 120_000);
+});
+
+// ============================================================================
+// deactivateAdminForAuthority — C21/C22 human-only last-admin floor
+//
+// The last-admin guard must count only HUMAN admins (profiles.is_system = false).
+// A system/service admin must NOT keep the count above the floor, otherwise the
+// last human admin could be deactivated while a machine account masks the gap.
+// ============================================================================
+
+// Deactivate every active institutional admin EXCEPT the given ids, returning
+// the ids that were deactivated so the caller can restore them afterward.
+async function isolateActiveAdmins(keepIds: string[]): Promise<string[]> {
+  const active = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(
+      and(
+        eq(profiles.role, "admin"),
+        eq(profiles.accountType, "institutional"),
+        isNull(profiles.deactivatedAt),
+      ),
+    );
+  const toDeactivate = active.map((r) => r.id).filter((id) => !keepIds.includes(id));
+  for (const id of toDeactivate) {
+    await db.update(profiles).set({ deactivatedAt: new Date() }).where(eq(profiles.id, id));
+  }
+  return toDeactivate;
+}
+
+describe("deactivateAdminForAuthority — C21 human-only last-admin floor", () => {
+  const HUMAN_ACTOR = "c21-human-actor@dim-test.local";
+  const HUMAN_TARGET = "c21-human-target@dim-test.local";
+  const SYSTEM_ADMIN = "c21-system-admin@dim-test.local";
+
+  let humanActorId: string;
+  let humanTargetId: string;
+  let systemAdminId: string;
+  let restored: string[] = [];
+
+  beforeAll(async () => {
+    humanActorId = await seedAdminUser(HUMAN_ACTOR);
+    humanTargetId = await seedAdminUser(HUMAN_TARGET);
+    systemAdminId = await seedSystemAdminUser(SYSTEM_ADMIN);
+    createdNewUserEmails.push(HUMAN_ACTOR, HUMAN_TARGET, SYSTEM_ADMIN);
+  }, 30_000);
+
+  afterAll(async () => {
+    for (const id of restored) {
+      await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, id));
+    }
+    restored = [];
+  });
+
+  it("backfill/flag: the seeded system admin is marked is_system = true", async () => {
+    const [row] = await db
+      .select({ isSystem: profiles.isSystem })
+      .from(profiles)
+      .where(eq(profiles.id, systemAdminId))
+      .limit(1);
+    expect(row.isSystem).toBe(true);
+  });
+
+  it("BLOCKS deactivating the last human admin even when a system admin is active", async () => {
+    // Isolate: only humanTarget + systemAdmin remain active humans/system.
+    // The system admin is the actor (it passes the role=admin capability gate),
+    // and humanTarget is the SOLE human admin. With the human-only floor the
+    // guard must see humanCount = 1 → remaining 0 → LAST_ADMIN.
+    restored = await isolateActiveAdmins([humanTargetId, systemAdminId]);
+
+    const [att] = await db
+      .insert(attachments)
+      .values({
+        storagePath: "test/c21-block-evidence.pdf",
+        mimeType: "application/pdf",
+        uploadedByUserId: systemAdminId,
+        fileSize: 100,
+      })
+      .returning({ id: attachments.id });
+
+    const result = await deactivateAdminForAuthority(systemAdminId, {
+      targetAdminUserId: humanTargetId,
+      motivo: "Intento de desactivar al ultimo admin humano con texto suficientemente largo.",
+      attachmentIds: [att.id],
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toContain("LAST_ADMIN");
+
+    // Target must remain active.
+    const [target] = await db
+      .select({ deactivatedAt: profiles.deactivatedAt })
+      .from(profiles)
+      .where(eq(profiles.id, humanTargetId))
+      .limit(1);
+    expect(target.deactivatedAt).toBeNull();
+
+    // Restore for the next test / cleanup.
+    for (const id of restored) {
+      await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, id));
+    }
+    restored = [];
+    await db.delete(attachments).where(eq(attachments.id, att.id));
+  });
+
+  it("ALLOWS deactivating one of two human admins (system admins are ignored)", async () => {
+    // Isolate: humanActor + humanTarget (2 humans) + systemAdmin active.
+    // humanCount = 2 → remaining 1 → allowed. The system admin must not be
+    // counted (otherwise the test could not distinguish floor behavior).
+    await reactivateUser(humanActorId);
+    await reactivateUser(humanTargetId);
+    restored = await isolateActiveAdmins([humanActorId, humanTargetId, systemAdminId]);
+
+    const [att] = await db
+      .insert(attachments)
+      .values({
+        storagePath: "test/c21-allow-evidence.pdf",
+        mimeType: "application/pdf",
+        uploadedByUserId: humanActorId,
+        fileSize: 100,
+      })
+      .returning({ id: attachments.id });
+
+    const result = await deactivateAdminForAuthority(humanActorId, {
+      targetAdminUserId: humanTargetId,
+      motivo: "Desactivacion valida con dos admins humanos activos y texto suficiente.",
+      attachmentIds: [att.id],
+    });
+
+    expect(result).not.toHaveProperty("error");
+    if ("error" in result) {
+      for (const id of restored) {
+        await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, id));
+      }
+      restored = [];
+      return;
+    }
+    expect(result.ok).toBe(true);
+
+    // The audit payload should report the remaining HUMAN admin count (1),
+    // not inflated by the active system admin.
+    const [logRow] = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetUserId, humanTargetId),
+          eq(auditLog.action, "admin_deactivated_by_admin"),
+        ),
+      )
+      .orderBy(desc(auditLog.performedAt))
+      .limit(1);
+    const payload = logRow.payload as Record<string, unknown>;
+    expect(payload.remaining_admins_count).toBe(1);
+
+    // Restore.
+    await reactivateUser(humanTargetId);
+    for (const id of restored) {
+      await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, id));
+    }
+    restored = [];
+    await db.delete(attachments).where(eq(attachments.id, att.id));
+  });
 });
 
 // ============================================================================
@@ -1206,136 +1388,4 @@ describe("assignGovtLocalityForAuthority — duplicate assignment returns noOp",
     expect(result.ok).toBe(true);
     expect(result.noOp).toBe(true);
   });
-});
-
-// ============================================================================
-// deactivateAdminForAuthority — C22: last-HUMAN-admin guard excludes system accounts
-// ============================================================================
-//
-// AGENTS.md hard constraint #4 ("the system always retains at least one active
-// admin") means at least one active HUMAN admin. The guard counted ALL active
-// institutional admins including `system:` service accounts, so 1 human + 1
-// system gave a raw count of 2 and the human could be deactivated, leaving zero
-// humans. The fix excludes `display_name LIKE 'system:%'` from the floor.
-// Stopgap heuristic (display_name) — superseded by profiles.is_system in C21.
-
-/** Isolate the active-admin set to exactly `keepIds`; returns the ids it
- *  deactivated so the caller can restore them in a finally block. */
-async function isolateActiveAdmins(keepIds: string[]): Promise<string[]> {
-  const active = await db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(
-      and(
-        eq(profiles.role, "admin"),
-        eq(profiles.accountType, "institutional"),
-        isNull(profiles.deactivatedAt),
-      ),
-    );
-  const toDeactivate = active.map((r) => r.id).filter((id) => !keepIds.includes(id));
-  for (const id of toDeactivate) {
-    await db.update(profiles).set({ deactivatedAt: new Date() }).where(eq(profiles.id, id));
-  }
-  return toDeactivate;
-}
-
-describe("deactivateAdminForAuthority — last-human-admin guard excludes system accounts (C22)", () => {
-  it("blocks deactivating the lone human admin even when a system: account keeps the raw count at 2", async () => {
-    const C22_HUMAN_EMAIL = "fase5-c22-human@dim-test.local";
-    const C22_SYSTEM_EMAIL = "fase5-c22-system@dim-test.local";
-    createdNewUserEmails.push(C22_HUMAN_EMAIL, C22_SYSTEM_EMAIL);
-
-    const humanId = await seedAdminUser(C22_HUMAN_EMAIL);
-    const systemId = await seedAdminUser(C22_SYSTEM_EMAIL);
-    // Service account: the `system:` sentinel in display_name is what the roster
-    // and the guard use to tell service accounts apart from people.
-    await db
-      .update(profiles)
-      .set({ displayName: "system:c22-backfill" })
-      .where(eq(profiles.id, systemId));
-
-    const restored = await isolateActiveAdmins([humanId, systemId]);
-
-    try {
-      const [att] = await db
-        .insert(attachments)
-        .values({
-          storagePath: "test/c22-evidence.pdf",
-          mimeType: "application/pdf",
-          uploadedByUserId: systemId,
-          fileSize: 100,
-        })
-        .returning({ id: attachments.id });
-
-      // The system account is the only other active admin, so it acts as the
-      // deactivator. Deactivating the lone human must be refused — the system
-      // account does not count toward the human-admin floor.
-      const result = await deactivateAdminForAuthority(systemId, {
-        targetAdminUserId: humanId,
-        motivo: "Intento de desactivar al ultimo admin humano con motivo suficientemente largo.",
-        attachmentIds: [att.id],
-      });
-
-      expect(result).toHaveProperty("error");
-      expect((result as { error: string }).error).toContain("LAST_ADMIN");
-
-      const [humanProfile] = await db
-        .select({ deactivatedAt: profiles.deactivatedAt })
-        .from(profiles)
-        .where(eq(profiles.id, humanId))
-        .limit(1);
-      expect(humanProfile.deactivatedAt).toBeNull();
-    } finally {
-      for (const id of restored) {
-        await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, id));
-      }
-      await deleteTestUser(C22_HUMAN_EMAIL);
-      await deleteTestUser(C22_SYSTEM_EMAIL);
-    }
-  }, 30_000);
-
-  it("allows deactivating a human admin while another human admin remains (system present, irrelevant)", async () => {
-    const HUMAN_A = "fase5-c22-humana@dim-test.local";
-    const HUMAN_B = "fase5-c22-humanb@dim-test.local";
-    const SYS = "fase5-c22-sys2@dim-test.local";
-    createdNewUserEmails.push(HUMAN_A, HUMAN_B, SYS);
-
-    const aId = await seedAdminUser(HUMAN_A);
-    const bId = await seedAdminUser(HUMAN_B);
-    const sId = await seedAdminUser(SYS);
-    await db
-      .update(profiles)
-      .set({ displayName: "system:c22-backfill-2" })
-      .where(eq(profiles.id, sId));
-
-    const restored = await isolateActiveAdmins([aId, bId, sId]);
-
-    try {
-      const [att] = await db
-        .insert(attachments)
-        .values({
-          storagePath: "test/c22-evidence-2.pdf",
-          mimeType: "application/pdf",
-          uploadedByUserId: aId,
-          fileSize: 100,
-        })
-        .returning({ id: attachments.id });
-
-      // 2 humans + 1 system. Deactivating B (human) leaves 1 human → allowed.
-      const result = await deactivateAdminForAuthority(aId, {
-        targetAdminUserId: bId,
-        motivo: "Desactivacion valida con un segundo admin humano activo presente.",
-        attachmentIds: [att.id],
-      });
-
-      expect(result).not.toHaveProperty("error");
-    } finally {
-      for (const id of restored) {
-        await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, id));
-      }
-      await deleteTestUser(HUMAN_A);
-      await deleteTestUser(HUMAN_B);
-      await deleteTestUser(SYS);
-    }
-  }, 30_000);
 });

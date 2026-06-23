@@ -8,9 +8,11 @@ import {
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
 import type { RuleImpactPreviewInput } from "@/app/actions/rule-impact-preview";
-import { RuleImpactBanner } from "@/components/admin/RuleImpactBanner";
+import { RuleImpactBanner, type RuleImpactResult } from "@/components/admin/RuleImpactBanner";
+import { LnCheckbox } from "@/components/ui/Field";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { DOG_BREEDS, POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/breeds";
+import { canSaveWithImpactGate, requiresImpactConfirmation } from "@/lib/rule-impact-gate";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -43,6 +45,12 @@ export function PppBreedListForm({
   const [breeds, setBreeds] = useState<string[]>(initialBreeds);
   const [customBreed, setCustomBreed] = useState("");
 
+  // C9: impact gate. The banner already computes the affected-pet count; we
+  // thread it here (no second preview call) and require the operator to
+  // acknowledge a non-zero blast radius before the save may fire.
+  const [impact, setImpact] = useState<RuleImpactResult>({ status: "idle", count: null });
+  const [acknowledged, setAcknowledged] = useState(false);
+
   const ALL_BREEDS = Array.from(new Set([...DOG_BREEDS, ...initialBreeds])).sort();
 
   function toggle(breed: string) {
@@ -68,6 +76,14 @@ export function PppBreedListForm({
       locality,
     };
   }, [breeds, country, province, locality]);
+
+  const gateState = {
+    status: impact.status,
+    count: impact.count,
+    acknowledged,
+  };
+  const mustConfirm = requiresImpactConfirmation(gateState);
+  const canSave = canSaveWithImpactGate(gateState);
 
   return (
     <form action={formAction} className="space-y-5">
@@ -124,8 +140,29 @@ export function PppBreedListForm({
         </div>
       </div>
 
-      {/* Impact preview — shown before submission */}
-      <RuleImpactBanner input={previewInput} />
+      {/* Impact preview — shown before submission. C9: thread the result up so
+          the save can gate on acknowledgement. A new count invalidates any prior
+          acknowledgement so the operator re-confirms the new blast radius. */}
+      <RuleImpactBanner
+        input={previewInput}
+        onResult={(result) => {
+          setImpact(result);
+          setAcknowledged(false);
+        }}
+      />
+
+      {/* C9: confirmation gate — required only when the rule would affect pets. */}
+      {mustConfirm && impact.status === "done" && impact.count !== null && impact.count > 0 && (
+        <LnCheckbox
+          checked={acknowledged}
+          onChange={(e) => setAcknowledged(e.target.checked)}
+          labelClassName="text-xs! text-ln-op-warn!"
+        >
+          Confirmo que entiendo que guardar esta regla reevaluará y notificará a{" "}
+          {impact.count.toLocaleString("es-AR")} {impact.count === 1 ? "dueño" : "dueños"} de las
+          mascotas afectadas.
+        </LnCheckbox>
+      )}
 
       <LnField label="Notas internas (visible solo a admin/govt)">
         {({ id, describedBy, invalid }) => (
@@ -149,7 +186,7 @@ export function PppBreedListForm({
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || !canSave}
         className="w-full px-4 py-3 rounded-[6px] bg-ln-op-navy text-white font-semibold text-[13px] hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
         {isPending ? "Guardando..." : mode === "create" ? "Crear regla" : "Guardar cambios"}

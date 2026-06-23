@@ -98,16 +98,6 @@ async function loadActorProfile(actorUserId: string): Promise<ActorProfile | nul
   };
 }
 
-// C22 stopgap: identify `system:` service accounts (backfills, jobs) by the
-// `system:` sentinel in their display_name — the same heuristic the admins
-// roster uses. These accounts are not people and must not count toward the
-// human-admin floor of the last-admin guard. Replace with profiles.is_system
-// once the DB flag lands (C21 / PR-7).
-// TODO(C21): swap this heuristic for a profiles.is_system column read.
-function isSystemAccountName(displayName: string | null | undefined): boolean {
-  return !!displayName && displayName.startsWith("system:");
-}
-
 // ---------------------------------------------------------------------------
 // Inner writer: createInstitutionalAccountForAuthority (PR-A)
 //
@@ -394,14 +384,22 @@ export async function deactivateAdminForAuthority(
       // We use raw SQL here because drizzle ORM doesn't expose FOR UPDATE in SELECT directly.
       // With drizzle-orm/postgres-js, tx.execute returns the raw postgres-js result which
       // behaves as an array-like iterable of row objects.
+      // C21: select is_system alongside id so the last-admin floor counts only
+      // HUMAN admins (is_system = false). A system/service admin must never keep
+      // the count above the floor — otherwise the last human admin could be
+      // deactivated while a machine account masks the gap. We still lock the full
+      // active-admin set (the system rows included) so concurrent writers to any
+      // admin row serialize correctly.
       const lockResult = await tx.execute(
-        sql`SELECT id, display_name FROM profiles WHERE account_type = 'institutional' AND role = 'admin' AND deactivated_at IS NULL FOR UPDATE`,
+        sql`SELECT id, is_system FROM profiles WHERE account_type = 'institutional' AND role = 'admin' AND deactivated_at IS NULL FOR UPDATE`,
       );
       // postgres-js with drizzle returns the SQL result directly as an iterable array.
       // Cast to unknown first, then spread into a regular array for safe iteration.
-      const adminRows: Array<{ id: string; display_name: string | null }> = [
-        ...(lockResult as unknown as Iterable<{ id: string; display_name: string | null }>),
+      const adminRows: Array<{ id: string; is_system: boolean }> = [
+        ...(lockResult as unknown as Iterable<{ id: string; is_system: boolean }>),
       ];
+      // Human-admin floor: ignore system/service accounts (is_system = true) in the count.
+      const humanAdminCount = adminRows.filter((r) => r.is_system === false).length;
 
       // Idempotency: if target is NOT in the active set, it's already deactivated.
       const targetRow = adminRows.find((r) => r.id === input.targetAdminUserId);
@@ -409,12 +407,11 @@ export async function deactivateAdminForAuthority(
         throw new Error("NO_OP");
       }
 
-      // Last-HUMAN-admin guard (C22): `system:` service accounts must not prop up
-      // the floor — otherwise the last human admin could be deactivated while a
-      // service account keeps the raw count ≥ 2. Deactivating a service account
+      // Last-HUMAN-admin guard (C21): system/service accounts (is_system) must not
+      // prop up the floor — otherwise the last human admin could be deactivated while
+      // a service account keeps the raw count ≥ 2. Deactivating a service account
       // itself never reduces the human count, so the guard only fires for humans.
-      const humanAdminCount = adminRows.filter((r) => !isSystemAccountName(r.display_name)).length;
-      const targetIsSystem = isSystemAccountName(targetRow.display_name);
+      const targetIsSystem = targetRow.is_system === true;
       if (!targetIsSystem && humanAdminCount - 1 < 1) {
         throw new Error("LAST_ADMIN");
       }

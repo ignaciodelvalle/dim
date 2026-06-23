@@ -429,6 +429,13 @@ export const profiles = pgTable(
       .notNull()
       .default("personal")
       .$type<"personal" | "institutional">(),
+    // System service account flag (migration 0109 — C21). Distinguishes
+    // machine/service accounts (e.g. the panorama seeder, automation actors)
+    // from human operators. Replaces the brittle `display_name LIKE 'system:%'`
+    // heuristic that broke once auth-user enumeration exceeded one page and
+    // emails came back blank. The last-admin guard and the admin roster
+    // partition read this flag instead of inspecting the display name.
+    isSystem: boolean("is_system").notNull().default(false),
     // Global disclosure prefs (handoff P1-2). Each toggle controls a
     // single surface; per-pet overrides live on `pets.disclose_*_when_lost`.
     // Defaults follow privacy-first: name + phone hidden, org contact

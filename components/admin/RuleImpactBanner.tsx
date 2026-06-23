@@ -8,31 +8,44 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type RuleImpactPreviewInput, previewRuleImpact } from "@/app/actions/rule-impact-preview";
 
-type Props = {
-  input: RuleImpactPreviewInput | null;
-};
-
 type Status = "idle" | "loading" | "done" | "error";
 
-export function RuleImpactBanner({ input }: Props) {
+export type RuleImpactResult = {
+  status: Status;
+  count: number | null;
+};
+
+type Props = {
+  input: RuleImpactPreviewInput | null;
+  // C9: report the computed impact upward so a parent form can gate its save on
+  // acknowledgement WITHOUT calling the preview a second time.
+  onResult?: (result: RuleImpactResult) => void;
+};
+
+export function RuleImpactBanner({ input, onResult }: Props) {
   const [count, setCount] = useState<number | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const abortRef = useRef<AbortController | null>(null);
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
 
   const fetch = useCallback(async (previewInput: RuleImpactPreviewInput) => {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
     setStatus("loading");
+    onResultRef.current?.({ status: "loading", count: null });
     try {
       const result = await previewRuleImpact(previewInput);
       if (!ac.signal.aborted) {
         setCount(result.affectedCount);
         setStatus("done");
+        onResultRef.current?.({ status: "done", count: result.affectedCount });
       }
     } catch {
       if (!ac.signal.aborted) {
         setStatus("error");
+        onResultRef.current?.({ status: "error", count: null });
       }
     }
   }, []);
@@ -41,6 +54,7 @@ export function RuleImpactBanner({ input }: Props) {
     if (!input) {
       setStatus("idle");
       setCount(null);
+      onResultRef.current?.({ status: "idle", count: null });
       return;
     }
     void fetch(input);
