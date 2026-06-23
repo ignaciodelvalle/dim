@@ -15,13 +15,17 @@
 //   fetchMicrochipPenetration  ← lib/compliance-metrics.ts
 //   evaluateAlertSubscriptions ← lib/metrics/alert-evaluation.ts
 
+import { inArray } from "drizzle-orm";
+
 import { toggleAlertSubscriptionAction } from "@/app/actions/alert-subscriptions";
 import { DeleteAlertSubscriptionButton } from "@/app/admin/programa/DeleteAlertSubscriptionButton";
 import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { db, profiles } from "@/db";
 import { fetchCronRuns, fetchQueueHealth } from "@/lib/admin-metrics";
+import { auditActionLabel } from "@/lib/audit-action-labels";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { fetchMicrochipPenetration } from "@/lib/compliance-metrics";
 import {
@@ -33,8 +37,7 @@ import {
   fetchPiiOversight,
   toneForTarget,
 } from "@/lib/metrics";
-import { registryCounts } from "@/lib/metrics/census";
-import { DORMANT_MONTHS_DEFAULT } from "@/lib/metrics/census";
+import { DORMANT_MONTHS_DEFAULT, registryCounts } from "@/lib/metrics/census";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { createClient } from "@/lib/supabase/server";
@@ -121,6 +124,22 @@ export default async function AdminProgramaPage({
   ]);
 
   const breachingAlerts = alertEvals.filter((a) => a.breaching);
+
+  // Batch-resolve actor UUIDs in the PII oversight table to display names.
+  const actorIds = piiOversight
+    .map((r) => r.actorUserId)
+    .filter((id): id is string => id !== null && id !== undefined);
+  const uniqueActorIds = [...new Set(actorIds)];
+  const actorNameMap = new Map<string, string>();
+  if (uniqueActorIds.length > 0) {
+    const actorRows = await db
+      .select({ id: profiles.id, displayName: profiles.displayName })
+      .from(profiles)
+      .where(inArray(profiles.id, uniqueActorIds));
+    for (const row of actorRows) {
+      actorNameMap.set(row.id, row.displayName);
+    }
+  }
 
   const outlierCount = outliers.filter((r) => r.isOutlier).length;
   const chipRatePct = microchip.ratePct;
@@ -363,10 +382,14 @@ export default async function AdminProgramaPage({
                       key={`${row.actorUserId ?? "deleted"}-${row.action}-${row.surface ?? ""}`}
                       className="border-b border-ln-op-line last:border-0 hover:bg-ln-op-stripe/50 transition-colors"
                     >
-                      <td className="py-2 pr-4 font-mono text-[11px] text-ln-op-ink-2">
-                        {row.actorUserId ? `${row.actorUserId.slice(0, 8)}…` : "Usuario eliminado"}
+                      <td className="py-2 pr-4 text-[13px] text-ln-op-ink-2">
+                        {row.actorUserId
+                          ? (actorNameMap.get(row.actorUserId) ?? "Operador desconocido")
+                          : "Usuario eliminado"}
                       </td>
-                      <td className="py-2 pr-4 text-ln-op-ink-2">{row.action}</td>
+                      <td className="py-2 pr-4 text-ln-op-ink-2" title={row.action}>
+                        {auditActionLabel(row.action)}
+                      </td>
                       <td className="py-2 pr-4 text-ln-op-mute">{row.surface ?? "—"}</td>
                       <td className="py-2 pr-4 text-right tabular-nums font-medium">
                         {row.count.toLocaleString("es-AR")}

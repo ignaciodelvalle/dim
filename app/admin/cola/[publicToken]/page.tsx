@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { logRequestViewedForAuthority } from "@/app/actions/admin-decisions";
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge } from "@/components/ui/dashboard";
 import { approvalRequests, db, organizations, petServiceDog, pets, profiles } from "@/db";
+import { buildPayloadRows } from "@/lib/approval-payload-view";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
 import { ReviewActions } from "./ReviewActions";
@@ -192,11 +193,7 @@ export default async function AdminReviewRequestPage({
         </Section>
       )}
 
-      <Section title="Payload">
-        <pre className="overflow-x-auto rounded-[4px] bg-ln-op-stripe p-3 font-ln-mono text-[11px] leading-relaxed text-ln-op-ink-2">
-          {JSON.stringify(request.payload, null, 2)}
-        </pre>
-      </Section>
+      <PayloadSection type={request.type} payload={request.payload} />
 
       {request.status === "pending" ? (
         <Section title="Decidir">
@@ -218,6 +215,26 @@ export default async function AdminReviewRequestPage({
         </Section>
       )}
     </div>
+  );
+}
+
+function PayloadSection({ type, payload }: { type: string; payload: unknown }) {
+  const rows = buildPayloadRows(type, payload);
+  return (
+    <Section title="Datos de la solicitud">
+      {rows.length === 0 ? (
+        <p className="text-[12px] text-ln-op-mute">Sin datos estructurados.</p>
+      ) : (
+        <dl className="space-y-2 text-[13px]">
+          {rows.map((row) => (
+            <div key={row.label} className="flex flex-wrap gap-x-3">
+              <dt className="text-ln-op-mute">{row.label}:</dt>
+              <dd className="font-medium text-ln-op-ink">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </Section>
   );
 }
 
