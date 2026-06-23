@@ -1064,6 +1064,12 @@ export const ownerships = pgTable(
       .where(sql`${table.role} = 'shelter_custody' AND ${table.endedAt} IS NULL`),
     ownerUserIdx: index("ownerships_owner_user_id_idx").on(table.ownerUserId),
     ownerOrgIdx: index("ownerships_owner_organization_id_idx").on(table.ownerOrganizationId),
+    // General (pet_id) index — covers the unfiltered orphan-detection EXISTS in
+    // lib/metrics/program-health.ts fetchDataQuality. The partial unique indexes
+    // above only cover specific role+active rows, so they can't serve the
+    // all-rows lookup; without this the check seq-scanned ownerships per pet
+    // (~135 s on the seed). A FK does not create an index in Postgres (0112).
+    petIdIdx: index("ownerships_pet_id_idx").on(table.petId),
   }),
 );
 
