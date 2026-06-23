@@ -285,10 +285,19 @@ function pnpmRun(
 }
 
 function tsxRun(scriptPath: string): boolean {
-  const result = spawnSync("pnpm", ["tsx", scriptPath], {
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
+  // Launch with the server-only stub registered first, matching the package.json
+  // seed:* scripts. The step-4 seeds import db/index.ts, which imports the
+  // `server-only` sentinel; under plain `tsx` that throws ("cannot be imported
+  // from a Client Component"). The stub resolves server-only/client-only to an
+  // empty module for these standalone scripts (Next's build is untouched).
+  const result = spawnSync(
+    "node",
+    ["--import", "./scripts/register-server-only-stub.mjs", "--import", "tsx", scriptPath],
+    {
+      stdio: "inherit",
+      shell: process.platform === "win32",
+    },
+  );
   return result.status === 0;
 }
 
