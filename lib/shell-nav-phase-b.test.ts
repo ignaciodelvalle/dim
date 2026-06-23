@@ -53,9 +53,10 @@ const GOB_HREF_SNAPSHOT = new Set([
 const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin",
   "/admin/panorama", // Centro de Situación Nacional — flagship console
-  "/admin/cola",
-  "/admin/usuarios",
-  "/admin/organizaciones",
+  // AC3 — Cola/Usuarios/Organizaciones repointed from /admin/* to /gob/*.
+  "/gob/cola",
+  "/gob/usuarios",
+  "/gob/organizaciones",
   "/admin/historial",
   "/admin/auditoria",
   "/admin/outbox",

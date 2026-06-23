@@ -63,6 +63,7 @@ vi.mock("@/lib/request-cache", () => ({
 import {
   requireAdminOrGovtOrRedirect,
   requireAdminOrRedirect,
+  requireDecomisoPrincipal,
   requireOrgAccessByToken,
   requireUserOrRedirect,
 } from "@/lib/auth-guards";
@@ -181,6 +182,74 @@ describe("requireAdminOrGovtOrRedirect", () => {
     expect(result.jurisdictions).toEqual([{ province: "Buenos Aires", locality: "La Plata" }]);
     expect(mockGetJurisdictionsCached).toHaveBeenCalledWith("user-govt");
     expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  // AC1: the shared /gob guard must reject deactivated authorities, mirroring
+  // requireAdminOrRedirect. Before the fix a deactivated govt/admin kept full
+  // read+write access to every /gob surface and server action.
+  it("redirects to / when a govt is deactivated", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-govt-deactivated"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-govt-deactivated",
+      role: "govt",
+      displayName: "Deactivated Govt",
+      accountType: "institutional",
+      deactivatedAt: new Date("2026-01-01"),
+    });
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(mockRedirect).toHaveBeenCalledWith("/");
+    // Deactivation is rejected BEFORE the jurisdictions lookup — no scope leak.
+    expect(mockGetJurisdictionsCached).not.toHaveBeenCalled();
+  });
+
+  it("redirects to / when an admin is deactivated", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-admin-deactivated"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-admin-deactivated",
+      role: "admin",
+      displayName: "Deactivated Admin",
+      accountType: "institutional",
+      deactivatedAt: new Date("2026-01-01"),
+    });
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(mockRedirect).toHaveBeenCalledWith("/");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// requireDecomisoPrincipal — reuses requireAdminOrGovtOrRedirect verbatim, so
+// the AC1 deactivation gate must apply to decomiso authority too.
+// ---------------------------------------------------------------------------
+
+describe("requireDecomisoPrincipal", () => {
+  it("passes for an active govt with jurisdictions", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-govt-active"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-govt-active",
+      role: "govt",
+      displayName: "Active Govt",
+      accountType: "institutional",
+      deactivatedAt: null,
+    });
+    mockGetJurisdictionsCached.mockResolvedValue([
+      { province: "Buenos Aires", locality: "La Plata" },
+    ]);
+    const result = await requireDecomisoPrincipal();
+    expect(result.profile.role).toBe("govt");
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("redirects to / when the decomiso principal is deactivated (inherits AC1 gate)", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-decomiso-deactivated"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-decomiso-deactivated",
+      role: "govt",
+      displayName: "Deactivated Decomiso Principal",
+      accountType: "institutional",
+      deactivatedAt: new Date("2026-01-01"),
+    });
+    await expect(requireDecomisoPrincipal()).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(mockRedirect).toHaveBeenCalledWith("/");
   });
 });
 

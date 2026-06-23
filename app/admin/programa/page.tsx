@@ -241,7 +241,7 @@ export default async function AdminProgramaPage({
               : undefined
           }
           sub={`${queue.pendingTotal} pendientes`}
-          href="/admin/cola"
+          href="/gob/cola"
           info={{
             definition: "Días de antigüedad de la solicitud pendiente más antigua.",
             formula: "now() - min(created_at) WHERE status='pending'",

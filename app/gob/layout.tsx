@@ -13,9 +13,9 @@ import type { ShellSession } from "@/lib/shell-nav";
 
 // Gate the /gob/* segment. Both admin and govt can access this surface.
 // Admin has universal scope; govt is scoped to their assigned localities.
-// Strictly requires non-deactivated institutional accounts — handled inside
-// requireAdminOrGovtOrRedirect which already gates on deactivated_at for
-// institutional roles (Fase 5 invariant).
+// requireAdminOrGovtOrRedirect rejects deactivated accounts (deactivated_at IS
+// NOT NULL) by redirecting to /, so a deactivated govt/admin cannot reach any
+// /gob surface or invoke its server actions.
 export default async function GobiernoLayout({ children }: { children: React.ReactNode }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
