@@ -73,7 +73,7 @@ export default async function AdminCasosPage({
               </div>
               {c.primaryPetPublicToken && c.primaryPetName ? (
                 <Link
-                  href={`/mis-mascotas/${c.primaryPetPublicToken}`}
+                  href={`/p/${c.primaryPetPublicToken}`}
                   className="inline-flex items-center rounded-full bg-ln-op-stripe px-3 py-1.5 text-[13px] text-ln-op-ink-2 no-underline transition-colors hover:bg-ln-op-line"
                 >
                   &#128062; {c.primaryPetName}
