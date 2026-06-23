@@ -82,21 +82,43 @@ export type AdminOrGovtSession = AuthenticatedSession & {
 // deactivated govt/admin would retain read+write access to every /gob/* surface
 // (PII search, role-change proposals, decomisos) because those server actions
 // gate on this same guard.
+// Shared loader for every institutional guard. Loads the profile and enforces
+// the three invariants that an admin/govt surface always requires:
+//   1. role ∈ `allow`   (else redirect to `roleRejectRedirect`)
+//   2. accountType === 'institutional'   (else redirect to /)
+//   3. deactivatedAt === null            (else redirect to /)
+//
+// Centralizing (2) and (3) here makes it structurally impossible for a guard to
+// forget either check — the divergence that caused AC1 (requireAdminOrGovt-
+// OrRedirect lacked the deactivation gate that requireAdminOrRedirect had).
+// The account-type and deactivation rejects always land on / regardless of the
+// guard; only the wrong-role destination is caller-specific.
+async function loadActiveInstitutionalProfile(
+  userId: string,
+  opts: { allow: ReadonlyArray<"admin" | "govt">; roleRejectRedirect: string },
+): Promise<NonNullable<Awaited<ReturnType<typeof getProfileCached>>>> {
+  const profile = await getProfileCached(userId);
+  if (!profile || !opts.allow.includes(profile.role as "admin" | "govt")) {
+    redirect(opts.roleRejectRedirect);
+  }
+  if (profile.accountType !== "institutional") redirect("/");
+  if (profile.deactivatedAt !== null) redirect("/");
+  return profile;
+}
+
 export async function requireAdminOrGovtOrRedirect(): Promise<AdminOrGovtSession> {
   const session = await requireUserOrRedirect();
-  const profile = await getProfileCached(session.user.id);
-  if (!profile || (profile.role !== "admin" && profile.role !== "govt")) {
-    redirect("/mis-mascotas");
-  }
-  // Deactivated authorities lose all /gob access — same policy as /admin.
-  if (profile.deactivatedAt !== null) redirect("/");
+  const profile = await loadActiveInstitutionalProfile(session.user.id, {
+    allow: ["admin", "govt"],
+    roleRejectRedirect: "/mis-mascotas",
+  });
 
   const jurisdictions: AdminOrGovtJurisdiction[] =
     profile.role === "govt" ? await getJurisdictionsCached(profile.id) : [];
 
   return {
     ...session,
-    profile: { id: profile.id, role: profile.role },
+    profile: { id: profile.id, role: profile.role as "admin" | "govt" },
     jurisdictions,
   };
 }
@@ -122,12 +144,10 @@ export type AdminSession = AuthenticatedSession & {
 export async function requireAdminOrRedirect(): Promise<AdminSession> {
   const session = await requireUserOrRedirect();
 
-  const profile = await getProfileCached(session.user.id);
-
-  if (!profile) redirect("/");
-  if (profile.role !== "admin") redirect("/");
-  if (profile.accountType !== "institutional") redirect("/");
-  if (profile.deactivatedAt !== null) redirect("/");
+  const profile = await loadActiveInstitutionalProfile(session.user.id, {
+    allow: ["admin"],
+    roleRejectRedirect: "/",
+  });
 
   return {
     ...session,

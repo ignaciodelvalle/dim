@@ -184,6 +184,39 @@ describe("requireAdminOrGovtOrRedirect", () => {
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
+  // Defense in depth (WS-AUTHZ 1.1): the consolidated institutional guard always
+  // rejects non-institutional accounts, mirroring requireAdminOrRedirect. A
+  // role=admin/govt row with accountType='personal' is a data inconsistency that
+  // must not retain /gob access.
+  it("redirects to / when role=admin but accountType is personal", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-personal-admin"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-personal-admin",
+      role: "admin",
+      displayName: "Personal Admin",
+      accountType: "personal",
+      deactivatedAt: null,
+    });
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(mockRedirect).toHaveBeenCalledWith("/");
+    // Account-type rejection happens before the jurisdictions lookup.
+    expect(mockGetJurisdictionsCached).not.toHaveBeenCalled();
+  });
+
+  it("redirects to / when role=govt but accountType is personal", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-personal-govt"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-personal-govt",
+      role: "govt",
+      displayName: "Personal Govt",
+      accountType: "personal",
+      deactivatedAt: null,
+    });
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(mockRedirect).toHaveBeenCalledWith("/");
+    expect(mockGetJurisdictionsCached).not.toHaveBeenCalled();
+  });
+
   // AC1: the shared /gob guard must reject deactivated authorities, mirroring
   // requireAdminOrRedirect. Before the fix a deactivated govt/admin kept full
   // read+write access to every /gob surface and server action.
