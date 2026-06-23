@@ -282,6 +282,17 @@ export default async function AdminPoblacionPage({
                     })}
                 </tbody>
               </table>
+              {(() => {
+                const assignedTotal = coverage.byProvince.reduce((sum, r) => sum + r.total, 0);
+                const unassigned = coverage.total - assignedTotal;
+                if (unassigned <= 0) return null;
+                return (
+                  <p className="mt-2 text-[10px] text-ln-op-mute">
+                    * {unassigned.toLocaleString("es-AR")} mascotas sin provincia asignada no
+                    aparecen en la tabla — la suma de las filas no equivale al total nacional.
+                  </p>
+                );
+              })()}
             </div>
           )}
         </OpCardBody>

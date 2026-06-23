@@ -45,7 +45,26 @@ Auditado 2026-05-19 contra `develop`: varios items que estaban acá ya están en
 
 ## Admin fresh-sweep fixes (extiende Fase 3.6 de la remediación)
 
-> [`plans/2026-06-22-admin-fresh-sweep-fixes.md`](./plans/2026-06-22-admin-fresh-sweep-fixes.md) — barrido en vivo de **todas** las pantallas admin post-Fases 0-2 (verifica lo arreglado + deja 7 hallazgos A1-A7). **Entregados + verificados (los tres 🟡):** A1 `not-found.tsx` branded por route-group (admin/gob/(app), extiende 0.4); A2 fix del `RuleImpactBanner` que no calculaba (binding `= ANY(${array})` sin tipo → throw; ahora `inArray`, con test de integración); A3 acentos es-AR residuales (sistema, gob/organizaciones, servicios, govts/new, auditoría, rule form). **Pendientes (🟢 polish):** A4 crumb labels localizados, A5 action-code crudo en auditoría, A6 required markers en forms de creación, A7 separar cuentas de sistema.
+> [`plans/2026-06-22-admin-fresh-sweep-fixes.md`](./plans/2026-06-22-admin-fresh-sweep-fixes.md) — barrido en vivo de **todas** las pantallas admin post-Fases 0-2 (verifica lo arreglado + deja 7 hallazgos A1-A7). **Entregados + verificados (los tres 🟡):** A1 `not-found.tsx` branded por route-group (admin/gob/(app), extiende 0.4); A2 fix del `RuleImpactBanner` que no calculaba (binding `= ANY(${array})` sin tipo → throw; ahora `inArray`, con test de integración); A3 acentos es-AR residuales (sistema, gob/organizaciones, servicios, govts/new, auditoría, rule form). **🟢 polish — cerrados** (commit `59f3b932` "fresh-sweep A4-A7"): A4 crumb labels localizados, A5 action-code crudo en auditoría (mismo `auditActionLabel` que historial), A6 required markers en forms de creación, A7 separar cuentas de sistema.
+
+## Admin executive-review remediation (auditoría ejecutiva 2026-06-22)
+
+> [`plans/2026-06-22-admin-executive-review-fixes.md`](./plans/2026-06-22-admin-executive-review-fixes.md) — remediación de la auditoría ejecutiva del perfil **admin** ([`docs/admin-design-critique-2026-06-22.md`](../admin-design-critique-2026-06-22.md), 40 hallazgos C1-C40). **✅ Completo** — 10 PRs sobre `review/all-session-prs` (mergear en orden PR-1 → PR-10; PR-7 supersede el stopgap de C22 de PR-1):
+>
+> | PR | Rama | Hallazgos | PR |
+> |----|------|-----------|----|
+> | 1 | `fix/sec-admin-queue-counts` | C1, C2, C3, C22 — keyset cola, banner SLA global, await PII audit, guard humano | [#714](https://github.com/ignaciodelvalle/dim/pull/714) |
+> | 2 | `fix/admin-destructive-confirmations` | C4, C5, C6, C7, C8, C10 — confirmación + motivo proporcional | [#715](https://github.com/ignaciodelvalle/dim/pull/715) |
+> | 3 | `fix/admin-audit-trail-body` | C11, C12 — actor/motivo/evidencia/target en el audit trail | [#716](https://github.com/ignaciodelvalle/dim/pull/716) |
+> | 4 | `chore/admin-operator-data-cards` | C13, C14, C15, C16 — tarjetas, links de entidad, codes traducidos | [#717](https://github.com/ignaciodelvalle/dim/pull/717) |
+> | 5 | `fix/admin-surface-boundaries` | C17, C18, C19 — link operador, copy "por nombre", eyebrow por rol | [#718](https://github.com/ignaciodelvalle/dim/pull/718) |
+> | 6 | `fix/sec-magic-link-handling` | C20 — enmascarar, TTL real, feedback de copia, título contextual | [#719](https://github.com/ignaciodelvalle/dim/pull/719) |
+> | 7 | `fix/admin-rosters-evidence-scale` | C21, C23, C24, C9 — `profiles.is_system` (mig 0109), evidencia en submit, badge 0-loc, gate PPP | [#720](https://github.com/ignaciodelvalle/dim/pull/720) |
+> | 8 | `fix/admin-ia-landing-nav` | C25, C26, C27, C28 — copy landing, KPI strip compartido, regroup nav, helper delta | [#721](https://github.com/ignaciodelvalle/dim/pull/721) |
+> | 9 | `fix/admin-filters-tables` | C29, C30, C31, C32 — filtros casos/moderación, filtros auditoría, provincias drilleables, período | [#722](https://github.com/ignaciodelvalle/dim/pull/722) |
+> | 10 | `chore/admin-consistency-polish` | C33-C40 — constante SLA, `router.refresh`, color severidad, footnote k-anon, KPI tasa retorno, registries JSON, jurisdicciones localidad-aware, dead-end physical-credential | [#723](https://github.com/ignaciodelvalle/dim/pull/723) |
+>
+> Cada PR: SDD test-first, `pnpm verify` (tsc + Biome + lint:tokens + lint:ui + next build) + `pnpm test` verdes, cero regresiones sobre el baseline pre-existente. No duplica el fresh-sweep (A2/A3/A5/A7 ya cerrados, cross-referenciados).
 
 ## All specs & plans
 

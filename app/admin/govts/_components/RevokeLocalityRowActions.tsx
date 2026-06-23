@@ -8,6 +8,7 @@
 // Wraps the existing revokeGovtLocalityAction from Fase 4 with the
 // standard motivo + evidence upload pattern.
 
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { revokeGovtLocalityAction } from "@/app/actions/admin-revocations";
@@ -55,7 +56,7 @@ export function RevokeLocalityRowActions({
     <button
       type="button"
       onClick={() => setMode("confirming")}
-      className="text-[10px] px-2 py-1 rounded-[4px] border border-ln-op-warn-bd text-ln-op-warn hover:opacity-90 transition-opacity"
+      className="text-[10px] px-2 py-1 rounded-[4px] border border-ln-op-danger-bd text-ln-op-danger hover:opacity-90 transition-opacity"
     >
       Revocar
     </button>
@@ -79,6 +80,7 @@ function RevokeLocalityForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [motivo, setMotivo] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -155,14 +157,15 @@ function RevokeLocalityForm({
       if ("error" in result) {
         setError(result.error);
       } else {
+        router.refresh();
         onDone();
       }
     });
   }
 
   return (
-    <div className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 space-y-3 mt-2">
-      <p className="text-[10px] uppercase tracking-wider font-bold text-ln-op-warn">
+    <div className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3 space-y-3 mt-2">
+      <p className="text-[10px] uppercase tracking-wider font-bold text-ln-op-danger">
         Revocar localidad &mdash; {localityLabel}
       </p>
 
@@ -210,7 +213,7 @@ function RevokeLocalityForm({
       <LnCheckbox
         checked={confirm}
         onChange={(e) => setConfirm(e.target.checked)}
-        labelClassName="text-xs! text-ln-op-warn!"
+        labelClassName="text-xs! text-ln-op-danger!"
       >
         Confirmo que quiero revocar la localidad {localityLabel}. Esta acción genera un registro
         permanente en el audit log.
@@ -223,7 +226,7 @@ function RevokeLocalityForm({
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-warn text-white hover:opacity-90 disabled:opacity-50"
+          className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-danger text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Revocando..." : "Revocar localidad"}
         </button>

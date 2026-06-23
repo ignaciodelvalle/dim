@@ -80,14 +80,13 @@ export function PppAttestationRegistriesForm({
             requerido).
           </p>
         )}
-        {registries.map((r, i) => (
+        {/* Serialize registries as a single JSON value — reorder-safe. */}
+        <input type="hidden" name="registriesJson" value={JSON.stringify(registries)} />
+        {registries.map((r) => (
           <div
             key={r.id}
             className="flex items-start gap-2 rounded-[6px] border border-ln-op-line p-3"
           >
-            <input type="hidden" name="registryId" value={r.id} />
-            <input type="hidden" name="registryLabel" value={r.label} />
-            <input type="hidden" name="registryRequired" value={r.required ? "true" : "false"} />
             <div className="flex-1 text-[13px]">
               <p className="font-medium text-ln-op-ink">{r.label}</p>
               <p className="text-[11px] text-ln-op-mute">
@@ -109,8 +108,6 @@ export function PppAttestationRegistriesForm({
             >
               Quitar
             </button>
-            {/* defeat unused-var lint */}
-            <input type="hidden" value={i} />
           </div>
         ))}
       </fieldset>

@@ -373,6 +373,19 @@ export default async function AdminCensoPage({
                   })}
                 </tbody>
               </table>
+              {(() => {
+                const assignedTotal = provinceRows.reduce((sum, r) => sum + r.count, 0);
+                const unassigned = counts.total - assignedTotal;
+                const unassignedPct =
+                  counts.total > 0 ? Math.round((unassigned / counts.total) * 1000) / 10 : 0;
+                if (unassigned <= 0) return null;
+                return (
+                  <p className="mt-2 text-[10px] text-ln-op-mute">
+                    * {unassignedPct}% sin provincia asignada ({unassigned.toLocaleString("es-AR")}{" "}
+                    mascotas) no aparece en la tabla — los porcentajes no suman 100%.
+                  </p>
+                );
+              })()}
             </div>
           )}
         </OpCardBody>

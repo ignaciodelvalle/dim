@@ -32,13 +32,19 @@ const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
 };
 
 const RULE_TYPE_DESCRIPTION: Record<GovtBusinessRuleType, string> = {
-  ppp_breed_list: "Que razas se consideran Potencialmente Peligrosas en esta jurisdicción.",
-  ppp_weight_threshold: "Si el peso del animal por si solo dispara el status PPP, y a que kilos.",
+  ppp_breed_list: "Qué razas se consideran Potencialmente Peligrosas en esta jurisdicción.",
+  ppp_weight_threshold: "Si el peso del animal por sí solo dispara el status PPP, y a qué kilos.",
   ppp_attestation_required_registries:
-    "En que registros oficiales el dueno debe atestar a su mascota PPP.",
+    "En qué registros oficiales el dueño debe atestar a su mascota PPP.",
   physical_credential_channels:
-    "Que canales de emision de credencial fisica estan habilitados (QR imprimible, placa grabada, NFC). Configuracion disponible proximamente.",
+    "Qué canales de emisión de credencial física están habilitados (QR imprimible, placa grabada, NFC).",
 };
+
+// Rule types that do not yet have a configuration form.
+// Excluded from the "missing types / Configurar" listing to avoid dead-end links.
+const RULE_TYPES_NOT_YET_AVAILABLE: ReadonlySet<GovtBusinessRuleType> = new Set([
+  "physical_credential_channels",
+]);
 
 function decodeNullable(raw: string): string | null {
   if (raw === "_") return null;
@@ -82,7 +88,10 @@ export default async function AdminJurisdiccionReglasPage({
     );
 
   const activeByType = new Map(rows.map((r) => [r.rule.ruleType, r]));
-  const missingTypes = GOVT_BUSINESS_RULE_TYPES.filter((t) => !activeByType.has(t));
+  // Exclude rule types that don't have a configuration form yet — no dead-end links.
+  const missingTypes = GOVT_BUSINESS_RULE_TYPES.filter(
+    (t) => !activeByType.has(t) && !RULE_TYPES_NOT_YET_AVAILABLE.has(t),
+  );
 
   const segCountry = encodeURIComponent(country);
   const segProvince = encodeURIComponent(province ?? "_");
