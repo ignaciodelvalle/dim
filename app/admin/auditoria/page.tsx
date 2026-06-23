@@ -4,6 +4,7 @@ import Link from "next/link";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
 import { auditActionLabel } from "@/lib/audit-action-labels";
+import { buildTargetLinkInfo } from "@/lib/audit-target-link";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
 import { likeContains } from "@/lib/like-helpers";
@@ -83,6 +84,24 @@ export default async function AdminAuditoriaPage({
     for (const r of rows) namesById.set(r.id, r.displayName);
   }
 
+  // Resolve target display names + roles in one batch.
+  // targetUserId is nullable — only resolve when present.
+  const targetIds = Array.from(
+    new Set(entries.map((e) => e.targetUserId).filter((id): id is string => id !== null)),
+  );
+  // Map id → { displayName, href } for rendering "sobre: {name}"
+  const targetsById = new Map<string, { displayName: string; href: string | null }>();
+  if (targetIds.length > 0) {
+    const targetRows = await db
+      .select({ id: profiles.id, displayName: profiles.displayName, role: profiles.role })
+      .from(profiles)
+      .where(inArray(profiles.id, targetIds));
+    for (const r of targetRows) {
+      const info = buildTargetLinkInfo({ id: r.id, displayName: r.displayName, role: r.role });
+      targetsById.set(r.id, { displayName: info.displayName, href: info.href });
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -140,6 +159,28 @@ export default async function AdminAuditoriaPage({
                       {entry.actorUserId
                         ? (namesById.get(entry.actorUserId) ?? "Desconocido")
                         : "Usuario eliminado"}
+                      {entry.targetUserId &&
+                        (() => {
+                          const target = targetsById.get(entry.targetUserId);
+                          const targetName = target?.displayName ?? "Usuario eliminado";
+                          const targetHref = target?.href ?? null;
+                          return (
+                            <>
+                              {" "}
+                              {"·"} sobre:{" "}
+                              {targetHref ? (
+                                <Link
+                                  href={targetHref}
+                                  className="underline underline-offset-2 hover:text-ln-op-ink"
+                                >
+                                  {targetName}
+                                </Link>
+                              ) : (
+                                <span>{targetName}</span>
+                              )}
+                            </>
+                          );
+                        })()}
                       {entry.approvalRequestId && (
                         <>
                           {" "}
