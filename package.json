@@ -33,6 +33,8 @@
     "seed:demo": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-demo.ts",
     "seed:coverage": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-coverage.ts",
     "seed:panorama": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-panorama.ts",
+    "seed:demo:scenario": "node --conditions=react-server --import tsx scripts/seed-demo-scenario.ts",
+    "demo:verify": "node --conditions=react-server --import tsx scripts/demo-verify.ts",
     "materialize:slots": "tsx scripts/materialize-slots.ts",
     "close:rabies-observations": "tsx scripts/close-rabies-observations.ts",
     "backfill:eno": "node --conditions=react-server --import tsx scripts/backfill-eno-trigger.ts",

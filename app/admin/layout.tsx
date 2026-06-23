@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { ADMIN_NAV_SECTIONS } from "@/components/layout/nav-presets";
+import { DemoModeBanner, shouldShowDemoBanner } from "@/components/ui/DemoModeBanner";
 import type { NavSection } from "@/components/ui/dashboard";
 import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
@@ -83,38 +84,43 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     </div>
   );
 
+  const demoMode = shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE);
+
   return (
-    <AppShell
-      variant="operator"
-      rail={
-        <OpRail
-          sections={sections}
-          variant="gob"
-          brandSubtitle="Admin"
-          user={{
-            name: displayName,
-            role: profile.role.toUpperCase(),
-          }}
-        />
-      }
-      topbar={
-        <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
-          {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
-          <AppShellDrawer sections={sections} variant="gob" brandSubtitle="Admin" />
-          {/* Left: breadcrumbs — derived from route (UX 1.2) */}
-          <OperatorBreadcrumbs portal="admin" />
-          {/* Scope chip */}
-          <OpScopeChip code="SUPERADMIN" label="Universal" variant="superadmin" />
-          {/* Spacer */}
-          <div className="flex-1" />
-          {/* Global search omnibox (Item 10) — operator jump-to-record + PII log. */}
-          <OpOmnibox />
-          {/* Right: switcher + logout */}
-          <div className="flex items-center gap-2">{topbarActions}</div>
-        </header>
-      }
-    >
-      {children}
-    </AppShell>
+    <>
+      <DemoModeBanner enabled={demoMode} />
+      <AppShell
+        variant="operator"
+        rail={
+          <OpRail
+            sections={sections}
+            variant="gob"
+            brandSubtitle="Admin"
+            user={{
+              name: displayName,
+              role: profile.role.toUpperCase(),
+            }}
+          />
+        }
+        topbar={
+          <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
+            {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
+            <AppShellDrawer sections={sections} variant="gob" brandSubtitle="Admin" />
+            {/* Left: breadcrumbs — derived from route (UX 1.2) */}
+            <OperatorBreadcrumbs portal="admin" />
+            {/* Scope chip */}
+            <OpScopeChip code="SUPERADMIN" label="Universal" variant="superadmin" />
+            {/* Spacer */}
+            <div className="flex-1" />
+            {/* Global search omnibox (Item 10) — operator jump-to-record + PII log. */}
+            <OpOmnibox />
+            {/* Right: switcher + logout */}
+            <div className="flex items-center gap-2">{topbarActions}</div>
+          </header>
+        }
+      >
+        {children}
+      </AppShell>
+    </>
   );
 }
