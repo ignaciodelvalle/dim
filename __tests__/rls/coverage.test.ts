@@ -75,6 +75,10 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   "eno_processing_queue",
   "event_notification_outbox",
   "share_telemetry",
+  // Alert inbox + triage — deny-all backstop in migration 0111 (Paquete K).
+  // Carries jurisdiction + actor FKs (acknowledged_by / contacted / resolved);
+  // admin-only reads/writes go through Drizzle BYPASSRLS server actions.
+  "alert_firings",
 ];
 
 // ---------------------------------------------------------------------------

@@ -300,6 +300,7 @@ describe("ADMIN_NAV — no route regression", () => {
     "/admin/observaciones",
     "/admin/moderacion",
     "/admin/casos",
+    "/admin/alertas", // WS-K — bandeja de alertas + triage
     "/admin/jurisdicciones",
     "/admin/libro", // WS-L — Libro de eventos
   ];
@@ -470,6 +471,7 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/observaciones",
   "/admin/moderacion",
   "/admin/casos",
+  "/admin/alertas", // WS-K — bandeja de alertas + triage
   "/admin/jurisdicciones",
   "/admin/censo", // Paquete E — censo poblacional & salud del registro
   "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
@@ -539,6 +541,14 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
     expect(hrefs).not.toContain("/admin/censo");
     expect(hrefs).not.toContain("/admin/adopciones");
     expect(hrefs).not.toContain("/admin/poblacion");
+  });
+
+  it("includes /admin/alertas in the Operaciones section (WS-K — bandeja de alertas)", () => {
+    const opsSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Operaciones");
+    expect(opsSection?.items.map((i) => i.href)).toContain("/admin/alertas");
+    const alertas = opsSection?.items.find((i) => i.href === "/admin/alertas");
+    expect(alertas?.label).toBe("Alertas");
+    expect(alertas?.matchPrefix).toBe("/admin/alertas");
   });
 
   it("includes /admin/libro in the Gobernanza section (WS-L — Libro de eventos)", () => {
