@@ -57,9 +57,12 @@ export function petEventsInScopeCondition(
   const parts = [];
   if (opts.eventType) parts.push(eq(petEvents.eventType, opts.eventType));
   if (opts.window) {
-    parts.push(sql`${petEvents.occurredAt} >= ${opts.window.since}`);
+    // Bind dates as ISO strings — a raw JS Date interpolated into sql`` crashes
+    // postgres-js (prepare:false) with ERR_INVALID_ARG_TYPE. The comparison
+    // casts the ISO string to timestamptz.
+    parts.push(sql`${petEvents.occurredAt} >= ${opts.window.since.toISOString()}`);
     if (opts.window.until) {
-      parts.push(sql`${petEvents.occurredAt} <= ${opts.window.until}`);
+      parts.push(sql`${petEvents.occurredAt} <= ${opts.window.until.toISOString()}`);
     }
   }
   if (scope) parts.push(sql`(${scope})`);

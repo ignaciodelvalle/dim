@@ -2027,8 +2027,10 @@ export async function fetchPetsForExport(
   const conditions: ReturnType<typeof sql>[] = [];
   const scope = petsScopeClause(actor, jurisdictions);
   if (scope) conditions.push(sql`(${scope})`);
-  if (period.since) conditions.push(sql`${pets.createdAt} >= ${period.since}`);
-  if (period.until) conditions.push(sql`${pets.createdAt} <= ${period.until}`);
+  // Bind dates as ISO strings — a raw JS Date in sql`` crashes postgres-js
+  // (prepare:false) with ERR_INVALID_ARG_TYPE; the comparison casts to timestamptz.
+  if (period.since) conditions.push(sql`${pets.createdAt} >= ${period.since.toISOString()}`);
+  if (period.until) conditions.push(sql`${pets.createdAt} <= ${period.until.toISOString()}`);
 
   const rows = await db
     .select({
@@ -2073,8 +2075,9 @@ export async function fetchEventsForExport(
   const conditions: ReturnType<typeof sql>[] = [];
   const scope = petEventsScopeClause(actor, jurisdictions);
   if (scope) conditions.push(sql`(${scope})`);
-  if (period.since) conditions.push(sql`${petEvents.occurredAt} >= ${period.since}`);
-  if (period.until) conditions.push(sql`${petEvents.occurredAt} <= ${period.until}`);
+  // Bind dates as ISO strings (see fetchPetsForExport) — raw Date in sql`` crashes postgres-js.
+  if (period.since) conditions.push(sql`${petEvents.occurredAt} >= ${period.since.toISOString()}`);
+  if (period.until) conditions.push(sql`${petEvents.occurredAt} <= ${period.until.toISOString()}`);
 
   const rows = await db
     .select({
@@ -2115,8 +2118,9 @@ export async function fetchCasesForExport(
   const conditions: ReturnType<typeof sql>[] = [];
   const scope = casesScopeClause(actor, jurisdictions);
   if (scope) conditions.push(sql`(${scope})`);
-  if (period.since) conditions.push(sql`${cases.createdAt} >= ${period.since}`);
-  if (period.until) conditions.push(sql`${cases.createdAt} <= ${period.until}`);
+  // Bind dates as ISO strings (see fetchPetsForExport) — raw Date in sql`` crashes postgres-js.
+  if (period.since) conditions.push(sql`${cases.createdAt} >= ${period.since.toISOString()}`);
+  if (period.until) conditions.push(sql`${cases.createdAt} <= ${period.until.toISOString()}`);
 
   const rows = await db
     .select({

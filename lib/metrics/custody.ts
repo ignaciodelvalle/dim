@@ -238,7 +238,9 @@ export async function fetchTimeInState(ctx: ProjectionContext): Promise<TimeInSt
     // Include ownerships that OVERLAP the period: started before period end
     // and either ended after period start or still active.
     lte(ownerships.startedAt, ctx.period.until),
-    sql`(${ownerships.endedAt} IS NULL OR ${ownerships.endedAt} >= ${ctx.period.since})`,
+    // Bind the date as an ISO string — a raw JS Date in sql`` crashes
+    // postgres-js (prepare:false). lte() above binds its Date safely.
+    sql`(${ownerships.endedAt} IS NULL OR ${ownerships.endedAt} >= ${ctx.period.since.toISOString()})`,
   ];
   if (scope) conditions.push(sql`(${scope})`);
 
