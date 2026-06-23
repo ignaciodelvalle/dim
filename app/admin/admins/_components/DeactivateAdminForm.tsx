@@ -15,6 +15,7 @@
 // Client-side canDeactivateAdmin hides/disables the button when the actor
 // clearly has no scope (defense-in-depth; server is authoritative).
 
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { deactivateAdminAction } from "@/app/actions/admin-institutional";
@@ -103,6 +104,7 @@ function DeactivateAdminForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [motivo, setMotivo] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -141,6 +143,7 @@ function DeactivateAdminForm({
       if ("error" in result) {
         setError(result.error);
       } else {
+        router.refresh();
         onDone();
       }
     });

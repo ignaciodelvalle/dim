@@ -1,7 +1,11 @@
 // /admin/jurisdicciones — list of provinces with rule counts.
 // Spec 2026-05-19-govt-business-rules-poc-design §6.1.
+//
+// Province-wide rules (locality IS NULL) and locality overrides are counted
+// separately so the numbers reconcile with the per-jurisdiction rules page.
+// Localities that have at least one rule are surfaced as direct links.
 
-import { sql } from "drizzle-orm";
+import { isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
@@ -14,23 +18,52 @@ export const dynamic = "force-dynamic";
 export default async function AdminJurisdiccionesPage() {
   await requireAdminOrRedirect();
 
-  const rows = await db
+  // Separate query for province-wide rules (locality IS NULL).
+  const provinceWideRows = await db
     .select({
       country: govtBusinessRules.jurisdictionCountry,
       province: govtBusinessRules.jurisdictionProvince,
       count: sql<number>`count(*)::int`,
     })
     .from(govtBusinessRules)
+    .where(isNull(govtBusinessRules.jurisdictionLocality))
     .groupBy(govtBusinessRules.jurisdictionCountry, govtBusinessRules.jurisdictionProvince);
 
-  const countByProvince = new Map<string, number>();
+  // Separate query for locality-level rules (locality IS NOT NULL).
+  const localityRows = await db
+    .select({
+      country: govtBusinessRules.jurisdictionCountry,
+      province: govtBusinessRules.jurisdictionProvince,
+      locality: govtBusinessRules.jurisdictionLocality,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(govtBusinessRules)
+    .where(sql`${govtBusinessRules.jurisdictionLocality} IS NOT NULL`)
+    .groupBy(
+      govtBusinessRules.jurisdictionCountry,
+      govtBusinessRules.jurisdictionProvince,
+      govtBusinessRules.jurisdictionLocality,
+    );
+
+  // Province-wide counts (locality IS NULL, province IS NOT NULL).
+  const provinceWideCount = new Map<string, number>();
   let countryWideCount = 0;
-  for (const r of rows) {
+  for (const r of provinceWideRows) {
     if (r.province === null) {
       countryWideCount += r.count;
     } else {
-      countByProvince.set(r.province, (countByProvince.get(r.province) ?? 0) + r.count);
+      provinceWideCount.set(r.province, r.count);
     }
+  }
+
+  // Locality-level counts grouped by province.
+  type LocalityEntry = { locality: string; count: number };
+  const localitiesByProvince = new Map<string, LocalityEntry[]>();
+  for (const r of localityRows) {
+    if (r.province === null || r.locality === null) continue;
+    const existing = localitiesByProvince.get(r.province) ?? [];
+    existing.push({ locality: r.locality, count: r.count });
+    localitiesByProvince.set(r.province, existing);
   }
 
   return (
@@ -59,7 +92,7 @@ export default async function AdminJurisdiccionesPage() {
         <OpCardBody className="p-0">
           <ul>
             <li className="flex items-center justify-between border-t border-ln-op-line px-4 py-3">
-              <span className="text-[13px] text-ln-op-ink-2">Reglas a nivel pais AR</span>
+              <span className="text-[13px] text-ln-op-ink-2">Reglas a nivel país AR</span>
               <Link
                 href={`/admin/jurisdicciones/${encodeURIComponent("AR")}/${encodeURIComponent("_")}/${encodeURIComponent("_")}/reglas`}
                 className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
@@ -77,26 +110,55 @@ export default async function AdminJurisdiccionesPage() {
         <OpCardBody className="p-0">
           <ul>
             {PROVINCES.map((p) => {
-              const count = countByProvince.get(p.name) ?? 0;
+              const pwCount = provinceWideCount.get(p.name) ?? 0;
+              const localities = localitiesByProvince.get(p.name) ?? [];
+              const localityRuleCount = localities.reduce((sum, l) => sum + l.count, 0);
               return (
-                <li
-                  key={p.code}
-                  className="flex items-center justify-between gap-3 border-t border-ln-op-line px-4 py-3"
-                >
-                  <div>
-                    <p className="text-[13px] font-medium text-ln-op-ink">{p.name}</p>
-                    <p className="text-[11px] text-ln-op-mute">
-                      {count === 0
-                        ? "Sin overrides (usando defaults)"
-                        : `${count} regla${count === 1 ? "" : "s"} activa${count === 1 ? "" : "s"}`}
-                    </p>
+                <li key={p.code} className="border-t border-ln-op-line px-4 py-3 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[13px] font-medium text-ln-op-ink">{p.name}</p>
+                      <p className="text-[11px] text-ln-op-mute">
+                        {pwCount === 0 && localityRuleCount === 0
+                          ? "Sin overrides (usando defaults)"
+                          : [
+                              pwCount > 0
+                                ? `${pwCount} provincial${pwCount === 1 ? "" : "es"}`
+                                : null,
+                              localityRuleCount > 0 ? `${localityRuleCount} en localidades` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                      </p>
+                    </div>
+                    <Link
+                      href={`/admin/jurisdicciones/${encodeURIComponent("AR")}/${encodeURIComponent(p.name)}/${encodeURIComponent("_")}/reglas`}
+                      className="shrink-0 text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+                    >
+                      {pwCount === 0 ? "Crear regla ->" : "Ver reglas ->"}
+                    </Link>
                   </div>
-                  <Link
-                    href={`/admin/jurisdicciones/${encodeURIComponent("AR")}/${encodeURIComponent(p.name)}/${encodeURIComponent("_")}/reglas`}
-                    className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
-                  >
-                    {count === 0 ? "Crear regla ->" : "Ver reglas ->"}
-                  </Link>
+                  {/* Localities with overrides — surfaced as direct links */}
+                  {localities.length > 0 && (
+                    <ul className="pl-4 space-y-1">
+                      {localities.map((l) => (
+                        <li key={l.locality} className="flex items-center justify-between gap-3">
+                          <span className="text-[11px] text-ln-op-ink-2">
+                            {l.locality}
+                            <span className="ml-1 text-ln-op-mute">
+                              · {l.count} regla{l.count === 1 ? "" : "s"}
+                            </span>
+                          </span>
+                          <Link
+                            href={`/admin/jurisdicciones/${encodeURIComponent("AR")}/${encodeURIComponent(p.name)}/${encodeURIComponent(l.locality)}/reglas`}
+                            className="text-[11px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+                          >
+                            {"Ver ->"}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               );
             })}

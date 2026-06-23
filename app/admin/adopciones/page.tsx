@@ -138,25 +138,33 @@ export default async function AdminAdopcionesPage({
         />
         <OpKpi
           label="Tasa de retorno"
-          value={returnRatePct != null ? `${returnRatePct}%` : "—"}
+          value={
+            returnRatePct != null
+              ? returnRatePct > 100
+                ? `${returnRatePct}%*`
+                : `${returnRatePct}%`
+              : "—"
+          }
           sub={
             returnRatePct != null
-              ? "devoluciones / adopciones (período)"
+              ? returnRatePct > 100
+                ? "reversos / adopciones (período) · puede superar 100%"
+                : "reversos / adopciones (período)"
               : "Sin adopciones en el período"
           }
           tone={
             returnRatePct == null
               ? "neutral"
-              : toneForTarget(returnRatePct, TARGETS.ADOPTION_RETURN_RATE_PCT, {
+              : toneForTarget(Math.min(returnRatePct, 100), TARGETS.ADOPTION_RETURN_RATE_PCT, {
                   higherIsBetter: false,
                 })
           }
           info={{
             definition:
-              "Fracción de adopciones finalizadas que fueron revertidas (adoption_reversed / adoption_finalized) en el período. Menor es mejor.",
+              "Reversos de adopción (adoption_reversed) sobre adopciones finalizadas (adoption_finalized) en el período. Menor es mejor.",
             formula: "COUNT(adoption_reversed) / COUNT(adoption_finalized) — null si den=0",
             caveat:
-              "Numerador y denominador son conteos independientes de eventos en el período; un reverso puede corresponder a una adopción de un período anterior.",
+              "⚠ Puede superar 100%: numerador y denominador son conteos independientes. Un reverso de este período puede corresponder a una adopción de un período anterior. El valor real se muestra sin truncar.",
           }}
         />
       </section>

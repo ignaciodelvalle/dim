@@ -22,6 +22,7 @@ import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { BUSINESS_RULES_DEFAULTS } from "@/lib/business-rules-defaults";
 import { reEvaluatePppBreedListChange } from "@/lib/business-rules-reeval";
 import { validateRulePayload } from "@/lib/business-rules-validators";
+import { parseRegistriesJson } from "@/lib/parse-registries";
 
 export type BusinessRuleFormState = {
   error: string | null;
@@ -322,16 +323,9 @@ function parseRulePayloadFromForm(ruleType: GovtBusinessRuleType, formData: Form
       return { kg, appliesIfBreedNotPPP };
     }
     case "ppp_attestation_required_registries": {
-      // Each registry is encoded as registryId / registryLabel / registryRequired
-      // arrays at the same index.
-      const ids = formData.getAll("registryId") as string[];
-      const labels = formData.getAll("registryLabel") as string[];
-      const requiredFlags = formData.getAll("registryRequired") as string[];
-      const registries = ids.map((id, i) => ({
-        id: id.trim(),
-        label: (labels[i] ?? "").trim(),
-        required: requiredFlags[i] === "true" || requiredFlags[i] === "on",
-      }));
+      // Registries are serialised as a single JSON string (reorder-safe).
+      const raw = formData.get("registriesJson") as string | null;
+      const registries = parseRegistriesJson(raw);
       return { registries };
     }
     case "physical_credential_channels": {

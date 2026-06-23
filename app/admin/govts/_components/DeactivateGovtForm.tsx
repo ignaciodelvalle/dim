@@ -15,6 +15,7 @@
 // Cascading effect: deactivating a govt also revokes all their active locality
 // assignments (handled server-side in deactivateGovtForAuthority).
 
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { deactivateGovtAction } from "@/app/actions/admin-institutional";
@@ -84,6 +85,7 @@ function DeactivateGovtForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [motivo, setMotivo] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -121,6 +123,7 @@ function DeactivateGovtForm({
       if ("error" in result) {
         setError(result.error);
       } else {
+        router.refresh();
         onDone();
       }
     });
