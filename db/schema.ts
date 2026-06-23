@@ -2823,6 +2823,105 @@ export type AlertSubscription = typeof alertSubscriptions.$inferSelect;
 export type NewAlertSubscription = typeof alertSubscriptions.$inferInsert;
 
 // ============================================================================
+// Alert firings — Paquete K (alert inbox + triage)
+// ============================================================================
+// One row per OPEN alert raised when an alert_subscriptions threshold is
+// crossed during evaluation (on-page or via the daily evaluate-alerts cron).
+// Each firing carries a triage lifecycle so an admin can acknowledge it, open
+// (or link) an outbreak investigation, contact the jurisdiction's authority,
+// and close it. The transition audit lives in the *_at / *_by columns — there
+// is intentionally NO new AUDIT_LOG_ACTIONS entry (decision K-D4).
+//
+// State machine (ALERT_FIRING_STATUSES):
+//   disparada → reconocida → en_investigacion → autoridad_contactada → resuelta
+//   disparada / reconocida → descartada
+//
+// Dedup: at most ONE open firing per (subscription_id, jurisdiction) at a time
+// (enforced in lib/metrics/alert-firing.ts#shouldOpenFiring + the writer).
+//
+// RLS: defense-in-depth deny-all for the PostgREST surface. Admin reads/writes
+// go through Drizzle (BYPASSRLS service-role). Classified in
+// __tests__/rls/coverage.test.ts → RLS_REQUIRED.
+
+export const ALERT_FIRING_STATUSES = [
+  "disparada",
+  "reconocida",
+  "en_investigacion",
+  "autoridad_contactada",
+  "resuelta",
+  "descartada",
+] as const;
+
+export type AlertFiringStatus = (typeof ALERT_FIRING_STATUSES)[number];
+
+/** Open (non-terminal) firing statuses — used for dedup + the inbox badge. */
+export const ALERT_FIRING_OPEN_STATUSES = [
+  "disparada",
+  "reconocida",
+  "en_investigacion",
+  "autoridad_contactada",
+] as const satisfies readonly AlertFiringStatus[];
+
+export const alertFirings = pgTable(
+  "alert_firings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // The subscription whose threshold was crossed. SET NULL on delete so a
+    // firing survives the subscription being removed (its history is audit).
+    subscriptionId: uuid("subscription_id").references(() => alertSubscriptions.id, {
+      onDelete: "set null",
+    }),
+    metricKey: text("metric_key").notNull().$type<AlertMetricKey>(),
+    direction: text("direction").notNull().$type<AlertDirection>(),
+    threshold: numeric("threshold").notNull(),
+    observedValue: numeric("observed_value").notNull(),
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
+    status: text("status").notNull().default("disparada").$type<AlertFiringStatus>(),
+    firedAt: timestamp("fired_at", { withTimezone: true }).notNull().defaultNow(),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    acknowledgedBy: uuid("acknowledged_by").references(() => profiles.id, { onDelete: "set null" }),
+    // publicCode of the linked outbreak investigation (active_zoonosis only).
+    investigationCode: text("investigation_code"),
+    contactedGovtUserId: uuid("contacted_govt_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    contactedAt: timestamp("contacted_at", { withTimezone: true }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: uuid("resolved_by").references(() => profiles.id, { onDelete: "set null" }),
+    notes: text("notes"),
+  },
+  (table) => ({
+    // Inbox ordering + status filter.
+    statusFiredIdx: index("alert_firings_status_fired_idx").on(table.status, table.firedAt),
+    // Dedup: fast lookup of open firings for a subscription.
+    subscriptionStatusIdx: index("alert_firings_subscription_status_idx").on(
+      table.subscriptionId,
+      table.status,
+    ),
+    metricKeyValid: check(
+      "alert_firings_metric_key_valid",
+      sql`${table.metricKey} IN ('active_zoonosis','eno_sla_ontime_pct','queue_oldest_days','sterilization_coverage_pct','microchip_penetration_pct','open_welfare_reports')`,
+    ),
+    directionValid: check(
+      "alert_firings_direction_valid",
+      sql`${table.direction} IN ('above','below')`,
+    ),
+    statusValid: check(
+      "alert_firings_status_valid",
+      sql`${table.status} IN ('disparada','reconocida','en_investigacion','autoridad_contactada','resuelta','descartada')`,
+    ),
+    provinceValid: check(
+      "alert_firings_province_valid",
+      sql`${table.jurisdictionProvince} IS NULL OR ${table.jurisdictionProvince} IN ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
+  }),
+);
+
+export type AlertFiring = typeof alertFirings.$inferSelect;
+export type NewAlertFiring = typeof alertFirings.$inferInsert;
+
+// ============================================================================
 // Custody disputes — Admin Fase 10
 // ============================================================================
 // Created in lockstep with a `custody_dispute_raised` pet_event; resolved via

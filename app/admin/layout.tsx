@@ -9,6 +9,7 @@ import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
 import { countOutboxBreaches } from "@/lib/outbox-queries";
 import { getProfileCached } from "@/lib/request-cache";
 import type { ShellSession } from "@/lib/shell-nav";
@@ -22,23 +23,35 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // Global breach count (pending rows past their SLA deadline). Shared with the
   // outbox banner via countOutboxBreaches() so the badge and the banner can
   // never disagree (C2). Uses the outbox_sla_due_idx(sla_due_at, status) index.
-  const breachCount = await countOutboxBreaches();
+  // Open-alerts count (WS-K): firings not yet resuelta/descartada → /admin/alertas badge.
+  const [breachCount, openAlertCount] = await Promise.all([
+    countOutboxBreaches(),
+    countOpenAlertFirings(),
+  ]);
 
   // getProfileCached is already warmed by requireAdminOrRedirect above —
   // this call is a memoized hit, not a second DB round-trip.
   const profileRow = await getProfileCached(profile.id);
   const displayName = profileRow?.displayName ?? "";
 
-  // Inject the breach badge on the outbox nav item in the sections structure.
-  const sections: NavSection[] =
-    breachCount > 0
-      ? ADMIN_NAV_SECTIONS.map((section) => ({
-          ...section,
-          items: section.items.map((item) =>
-            item.href === "/admin/outbox" ? { ...item, badge: breachCount } : item,
-          ),
-        }))
-      : ADMIN_NAV_SECTIONS;
+  // Inject runtime badges into the nav sections: the outbox breach count on
+  // /admin/outbox and the open-alerts count on /admin/alertas (WS-K). A single
+  // map pass covers both so we never clone the sections twice.
+  const needsBadges = breachCount > 0 || openAlertCount > 0;
+  const sections: NavSection[] = needsBadges
+    ? ADMIN_NAV_SECTIONS.map((section) => ({
+        ...section,
+        items: section.items.map((item) => {
+          if (item.href === "/admin/outbox" && breachCount > 0) {
+            return { ...item, badge: breachCount };
+          }
+          if (item.href === "/admin/alertas" && openAlertCount > 0) {
+            return { ...item, badge: openAlertCount };
+          }
+          return item;
+        }),
+      }))
+    : ADMIN_NAV_SECTIONS;
 
   // Build the session shape for the context switcher.
   // Admin always holds govtAssignments (they can access /gob).

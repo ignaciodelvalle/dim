@@ -315,3 +315,19 @@ estimated target-crossing with **no DB and no Next.js runtime**, so the
 regression math (OLS slope, the horizon-widening interval, the `< MIN_POINTS`
 abstention) is unit-tested in milliseconds. The chart (`ForecastChart`) is the
 presentation edge; the projection itself is framework-free.
+
+### Pure firing domain → DB writer (Paquete K — alert inbox)
+
+The alert-triage feature (`/admin/alertas`) keeps the same pure-vs-impure split.
+The decision logic lives in a **pure domain module** — `lib/metrics/alert-firing.ts`
+(`shouldOpenFiring`, the validated `nextStatus` state machine, `metricOpensInvestigation`,
+`investigationDiseaseCode`) — with **no `@/db`, no `next`**, so the dedup gate and
+every legal/illegal state transition are unit-tested in milliseconds
+(`lib/metrics/alert-firing.test.ts`). The **writer** that turns those decisions into
+rows lives at the edge in `app/actions/alert-firings.ts`: it runs the existing
+`evaluateAlertSubscriptions` evaluator, asks the pure `shouldOpenFiring` whether to
+INSERT an `alert_firings` row (one open firing per subscription — no spam), and the
+triage actions delegate each transition to the pure `nextStatus` before writing the
+`*_at`/`*_by` audit columns. The daily `api/cron/evaluate-alerts` route is just an
+auth-gated trigger over the same writer. The pure core decides; the action/cron edge
+persists — exactly the Pattern-B grain.

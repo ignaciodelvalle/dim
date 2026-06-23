@@ -59,6 +59,11 @@ const AUTH_GUARDS = [
   "requireOwnedPet",
   "requireOwnedPetByToken",
   "requireOwnedAndAlive",
+  // File-local admin guard used by the alert-subscriptions / alert-firings
+  // actions: wraps auth.getUser + a profiles.role === 'admin' re-check. Same
+  // contract as the named guards above; registered so those actions are
+  // recognized as auth-gated rather than false-positives.
+  "requireAdminUser",
   "auth.getUser",
 ] as const;
 

@@ -26,6 +26,7 @@ The full design — principles, data model, event catalog, privacy tiers, dashbo
 | Govt portal | `/gob` | Govt institutional accounts (jurisdiction-scoped) + admin | Live |
 | Mortality & disposal dashboard | `/gob/mortalidad` | Govt (jurisdiction-scoped) + admin — disposition mix, traceable-disposal rate, reportable-death share (Ley CABA 5470) | Live |
 | Meta-admin portal | `/admin` | Admin institutional accounts (universal scope) | Live |
+| Alert inbox & triage | `/admin/alertas` | Admin — alert firings from subscription thresholds: acknowledge → investigate → contact authority → resolve (WS-K) | Live |
 | Independent vet portal | `/pro` | Vets with `professional.provider` capability | Planned (not scaffolded) |
 | Public credential | `/p/[publicToken]` | Anyone (no auth) — Tier 0/1/2 | Live |
 | Public shelter profile | `/refugios/[orgToken]` | Anyone (no auth) — only verified `shelter` / `rescue_network` orgs | Live |

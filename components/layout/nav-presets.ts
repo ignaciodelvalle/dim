@@ -317,6 +317,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       // keeps universal scope there via the /gob layout. The dead /admin/*
       // duplicates were removed (AC3); the middleware 308s stay for bookmarks.
       { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
+      { href: "/admin/alertas", label: "Alertas", matchPrefix: "/admin/alertas" },
       { href: "/admin/casos", label: "Casos", matchPrefix: "/admin/casos" },
       { href: "/admin/moderacion", label: "Moderación", matchPrefix: "/admin/moderacion" },
       { href: "/admin/observaciones", label: "Observaciones", matchPrefix: "/admin/observaciones" },
