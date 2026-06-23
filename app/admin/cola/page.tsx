@@ -104,6 +104,7 @@ export default async function AdminColaPage({
         detailUrlPrefix="/admin/cola"
         items={items.map((req) => ({
           publicToken: req.publicToken,
+          type: req.type,
           typeLabel: TYPE_LABELS[req.type] ?? req.type,
           applicantName: namesById.get(req.applicantUserId) ?? "Usuario",
           jurisdiction: `${req.jurisdictionLocality}, ${req.jurisdictionProvince}`,

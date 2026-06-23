@@ -248,11 +248,17 @@ export async function updateBusinessRuleWriter(
 export type DeleteBusinessRuleWriterParams = {
   actorUserId: string;
   ruleId: string;
+  /** Operator-supplied reason for the deletion — recorded in the audit payload. */
+  reason: string;
 };
 
 export async function deleteBusinessRuleWriter(
   params: DeleteBusinessRuleWriterParams,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const reason = params.reason.trim();
+  if (reason.length === 0) {
+    return { ok: false, error: "Se requiere un motivo para eliminar la regla." };
+  }
   // Capture the row scope BEFORE the tx so the post-commit reeval has
   // the jurisdiction even though the row is gone.
   let scope: { country: string; province: string | null; locality: string | null } | null = null;
@@ -282,6 +288,7 @@ export async function deleteBusinessRuleWriter(
           ruleType: existing.ruleType,
           jurisdiction: scope,
           previousPayload: existing.rulePayload,
+          reason,
         },
       });
     });
@@ -417,7 +424,8 @@ export async function updateBusinessRuleAction(
 
 export async function deleteBusinessRuleAction(ruleId: string, formData: FormData): Promise<void> {
   const { user } = await requireAdminOrRedirect();
-  const result = await deleteBusinessRuleWriter({ actorUserId: user.id, ruleId });
+  const reason = (formData.get("reason") as string | null)?.trim() ?? "";
+  const result = await deleteBusinessRuleWriter({ actorUserId: user.id, ruleId, reason });
   if (!result.ok) throw new Error(result.error);
   const country = (formData.get("jurisdictionCountry") as string | null) ?? "AR";
   const province = (formData.get("jurisdictionProvince") as string | null) ?? "_";

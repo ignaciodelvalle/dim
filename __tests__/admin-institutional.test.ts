@@ -956,10 +956,13 @@ beforeAll(async () => {
   createdNewUserEmails.push(RESET_GOVT_EMAIL, RESET_ADMIN_EMAIL, RESET_PERSONAL_EMAIL);
 }, 30_000);
 
+const RESET_REASON = "Operador comprometio sus credenciales — rotacion preventiva tras incidente.";
+
 describe("resetInstitutionalCredentialsForAuthority — happy path: active govt", () => {
   it("generates magic link, inserts audit_log and notification, returns magicLink", async () => {
     const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
       targetUserId: resetGovtId,
+      reason: RESET_REASON,
     });
 
     expect(result).not.toHaveProperty("error");
@@ -987,6 +990,8 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active govt"
     expect(payload.method).toBe("magic_link");
     expect(typeof payload.magic_link).toBe("string");
     expect((payload.magic_link as string).length).toBeGreaterThan(0);
+    // C4: the reset reason is recorded in the audit payload.
+    expect(payload.reason).toBe(RESET_REASON);
 
     // Verify notification
     const [notif] = await db
@@ -1008,6 +1013,7 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active admin
   it("returns magicLink for an active admin target", async () => {
     const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
       targetUserId: resetAdminId,
+      reason: RESET_REASON,
     });
 
     expect(result).not.toHaveProperty("error");
@@ -1018,10 +1024,23 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active admin
   });
 });
 
+describe("resetInstitutionalCredentialsForAuthority — validation: short reason rejected", () => {
+  it("returns REASON_TOO_SHORT when reason < 30 chars and does NOT generate a link", async () => {
+    const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
+      targetUserId: resetGovtId,
+      reason: "corto",
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toContain("REASON_TOO_SHORT");
+  });
+});
+
 describe("resetInstitutionalCredentialsForAuthority — capability: non-admin caller rejected", () => {
   it("returns CAPABILITY_DENIED when actor is a govt user", async () => {
     const result = await resetInstitutionalCredentialsForAuthority(govtActorUserId, {
       targetUserId: resetGovtId,
+      reason: RESET_REASON,
     });
 
     expect(result).toHaveProperty("error");
@@ -1034,6 +1053,7 @@ describe("resetInstitutionalCredentialsForAuthority — validation: deactivated 
     // deactivateGovtTargetId was deactivated in PR-B tests above
     const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
       targetUserId: deactivateGovtTargetId,
+      reason: RESET_REASON,
     });
 
     expect(result).toHaveProperty("error");
@@ -1045,6 +1065,7 @@ describe("resetInstitutionalCredentialsForAuthority — validation: personal acc
   it("returns NOT_INSTITUTIONAL when target is a personal (non-institutional) account", async () => {
     const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
       targetUserId: resetPersonalId,
+      reason: RESET_REASON,
     });
 
     expect(result).toHaveProperty("error");
