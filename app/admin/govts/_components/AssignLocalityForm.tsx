@@ -6,6 +6,7 @@
 // Inline form (no modal wrapper) — designed to sit inside the govts detail page
 // below the active-localities table, mirroring the RevokeLocalityRowActions pattern.
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { assignGovtLocalityAction } from "@/app/actions/admin-institutional";
@@ -22,6 +23,7 @@ export function AssignLocalityForm({
   targetUserId: string;
   onAssigned?: (locality: AssignedLocality) => void;
 }) {
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("idle");
   // provinceName is the canonical display name from ar_provincias, resolved
   // by LocalityPickerAcross when the user picks a result.
@@ -133,6 +135,7 @@ export function AssignLocalityForm({
 
       const assigned = { province: provinceName, locality: localityTrimmed };
       setLastAssigned(assigned);
+      router.refresh();
       setMode("done");
       onAssigned?.(assigned);
     });

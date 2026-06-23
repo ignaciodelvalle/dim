@@ -35,7 +35,10 @@ export default async function AdminUsuariosPage({
   const results = await searchUsers(query);
 
   if (query) {
-    void logPiiQueryForAuthority(user.id, query, results.length, "users");
+    // Await the audit write (Ley 25.326): a fire-and-forget promise can be
+    // dropped when the server component returns, weakening the PII-access
+    // accountability guarantee (C3).
+    await logPiiQueryForAuthority(user.id, query, results.length, "users");
   }
 
   return (
@@ -46,8 +49,8 @@ export default async function AdminUsuariosPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Usuarios</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Busca por nombre o DNI y propone cambios de rol. Vista universal — todas las
-          jurisdicciones. Las busquedas quedan en el audit log.
+          Busca por nombre y propone cambios de rol. Vista universal — todas las jurisdicciones. Las
+          busquedas quedan en el audit log.
         </p>
       </header>
 
@@ -56,7 +59,7 @@ export default async function AdminUsuariosPage({
           type="text"
           name="q"
           defaultValue={query}
-          placeholder="Buscar por nombre o DNI"
+          placeholder="Buscar por nombre"
           className="flex-1 text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <button
@@ -89,7 +92,6 @@ export default async function AdminUsuariosPage({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-0.5">
                       <p className="text-[13px] font-medium text-ln-op-ink">{u.displayName}</p>
-                      <p className="text-[10px] font-mono text-ln-op-mute">{u.id}</p>
                     </div>
                     <OpPill tone={ROLE_TONES[u.role] ?? "neutral"}>
                       {ROLE_LABELS[u.role] ?? u.role}

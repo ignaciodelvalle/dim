@@ -7,15 +7,16 @@
 // Filter form uses <form method="get"> — no JS required.
 
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpBreach, OpCard, OpPill } from "@/components/ui/dashboard";
-import { db, eventNotificationOutbox } from "@/db";
+import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import type { OutboxStatus, OutboxTargetKind } from "@/db";
 import { PROVINCES } from "@/lib/ar-provincias";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
+import { countOutboxBreaches } from "@/lib/outbox-queries";
 
 // Set of canonical province names for filter validation.
 const VALID_PROVINCE_NAMES = new Set<string>(PROVINCES.map((p) => p.name));
@@ -147,7 +148,26 @@ export default async function AdminOutboxPage({
   const hasMore = rawRows.length > OUTBOX_PAGE_LIMIT;
   const rows = hasMore ? rawRows.slice(0, OUTBOX_PAGE_LIMIT) : rawRows;
 
-  const breachCount = rows.filter((r) => buildBreachCue(r.status, r.slaDueAt) === "breach").length;
+  // Banner count is GLOBAL (same predicate as the nav badge in layout.tsx), not
+  // derived from the visible page — otherwise it sub-reports breaches that live
+  // beyond page 1 and disagrees with the badge (C2). Per-row cues below still
+  // use buildBreachCue for the page.
+  const breachCount = await countOutboxBreaches();
+
+  // Batch-resolve sourceEventId → pet publicToken for the "Evento origen" column.
+  // One query: join pet_events → pets for all sourceEventIds on the current page.
+  const uniqueSourceEventIds = [...new Set(rows.map((r) => r.sourceEventId))];
+  const sourceEventPetTokenMap = new Map<string, string>(); // sourceEventId → pet publicToken
+  if (uniqueSourceEventIds.length > 0) {
+    const resolved = await db
+      .select({ eventId: petEvents.id, publicToken: pets.publicToken })
+      .from(petEvents)
+      .innerJoin(pets, eq(petEvents.petId, pets.id))
+      .where(inArray(petEvents.id, uniqueSourceEventIds));
+    for (const r of resolved) {
+      sourceEventPetTokenMap.set(r.eventId, r.publicToken);
+    }
+  }
 
   // Pagination links — filter params exclude cursor so changing a filter resets to page 1.
   const filterParams: Record<string, string | undefined> = {
@@ -344,14 +364,20 @@ export default async function AdminOutboxPage({
                         {jurisdiction || "—"}
                       </td>
                       <td className="py-2 px-3">
-                        {/* Link to /admin/historial would need petId — sourceEventId is a
-                            pet_events PK. Linking directly to the outbox detail is cleaner
-                            for v1; historial integration can be added when the detail page
-                            exposes the event context. */}
-                        <span className="font-mono text-[11px] text-ln-op-mute">
-                          {row.sourceEventId.slice(0, 8)}
-                          {"..."}
-                        </span>
+                        {sourceEventPetTokenMap.has(row.sourceEventId) ? (
+                          <Link
+                            href={`/p/${sourceEventPetTokenMap.get(row.sourceEventId)}`}
+                            className="font-mono text-[11px] text-ln-op-azul underline underline-offset-2 hover:opacity-80 whitespace-nowrap"
+                          >
+                            {row.sourceEventId.slice(0, 8)}
+                            {"…"}
+                          </Link>
+                        ) : (
+                          <span className="font-mono text-[11px] text-ln-op-mute">
+                            {row.sourceEventId.slice(0, 8)}
+                            {"…"}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 px-3 text-[12px] text-ln-op-ink-2 text-center">
                         {row.attempts}

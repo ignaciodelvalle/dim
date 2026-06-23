@@ -17,6 +17,7 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics-period";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import {
   TARGETS,
@@ -90,7 +91,7 @@ export default async function AdminAdopcionesPage({
 
       {/* Period filter */}
       <div className="flex justify-end">
-        <PeriodPicker defaultPreset="ytd" />
+        <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
       </div>
 
       {/* KPI row */}
@@ -103,7 +104,7 @@ export default async function AdminAdopcionesPage({
           value={
             shelterOccupancy.occupied > 0 ? shelterOccupancy.occupied.toLocaleString("es-AR") : "—"
           }
-          sub="ownerships shelter_custody activas (nacional)"
+          sub="animales en custodia activa en refugios (nacional)"
           info={{
             definition:
               "Cantidad de animales con ownerships.role = 'shelter_custody' y ended_at IS NULL a nivel nacional.",
@@ -117,7 +118,7 @@ export default async function AdminAdopcionesPage({
               ? fosterPool.activeFosterPlacements.toLocaleString("es-AR")
               : "—"
           }
-          sub="colocaciones foster activas (ownerships)"
+          sub="colocaciones foster activas"
           info={{
             definition: "Cantidad de animales con ownerships.role = 'foster' y ended_at IS NULL.",
             formula: "COUNT(ownerships) WHERE role='foster' AND ended_at IS NULL",
@@ -126,7 +127,7 @@ export default async function AdminAdopcionesPage({
         <OpKpi
           label="Adopciones"
           value={funnel.adoption > 0 ? funnel.adoption.toLocaleString("es-AR") : "—"}
-          sub="adoption_finalized en el período"
+          sub="adopciones finalizadas en el período"
           sparkline={
             adoptionTrend.points.length > 0 ? adoptionTrend.points.map((p) => p.y) : undefined
           }
@@ -137,25 +138,33 @@ export default async function AdminAdopcionesPage({
         />
         <OpKpi
           label="Tasa de retorno"
-          value={returnRatePct != null ? `${returnRatePct}%` : "—"}
+          value={
+            returnRatePct != null
+              ? returnRatePct > 100
+                ? `${returnRatePct}%*`
+                : `${returnRatePct}%`
+              : "—"
+          }
           sub={
             returnRatePct != null
-              ? "devoluciones / adopciones (período)"
+              ? returnRatePct > 100
+                ? "reversos / adopciones (período) · puede superar 100%"
+                : "reversos / adopciones (período)"
               : "Sin adopciones en el período"
           }
           tone={
             returnRatePct == null
               ? "neutral"
-              : toneForTarget(returnRatePct, TARGETS.ADOPTION_RETURN_RATE_PCT, {
+              : toneForTarget(Math.min(returnRatePct, 100), TARGETS.ADOPTION_RETURN_RATE_PCT, {
                   higherIsBetter: false,
                 })
           }
           info={{
             definition:
-              "Fracción de adopciones finalizadas que fueron revertidas (adoption_reversed / adoption_finalized) en el período. Menor es mejor.",
+              "Reversos de adopción (adoption_reversed) sobre adopciones finalizadas (adoption_finalized) en el período. Menor es mejor.",
             formula: "COUNT(adoption_reversed) / COUNT(adoption_finalized) — null si den=0",
             caveat:
-              "Numerador y denominador son conteos independientes de eventos en el período; un reverso puede corresponder a una adopción de un período anterior.",
+              "⚠ Puede superar 100%: numerador y denominador son conteos independientes. Un reverso de este período puede corresponder a una adopción de un período anterior. El valor real se muestra sin truncar.",
           }}
         />
       </section>
@@ -280,7 +289,7 @@ export default async function AdminAdopcionesPage({
             <LnEmptyState
               icon="clock"
               title="Sin datos de custodia"
-              description="No hay ownerships de custodia o tránsito en el período seleccionado."
+              description="No hay registros de custodia o tránsito en el período seleccionado."
             />
           ) : (
             <div className="overflow-x-auto">
@@ -332,8 +341,8 @@ export default async function AdminAdopcionesPage({
                 </tbody>
               </table>
               <p className="mt-2 text-[10px] text-ln-op-mute">
-                Duración calculada como COALESCE(ended_at, now()) − started_at para ownerships que
-                se superponen con el período.
+                Duración por custodia activa o cerrada en el período. Los registros abiertos usan la
+                fecha actual como cierre estimado.
               </p>
             </div>
           )}
@@ -386,8 +395,8 @@ export default async function AdminAdopcionesPage({
                 </div>
               )}
               <p className="text-[10px] text-ln-op-mute">
-                Ocupados: SUM de ownerships shelter_custody activos · Cupo: SUM de
-                organizations.capacity_total para orgs tipo shelter.
+                Ocupados: total de animales en custodia activa en refugios. Cupo: capacidad
+                declarada por las organizaciones tipo refugio.
               </p>
             </div>
           )}
@@ -419,8 +428,8 @@ export default async function AdminAdopcionesPage({
             </div>
           </div>
           <p className="mt-3 text-[10px] text-ln-op-mute">
-            Voluntarios: foster_volunteers WHERE status='active'. Con cupo: AND available_slots &gt;
-            0. Colocaciones activas: ownerships WHERE role='foster' AND ended_at IS NULL.
+            Voluntarios activos con estado activo en el padrón de tránsitos. Con cupo: voluntarios
+            con lugares disponibles. Colocaciones activas: animales en tránsito sin fecha de cierre.
           </p>
         </OpCardBody>
       </OpCard>
@@ -444,7 +453,7 @@ export default async function AdminAdopcionesPage({
             <LnEmptyState
               icon="chart-line"
               title="Sin adopciones en el período"
-              description="No hay eventos adoption_finalized en el rango seleccionado."
+              description="No hay adopciones finalizadas en el rango seleccionado."
             />
           ) : (
             <TimeSeriesChartDynamic

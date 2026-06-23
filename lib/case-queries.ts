@@ -522,13 +522,50 @@ export async function listCasesForGovt(
   return rows.map(mapListRow);
 }
 
+// ---------------------------------------------------------------------------
+// Admin case list filters — pushed entirely into SQL (no JS-side slicing).
+// ---------------------------------------------------------------------------
+
+export interface ListCasesForAdminFilters {
+  /** Filter by case kind. Null = all kinds. */
+  kind?: CaseKind | null;
+  /** Filter by open/closed status. Null = all. */
+  status?: "open" | "closed" | null;
+  /** Filter by jurisdiction province (exact match). Null = all. */
+  province?: string | null;
+}
+
+/**
+ * Build a pure Drizzle WHERE predicate array from admin filter params.
+ * Exported so pages can call it and unit tests can verify the output shape
+ * without hitting the DB.
+ */
+export function buildAdminCaseFilterClauses(
+  filters: ListCasesForAdminFilters,
+): ReturnType<typeof and>[] {
+  const clauses: ReturnType<typeof and>[] = [];
+  if (filters.kind) clauses.push(eq(cases.caseKind, filters.kind) as ReturnType<typeof and>);
+  if (filters.status === "open") clauses.push(isNull(cases.closedAt) as ReturnType<typeof and>);
+  if (filters.status === "closed")
+    clauses.push(isNotNull(cases.closedAt) as ReturnType<typeof and>);
+  if (filters.province)
+    clauses.push(eq(cases.jurisdictionProvince, filters.province) as ReturnType<typeof and>);
+  return clauses;
+}
+
 // opts.cursor enables keyset pagination (PERF-5): see listCasesForGovt.
 export async function listCasesForAdmin(opts?: {
   limit?: number;
   cursor?: KeysetCursor;
+  filters?: ListCasesForAdminFilters;
 }): Promise<CaseListItem[]> {
   const cursorClause = keysetWhere(cases.openedAt, cases.id, decodeCursor(opts?.cursor));
   const limit = opts?.limit ?? 500;
+
+  const filterClauses = opts?.filters ? buildAdminCaseFilterClauses(opts.filters) : [];
+  if (cursorClause) filterClauses.push(cursorClause as ReturnType<typeof and>);
+  const whereClause = filterClauses.length > 0 ? and(...filterClauses) : undefined;
+
   const rows = await db
     .select({
       c: CASE_LIST_SELECT,
@@ -537,8 +574,7 @@ export async function listCasesForAdmin(opts?: {
     })
     .from(cases)
     .leftJoin(pets, eq(pets.id, cases.primaryPetId))
-    // Drizzle's .where(undefined) emits no WHERE clause — deliberate: admin sees all cases on page 1.
-    .where(cursorClause)
+    .where(whereClause)
     .orderBy(desc(cases.openedAt), desc(cases.id))
     .limit(limit);
   return rows.map(mapListRow);

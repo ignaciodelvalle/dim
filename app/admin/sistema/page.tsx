@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
+import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
+import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import {
   fetchCronRuns,
@@ -10,7 +11,7 @@ import {
   fetchUserMetrics,
 } from "@/lib/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { TARGETS, buildProjectionContext, computeDeltaPct, toneForTarget } from "@/lib/metrics";
+import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { fetchEnoSla } from "@/lib/surveillance-metrics";
 
@@ -42,12 +43,11 @@ export default async function AdminSistemaPage() {
     fetchEnoSla(adminCtx),
   ]);
 
-  // deltaV2 for decisions 7d — compare vs prior 7d approximated from the 30d window.
+  // deltaV2 for decisions 7d — compare vs prior 7d approximated from the 30d
+  // window. Shared helper (decisionsDeltaPct) keeps this in lockstep with the
+  // admin landing strip (C28).
   const total7d = decisions.approved7d + decisions.rejected7d;
-  const total30d = decisions.approved30d + decisions.rejected30d;
-  const prior23d = total30d - total7d;
-  const decisionsDelta =
-    prior23d > 0 ? computeDeltaPct(total7d, Math.round((prior23d / 23) * 7)) : null;
+  const decisionsDelta = decisionsDeltaPct(decisions);
 
   return (
     <div className="space-y-8">
@@ -77,69 +77,23 @@ export default async function AdminSistemaPage() {
         </div>
       </header>
 
-      {/* Top KPIs */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <OpKpi
-          label="Usuarios personales"
-          value={users.totalPersonal}
-          href="/admin/usuarios"
-          info={{
-            definition: "Total de cuentas personales activas en la plataforma.",
-            formula: "count(*) where account_type = 'personal'",
-          }}
-        />
-        <OpKpi
-          label="Cola pendiente"
-          value={queue.pendingTotal}
-          tone={queue.pendingTotal > 0 ? "warn" : "neutral"}
-          sub={
-            queue.oldestPendingDaysAgo != null
-              ? `Más vieja: ${queue.oldestPendingDaysAgo}d`
-              : undefined
-          }
-          href="/admin/cola"
-          info={{
-            definition: "Solicitudes de aprobación en estado pendiente en este momento.",
-            caveat: "Incluye solicitudes de todas las jurisdicciones.",
-          }}
-        />
-        <OpKpi
-          label="Decisiones 7d"
-          value={total7d}
-          tone="ok"
-          sub={`${decisions.approved7d} aprobadas · ${decisions.rejected7d} rechazadas`}
-          href="/admin/auditoria"
-          info={{
-            definition: "Decisiones tomadas (aprobaciones + rechazos) en los últimos 7 días.",
-            formula: "request_approved + request_rejected en audit_log (últimos 7d)",
-          }}
-          deltaV2={
-            decisionsDelta !== null
-              ? { value: decisionsDelta, period: "vs 7d anteriores (aprox.)" }
-              : undefined
-          }
-        />
-        {/* Paquete H — ENO SLA (A7): measures our notification pipeline health. */}
-        <OpKpi
-          label="SLA ENO"
-          value={enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
-          tone={
-            enoSla.onTimePct !== null
-              ? toneForTarget(enoSla.onTimePct, TARGETS.ENO_SLA_PCT)
-              : undefined
-          }
-          sub={
-            enoSla.breachedOpen > 0
-              ? `${enoSla.breachedOpen} en breach activo`
-              : enoSla.total > 0
-                ? "sin breach activo"
-                : "sin notificaciones en el período"
-          }
-          href="/admin/outbox"
-          info={{
-            definition:
-              "% de notificaciones ENO (target_kind='eno_authority') entregadas dentro del SLA (A7). breachedOpen: pendientes con sla_due_at vencido en este momento.",
-            formula: "onTime / delivered * 100 — período seleccionado",
+      {/* Top KPIs — shared operational strip (C26). Paquete H ENO SLA (A7)
+          measures the notification pipeline health. */}
+      <section aria-label="Estado del sistema">
+        <AdminKpiStrip
+          data={{
+            totalPersonal: users.totalPersonal,
+            pendingTotal: queue.pendingTotal,
+            oldestPendingDaysAgo: queue.oldestPendingDaysAgo,
+            decisionsTotal7d: total7d,
+            approved7d: decisions.approved7d,
+            rejected7d: decisions.rejected7d,
+            decisionsDelta,
+            enoSla: {
+              onTimePct: enoSla.onTimePct,
+              breachedOpen: enoSla.breachedOpen,
+              total: enoSla.total,
+            },
           }}
         />
       </section>

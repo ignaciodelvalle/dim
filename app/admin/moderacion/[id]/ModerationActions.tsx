@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { LnCheckbox } from "@/components/ui/Field";
+import { canSubmitModeration } from "@/lib/destructive-confirmation";
 import {
   confirmWelfareAsSpamAction,
   passWelfareToTriageAction,
@@ -15,11 +17,13 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("none");
   const [notes, setNotes] = useState("");
+  const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function reset() {
     setMode("none");
     setNotes("");
+    setAcknowledged(false);
     setError(null);
   }
 
@@ -73,9 +77,32 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
       ? "bg-ln-op-ok text-white hover:opacity-90"
       : "bg-ln-op-navy text-white hover:opacity-90";
 
+  const canSubmit = canSubmitModeration({ mode, notes, acknowledged });
+
   return (
     <div className="space-y-3">
       <p className="text-[13px] font-semibold text-ln-op-ink">{title}</p>
+
+      {/* C7 — explicit irreversibility warning before confirming spam. */}
+      {mode === "spam" && (
+        <div className="space-y-2 rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
+          <p className="text-[12px] font-semibold text-ln-op-danger">
+            {
+              "Confirmar como spam marca la denuncia como inválida de forma permanente. No se puede deshacer."
+            }
+          </p>
+          <LnCheckbox
+            checked={acknowledged}
+            onChange={(e) => setAcknowledged(e.target.checked)}
+            labelClassName="text-xs! text-ln-op-danger!"
+          >
+            {
+              "Entiendo que esta acción es irreversible y deja la denuncia inválida en el historial."
+            }
+          </LnCheckbox>
+        </div>
+      )}
+
       <textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
@@ -89,7 +116,7 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
         <button
           type="button"
           onClick={submit}
-          disabled={pending || notes.trim().length < 10}
+          disabled={pending || !canSubmit}
           className={`rounded-[6px] px-4 py-2 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${confirmClass}`}
         >
           {pending ? "Procesando..." : "Confirmar"}

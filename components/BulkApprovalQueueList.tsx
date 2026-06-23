@@ -9,7 +9,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { type ReactNode, useState, useTransition } from "react";
 
 import {
   type BulkResult,
@@ -17,9 +17,17 @@ import {
   bulkRejectRequestsAction,
 } from "@/app/actions/bulk-actions";
 import { LnCheckbox } from "@/components/ui/Field";
+import type { ApprovalRequestType } from "@/db";
+import {
+  RUPGA_APPROVAL_WARNING,
+  computeApprovalTypeBreakdown,
+  selectionHasRupga,
+} from "@/lib/approval-queue-breakdown";
 
 export type QueueItem = {
   publicToken: string;
+  /** Raw request type — drives the per-type approval breakdown + RUPGA warning. */
+  type: ApprovalRequestType;
   typeLabel: string;
   applicantName: string;
   jurisdiction: string;
@@ -94,6 +102,11 @@ export function BulkApprovalQueueList({
 
   const allSelected = selected.size === items.length;
   const someSelected = selected.size > 0;
+
+  // C5: per-type breakdown of the SELECTED items, for the approve confirmation.
+  const selectedTypes = items.filter((i) => selected.has(i.publicToken)).map((i) => i.type);
+  const typeBreakdown = computeApprovalTypeBreakdown(selectedTypes);
+  const hasRupga = selectionHasRupga(selectedTypes);
 
   return (
     <div className="space-y-3 pb-32">
@@ -189,7 +202,24 @@ export function BulkApprovalQueueList({
                 pending={pending}
                 onConfirm={runApprove}
                 onCancel={() => setMode("none")}
-              />
+              >
+                <ul className="space-y-0.5 text-xs text-ln-op-ink-2">
+                  {typeBreakdown.map((entry) => (
+                    <li key={entry.type} className="flex items-center justify-between gap-2">
+                      <span>{entry.label}</span>
+                      <span className="tabular-nums font-medium">{entry.count}</span>
+                    </li>
+                  ))}
+                </ul>
+                {hasRupga && (
+                  <p
+                    role="alert"
+                    className="rounded-md border border-ln-op-danger-bd bg-ln-op-danger-bg px-2 py-1.5 text-[11px] text-ln-op-danger"
+                  >
+                    {RUPGA_APPROVAL_WARNING}
+                  </p>
+                )}
+              </ConfirmRow>
             )}
 
             {mode === "reject" && (
@@ -224,6 +254,7 @@ function ConfirmRow({
   pending,
   onConfirm,
   onCancel,
+  children,
 }: {
   title: string;
   placeholder: string;
@@ -235,10 +266,12 @@ function ConfirmRow({
   pending: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  children?: ReactNode;
 }) {
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium">{title}</p>
+      {children}
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}

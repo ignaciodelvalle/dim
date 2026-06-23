@@ -1,5 +1,3 @@
-import { and, eq, lt, sql } from "drizzle-orm";
-
 import { logoutAction } from "@/app/actions/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
@@ -10,8 +8,8 @@ import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
-import { db, eventNotificationOutbox } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { countOutboxBreaches } from "@/lib/outbox-queries";
 import { getProfileCached } from "@/lib/request-cache";
 import type { ShellSession } from "@/lib/shell-nav";
 
@@ -21,18 +19,10 @@ import type { ShellSession } from "@/lib/shell-nav";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { profile } = await requireAdminOrRedirect();
 
-  // Cheap breach count: pending rows past their SLA deadline.
-  // Uses the outbox_sla_due_idx(sla_due_at, status) index — no seq scan.
-  const [breachCountRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(eventNotificationOutbox)
-    .where(
-      and(
-        eq(eventNotificationOutbox.status, "pending"),
-        lt(eventNotificationOutbox.slaDueAt, new Date()),
-      ),
-    );
-  const breachCount = breachCountRow?.count ?? 0;
+  // Global breach count (pending rows past their SLA deadline). Shared with the
+  // outbox banner via countOutboxBreaches() so the badge and the banner can
+  // never disagree (C2). Uses the outbox_sla_due_idx(sla_due_at, status) index.
+  const breachCount = await countOutboxBreaches();
 
   // getProfileCached is already warmed by requireAdminOrRedirect above —
   // this call is a memoized hit, not a second DB round-trip.

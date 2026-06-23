@@ -30,3 +30,39 @@ export function createAdminClient(): ReturnType<typeof createSdkClient> {
 
   return cached;
 }
+
+// Bound the enumeration so a misbehaving backend can never loop forever.
+// 50 pages × 200/page = 10k auth users, far beyond v1 institutional volume.
+const AUTH_USERS_PER_PAGE = 200;
+const AUTH_USERS_MAX_PAGES = 50;
+
+/**
+ * Build a complete `userId → email` map by paging through ALL auth users (C21).
+ *
+ * The admin rosters previously called `listUsers({ perPage: 200 })` once, which
+ * silently truncated at 200 users — beyond that the email column came back blank
+ * for the unseen users. This pages until a short page is returned (or the page
+ * cap is hit), so every operator's email is present regardless of total volume.
+ *
+ * `supabase` is typed loosely to avoid importing the SDK's generated client type
+ * here; the caller passes the result of `createAdminClient()`.
+ */
+export async function buildAuthEmailMap(
+  supabase: ReturnType<typeof createSdkClient>,
+): Promise<Map<string, string>> {
+  const emailMap = new Map<string, string>();
+  for (let page = 1; page <= AUTH_USERS_MAX_PAGES; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: AUTH_USERS_PER_PAGE,
+    });
+    if (error) break;
+    const users = data?.users ?? [];
+    for (const u of users) {
+      emailMap.set(u.id, u.email ?? "");
+    }
+    // A short (or empty) page means we've reached the end of the list.
+    if (users.length < AUTH_USERS_PER_PAGE) break;
+  }
+  return emailMap;
+}

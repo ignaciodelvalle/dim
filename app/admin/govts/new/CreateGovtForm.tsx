@@ -104,6 +104,7 @@ export function CreateGovtForm() {
         email={success.email}
         profileId={success.profileId}
         detailPath={`/admin/govts/${success.profileId}`}
+        variant="create"
         onCreateAnother={handleCreateAnother}
       />
     );

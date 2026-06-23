@@ -298,6 +298,19 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    // Analítica — population/program analytics (C27 split from Confiabilidad).
+    // Placed first among labeled sections so the executive summary (Programa)
+    // is the most prominent destination on the rail (C26: promote Programa).
+    label: "Analítica",
+    items: [
+      // Paquete H — exec summary / programa (top of section: highest-level view first)
+      { href: "/admin/programa", label: "Programa", matchPrefix: "/admin/programa" },
+      { href: "/admin/censo", label: "Censo", matchPrefix: "/admin/censo" },
+      { href: "/admin/adopciones", label: "Adopciones", matchPrefix: "/admin/adopciones" },
+      { href: "/admin/poblacion", label: "Población", matchPrefix: "/admin/poblacion" },
+    ],
+  },
+  {
     label: "Operaciones",
     items: [
       { href: "/admin/cola", label: "Cola", matchPrefix: "/admin/cola" },
@@ -307,13 +320,9 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    // Confiabilidad — operational health only (C27: analytics moved to Analítica).
     label: "Confiabilidad",
     items: [
-      // Paquete H — exec summary / programa (top of section: highest-level view first)
-      { href: "/admin/programa", label: "Programa", matchPrefix: "/admin/programa" },
-      { href: "/admin/censo", label: "Censo", matchPrefix: "/admin/censo" },
-      { href: "/admin/adopciones", label: "Adopciones", matchPrefix: "/admin/adopciones" },
-      { href: "/admin/poblacion", label: "Población", matchPrefix: "/admin/poblacion" },
       { href: "/admin/sistema", label: "Sistema", matchPrefix: "/admin/sistema" },
       { href: "/admin/outbox", label: "Outbox", matchPrefix: "/admin/outbox" },
       { href: "/admin/auditoria", label: "Auditoría", matchPrefix: "/admin/auditoria" },

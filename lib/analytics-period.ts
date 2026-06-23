@@ -6,11 +6,12 @@
  * preset chips; only custom ranges may set `until` to a past date.
  *
  * Preset chip values (from PeriodPicker.tsx):
- *   "7d"     → last 7 days
- *   "30d"    → last 30 days  (default / fallback)
- *   "90d"    → last 90 days
- *   "ytd"    → Jan 1 of the current year → now
- *   "custom" → `from` / `to` ISO date strings (YYYY-MM-DD) from searchParams
+ *   "7d"          → last 7 days
+ *   "30d"         → last 30 days
+ *   "90d"         → last 90 days
+ *   "ytd"         → Jan 1 of the current year → now
+ *   "trailing12m" → last 365 days (default for admin dashboards)
+ *   "custom"      → `from` / `to` ISO date strings (YYYY-MM-DD) from searchParams
  *
  * Fallback: missing, unknown, or un-parseable input → 12-month window
  * (preserves the pre-existing default behaviour for all callers).
@@ -26,6 +27,13 @@ export type PeriodSearchParams = {
   from?: string;
   to?: string;
 };
+
+/**
+ * Default preset for admin/gob dashboards that use a trailing-12m server window.
+ * Shared between server pages and <PeriodPicker defaultPreset> so the chip label
+ * always matches the data window on first load (C32).
+ */
+export const DEFAULT_DASHBOARD_PRESET = "trailing12m" as const;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -70,6 +78,8 @@ export function resolveAnalyticsPeriod(
       return { since: new Date(now - 30 * DAY_MS), until };
     case "90d":
       return { since: new Date(now - 90 * DAY_MS), until };
+    case "trailing12m":
+      return { since: new Date(now - 365 * DAY_MS), until };
     case "ytd": {
       const jan1 = new Date(`${new Date(now).getUTCFullYear()}-01-01T00:00:00Z`);
       return { since: jan1, until };

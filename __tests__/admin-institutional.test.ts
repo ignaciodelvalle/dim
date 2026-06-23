@@ -413,6 +413,25 @@ async function seedAdminUser(email: string): Promise<string> {
   return id;
 }
 
+// C21: a system/service admin. The last-admin guard must NOT count these toward
+// the human-admin floor. The migration backfills is_system from a `system:%`
+// display name, but accounts seeded AFTER the migration won't be caught by that
+// one-shot backfill — so we set is_system explicitly here.
+async function seedSystemAdminUser(email: string): Promise<string> {
+  await deleteTestUser(email);
+  const id = await createUserOrThrow(email);
+  await db
+    .update(profiles)
+    .set({
+      role: "admin",
+      accountType: "institutional",
+      displayName: `system:${email.split("@")[0]}`,
+      isSystem: true,
+    })
+    .where(eq(profiles.id, id));
+  return id;
+}
+
 async function seedGovtUser(
   email: string,
   localities: { province: string; locality: string }[] = [],
@@ -789,6 +808,169 @@ describe("deactivateAdminForAuthority — concurrency: last-admin race", () => {
 });
 
 // ============================================================================
+// deactivateAdminForAuthority — C21/C22 human-only last-admin floor
+//
+// The last-admin guard must count only HUMAN admins (profiles.is_system = false).
+// A system/service admin must NOT keep the count above the floor, otherwise the
+// last human admin could be deactivated while a machine account masks the gap.
+// ============================================================================
+
+// Deactivate every active institutional admin EXCEPT the given ids, returning
+// the ids that were deactivated so the caller can restore them afterward.
+async function isolateActiveAdmins(keepIds: string[]): Promise<string[]> {
+  const active = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(
+      and(
+        eq(profiles.role, "admin"),
+        eq(profiles.accountType, "institutional"),
+        isNull(profiles.deactivatedAt),
+      ),
+    );
+  const toDeactivate = active.map((r) => r.id).filter((id) => !keepIds.includes(id));
+  for (const id of toDeactivate) {
+    await db.update(profiles).set({ deactivatedAt: new Date() }).where(eq(profiles.id, id));
+  }
+  return toDeactivate;
+}
+
+describe("deactivateAdminForAuthority — C21 human-only last-admin floor", () => {
+  const HUMAN_ACTOR = "c21-human-actor@dim-test.local";
+  const HUMAN_TARGET = "c21-human-target@dim-test.local";
+  const SYSTEM_ADMIN = "c21-system-admin@dim-test.local";
+
+  let humanActorId: string;
+  let humanTargetId: string;
+  let systemAdminId: string;
+  let restored: string[] = [];
+
+  beforeAll(async () => {
+    humanActorId = await seedAdminUser(HUMAN_ACTOR);
+    humanTargetId = await seedAdminUser(HUMAN_TARGET);
+    systemAdminId = await seedSystemAdminUser(SYSTEM_ADMIN);
+    createdNewUserEmails.push(HUMAN_ACTOR, HUMAN_TARGET, SYSTEM_ADMIN);
+  }, 30_000);
+
+  afterAll(async () => {
+    for (const id of restored) {
+      await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, id));
+    }
+    restored = [];
+  });
+
+  it("backfill/flag: the seeded system admin is marked is_system = true", async () => {
+    const [row] = await db
+      .select({ isSystem: profiles.isSystem })
+      .from(profiles)
+      .where(eq(profiles.id, systemAdminId))
+      .limit(1);
+    expect(row.isSystem).toBe(true);
+  });
+
+  it("BLOCKS deactivating the last human admin even when a system admin is active", async () => {
+    // Isolate: only humanTarget + systemAdmin remain active humans/system.
+    // The system admin is the actor (it passes the role=admin capability gate),
+    // and humanTarget is the SOLE human admin. With the human-only floor the
+    // guard must see humanCount = 1 → remaining 0 → LAST_ADMIN.
+    restored = await isolateActiveAdmins([humanTargetId, systemAdminId]);
+
+    const [att] = await db
+      .insert(attachments)
+      .values({
+        storagePath: "test/c21-block-evidence.pdf",
+        mimeType: "application/pdf",
+        uploadedByUserId: systemAdminId,
+        fileSize: 100,
+      })
+      .returning({ id: attachments.id });
+
+    const result = await deactivateAdminForAuthority(systemAdminId, {
+      targetAdminUserId: humanTargetId,
+      motivo: "Intento de desactivar al ultimo admin humano con texto suficientemente largo.",
+      attachmentIds: [att.id],
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toContain("LAST_ADMIN");
+
+    // Target must remain active.
+    const [target] = await db
+      .select({ deactivatedAt: profiles.deactivatedAt })
+      .from(profiles)
+      .where(eq(profiles.id, humanTargetId))
+      .limit(1);
+    expect(target.deactivatedAt).toBeNull();
+
+    // Restore for the next test / cleanup.
+    for (const id of restored) {
+      await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, id));
+    }
+    restored = [];
+    await db.delete(attachments).where(eq(attachments.id, att.id));
+  });
+
+  it("ALLOWS deactivating one of two human admins (system admins are ignored)", async () => {
+    // Isolate: humanActor + humanTarget (2 humans) + systemAdmin active.
+    // humanCount = 2 → remaining 1 → allowed. The system admin must not be
+    // counted (otherwise the test could not distinguish floor behavior).
+    await reactivateUser(humanActorId);
+    await reactivateUser(humanTargetId);
+    restored = await isolateActiveAdmins([humanActorId, humanTargetId, systemAdminId]);
+
+    const [att] = await db
+      .insert(attachments)
+      .values({
+        storagePath: "test/c21-allow-evidence.pdf",
+        mimeType: "application/pdf",
+        uploadedByUserId: humanActorId,
+        fileSize: 100,
+      })
+      .returning({ id: attachments.id });
+
+    const result = await deactivateAdminForAuthority(humanActorId, {
+      targetAdminUserId: humanTargetId,
+      motivo: "Desactivacion valida con dos admins humanos activos y texto suficiente.",
+      attachmentIds: [att.id],
+    });
+
+    expect(result).not.toHaveProperty("error");
+    if ("error" in result) {
+      for (const id of restored) {
+        await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, id));
+      }
+      restored = [];
+      return;
+    }
+    expect(result.ok).toBe(true);
+
+    // The audit payload should report the remaining HUMAN admin count (1),
+    // not inflated by the active system admin.
+    const [logRow] = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetUserId, humanTargetId),
+          eq(auditLog.action, "admin_deactivated_by_admin"),
+        ),
+      )
+      .orderBy(desc(auditLog.performedAt))
+      .limit(1);
+    const payload = logRow.payload as Record<string, unknown>;
+    expect(payload.remaining_admins_count).toBe(1);
+
+    // Restore.
+    await reactivateUser(humanTargetId);
+    for (const id of restored) {
+      await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, id));
+    }
+    restored = [];
+    await db.delete(attachments).where(eq(attachments.id, att.id));
+  });
+});
+
+// ============================================================================
 // deactivateGovtForAuthority — PR-B tests
 // ============================================================================
 
@@ -956,10 +1138,13 @@ beforeAll(async () => {
   createdNewUserEmails.push(RESET_GOVT_EMAIL, RESET_ADMIN_EMAIL, RESET_PERSONAL_EMAIL);
 }, 30_000);
 
+const RESET_REASON = "Operador comprometio sus credenciales — rotacion preventiva tras incidente.";
+
 describe("resetInstitutionalCredentialsForAuthority — happy path: active govt", () => {
   it("generates magic link, inserts audit_log and notification, returns magicLink", async () => {
     const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
       targetUserId: resetGovtId,
+      reason: RESET_REASON,
     });
 
     expect(result).not.toHaveProperty("error");
@@ -987,6 +1172,8 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active govt"
     expect(payload.method).toBe("magic_link");
     expect(typeof payload.magic_link).toBe("string");
     expect((payload.magic_link as string).length).toBeGreaterThan(0);
+    // C4: the reset reason is recorded in the audit payload.
+    expect(payload.reason).toBe(RESET_REASON);
 
     // Verify notification
     const [notif] = await db
@@ -1008,6 +1195,7 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active admin
   it("returns magicLink for an active admin target", async () => {
     const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
       targetUserId: resetAdminId,
+      reason: RESET_REASON,
     });
 
     expect(result).not.toHaveProperty("error");
@@ -1018,10 +1206,23 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active admin
   });
 });
 
+describe("resetInstitutionalCredentialsForAuthority — validation: short reason rejected", () => {
+  it("returns REASON_TOO_SHORT when reason < 30 chars and does NOT generate a link", async () => {
+    const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
+      targetUserId: resetGovtId,
+      reason: "corto",
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toContain("REASON_TOO_SHORT");
+  });
+});
+
 describe("resetInstitutionalCredentialsForAuthority — capability: non-admin caller rejected", () => {
   it("returns CAPABILITY_DENIED when actor is a govt user", async () => {
     const result = await resetInstitutionalCredentialsForAuthority(govtActorUserId, {
       targetUserId: resetGovtId,
+      reason: RESET_REASON,
     });
 
     expect(result).toHaveProperty("error");
@@ -1034,6 +1235,7 @@ describe("resetInstitutionalCredentialsForAuthority — validation: deactivated 
     // deactivateGovtTargetId was deactivated in PR-B tests above
     const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
       targetUserId: deactivateGovtTargetId,
+      reason: RESET_REASON,
     });
 
     expect(result).toHaveProperty("error");
@@ -1045,6 +1247,7 @@ describe("resetInstitutionalCredentialsForAuthority — validation: personal acc
   it("returns NOT_INSTITUTIONAL when target is a personal (non-institutional) account", async () => {
     const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
       targetUserId: resetPersonalId,
+      reason: RESET_REASON,
     });
 
     expect(result).toHaveProperty("error");

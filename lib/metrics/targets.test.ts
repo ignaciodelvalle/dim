@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { TARGETS, computeDeltaPct, toneForTarget } from "./targets";
+import { TARGETS, computeDeltaPct, decisionsDeltaPct, toneForTarget } from "./targets";
 
 // ---------------------------------------------------------------------------
 // 1. TARGETS constant
@@ -159,5 +159,56 @@ describe("computeDeltaPct", () => {
   it("handles fractional values correctly", () => {
     // (1.5 - 1.0) / 1.0 * 100 = 50.0
     expect(computeDeltaPct(1.5, 1.0)).toBe(50);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. decisionsDeltaPct — value-pinning (C28 extraction must be behaviour-preserving)
+//
+// These are the EXACT values produced by the inline logic that previously lived
+// in app/admin/page.tsx and app/admin/sistema/page.tsx. The extraction is only
+// safe if these numbers remain pinned. Derivation per input:
+//   total7d=approved7d+rejected7d, total30d=approved30d+rejected30d,
+//   prior23d=total30d-total7d, priorWeek=round(prior23d/23*7),
+//   delta=computeDeltaPct(total7d, priorWeek).
+// ---------------------------------------------------------------------------
+
+describe("decisionsDeltaPct — value-pinning (C28)", () => {
+  it("growth case: {a7:10,r7:4,a30:30,r30:12} → +55.6", () => {
+    // total7d=14, total30d=42, prior23d=28, priorWeek=round(28/23*7)=9,
+    // delta=computeDeltaPct(14,9)=round((14-9)/9*1000)/10=55.6
+    expect(
+      decisionsDeltaPct({ approved7d: 10, rejected7d: 4, approved30d: 30, rejected30d: 12 }),
+    ).toBe(55.6);
+  });
+
+  it("decline case: {a7:2,r7:1,a30:40,r30:20} → -82.4", () => {
+    // total7d=3, total30d=60, prior23d=57, priorWeek=round(57/23*7)=17,
+    // delta=computeDeltaPct(3,17)=round((3-17)/17*1000)/10=-82.4
+    expect(
+      decisionsDeltaPct({ approved7d: 2, rejected7d: 1, approved30d: 40, rejected30d: 20 }),
+    ).toBe(-82.4);
+  });
+
+  it("no baseline (prior23d === 0) → null (KPI omits the deltaV2 chip)", () => {
+    // total7d=total30d → prior23d=0 → null
+    expect(
+      decisionsDeltaPct({ approved7d: 5, rejected7d: 2, approved30d: 5, rejected30d: 2 }),
+    ).toBeNull();
+  });
+
+  it("negative prior23d (data skew, total7d>total30d) → null", () => {
+    // total7d=10, total30d=4 → prior23d=-6 → null (guard is prior23d <= 0)
+    expect(
+      decisionsDeltaPct({ approved7d: 8, rejected7d: 2, approved30d: 3, rejected30d: 1 }),
+    ).toBeNull();
+  });
+
+  it("priorWeek rounds to 0 (prior23d positive but tiny) → 0 via computeDeltaPct guard", () => {
+    // total7d=10, total30d=11, prior23d=1, priorWeek=round(1/23*7)=0,
+    // computeDeltaPct(10,0)=0 (Infinity guard)
+    expect(
+      decisionsDeltaPct({ approved7d: 10, rejected7d: 0, approved30d: 11, rejected30d: 0 }),
+    ).toBe(0);
   });
 });

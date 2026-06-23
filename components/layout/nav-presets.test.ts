@@ -503,14 +503,43 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
     expect(ADMIN_NAV_SECTIONS[0].items[0].href).toBe("/admin");
   });
 
-  it("includes /admin/poblacion in the Confiabilidad section (Paquete G)", () => {
-    const confSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Confiabilidad");
-    expect(confSection?.items.map((i) => i.href)).toContain("/admin/poblacion");
+  // C27 — nav taxonomy split: population/program analytics moved out of the
+  // operational "Confiabilidad" group into a dedicated "Analítica" section.
+  it("includes /admin/poblacion in the Analítica section (C27 — analytics split)", () => {
+    const analiticaSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Analítica");
+    expect(analiticaSection?.items.map((i) => i.href)).toContain("/admin/poblacion");
   });
 
-  it("includes /admin/programa in the Confiabilidad section (Paquete H)", () => {
+  it("includes /admin/programa in the Analítica section, first (C26 — promote exec summary)", () => {
+    const analiticaSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Analítica");
+    expect(analiticaSection?.items.map((i) => i.href)).toContain("/admin/programa");
+    // Programa leads Analítica (highest-level view first).
+    expect(analiticaSection?.items[0]?.href).toBe("/admin/programa");
+  });
+
+  it("Analítica is the first labeled section (C26 — most prominent on the rail)", () => {
+    // index 0 is the unlabeled Dashboard/Panorama group; the first NAMED group
+    // is where the eye lands. Promote analytics/exec summary there.
+    const firstLabeled = ADMIN_NAV_SECTIONS.find((s) => s.label !== "");
+    expect(firstLabeled?.label).toBe("Analítica");
+  });
+
+  it("Confiabilidad holds ONLY operational health after the split (C27)", () => {
     const confSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Confiabilidad");
-    expect(confSection?.items.map((i) => i.href)).toContain("/admin/programa");
+    const hrefs = confSection?.items.map((i) => i.href) ?? [];
+    expect(hrefs).toEqual(["/admin/sistema", "/admin/outbox", "/admin/auditoria"]);
+    // No analytics routes leaked into the operational section.
+    expect(hrefs).not.toContain("/admin/programa");
+    expect(hrefs).not.toContain("/admin/censo");
+    expect(hrefs).not.toContain("/admin/adopciones");
+    expect(hrefs).not.toContain("/admin/poblacion");
+  });
+
+  it("C27 regroup is href-preserving: section union equals the frozen snapshot exactly", () => {
+    // The split MUST NOT lose or gain any href — only regroup. The union of all
+    // section hrefs must equal ADMIN_HREF_SNAPSHOT as a set (both directions).
+    const union = new Set(ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href)));
+    expect(union).toEqual(ADMIN_HREF_SNAPSHOT);
   });
 });
 

@@ -274,9 +274,11 @@ describe("deleteBusinessRuleWriter", () => {
     expect(created.ok).toBe(true);
     if (!created.ok || created.ruleId === null) return;
 
+    const DELETE_REASON = "Regla derogada por nueva ordenanza municipal — ya no aplica.";
     const del = await deleteBusinessRuleWriter({
       actorUserId: adminUserId,
       ruleId: created.ruleId,
+      reason: DELETE_REASON,
     });
     expect(del.ok).toBe(true);
 
@@ -290,8 +292,43 @@ describe("deleteBusinessRuleWriter", () => {
       .select()
       .from(auditLog)
       .where(eq(auditLog.action, "govt_business_rule_deleted"));
-    expect(audits.some((a) => (a.payload as { ruleId: string }).ruleId === created.ruleId)).toBe(
-      true,
+    const auditRow = audits.find(
+      (a) => (a.payload as { ruleId: string }).ruleId === created.ruleId,
     );
+    expect(auditRow).toBeDefined();
+    // C8: the deletion reason is recorded in the audit payload.
+    expect((auditRow?.payload as { reason?: string }).reason).toBe(DELETE_REASON);
+  });
+
+  it("rejects deletion with an empty reason", async () => {
+    const created = await createBusinessRuleWriter({
+      actorUserId: adminUserId,
+      ruleType: "ppp_breed_list",
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: TEST_PROVINCE,
+      jurisdictionLocality: DELETE_LOCALITY,
+      rulePayload: { breeds: ["DeleteMeNoReason"] },
+      notes: null,
+      legalAnchorIds: [],
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok || created.ruleId === null) return;
+    createdRuleIds.push(created.ruleId);
+
+    const del = await deleteBusinessRuleWriter({
+      actorUserId: adminUserId,
+      ruleId: created.ruleId,
+      reason: "   ",
+    });
+    expect(del.ok).toBe(false);
+    if (del.ok) return;
+    expect(del.error).toContain("motivo");
+
+    // The row must still exist — an empty reason blocks the delete entirely.
+    const remaining = await db
+      .select()
+      .from(govtBusinessRules)
+      .where(eq(govtBusinessRules.id, created.ruleId));
+    expect(remaining.length).toBe(1);
   });
 });
