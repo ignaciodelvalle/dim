@@ -103,9 +103,6 @@ vi.mock("../application/reject-cross-org-transfer", () => ({
 vi.mock("../application/cancel-cross-org-transfer", () => ({
   cancelCrossOrgTransfer: vi.fn(),
 }));
-vi.mock("../application/expire-cross-org-transfers", () => ({
-  expireCrossOrgTransfers: vi.fn(),
-}));
 vi.mock("../application/transfer-custody", () => ({
   transferCustody: vi.fn(),
 }));
@@ -762,40 +759,6 @@ describe("cancelCrossOrgTransferAction — auth-scope: SENDER ORG scoped to case
       casePublicCode: "CASE-001",
     });
     expect(result).toEqual({ ok: true, publicCode: "CASE-001" });
-  });
-});
-
-// ===========================================================================
-// expireCrossOrgTransfersAction (cron)
-// ===========================================================================
-
-describe("expireCrossOrgTransfersAction — auth-scope: NONE (CRON_SECRET at route)", () => {
-  let expireCrossOrgTransfersAction: (...args: any[]) => Promise<any>;
-  let expireCrossOrgTransfersUc: ReturnType<typeof vi.fn>;
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    const actions = await import("../actions");
-    expireCrossOrgTransfersAction = actions.expireCrossOrgTransfersAction;
-    const ucModule = await import("../application/expire-cross-org-transfers");
-    expireCrossOrgTransfersUc = ucModule.expireCrossOrgTransfers as ReturnType<typeof vi.fn>;
-  });
-
-  afterEach(() => vi.resetModules());
-
-  it("throws when use-case returns ok:false", async () => {
-    expireCrossOrgTransfersUc.mockResolvedValue({ ok: false, error: "Scan failed." });
-    await expect(expireCrossOrgTransfersAction()).rejects.toThrow("Scan failed.");
-  });
-
-  it("returns stats on success", async () => {
-    expireCrossOrgTransfersUc.mockResolvedValue({
-      ok: true,
-      value: { expired: 2, errors: 0 },
-      notifications: [],
-    });
-    const result = await expireCrossOrgTransfersAction();
-    expect(result).toEqual({ expired: 2, errors: 0 });
   });
 });
 

@@ -326,6 +326,7 @@ export type ExpireFosterProposalsStats = {
 };
 
 /** System action called by the cron route. Throws on fatal error (cron logs it). */
+// @no-auth-required: cron/system path — auth enforced at the /api/cron/expire-foster-proposals route via authorizeCronRequest (CRON_SECRET).
 export async function expireFosterProposalsAction(): Promise<ExpireFosterProposalsStats> {
   const result = await expireFosterProposalsUseCase({ repo: FosterRepository });
   if (!result.ok) throw new Error(result.error);

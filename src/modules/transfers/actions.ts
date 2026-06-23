@@ -33,7 +33,6 @@ import { acceptCrossOrgTransfer } from "./application/accept-cross-org-transfer"
 import { acceptPetTransfer } from "./application/accept-pet-transfer";
 import { cancelCrossOrgTransfer } from "./application/cancel-cross-org-transfer";
 import { cancelPetTransfer } from "./application/cancel-pet-transfer";
-import { expireCrossOrgTransfers } from "./application/expire-cross-org-transfers";
 import { expirePetTransfers } from "./application/expire-pet-transfers";
 import { getTransferForViewer } from "./application/get-transfer-for-viewer";
 import { initiatePetTransfer } from "./application/initiate-pet-transfer";
@@ -367,6 +366,7 @@ export async function getTransferForViewerAction(
 export type ExpirePetTransfersStats = { expired: number };
 
 /** System action called by the cron route. Throws on fatal error (cron logs it). */
+// @no-auth-required: cron/system path — auth enforced at the /api/cron/expire-pet-transfers route via authorizeCronRequest (CRON_SECRET).
 export async function expirePetTransfersAction(): Promise<ExpirePetTransfersStats> {
   const result = await expirePetTransfers({ repo: TransfersRepository });
   if (!result.ok) throw new Error(result.error);
@@ -591,21 +591,6 @@ export async function cancelCrossOrgTransferAction(input: {
 
   revalidatePath(`/org/${input.senderOrgToken}/transferencias`);
   return { ok: true, publicCode: result.value.publicCode };
-}
-
-// ---------------------------------------------------------------------------
-// expireCrossOrgTransfersAction — cron
-// AUTH: NONE (CRON_SECRET gated at route level)
-// @no-auth-required: invoked only from /api/cron/expire-cross-org-transfers
-// ---------------------------------------------------------------------------
-
-export type ExpireCrossOrgStats = { expired: number; errors: number };
-
-/** System action called by the cron route. Throws on fatal error. */
-export async function expireCrossOrgTransfersAction(): Promise<ExpireCrossOrgStats> {
-  const result = await expireCrossOrgTransfers({ repo: TransfersRepository });
-  if (!result.ok) throw new Error(result.error);
-  return result.value;
 }
 
 // ---------------------------------------------------------------------------

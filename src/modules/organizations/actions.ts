@@ -604,6 +604,7 @@ async function callerIpAddress(): Promise<string> {
   }
 }
 
+// @no-auth-required: public contact/volunteer form served from the (public) route group to unauthenticated visitors; abuse-controlled by an IP rate limit (enforceRateLimit), not a session.
 export async function submitOrgContactAction(
   orgToken: string,
   kind: "contact" | "volunteer",
