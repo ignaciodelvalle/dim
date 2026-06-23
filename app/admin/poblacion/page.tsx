@@ -19,6 +19,8 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { adminProvinceHref } from "@/lib/admin-province-link";
+import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics-period";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import {
   TARGETS,
@@ -85,7 +87,7 @@ export default async function AdminPoblacionPage({
 
       {/* Period filter (no JurisdictionSwitcher for admin — universal scope) */}
       <div className="flex justify-end">
-        <PeriodPicker defaultPreset="ytd" />
+        <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
       </div>
 
       {/* KPI row */}
@@ -255,6 +257,7 @@ export default async function AdminPoblacionPage({
                           : tone === "warn"
                             ? "text-ln-op-amarillo"
                             : "text-ln-op-rojo";
+                      const drillHref = adminProvinceHref(row.province);
                       return (
                         <tr
                           key={row.province}
@@ -264,7 +267,16 @@ export default async function AdminPoblacionPage({
                             <span className="text-[11px] tabular-nums text-ln-op-mute mr-2">
                               {i + 1}.
                             </span>
-                            {row.province}
+                            {drillHref ? (
+                              <a
+                                href={drillHref}
+                                className="text-ln-op-azul underline-offset-2 hover:underline"
+                              >
+                                {row.province}
+                              </a>
+                            ) : (
+                              row.province
+                            )}
                           </td>
                           <td className="py-2 pl-4 text-right tabular-nums">
                             {row.sterilized.toLocaleString("es-AR")}

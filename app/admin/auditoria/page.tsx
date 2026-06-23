@@ -1,13 +1,12 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { auditLog, db, profiles } from "@/db";
-import { auditActionLabel } from "@/lib/audit-action-labels";
+import { type AuditLogAction, auditLog, db, profiles } from "@/db";
+import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/audit-action-labels";
 import { buildTargetLinkInfo } from "@/lib/audit-target-link";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
-import { likeContains } from "@/lib/like-helpers";
 
 const AUDITORIA_PAGE_LIMIT = 200;
 
@@ -19,19 +18,22 @@ export default async function AdminAuditoriaPage({
   await requireAdminOrRedirect();
 
   const sp = await searchParams;
-  const actionFilter = sp.action?.trim() || null;
+  // actionFilter is now a known enum code (from dropdown), not a free-text ILIKE.
+  // We validate it against AUDIT_ACTION_LABELS keys before trusting it.
+  const rawAction = sp.action?.trim() || null;
+  const actionFilter: AuditLogAction | null =
+    rawAction && rawAction in AUDIT_ACTION_LABELS ? (rawAction as AuditLogAction) : null;
   const actorFilter = sp.actor?.trim() || null;
   const rawCursor = sp.cursor;
   const cursor = decodeCursor(rawCursor);
 
   // Build WHERE clause — push both filters into SQL so the LIMIT is
   // applied after filtering (JS-side filtering would silently miss rows
-  // beyond the cap). actionFilter uses ILIKE for substring match;
+  // beyond the cap). actionFilter uses exact equality on the enum code;
   // actorFilter uses exact equality on the UUID column.
   // Keyset predicate is AND-composed last.
   const filterClauses = [];
-  if (actionFilter)
-    filterClauses.push(sql`${auditLog.action} ILIKE ${likeContains(actionFilter)} ESCAPE '\\'`);
+  if (actionFilter) filterClauses.push(eq(auditLog.action, actionFilter));
   if (actorFilter) filterClauses.push(eq(auditLog.actorUserId, actorFilter));
   const cursorClause = keysetWhere(auditLog.performedAt, auditLog.id, cursor);
   if (cursorClause) filterClauses.push(cursorClause);
@@ -84,7 +86,7 @@ export default async function AdminAuditoriaPage({
     for (const r of rows) namesById.set(r.id, r.displayName);
   }
 
-  // Resolve target display names + roles in one batch.
+  // Resolve target display names + roles in one batch (C12).
   // targetUserId is nullable — only resolve when present.
   const targetIds = Array.from(
     new Set(entries.map((e) => e.targetUserId).filter((id): id is string => id !== null)),
@@ -102,6 +104,32 @@ export default async function AdminAuditoriaPage({
     }
   }
 
+  // Build actor options for the dropdown (C30): resolve distinct actors from the
+  // current page + any selected actor not on this page so the dropdown still
+  // shows the selected name after pagination.
+  const actorOptions: { id: string; name: string }[] = actorIds
+    .map((id) => ({ id, name: namesById.get(id) ?? "Desconocido" }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es-AR"));
+
+  if (actorFilter && !actorOptions.find((o) => o.id === actorFilter)) {
+    const [extra] = await db
+      .select({ id: profiles.id, displayName: profiles.displayName })
+      .from(profiles)
+      .where(eq(profiles.id, actorFilter))
+      .limit(1);
+    if (extra) {
+      actorOptions.push({ id: extra.id, name: extra.displayName });
+      actorOptions.sort((a, b) => a.name.localeCompare(b.name, "es-AR"));
+    }
+  }
+
+  // Known action codes+labels for the dropdown — derived from AUDIT_ACTION_LABELS.
+  const actionOptions = Object.entries(AUDIT_ACTION_LABELS).sort((a, b) =>
+    a[1].localeCompare(b[1], "es-AR"),
+  );
+
+  const hasFilters = actionFilter !== null || actorFilter !== null;
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -112,21 +140,54 @@ export default async function AdminAuditoriaPage({
         </p>
       </header>
 
-      <form action="/admin/auditoria" method="get" className="flex flex-wrap items-center gap-2">
-        <input
-          type="text"
-          name="action"
-          defaultValue={actionFilter ?? ""}
-          placeholder="Filtrar por acción"
-          className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        />
+      <form action="/admin/auditoria" method="get" className="flex flex-wrap items-end gap-2">
+        {/* Action filter — dropdown of known labels (value = enum code) */}
+        <div className="flex flex-col gap-1">
+          <label htmlFor="audit-action" className="text-[11px] font-medium text-ln-op-mute">
+            Acción
+          </label>
+          <select
+            id="audit-action"
+            name="action"
+            defaultValue={actionFilter ?? ""}
+            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          >
+            <option value="">Todas las acciones</option>
+            {actionOptions.map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Actor filter — dropdown of names present in the current result page */}
+        <div className="flex flex-col gap-1">
+          <label htmlFor="audit-actor" className="text-[11px] font-medium text-ln-op-mute">
+            Actor
+          </label>
+          <select
+            id="audit-actor"
+            name="actor"
+            defaultValue={actorFilter ?? ""}
+            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          >
+            <option value="">Todos los actores</option>
+            {actorOptions.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <button
           type="submit"
           className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
         >
           Filtrar
         </button>
-        {(actionFilter || actorFilter) && (
+        {hasFilters && (
           <a
             href="/admin/auditoria"
             className="text-[12px] text-ln-op-mute underline underline-offset-4"

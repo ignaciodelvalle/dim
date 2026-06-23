@@ -30,7 +30,7 @@ import type { DateRange } from "./DateRangePicker";
  * ```
  */
 
-export type PeriodPreset = "7d" | "30d" | "90d" | "ytd" | "custom";
+export type PeriodPreset = "7d" | "30d" | "90d" | "ytd" | "trailing12m" | "custom";
 
 export type PeriodPickerProps = {
   /** Preset por defecto cuando no hay searchParam. Default "30d". */
@@ -51,6 +51,7 @@ const PRESETS: PresetConfig[] = [
   { value: "7d", label: "Últimos 7 días" },
   { value: "30d", label: "30 días" },
   { value: "90d", label: "90 días" },
+  { value: "trailing12m", label: "Últimos 12 meses" },
   { value: "ytd", label: "Año en curso" },
 ];
 
