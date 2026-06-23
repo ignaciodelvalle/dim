@@ -56,7 +56,7 @@ export {
 } from "./trends";
 
 // Fase 0 additions — targets, tone, delta, freshness.
-export { TARGETS, computeDeltaPct, toneForTarget } from "./targets";
+export { TARGETS, computeDeltaPct, decisionsDeltaPct, toneForTarget } from "./targets";
 export { lastIngestAt } from "./freshness";
 
 // Paquete E — censo poblacional & salud del registro.

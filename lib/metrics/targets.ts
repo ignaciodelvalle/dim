@@ -171,3 +171,43 @@ export function computeDeltaPct(current: number, prior: number): number {
   if (prior === 0) return 0;
   return Math.round(((current - prior) / prior) * 1000) / 10;
 }
+
+// ---------------------------------------------------------------------------
+// decisionsDeltaPct — 7d-vs-prior-7d delta for the approvals queue KPI
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the "Decisiones 7d" delta percentage shared by the admin landing and
+ * the /admin/sistema dashboard.
+ *
+ * `fetchDecisionsMetrics` returns approved/rejected counts for the trailing 7d
+ * and 30d windows but NOT a dedicated prior-7d baseline. We approximate the
+ * prior 7d as the first 23 days of the 30d window scaled down to a 7-day span:
+ *
+ *   total7d   = approved7d + rejected7d
+ *   total30d  = approved30d + rejected30d
+ *   prior23d  = total30d − total7d            (decisions in days 8..30)
+ *   priorWeek = round(prior23d / 23 * 7)      (≈ prior 7d baseline)
+ *   delta     = computeDeltaPct(total7d, priorWeek)
+ *
+ * Returns `null` when `prior23d <= 0` (no baseline to compare against — the KPI
+ * then omits the deltaV2 chip). This is the single source of truth so the two
+ * pages can't drift (critique C28).
+ *
+ * PURE — no DB, no side effects.
+ *
+ * @param d - The decisions counts from `fetchDecisionsMetrics`.
+ * @returns The rounded percent change, or `null` when there is no prior baseline.
+ */
+export function decisionsDeltaPct(d: {
+  approved7d: number;
+  rejected7d: number;
+  approved30d: number;
+  rejected30d: number;
+}): number | null {
+  const total7d = d.approved7d + d.rejected7d;
+  const total30d = d.approved30d + d.rejected30d;
+  const prior23d = total30d - total7d; // approx prior 7d baseline ≈ prior23d/23*7
+  if (prior23d <= 0) return null;
+  return computeDeltaPct(total7d, Math.round((prior23d / 23) * 7));
+}
