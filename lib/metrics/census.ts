@@ -93,7 +93,9 @@ export function classifyDormant(lastOwnerEventAt: Date | null, now: Date, months
 /**
  * The stages of the identification funnel.
  * Each value is a count of distinct pets reaching that stage.
- * Monotonicity: total >= chipped >= isoValid >= scanned.
+ * Monotonicity (chip chain only): total >= chipped >= isoValid. `scanned` is an
+ * INDEPENDENT period-bounded signal — a pet can be scanned without an ISO chip,
+ * so scanned may exceed isoValid; it is not part of the subset chain.
  */
 export type FunnelStages = {
   /** Total active/lost pets in scope. */
@@ -111,20 +113,24 @@ export type FunnelStages = {
 };
 
 /**
- * Assert that funnel stages are monotonically non-increasing.
- * Throws if total < chipped, chipped < isoValid, or isoValid < scanned.
+ * Assert that the CHIP funnel stages are monotonically non-increasing:
+ * total >= chipped >= isoValid (each a strict subset of the previous).
+ *
+ * `scanned` is deliberately NOT asserted here. A pet can be scanned in the
+ * period WITHOUT having an ISO chip, so scanned may legitimately exceed isoValid
+ * (or even total, if a since-deceased pet was scanned). It is an independent,
+ * period-bounded signal — asserting isoValid >= scanned was a false invariant
+ * that crashed /admin/censo when scans outnumbered ISO chips.
+ *
  * Used as a runtime invariant guard — call before returning from identificationFunnel.
  */
 export function assertFunnelMonotonic(stages: FunnelStages): void {
-  const { total, chipped, isoValid, scanned } = stages;
+  const { total, chipped, isoValid } = stages;
   if (total < chipped) {
     throw new Error(`Funnel invariant violated: total(${total}) < chipped(${chipped})`);
   }
   if (chipped < isoValid) {
     throw new Error(`Funnel invariant violated: chipped(${chipped}) < isoValid(${isoValid})`);
-  }
-  if (isoValid < scanned) {
-    throw new Error(`Funnel invariant violated: isoValid(${isoValid}) < scanned(${scanned})`);
   }
 }
 

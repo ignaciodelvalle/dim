@@ -140,10 +140,20 @@ describe("assertFunnelMonotonic", () => {
     ).toThrow(/chipped.*isoValid/i);
   });
 
-  it("throws when isoValid < scanned", () => {
+  it("does NOT throw when scanned exceeds isoValid (scanned is an independent signal)", () => {
+    // A pet can be scanned in the period WITHOUT having an ISO chip, so scanned
+    // may legitimately exceed isoValid — it is not part of the chip subset chain
+    // (total >= chipped >= isoValid). Asserting isoValid >= scanned was a false
+    // invariant that crashed /admin/censo when scans outnumbered ISO chips.
     expect(() =>
       assertFunnelMonotonic({ total: 100, chipped: 80, isoValid: 30, scanned: 40 }),
-    ).toThrow(/isoValid.*scanned/i);
+    ).not.toThrow();
+  });
+
+  it("still throws when total < chipped or chipped < isoValid even if scanned is large", () => {
+    expect(() =>
+      assertFunnelMonotonic({ total: 100, chipped: 80, isoValid: 90, scanned: 999 }),
+    ).toThrow(/chipped.*isoValid/i);
   });
 });
 
