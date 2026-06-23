@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { logPiiQueryForAuthority } from "@/app/actions/admin-proposals";
+import { logPiiReadSafely } from "@/app/actions/admin-proposals";
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -51,11 +51,11 @@ export default async function UsuariosPage({
     fetchChipReplacementSignal(complianceCtx),
   ]);
 
-  // Fire-and-forget pii_queried entry. Logging only happens when the user
-  // typed a query — empty-query landings are not a PII read.
-  if (query) {
-    void logPiiQueryForAuthority(user.id, query, results.length, "users");
-  }
+  // AC2: every PII read leaves a trail — both the typed-query search AND the
+  // no-query landing (which still exposes the first N users' name/id/role).
+  // Awaited (not fire-and-forget) so the audit row is durable; the wrapper logs
+  // to console.error and swallows on failure so it never breaks the render.
+  await logPiiReadSafely(user.id, query, results.length, "users");
 
   return (
     <div className="space-y-6">

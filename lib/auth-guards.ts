@@ -71,16 +71,25 @@ export type AdminOrGovtSession = AuthenticatedSession & {
   jurisdictions: AdminOrGovtJurisdiction[];
 };
 
-// Gate the /admin/* segment. Redirects unauthenticated to /login and
+// Gate the /gob/* segment (also used for the admin+govt server actions in
+// app/actions/admin-proposals.ts). Redirects unauthenticated to /login and
 // authenticated non-authorities to /mis-mascotas (no point sending them
 // somewhere they can't act). The returned `jurisdictions` is the govt's
 // active scope — empty for admin, who has universal scope.
+//
+// Rejects deactivated institutional accounts (deactivated_at IS NOT NULL) by
+// redirecting to / — mirrors requireAdminOrRedirect. Without this check a
+// deactivated govt/admin would retain read+write access to every /gob/* surface
+// (PII search, role-change proposals, decomisos) because those server actions
+// gate on this same guard.
 export async function requireAdminOrGovtOrRedirect(): Promise<AdminOrGovtSession> {
   const session = await requireUserOrRedirect();
   const profile = await getProfileCached(session.user.id);
   if (!profile || (profile.role !== "admin" && profile.role !== "govt")) {
     redirect("/mis-mascotas");
   }
+  // Deactivated authorities lose all /gob access — same policy as /admin.
+  if (profile.deactivatedAt !== null) redirect("/");
 
   const jurisdictions: AdminOrGovtJurisdiction[] =
     profile.role === "govt" ? await getJurisdictionsCached(profile.id) : [];

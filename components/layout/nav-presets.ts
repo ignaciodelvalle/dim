@@ -313,7 +313,10 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     label: "Operaciones",
     items: [
-      { href: "/admin/cola", label: "Cola", matchPrefix: "/admin/cola" },
+      // Cola/Usuarios/Organizaciones live under /gob (single surface). Admin
+      // keeps universal scope there via the /gob layout. The dead /admin/*
+      // duplicates were removed (AC3); the middleware 308s stay for bookmarks.
+      { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
       { href: "/admin/casos", label: "Casos", matchPrefix: "/admin/casos" },
       { href: "/admin/moderacion", label: "Moderación", matchPrefix: "/admin/moderacion" },
       { href: "/admin/observaciones", label: "Observaciones", matchPrefix: "/admin/observaciones" },
@@ -331,13 +334,14 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     label: "Identidad y acceso",
     items: [
-      { href: "/admin/usuarios", label: "Usuarios", matchPrefix: "/admin/usuarios" },
+      // Usuarios/Organizaciones live under /gob (single surface, AC3).
+      { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
       { href: "/admin/govts", label: "Govts", matchPrefix: "/admin/govts" },
       { href: "/admin/admins", label: "Admins", matchPrefix: "/admin/admins" },
       {
-        href: "/admin/organizaciones",
+        href: "/gob/organizaciones",
         label: "Organizaciones",
-        matchPrefix: "/admin/organizaciones",
+        matchPrefix: "/gob/organizaciones",
       },
     ],
   },

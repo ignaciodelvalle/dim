@@ -99,7 +99,7 @@ export default async function AdminHistorialPage({
                         const token = tokenByReqId.get(entry.approvalRequestId);
                         return token ? (
                           <Link
-                            href={`/admin/cola/${token}`}
+                            href={`/gob/cola/${token}`}
                             className="font-mono text-[11px] text-ln-op-azul underline underline-offset-2 hover:opacity-80"
                           >
                             Ver solicitud →

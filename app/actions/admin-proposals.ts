@@ -17,8 +17,11 @@ import { generateUniqueToken } from "@/lib/unique-token";
 
 export type ProposalResult = { error: string } | { ok: true; publicToken: string };
 
-// Logged on every search hit so PII reads have a trail. Fire-and-forget;
-// callers don't need to await for the search to render.
+// Logged on every PII read so it leaves a trail. Callers await this so the
+// audit row (the Ley 25.326 accountability guarantee) is durable before the
+// page returns. AC2: list pages log BOTH the typed-query search and the
+// no-query landing (query=""), since the landing still exposes the first N
+// users' name/id/role.
 export async function logPiiQueryForAuthority(
   actorUserId: string,
   query: string,
@@ -34,6 +37,29 @@ export async function logPiiQueryForAuthority(
   });
 }
 
+// AC2: safe wrapper for list-page PII logging. Awaited so the audit row is
+// durable, but a failing insert must NOT break the page render — it is logged
+// to console.error and swallowed. Returns true on success, false on failure,
+// so it stays unit-testable without a Next.js render context.
+// @no-auth-required: thin wrapper over logPiiQueryForAuthority (an inner
+// writer). Only callers are /gob list pages already gated by the /gob layout
+// guard, which supplies the authenticated actorUserId; this function adds no
+// new capability beyond that inner writer.
+export async function logPiiReadSafely(
+  actorUserId: string,
+  query: string,
+  resultCount: number,
+  surface: "users" | "organizations",
+): Promise<boolean> {
+  try {
+    await logPiiQueryForAuthority(actorUserId, query, resultCount, surface);
+    return true;
+  } catch (e) {
+    console.error(`pii_queried log failed (${surface} list)`, e);
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Common helpers
 // ---------------------------------------------------------------------------
@@ -47,12 +73,22 @@ async function loadActorAuthority(
   actorUserId: string,
 ): Promise<ActorAuthority | { error: string }> {
   const [profile] = await db
-    .select({ id: profiles.id, role: profiles.role })
+    .select({
+      id: profiles.id,
+      role: profiles.role,
+      deactivatedAt: profiles.deactivatedAt,
+    })
     .from(profiles)
     .where(eq(profiles.id, actorUserId))
     .limit(1);
   if (!profile || (profile.role !== "admin" && profile.role !== "govt")) {
     return { error: "Solo govt o admin pueden proponer cambios." };
+  }
+  // AC1 defense-in-depth: deactivated authorities cannot propose changes, even
+  // if the inner writer is reached directly (the /gob guard already rejects
+  // them at the request boundary; this mirrors that at the data layer).
+  if (profile.deactivatedAt !== null) {
+    return { error: "La cuenta está desactivada." };
   }
   return {
     profile: { id: profile.id, role: profile.role },

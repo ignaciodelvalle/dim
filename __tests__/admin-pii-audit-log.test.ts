@@ -12,7 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { logPiiQueryForAuthority } from "@/app/actions/admin-proposals";
+import { logPiiQueryForAuthority, logPiiReadSafely } from "@/app/actions/admin-proposals";
 import { auditLog, db, profiles } from "@/db";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -89,5 +89,42 @@ describe("logPiiQueryForAuthority (C3)", () => {
     const payload = row.payload as Record<string, unknown>;
     expect(payload.surface).toBe("organizations");
     expect(payload.query).toBe("organizacion-sa");
+  });
+});
+
+// AC2: the no-query landing of /gob/usuarios and /gob/organizaciones still
+// exposes PII (the first N users' name/id/role), so navigating there with no
+// search MUST also leave an audit trail. The pages call logPiiReadSafely with
+// query="" on landing.
+describe("logPiiReadSafely — no-query landing still leaves a trail (AC2)", () => {
+  it("writes a pii_queried row for the no-query users landing (query='')", async () => {
+    const ok = await logPiiReadSafely(actorId, "", 50, "users");
+    expect(ok).toBe(true);
+
+    const [row] = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(and(eq(auditLog.actorUserId, actorId), eq(auditLog.action, "pii_queried")))
+      .orderBy(desc(auditLog.performedAt))
+      .limit(1);
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.query).toBe("");
+    expect(payload.result_count).toBe(50);
+    expect(payload.surface).toBe("users");
+  });
+
+  it("writes a pii_queried row with the correct result_count for a typed query", async () => {
+    const ok = await logPiiReadSafely(actorId, "perez", 3, "users");
+    expect(ok).toBe(true);
+
+    const [row] = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(and(eq(auditLog.actorUserId, actorId), eq(auditLog.action, "pii_queried")))
+      .orderBy(desc(auditLog.performedAt))
+      .limit(1);
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.query).toBe("perez");
+    expect(payload.result_count).toBe(3);
   });
 });

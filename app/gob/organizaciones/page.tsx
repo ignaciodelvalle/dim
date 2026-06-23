@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { logPiiQueryForAuthority } from "@/app/actions/admin-proposals";
+import { logPiiReadSafely } from "@/app/actions/admin-proposals";
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { searchOrganizations } from "@/lib/admin-search";
@@ -30,9 +30,10 @@ export default async function OrganizacionesPage({
     jurisdictions,
   });
 
-  if (query) {
-    void logPiiQueryForAuthority(user.id, query, results.length, "organizations");
-  }
+  // AC2: every PII read leaves a trail — both the typed-query search AND the
+  // no-query landing. Awaited so the audit row is durable; the wrapper logs to
+  // console.error and swallows on failure so it never breaks the render.
+  await logPiiReadSafely(user.id, query, results.length, "organizations");
 
   return (
     <div className="space-y-6">

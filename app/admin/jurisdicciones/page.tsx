@@ -12,6 +12,9 @@ import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { db, govtBusinessRules } from "@/db";
 import { PROVINCES } from "@/lib/ar-provincias";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { buildJurisdictionRulesHref } from "@/lib/jurisdiction-rules-href";
+
+import { LocalityRuleDrilldown } from "./LocalityRuleDrilldown";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +97,7 @@ export default async function AdminJurisdiccionesPage() {
             <li className="flex items-center justify-between border-t border-ln-op-line px-4 py-3">
               <span className="text-[13px] text-ln-op-ink-2">Reglas a nivel país AR</span>
               <Link
-                href={`/admin/jurisdicciones/${encodeURIComponent("AR")}/${encodeURIComponent("_")}/${encodeURIComponent("_")}/reglas`}
+                href={buildJurisdictionRulesHref({ country: "AR" })}
                 className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
               >
                 {"Ver reglas ->"}
@@ -132,7 +135,7 @@ export default async function AdminJurisdiccionesPage() {
                       </p>
                     </div>
                     <Link
-                      href={`/admin/jurisdicciones/${encodeURIComponent("AR")}/${encodeURIComponent(p.name)}/${encodeURIComponent("_")}/reglas`}
+                      href={buildJurisdictionRulesHref({ country: "AR", province: p.name })}
                       className="shrink-0 text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                     >
                       {pwCount === 0 ? "Crear regla ->" : "Ver reglas ->"}
@@ -150,7 +153,11 @@ export default async function AdminJurisdiccionesPage() {
                             </span>
                           </span>
                           <Link
-                            href={`/admin/jurisdicciones/${encodeURIComponent("AR")}/${encodeURIComponent(p.name)}/${encodeURIComponent(l.locality)}/reglas`}
+                            href={buildJurisdictionRulesHref({
+                              country: "AR",
+                              province: p.name,
+                              locality: l.locality,
+                            })}
                             className="text-[11px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                           >
                             {"Ver ->"}
@@ -159,6 +166,9 @@ export default async function AdminJurisdiccionesPage() {
                       ))}
                     </ul>
                   )}
+                  {/* AC4 — reach ANY locality (not just ones with existing
+                      rules) so a fresh locality override can be created. */}
+                  <LocalityRuleDrilldown provinceCode={p.code} provinceName={p.name} />
                 </li>
               );
             })}

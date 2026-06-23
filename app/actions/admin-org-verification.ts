@@ -305,7 +305,8 @@ export async function verifyOrgAction(input: {
   const { user } = await requireAdminOrRedirect();
   const result = await verifyOrgForAuthority(user.id, input);
   if ("ok" in result) {
-    revalidatePath("/admin/organizaciones");
+    // The org list lives under /gob now (AC3 — the /admin duplicate was removed).
+    revalidatePath("/gob/organizaciones");
     revalidatePath("/admin");
   }
   return result;
@@ -318,7 +319,8 @@ export async function unverifyOrgAction(input: {
   const { user } = await requireAdminOrRedirect();
   const result = await unverifyOrgForAuthority(user.id, input);
   if ("ok" in result) {
-    revalidatePath("/admin/organizaciones");
+    // The org list lives under /gob now (AC3 — the /admin duplicate was removed).
+    revalidatePath("/gob/organizaciones");
     revalidatePath("/admin");
   }
   return result;

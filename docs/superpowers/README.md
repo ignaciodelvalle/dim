@@ -73,6 +73,15 @@ Auditado 2026-05-19 contra `develop`: varios items que estaban acá ya están en
 >
 > Cada PR: SDD test-first, `pnpm verify` (tsc + Biome + lint:tokens + lint:ui + next build) + `pnpm test` verdes, cero regresiones sobre el baseline pre-existente. No duplica el fresh-sweep (A2/A3/A5/A7 ya cerrados, cross-referenciados).
 
+### Access-control hardening — WS-AC (AC1-AC4) ✅
+
+> [`plans/2026-06-22-access-control-hardening.md`](./plans/2026-06-22-access-control-hardening.md) — extiende el barrido admin 2026-06-22 desde el *critique del modelo de acceso* (control · acceso a la información · seguridad) sobre `/gob` y `/admin`. **✅ Completo** (rama `fix/ac-access-control-hardening`, SDD test-first):
+>
+> - **AC1 🔴 — guard compartido de `/gob` no chequeaba `deactivatedAt`.** `requireAdminOrGovtOrRedirect` (`lib/auth-guards.ts`) ahora rechaza cuentas desactivadas (redirect a `/`), igual que `requireAdminOrRedirect`; `requireDecomisoPrincipal` queda cubierto al reusar el guard. Defense-in-depth: `loadActorAuthority` (`app/actions/admin-proposals.ts`) también rechaza al actor desactivado. Comentario del layout (`app/gob/layout.tsx`) corregido para describir la realidad. Tests: `__tests__/auth-guards.test.ts` (unit, govt+admin desactivados + control activo + decomiso) y `__tests__/access-control-deactivated-proposals.test.ts` (integración sobre el writer de propuestas).
+> - **AC2 🟡 — auditoría de PII incompleta en las listas.** `app/gob/usuarios/page.tsx` y `app/gob/organizaciones/page.tsx` ahora loguean **también el landing sin query** (`query=""`) vía `logPiiReadSafely` (`await`ed, con `try/catch` → `console.error` que no rompe el render). Tests: `__tests__/admin-pii-audit-log.test.ts` (landing + result_count) y `__tests__/pii-read-safely-unit.test.ts` (el fallo del insert no tira el render).
+> - **AC3 🟡 — páginas admin muertas + nav cruzaba de portal vía 308.** Borradas las carpetas `app/admin/{cola,usuarios,organizaciones}/`; `ADMIN_NAV_SECTIONS` (`components/layout/nav-presets.ts`) y los KPI links (`AdminKpiStrip`, `/admin/programa`, `/admin/historial`) repuntados a `/gob/*`. Los 308 del middleware se mantienen para bookmarks externos. Invariante de nav extendido: ningún href de `ADMIN_NAV_SECTIONS` matchea una regla 308 (`components/layout/nav-presets.test.ts`); snapshots actualizados en `nav-presets.test.ts` + `lib/shell-nav-phase-b.test.ts`.
+> - **AC4 🟡 — reglas a nivel localidad inalcanzables por UI.** `app/admin/jurisdicciones/page.tsx` gana un drill-down por provincia (`LocalityRuleDrilldown`, typeahead sobre el catálogo INDEC `ar_localities`) que navega con la localidad **real** en el segmento (no `"_"`), permitiendo crear un override de localidad nuevo. Resolver puro `lib/jurisdiction-rules-href.ts`. Test: `__tests__/jurisdiction-rules-href.test.ts` (segmento de localidad ≠ `"_"`).
+
 ## All specs & plans
 
 > Reconciliado 2026-06-19 contra `develop`: la mayoría de los items 🟢 ya estaban en código (ver `git log`).

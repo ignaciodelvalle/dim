@@ -285,9 +285,11 @@ describe("ADMIN_NAV — no route regression", () => {
 
   const expectedRoutes = [
     "/admin",
-    "/admin/cola",
-    "/admin/usuarios",
-    "/admin/organizaciones",
+    // Cola/Usuarios/Organizaciones moved to the /gob surface (AC3 — single
+    // surface per feature; dead /admin duplicates removed).
+    "/gob/cola",
+    "/gob/usuarios",
+    "/gob/organizaciones",
     "/admin/historial",
     "/admin/auditoria",
     "/admin/outbox",
@@ -452,9 +454,11 @@ describe("GOB_NAV_FLAT — derived flat list", () => {
 const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin",
   "/admin/panorama", // Centro de Situación Nacional — flagship console
-  "/admin/cola",
-  "/admin/usuarios",
-  "/admin/organizaciones",
+  // AC3 — Cola/Usuarios/Organizaciones repointed from /admin/* to /gob/*. The
+  // dead /admin duplicates were deleted; the middleware 308s stay for bookmarks.
+  "/gob/cola",
+  "/gob/usuarios",
+  "/gob/organizaciones",
   "/admin/historial",
   "/admin/auditoria",
   "/admin/outbox",
@@ -540,6 +544,28 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
     // section hrefs must equal ADMIN_HREF_SNAPSHOT as a set (both directions).
     const union = new Set(ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href)));
     expect(union).toEqual(ADMIN_HREF_SNAPSHOT);
+  });
+
+  // AC3 — no admin nav href may point at a path that the middleware 308-
+  // redirects. Those legacy /admin work-surface paths now live under /gob; a
+  // nav href landing on them would force a needless cross-portal 308 hop on
+  // every click (and risk reviving the deleted dead pages). Keep the redirects
+  // for external bookmarks, but the in-app nav must link to the live surface.
+  it("no ADMIN_NAV_SECTIONS href resolves to a middleware 308 redirect (AC3)", () => {
+    // The exact set of /admin paths middleware.ts 308-redirects to /gob/*.
+    const REDIRECTED_ADMIN_PATHS = new Set([
+      "/admin/cola",
+      "/admin/usuarios",
+      "/admin/organizaciones",
+    ]);
+    const hrefs = ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    for (const href of hrefs) {
+      expect(REDIRECTED_ADMIN_PATHS.has(href)).toBe(false);
+    }
+    // And the live targets ARE present (the repoint actually happened).
+    expect(hrefs).toContain("/gob/cola");
+    expect(hrefs).toContain("/gob/usuarios");
+    expect(hrefs).toContain("/gob/organizaciones");
   });
 });
 
