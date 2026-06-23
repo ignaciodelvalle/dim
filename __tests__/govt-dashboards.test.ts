@@ -1142,25 +1142,28 @@ describe("fetchPerdidasMetrics", () => {
   });
 
   it("avgDaysActive correctly averages now - markedLostAt", async () => {
+    // Synthetic locality so the average is over THIS test's lost pets only.
+    // avgDaysActive is a scope-wide aggregate; a real locality (e.g. Rosario)
+    // would also pick up the national demo seed's lost pets and skew the average.
+    const prov = "Santa Fe";
+    const loc = `avgdays-test-${Date.now()}`;
     const pet1 = await insertFixturePet({
       name: "AvgPet1",
       species: "dog",
-      province: "Santa Fe",
-      locality: "Rosario",
+      province: prov,
+      locality: loc,
     });
     const pet2 = await insertFixturePet({
       name: "AvgPet2",
       species: "cat",
-      province: "Santa Fe",
-      locality: "Rosario",
+      province: prov,
+      locality: loc,
     });
     // Mark lost ~2 days ago and ~4 days ago respectively → avg ~3 days.
     await markLostFixture(pet1, 2 * 24);
     await markLostFixture(pet2, 4 * 24);
 
-    const m = await fetchPerdidasMetrics({ role: "govt" }, [
-      { province: "Santa Fe", locality: "Rosario" },
-    ]);
+    const m = await fetchPerdidasMetrics({ role: "govt" }, [{ province: prov, locality: loc }]);
     // avgDaysActive should be approximately 3 (± 1 due to timing).
     expect(m.avgDaysActive).toBeGreaterThanOrEqual(2);
     expect(m.avgDaysActive).toBeLessThanOrEqual(5);
@@ -1446,9 +1449,10 @@ describe("fetchAnalyticsMetrics", () => {
   });
 
   it("rabiesVaccinationRate returns 0 when totalPets is 0 in scope", async () => {
-    // Isolated province with no pets.
+    // Synthetic locality guaranteed empty even on the demo-seeded DB (a real
+    // locality like Ushuaia is populated by the national seed → non-zero rate).
     const m = await fetchAnalyticsMetrics({ role: "govt" }, [
-      { province: "Tierra del Fuego", locality: "Ushuaia" },
+      { province: "Tierra del Fuego", locality: `empty-scope-test-${Date.now()}` },
     ]);
     expect(m.rabiesVaccinationRate).toBe(0);
   });

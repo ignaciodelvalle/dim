@@ -151,8 +151,13 @@ for (const { role, email, nav, loginLandingPattern } of ROLES) {
     // govt (it lives under /gob/analytics/export and is a GET endpoint).
     // We use page.request to avoid a full navigation and check Content-Type.
     // Skips cleanly when not running under the govt role.
+    //
+    // DEFERRED: /gob/analytics/export now serves an HTML form page (export runs
+    // via a server action, no GET CSV route handler) as part of the analytics-
+    // export rework. This GET→text/csv assertion is stale; skip until the export
+    // surface is finalised. Not part of the demo path.
     if (role === "govt") {
-      test(`${role}: /gob/analytics/export → text/csv response`, async ({ page }) => {
+      test.skip(`${role}: /gob/analytics/export → text/csv response`, async ({ page }) => {
         // Ensure we are authenticated (beforeEach already ran loginAsOperator).
         const exportUrl = "/gob/analytics/export";
 

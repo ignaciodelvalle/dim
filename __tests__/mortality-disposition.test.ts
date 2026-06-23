@@ -227,12 +227,17 @@ describe("fetchMortalityDisposition — B7 disposal-context splits", () => {
 describe("fetchMortalityDisposition — k-anonymity (mandatory)", () => {
   it("suppresses a locality with < 5 deaths and rolls it to the province bucket", async () => {
     // Locality A: 5 deaths (>= k → visible). Locality B: 3 deaths (< k → suppressed).
+    // Synthetic localities so only THIS test's deaths count — real ones (La Plata,
+    // Quilmes) are populated by the national demo seed, which would push the
+    // "suppressed" locality over the k threshold.
     const provincia = "Buenos Aires";
+    const locVisible = `kanon-visible-${Date.now()}`;
+    const locSuppressed = `kanon-suppressed-${Date.now()}`;
     for (let i = 0; i < 5; i++) {
-      await seedDeath({ province: provincia, locality: "La Plata" });
+      await seedDeath({ province: provincia, locality: locVisible });
     }
     for (let i = 0; i < 3; i++) {
-      await seedDeath({ province: provincia, locality: "Quilmes" });
+      await seedDeath({ province: provincia, locality: locSuppressed });
     }
 
     // Scope the viewer to exactly these two assignments so the population is
@@ -240,20 +245,20 @@ describe("fetchMortalityDisposition — k-anonymity (mandatory)", () => {
     // pick up unrelated fixture rows left by other test files in the suite).
     const r = await fetchMortalityDisposition(
       ctxFor({ role: "govt" }, [
-        { province: provincia, locality: "La Plata" },
-        { province: provincia, locality: "Quilmes" },
+        { province: provincia, locality: locVisible },
+        { province: provincia, locality: locSuppressed },
       ]),
     );
 
     const localities = r.byLocality.value.map((c) => c.key);
-    expect(localities).toContain("La Plata");
-    expect(localities).not.toContain("Quilmes");
+    expect(localities).toContain(locVisible);
+    expect(localities).not.toContain(locSuppressed);
     // The suppressed small cell is reported via the count, and (since rollup is
     // enabled) folded into a province-level rollup row.
     expect(r.byLocality.suppressedCount).toBe(1);
-    const laPlata = r.byLocality.value.find((c) => c.key === "La Plata");
-    expect(laPlata?.count).toBe(5);
-    // Rolled-up province row carries the 3 suppressed Quilmes deaths.
+    const visible = r.byLocality.value.find((c) => c.key === locVisible);
+    expect(visible?.count).toBe(5);
+    // Rolled-up province row carries the 3 suppressed deaths.
     const rolled = r.byLocality.value.find((c) => c.key.includes(provincia));
     expect(rolled?.count).toBe(3);
   });

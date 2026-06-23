@@ -38,10 +38,14 @@ const admin = createClient(SUPABASE_URL, SECRET, {
 });
 
 // Two provinces that are canonical in the schema so the CHECK constraint passes.
+// Localities are SYNTHETIC (unique per run) so the fixtures are isolated from the
+// national demo seed — a real locality (La Plata) is populated by the seed with
+// thousands of unvaccinated pets, diluting the scoped coverage to 0 and breaking
+// the INV-1 "counts the dog" assertion. Province scope stays real (CHECK-valid).
 const PROVINCE_A = "Buenos Aires";
-const LOCALITY_A = "La Plata";
+const LOCALITY_A = `la-plata-macro-${Date.now()}`;
 const PROVINCE_B = "Santa Fe";
-const LOCALITY_B = "Rosario";
+const LOCALITY_B = `rosario-macro-${Date.now()}`;
 
 // ---------------------------------------------------------------------------
 // Shared state

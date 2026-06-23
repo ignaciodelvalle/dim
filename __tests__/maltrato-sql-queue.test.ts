@@ -379,9 +379,11 @@ describe("buildMaltratoListConditions — jurisdiction scope (integration)", () 
 
 describe("pagination sanity (integration)", () => {
   it("offset + limit correctly pages through results", async () => {
-    // Insert 3 reports in a unique isolated jurisdiction.
+    // Insert 3 reports in a unique isolated jurisdiction. The locality is
+    // synthetic (a real one like Resistencia is populated by the national demo
+    // seed, whose welfare reports would inflate the page counts below).
     const prov = "Chaco";
-    const loc = "Resistencia";
+    const loc = `pagination-test-${Date.now()}`;
     for (let i = 0; i < 3; i++) {
       await insertReport({ province: prov, locality: loc });
     }

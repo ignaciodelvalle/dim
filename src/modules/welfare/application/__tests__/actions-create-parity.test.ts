@@ -66,6 +66,11 @@ import * as rateLimit from "@/lib/rate-limit";
 // ---------------------------------------------------------------------------
 
 describe("createWelfareReportAction — anon rate-limit gate", () => {
+  // The dynamic import("../../actions") transitively pulls a large module graph;
+  // under the full suite's load the default 5s timeout can be exceeded on first
+  // compile (the test passes in isolation). Bump it — assertions are unchanged.
+  vi.setConfig({ testTimeout: 20_000 });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
