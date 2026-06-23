@@ -42,8 +42,11 @@ test.describe("admin topbar — single line + chip < H1 weight (D1)", () => {
   for (const width of WIDTHS) {
     test(`topbar stays on one line at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
-      await page.goto("/admin/programa");
-      await page.waitForLoadState("domcontentloaded");
+      // domcontentloaded, NOT the default 'load': the admin analytics pages pull
+      // heavy client chunks (recharts/maplibre) whose 'load' can exceed 30s on a
+      // full-seed box. The topbar + H1 are server-rendered, so they are present
+      // and measurable at domcontentloaded (matches executive-smoke.spec.ts).
+      await page.goto("/admin/programa", { waitUntil: "domcontentloaded" });
 
       const topbar = page.getByTestId("admin-topbar");
       await expect(topbar).toBeVisible();
@@ -61,7 +64,7 @@ test.describe("admin topbar — single line + chip < H1 weight (D1)", () => {
 
   test("page H1 out-weighs the scope chip", async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 800 });
-    await page.goto("/admin/programa");
+    await page.goto("/admin/programa", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("domcontentloaded");
 
     const h1 = page.locator("h1").first();
