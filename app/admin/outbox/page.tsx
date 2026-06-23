@@ -16,6 +16,7 @@ import type { OutboxStatus, OutboxTargetKind } from "@/db";
 import { PROVINCES } from "@/lib/ar-provincias";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
+import { countOutboxBreaches } from "@/lib/outbox-queries";
 
 // Set of canonical province names for filter validation.
 const VALID_PROVINCE_NAMES = new Set<string>(PROVINCES.map((p) => p.name));
@@ -147,7 +148,11 @@ export default async function AdminOutboxPage({
   const hasMore = rawRows.length > OUTBOX_PAGE_LIMIT;
   const rows = hasMore ? rawRows.slice(0, OUTBOX_PAGE_LIMIT) : rawRows;
 
-  const breachCount = rows.filter((r) => buildBreachCue(r.status, r.slaDueAt) === "breach").length;
+  // Banner count is GLOBAL (same predicate as the nav badge in layout.tsx), not
+  // derived from the visible page — otherwise it sub-reports breaches that live
+  // beyond page 1 and disagrees with the badge (C2). Per-row cues below still
+  // use buildBreachCue for the page.
+  const breachCount = await countOutboxBreaches();
 
   // Pagination links — filter params exclude cursor so changing a filter resets to page 1.
   const filterParams: Record<string, string | undefined> = {

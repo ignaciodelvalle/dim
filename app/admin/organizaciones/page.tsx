@@ -40,8 +40,10 @@ export default async function AdminOrganizacionesPage({
   );
 
   if (query) {
-    // Log the count of rows the DB actually returned (exposed row count).
-    void logPiiQueryForAuthority(user.id, query, results.length, "organizations");
+    // Await the audit write (Ley 25.326): a fire-and-forget promise can be
+    // dropped when the server component returns (C3). Log the count of rows the
+    // DB actually returned (exposed row count).
+    await logPiiQueryForAuthority(user.id, query, results.length, "organizations");
   }
 
   return (
