@@ -107,19 +107,29 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           />
         }
         topbar={
-          <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
+          <header
+            data-testid="admin-topbar"
+            className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 flex-nowrap items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]"
+          >
             {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
             <AppShellDrawer sections={sections} variant="gob" brandSubtitle="Admin" />
-            {/* Left: breadcrumbs — derived from route (UX 1.2) */}
-            <OperatorBreadcrumbs portal="admin" />
-            {/* Scope chip */}
-            <OpScopeChip code="SUPERADMIN" label="Universal" variant="superadmin" />
-            {/* Spacer */}
-            <div className="flex-1" />
+            {/* Left group: breadcrumbs + scope chip. Grows to fill (pushing the
+                omnibox + actions right) and is the ONLY shrinkable region, so the
+                breadcrumb truncates rather than wrapping the topbar (D1). */}
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              {/* Breadcrumbs — derived from route (UX 1.2); truncates when tight. */}
+              <div className="min-w-0 flex-shrink">
+                <OperatorBreadcrumbs portal="admin" />
+              </div>
+              {/* Scope chip — neutral/outline so it never out-weighs the page H1 (D1). */}
+              <OpScopeChip code="SUPERADMIN" label="Universal" variant="neutral" />
+            </div>
             {/* Global search omnibox (Item 10) — operator jump-to-record + PII log. */}
-            <OpOmnibox />
+            <div className="flex-shrink-0">
+              <OpOmnibox />
+            </div>
             {/* Right: switcher + logout */}
-            <div className="flex items-center gap-2">{topbarActions}</div>
+            <div className="flex flex-shrink-0 items-center gap-2">{topbarActions}</div>
           </header>
         }
       >
