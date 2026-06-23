@@ -42,6 +42,7 @@ export function ResetCredentialsButton({
         email={email}
         profileId={targetUserId}
         detailPath={detailPath}
+        variant="reset"
         resetLabel="Cerrar"
         onReset={() => {
           setMode("idle");
