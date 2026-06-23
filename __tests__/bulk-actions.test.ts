@@ -141,7 +141,12 @@ beforeAll(async () => {
   applicant1Id = await createUser(APPLICANT1_EMAIL);
   applicant2Id = await createUser(APPLICANT2_EMAIL);
 
-  await db.update(profiles).set({ role: "admin" }).where(eq(profiles.id, adminUserId));
+  // Institutional accountType is required by the consolidated admin guard
+  // (loadActiveInstitutionalProfile); createUser seeds accountType="personal".
+  await db
+    .update(profiles)
+    .set({ role: "admin", accountType: "institutional" })
+    .where(eq(profiles.id, adminUserId));
 }, 90_000);
 
 afterAll(async () => {

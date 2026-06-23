@@ -203,9 +203,17 @@ beforeAll(async () => {
   claimantUserId = await createUser(CLAIMANT_EMAIL);
   transfereeUserId = await createUser(TRANSFEREE_EMAIL);
 
-  // Promote admin + govt profile roles.
-  await db.update(profiles).set({ role: "admin" }).where(eq(profiles.id, adminUserId));
-  await db.update(profiles).set({ role: "govt" }).where(eq(profiles.id, govtUserId));
+  // Promote admin + govt profiles to institutional accounts. The consolidated
+  // guard (loadActiveInstitutionalProfile) rejects accountType !== "institutional",
+  // so role alone is no longer enough — createUser seeds accountType="personal".
+  await db
+    .update(profiles)
+    .set({ role: "admin", accountType: "institutional" })
+    .where(eq(profiles.id, adminUserId));
+  await db
+    .update(profiles)
+    .set({ role: "govt", accountType: "institutional" })
+    .where(eq(profiles.id, govtUserId));
   // Give the govt user a jurisdiction matching the seeded disputes.
   await db.execute(sql`
     INSERT INTO govt_assignments (user_id, jurisdiction_province, jurisdiction_locality, granted_by_user_id)
