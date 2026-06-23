@@ -14,6 +14,7 @@
 // PANORAMA NOTE: The Paquete G Panorama layer/preset is deferred to a separate
 // work unit. This page is the standalone admin dashboard — not the Panorama integration.
 
+import { ForecastChartDynamic } from "@/components/charts/ForecastChartDynamic";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -31,6 +32,7 @@ import {
   fetchSterilizationCoverage,
   fetchSterilizationNatalidadRatio,
   fetchSterilizationTrend,
+  projectSeries,
   toneForTarget,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
@@ -64,11 +66,18 @@ export default async function AdminPoblacionPage({
   const hasData = coverage.total > 0;
   const hasTrend = sterilTrend.points.length > 0;
 
+  // Paquete J — forward projection over the sterilization FLOW series (event
+  // counts/bucket). Reuses the already-fetched trend points (no extra DB call).
+  // §J-D3: the legal/programmatic target is COVERAGE % (a stock); we do NOT pass
+  // a %-meta ReferenceLine onto this counts axis — the volume band stands alone.
+  const sterilForecast = projectSeries(sterilTrend.points, { horizon: 3 });
+
   const coverageTone = toneForTarget(coverage.rate, TARGETS.STERILIZATION_COVERAGE_PCT);
 
   const natalidadCaveatText = "Solo partos en seguimiento — subestima la natalidad real";
 
   const panelTrendId = "admin-panel-esterilizacion-titulo";
+  const panelForecastId = "admin-panel-esterilizacion-proyeccion-titulo";
   const panelTableId = "admin-panel-tabla-titulo";
 
   return (
@@ -211,6 +220,26 @@ export default async function AdminPoblacionPage({
               yLabel="Eventos registrados"
               variant="area"
               fallbackTableLabel={`Esterilizaciones por ${sterilTrend.granularity === "month" ? "mes" : "semana"}`}
+            />
+          )}
+        </OpCardBody>
+      </OpCard>
+
+      {/* Sterilization forecast — Paquete J (additive; trend card stays intact) */}
+      <OpCard aria-labelledby={panelForecastId}>
+        <OpCardHead title={<span id={panelForecastId}>Proyección de esterilizaciones</span>} />
+        <OpCardBody>
+          {!hasTrend ? (
+            <LnEmptyState
+              icon="chart-line"
+              title="Sin datos para proyectar"
+              description="No hay eventos sterilization_performed en el rango seleccionado."
+            />
+          ) : (
+            <ForecastChartDynamic
+              result={sterilForecast}
+              seriesLabel="Esterilizaciones"
+              unit="esterilizaciones"
             />
           )}
         </OpCardBody>

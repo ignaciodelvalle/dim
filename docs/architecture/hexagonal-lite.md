@@ -300,3 +300,18 @@ const { visible, suppressedCount } = suppressSmallCells(rows, {
 | `resolveAnalyticsPeriod` / `windows` — pure | `lib/metrics/period.test.ts` | no |
 | Scope + population primitives — integration | `__tests__/metrics-scope.test.ts` | yes |
 | KPI fetchers (value-pinning) — integration | `__tests__/govt-home-kpis.test.ts` | yes |
+| Bucketing transforms (`timeseries.ts`) — pure | `lib/metrics/timeseries.test.ts` | no |
+| Trend **projection / forecast** (`forecast.ts`) — pure | `lib/metrics/forecast.test.ts` | no |
+
+### Pure projection → pure forecast (Paquete J)
+
+Pattern B's pure-vs-impure split extends naturally to forecasting. The DB-bound
+trend fetchers (`lib/metrics/trends.ts`) produce the bucketed `{x,y}[]` series;
+the forward **projection** (`lib/metrics/forecast.ts` — `projectSeries`,
+`targetCrossing`) is a **pure transform the page delegates to**, exactly like
+`timeseries.ts` is the pure transform `trends.ts` delegates to. It takes the
+already-bucketed, k-anonymised series and returns a confidence band + an
+estimated target-crossing with **no DB and no Next.js runtime**, so the
+regression math (OLS slope, the horizon-widening interval, the `< MIN_POINTS`
+abstention) is unit-tested in milliseconds. The chart (`ForecastChart`) is the
+presentation edge; the projection itself is framework-free.
