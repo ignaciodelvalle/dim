@@ -208,11 +208,17 @@ export async function registryCounts(
 
   // EXISTS subquery: pet has at least one qualifying owner-activity event after the cutoff.
   // Excludes credential_scanned — auto-purged at 90d, not owner-initiated activity.
+  // NOTE: bind the cutoff as an ISO string, not a raw Date. Interpolating a JS
+  // Date into a sql`` fragment makes postgres-js (prepare:false) try to serialize
+  // it via a Buffer/string path and throw ERR_INVALID_ARG_TYPE ("Received an
+  // instance of Date"), which crashes /admin/programa, /censo and /poblacion.
+  // The ISO string is implicitly cast to timestamptz by the >= comparison.
+  const dormancyCutoffIso = dormancyCutoff.toISOString();
   const hasRecentOwnerActivity = sql`EXISTS (
     SELECT 1 FROM pet_events pe
     WHERE pe.pet_id = ${pets.id}
       AND pe.event_type <> 'credential_scanned'
-      AND pe.occurred_at >= ${dormancyCutoff}
+      AND pe.occurred_at >= ${dormancyCutoffIso}
   )`;
 
   // EXISTS subquery: pet has an active microchip_iso identification.
