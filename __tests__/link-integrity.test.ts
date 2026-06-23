@@ -159,6 +159,11 @@ function resolves(href: string): boolean {
  * Add entries here when a link is intentionally unresolvable as a static page.
  */
 function shouldSkip(href: string): boolean {
+  // Anchor-only / deferred-nav sentinels (e.g. #defer-control-poblacional): client
+  // anchors, never a page route. Includes the `deferred` NavItem affordance
+  // (plan 2026-06-23-population-cycle-deferred-nav-handoff.md) whose #defer-… hrefs
+  // are intentionally unresolvable.
+  if (href.startsWith("#")) return true;
   // External URLs.
   if (href.startsWith("http://") || href.startsWith("https://")) return true;
   // Non-HTTP schemes.

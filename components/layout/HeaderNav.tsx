@@ -12,6 +12,14 @@ export type NavItem = {
   matchPrefix?: string;
   /** Optional numeric badge overlaid on the nav item (e.g. breach count). */
   badge?: number;
+  /**
+   * Deferred (not-yet-built) destination. Rendered as a non-interactive, muted
+   * "Próximamente" affordance — visible in the IA so the population/custody
+   * roadmap gap (vNext §1) is legible, but carries NO live route: no <Link>, no
+   * middleware entry, no breadcrumb/omnibox resolution, never "active".
+   * See plan 2026-06-23-population-cycle-deferred-nav-handoff.md.
+   */
+  deferred?: boolean;
 };
 
 type Props = {

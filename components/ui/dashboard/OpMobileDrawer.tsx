@@ -20,6 +20,9 @@ type Props = {
 };
 
 function isActive(item: NavItem, pathname: string | null): boolean {
+  // Deferred entries are never "active" — their #defer-… sentinel must never be
+  // highlighted (D4). Mirrors OpRailNav.
+  if (item.deferred) return false;
   if (!pathname) return false;
   if (item.matchPrefix) return pathname.startsWith(item.matchPrefix);
   return pathname === item.href;
@@ -124,6 +127,29 @@ export function OpMobileDrawer({
                 )}
                 <div className="flex flex-col gap-0.5">
                   {section.items.map((item) => {
+                    // Deferred destination: non-interactive muted "Próximamente"
+                    // affordance — the drawer mirrors the rail EXACTLY (same markup,
+                    // same tokens, D3). A <span> (no <Link>), aria-disabled, out of
+                    // the tab order, no badge.
+                    if (item.deferred) {
+                      return (
+                        <span
+                          key={item.href}
+                          aria-disabled="true"
+                          className={[
+                            "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-[8px]",
+                            "text-[12.5px] -ml-0.5 border-l-2 border-transparent",
+                            "text-ln-op-rail-mute cursor-not-allowed select-none",
+                          ].join(" ")}
+                        >
+                          <span className="flex-1 truncate">{item.label}</span>
+                          <span className="inline-flex items-center rounded-[3px] border border-[rgba(255,255,255,0.18)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-ln-op-rail-mute">
+                            Próximamente
+                          </span>
+                        </span>
+                      );
+                    }
+
                     const active = isActive(item, pathname);
                     const activeClasses =
                       variant === "org"

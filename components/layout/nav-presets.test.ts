@@ -494,7 +494,11 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
   });
 
   it("no href is gained: ADMIN_NAV_SECTIONS contains only hrefs from the frozen snapshot (union ⊆ snapshot)", () => {
-    const sectionHrefs = ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    // Deferred sentinels (#defer-…) are presentation affordances, not routes —
+    // exclude them from the live-route invariant (D6).
+    const sectionHrefs = ADMIN_NAV_SECTIONS.flatMap((s) =>
+      s.items.filter((i) => !i.deferred).map((i) => i.href),
+    );
     for (const href of sectionHrefs) {
       expect(ADMIN_HREF_SNAPSHOT).toContain(href);
     }
@@ -560,9 +564,12 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
   });
 
   it("C27 regroup is href-preserving: section union equals the frozen snapshot exactly", () => {
-    // The split MUST NOT lose or gain any href — only regroup. The union of all
-    // section hrefs must equal ADMIN_HREF_SNAPSHOT as a set (both directions).
-    const union = new Set(ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href)));
+    // The split MUST NOT lose or gain any LIVE href — only regroup. The union of
+    // all live section hrefs must equal ADMIN_HREF_SNAPSHOT as a set (both
+    // directions). Deferred sentinels (#defer-…) are excluded — not routes (D6).
+    const union = new Set(
+      ADMIN_NAV_SECTIONS.flatMap((s) => s.items.filter((i) => !i.deferred).map((i) => i.href)),
+    );
     expect(union).toEqual(ADMIN_HREF_SNAPSHOT);
   });
 
@@ -578,7 +585,11 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
       "/admin/usuarios",
       "/admin/organizaciones",
     ]);
-    const hrefs = ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    // Exclude deferred sentinels (#defer-…): they are client anchors that never
+    // reach the server, so the middleware 308 rules don't apply to them (D6).
+    const hrefs = ADMIN_NAV_SECTIONS.flatMap((s) =>
+      s.items.filter((i) => !i.deferred).map((i) => i.href),
+    );
     for (const href of hrefs) {
       expect(REDIRECTED_ADMIN_PATHS.has(href)).toBe(false);
     }
@@ -586,6 +597,45 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
     expect(hrefs).toContain("/gob/cola");
     expect(hrefs).toContain("/gob/usuarios");
     expect(hrefs).toContain("/gob/organizaciones");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADMIN_NAV_SECTIONS deferred — population/custody roadmap affordance (D5/D6)
+// plan 2026-06-23-population-cycle-deferred-nav-handoff.md
+// ---------------------------------------------------------------------------
+
+describe("ADMIN_NAV_SECTIONS deferred — population/custody affordance", () => {
+  const analitica = ADMIN_NAV_SECTIONS.find((s) => s.label === "Analítica");
+
+  it("Analítica contains exactly 2 deferred items: Control poblacional + Custodia & tránsito", () => {
+    const deferred = (analitica?.items ?? []).filter((i) => i.deferred);
+    expect(deferred.map((i) => i.label)).toEqual(["Control poblacional", "Custodia & tránsito"]);
+  });
+
+  it("every deferred item uses a #-sentinel href; no live item uses a # href", () => {
+    for (const item of ADMIN_NAV_SECTIONS.flatMap((s) => s.items)) {
+      if (item.deferred) {
+        expect(item.href.startsWith("#")).toBe(true);
+      } else {
+        expect(item.href.startsWith("#")).toBe(false);
+      }
+    }
+  });
+
+  it("deferred items carry no badge and no matchPrefix (pure presentation, never active)", () => {
+    const deferred = ADMIN_NAV_SECTIONS.flatMap((s) => s.items).filter((i) => i.deferred);
+    expect(deferred).toHaveLength(2);
+    for (const item of deferred) {
+      expect(item.badge).toBeUndefined();
+      expect(item.matchPrefix).toBeUndefined();
+    }
+  });
+
+  it("the deferred entries sit at the END of the Analítica section (after the live items)", () => {
+    const items = analitica?.items ?? [];
+    expect(items.slice(-2).every((i) => i.deferred)).toBe(true);
+    expect(items.slice(0, -2).every((i) => !i.deferred)).toBe(true);
   });
 });
 

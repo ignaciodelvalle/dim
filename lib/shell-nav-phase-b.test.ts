@@ -141,7 +141,11 @@ describe("Phase B operator parity — gob", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase B operator parity — admin", () => {
-  const allHrefs = ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+  // Live routes only — deferred sentinels (#defer-…) are presentation, not routes,
+  // and must be excluded from the frozen-snapshot route invariants (D6).
+  const allHrefs = ADMIN_NAV_SECTIONS.flatMap((s) =>
+    s.items.filter((i) => !i.deferred).map((i) => i.href),
+  );
 
   it("ADMIN_NAV_SECTIONS union contains every frozen snapshot href (snapshot ⊆ union)", () => {
     const union = new Set(allHrefs);

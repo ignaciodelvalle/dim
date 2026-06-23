@@ -19,6 +19,9 @@ type Props = {
 };
 
 function isActive(item: NavItem, pathname: string | null): boolean {
+  // Deferred entries are never "active" — their #defer-… sentinel must never be
+  // highlighted (D4). Guard before any path comparison.
+  if (item.deferred) return false;
   if (!pathname) return false;
   if (item.matchPrefix) return pathname.startsWith(item.matchPrefix);
   return pathname === item.href;
@@ -29,6 +32,28 @@ function NavLink({
   active,
   variant,
 }: { item: NavItem; active: boolean; variant: "gob" | "org" }) {
+  // Deferred (not-yet-built) destination: non-interactive, muted "Próximamente"
+  // affordance — a <span> (no <Link>/<button>) so it cannot navigate and is out
+  // of the tab order by default (no tabIndex). State announced via aria-disabled
+  // + textual pill (not color alone — Ley 26.653). No badge on deferred (D2).
+  if (item.deferred) {
+    return (
+      <span
+        aria-disabled="true"
+        className={[
+          "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-[8px]",
+          "text-[12.5px] -ml-0.5 border-l-2 border-transparent",
+          "text-ln-op-rail-mute cursor-not-allowed select-none",
+        ].join(" ")}
+      >
+        <span className="flex-1 truncate">{item.label}</span>
+        <span className="inline-flex items-center rounded-[3px] border border-[rgba(255,255,255,0.18)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-ln-op-rail-mute">
+          Próximamente
+        </span>
+      </span>
+    );
+  }
+
   const activeClasses =
     variant === "org"
       ? "border-l-2 border-[#5FD0B0] bg-[rgba(255,255,255,0.12)] text-white font-semibold"
