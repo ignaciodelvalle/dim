@@ -94,6 +94,11 @@ export function ForecastChart({
   const forecast = points.filter((p) => p.kind === "forecast");
   const n = actuals.length;
 
+  // B1 — render the honest "insufficient" state (not an empty SVG) whenever we
+  // can't draw a meaningful line: the upstream result is insufficient, OR there
+  // are fewer than 2 actual vertices (recharts draws nothing from <2 points).
+  const cannotPlot = insufficient || n < 2;
+
   // Build the recharts rows. We keep "actual" and "forecast" as separate value
   // keys so the two <Line>s render distinct (solid vs dashed) segments. To make
   // the dashed forecast line visually continuous with the solid actuals, the
@@ -149,8 +154,8 @@ export function ForecastChart({
       role="img"
       aria-label={ariaLabel}
       className={`m-0 ${className}`}
-      data-forecast-insufficient={insufficient ? "true" : "false"}
-      data-forecast-has-band={!insufficient && forecast.length > 0 ? "true" : "false"}
+      data-forecast-insufficient={cannotPlot ? "true" : "false"}
+      data-forecast-has-band={!cannotPlot && forecast.length > 0 ? "true" : "false"}
       data-forecast-has-target={target ? "true" : "false"}
     >
       <figcaption className="sr-only">
@@ -158,7 +163,7 @@ export function ForecastChart({
         punteado con banda es la proyección. {ariaLabel}
       </figcaption>
 
-      {insufficient ? (
+      {cannotPlot ? (
         // Insufficient: actuals only, NO band, explicit message (no invented line).
         <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe px-4 py-6 text-center">
           <p className="text-[13px] font-medium text-ln-op-ink-2">
@@ -169,78 +174,87 @@ export function ForecastChart({
           </p>
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={height}>
-          <ComposedChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="x" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+        // B1 — give the chart a concrete-height, full-width box so recharts'
+        // ResponsiveContainer can never measure 0 (which paints an empty SVG on
+        // the first mount under the ssr:false dynamic wrapper).
+        <div
+          data-forecast-chart="true"
+          className="w-full"
+          style={{ width: "100%", height, minHeight: height }}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="x" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
 
-            {/* Confidence band — low-opacity area between lo and hi of the tail. */}
-            <Area
-              type="monotone"
-              dataKey="hi"
-              name="Banda de confianza"
-              stroke="none"
-              fill={FORECAST_COLOR}
-              fillOpacity={0.12}
-              isAnimationActive={!reducedMotion}
-              activeDot={false}
-              legendType="none"
-            />
-            <Area
-              type="monotone"
-              dataKey="lo"
-              name="Banda de confianza (mín.)"
-              stroke="none"
-              fill="#ffffff"
-              fillOpacity={1}
-              isAnimationActive={!reducedMotion}
-              activeDot={false}
-              legendType="none"
-            />
-
-            {/* Actual segment — SOLID. */}
-            <Line
-              type="monotone"
-              dataKey="actual"
-              name={seriesLabel}
-              stroke={ACTUAL_COLOR}
-              strokeWidth={2}
-              dot={false}
-              connectNulls={false}
-              isAnimationActive={!reducedMotion}
-            />
-
-            {/* Forecast segment — DASHED (distinct by style, not colour alone). */}
-            <Line
-              type="monotone"
-              dataKey="forecast"
-              name="Proyección"
-              stroke={FORECAST_COLOR}
-              strokeWidth={2}
-              strokeDasharray="6 4"
-              dot={false}
-              connectNulls={false}
-              isAnimationActive={!reducedMotion}
-            />
-
-            {/* Target reference line — ONLY when a same-unit target is provided. */}
-            {target ? (
-              <ReferenceLine
-                y={target.value}
-                stroke={CHART_COLORS.orange}
-                strokeDasharray="4 4"
-                label={{ value: target.label, position: "insideTopRight", fontSize: 10 }}
+              {/* Confidence band — low-opacity area between lo and hi of the tail. */}
+              <Area
+                type="monotone"
+                dataKey="hi"
+                name="Banda de confianza"
+                stroke="none"
+                fill={FORECAST_COLOR}
+                fillOpacity={0.12}
+                isAnimationActive={!reducedMotion}
+                activeDot={false}
+                legendType="none"
               />
-            ) : null}
-          </ComposedChart>
-        </ResponsiveContainer>
+              <Area
+                type="monotone"
+                dataKey="lo"
+                name="Banda de confianza (mín.)"
+                stroke="none"
+                fill="#ffffff"
+                fillOpacity={1}
+                isAnimationActive={!reducedMotion}
+                activeDot={false}
+                legendType="none"
+              />
+
+              {/* Actual segment — SOLID. */}
+              <Line
+                type="monotone"
+                dataKey="actual"
+                name={seriesLabel}
+                stroke={ACTUAL_COLOR}
+                strokeWidth={2}
+                dot={false}
+                connectNulls={false}
+                isAnimationActive={!reducedMotion}
+              />
+
+              {/* Forecast segment — DASHED (distinct by style, not colour alone). */}
+              <Line
+                type="monotone"
+                dataKey="forecast"
+                name="Proyección"
+                stroke={FORECAST_COLOR}
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                dot={false}
+                connectNulls={false}
+                isAnimationActive={!reducedMotion}
+              />
+
+              {/* Target reference line — ONLY when a same-unit target is provided. */}
+              {target ? (
+                <ReferenceLine
+                  y={target.value}
+                  stroke={CHART_COLORS.orange}
+                  strokeDasharray="4 4"
+                  label={{ value: target.label, position: "insideTopRight", fontSize: 10 }}
+                />
+              ) : null}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
       )}
 
       {/* Crossing callout — sales beat for the executive. */}
-      {!insufficient && crossingText ? (
+      {!cannotPlot && crossingText ? (
         <p
           className={`mt-2 text-[12px] font-medium ${
             crossing != null ? "text-ln-op-ok" : "text-ln-op-mute"

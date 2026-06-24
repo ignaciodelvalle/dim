@@ -16,7 +16,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ForecastChart } from "@/components/charts/ForecastChart";
-import { projectSeries, targetCrossing } from "@/lib/metrics/forecast";
+import { type ForecastResult, projectSeries, targetCrossing } from "@/lib/metrics/forecast";
 
 const RISING = [
   { x: "2026-W01", y: 10 },
@@ -155,5 +155,36 @@ describe("ForecastChart — insufficient data", () => {
     expect(() =>
       renderToStaticMarkup(<ForecastChart result={result} seriesLabel="Esterilizaciones" />),
     ).not.toThrow();
+  });
+});
+
+// B1 — Forecast no longer renders an empty SVG.
+describe("ForecastChart — B1: never an empty chart box", () => {
+  it("gives the chart a concrete-height container so ResponsiveContainer can't collapse to 0", () => {
+    const result = projectSeries(RISING, { horizon: 3 });
+    const html = renderToStaticMarkup(
+      <ForecastChart result={result} seriesLabel="Antirrábica" height={300} />,
+    );
+    // The chart branch renders a sized box (the B1 fix), not a bare ResponsiveContainer.
+    expect(html).toContain('data-forecast-chart="true"');
+    expect(html).toContain("min-height:300px");
+    expect(html).toContain('data-forecast-insufficient="false"');
+  });
+
+  it("falls back to the honest insufficient state when there are < 2 actuals (no empty SVG)", () => {
+    // A result that claims to be sufficient but only carries ONE actual vertex —
+    // recharts would paint nothing. The cannotPlot guard must catch it.
+    const onePoint: ForecastResult = {
+      points: [{ x: "2026-W01", y: 10, lo: 10, hi: 10, kind: "actual" }],
+      method: "linear",
+      slopePerBucket: 0,
+      insufficient: false,
+    };
+    const html = renderToStaticMarkup(
+      <ForecastChart result={onePoint} seriesLabel="Antirrábica" />,
+    );
+    expect(html).toContain('data-forecast-insufficient="true"');
+    expect(html).toContain("Datos insuficientes para proyectar");
+    expect(html).not.toContain('data-forecast-chart="true"');
   });
 });
