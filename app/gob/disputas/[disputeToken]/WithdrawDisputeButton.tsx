@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { withdrawDisputeAction } from "@/app/actions/custody-disputes";
+import { OpButton } from "@/components/ui/dashboard";
 
 export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }) {
   const router = useRouter();
@@ -35,13 +36,9 @@ export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="px-3 py-1.5 rounded-[6px] text-[13px] border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors"
-      >
+      <OpButton type="button" onClick={() => setOpen(true)} variant="danger" size="sm">
         Retirar disputa
-      </button>
+      </OpButton>
     );
   }
 
@@ -68,22 +65,24 @@ export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }
       {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-2">
-        <button
+        <OpButton
           type="button"
           onClick={submit}
           disabled={pending}
-          className="px-4 py-2 rounded-[6px] bg-ln-op-danger text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+          variant="danger"
+          className="px-4 py-2"
         >
           {pending ? "Retirando..." : "Confirmar retiro"}
-        </button>
-        <button
+        </OpButton>
+        <OpButton
           type="button"
           onClick={cancel}
           disabled={pending}
-          className="px-3 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
+          variant="ghost"
+          className="px-3 py-2"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
+import { OpButton, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, welfareReports } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { type FlagReason, reasonLabel } from "@/lib/welfare-moderation";
@@ -144,12 +144,9 @@ export default async function ModeracionListPage({
           </select>
         </div>
 
-        <button
-          type="submit"
-          className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
-        >
+        <OpButton type="submit" variant="primary" size="sm">
           Filtrar
-        </button>
+        </OpButton>
         {hasFilters && (
           <a
             href="/admin/moderacion"

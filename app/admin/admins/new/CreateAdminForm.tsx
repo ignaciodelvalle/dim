@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { createInstitutionalAccountAction } from "@/app/actions/admin-institutional";
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
+import { OpButton } from "@/components/ui/dashboard";
 
 type SuccessState = {
   profileId: string;
@@ -124,13 +125,9 @@ export function CreateAdminForm() {
       )}
 
       <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-5 py-2 text-[13px] font-semibold bg-ln-op-azul text-white rounded-[6px] hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
+        <OpButton type="submit" disabled={loading} loading={loading} variant="primary">
           {loading ? "Creando..." : "Crear cuenta admin"}
-        </button>
+        </OpButton>
         <a
           href="/admin/admins"
           className="px-5 py-2 text-[13px] border border-ln-op-line rounded-[6px] hover:bg-ln-op-stripe"

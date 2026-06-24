@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { reassignDecomisoToAnotherReceiverAction } from "@/app/actions/decomiso";
+import { OpButton } from "@/components/ui/dashboard";
 
 type ReasignarButtonProps = {
   casePublicCode: string;
@@ -50,13 +51,9 @@ export function ReasignarButton({ casePublicCode, currentReceiverName }: Reasign
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="px-3 py-1.5 rounded-[6px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors text-[12px]"
-      >
+      <OpButton type="button" onClick={() => setOpen(true)} variant="ghost" size="sm">
         Reasignar
-      </button>
+      </OpButton>
     );
   }
 
@@ -119,22 +116,26 @@ export function ReasignarButton({ casePublicCode, currentReceiverName }: Reasign
         )}
 
         <div className="flex gap-3 pt-2">
-          <button
+          <OpButton
             type="button"
             onClick={handleSubmit}
             disabled={isPending || !newReceiverId.trim()}
-            className="flex-1 py-2.5 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-semibold hover:bg-ln-op-azul-700 disabled:opacity-50 transition-colors"
+            variant="primary"
+            block
+            className="py-2.5"
           >
             {isPending ? "Reasignando..." : "Confirmar reasignacion"}
-          </button>
-          <button
+          </OpButton>
+          <OpButton
             type="button"
             onClick={() => setOpen(false)}
             disabled={isPending}
-            className="flex-1 py-2.5 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
+            variant="ghost"
+            block
+            className="py-2.5"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
       </div>
     </dialog>

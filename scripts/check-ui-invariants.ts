@@ -283,9 +283,26 @@ export const ENGLISH_UI_WORD_ALLOWLIST = new Set<string>([
 //   app/gob/**    — 72 raw <button tags
 //   Total         — 138
 //
+// Ratcheted on 2026-06-24 (chore/operator-button-migration) — 91 migrated:
+//   Remaining 47 are honest exceptions:
+//   - Text-link style buttons (hover:underline, no bg): AddPartyForm, DeleteRuleButton,
+//     CreateGovtForm, AssignLocalityForm, DecomisoForm, DeactivateAdminForm,
+//     DeactivateGovtForm, RevokeLocalityRowActions, RevokeOrgActions, RevokeUserActions,
+//     ProposeUserActions (internal ActionButton helper)
+//   - Tab/chip toggles (dynamic selected-state className): DecomisoForm, AddPartyForm,
+//     ResolveDisputeForm
+//   - Transparent layout logout buttons: app/admin/layout.tsx, app/gob/layout.tsx
+//   - Outline-danger style (OpButton danger is filled, not outlined): ReviewActions,
+//     OfferingReviewActions, ModerationActions, cola/ReviewActions
+//   - Icon-only/non-standard buttons: EventLedgerRow (disclosure toggle), LocalityRuleDrilldown
+//     (autocomplete dropdown item), MpfExportButton (blue-outline loading custom style),
+//     DecomisoForm (× remove, list selector), AlertRowActions (filter tab chips),
+//     PppAttestationRegistriesForm, acerca/integracion-miarg, ModerationActions (dynamic class)
+//   - Internal ActionButton helper components (TriageActions, InvestigationActions)
+//
 // To ratchet down after migrating a module: grep for "<button" in the migrated
 // directory, verify the new count, and lower the constant accordingly.
-export const RAW_BUTTON_BASELINE = 138;
+export const RAW_BUTTON_BASELINE = 47;
 
 // Files to scan for raw button growth (operator tier only).
 const RAW_BUTTON_FILES = globSync("{app/admin,app/gob}/**/*.tsx");

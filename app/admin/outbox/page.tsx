@@ -10,7 +10,7 @@ import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pa
 import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpBreach, OpCard, OpPill } from "@/components/ui/dashboard";
+import { OpBreach, OpButton, OpCard, OpPill } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import type { OutboxStatus, OutboxTargetKind } from "@/db";
 import { PROVINCES } from "@/lib/ar-provincias";
@@ -256,12 +256,9 @@ export default async function AdminOutboxPage({
           ))}
         </select>
 
-        <button
-          type="submit"
-          className="text-[13px] px-3 py-1.5 rounded-[6px] bg-ln-op-navy text-white font-semibold hover:opacity-90"
-        >
+        <OpButton type="submit" variant="primary" size="sm">
           Filtrar
-        </button>
+        </OpButton>
 
         {hasFilters && (
           <a

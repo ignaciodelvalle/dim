@@ -11,20 +11,23 @@
 import { useState } from "react";
 
 import { deleteAlertSubscriptionAction } from "@/app/actions/alert-subscriptions";
+import { OpButton } from "@/components/ui/dashboard";
 
 export function DeleteAlertSubscriptionButton({ subscriptionId }: { subscriptionId: string }) {
   const [confirming, setConfirming] = useState(false);
 
   if (!confirming) {
     return (
-      <button
+      <OpButton
         type="button"
         onClick={() => setConfirming(true)}
-        className="h-11 rounded-[6px] border border-ln-op-danger-bd px-3 text-[12px] text-ln-op-danger hover:bg-ln-op-danger-bg"
+        variant="danger"
+        size="sm"
         aria-label="Eliminar suscripción"
+        className="h-11 px-3"
       >
         Eliminar
-      </button>
+      </OpButton>
     );
   }
 
@@ -32,20 +35,19 @@ export function DeleteAlertSubscriptionButton({ subscriptionId }: { subscription
     <div className="flex items-center gap-2">
       <form action={deleteAlertSubscriptionAction}>
         <input type="hidden" name="id" value={subscriptionId} />
-        <button
-          type="submit"
-          className="h-11 rounded-[6px] bg-ln-op-danger px-3 text-[12px] font-semibold text-white hover:opacity-90"
-        >
+        <OpButton type="submit" variant="danger" size="sm" className="h-11 px-3">
           Confirmar
-        </button>
+        </OpButton>
       </form>
-      <button
+      <OpButton
         type="button"
         onClick={() => setConfirming(false)}
-        className="h-11 rounded-[6px] border border-ln-op-line px-3 text-[12px] text-ln-op-mute hover:text-ln-op-ink"
+        variant="ghost"
+        size="sm"
+        className="h-11 px-3"
       >
         Cancelar
-      </button>
+      </OpButton>
     </div>
   );
 }

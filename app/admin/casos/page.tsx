@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { CaseBadge } from "@/components/CaseBadge";
+import { OpButton } from "@/components/ui/dashboard";
 import { OpSelect } from "@/components/ui/dashboard/OpField";
 import { PROVINCES } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -156,12 +157,9 @@ export default async function AdminCasosPage({
           </OpSelect>
         </div>
 
-        <button
-          type="submit"
-          className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
-        >
+        <OpButton type="submit" variant="primary" size="sm">
           Filtrar
-        </button>
+        </OpButton>
         {hasFilters && (
           <a
             href="/admin/casos"

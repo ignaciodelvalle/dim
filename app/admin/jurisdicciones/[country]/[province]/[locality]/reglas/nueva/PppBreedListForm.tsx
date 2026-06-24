@@ -11,6 +11,7 @@ import type { RuleImpactPreviewInput } from "@/app/actions/rule-impact-preview";
 import { RuleImpactBanner, type RuleImpactResult } from "@/components/admin/RuleImpactBanner";
 import { LnCheckbox } from "@/components/ui/Field";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 import { DOG_BREEDS, POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/breeds";
 import { canSaveWithImpactGate, requiresImpactConfirmation } from "@/lib/rule-impact-gate";
 
@@ -130,13 +131,9 @@ export function PppBreedListForm({
             placeholder="Boxer, Cimarrón Uruguayo..."
             className="flex-1"
           />
-          <button
-            type="button"
-            onClick={addCustom}
-            className="px-3 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
-          >
+          <OpButton type="button" onClick={addCustom} variant="ghost">
             Agregar
-          </button>
+          </OpButton>
         </div>
       </div>
 
@@ -184,13 +181,15 @@ export function PppBreedListForm({
         </p>
       )}
 
-      <button
+      <OpButton
         type="submit"
         disabled={isPending || !canSave}
-        className="w-full px-4 py-3 rounded-[6px] bg-ln-op-navy text-white font-semibold text-[13px] hover:opacity-90 disabled:opacity-50 transition-opacity"
+        loading={isPending}
+        variant="primary"
+        block
       >
         {isPending ? "Guardando..." : mode === "create" ? "Crear regla" : "Guardar cambios"}
-      </button>
+      </OpButton>
     </form>
   );
 }

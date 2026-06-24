@@ -22,7 +22,7 @@ import { DeleteAlertSubscriptionButton } from "@/app/admin/programa/DeleteAlertS
 import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm";
 import { ForecastChartDynamic } from "@/components/charts/ForecastChartDynamic";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
-import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
+import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, profiles } from "@/db";
@@ -701,13 +701,15 @@ export default async function AdminProgramaPage({
                     <form action={toggleAlertSubscriptionAction}>
                       <input type="hidden" name="id" value={a.id} />
                       <input type="hidden" name="isActive" value={a.isActive ? "false" : "true"} />
-                      <button
+                      <OpButton
                         type="submit"
-                        className="h-11 rounded-[6px] border border-ln-op-line px-3 text-[12px] text-ln-op-ink hover:bg-ln-op-hover"
+                        variant="ghost"
+                        size="sm"
                         aria-label={a.isActive ? "Desactivar suscripción" : "Activar suscripción"}
+                        className="h-11 px-3"
                       >
                         {a.isActive ? "Pausar" : "Activar"}
-                      </button>
+                      </OpButton>
                     </form>
                     {/* Delete — 2-step inline confirmation (C10) */}
                     <DeleteAlertSubscriptionButton subscriptionId={a.id} />

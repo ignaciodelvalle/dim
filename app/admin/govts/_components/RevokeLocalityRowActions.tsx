@@ -17,6 +17,7 @@ import { useRef, useState, useTransition } from "react";
 import { revokeGovtLocalityAction } from "@/app/actions/admin-revocations";
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 import { useEvidenceUpload } from "@/lib/use-evidence-upload";
 
 type Mode = "idle" | "confirming" | "done";
@@ -53,13 +54,9 @@ export function RevokeLocalityRowActions({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => setMode("confirming")}
-      className="text-[10px] px-2 py-1 rounded-[4px] border border-ln-op-danger-bd text-ln-op-danger hover:opacity-90 transition-opacity"
-    >
+    <OpButton type="button" onClick={() => setMode("confirming")} variant="danger" size="sm">
       Revocar
-    </button>
+    </OpButton>
   );
 }
 
@@ -181,22 +178,12 @@ function RevokeLocalityForm({
       {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
 
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSubmit}
-          className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-danger text-white hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={!canSubmit} variant="danger" size="sm">
           {pending ? "Revocando..." : "Revocar localidad"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
-        >
+        </OpButton>
+        <OpButton type="button" onClick={onCancel} disabled={pending} variant="ghost" size="sm">
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

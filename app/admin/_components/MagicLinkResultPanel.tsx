@@ -11,6 +11,7 @@
 
 import { useState } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import { MAGIC_LINK_TTL_SECONDS, formatTtl } from "@/lib/magic-link-ttl";
 
 // ––– variant copies ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
@@ -110,21 +111,23 @@ export function MagicLinkResultPanel({
           </code>
           {magicLink && (
             <>
-              <button
+              <OpButton
                 type="button"
                 onClick={() => setRevealed((v) => !v)}
-                className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-2 text-[13px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
+                variant="ghost"
                 aria-pressed={revealed}
+                className="shrink-0 px-3 py-2"
               >
                 {revealed ? "Ocultar" : "Revelar"}
-              </button>
-              <button
+              </OpButton>
+              <OpButton
                 type="button"
                 onClick={handleCopy}
-                className="shrink-0 rounded-[6px] bg-ln-op-azul px-3 py-2 text-[13px] font-medium text-white transition-colors hover:bg-ln-op-azul-700"
+                variant="primary"
+                className="shrink-0 px-3 py-2"
               >
                 {copyLabel}
-              </button>
+              </OpButton>
             </>
           )}
         </div>
@@ -145,22 +148,14 @@ export function MagicLinkResultPanel({
           Ver cuenta
         </a>
         {onCreateAnother && (
-          <button
-            type="button"
-            onClick={onCreateAnother}
-            className="rounded-[6px] border border-ln-op-line px-4 py-2 text-[13px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
-          >
+          <OpButton type="button" onClick={onCreateAnother} variant="ghost" className="px-4 py-2">
             Crear otra
-          </button>
+          </OpButton>
         )}
         {onReset && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="rounded-[6px] border border-ln-op-line px-4 py-2 text-[13px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
-          >
+          <OpButton type="button" onClick={onReset} variant="ghost" className="px-4 py-2">
             {resetLabel}
-          </button>
+          </OpButton>
         )}
       </div>
     </div>

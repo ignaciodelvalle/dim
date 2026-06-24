@@ -8,6 +8,7 @@ import {
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
 import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -161,13 +162,9 @@ export function PppAttestationRegistriesForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full px-4 py-3 rounded-[6px] bg-ln-op-navy text-white font-semibold text-[13px] hover:opacity-90 disabled:opacity-50 transition-opacity"
-      >
+      <OpButton type="submit" disabled={isPending} loading={isPending} variant="primary" block>
         {isPending ? "Guardando..." : mode === "create" ? "Crear regla" : "Guardar cambios"}
-      </button>
+      </OpButton>
     </form>
   );
 }

@@ -10,6 +10,7 @@ import {
   approveServiceOfferingAction,
   rejectServiceOfferingAction,
 } from "@/app/actions/service-offerings";
+import { OpButton } from "@/components/ui/dashboard";
 
 type Mode = "idle" | "approving" | "rejecting";
 
@@ -52,24 +53,20 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
           Vas a aprobar este servicio. El proveedor recibirá una notificación.
         </p>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={approve}
-            disabled={pending}
-            className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-ok text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
+          <OpButton type="button" onClick={approve} disabled={pending} variant="ok" size="sm">
             {pending ? "Aprobando..." : "Confirmar aprobacion"}
-          </button>
-          <button
+          </OpButton>
+          <OpButton
             type="button"
             onClick={() => {
               setMode("idle");
               setError(null);
             }}
-            className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe transition-colors"
+            variant="ghost"
+            size="sm"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
         {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
       </div>
@@ -88,25 +85,27 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
           className="w-full text-[12px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <div className="flex items-center gap-2">
-          <button
+          <OpButton
             type="button"
             onClick={reject}
             disabled={pending || tooShort}
-            className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-danger text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+            variant="danger"
+            size="sm"
           >
             {pending ? "Rechazando..." : "Confirmar rechazo"}
-          </button>
-          <button
+          </OpButton>
+          <OpButton
             type="button"
             onClick={() => {
               setMode("idle");
               setReason("");
               setError(null);
             }}
-            className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe transition-colors"
+            variant="ghost"
+            size="sm"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
         {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
       </div>
@@ -115,14 +114,9 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => setMode("approving")}
-        disabled={pending}
-        className="text-[13px] px-4 py-2 rounded-[6px] bg-ln-op-ok text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-      >
+      <OpButton type="button" onClick={() => setMode("approving")} disabled={pending} variant="ok">
         Aprobar
-      </button>
+      </OpButton>
       <button
         type="button"
         onClick={() => setMode("rejecting")}

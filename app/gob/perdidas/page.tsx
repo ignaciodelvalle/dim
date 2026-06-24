@@ -6,7 +6,7 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnInput } from "@/components/ui/Field";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
-import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { listLocalitiesByProvince } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
@@ -254,12 +254,9 @@ export default async function GobPerdidasPage({
           className="flex-1"
           aria-label="Buscar mascotas"
         />
-        <button
-          type="submit"
-          className="text-[13px] px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors whitespace-nowrap"
-        >
+        <OpButton type="submit" variant="primary" size="sm" className="whitespace-nowrap">
           Buscar
-        </button>
+        </OpButton>
         {q && (
           <a
             href={`/gob/perdidas${sp.status ? `?status=${sp.status}` : ""}`}

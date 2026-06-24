@@ -20,7 +20,7 @@ import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm"
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchQueueHealthScoped } from "@/lib/admin-metrics";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
@@ -631,23 +631,27 @@ export default async function GobProgramaPage({
                     <form action={toggleAlertSubscriptionAction}>
                       <input type="hidden" name="id" value={a.id} />
                       <input type="hidden" name="isActive" value={a.isActive ? "false" : "true"} />
-                      <button
+                      <OpButton
                         type="submit"
-                        className="h-11 rounded-[6px] border border-ln-op-line px-3 text-[12px] text-ln-op-ink hover:bg-ln-op-hover"
+                        variant="ghost"
+                        size="sm"
                         aria-label={a.isActive ? "Desactivar suscripción" : "Activar suscripción"}
+                        className="h-11 px-3"
                       >
                         {a.isActive ? "Pausar" : "Activar"}
-                      </button>
+                      </OpButton>
                     </form>
                     <form action={deleteAlertSubscriptionAction}>
                       <input type="hidden" name="id" value={a.id} />
-                      <button
+                      <OpButton
                         type="submit"
-                        className="h-11 rounded-[6px] border border-ln-op-danger-bd px-3 text-[12px] text-ln-op-danger hover:bg-ln-op-danger-bg"
+                        variant="danger"
+                        size="sm"
                         aria-label="Eliminar suscripción"
+                        className="h-11 px-3"
                       >
                         Eliminar
-                      </button>
+                      </OpButton>
                     </form>
                   </li>
                 ))}
