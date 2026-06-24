@@ -101,6 +101,11 @@ create trigger on_auth_user_created
 create or replace function public.enforce_pet_events_append_only()
 returns trigger
 language plpgsql
+-- search_path pinned (advisor function_search_path_mutable, migration 0114).
+-- Bootstrap re-runs this file in step 3 AFTER migrations, so the SET clause
+-- must live here too or the fresh-bootstrap function loses 0114's hardening.
+-- All object refs below are schema-qualified (public.audit_log), so '' is safe.
+set search_path = ''
 as $$
 declare
   override_actor uuid;
