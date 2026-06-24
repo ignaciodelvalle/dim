@@ -308,11 +308,6 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       { href: "/admin/censo", label: "Censo", matchPrefix: "/admin/censo" },
       { href: "/admin/adopciones", label: "Adopciones", matchPrefix: "/admin/adopciones" },
       { href: "/admin/poblacion", label: "Población", matchPrefix: "/admin/poblacion" },
-      // Ciclo de población/custodia — North Star, UI deferred (vNext §1).
-      // Botones visibles-pero-diferidos: la consola real (Paquetes F/G) se construye
-      // después. href sentinel `#defer-…` → nunca es ruta, nunca matchea 308.
-      { href: "#defer-control-poblacional", label: "Control poblacional", deferred: true }, // ⭐ Paquete G
-      { href: "#defer-custodia-transito", label: "Custodia & tránsito", deferred: true }, // Paquete F
     ],
   },
   {
