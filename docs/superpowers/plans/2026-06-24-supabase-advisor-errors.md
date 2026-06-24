@@ -1,5 +1,11 @@
 # Plan — Remediación de los 5 errores del Supabase advisor (seguridad)
 
+> **✅ DONE — Implemented in PR #733 / #734 (2026-06-24).**
+> - Migration `0113_advisor_security_errors.sql` closed all **5 ERROR** items (RLS deny-all ×4 + drop view).
+> - Migration `0114_advisor_security_warns.sql` closed the critical **WARN** items
+>   (`function_search_path_mutable` ×7, leaked-password protection, anon RPC grants).
+> - The plan below is archived for historical reference.
+
 > **Para Claude Code.** Spec-driven, una sola migración + actualización del test de cobertura RLS.
 > Fuente: corrida del Supabase **security advisor** sobre el proyecto `DIM` (`mardurkdicugnzmpirjd`),
 > 2026-06-24. Total: **5 ERROR, 21 WARN, 6 INFO**. Este plan cubre **sólo los 5 ERROR** (lo que pidió
