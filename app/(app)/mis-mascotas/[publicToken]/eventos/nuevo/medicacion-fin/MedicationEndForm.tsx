@@ -22,18 +22,21 @@ type OpenMedication = {
 export function MedicationEndForm({
   action,
   openMedications,
+  defaults,
 }: {
   action: FormAction;
   openMedications: OpenMedication[];
+  /** Optional prefill values forwarded from URL searchParams (captura-rápida). */
+  defaults?: { occurredAt: string | null; notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
   const [selectedMedicationId, setSelectedMedicationId] = useState("");
-  const [occurredAt, setOccurredAt] = useState(today);
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
   const [reason, setReason] = useState("");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   return (
     <>

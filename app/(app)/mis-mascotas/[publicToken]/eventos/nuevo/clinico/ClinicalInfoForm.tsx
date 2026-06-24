@@ -33,7 +33,14 @@ const TITLE_PLACEHOLDERS: Record<SubKind, string> = {
   other: "Descripción breve",
 };
 
-export function ClinicalInfoForm({ action }: { action: FormAction }) {
+export function ClinicalInfoForm({
+  action,
+  defaults,
+}: {
+  action: FormAction;
+  /** Optional prefill values forwarded from URL searchParams (captura-rápida). */
+  defaults?: { occurredAt: string | null; notes: string | null };
+}) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
@@ -44,8 +51,8 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
   const [title, setTitle] = useState("");
   const [details, setDetails] = useState("");
   const [performedBy, setPerformedBy] = useState("");
-  const [occurredAt, setOccurredAt] = useState(today);
-  const [notes, setNotes] = useState("");
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   return (
     <>

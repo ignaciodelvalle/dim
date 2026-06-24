@@ -15,18 +15,21 @@ const FORM_ID = "symptom-form";
 export function SymptomForm({
   action,
   petName,
+  defaults,
 }: {
   action: FormAction;
   petName: string;
+  /** Optional prefill values forwarded from URL searchParams (captura-rápida). */
+  defaults?: { freeText: string | null; onsetAt: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
 
   // Controlled field state
-  const [freeText, setFreeText] = useState("");
+  const [freeText, setFreeText] = useState(defaults?.freeText ?? "");
   const [severity, setSeverity] = useState("");
-  const [onsetAt, setOnsetAt] = useState("");
+  const [onsetAt, setOnsetAt] = useState(defaults?.onsetAt ?? "");
 
   return (
     <>

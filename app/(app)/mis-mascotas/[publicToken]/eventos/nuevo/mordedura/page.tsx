@@ -8,11 +8,18 @@ import { BiteForm } from "./BiteForm";
 
 export default async function NewBitePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ occurredAt?: string }>;
 }) {
   const { publicToken } = await params;
+  const sp = await searchParams;
   const { pet } = await requireOwnedPetByToken(publicToken);
+  // Captura-rápida URL-prefill slots (event-capture-registry).
+  const defaults = {
+    occurredAt: sp.occurredAt ?? null,
+  };
 
   const isInObservation = pet.rabiesObservationStatus === "in_progress";
   const boundAction = reportBiteAction.bind(null, publicToken);
@@ -44,7 +51,7 @@ export default async function NewBitePage({
   return (
     <LnSheetWrap>
       <LnSheetCard>
-        <BiteForm action={boundAction} petName={pet.name} />
+        <BiteForm action={boundAction} petName={pet.name} defaults={defaults} />
       </LnSheetCard>
     </LnSheetWrap>
   );
