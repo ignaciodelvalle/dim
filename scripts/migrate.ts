@@ -255,6 +255,14 @@ async function ensureTrackingTable(sql: Sql): Promise<void> {
       applied_at timestamptz not null default now()
     );
   `);
+  // Secure the tracking table with RLS deny-all (Supabase advisor
+  // rls_disabled_in_public, migration 0113). The runner owns this table's
+  // creation, so enabling RLS here closes the finding in EVERY path: db:migrate
+  // creates _dim_migrations before applying 0113, and db:bootstrap creates it in
+  // its baseline step — which runs AFTER the best-effort migration replay, so
+  // 0113's own ALTER cannot reach it. Idempotent: no-op if already enabled. The
+  // runner connects as postgres (BYPASSRLS), so deny-all never blocks it.
+  await sql.unsafe(`alter table public.${TRACKING_TABLE} enable row level security;`);
 }
 
 /** Read the recorded migrations as filename → checksum. */
