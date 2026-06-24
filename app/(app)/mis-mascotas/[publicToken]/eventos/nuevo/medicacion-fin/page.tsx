@@ -9,10 +9,18 @@ import { MedicationEndForm } from "./MedicationEndForm";
 
 export default async function NewMedicationEndPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ occurredAt?: string; notes?: string }>;
 }) {
   const { publicToken } = await params;
+  const sp = await searchParams;
+  // Captura-rápida URL-prefill slots (event-capture-registry).
+  const defaults = {
+    occurredAt: sp.occurredAt ?? null,
+    notes: sp.notes ?? null,
+  };
   const session = await requireOwnedPetByToken(publicToken);
   const { pet } = session;
 
@@ -81,7 +89,11 @@ export default async function NewMedicationEndPage({
   return (
     <LnSheetWrap>
       <LnSheetCard>
-        <MedicationEndForm action={boundAction} openMedications={openMedications} />
+        <MedicationEndForm
+          action={boundAction}
+          openMedications={openMedications}
+          defaults={defaults}
+        />
       </LnSheetCard>
     </LnSheetWrap>
   );

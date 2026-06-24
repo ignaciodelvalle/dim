@@ -5,19 +5,28 @@ import { ClinicalInfoForm } from "./ClinicalInfoForm";
 
 export default async function NewClinicalInfoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ occurredAt?: string; notes?: string }>;
 }) {
   const { publicToken } = await params;
+  const sp = await searchParams;
   const session = await requireOwnedPetByToken(publicToken);
   const { pet } = session;
+
+  // Captura-rápida URL-prefill slots (event-capture-registry).
+  const defaults = {
+    occurredAt: sp.occurredAt ?? null,
+    notes: sp.notes ?? null,
+  };
 
   const boundAction = createClinicalInfoAction.bind(null, pet.publicToken);
 
   return (
     <LnSheetWrap>
       <LnSheetCard>
-        <ClinicalInfoForm action={boundAction} />
+        <ClinicalInfoForm action={boundAction} defaults={defaults} />
       </LnSheetCard>
     </LnSheetWrap>
   );

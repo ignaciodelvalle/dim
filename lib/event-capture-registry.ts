@@ -99,26 +99,33 @@ export const EVENT_CAPTURE_REGISTRY: Partial<Record<EventType, EventCaptureEntry
     description: "El usuario empezó a darle una medicación a su mascota",
     prefillSlots: ["notes", "occurredAt"],
   },
-  // ---- Forms reachable, slots not pre-filled (parsing needs LLM) ----
+  // ---- Forms with partial prefill (date/notes extractable; complex fields need LLM) ----
   medication_stopped: {
     route: "/eventos/nuevo/medicacion-fin",
     description: "El usuario terminó una medicación de su mascota",
-    prefillSlots: [],
+    // `occurredAt` + `notes` are the slots the page accepts; the drug selector
+    // (medicationStartedEventId) is loaded from the DB and cannot be pre-filled
+    // via URL — the user must choose the open medication from the list.
+    prefillSlots: ["occurredAt", "notes"],
   },
   incident_reported: {
     route: "/eventos/nuevo/mordedura",
     description: "El usuario reporta una mordedura u otro incidente de la mascota",
-    prefillSlots: [],
+    // `occurredAt` is extractable; severity/victimKind/context need LLM-level parsing.
+    prefillSlots: ["occurredAt"],
   },
   symptom_observed: {
     route: "?sheet=sintoma",
     description: "El usuario reporta un síntoma observado en su mascota",
-    prefillSlots: [],
+    // `freeText` (main description) and `onsetAt` are the two prefillable slots.
+    // `freeText` carries the user's raw symptom description; `onsetAt` is the onset date.
+    prefillSlots: ["freeText", "onsetAt"],
   },
   clinical_info_logged: {
     route: "/eventos/nuevo/clinico",
     description: "El usuario registra información clínica de su mascota",
-    prefillSlots: [],
+    // `occurredAt` + `notes` are safe to prefill; title/details/subKind need LLM parsing.
+    prefillSlots: ["occurredAt", "notes"],
   },
   // WP-4: new entries for identification events previously missing from registry.
   tattoo_recorded: {

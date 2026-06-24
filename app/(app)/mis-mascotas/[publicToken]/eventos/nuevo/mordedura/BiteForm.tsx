@@ -23,9 +23,12 @@ const FORM_ID = "bite-form";
 export function BiteForm({
   action,
   petName,
+  defaults,
 }: {
   action: FormAction;
   petName: string;
+  /** Optional prefill values forwarded from URL searchParams (captura-rápida). */
+  defaults?: { occurredAt: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
@@ -35,7 +38,7 @@ export function BiteForm({
   const [confirmObservation, setConfirmObservation] = useState(false);
 
   // Controlled field state
-  const [occurredAt, setOccurredAt] = useState(today);
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
   const [locationDescription, setLocationDescription] = useState("");
   const [victimContactName, setVictimContactName] = useState("");
   const [victimContactPhone, setVictimContactPhone] = useState("");

@@ -16,8 +16,8 @@
  * opt-in quick-capture only. The reminder-linked vaccination flow continues
  * to use the dedicated route.
  *
- * NOTE: SymptomForm has no `defaults` or `freeText` prop, so the `text` param
- * is dropped for the "sintoma" sheet.
+ * NOTE: SymptomForm accepts `freeText` and `onsetAt` prefill slots via searchParams.
+ * These are forwarded from buildCaptureDeeplink when the symptom_observed intent fires.
  */
 
 import { LnButton } from "@/components/ui/Button";
@@ -104,6 +104,9 @@ export function SheetMounter({
   const kg = searchParams.get("kg") ?? undefined;
   const occurredAt = searchParams.get("occurredAt") ?? undefined;
   const notes = searchParams.get("notes") ?? undefined;
+  // Symptom-specific prefill slots (symptom_observed registry entry).
+  const freeText = searchParams.get("freeText") ?? undefined;
+  const onsetAt = searchParams.get("onsetAt") ?? undefined;
 
   const close = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -144,7 +147,11 @@ export function SheetMounter({
     const action = createSymptomObservedAction.bind(null, petToken);
     return (
       <Sheet id="sintoma" title="Registrar síntoma" open onClose={close}>
-        <SymptomForm action={action} petName={petName} />
+        <SymptomForm
+          action={action}
+          petName={petName}
+          defaults={{ freeText: freeText ?? null, onsetAt: onsetAt ?? null }}
+        />
       </Sheet>
     );
   }

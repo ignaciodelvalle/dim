@@ -52,17 +52,24 @@ describe("EVENT_CAPTURE_REGISTRY", () => {
     }
   });
 
-  it("complex forms (incident, symptom, clinical) have empty prefillSlots", () => {
-    const expectedEmpty: EventType[] = [
-      "medication_stopped",
-      "incident_reported",
-      "symptom_observed",
-      "clinical_info_logged",
-    ];
-    for (const t of expectedEmpty) {
-      const entry = EVENT_CAPTURE_REGISTRY[t];
-      expect(entry?.prefillSlots, `prefillSlots for ${t}`).toEqual([]);
-    }
+  it("medication_stopped prefills occurredAt and notes (A11 fix)", () => {
+    const entry = EVENT_CAPTURE_REGISTRY.medication_stopped;
+    expect(entry?.prefillSlots).toEqual(["occurredAt", "notes"]);
+  });
+
+  it("incident_reported prefills occurredAt (A11 fix)", () => {
+    const entry = EVENT_CAPTURE_REGISTRY.incident_reported;
+    expect(entry?.prefillSlots).toEqual(["occurredAt"]);
+  });
+
+  it("symptom_observed prefills freeText and onsetAt (A11 fix)", () => {
+    const entry = EVENT_CAPTURE_REGISTRY.symptom_observed;
+    expect(entry?.prefillSlots).toEqual(["freeText", "onsetAt"]);
+  });
+
+  it("clinical_info_logged prefills occurredAt and notes (A11 fix)", () => {
+    const entry = EVENT_CAPTURE_REGISTRY.clinical_info_logged;
+    expect(entry?.prefillSlots).toEqual(["occurredAt", "notes"]);
   });
 
   it("medication_started forwards typed text via the EventCatcher chip handoff", () => {
@@ -128,17 +135,35 @@ describe("buildCaptureDeeplink", () => {
     expect(url).not.toContain("randomKey");
   });
 
-  it("empty-prefillSlots event types still produce a bare URL — full-page route", () => {
+  it("incident_reported slots unknown keys are dropped, occurredAt is included (A11)", () => {
     const url = buildCaptureDeeplink("incident_reported" as EventType, "DIM-XXXX-YY", {
-      ...({ anything: "ignored" } as Record<string, string>),
-    });
+      occurredAt: "2026-06-24",
+      anything: "ignored",
+    } as Record<string, string>);
+    expect(url).toContain("occurredAt=2026-06-24");
+    expect(url).not.toContain("anything");
+    expect(url).toMatch(/^\/mis-mascotas\/DIM-XXXX-YY\/eventos\/nuevo\/mordedura/);
+  });
+
+  it("incident_reported with no slots produces bare URL", () => {
+    const url = buildCaptureDeeplink("incident_reported" as EventType, "DIM-XXXX-YY", {});
     expect(url).toBe("/mis-mascotas/DIM-XXXX-YY/eventos/nuevo/mordedura");
   });
 
-  it("empty-prefillSlots event types produce a bare sheet URL — sheet route", () => {
+  it("symptom_observed forwards freeText and onsetAt into sheet URL (A11)", () => {
     const url = buildCaptureDeeplink("symptom_observed" as EventType, "DIM-XXXX-YY", {
-      ...({ anything: "ignored" } as Record<string, string>),
-    });
+      freeText: "vomita mucho",
+      onsetAt: "2026-06-20",
+      anything: "ignored",
+    } as Record<string, string>);
+    expect(url).toContain("sheet=sintoma");
+    expect(url).toContain("freeText=vomita+mucho");
+    expect(url).toContain("onsetAt=2026-06-20");
+    expect(url).not.toContain("anything");
+  });
+
+  it("symptom_observed with no slots produces bare sheet URL", () => {
+    const url = buildCaptureDeeplink("symptom_observed" as EventType, "DIM-XXXX-YY", {});
     expect(url).toBe("/mis-mascotas/DIM-XXXX-YY?sheet=sintoma");
   });
 
