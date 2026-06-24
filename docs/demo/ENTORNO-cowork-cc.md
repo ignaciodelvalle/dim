@@ -61,11 +61,19 @@ levantarlo después. Si un build parece colgado, casi siempre es esto: matar nod
 ---
 
 ### Estado actual (2026-06-24)
-- **Rama activa:** `fix/demo-panorama-consolidated` → **PR #732** (base `feat/nav-deferred-population-cycle`).
-  Consolida EXEC #730 + NAV #731 + Panorama/CAM (Olas 0–2). `pnpm verify` + `pnpm test` verdes.
-- PRs abiertos (sesión CC): **#732** (demo+panorama, base `feat/nav-deferred-population-cycle`),
-  **#733** (5 ERROR del Supabase advisor — RLS, base `review/all-session-prs`),
-  **#734** (WARN del advisor — `search_path` + revoke anon, stack sobre #733). Más los previos #730/#731.
-- La consolidada desciende de `review/all-session-prs` e incluye todo lo de #730/#731 sin rehacerlo.
+- **▶ Rama activa (browser/review): `integration/session-review`** — TODO junto: demo+panorama (#732)
+  **+** seguridad advisor (#734) mergeados. Es la ÚNICA rama que refleja el estado completo actual;
+  cowork la checkea para navegar y revisar honestamente. `pnpm verify` verde · `pnpm demo:verify` verde
+  · tests RLS verdes. DB local: `seed:panorama` (45.796 mascotas) + `seed:demo:scenario` (focal CABA).
+  Levantar: `git checkout integration/session-review; git pull; $env:NEXT_PUBLIC_DEMO_MODE="true"; pnpm dev`.
+- PRs abiertos (unidades de review en GitHub — NO navegar acá, revisar el diff):
+  - **#732** demo+panorama (base `feat/nav-deferred-population-cycle`) — lo **visible** en browser.
+  - **#734** seguridad advisor 0113+0114 (base `review/all-session-prs`) — **solo DB** (RLS/migraciones/
+    grants), no se ve en browser; se revisa por el diff + el advisor.
+  - #733 cerrado sin merge; rama `fix/sec-advisor-rls-errors` borrada (su contenido vive en #734).
 - **Acción del owner (no-código):** activar *leaked password protection* en el Supabase Dashboard
   (Authentication → Password) para cerrar el último WARN crítico — detalle en el PR #734.
+- **Salud del repo:** `git fsck --full` limpio (sin corrupción; solo objetos *dangling* normales). El
+  trabajo uncommitted previo se preservó en `wip/demo-panorama-rescue`. ⚠️ La base
+  `review/all-session-prs` está **stale**: le falta el fix de `server-only` (seeds crashean en bootstrap)
+  — conviene forward-portear `ca44d624`+`488337bb` o rebasear. Detalle en el reporte de la sesión.
