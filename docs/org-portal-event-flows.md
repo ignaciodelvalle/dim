@@ -1,5 +1,18 @@
 # DIM — Org portal event flows
 
+> **IMPLEMENTED / shipped.** The flows described here are live in `src/modules/*/actions.ts`.
+> This document is archived for historical reference. Notable deviations from the original plan:
+>
+> - `adoption_application_reviewed` event type **removed** (catalog cleanup 2026-05-18) — the
+>   application table's `status` field covers the "in review" stage.
+> - `adoption_revoked` **renamed** to `adoption_reversed` (umbrella for revoked + withdrawn;
+>   catalog cleanup 2026-05-19). Actor discriminator: `shelter | adopter | court`.
+> - Cross-org transfer cancellations emit `custody_transfer_cancelled` (dedicated event type),
+>   NOT `note_added(category='custody_transfer_cancelled')` — structured cancellation is ARCH-B fix.
+> - Cross-org transfer expiry is **30 days** (not 7 days).
+> - Routes are at `/org/[orgToken]/*` (not `/refugio/[orgToken]`).
+> - Org portal lives in `app/org/` route group (not `app/(refugio)/`).
+
 The atomic event sequences for each composite workflow in the org portal. The orchestrator should treat these as authoritative; the spec in `AGENTS.md` is more permissive but this file fixes the open questions.
 
 All transactions below run inside a single `db.transaction(async (tx) => { ... })` block. Failure of any step rolls back all of them. Every event row gets `recorded_by_user_id` (the human), `author_role`, `author_organization_id`, `author_verified` set via `lib/event-authorship.ts`.
@@ -12,6 +25,7 @@ Append the following to `EVENT_TYPES` in `db/schema.ts` (alphabetical order with
 // Custody — transfers between users and orgs (two-event handshake for proposals)
 "custody_transfer_proposed",
 "custody_transferred",
+"custody_transfer_cancelled",  // structured cancellation (ARCH-B fix; replaces note_added approach)
 
 // Custody — shelter intake
 "shelter_intake_recorded",
@@ -22,15 +36,15 @@ Append the following to `EVENT_TYPES` in `db/schema.ts` (alphabetical order with
 
 // Adoption pipeline
 "adoption_application_submitted",
-"adoption_application_reviewed",
-"adoption_application_approved",
-"adoption_application_rejected",
+// "adoption_application_reviewed" — REMOVED (catalog cleanup 2026-05-18)
+"adoption_application_resolved",  // outcome: approved|rejected (collapses _approved/_rejected)
 "adoption_finalized",
 "post_adoption_checkin",
-"adoption_revoked",
+// "adoption_revoked" — RENAMED to adoption_reversed (catalog cleanup 2026-05-19)
+"adoption_reversed",  // actor: shelter|adopter|court
 ```
 
-That's 12 new types. None of them require enum changes — `event_type` is `text`.
+None of these require enum changes — `event_type` is `text`.
 
 ## Flow 1 — Shelter intake, new pet in DIM
 
@@ -91,16 +105,19 @@ If accepted:
   - Insert `notifications` to Refugio A admins: accepted.
 
 If rejected:
-- Insert `pet_events` of type `note_added` with payload `{ category: 'custody_transfer_rejected', text: <reason>, proposal_event_id: <P1 event id> }`. Authorship by Refugio B.
+- Insert `pet_events` of type `custody_transfer_cancelled` with payload `{ proposal_event_id: <P1 event id>, cancelled_by: 'receiver', reason? }`. Authorship by Refugio B.
 - Insert `notifications` to Refugio A admins: rejected.
 
 **Cancelling side** (Refugio A cancels before B responds).
 
 Step C1 — User: admin/coordinator of Refugio A with `custody.transfer.cancel`:
-- Insert `pet_events` of type `note_added` with payload `{ category: 'custody_transfer_cancelled', proposal_event_id: <P1 event id>, reason? }`. Authorship by Refugio A.
+- Insert `pet_events` of type `custody_transfer_cancelled` with payload `{ proposal_event_id: <P1 event id>, cancelled_by: 'sender', reason? }`. Authorship by Refugio A.
 - Insert `notifications` to Refugio B admins: cancelled.
 
-A proposal is "still pending" only if **none** of these three follow-up events reference it.
+> **Note:** Cross-org transfer proposals expire after **30 days** (not 7 days as originally planned).
+> State is tracked via the `custody_transfer_handshake` case kind (`lib/case-attachment.ts`).
+
+A proposal is "still pending" only if **none** of these follow-up events (`custody_transferred` or `custody_transfer_cancelled`) reference it by `proposal_event_id`.
 
 ## Flow 4 — Foster assign
 
@@ -132,15 +149,12 @@ Single insert:
 - Insert `pet_events` of type `adoption_application_submitted`. Payload `{ applicant_user_id, related_organization_id: pet's current custody org id, housing_type?, other_pets?, daily_routine?, notes? }`. Authorship: `author_role='owner'`, `author_organization_id=null` (the applicant is acting as an individual, not as the org), `recorded_by_user_id=applicant`.
 - Insert `notifications` to every admin/coordinator of the org: "Nueva aplicación para {pet.name}". CTA to the application detail.
 
-**Review** — User: admin/coordinator of org with `adoption.applications.review`.
+**Review** — `adoption_application_reviewed` event type was **removed** (catalog cleanup 2026-05-18).
+The application table's `status` field covers the "in review" stage without a dedicated event.
 
-Insert `pet_events` of type `adoption_application_reviewed`. Payload `{ application_event_id, reviewer_user_id, notes? }`. Authorship by org.
+**Approve / Reject** — User: admin/coordinator with `adoption.review`.
 
-This is a "I read this" marker. Multiple review events per application are allowed.
-
-**Approve / Reject** — User: admin/coordinator with `adoption.applications.approve` / `.reject`.
-
-Insert `pet_events` of type `adoption_application_approved` (or `_rejected`). Payload includes `application_event_id`, `reviewer_user_id`, `conditions?` (approved) or `reason?` (rejected). Authorship by org.
+Insert `pet_events` of type `adoption_application_resolved`. Payload `{ application_event_id, reviewer_user_id, outcome: 'approved'|'rejected', reason?, conditions?, auto_generated? }`. Authorship by org.
 
 Insert `notifications` to the applicant: "Tu aplicación para {pet.name} fue aprobada/rechazada".
 
@@ -177,15 +191,18 @@ Single insert:
 
 A missed check-in (reminder past due_at + 7 days without completion) generates a `notifications` row of type `adoption_post_checkin_missed` to **both** adopter and org admins (see scheduled job in main prompt). The public credential is not degraded — explicit AGENTS.md rule.
 
-## Flow 9 — Adoption revoked
+## Flow 9 — Adoption reversed (previously "adoption revoked")
+
+> `adoption_revoked` was renamed to `adoption_reversed` in catalog cleanup 2026-05-19.
+> It is the umbrella event for both revocation (shelter/court) and withdrawal (adopter).
 
 User: admin (NOT coordinator) of the org that finalized. Used when the adopter is in clear breach.
 
 Transaction:
-1. Insert `pet_events` of type `adoption_revoked`. Payload `{ reason, returned_to_organization_id: org.id, finalized_event_id }`. Authorship by org.
+1. Insert `pet_events` of type `adoption_reversed`. Payload `{ actor: 'shelter'|'adopter'|'court', reason, reverted_finalization_event_id }`. Authorship by org.
 2. Update current `ownerships` row (`role='owner', owner_user_id=adopter`): `ended_at = now()`.
 3. Insert new `ownerships` row: `owner_organization_id = org.id`, `role = 'shelter_custody'`.
-4. Insert `notifications` to former adopter: "Adopción revocada", body explains the reason. Severity `urgent`.
+4. Insert `notifications` to former adopter: "Adopción revertida", body explains the reason. Severity `urgent`.
 
 The pet returns to `/adoptar` listing automatically (because the projection reads current Ownership).
 
@@ -236,8 +253,8 @@ ADOPTION FINALIZED (composite):
 POST-ADOPTION CHECKIN:
   post_adoption_checkin+ ; reminder.complete ; notifications+
 
-ADOPTION REVOKED:
-  Tx { adoption_revoked+ ; ownerships(owner).end ; ownerships(shelter_custody)+ } ; notifications+
+ADOPTION REVERSED:
+  Tx { adoption_reversed+ ; ownerships(owner).end ; ownerships(shelter_custody)+ } ; notifications+
 ```
 
 `+` = insert; `.end` = set `ended_at = now()`; `Tx { ... }` = single atomic transaction.
