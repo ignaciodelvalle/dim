@@ -92,6 +92,7 @@ export async function generatePppExportAction(
         // If the legal form ever requires the full DNI, it must be fetched
         // on-demand from Mi Argentina (see TODO 25b) — never from this DB.
         dniLast4: profiles.dniLast4,
+        dniVerified: profiles.dniVerified,
       })
       .from(profiles)
       .where(eq(profiles.id, user.id))
@@ -121,7 +122,14 @@ export async function generatePppExportAction(
     // Wave 5 Item 25a: PPP PDF now receives last-4 only (no plaintext DNI).
     // TODO(25b): if RUPPPA requires the full DNI, fetch it on-demand from
     // Mi Argentina claims — never store it.
-    ownerDniNumber: ownerProfile?.dniLast4 ? `••••${ownerProfile.dniLast4}` : null,
+    // Wave 5 Item 25a (A7 fix): derive masked DNI display from dniVerified + dniLast4.
+    // NEVER reconstruct or expose a full DNI — it was removed in migration 0106.
+    // Verified owner → masked last-4 with source attribution.
+    // Unverified owner → null (renderer shows the "organismo" fallback message).
+    ownerDniNumber:
+      ownerProfile?.dniVerified && ownerProfile.dniLast4
+        ? `DNI ····${ownerProfile.dniLast4} — verificado por Mi Argentina`
+        : null,
     ownerEmail,
     jurisdictionProvince: ownerRow.petJurisdictionProvince ?? CABA_PROVINCE,
     jurisdictionLocality: ownerRow.petJurisdictionLocality ?? null,
