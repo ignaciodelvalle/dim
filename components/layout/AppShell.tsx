@@ -106,16 +106,19 @@ function CitizenShell({ masthead, footer, maxWidth, children }: CitizenProps) {
 
 function OperatorShell({ rail, topbar, banner, maxWidth, children }: OperatorProps) {
   return (
-    // 100vh column: optional banner on top, then the rail+main row fills the
-    // rest (min-h-0 so the inner scroll area — not the document — scrolls). The
-    // banner lives INSIDE the shell so the page never exceeds 100vh (V1/V3).
-    <div className="flex h-screen flex-col overflow-hidden bg-ln-op-page text-ln-op-ink text-[13px] leading-[1.45] [&_*]:box-border">
+    // Viewport-locked column: `fixed inset-0` pins the operator chrome to the
+    // viewport and takes it OUT of document flow, so the document itself can
+    // never scroll (the inner area scrolls instead). Scoped to the operator
+    // shell — citizen/landing surfaces keep normal body-level scrolling.
+    // Optional banner on top; the rail+main row fills the rest (min-h-0 so the
+    // inner scroll area — not the document — scrolls).
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink text-[13px] leading-[1.45] [&_*]:box-border">
       {banner}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {rail}
-        <main id="main-content" className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <main id="main-content" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {topbar}
-          <div className="flex-1 overflow-auto px-6 py-[22px]">
+          <div className="min-h-0 flex-1 overflow-auto px-6 py-[22px]">
             {maxWidth ? <div className={`${maxWidth} mx-auto`}>{children}</div> : children}
           </div>
         </main>
