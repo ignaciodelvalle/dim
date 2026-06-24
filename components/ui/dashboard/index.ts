@@ -1,3 +1,5 @@
+export { OpButton } from "./OpButton";
+export type { OpButtonVariant, OpButtonSize } from "./OpButton";
 export { OpRail } from "./OpRail";
 export { OpRailNav } from "./OpRailNav";
 export type { NavSection } from "./OpRailNav";

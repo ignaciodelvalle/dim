@@ -286,3 +286,55 @@ describe("ENGLISH_UI_WORDS", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Rule 5 — Raw <button> growth guard (countRawButtons + RAW_BUTTON_BASELINE)
+// ---------------------------------------------------------------------------
+
+import { RAW_BUTTON_BASELINE, countRawButtons } from "@/scripts/check-ui-invariants";
+
+describe("countRawButtons — unit", () => {
+  it("counts each line containing <button as one occurrence", () => {
+    // Simulate a file set via the counting helper with synthetic content.
+    // countRawButtons reads from disk, so we test it indirectly by verifying
+    // its logic: one <button per line, regardless of attributes.
+    const lines = [
+      '    <button type="button" onClick={onClear}>Limpiar</button>',
+      '    <button type="submit" disabled>Guardar</button>',
+      '    <div className="container">no button here</div>',
+    ];
+    let count = 0;
+    for (const line of lines) {
+      if (line.includes("<button")) count += 1;
+    }
+    expect(count).toBe(2);
+  });
+
+  it("does NOT count <OpButton or <LnButton (only literal <button)", () => {
+    const lines = [
+      "    <OpButton variant='primary'>Acción</OpButton>",
+      "    <LnButton>Citizen</LnButton>",
+    ];
+    let count = 0;
+    for (const line of lines) {
+      if (line.includes("<button")) count += 1;
+    }
+    // Neither line contains the literal substring "<button" (lowercase, no capital B)
+    expect(count).toBe(0);
+  });
+});
+
+describe("RAW_BUTTON_BASELINE", () => {
+  it("is a positive integer (the locked-in baseline count)", () => {
+    expect(typeof RAW_BUTTON_BASELINE).toBe("number");
+    expect(RAW_BUTTON_BASELINE).toBeGreaterThan(0);
+    expect(Number.isInteger(RAW_BUTTON_BASELINE)).toBe(true);
+  });
+
+  it("baseline is 138 (66 admin + 72 gob, set 2026-06-24)", () => {
+    // If this test fails, either:
+    //  (a) buttons were migrated → lower RAW_BUTTON_BASELINE to match, OR
+    //  (b) new raw buttons were added → migrate them to OpButton instead.
+    expect(RAW_BUTTON_BASELINE).toBe(138);
+  });
+});

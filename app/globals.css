@@ -156,6 +156,10 @@
   --radius-input: 10px;
   --radius-card: 16px;
   --radius-pill: 9999px;
+  /* Operator-tier button radius — 6px, matching the rounded-md (6px) that
+   * both OpSubmitButton and OpBulkBar action buttons already use. Defined here
+   * so the value ratchets down via a single token if the design updates. */
+  --radius-op-btn: 6px;
 
   /* Z-index scale (Poncho PR-F). Explicit values prevent silent z-index
    * wars between overlays. Layered: stripe (chrome) < header < drawer <

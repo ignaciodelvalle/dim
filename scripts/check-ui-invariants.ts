@@ -270,6 +270,42 @@ export const ENGLISH_UI_WORD_ALLOWLIST = new Set<string>([
 ]);
 
 // ---------------------------------------------------------------------------
+// Rule 5 — Raw <button> growth guard in app/admin + app/gob
+// ---------------------------------------------------------------------------
+// Operator-tier surfaces must migrate raw <button className=...> to OpButton.
+// We cannot block all 138 legacy buttons in one PR — migration is incremental,
+// module-by-module. This guard captures the BASELINE count and fails only if
+// the count INCREASES (new raw buttons added). As modules are migrated the
+// baseline is ratcheted DOWN by editing this constant.
+//
+// Baseline set on 2026-06-24 (chore/operator-button-primitive):
+//   app/admin/**  — 66 raw <button tags
+//   app/gob/**    — 72 raw <button tags
+//   Total         — 138
+//
+// To ratchet down after migrating a module: grep for "<button" in the migrated
+// directory, verify the new count, and lower the constant accordingly.
+export const RAW_BUTTON_BASELINE = 138;
+
+// Files to scan for raw button growth (operator tier only).
+const RAW_BUTTON_FILES = globSync("{app/admin,app/gob}/**/*.tsx");
+
+// Counts the number of <button JSX opening tag occurrences across a file set.
+// We match any line containing the literal substring "<button" (case-sensitive,
+// since JSX tags are lowercase). This is intentionally broad — any raw <button
+// in these directories counts, regardless of className.
+export function countRawButtons(files: string[]): number {
+  let total = 0;
+  for (const file of files) {
+    const content = readFileSync(file, "utf8");
+    for (const line of content.split(/\r?\n/)) {
+      if (line.includes("<button")) total += 1;
+    }
+  }
+  return total;
+}
+
+// ---------------------------------------------------------------------------
 // File globbing
 // ---------------------------------------------------------------------------
 
@@ -386,6 +422,21 @@ function runScan(): void {
         }
       }
     });
+  }
+
+  // --- Rule 5: Raw <button> growth guard ---
+  const rawButtonCount = countRawButtons(RAW_BUTTON_FILES);
+  if (rawButtonCount > RAW_BUTTON_BASELINE) {
+    console.error(
+      `app/admin + app/gob: raw <button count grew from baseline ${RAW_BUTTON_BASELINE} to ${rawButtonCount}. Use OpButton instead of raw <button in operator-tier surfaces. If this is a legitimate new button, update RAW_BUTTON_BASELINE in scripts/check-ui-invariants.ts and add a migration task for the module.`,
+    );
+    hits += 1;
+  } else {
+    const remaining = rawButtonCount;
+    // Log progress toward zero so the ratchet is visible in CI output.
+    console.log(
+      `✓ Raw button baseline: ${remaining}/${RAW_BUTTON_BASELINE} remaining (${RAW_BUTTON_BASELINE - remaining} migrated).`,
+    );
   }
 
   if (hits > 0) {
