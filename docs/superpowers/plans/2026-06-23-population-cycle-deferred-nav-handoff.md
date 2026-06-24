@@ -1,5 +1,7 @@
 # Plan: Ciclo de población/custodia — affordance de nav *deferred* (admin)
 
+> **🧭 Orden global: ver [`2026-06-23-CONSOLIDATED-demo-panorama-cc.md`](./2026-06-23-CONSOLIDATED-demo-panorama-cc.md)** (orquestador). Este doc tiene el detalle file-level (D1–D7); el orquestador lo ubica en la Ola 3.
+
 > **Para Claude Code — ejecución 100% autónoma.** Hace **visible** en la IA del perfil **admin** (scope universal)
 > el hueco de la North Star — el *ciclo de población/custodia* casi sin proyectar (ver
 > [`specs/2026-06-23-dashboards-vnext-roadmap.md`](../specs/2026-06-23-dashboards-vnext-roadmap.md) §1) — **sin construir
