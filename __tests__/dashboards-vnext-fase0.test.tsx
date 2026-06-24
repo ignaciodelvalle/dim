@@ -121,17 +121,17 @@ describe("OpKpi — Fase 0 full-prop contract", () => {
 
   it("renders warn-tone card class when tone='warn'", () => {
     const html = renderToStaticMarkup(FASE0_KPI);
-    // warn tone maps to bg-ln-op-warn-bg token.
-    expect(html).toContain("ln-op-warn");
+    // warn tone maps to --color-st-warn-* tokens (st-* semantic layer from PR-1).
+    expect(html).toContain("var(--color-st-warn-bg)");
   });
 
   it("renders ok-tone card class when tone='ok'", () => {
     const html = renderToStaticMarkup(<OpKpi label="Microchip" value="83%" tone="ok" />);
-    expect(html).toContain("ln-op-ok");
+    expect(html).toContain("var(--color-st-ok-bg)");
   });
 
   it("renders danger-tone card class when tone='danger'", () => {
     const html = renderToStaticMarkup(<OpKpi label="Adopciones" value="10%" tone="danger" />);
-    expect(html).toContain("ln-op-danger");
+    expect(html).toContain("var(--color-st-err-bg)");
   });
 });
