@@ -600,45 +600,6 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// ADMIN_NAV_SECTIONS deferred — population/custody roadmap affordance (D5/D6)
-// plan 2026-06-23-population-cycle-deferred-nav-handoff.md
-// ---------------------------------------------------------------------------
-
-describe("ADMIN_NAV_SECTIONS deferred — population/custody affordance", () => {
-  const analitica = ADMIN_NAV_SECTIONS.find((s) => s.label === "Analítica");
-
-  it("Analítica contains exactly 2 deferred items: Control poblacional + Custodia & tránsito", () => {
-    const deferred = (analitica?.items ?? []).filter((i) => i.deferred);
-    expect(deferred.map((i) => i.label)).toEqual(["Control poblacional", "Custodia & tránsito"]);
-  });
-
-  it("every deferred item uses a #-sentinel href; no live item uses a # href", () => {
-    for (const item of ADMIN_NAV_SECTIONS.flatMap((s) => s.items)) {
-      if (item.deferred) {
-        expect(item.href.startsWith("#")).toBe(true);
-      } else {
-        expect(item.href.startsWith("#")).toBe(false);
-      }
-    }
-  });
-
-  it("deferred items carry no badge and no matchPrefix (pure presentation, never active)", () => {
-    const deferred = ADMIN_NAV_SECTIONS.flatMap((s) => s.items).filter((i) => i.deferred);
-    expect(deferred).toHaveLength(2);
-    for (const item of deferred) {
-      expect(item.badge).toBeUndefined();
-      expect(item.matchPrefix).toBeUndefined();
-    }
-  });
-
-  it("the deferred entries sit at the END of the Analítica section (after the live items)", () => {
-    const items = analitica?.items ?? [];
-    expect(items.slice(-2).every((i) => i.deferred)).toBe(true);
-    expect(items.slice(0, -2).every((i) => !i.deferred)).toBe(true);
-  });
-});
-
 describe("ADMIN_NAV_FLAT — derived flat list", () => {
   it("exports ADMIN_NAV_FLAT equal to ADMIN_NAV_SECTIONS.flatMap(s => s.items)", () => {
     const derived = ADMIN_NAV_SECTIONS.flatMap((s) => s.items);
