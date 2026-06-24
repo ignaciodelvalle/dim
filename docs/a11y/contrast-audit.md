@@ -79,6 +79,32 @@ El token `--color-gob-warning-text` (alias legacy) fue actualizado en paralelo p
 
 ---
 
+## Actualización — 2026-06-24
+
+### Operator status tokens — `--color-ln-op-warn` and `--color-ln-op-danger`
+
+Audited as part of the `st-*` semantic token layer (design PR-1, branch `fix/operator-status-token-layer`).
+
+| Token | Foreground | Background | Ratio | Veredicto |
+| --- | --- | --- | --- | --- |
+| `--color-ln-op-warn` (antes `#9c6700`) | `#9c6700` | `#fff4da` (`ln-op-warn-bg`) | **4.41 : 1** | ❌ AA fail (< 4.5 : 1) |
+| `--color-ln-op-warn` (nuevo `#96600e`) | `#96600e` | `#fff4da` (`ln-op-warn-bg`) | **4.83 : 1** | ✅ AA |
+| `--color-ln-op-warn` (nuevo `#96600e`) | `#96600e` | `#ffffff` (blanco) | **5.28 : 1** | ✅ AA |
+| `--color-ln-op-danger` (`#b71c1c`) | `#b71c1c` | `#fce7e8` (`ln-op-danger-bg`) | **5.55 : 1** | ✅ AA |
+
+**Acción:** `--color-ln-op-warn` darkened from `#9c6700` → `#96600e` (coincide con `--color-ln-warn` citizen, misma ratio). `--color-ln-op-sev-med` actualizado en paralelo (mismo valor). Sin cambio en `ln-op-danger`.
+
+### Violetas — decisión de unificación st-info
+
+| Token | Valor | Superficie | Ratio sobre bg | Veredicto |
+| --- | --- | --- | --- | --- |
+| `--color-ln-violeta` (citizen) | `#6b4ea8` | `--color-ln-violeta-050` `#f0ecf8` | **5.51 : 1** | ✅ AA |
+| `--color-ln-op-viol` (operator) | `#6a4c93` | `--color-ln-op-viol-bg` `#ece5f5` | **5.57 : 1** | ✅ AA |
+
+**Decisión:** Los dos violetas tienen valores distintos a propósito — el operator (`#6a4c93`) fue calibrado sobre la paleta cool-tone navy; el citizen (`#6b4ea8`) sobre el fondo cálido. Ambos pasan AA. Comparten el **nombre** `st-info` por contexto de skin (ver `.op-surface` en globals.css); el valor NO se unifica. Una hex compartida regresaría el contraste ya ganado en una de las dos superficies.
+
+---
+
 ## Cuándo re-auditar
 
 - Cuando se agregue un nuevo `--color-*` token a `app/globals.css`.

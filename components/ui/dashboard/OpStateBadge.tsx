@@ -6,11 +6,15 @@ type Props = {
   label?: string;
 };
 
+// Status classes use st-* tokens — resolved to ln-op-* values via .op-surface
+// cascade (zero visual diff; see globals.css .op-surface block).
 const STATE_CLASSES: Record<State, string> = {
-  published: "bg-ln-op-ok-bg text-ln-op-ok border-ln-op-ok-bd",
-  paused: "bg-ln-op-warn-bg text-ln-op-warn border-ln-op-warn-bd",
+  published: "bg-[var(--color-st-ok-bg)] text-[var(--color-st-ok)] border-[var(--color-st-ok-bd)]",
+  paused:
+    "bg-[var(--color-st-warn-bg)] text-[var(--color-st-warn)] border-[var(--color-st-warn-bd)]",
   draft: "bg-ln-op-stripe text-ln-op-mute border-ln-op-line",
-  adopted: "bg-ln-op-viol-bg text-ln-op-viol border-ln-op-viol-bd",
+  adopted:
+    "bg-[var(--color-st-info-bg)] text-[var(--color-st-info)] border-[var(--color-st-info-bd)]",
 };
 
 /**

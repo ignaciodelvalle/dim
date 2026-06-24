@@ -26,6 +26,7 @@
 //   - app/globals.css is .css, not .ts/.tsx, so it's never globbed in.
 
 import { globSync, readFileSync } from "node:fs";
+import { sep } from "node:path";
 
 // Post-filter approach: glob all files then filter by path.
 // Note: Node 22 globSync `exclude` callback receives bare filenames (not full paths),
@@ -58,6 +59,23 @@ const ARBITRARY_HEX_ALLOWLIST = new Set<string>([
   // (empty — all previously allowlisted hex values now have ln-* tokens)
 ]);
 
+// Operator status components that should prefer st-* over raw ln-op-ok/warn/danger/viol.
+// This is a WARN-level guard (not hard-error) — emits advisory messages without
+// incrementing the exit-1 hit counter. These raw tokens are still valid CSS; this
+// guard nudges future authors toward the semantic st-* layer.
+const OP_STATUS_COMPONENTS = new Set(
+  [
+    "components/ui/dashboard/OpPill.tsx",
+    "components/ui/dashboard/OpStateBadge.tsx",
+    "components/ui/dashboard/CaseStatusBadge.tsx",
+    "components/ui/dashboard/OpKpi.tsx",
+  ].map((p) => p.replaceAll("/", sep)),
+);
+
+// Matches raw ln-op-ok/warn/danger/viol token utilities that the st-* layer replaces.
+// Does NOT match ln-op-ok-bg / ln-op-ok-bd companions (those are covered transitively).
+const RAW_OP_STATUS = /\b(?:bg|text|border)-ln-op-(?:ok|warn|danger|viol)(?:-bg|-bd)?\b/g;
+
 let hits = 0;
 for (const file of FILES) {
   const lines = readFileSync(file, "utf8").split(/\r?\n/);
@@ -80,6 +98,16 @@ for (const file of FILES) {
         `${file}:${i + 1}:${(match.index ?? 0) + 1}: arbitrary hex "${match[0]}" — use a ln-* token utility (e.g. bg-[var(--color-ln-ok-050)]). Autofix: pnpm tsx scripts/codemod-status-tints.cjs`,
       );
       hits += 1;
+    }
+    // Warn-level: raw ln-op-ok/warn/danger/viol in operator status components.
+    if (OP_STATUS_COMPONENTS.has(file)) {
+      for (const match of line.matchAll(RAW_OP_STATUS)) {
+        // Skip comment lines (TSX single-line comments // …)
+        if (line.trimStart().startsWith("//")) continue;
+        console.warn(
+          `[warn] ${file}:${i + 1}:${(match.index ?? 0) + 1}: "${match[0]}" in operator status component — prefer st-* token (e.g. text-[var(--color-st-ok)]). See globals.css .op-surface block.`,
+        );
+      }
     }
   });
 }

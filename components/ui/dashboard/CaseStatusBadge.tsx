@@ -15,14 +15,17 @@ interface Props {
   label?: string;
 }
 
+// Status classes use st-* tokens — resolved to ln-op-* values via .op-surface
+// cascade (zero visual diff; see globals.css .op-surface block).
 const STATUS_CONFIG: Record<CaseStatus, { label: string; classes: string }> = {
   open: {
     label: "Abierto",
-    classes: "bg-ln-op-ok-bg text-ln-op-ok border-ln-op-ok-bd",
+    classes: "bg-[var(--color-st-ok-bg)] text-[var(--color-st-ok)] border-[var(--color-st-ok-bd)]",
   },
   escalated: {
     label: "Escalado",
-    classes: "bg-ln-op-warn-bg text-ln-op-warn border-ln-op-warn-bd",
+    classes:
+      "bg-[var(--color-st-warn-bg)] text-[var(--color-st-warn)] border-[var(--color-st-warn-bd)]",
   },
   closed: {
     label: "Cerrado",
@@ -30,7 +33,8 @@ const STATUS_CONFIG: Record<CaseStatus, { label: string; classes: string }> = {
   },
   merged: {
     label: "Fusionado",
-    classes: "bg-ln-op-viol-bg text-ln-op-viol border-ln-op-viol-bd",
+    classes:
+      "bg-[var(--color-st-info-bg)] text-[var(--color-st-info)] border-[var(--color-st-info-bd)]",
   },
 };
 

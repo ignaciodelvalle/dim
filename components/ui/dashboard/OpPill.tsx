@@ -10,14 +10,18 @@ type Props = {
 // Mirrors .gob-pill[data-tone="..."] from the handoff.
 // escalated and danger share the same visual treatment.
 // closed and ok share the same visual treatment.
+// Status tones use st-* tokens — resolved to ln-op-* values via .op-surface
+// cascade (zero visual diff; see globals.css .op-surface block).
 const toneClasses: Record<Tone, string> = {
-  open: "bg-ln-op-warn-bg text-ln-op-warn border-ln-op-warn-bd",
+  open: "bg-[var(--color-st-warn-bg)] text-[var(--color-st-warn)] border-[var(--color-st-warn-bd)]",
   triaged: "bg-ln-op-blue-bg text-ln-op-azul border-ln-op-blue-bd",
-  escalated: "bg-ln-op-danger-bg text-ln-op-danger border-ln-op-danger-bd",
-  danger: "bg-ln-op-danger-bg text-ln-op-danger border-ln-op-danger-bd",
-  progress: "bg-ln-op-viol-bg text-ln-op-viol border-ln-op-viol-bd",
-  closed: "bg-ln-op-ok-bg text-ln-op-ok border-ln-op-ok-bd",
-  ok: "bg-ln-op-ok-bg text-ln-op-ok border-ln-op-ok-bd",
+  escalated:
+    "bg-[var(--color-st-err-bg)] text-[var(--color-st-err)] border-[var(--color-st-err-bd)]",
+  danger: "bg-[var(--color-st-err-bg)] text-[var(--color-st-err)] border-[var(--color-st-err-bd)]",
+  progress:
+    "bg-[var(--color-st-info-bg)] text-[var(--color-st-info)] border-[var(--color-st-info-bd)]",
+  closed: "bg-[var(--color-st-ok-bg)] text-[var(--color-st-ok)] border-[var(--color-st-ok-bd)]",
+  ok: "bg-[var(--color-st-ok-bg)] text-[var(--color-st-ok)] border-[var(--color-st-ok-bd)]",
   neutral: "bg-ln-op-stripe text-ln-op-mute border-ln-op-line",
 };
 

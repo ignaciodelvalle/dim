@@ -207,7 +207,7 @@
   --color-ln-op-danger: #b71c1c;
   --color-ln-op-danger-bg: #fce7e8;
   --color-ln-op-danger-bd: #f2c4c6;
-  --color-ln-op-warn: #9c6700;
+  --color-ln-op-warn: #96600e; /* darkened from #9c6700 — 4.83:1 on #fff4da (was 4.41:1, WCAG AA fail) */
   --color-ln-op-warn-bg: #fff4da;
   --color-ln-op-warn-bd: #f1da9c;
   --color-ln-op-ok: #1e7a3e;
@@ -222,8 +222,40 @@
   /* Severity scale */
   --color-ln-op-sev-crit: #b71c1c;
   --color-ln-op-sev-high: #dc6e16;
-  --color-ln-op-sev-med: #9c6700;
+  --color-ln-op-sev-med: #96600e; /* kept in sync with ln-op-warn darkening */
   --color-ln-op-sev-low: #1e7a3e;
+
+  /* =========================================================================
+     Semantic status indirection layer — --color-st-*
+     These tokens carry the STATUS signal independent of skin tier.
+     The NAME is unified; the VALUE is remapped per context:
+       - warm/citizen default (below): resolves to the ln-* palette
+       - operator surfaces (.op-surface): overridden to ln-op-* values (see
+         the .op-surface block in globals.css — below the @theme block)
+     This eliminates the 8-hex hand-maintenance problem (4 states × 2 skins)
+     without any visual diff on either surface.
+
+     Violet decision: ln-violeta (#6b4ea8, citizen) and ln-op-viol (#6a4c93,
+     operator) are deliberately DIFFERENT values — both pass WCAG AA, and
+     the operator value was independently set for the cool-tone navy palette.
+     They share the st-info NAME per skin context; a single shared hex would
+     regress the contrast calibration already won. The names are unified;
+     the values are not. See docs/a11y/contrast-audit.md for ratios.
+     ========================================================================= */
+
+  /* Default (warm/citizen) mapping — operator surfaces override via .op-surface */
+  --color-st-ok: var(--color-ln-ok);
+  --color-st-ok-bg: var(--color-ln-ok-bg);
+  --color-st-ok-bd: var(--color-ln-ok-100);
+  --color-st-warn: var(--color-ln-warn);
+  --color-st-warn-bg: var(--color-ln-warn-050);
+  --color-st-warn-bd: var(--color-ln-warn-100);
+  --color-st-err: var(--color-ln-err);
+  --color-st-err-bg: var(--color-ln-err-050);
+  --color-st-err-bd: var(--color-ln-err-100);
+  --color-st-info: var(--color-ln-violeta);
+  --color-st-info-bg: var(--color-ln-violeta-050);
+  --color-st-info-bd: var(--color-ln-violeta-100);
 
   /* Org teal override (redesign-a-org.css: .gob.is-org) */
   --color-ln-tl-rail: #0b3b42;
@@ -237,6 +269,29 @@
  * Para reactivar dark mode en el futuro: poner `<html class="dark">` o cambiar
  * el `@variant` a la default media-query strategy. */
 @variant dark (&:where(.dark, .dark *));
+
+/* ---- Operator surface — st-* token remap ---------------------------------- */
+/* The .op-surface class is applied to the OperatorShell root div in
+ * AppShell.tsx. It cascades down to all operator children, overriding the
+ * default (warm/citizen) --color-st-* values with their ln-op-* equivalents.
+ * Because the st-* utilities are CSS custom properties, the rendered color on
+ * operator status components (OpPill, OpStateBadge, CaseStatusBadge, OpKpi)
+ * is IDENTICAL to what ln-op-ok/warn/danger/viol produced directly — zero
+ * visual diff. The citizen skin never sees .op-surface and keeps its defaults. */
+.op-surface {
+  --color-st-ok: var(--color-ln-op-ok);
+  --color-st-ok-bg: var(--color-ln-op-ok-bg);
+  --color-st-ok-bd: var(--color-ln-op-ok-bd);
+  --color-st-warn: var(--color-ln-op-warn);
+  --color-st-warn-bg: var(--color-ln-op-warn-bg);
+  --color-st-warn-bd: var(--color-ln-op-warn-bd);
+  --color-st-err: var(--color-ln-op-danger);
+  --color-st-err-bg: var(--color-ln-op-danger-bg);
+  --color-st-err-bd: var(--color-ln-op-danger-bd);
+  --color-st-info: var(--color-ln-op-viol);
+  --color-st-info-bg: var(--color-ln-op-viol-bg);
+  --color-st-info-bd: var(--color-ln-op-viol-bd);
+}
 
 /* ---- Base ------------------------------------------------------------------ */
 
