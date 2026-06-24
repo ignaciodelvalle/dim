@@ -52,6 +52,12 @@ El seed de demo es local-only (guards). Para datos de cámara:
 `pnpm seed:panorama` → `pnpm seed:test` → `pnpm seed:demo:scenario`, y `pnpm demo:verify` como gate.
 Re-correrlos no duplica.
 
+## Regla 6 — Nunca `verify`/`build` con el dev server prendido
+
+`next dev` y `next build` pelean por la misma carpeta `.next` → el build **se cuelga** (se vio: 64 min
+trabado). Antes de `pnpm verify` o `pnpm build`, **parar el `pnpm dev`** (Ctrl+C / matar node). Volver a
+levantarlo después. Si un build parece colgado, casi siempre es esto: matar node y reintentar limpio.
+
 ---
 
 ### Estado actual (2026-06-23)
