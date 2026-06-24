@@ -91,50 +91,48 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const demoMode = shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE);
 
   return (
-    <>
-      <DemoModeBanner enabled={demoMode} />
-      <AppShell
-        variant="operator"
-        rail={
-          <OpRail
-            sections={sections}
-            variant="gob"
-            brandSubtitle="Admin"
-            user={{
-              name: displayName,
-              role: profile.role.toUpperCase(),
-            }}
-          />
-        }
-        topbar={
-          <header
-            data-testid="admin-topbar"
-            className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 flex-nowrap items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]"
-          >
-            {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
-            <AppShellDrawer sections={sections} variant="gob" brandSubtitle="Admin" />
-            {/* Left group: breadcrumbs + scope chip. Grows to fill (pushing the
+    <AppShell
+      variant="operator"
+      banner={<DemoModeBanner enabled={demoMode} />}
+      rail={
+        <OpRail
+          sections={sections}
+          variant="gob"
+          brandSubtitle="Admin"
+          user={{
+            name: displayName,
+            role: profile.role.toUpperCase(),
+          }}
+        />
+      }
+      topbar={
+        <header
+          data-testid="admin-topbar"
+          className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 flex-nowrap items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]"
+        >
+          {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
+          <AppShellDrawer sections={sections} variant="gob" brandSubtitle="Admin" />
+          {/* Left group: breadcrumbs + scope chip. Grows to fill (pushing the
                 omnibox + actions right) and is the ONLY shrinkable region, so the
                 breadcrumb truncates rather than wrapping the topbar (D1). */}
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              {/* Breadcrumbs — derived from route (UX 1.2); truncates when tight. */}
-              <div className="min-w-0 flex-shrink">
-                <OperatorBreadcrumbs portal="admin" />
-              </div>
-              {/* Scope chip — neutral/outline so it never out-weighs the page H1 (D1). */}
-              <OpScopeChip code="SUPERADMIN" label="Universal" variant="neutral" />
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {/* Breadcrumbs — derived from route (UX 1.2); truncates when tight. */}
+            <div className="min-w-0 flex-shrink">
+              <OperatorBreadcrumbs portal="admin" />
             </div>
-            {/* Global search omnibox (Item 10) — operator jump-to-record + PII log. */}
-            <div className="flex-shrink-0">
-              <OpOmnibox />
-            </div>
-            {/* Right: switcher + logout */}
-            <div className="flex flex-shrink-0 items-center gap-2">{topbarActions}</div>
-          </header>
-        }
-      >
-        {children}
-      </AppShell>
-    </>
+            {/* Scope chip — neutral/outline so it never out-weighs the page H1 (D1). */}
+            <OpScopeChip code="SUPERADMIN" label="Universal" variant="neutral" />
+          </div>
+          {/* Global search omnibox (Item 10) — operator jump-to-record + PII log. */}
+          <div className="flex-shrink-0">
+            <OpOmnibox />
+          </div>
+          {/* Right: switcher + logout */}
+          <div className="flex flex-shrink-0 items-center gap-2">{topbarActions}</div>
+        </header>
+      }
+    >
+      {children}
+    </AppShell>
   );
 }

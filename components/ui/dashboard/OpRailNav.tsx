@@ -90,7 +90,7 @@ export function OpRailNav({ nav, sections, variant = "gob" }: Props) {
 
   return (
     <nav
-      className="flex flex-1 flex-col gap-4 overflow-y-auto px-[9px] py-[13px]"
+      className="op-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-[9px] py-[13px]"
       aria-label="Navegación principal"
     >
       {resolved.map((section) => (

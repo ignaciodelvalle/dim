@@ -116,7 +116,7 @@ export function OpMobileDrawer({
           {/* Nav sections */}
           <nav
             aria-label="Navegación principal"
-            className="flex flex-1 flex-col gap-4 overflow-y-auto px-[9px] py-[13px]"
+            className="op-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-[9px] py-[13px]"
           >
             {resolved.map((section) => (
               <div key={section.label} className="flex flex-col">

@@ -49,6 +49,13 @@ type OperatorProps = CommonProps & {
   rail: ReactNode;
   /** The sticky topbar element (crumbs + scope + switcher + user). */
   topbar: ReactNode;
+  /**
+   * Optional full-width banner rendered INSIDE the 100vh shell, above the
+   * rail+main row (e.g. the demo-mode banner). Keeping it inside the shell —
+   * rather than as a sibling above it — means the document stays exactly 100vh
+   * (no external scroll, no clipped rail footer). PR-1 V1.
+   */
+  banner?: ReactNode;
   /** Optional max-width for the scroll-area inner wrapper. */
   maxWidth?: string;
 };
@@ -97,16 +104,22 @@ function CitizenShell({ masthead, footer, maxWidth, children }: CitizenProps) {
 // operator — navy control-room rail + topbar, no stripe / no footer
 // ---------------------------------------------------------------------------
 
-function OperatorShell({ rail, topbar, maxWidth, children }: OperatorProps) {
+function OperatorShell({ rail, topbar, banner, maxWidth, children }: OperatorProps) {
   return (
-    <div className="flex h-screen overflow-hidden bg-ln-op-page text-ln-op-ink text-[13px] leading-[1.45] [&_*]:box-border">
-      {rail}
-      <main id="main-content" className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {topbar}
-        <div className="flex-1 overflow-auto px-6 py-[22px]">
-          {maxWidth ? <div className={`${maxWidth} mx-auto`}>{children}</div> : children}
-        </div>
-      </main>
+    // 100vh column: optional banner on top, then the rail+main row fills the
+    // rest (min-h-0 so the inner scroll area — not the document — scrolls). The
+    // banner lives INSIDE the shell so the page never exceeds 100vh (V1/V3).
+    <div className="flex h-screen flex-col overflow-hidden bg-ln-op-page text-ln-op-ink text-[13px] leading-[1.45] [&_*]:box-border">
+      {banner}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {rail}
+        <main id="main-content" className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {topbar}
+          <div className="flex-1 overflow-auto px-6 py-[22px]">
+            {maxWidth ? <div className={`${maxWidth} mx-auto`}>{children}</div> : children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

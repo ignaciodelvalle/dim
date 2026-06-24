@@ -22,6 +22,15 @@ function render(sections: NavSection[]): string {
   return renderToStaticMarkup(<OpRailNav sections={sections} variant="gob" />);
 }
 
+describe("OpRailNav — rail scrollbar (PR-1 V2)", () => {
+  it("applies the op-scroll utility to the scrolling nav", () => {
+    const html = render([
+      { label: "Analítica", items: [{ href: "/admin/programa", label: "Programa" }] },
+    ]);
+    expect(html).toContain("op-scroll");
+  });
+});
+
 describe("OpRailNav — deferred items (D7)", () => {
   it("renders a live item as a Next <Link> (an <a href>)", () => {
     const html = render([
