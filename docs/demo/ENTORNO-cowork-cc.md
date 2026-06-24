@@ -60,7 +60,9 @@ levantarlo después. Si un build parece colgado, casi siempre es esto: matar nod
 
 ---
 
-### Estado actual (2026-06-23)
-- **Rama activa:** `fix/demo-panorama-consolidated` (consolida EXEC #730 + NAV #731 + Panorama/CAM en curso).
-- PRs abiertos: **#730** (demo-readiness, EXEC) y **#731** (nav diferida) — ya en `origin`.
+### Estado actual (2026-06-24)
+- **Rama activa:** `fix/demo-panorama-consolidated` → **PR #732** (base `feat/nav-deferred-population-cycle`).
+  Consolida EXEC #730 + NAV #731 + Panorama/CAM (Olas 0–2). `pnpm verify` + `pnpm test` verdes.
+- PRs abiertos: **#730** (demo-readiness, EXEC), **#731** (nav diferida), **#732** (demo+panorama) — en `origin`.
 - La consolidada desciende de `review/all-session-prs` e incluye todo lo de #730/#731 sin rehacerlo.
+- En curso (CC): `fix/sec-advisor-rls-errors` — remediación de los 5 ERROR del Supabase advisor (PR aparte).

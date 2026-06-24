@@ -1,6 +1,6 @@
 # Superpowers — Specs & Plans
 
-> **▶ Rama activa (Cowork ↔ CC):** `fix/demo-panorama-consolidated` — base para probar/filmar la demo.
+> **▶ Rama activa (Cowork ↔ CC):** `fix/demo-panorama-consolidated` ([PR #732](https://github.com/ignaciodelvalle/dim/pull/732)) — base para probar/filmar la demo.
 > Antes de probar: `git fetch && git checkout fix/demo-panorama-consolidated && git pull && pnpm install`.
 > Working copy único = `C:\dim` (las otras `C:\dim-*` son fantasmas — borrar). Protocolo completo:
 > [`docs/demo/ENTORNO-cowork-cc.md`](../demo/ENTORNO-cowork-cc.md).
