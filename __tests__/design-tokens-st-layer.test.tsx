@@ -146,24 +146,28 @@ describe("OpStateBadge — emits st-* token references, not raw ln-op status cla
 // CaseStatusBadge
 // ---------------------------------------------------------------------------
 
+// F2 grammar fix: open→st-warn (amber/needs-action), escalated→st-err (red),
+// closed→st-ok (green/resolved), merged→st-info (violet). Matches OpPill grammar.
 describe("CaseStatusBadge — emits st-* token references, not raw ln-op status classes", () => {
-  it('status="open" (ok) uses --color-st-ok-*', () => {
+  it('status="open" (warn) uses --color-st-warn-* (amber — needs action)', () => {
     const html = renderToStaticMarkup(<CaseStatusBadge status="open" />);
-    expectStToken(html, "ok-bg");
-    expectStToken(html, "ok");
-    expectNoRawOpStatus(html);
-  });
-
-  it('status="escalated" (warn) uses --color-st-warn-*', () => {
-    const html = renderToStaticMarkup(<CaseStatusBadge status="escalated" />);
     expectStToken(html, "warn-bg");
     expectStToken(html, "warn");
     expectNoRawOpStatus(html);
   });
 
-  it('status="closed" uses non-status (ln-op-stripe) class — no regression', () => {
+  it('status="escalated" (err) uses --color-st-err-*', () => {
+    const html = renderToStaticMarkup(<CaseStatusBadge status="escalated" />);
+    expectStToken(html, "err-bg");
+    expectStToken(html, "err");
+    expectNoRawOpStatus(html);
+  });
+
+  it('status="closed" (ok) uses --color-st-ok-* (green — resolved)', () => {
     const html = renderToStaticMarkup(<CaseStatusBadge status="closed" />);
-    expect(html).toContain("ln-op-stripe");
+    expectStToken(html, "ok-bg");
+    expectStToken(html, "ok");
+    expectNoRawOpStatus(html);
   });
 
   it('status="merged" (info) uses --color-st-info-*', () => {

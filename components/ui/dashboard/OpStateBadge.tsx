@@ -1,3 +1,15 @@
+// OpStateBadge — state badge for org pet pipeline states.
+//
+// Domain enum: published · paused · draft · adopted.
+// (Distinct from CaseStatus — do NOT change color assignments here.)
+//
+// Thin semantic wrapper over OpStatusPill; public API is unchanged.
+//
+// A11y: meaning is conveyed by BOTH icon and text, not color alone (WCAG 1.4.1).
+// The icon is aria-hidden; the text label (or override) is the accessible name.
+
+import { OpStatusPill, type StatusTone } from "./OpStatusPill";
+
 type State = "published" | "paused" | "draft" | "adopted";
 
 type Props = {
@@ -6,34 +18,11 @@ type Props = {
   label?: string;
 };
 
-// Status classes use st-* tokens — resolved to ln-op-* values via .op-surface
-// cascade (zero visual diff; see globals.css .op-surface block).
-const STATE_CLASSES: Record<State, string> = {
-  published: "bg-[var(--color-st-ok-bg)] text-[var(--color-st-ok)] border-[var(--color-st-ok-bd)]",
-  paused:
-    "bg-[var(--color-st-warn-bg)] text-[var(--color-st-warn)] border-[var(--color-st-warn-bd)]",
-  draft: "bg-ln-op-stripe text-ln-op-mute border-ln-op-line",
-  adopted:
-    "bg-[var(--color-st-info-bg)] text-[var(--color-st-info)] border-[var(--color-st-info-bd)]",
-};
-
-/**
- * Icons that reinforce state meaning beyond color alone (WCAG 1.4.1 — color not
- * sole means of conveying information). Each icon is aria-hidden; the visible
- * text label already describes the state to screen readers.
- */
-const STATE_ICONS: Record<State, string> = {
-  published: "●",
-  paused: "⏸",
-  draft: "○",
-  adopted: "★",
-};
-
-const STATE_LABELS: Record<State, string> = {
-  published: "Publicado",
-  paused: "Pausado",
-  draft: "Borrador",
-  adopted: "Adoptado",
+const STATE_CONFIG: Record<State, { label: string; tone: StatusTone; icon: string }> = {
+  published: { label: "Publicado", tone: "st-ok", icon: "●" },
+  paused: { label: "Pausado", tone: "st-warn", icon: "⏸" },
+  draft: { label: "Borrador", tone: "neutral", icon: "○" },
+  adopted: { label: "Adoptado", tone: "st-info", icon: "★" },
 };
 
 /**
@@ -46,17 +35,10 @@ const STATE_LABELS: Record<State, string> = {
  * States: published · paused · draft · adopted.
  */
 export function OpStateBadge({ state, label }: Props) {
-  const resolvedLabel = label ?? STATE_LABELS[state];
+  const { label: defaultLabel, tone, icon } = STATE_CONFIG[state];
   return (
-    <span
-      className={[
-        "inline-flex items-center gap-[3px] rounded-[3px] border px-[7px] py-[2px]",
-        "font-ln-mono text-[9px] font-bold uppercase tracking-[0.06em]",
-        STATE_CLASSES[state],
-      ].join(" ")}
-    >
-      <span aria-hidden="true">{STATE_ICONS[state]}</span>
-      {resolvedLabel}
-    </span>
+    <OpStatusPill tone={tone} icon={icon}>
+      {label ?? defaultLabel}
+    </OpStatusPill>
   );
 }
