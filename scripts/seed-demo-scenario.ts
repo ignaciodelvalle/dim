@@ -699,7 +699,7 @@ const MICROCHIP_COVERAGE: ReadonlyArray<{ province: string; pct: number }> = [
   { province: "Tucumán", pct: 38 },
 ];
 
-async function seedComplianceCoverage(): Promise<void> {
+async function seedComplianceCoverage(adminUserId: string): Promise<void> {
   log("STEP", "B2: populating microchip_iso coverage (varied per province)");
   const recordedAt = ANCHOR_DATE.toISOString().slice(0, 10); // YYYY-MM-DD (date col)
 
@@ -732,6 +732,12 @@ async function seedComplianceCoverage(): Promise<void> {
           SELECT 1 FROM pet_identifications pi
           WHERE pi.pet_id = s.id AND pi.kind = 'microchip_iso' AND pi.status = 'active'
         )
+      -- row_number() is unique within a run but not stable across runs (the pet
+      -- set can shift), so a not-yet-chipped pet may land on a code another pet
+      -- already holds. Skip those silently against the partial chip-unique index
+      -- so re-runs converge instead of crashing on a duplicate code.
+      ON CONFLICT (code) WHERE kind = 'microchip_iso' AND status = 'active'
+        DO NOTHING
       RETURNING id
     `)) as Array<{ id: string }>;
 
@@ -740,6 +746,68 @@ async function seedComplianceCoverage(): Promise<void> {
     } else {
       log("SKIP", `  ${province}: microchip coverage already seeded`);
     }
+  }
+
+  await backfillMicrochipEvents(adminUserId);
+}
+
+// ---------------------------------------------------------------------------
+// 11b. B2 — event-back the seeded microchip rows
+//
+// pet_events is the immutable spine; pet_identifications is a dual-write cache.
+// A canonical microchip row with NO matching `microchip_implanted` event is
+// drift the cache-rederivation fitness harness rightly rejects (stored=code vs
+// derived=null), and it is data that could never exist through a real writer.
+// Emit the missing event for every chip this script seeded (code signature
+// '858'+'0001'+nat8) so the canonical row and the event agree exactly:
+//   chip_number = code            → microchipId matches
+//   country_code = '858'          → microchipCountryCode matches
+//   implant_date_known = true +
+//     occurred_at = recorded_at   → microchipImplantedAt matches (date-only)
+//   (no implanted_by/location)    → those columns derive null on both sides
+// Scoped by the synthetic ISO signature and guarded by NOT EXISTS, so it both
+// covers freshly-seeded chips AND repairs orphans left by an earlier run, and
+// re-running converges without duplicating events.
+// ---------------------------------------------------------------------------
+
+async function backfillMicrochipEvents(adminUserId: string): Promise<void> {
+  log("STEP", "B2: event-backing seeded microchip rows (microchip_implanted)");
+
+  const result = (await db.execute(sql`
+    INSERT INTO pet_events
+      (pet_id, event_type, occurred_at, recorded_by_user_id,
+       author_role, author_verified, payload)
+    SELECT pi.pet_id,
+           'microchip_implanted',
+           (pi.recorded_at::timestamptz + interval '12 hours'),
+           ${adminUserId}::uuid,
+           'owner',
+           false,
+           jsonb_build_object(
+             'source', 'seed-demo-scenario',
+             'chip_number', pi.code,
+             'country_code', '858',
+             'implant_date_known', true
+           )
+    FROM pet_identifications pi
+    WHERE pi.kind = 'microchip_iso'
+      AND pi.status = 'active'
+      AND pi.iso_country_code = '858'
+      AND pi.iso_manufacturer_code = '0001'
+      AND pi.code LIKE '8580001%'
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events pe
+        WHERE pe.pet_id = pi.pet_id
+          AND pe.event_type = 'microchip_implanted'
+          AND (pe.payload->>'chip_number') = pi.code
+      )
+    RETURNING id
+  `)) as Array<{ id: string }>;
+
+  if (result.length > 0) {
+    log("OK", `  +${result.length} microchip_implanted events (chips now event-backed)`);
+  } else {
+    log("SKIP", "  all seeded microchip rows already event-backed");
   }
 }
 
@@ -772,7 +840,7 @@ async function main(): Promise<void> {
   await materializeAlertFiring(adminId, subscriptionId);
 
   // B2: populate microchip coverage so no compliance metric reads 0% universal.
-  await seedComplianceCoverage();
+  await seedComplianceCoverage(adminId);
 
   log("DONE", "seed-demo-scenario complete");
   console.log("");
