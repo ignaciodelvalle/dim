@@ -230,11 +230,11 @@ When multiple rules conflict, **more specific wins**: locality > province > coun
 
 Schema for `business_rules` is deferred until the feature lands. The concept is locked here so future designs respect the hierarchy.
 
-### Hard constraints (enforced at the database)
+### Hard constraints
 
-These are the invariants the schema and triggers enforce. The application layer assumes them and will not double-check:
+These are the invariants the schema and application writers enforce together.
 
-1. **Account type ↔ role match.** `profiles.account_type='personal'` ⟹ `role ∈ {owner, vet}`. `profiles.account_type='institutional'` ⟹ `role ∈ {govt, admin}`. CHECK constraint on `profiles`.
+1. **Account type ↔ role match.** `profiles.account_type='personal'` ⟹ `role ∈ {owner, vet}`. `profiles.account_type='institutional'` ⟹ `role ∈ {govt, admin}`. **Enforced in the application layer** by every writer that sets these columns (`createInstitutionalAccountForAuthority`, approval mutation handlers, the `handle_new_user` trigger). A DB-level CHECK constraint (`profiles_account_type_role_match`) was added in migration 0015 but **dropped in migration 0016** (`db/migrations/0016_drop_role_match_check.sql`) because Drizzle + postgres-js fires the constraint on the intermediate row state during a two-column UPDATE in the same statement, breaking the test suite. The invariant is intentionally enforced at the app layer only — do NOT add the CHECK back without resolving that Drizzle behavior.
 2. **Institutional accounts have no personal-identity fields.** When `account_type='institutional'`, `dni_hash IS NULL`, `miarg_sub IS NULL`, `dni_verified=false`, `matricula_number IS NULL`, `matricula_jurisdiccion IS NULL`, `matricula_verified=false`. CHECK constraint (`profiles_institutional_no_pii`). Note: `dni_number` was dropped in migration 0106 (Wave 5 Item 25a).
 3. **Institutional accounts cannot own pets.** A trigger on `ownerships` rejects any INSERT or UPDATE that would tie an institutional account to a pet via `owner_user_id`. The trigger uses `errcode='restrict_violation'` and a clear Spanish message.
 4. **Last admin cannot be deactivated.** Server-action precondition counts `account_type='institutional' AND role='admin' AND deactivated_at IS NULL` and refuses if the deactivation would leave fewer than one.
@@ -268,7 +268,7 @@ From there, every institutional account is created via the admin page. Every per
 
 ### Implementation reference
 
-See [`docs/superpowers/specs/2026-05-17-admin-page-design.md`](docs/superpowers/specs/2026-05-17-admin-page-design.md) for the full spec — schema migrations, server actions, RLS policies, UI surfaces, capability matrix, and the approval / revocation / self-resignation flows in detail. The phased implementation plan lives there too.
+See [`docs/superpowers/specs/archive/2026-05-17-admin-page-design.md`](docs/superpowers/specs/archive/2026-05-17-admin-page-design.md) for the full spec — schema migrations, server actions, RLS policies, UI surfaces, capability matrix, and the approval / revocation / self-resignation flows in detail. The phased implementation plan lives there too.
 
 **Organizations are not roles on `profiles`.** Clinics, refugios, rescue networks, and (eventually) sanitary authorities live in a separate `organizations` table peer to `users`. People connect to organizations through `organization_memberships`. This resolves the historical vet-vs-clinic ambiguity in one move (the individual vet keeps `profiles.role='vet'`; the clinic is an `organizations` row of type `clinic`; a membership row links them), and is the same mechanism that makes refugios and Mascotas CABA first-class without growing the `profiles.role` enum. See the **Organizations** section below for the full design.
 
@@ -315,7 +315,7 @@ DIM must be designed around — not against — the Argentine legal landscape fo
 | -------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **Ley CABA 4078 (2012)**         | Registro de perros potencialmente peligrosos (dangerous-breed registry, CABA owners). | A `potentially_dangerous_breed` flag on `pets` plus an attestation event for owner registration. **Now a *measured* compliance metric (C7), not just a data field**: `fetchDangerousBreedCompliance` reports attested / flagged by jurisdiction (graceful 0% until the attestation form ships). |
 | **Ley Provincial 14.107 (2010)** | Provincial dangerous-breed registry; **obligatory microchip identification**.          | Microchip data is a real legal artifact, not just a feature. Province-level aggregation matters; our `jurisdiction_province` covers this. **Now a *measured* compliance metric**: microchip penetration (C1) + ISO-validity (C2) report adoption of the legal chip mandate by jurisdiction (`lib/compliance-metrics.ts`). |
-| **Ley CABA 5470 (2015)**         | Cremation process for canines and felines in CABA.                                     | `death_recorded` event payload should carry a `disposition_method` field (`cremation` / `burial` / `other`) for traceability.        |
+| **Ley CABA 5470 (2015)**         | Cremation process for canines and felines in CABA.                                     | `death_recorded` event payload carries a `disposition_method` field (`cremation_collective \| cremation_individual_ashes \| authorized_cemetery \| owner_burial \| household_waste \| rendering \| unknown`) for traceability. Normalized by `lib/disposition.ts`; projected by `lib/mortality-metrics.ts`. |
 | **Ley Nacional 14.346 (1954)**   | Malos tratos / actos de crueldad contra animales.                                      | `maltreatment_reported` events need to eventually feed real complaint pipelines (denuncia integration is downstream of UI).          |
 | **Ley Nacional 25.326 (2000)**   | Protección de Datos Personales. Arts. 4° (purpose), 14 (acceso), 16 (supresión).       | `purpose data_purpose` + `deleted_at` baseline on every PII table; export/erase RPCs (compliance PR 1) live at `/cuenta/privacidad`. |
 | **Ley Nacional 26.653 (2010)**   | Accesibilidad de la Información en las Páginas Web (WCAG 2.1 AA via Disp. ONTI 6/2019). | Focus ring tokens + biome a11y rules at error level + `docs/a11y/contrast-audit.md` (compliance PR 2).                              |
@@ -570,11 +570,11 @@ The two never conflate. A leaked `publicToken` exposes Tier-0 (minimal). A leake
 
 The naming is not cosmetic. It is the conceptual surface that makes DIM legible to non-technical dueños, which is precisely what the North Star ("the data-collection layer must be valuable on its own to drive adoption") requires. Renaming this later would mean retraining users we already onboarded. Lock it now, before scale.
 
-## Event catalog — 45 types
+## Event catalog — 47 types
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
 
-Grouped by purpose for navigation. Adding a new event type is a one-line edit to the `EVENT_TYPES` const in `db/schema.ts` — no database migration. The Zod schema lands in `lib/event-schemas.ts` in the same PR (a CI test in `__tests__/event-schemas.test.ts` enforces coverage minus a small explicit `UNIMPLEMENTED` allowlist).
+Grouped by purpose for navigation. Adding a new event type is a one-line edit to the `EVENT_TYPES` const in `db/schema.ts` — no database migration. The Zod schema lands in `lib/event-schemas.ts` in the same PR (a CI test in `__tests__/event-schemas.test.ts` enforces 100% coverage — the `UNIMPLEMENTED` allowlist is now empty).
 
 **Lifecycle**
 
@@ -606,7 +606,7 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | Type                  | UI    | Payload                                                                                  |
 | --------------------- | ----- | ---------------------------------------------------------------------------------------- |
 | `vet_visit_logged`    | v1    | `{ reason, diagnosis?, vet_name?, clinic? }`                                             |
-| `clinical_info_logged`| v1    | `{ sub_kind: lab_work\|imaging\|surgery\|allergy_detection\|other, title, details?, performed_by? }` — umbrella event with sub-kind discriminator (covers what lab/imaging/surgery/allergy used to model as dedicated event_types pre-2026-05-18) |
+| `clinical_info_logged`| v1    | `{ sub_kind: lab_work\|imaging\|surgery\|allergy_detection\|disease_diagnosis\|pregnancy\|other, title, details?, performed_by? }` — umbrella event with sub-kind discriminator (covers what lab/imaging/surgery/allergy used to model as dedicated event_types pre-2026-05-18; `disease_diagnosis` powers ENO fanout; `pregnancy` tracks phase lifecycle) |
 
 **Body metrics**
 
@@ -620,6 +620,8 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | -------------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
 | `microchip_implanted`      | v1    | `{ chip_number, country_code?, implanted_by?, location_on_body?, implant_date_known? }` — fired automatically at pet creation if a chip is provided |
 | `microchip_replaced`       | later | `{ previous_chip_number, new_chip_number: string\|null, reason: damaged\|unreadable\|duplicate_detected\|fraud_detected\|owner_request\|device_failure\|other, replaced_by?, replaced_at, actor_role: owner\|vet\|admin\|govt, actor_user_id?, notes? }` — `new_chip_number=null` means revocation without replacement (replaces the retired `microchip_revoked` event_type, catalog cleanup 2026-05-19) |
+| `tattoo_recorded`          | later | `{ tattoo_code, body_location?, recorded_by? }` — initial tattoo identification (Art. 4° Ord. CABA 41.831) |
+| `tattoo_updated`           | later | `{ previous_code, new_code, reason? }` — correction or re-tattoo |
 | `dangerous_breed_attested` | later | `{ registry: caba_4078\|prov_14107\|other, registry_id?, attested_at }` — owner registers their PPP in the official provincial registry |
 
 **Free-form**
@@ -632,10 +634,12 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 
 | Type                 | UI     | Payload                                                                                                 |
 | -------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
-| `credential_scanned` | system | `{ is_self_scan, viewer_authenticated }` — location goes in the event's `location_point` column        |
-| `incident_reported`  | later  | `{ incident_type: bite_inflicted\|bite_suffered\|dog_attack\|fight\|traffic_accident\|fall\|poisoning\|escape\|other, severity?, injuries_summary?, vet_involved?, location_description?, victim_kind?, victim_contact_name?, victim_contact_phone?, victim_pet_id?, victim_age_estimate?, context?, rabies_vaccine_valid_at_incident?, reporter_role? }` — umbrella covers bite events (rabies observation flow filters by `payload->>'incident_type'='bite_inflicted'`). `dog_attack` is deprecated in favor of `bite_suffered`. Distinct from `maltreatment_reported` (incident is non-human-cruelty) |
-| `outbreak_signal`    | system | `{ source_symptom_event_id, disease_code, disease_label, match_strength: {high_count, medium_count, low_count, matched_symptom_codes}, pet_jurisdiction_country, pet_jurisdiction_province?, pet_jurisdiction_locality?, pet_species }` — emitted when `symptom_observed` triggers a reportable-disease match. Owner does not see this in the libreta |
-| `disease_reported`   | govt   | `{ disease: lepto\|hidatidosis\|other, confirmed_by_lab, date_of_onset, clinical_notes? }` — govt-side surveillance entry that feeds zoonosis KPIs and the ENO fanout. Not part of the libreta (handoff P4-3) |
+| `credential_scanned`          | system | `{ is_self_scan, viewer_authenticated }` — location goes in the event's `location_point` column        |
+| `incident_reported`           | later  | `{ incident_type: bite_inflicted\|bite_suffered\|dog_attack\|fight\|traffic_accident\|fall\|poisoning\|escape\|other, severity?, injuries_summary?, vet_involved?, location_description?, victim_kind?, victim_contact_name?, victim_contact_phone?, victim_pet_id?, victim_age_estimate?, context?, rabies_vaccine_valid_at_incident?, reporter_role? }` — umbrella covers bite events (rabies observation flow filters by `payload->>'incident_type'='bite_inflicted'`). `dog_attack` is deprecated in favor of `bite_suffered`. Distinct from `maltreatment_reported` (incident is non-human-cruelty) |
+| `rabies_observation_started`  | system | `{ incident_event_id, observation_deadline_at, opened_by_role: admin\|govt }` — opens the 10-day legal period after a `bite_inflicted` incident (Decreto PBA 4669/1973, Ord. CABA 41.831 art. 9). Sets `pets.rabies_observation_status='in_progress'` |
+| `rabies_observation_ended`    | system | `{ incident_event_id, outcome: cleared\|escalated\|auto_closed, auto_closed?: boolean, notes? }` — closes the 10-day window. Emitted manually by admin/govt or automatically by the `close-rabies-observations` cron |
+| `outbreak_signal`             | system | `{ source_symptom_event_id, disease_code, disease_label, match_strength: {high_count, medium_count, low_count, matched_symptom_codes}, pet_jurisdiction_country, pet_jurisdiction_province?, pet_jurisdiction_locality?, pet_species }` — emitted when `symptom_observed` triggers a reportable-disease match. Owner does not see this in the libreta |
+| `disease_reported`            | govt   | `{ disease: lepto\|hidatidosis\|other, confirmed_by_lab, date_of_onset, clinical_notes? }` — govt-side surveillance entry that feeds zoonosis KPIs and the ENO fanout. Not part of the libreta (handoff P4-3) |
 
 **Correction**
 
@@ -663,10 +667,16 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | `adoption_finalized`              | later | `{ previous_owner_organization_id, adopter_user_id, foster_user_id?, contract_attachment_id?, post_adoption_followup_months?, notes? }` — **composite event.** Atomically ends `shelter_custody` and `foster` rows and inserts a new `owner` row |
 | `post_adoption_checkin`           | later | `{ related_organization_id, photo_attachment_ids, notes? }`                                      |
 | `adoption_reversed`               | later | `{ actor: shelter\|adopter\|court, reason, reverted_finalization_event_id? }` — replaces both `adoption_revoked` and `adoption_withdrawn` (catalog cleanup 2026-05-19) |
+| `ownership_claimed`               | later | `{ chip_number?, tattoo_code?, claim_reason? }` — direct claim of a chip/tattoo-registered pet with no active custody of any role (free pet). Unlike `custody_transferred` there is no "from" actor; the claimant opens a fresh `owner` ownership row. Emitted by `submitFreeClaimAction` (claim wizard variant "free") |
 | `custody_transferred`             | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, from_role, to_role, reason?, matched_against_pet_id?, foster_ended_event_id?, notes? }` — handoffs that are not adoption |
 | `custody_transfer_proposed`       | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, reason, matched_against_pet_id?, proposed_at, notes? }` — Phase 1 of the return-to-owner / cross-org two-phase handshake |
+| `custody_transfer_cancelled`      | later | `{ proposal_event_id, cancelled_by: sender\|receiver\|system, reason? }` — structured cancellation of a `custody_transfer_proposed`. Replaces the fragile `note_added` marker approach (ARCH-B). The `cancelled_by` discriminator records who terminated the proposal |
 | `custody_dispute_raised`          | later | `{ raised_by_role: admin\|govt\|owner, raised_by_user_id, external_proceeding_reference?, reason }` — flags the pet as subject to an ownership dispute and sets `pets.in_custody_dispute = true`. Admin/govt use it for external legal proceedings; `owner` is the self-raised path via the chip/tatuaje claim wizard (`/mis-mascotas/reclamar`, P3-1) — adjudication still flows through govt/admin via `custody_dispute_resolved` |
 | `custody_dispute_resolved`        | later | `{ raised_event_id, resolved_by_role: admin\|govt, resolved_by_user_id, outcome: ownership_confirmed\|ownership_transferred\|case_dismissed\|other, notes? }` — closes a prior `custody_dispute_raised`. Sets `pets.in_custody_dispute = false` |
+| `foster_proposed`                 | later | `{ volunteer_user_id, expected_weeks?, notes? }` — org proposes a foster assignment to a volunteer (Phase 1 of foster lifecycle per spec 2026-05-18-foster-volunteers-pool-design v1.4) |
+| `foster_proposal_resolved`        | later | `{ proposal_event_id, outcome: accepted\|rejected\|cancelled\|expired, resolved_by_user_id? }` — umbrella terminal event for the foster proposal lifecycle (replaces 4 dedicated event_types per catalog cleanup 2026-05-19) |
+| `foster_co_foster_allowed`        | later | `{ foster_user_id, co_foster_user_id, allowed_by_role }` — org grants a co-foster opt-in flag (D17 spec) |
+| `adoption_eligibility_set`        | later | `{ eligible: boolean, reason?, set_by_role }` — flag set/changed on a shelter-held pet indicating readiness for adoption listing (spec foster-volunteers-pool §17) |
 
 **System telemetry**
 
@@ -759,11 +769,12 @@ When designing a new event with 3+ semantically-similar variants, prefer this um
 | 0    | Anyone scanning the QR                | photo, first name, species, breed, approx age (year), sex, "credential valid ✓", vaccination boolean (✓ / ⚠), microchip present (y/n), "Did you find this pet?" contact form |
 | 0+   | Tier 0 + owner-toggled emergency flag | "This pet takes daily medication — contact owner immediately" without drug names or owner phone                                       |
 | 1    | Pet status = `lost`                   | Tier 0 + owner first name + direct contact + last-known location if shared                                                            |
+| 2-público | Anyone with the `publicToken` URL (QR or direct link) — **opt-in, default OFF** | Curated medical summary on `/p/[publicToken]`: active vaccine count, sterilization status, active medication names. UI chip reads "TIER 2 · MÉDICO". Gated by `pets.tier2PublicPermanent = true` OR `pets.tier2PublicEnabledUntil` is a future timestamp. Activated by the owner via `enableTier2PublicAction` (durations: 24h / 7d / 30d / permanent). Revoked instantly via `revokeTier2PublicAction`. **Distinct from Tier 2 share-link** — no auth needed, no token distribution, just the pet's existing `publicToken`. |
 | 2    | Owner-issued share link               | The full **Libreta sanitaria** via a revocable, time-limited share token at `/libreta/compartir/{shareToken}`. Distinct from `pets.publicToken`. See §Libreta sanitaria for surfaces and token model.         |
 | 3    | Owner, authenticated in app           | Everything, including scan history with locations. Editable.                                                                          |
 | 4    | (future) Verified vet via portal      | Tier 2 by default + can write events                                                                                                  |
 
-**Organization branding on public credentials.** When a pet's current `Ownership` row is held by a verified organization (or held one recently, within the post-adoption followup window declared on `adoption_finalized`), Tier 0 may display a "Bajo seguimiento de [Org Name] ✓" badge, gated by the org's `tier_0_show_branding` preference. The Tier-0 "Did you find this pet?" form can dual-route to both the legal owner and the originating refugio when the owner opts in — so an animal that escapes its adoptive home reaches the rescuing org alongside the owner. Unverified orgs do not appear on public credentials.
+**Organization branding on public credentials.** When a pet's current `Ownership` row is held by a verified organization (or held one recently, within the post-adoption followup window declared on `adoption_finalized`), Tier 0 may display a "Bajo seguimiento de [Org Name] ✓" badge. The badge is gated by two boolean flags that must both be true: `organizations.tier0ShowBranding` (org opt-in) and `pets.tier0ShowOriginOrg` (per-pet opt-in, label "Refugio de origen", default `false`). Unverified orgs do not appear on public credentials. The "Did you find this pet?" contact form (`/p/[publicToken]/encontre`) does **not** dual-route to the originating refugio — it routes to the legal owner only.
 
 ## Dashboards & projections (the consumers)
 
@@ -1005,10 +1016,10 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Tracking anónimo via reference code `DEN-XXXX-XXXX` | `/denuncias/codigo/[code]` |
 | ✅ | Lista de mis denuncias (autenticado) | `/denuncias/mias` y `/denuncias/[id]` |
 | ✅ | Bridge a pet_events (`maltreatment_reported`, `abandonment_reported`, `symptom_observed`) cuando subject es registered pet | server-side en `src/modules/welfare/actions.ts` |
-| 🟢 | Bug fix: location bridge a pet_event + mapa en detail page denuncia + rate-limit anon | plan `2026-05-18-welfare-reports-polish.md` |
-| ⚪ | Welfare-officer queue para triagear casos | `/gob/maltrato` (no spec'd, gap operativo principal) |
-| ⚪ | Moderation queue para denuncias anónimas auto-flagged | `/admin/maltrato/moderacion` |
-| ⚪ | Export template a fiscalía MPF CABA (Ley 14.346 pipeline) | — |
+| ✅ | Bug fix: location bridge a pet_event + mapa en detail page denuncia + rate-limit anon | plan `2026-05-18-welfare-reports-polish.md` (shipped) |
+| ✅ | Welfare-officer queue para triagear casos | `/gob/maltrato` — queue completo con filtros (urgent/mine), asignación, detail page, loading skeleton |
+| ✅ | Moderation queue para denuncias anónimas auto-flagged | `/admin/moderacion` — queue + detail page |
+| ✅ | Export template a fiscalía MPF CABA (Ley 14.346 pipeline) | `src/modules/welfare/application/generate-mpf-export.ts` + `generateMpfExportAction` |
 
 ### Organizations (refugios, clinics, rescue networks, sanitary authorities)
 
@@ -1018,7 +1029,7 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Intake (new pet) + transfer-in con microchip cross-check | `/org/[orgToken]/intake` |
 | ✅ | Foster assign / end (member-based) | dentro de `/org/[orgToken]/mascotas/[petToken]` |
 | ✅ | Custody transfer org→org (two-phase: propose / accept / cancel) | `/org/[orgToken]/transferencias` |
-| ✅ | Adoption pipeline completo (submitted/reviewed/approved/rejected/finalized/revoked) | `/org/[orgToken]/adopciones` |
+| ✅ | Adoption pipeline completo (submitted/approved/rejected/finalized; `adoption_reversed` umbrella para revocación + retiro; cron `post-adoption-checkin`) | `/org/[orgToken]/adopciones` |
 | ✅ | Post-adoption check-ins | `/org/[orgToken]/checkins` |
 | ✅ | Service offerings + scheduling con materialización vía cron | `/org/[orgToken]/servicios` |
 | ✅ | Coverage zones para targeting de lost-pet broadcast | `/org/[orgToken]/cobertura` |
@@ -1049,8 +1060,8 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 |---|---|---|
 | ✅ | Admin surface básico (orgs + vet upgrades review) | `/admin/*` parcial |
 | 🟡 | Admin page completo (4 roles, account_type institutional, split `/gob` vs `/admin`) | spec v2.2 (`2026-05-17-admin-page-design.md`), plan parcial existe |
-| ⚪ | `/gob` portal scope-bound por localidad | parte de admin page spec |
-| ⚪ | Government dashboards (sanitary / analyst / welfare officer) | proyecciones sobre event log, no UI |
+| ✅ | `/gob` portal scope-bound por localidad / jurisdicción | `requireAdminOrGovtOrRedirect()` en `lib/auth-guards.ts`; admin ve scope universal, govt filtra por sus `govt_assignments`; todos los helpers de `lib/govt-dashboards.ts` aceptan el par `actor + jurisdictions` |
+| ✅ | Government dashboards (sanitary / analyst / welfare officer) | `/gob/mortalidad`, `/gob/vigilancia`, `/gob/analytics`, `/gob/poblacion`, `/gob/censo`, `/gob/programa` — UI completa con proyecciones sobre el event log |
 
 ### Identity & legal
 
@@ -1072,7 +1083,7 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Cron infra (CRON_SECRET + helper-lib + thin route) | `app/api/cron/*` |
 | ✅ | RLS aplicada en todas las tablas PII/tenant (43 tablas) — authz model documentado (Wave 5 Item 26) | migrations 0086 + 0105; `__tests__/rls/coverage.test.ts`; `e2e/cross-tenant-isolation.spec.ts` |
 | ✅ | RLS smoke test cross-account vía PostgREST (extendido Item 26: pet_identifications, pet_transfers) | `pnpm rls:smoke` |
-| ✅ | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D complete | `components/layout/AppShell.tsx` + `lib/shell-nav.ts` (auth-aware `resolveShellNav`). All surfaces migrated; legacy `LnOwnerNav`/`AppHeader`/`OpShell` deleted (Phase D). Plan: `docs/superpowers/plans/2026-06-18-unified-app-shell.md` |
+| ✅ | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D complete | `components/layout/AppShell.tsx` + `lib/shell-nav.ts` (auth-aware `resolveShellNav`). All surfaces migrated; legacy `LnOwnerNav`/`AppHeader`/`OpShell` deleted (Phase D). Plan: `docs/superpowers/plans/archive/2026-06-18-unified-app-shell.md` |
 | 🟢 | Localities catalog INDEC (catalog reference) | spec + plan listos |
 | ⚪ | Push notifications (iOS PWA limitations) | — |
 | ⚪ | Native mobile via React Native sharing data layer | — |
@@ -1147,7 +1158,7 @@ Operator surfaces (`/gob/*`, `/admin/*`) get from an aggregate to a single recor
   - The header checkbox selects the **page**, not the whole query, for irreversible/notifying actions.
 ### 5. Pet profile order: identity → alerts → actions → tabs
 
-Added by the pet-profile v2.1 reorder (2026-06-18, Item 6 of the metrics-IA handoff; spec `docs/superpowers/specs/2026-06-18-pet-profile-v21-reorder-and-action-consolidation-design.md`). The owner profile at `/mis-mascotas/[publicToken]` MUST present blocks in this order:
+Added by the pet-profile v2.1 reorder (2026-06-18, Item 6 of the metrics-IA handoff; spec `docs/superpowers/specs/archive/2026-06-18-pet-profile-v21-reorder-and-action-consolidation-design.md`). The owner profile at `/mis-mascotas/[publicToken]` MUST present blocks in this order:
 
 1. **Identity first, always** — the hero (photo, name, species·breed, chip, jurisdiction, tags) is the first content block in every non-terminal state. No conditional banner precedes it.
 2. **Avisos in one prioritized strip** — conditional alerts (rabies, transit/custody, open cases, pregnancy) collapse into a single `<PetAlertStrip>` BELOW the hero, ordered by urgency (`urgent` → `warning` → `info`). The strip renders nothing when there are no alerts.
@@ -1168,7 +1179,7 @@ There is **one** way to annotate from the profile: `/anotar` is the single canon
 - **"Inicio" is disambiguated**: the brand/logo → public landing `/`; the role "Inicio" nav item → the role home (`/inicio` for owner, the operator panel for gob/admin/org).
 - **`#main-content`** (skip-link target) is preserved in every variant — do not drop it.
 
-Spec: `docs/superpowers/specs/2026-06-18-unified-app-shell-design.md`. Plan: `docs/superpowers/plans/2026-06-18-unified-app-shell.md`.
+Spec: `docs/superpowers/specs/archive/2026-06-18-unified-app-shell-design.md`. Plan: `docs/superpowers/plans/archive/2026-06-18-unified-app-shell.md`.
 
 ### Drift policy
 
@@ -1179,7 +1190,7 @@ If a new feature seems to need an exception, write the exception into the PR des
 - Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `docs/archive/mimar-go-to-market.md` for the GTM analysis)
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
 - ~~**`/pro` portal**~~ — removed in Sprint 1A Phase B. Independent vets now create a clinic org via `/cuenta/crear-consultorio` and operate from `/org/[orgToken]`.
-- **`/org/[orgToken]` portal** — currently lives at `app/refugio/`. Code rename plan: `docs/superpowers/plans/2026-05-17-code-rename-refugio-to-org.md`.
+- **`/org/[orgToken]` portal** — currently lives at `app/refugio/`. Code rename plan: `docs/superpowers/plans/archive/2026-05-17-code-rename-refugio-to-org.md`.
 - **`/gob` portal** — govt scope-bound portal for locality approvals + regional dashboards. Designed in admin page spec v2.2; implementation follows admin page Fase 0.
 - **`/admin` portal** — already partially implemented; needs refinement to split govt-shared surfaces into `/gob`.
 - **Adoption-listing public surface (`/adoptar`)** — projection over (`pets` where current `Ownership` is org-held by `org_type` in (`shelter`, `rescue_network`), not death, not paused). Filters, region, species. UX and listing copy open.
@@ -1190,7 +1201,7 @@ If a new feature seems to need an exception, write the exception into the PR des
 - Government dashboards: three audiences in scope (sanitary authority, analyst, welfare officer); build order TBD by where adoption lands first
 - **Mascotas CABA program integration** — the GCBA's existing (non-digitalized) free-vet-attention program. DIM is the data layer it lacks; explore as a partnership path.
 - **Dangerous breed registry export** — Ley CABA 4078 / Ley Prov 14.107. Pet flag + attestation event ✅ shipped; **export provincial pendiente** (placeholder por ahora — la atestación se persiste localmente y se muestra en el perfil identificando como PPP, pero el push automático al registro municipal/provincial es futuro). Spec abierta: nombrar cuando se priorice integración real.
-- **Non-owner reporting flow — base completa, queue triage pendiente.** `welfare_reports` table con `subjectKind` enum polimórfico (`registered_pet | unowned_animal | location | general`) cubre el caso del subject no registrado sin necesidad de ghost_subject pets. Form público + anonymous + 5 attachments + bridge a pet_events vivo en `src/modules/welfare/actions.ts` + `app/denuncias/nueva/`. Polish del plan `2026-05-18-welfare-reports-polish.md` shipped: bridge copia `locationLat/locationLng` a los 3 pet_events emitidos, `LocationMap` montado en las 2 detail pages de denuncia (auth + anon), rate-limit persistente para anonymous (`rate_limit_buckets` + `enforceRateLimit`, 1/min + 3/hour por IP). **Pendientes:** (a) welfare-officer queue en `/gob/maltrato` para triagear casos (gap operativo principal — sin esto las denuncias se acumulan invisibles), (b) moderation queue para denuncias anónimas auto-flagged, (c) export template a fiscalía MPF CABA (Ley 14.346 pipeline). La spec `docs/archive/2026-05-18-maltreatment-reporting-design.md` quedó **superseded** (movida a `docs/archive/` en sprint 1 PR-007) — NO seguirla. Ver Feature inventory arriba.
+- **Non-owner reporting flow — completo (queue + export).** `welfare_reports` table con `subjectKind` enum polimórfico (`registered_pet | unowned_animal | location | general`) cubre el caso del subject no registrado sin necesidad de ghost_subject pets. Form público + anonymous + 5 attachments + bridge a pet_events vivo en `src/modules/welfare/actions.ts` + `app/denuncias/nueva/`. Polish del plan `2026-05-18-welfare-reports-polish.md` shipped: bridge copia `locationLat/locationLng` a los 3 pet_events emitidos, `LocationMap` montado en las 2 detail pages de denuncia (auth + anon), rate-limit persistente para anonymous (`rate_limit_buckets` + `enforceRateLimit`, 1/min + 3/hour por IP). **Todos los gaps operativos resueltos:** (a) welfare-officer queue en `/gob/maltrato` — queue con filtros, asignación y detail page; (b) moderation queue en `/admin/moderacion` — queue + detail page; (c) export a fiscalía MPF CABA — `src/modules/welfare/application/generate-mpf-export.ts`. La spec `docs/archive/2026-05-18-maltreatment-reporting-design.md` quedó **superseded** (movida a `docs/archive/` en sprint 1 PR-007) — NO seguirla. Ver Feature inventory arriba.
 - **Vaccination-due warning to owner** — when a vaccination approaches or passes its `next_due_at`. Confirmed via `docs/legal-framework-full.md` (2026-05-18 pass) that NO Argentine norm requires the system to warn — the obligation rests on the owner to keep vaccinations current (Ley 22.953, DL 8056, Ord. 41.831). A system-side warning is a UX feature, not a compliance requirement. Future spec if product decides to implement.
 - Materialized views for expensive projections — keep event log as source of truth, cache when query latency justifies
 - Campaign management UX (gov-side scheduling, slot allocation) — referenced by `campaign_id` in vaccination/sterilization events. Campaigns belong to clinics or sanitary authorities, not individual vets.
