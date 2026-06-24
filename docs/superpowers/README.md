@@ -16,6 +16,8 @@ A typical feature lifecycle: brainstorm in chat → spec in `specs/` → review/
 
 ## What to attack next
 
+> **▶ ORQUESTADOR ACTIVO (2026-06-24) para CC:** [`plans/2026-06-24-CONSOLIDATED-pending-backlog.md`](./plans/2026-06-24-CONSOLIDATED-pending-backlog.md) **Parte D** = la cola de PRs lista para ejecutar (design system F1–F4 + fixes A2/A3/A4/A7/A9 + higiene de docs Parte B). Todas las decisiones de producto/seguridad están cerradas ahí. El detalle del design system vive en [`plans/2026-06-24-operator-design-system-unification.md`](./plans/2026-06-24-operator-design-system-unification.md). Empezar por la Parte D.
+
 Recommended order based on dependency chains and leverage. Each item is a Claude Code session that produces 1+ PRs.
 
 Auditado 2026-05-19 contra `develop`: varios items que estaban acá ya están en código y se movieron a la sección "Implementado" abajo.
@@ -54,7 +56,7 @@ Auditado 2026-05-19 contra `develop`: varios items que estaban acá ya están en
 
 ## Admin executive-review remediation (auditoría ejecutiva 2026-06-22)
 
-> [`plans/2026-06-22-admin-executive-review-fixes.md`](./plans/2026-06-22-admin-executive-review-fixes.md) — remediación de la auditoría ejecutiva del perfil **admin** ([`docs/admin-design-critique-2026-06-22.md`](../admin-design-critique-2026-06-22.md), 40 hallazgos C1-C40). **✅ Completo** — 10 PRs sobre `review/all-session-prs` (mergear en orden PR-1 → PR-10; PR-7 supersede el stopgap de C22 de PR-1):
+> [`plans/2026-06-22-admin-executive-review-fixes.md`](./plans/2026-06-22-admin-executive-review-fixes.md) — remediación de la auditoría ejecutiva del perfil **admin** ([`docs/archive/admin-design-critique-2026-06-22.md`](../archive/admin-design-critique-2026-06-22.md), 40 hallazgos C1-C40). **✅ Completo** — 10 PRs sobre `review/all-session-prs` (mergear en orden PR-1 → PR-10; PR-7 supersede el stopgap de C22 de PR-1):
 >
 > | PR | Rama | Hallazgos | PR |
 > |----|------|-----------|----|
@@ -111,9 +113,15 @@ Auditado 2026-05-19 contra `develop`: varios items que estaban acá ya están en
 > - **D5 — entradas**: 2 items al final de la sección "Analítica" de `ADMIN_NAV_SECTIONS`. **D6**: invariante 308 filtra deferred + snapshots (`nav-presets.test.ts`, `shell-nav-phase-b.test.ts`, `shell-nav.test.ts`). **D7**: test de render deferred (`OpRailNav.test.tsx`).
 > - **Diferido**: paridad GOB + construcción de las consolas reales (Paquetes F/G, cross-ref `specs/2026-06-23-dashboards-vnext-roadmap.md`) + consolidación analítica (`2026-06-22-gob-analytics-retirement.md`). Convertir un botón en real luego = cambio aditivo de una línea (`deferred: true` → `href`/`matchPrefix`).
 
+### Design system operador — unificación estado/badges/botones 🔴🟡 listo para CC
+
+> [`plans/2026-06-24-operator-design-system-unification.md`](./plans/2026-06-24-operator-design-system-unification.md) — del critique de frontend del tier **operador** (`/admin` + acceso a `/gob`, 2026-06-24: [`docs/design/critique-2026-06-24-frontend.md`](../design/critique-2026-06-24-frontend.md)), integrando los 3 hallazgos de Design ([`docs/archive/Hallazgos Design System.md`](../archive/Hallazgos%20Design%20System.md)). El tier operador tiene su kit `Op*` sobre `ln-op-*` pero **dos sistemas (ciudadano `Ln*` + operador `Op*`) crecieron sin capa semántica común**. **PR-1** `fix/operator-status-token-layer` 🔴 (F1): capa `--st-*` como indirección por piel + auditoría de contraste `ln-op-warn/danger` + colapsar violetas. **PR-2** `fix/operator-status-badge-grammar` 🟡 (F2): primero el **bug** de tono contradictorio (`open`/abierto = verde en `CaseStatusBadge` vs ámbar en `OpPill`), luego primitivo `OpStatusPill` único. **PR-3** `chore/operator-button-primitive` 🟡 (F3): `OpButton` (hoy 1 import de `LnButton` vs **133 `<button>` crudos**; primario verde/azul inconsistente). **PR-4** 🟢 polish densidad de Casos. Requisito duro: **cero diff visual en superficies ciudadanas**. SDD test-first; `pnpm verify` + `pnpm test` por PR.
+
 ## All specs & plans
 
 > Reconciliado 2026-06-19 contra `develop`: la mayoría de los items 🟢 ya estaban en código (ver `git log`).
+>
+> **▶ Archivado 2026-06-24 (auditoría docs↔código).** Specs de features ya vivas (37) → [`specs/archive/`](./specs/archive/); planes ejecutados (24) → [`plans/archive/`](./plans/archive/). Las filas de abajo quedan como registro histórico (el `code-span` ya no es link; el archivo vive bajo `*/archive/`). **Activos en `specs/` (13):** roadmaps (dashboards-vnext-roadmap, panorama-north-star, gov-portal-admin-reuse, dashboards-sell-completeness) · no-construidos/parciales (physical-tag, bite-from-unowned, performed-by-autocomplete, pet-spaces-catalog, event-trust-tiers-2-4, physical-credential-hub, wave5-launch-hardening) · panorama (national-situational-console, panorama-v2 — demo activa). **Activos en `plans/` (16):** los 2 nuevos (operator-design-system-unification, CONSOLIDATED-pending-backlog) · supabase-advisor-errors · dashboards-vnext · population-cycle-deferred-nav · spec-later-tracker · planes de la **sprint de demo activa** (06-22/06-23) · bite-from-unowned / physical-credential-hub / design-system-hardening (features no terminadas). Backlog de pendientes: [`plans/2026-06-24-CONSOLIDATED-pending-backlog.md`](./plans/2026-06-24-CONSOLIDATED-pending-backlog.md).
 
 ### Specs (design docs)
 
@@ -177,6 +185,7 @@ Auditado 2026-05-19 contra `develop`: varios items que estaban acá ya están en
 
 | Plan | Status | Spec relacionado | Notas |
 |------|--------|------------------|-------|
+| `2026-06-24-operator-design-system-unification.md` | 🔴🟡 Ready for CC | — (critique `docs/design/critique-2026-06-24-frontend.md` + `docs/archive/Hallazgos Design System.md`) | **Unificación del design system del tier operador** (`/admin` + `/gob`). Dos sistemas (`Ln*` ciudadano / `Op*` operador) sin capa semántica común. **PR-1** capa `--st-*` por piel + auditoría contraste `ln-op-warn/danger` + colapsar violetas (F1 🔴). **PR-2** bug de tono contradictorio `open`/`closed` (`OpPill` vs `CaseStatusBadge`) + primitivo `OpStatusPill` único (F2). **PR-3** `OpButton` — 1 import de `LnButton` vs 133 `<button>` crudos; primario verde/azul inconsistente (F3). **PR-4** 🟢 densidad Casos. Cero diff visual en superficies ciudadanas. SDD test-first. |
 | `2026-06-21-national-situational-console.md` | ✅ Implementado (#705) | `specs/2026-06-21-national-situational-console-design.md` (v1.0) | **Centro de Situación Nacional (Panorama) — plan ejecutable (5 fases F1–F5).** Doc 2/3 del paquete Panorama. Módulo `src/modules/panorama/` (hexagonal-lite), frontend `components/panorama/` (MapLibre GL), rutas `app/{admin,gob}/panorama/`. F1–F4 ✅. F5 privacidad ✅ parcial — la absorción de `/gob/analytics` vía redirect 308 **no se ejecutó** (decisión de producto pendiente; `/gob/analytics` está VIVO como página propia en el nav). |
 | `2026-06-21-panorama-demo-dataset.md` | ✅ Implementado (#698) | `specs/2026-06-21-national-situational-console-design.md` (v1.0) | **Dataset demo realista para el Panorama** (`seed:panorama`). Doc 3/3 del paquete Panorama. ~46k mascotas sintéticas ponderadas por Censo 2022 + anclas metro, set-pieces rabia NOA / perdidas AMBA / k-anon. Idempotente, determinístico, local-only. Sin schema nuevo. Nota: el banner "Datos de demostración" se muestra en TODOS los entornos (flag #20 pendiente) — esperado, no un bug. |
 | `2026-06-22-admin-fresh-sweep-fixes.md` | 🟡 En curso (A1-A3 ✅ #702) | — (extiende `2026-06-20-ux-audit-remediation.md` Fase 3.6) | **Fresh sweep en vivo de las pantallas admin** (7 ítems A1-A7, sev 🔴·🟡·🟢). A1 (404 branded por route-group), A2 (`RuleImpactBanner` — calc `inArray()` en vez de `= ANY` untyped), A3 (acentos es-AR) ✅ en #702. Restan A4-A7 (🟢 polish: crumbs estáticos, action-code labels en feeds) + A1 e2e. Test-first. |
@@ -241,70 +250,4 @@ Conviene saberlas porque cruzan varios specs:
 - **Admin page Fase 0** (schema foundation: `account_type`, `admin_grants`, `approval_requests`, `audit_log`) destraba:
   - El routing a govts del symptom surveillance (hoy fallback a admins vía `/admin`; post-Fase 0 irá a `/gob`)
   - La aprobación real de vet upgrades (hoy se setea matriculaVerified=true por Studio)
-  - La verificación real de organizaciones (hoy se hace por Studio)
-  - El scheduling approval del spec de campaigns (hoy no existe)
-  - La separación de surfaces `/gob` (approval queue scoped a localidad) vs `/admin` (meta-admin + fallback)
-- **Libreta sanitaria Parte A** ya implementado destraba:
-  - Parte B (ruta dedicada)
-  - Parte C (Tier-2 shareable)
-  - El narrativo "quedó en tu libreta sanitaria" del spec de scheduling cuando se implemente
-  - Filtros consistentes en el pet profile timeline (ya integrado)
-- **Hardening del event-sourcing** (Zod schemas estrictos, validateEventPayload, triggers append-only) ya implementado destraba:
-  - El surveillance feature usa `validateEventPayload` para los payloads de `symptom_observed` y `outbreak_signal`
-  - El lost-and-found feature extiende Zod schemas de `status_changed`, `custody_transfer_proposed`, `custody_transferred`
-  - Cualquier feature futuro que agregue event_types
-
----
-
-## Convenciones
-
-**Naming:**
-- Archivos con prefijo de fecha `YYYY-MM-DD-descripción-corta.md`
-- Specs siempre terminan en `-design.md` (e.g., `health-campaigns-and-scheduling-design.md`)
-- Plans no terminan en `-design.md` para distinguirlos visualmente
-- Versiones en el header del doc (`v1.0`, `v1.1`, `v2.0`), no en el nombre del archivo
-
-**Brand y rutas:**
-- Producto user-facing: **MiMAR** (Mi Mascota Argentina). Aparece en title, copy, notifications.
-- Codename interno: **DIM**. Schema, code, tokens, audit. Nunca cambia.
-- Paths user-facing: `/mis-mascotas`, `/pro`, `/org/[orgToken]`, `/gob`, `/admin`, `/p/[publicToken]`, `/libreta/compartir/[shareToken]`.
-- Spanish naming convention para paths (`/gob` abreviado de "gobierno", no `/government`; `/organizaciones` se acortó a `/org` por brevedad consistente con `/admin`, `/pro`, `/p`).
-
-**Cambios mayores a un spec:**
-- Bumpear versión en el header
-- Documentar qué cambió respecto a la versión anterior en una línea
-- Si la implementación correspondiente ya empezó, evaluar si el plan también necesita rewrite
-
-**Cuando un plan se ejecute:**
-- El commit final puede actualizar el README marcando el plan como ✅ Implementado
-- Mantener el archivo del plan (es referencia histórica de cómo se construyó la feature)
-
-**Cuándo escribir un spec vs un plan directo:**
-- Spec si el feature tiene decisiones de producto, cambios de schema, o múltiples archivos
-- Plan directo si es un retrofit/fix puntual cuya intención es obvia
-
-**Lectura obligatoria antes de cualquier plan:**
-- `AGENTS.md` — cargá el índice slim (top, ≤1.5k tokens) y después la sección profunda por anchor. Antes de tocar una ruta pública, un token, o un campo PII, cargá también la sección [§ Privacidad y manejo de datos](../../AGENTS.md#privacidad-y-manejo-de-datos) — es el privacy gate per-task.
-- El spec correspondiente (cuando exista)
-- Cualquier doc que el plan liste en su sección "0. Antes de tocar nada"
-
----
-
-## Docs fuera de `docs/superpowers/`
-
-**Activos** (`docs/`) — siguen siendo fuente de verdad en aspectos específicos. Citables como canon en specs/plans nuevos:
-
-- `docs/legal-framework-full.md` — framework legal AR vivo, sigue iterando.
-- `docs/org-portal-plan.md` — ✅ Implementado en código (`app/org/[orgToken]/*`). Sigue referenciado como canon de flows en plans recientes (por ej. `foster_ended.payload.reason='adoption'` patrón Flow 7).
-- `docs/org-portal-event-flows.md` — Flows 1-9 canónicos del org portal. Referenciado por specs/plans nuevos.
-- `docs/org-portal-permissions.md` — capability matrix canon. Referenciada por todos los specs que tocan capabilities.
-- `docs/patterns/petition-prerequisites.md` — patrón reusable para pre-condiciones de capabilities.
-
-**Archivados** (`docs/archive/`) — prompts históricos y material 2021. Ver `docs/archive/README.md` para inventario:
-
-- Prompts del rebuild 2026 ya implementados: `event-sourcing-hardening-prompt.md`, `org-portal-prompt.md` (se mantienen como referencia histórica del proceso; el feature está vivo en código).
-- Material del proyecto universitario 2021: paper CONAIISI, Business Model Canvas, Event Sourcing notes.
-
-Los archivados NO se mantienen activamente. Si algún detalle se vuelve relevante para una decisión nueva, migrarlo a `AGENTS.md` o un spec nuevo en lugar de editar el archivo en `archive/`.
-
-(Notas anteriores mencionaban `v1-closure-prompt.md` y `location-unification-prompt.md` — esos archivos ya no existen, fueron limpiados antes. Esta entrada queda corregida.)
+  - La verificación 

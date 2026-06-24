@@ -1,3 +1,5 @@
+> **IMPLEMENTED / shipped** — This spec has been fully implemented. Org-sourced welfare reports with elevated priority are handled in `src/modules/welfare/actions.ts` and surfaced in the `/gob/maltrato` queue. Archived for historical reference only.
+
 # Org abuse investigation — flagged higher for admins — design spec
 
 > Cuando una organización verificada (clínica, refugio, rescue network, sanitary_authority) detecta un caso de maltrato durante su operativa profesional, debería poder reportarlo a través de un flujo dedicado que (a) levanta automáticamente la severity, (b) populates `reporter_organization_id` para audit + priority sort, (c) trigger notification inmediata urgent al govt scope + admin, (d) aparece arriba en `/gob/maltrato` queue. Estos reports son cualitativamente distintos del flow anon / autenticado-individual porque vienen con contexto profesional verificable.

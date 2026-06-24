@@ -1,3 +1,5 @@
+> **IMPLEMENTED / shipped** — This spec has been fully implemented. The symptom-surveillance matcher (`lib/symptom-matcher.ts` or equivalent), `outbreak_signal` emission, and ENO outbox pipeline are all live. Archived for historical reference only.
+
 # Symptom → dangerous-disease surveillance — design spec
 
 > Cuando el dueño registra síntomas en su libreta sanitaria, un matcher contra el catálogo de enfermedades reportables emite señales silenciosas a la autoridad sanitaria. Sin pánico para el dueño, sin diagnóstico, sin alarma. Sumando el patrón en agregado, se vuelve la base del dashboard de zoonosis del público-health analyst.

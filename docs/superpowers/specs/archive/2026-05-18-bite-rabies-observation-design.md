@@ -1,3 +1,5 @@
+> **IMPLEMENTED / shipped** — This spec has been fully implemented. The bite-rabies observation flow is live: `rabies_observation_started`/`_ended` event types, `app/admin/observaciones/[publicToken]`, cron `app/api/cron/close-rabies-observations/route.ts`. Archived for historical reference only.
+
 # Bite reporting + 10-day rabies observation — design spec
 
 > Cuando se reporta que una mascota DIM mordió a alguien (humano u otro animal), arranca automáticamente el período de observación antirrábica de 10 días que la legislación argentina exige. Durante esos 10 días, cualquier `symptom_observed` que matchee síntomas compatibles con rabia (alta especificidad) **escala** al nivel `urgent` y dispara alerta a autoridad sanitaria + nudge fuerte al dueño para que consulte al vet de inmediato. Al día 11, si no hubo síntomas escalables, el período se cierra automáticamente como negativo. Si hubo, queda abierto para decisión profesional.

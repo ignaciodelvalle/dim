@@ -1,3 +1,5 @@
+> **IMPLEMENTED / shipped** — This spec has been fully implemented. The decomiso flow is live via `shelter_intake_recorded(intake_reason='seizure')` + case `custody_episode` lifecycle + welfare-officer queue at `/gob/maltrato`. Archived for historical reference only.
+
 # Decomiso (Ley 14.346) → temporary welfare-authority custody → refugio chain — design spec
 
 > Cuando una autoridad sanitaria municipal o un govt office (CABA: comuna, PBA: dispensario antirrábico) ejecuta un **decomiso** de un animal por violación de Ley 14.346 (malos tratos / actos de crueldad) u otras causales legales, hoy no hay flow en MiMAR — solo schema básico (`shelter_intake_recorded(intake_reason='seizure')`). Este spec abre la UI del lado autoridad: form de decomiso con motivo + adjuntos obligatorios + selección de refugio destinatario, materialización del intake event + activation del case_kind `custody_episode` (que estaba en deferred del lifecycles spec), y notification al refugio receptor.

@@ -1,3 +1,5 @@
+> **IMPLEMENTED / shipped** — This spec has been fully implemented. `clinical_info_logged(sub_kind='disease_diagnosis')` is live in `lib/event-schemas.ts`; ENO fanout via `event_notification_outbox` is wired in `src/modules/welfare/` and measured by `fetchEnoSla`. Archived for historical reference only.
+
 # ENO — vet direct report + owner alerts + legal coverage — design spec
 
 > Hoy las ENO (Enfermedades de Notificación Obligatoria) entran a MiMAR vía `symptom_observed` (matcher fuzzy) → `outbreak_signal` (system-emitted al govt). El owner NO ve diagnósticos (D1 del symptom-surveillance spec, privacy-first). Este spec abre dos huecos:

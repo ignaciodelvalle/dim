@@ -26,12 +26,10 @@ import { createClient } from "@/lib/supabase/server";
  * the layout boundary (a server component → resolve session → pass to AppShell).
  *
  * Token-landing surfaces under this group (/p/[publicToken] and its
- * sub-actions) are NOT browse pages — they render their own full-screen
- * credential `<main id="main-content">`. For those paths this layout renders a
- * transparent passthrough so it does not add a second `#main-content`. Their
- * full migration to AppShell variant=landing is a focused follow-up (Phase C2)
- * because it touches the PII-sensitive credential render; this layout change is
- * deliberately inert for them.
+ * sub-actions, /libreta/compartir/[shareToken]) are NOT browse pages — they
+ * render their own full-screen credential `<main id="main-content">`. For
+ * those paths this layout renders a transparent passthrough so it does not
+ * add a second `#main-content`.
  *
  * Auth-aware but NEVER an auth gate: this layout renders for anonymous visitors
  * too and must not redirect.
@@ -41,7 +39,7 @@ export default async function PublicLayout({ children }: { children: React.React
   const pathname = (await headers()).get("x-pathname") ?? "/";
 
   // Token-landing surfaces own their own #main-content — pass through untouched
-  // so we never duplicate the landmark. Their landing-variant migration is C2.
+  // so we never duplicate the landmark.
   if (isTokenLandingPath(pathname)) {
     return <>{children}</>;
   }

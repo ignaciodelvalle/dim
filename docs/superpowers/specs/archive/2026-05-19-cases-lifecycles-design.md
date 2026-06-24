@@ -1,3 +1,5 @@
+> **IMPLEMENTED / shipped** — This spec has been fully implemented. The case system (`lib/case-attachment.ts`, `lib/case-queries.ts`, `lib/case-normatives.ts`, `src/modules/cases/**`) is live. Archived for historical reference only.
+
 # Casos — lifecycles por kind — design spec
 
 > Sucesor del **attachment spec** (`2026-05-19-cases-event-attachment-design.md`). Mientras aquel definió cómo cada `event_type` se relaciona con el sistema de casos, este define **el lifecycle interno de cada `case_kind`**: estados, transiciones, eventos que abren/cierran, crones de auto-cierre, normativas aplicables (lookup `lib/case-normatives.ts`), matriz de notifications, ajustes finos de visibility. Pensado para que Claude Code pueda producir el plan ejecutable a partir de este doc sin volver a chat para decisiones de diseño.

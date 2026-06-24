@@ -5,7 +5,7 @@
 > **Para Claude Code — ejecución autónoma.** Cuatro PRs **independientes** que arreglan el chrome
 > del operador y rediseñan la navegación del **Panorama / Centro de Situación Nacional**
 > (`/admin/panorama` · `/gob/panorama`), más la carga de la demo y la legibilidad provincia↔localidad.
-> Origen: [`docs/panorama-design-critique-2026-06-23.md`](../../panorama-design-critique-2026-06-23.md).
+> Origen: [`docs/panorama-design-critique-2026-06-23.md`](../../archive/panorama-design-critique-2026-06-23.md).
 > Severidad: 🔴 correctitud/UX-bloqueante · 🟡 fricción · 🟢 polish. **SDD test-first** (AGENTS.md),
 > docs en el mismo PR. `pnpm verify` (tsc + Biome + lint:tokens + lint:ui + next build) + `pnpm test`
 > verdes, cero regresiones por PR.
@@ -269,7 +269,4 @@ Rama sugerida: `feat/panorama-province-locality-reconcile`. Cierra §3 de la cr�
 - **PR-3** 🔴 S1/S2, 🟡 S3/S4/S5 — consistencia de datos.
 - **PR-4** 🟡 R1/R2, 🟢 R3 — legibilidad; se beneficia de PR-3.
 
-*Autor: Claude. Generado 2026-06-23 desde la crítica `docs/panorama-design-critique-2026-06-23.md` y
-lectura estática de `components/panorama/**`, `components/layout/AppShell.tsx`, `app/{admin,gob}/layout.tsx`,
-`components/ui/dashboard/OpRail*.tsx`, `src/modules/panorama/**`, `src/modules/{pets,events}/application/**`
-y `scripts/seed-panorama.ts`. Anclas por símbolo+quote; CC confirma con grep/Read antes de editar.*
+*Autor: Claude. Generado 2026-06-23 desde la crítica `docs/panorama-design-critique-2026-06-23.m

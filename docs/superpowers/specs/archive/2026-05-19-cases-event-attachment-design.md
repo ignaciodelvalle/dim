@@ -1,3 +1,5 @@
+> **IMPLEMENTED / shipped** — This spec has been fully implemented. Event-to-case attachment logic lives in `lib/case-attachment.ts`; the case model and queries in `lib/case-queries.ts`. Archived for historical reference only.
+
 # Casos (expedientes) — attachment de eventos — design spec
 
 > Introducir un objeto **Caso** (a.k.a. *expediente*) como capa de coordinación liviana sobre el event log. Un caso agrupa todo lo que pasa alrededor de una situación real-life (una mordida, una denuncia, una adopción, una pérdida) y derivado de eso le da contexto unificado a actores, aprobaciones y normativas aplicables. Este documento define **cómo cada event_type del catálogo se relaciona con el sistema de casos**: si lo abre, si se le adjunta, si lo cierra, si lo ignora. Los lifecycles detallados por `case_kind` quedan para el spec siguiente.
