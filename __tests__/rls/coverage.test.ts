@@ -79,6 +79,16 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   // Carries jurisdiction + actor FKs (acknowledged_by / contacted / resolved);
   // admin-only reads/writes go through Drizzle BYPASSRLS server actions.
   "alert_firings",
+  // Alert subscriptions — owner/admin-scoped policies in migration 0108.
+  "alert_subscriptions",
+  // Advisor remediation (migration 0113): deny-all on four tables the Supabase
+  // security advisor flagged rls_disabled_in_public. The app reaches all four
+  // only via Drizzle / service-role (BYPASSRLS); deny-all just closes the
+  // anonymous PostgREST surface. This SUPERSEDES their 0086 PART 7 exclusion.
+  "rate_limit_buckets",
+  "_dim_migrations",
+  "govt_business_rules",
+  "jurisdictions_census",
 ];
 
 // ---------------------------------------------------------------------------
@@ -86,19 +96,14 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
 // carries the justification. A reviewer must consciously move a table here.
 // ---------------------------------------------------------------------------
 const RLS_INTENTIONALLY_EXCLUDED: Readonly<Record<string, string>> = {
-  govt_business_rules:
-    "Authority-published jurisdiction policy reference (PPP breed lists, weight thresholds). No personal data; admin-only writes via server actions.",
-  jurisdictions_census:
-    "Public provincial census figures (population by province/year). Public reference data.",
-  rate_limit_buckets:
-    "Ephemeral counters keyed by an opaque/hashed bucket key. No user identity; TTL-expired rows.",
+  // NOTE: govt_business_rules, jurisdictions_census, rate_limit_buckets and
+  // _dim_migrations were excluded here (0086 PART 7) until migration 0113 moved
+  // them to deny-all RLS — they now live in RLS_REQUIRED. See 0113.
   ar_localities:
     "Public INDEC locality reference data (already RLS-enabled by an earlier migration; not PII).",
   ar_localities_import_runs:
     "Import bookkeeping for the public locality reference dataset; no PII.",
   cron_runs: "System cron execution bookkeeping; no PII or tenant data.",
-  _dim_migrations:
-    "Migration runner tracking table (V0-6): applied migration filenames + checksums. Ops metadata, no PII; written only by scripts/migrate.ts via the BYPASSRLS connection.",
 };
 
 // ---------------------------------------------------------------------------
