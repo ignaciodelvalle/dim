@@ -682,7 +682,69 @@ async function materializeAlertFiring(
 }
 
 // ---------------------------------------------------------------------------
-// 11. Main
+// 11. B2 — microchip coverage populated with varied per-province rates
+// ---------------------------------------------------------------------------
+// Antirrábica already has real bulk data (counted via vaccine_name); the chip
+// gap (only a handful of pet_identifications) made Microchip read 0% universal,
+// which looks like an unseeded registry on camera. Populate microchip_iso for a
+// deterministic, varied fraction of pets per province so the outliers/KPIs read
+// as real findings (some below, one above the 80% benchmark).
+
+const MICROCHIP_COVERAGE: ReadonlyArray<{ province: string; pct: number }> = [
+  { province: "CABA", pct: 72 },
+  { province: "Buenos Aires", pct: 58 },
+  { province: "Córdoba", pct: 45 },
+  { province: "Santa Fe", pct: 63 },
+  { province: "Mendoza", pct: 85 },
+  { province: "Tucumán", pct: 38 },
+];
+
+async function seedComplianceCoverage(): Promise<void> {
+  log("STEP", "B2: populating microchip_iso coverage (varied per province)");
+  const recordedAt = ANCHOR_DATE.toISOString().slice(0, 10); // YYYY-MM-DD (date col)
+
+  for (const { province, pct } of MICROCHIP_COVERAGE) {
+    // Idempotent + deterministic: a stable per-pet 8-digit national id
+    // (row_number over ALL pets by id) yields a unique 15-char ISO chip code;
+    // NOT EXISTS skips already-chipped pets so re-running converges; the
+    // hashtext(id) % 100 < pct bucket selects a stable varied fraction. All ISO
+    // subfields are valid (858 + 0001 + 8 digits) so the rows count in both the
+    // penetration and the ISO-validity funnel.
+    const result = (await db.execute(sql`
+      INSERT INTO pet_identifications
+        (pet_id, kind, status, code, recorded_at,
+         iso_country_code, iso_manufacturer_code, iso_national_id, iso_compliant)
+      SELECT s.id, 'microchip_iso', 'active',
+             '858' || '0001' || s.nat8, ${recordedAt}::date,
+             '858', '0001', s.nat8, true
+      FROM (
+        SELECT p.id AS id,
+               p.jurisdiction_province AS prov,
+               p.status AS status,
+               lpad((row_number() OVER (ORDER BY p.id))::text, 8, '0') AS nat8,
+               (abs(hashtext(p.id::text)) % 100) AS bucket
+        FROM pets p
+      ) s
+      WHERE s.prov = ${province}
+        AND s.status IN ('active', 'lost')
+        AND s.bucket < ${pct}
+        AND NOT EXISTS (
+          SELECT 1 FROM pet_identifications pi
+          WHERE pi.pet_id = s.id AND pi.kind = 'microchip_iso' AND pi.status = 'active'
+        )
+      RETURNING id
+    `)) as Array<{ id: string }>;
+
+    if (result.length > 0) {
+      log("OK", `  ${province}: +${result.length} microchip_iso (~${pct}% target)`);
+    } else {
+      log("SKIP", `  ${province}: microchip coverage already seeded`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 12. Main
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
@@ -708,6 +770,9 @@ async function main(): Promise<void> {
   // D0-4: alert subscription + materialize firing.
   const subscriptionId = await ensureAlertSubscription(adminId);
   await materializeAlertFiring(adminId, subscriptionId);
+
+  // B2: populate microchip coverage so no compliance metric reads 0% universal.
+  await seedComplianceCoverage();
 
   log("DONE", "seed-demo-scenario complete");
   console.log("");

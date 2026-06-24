@@ -240,3 +240,38 @@ describe("D1 — focal govt account invariants", () => {
     expect(govtId).not.toBe(adminId);
   });
 });
+
+describe("B2 — compliance coverage populated (no metric reads 0% universal)", () => {
+  it("microchip_iso coverage is non-zero in CABA and Buenos Aires", async () => {
+    const rows = (await db.execute(sql`
+      SELECT p.jurisdiction_province AS prov,
+             count(*) FILTER (WHERE EXISTS (
+               SELECT 1 FROM pet_identifications pi
+               WHERE pi.pet_id = p.id AND pi.kind = 'microchip_iso' AND pi.status = 'active'
+             )) AS chipped
+      FROM pets p
+      WHERE p.status IN ('active', 'lost')
+        AND p.jurisdiction_province IN ('CABA', 'Buenos Aires')
+      GROUP BY p.jurisdiction_province
+    `)) as unknown as Array<{ prov: string; chipped: number }>;
+
+    expect(rows.length).toBe(2);
+    for (const r of rows) {
+      expect(Number(r.chipped)).toBeGreaterThan(0);
+    }
+  });
+
+  it("rabies coverage (dogs, vaccine_name) is non-zero in CABA", async () => {
+    const rows = (await db.execute(sql`
+      SELECT count(DISTINCT pe.pet_id) AS vacc
+      FROM pet_events pe
+      JOIN pets p ON p.id = pe.pet_id
+      WHERE pe.event_type = 'vaccination_administered'
+        AND (pe.payload->>'vaccine_name') ~* '(antirr[áa]bica|rabies)'
+        AND p.species = 'dog'
+        AND p.jurisdiction_province = 'CABA'
+    `)) as unknown as Array<{ vacc: number }>;
+
+    expect(Number(rows[0]?.vacc ?? 0)).toBeGreaterThan(0);
+  });
+});

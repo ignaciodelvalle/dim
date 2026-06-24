@@ -277,11 +277,17 @@ export async function fetchCrossJurisdictionOutliers(
   )`;
 
   // EXISTS: rabies vaccination event (for dogs only — compliance-metrics.ts C1 analog).
+  // Match on vaccine_name with the SAME accent-aware regex as fetchRabiesCoverage
+  // / fetchRabiesCoverageByProvince / the Panorama coberta layer. The old
+  // `vaccine_type = 'antirabica'` predicate was a DRIFT: the seed (and real
+  // events) carry the canonical form name "Antirrábica" in vaccine_name and leave
+  // vaccine_type null, so this table read 0% rabies everywhere while the KPIs and
+  // map showed real values (B2). One predicate, one definition of "is rabies".
   const hasRabiesVax = sql`EXISTS (
     SELECT 1 FROM pet_events pe
     WHERE pe.pet_id = ${pets.id}
       AND pe.event_type = 'vaccination_administered'
-      AND (pe.payload->>'vaccine_type') = 'antirabica'
+      AND (pe.payload->>'vaccine_name') ~* '(antirr[áa]bica|rabies)'
   )`;
 
   // One query: per-province aggregates for all three numerators.
