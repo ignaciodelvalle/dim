@@ -13,6 +13,7 @@
 import Link from "next/link";
 
 import { EventLedgerTable } from "@/components/admin/EventLedgerTable";
+import { JurisdictionFilter } from "@/components/JurisdictionFilter";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import type { EventType } from "@/db/schema";
@@ -213,27 +214,17 @@ export default async function AdminLibroPage({
           </select>
         </label>
 
-        <label className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
-          Provincia
-          <input
-            type="text"
-            name="provincia"
-            defaultValue={sp.provincia ?? ""}
-            placeholder="Todas"
-            className="h-11 rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
-          Localidad
-          <input
-            type="text"
-            name="localidad"
-            defaultValue={sp.localidad ?? ""}
-            placeholder="Todas"
-            className="h-11 rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
-          />
-        </label>
+        {/* Canonical province <select> + province-scoped locality typeahead —
+            replaces the old free-text inputs so only existing jurisdictions can
+            be filtered. Shared <JurisdictionFilter> (used across the system). */}
+        <JurisdictionFilter
+          provinceParam="provincia"
+          localityParam="localidad"
+          defaultProvince={sp.provincia ?? ""}
+          defaultLocality={sp.localidad ?? ""}
+          labelClassName="flex flex-col gap-1 text-[11px] text-ln-op-mute"
+          selectClassName="h-11 rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
+        />
 
         <label className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
           Desde

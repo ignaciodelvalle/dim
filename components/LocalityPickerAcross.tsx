@@ -38,6 +38,13 @@ type Props = {
    * supplied, the input renders the locality name and the hidden inputs
    * carry the values directly until the user types something new. */
   defaultValue?: DefaultValue;
+  /** Optional province scope (ISO 3166-2:AR code, e.g. "AR-B"). When set, the
+   * search is restricted to that province's localities; when absent, it searches
+   * across every province (the original behavior). Used by JurisdictionFilter to
+   * turn this into a province-scoped cascade. */
+  scopeProvinceCode?: string | null;
+  /** When true, the input is disabled (e.g. no province picked yet). */
+  disabled?: boolean;
   /** Optional ID for the visible text input (label association).
    * The hidden inputs use `name` for the wire contract; this id is
    * intentionally suffixed with "-input" so it never collides with any
@@ -60,6 +67,8 @@ type Props = {
 
 export function LocalityPickerAcross({
   defaultValue,
+  scopeProvinceCode,
+  disabled,
   id,
   name = "localityName",
   required,
@@ -89,10 +98,13 @@ export function LocalityPickerAcross({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       startTransition(async () => {
-        // No provinceCode — searchLocalitiesAction returns matches across
-        // every province (the action already supports this; it filters
-        // only when provinceCode is supplied).
-        const res = await searchLocalitiesAction({ query });
+        // scopeProvinceCode (when set) restricts results to one province;
+        // otherwise the action returns matches across every province (it
+        // filters only when provinceCode is supplied).
+        const res = await searchLocalitiesAction({
+          query,
+          provinceCode: scopeProvinceCode ?? undefined,
+        });
         if ("results" in res) {
           setResults(res.results);
           setOpen(res.results.length > 0);
@@ -106,7 +118,7 @@ export function LocalityPickerAcross({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query]);
+  }, [query, scopeProvinceCode]);
 
   function handleSelect(r: LocalitySearchResult) {
     setSelected(r);
@@ -153,6 +165,7 @@ export function LocalityPickerAcross({
       <LnInput
         id={visibleInputId}
         type="text"
+        disabled={disabled}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
