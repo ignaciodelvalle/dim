@@ -1336,6 +1336,7 @@ Any jurisdiction-grouped aggregate returned to a public or analyst surface must 
 ## How Claude should work in this repo
 
 - **Always read this file first** in a new session.
+- **CC owns Git.** Claude Code handles all git work; the non-technical user runs nothing. Follow [`docs/ops/git-and-workflow.md`](./docs/ops/git-and-workflow.md): one branch per task, **commit at the end of every task**, and hand back a **clean working tree** — `git status` must be clean, never leave staged/uncommitted work or a commit-less branch. Run `git fsck --full` at session start and repair before coding if corrupt. `pnpm verify` + tests before every commit; `/security-review` + `/review` before every PR.
 - **Append to this file** when locking in a new design decision worth preserving across sessions.
 - **Never break the core principles** above without explicit user agreement and an update to this file.
 - **Events are forever**: if the user asks to "fix" historical event data, push back — the answer is a correction event, not a mutation.
