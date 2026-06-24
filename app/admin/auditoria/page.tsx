@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { type AuditLogAction, auditLog, db, profiles } from "@/db";
 import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/audit-action-labels";
 import { buildTargetLinkInfo } from "@/lib/audit-target-link";
@@ -181,12 +181,9 @@ export default async function AdminAuditoriaPage({
           </select>
         </div>
 
-        <button
-          type="submit"
-          className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
-        >
+        <OpButton type="submit" variant="primary" size="sm">
           Filtrar
-        </button>
+        </OpButton>
         {hasFilters && (
           <a
             href="/admin/auditoria"

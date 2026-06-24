@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { LnCheckbox } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 import { canSubmitModeration } from "@/lib/destructive-confirmation";
 import {
   confirmWelfareAsSpamAction,
@@ -48,13 +49,9 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
   if (mode === "none") {
     return (
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setMode("pass")}
-          className="rounded-[6px] bg-ln-op-ok px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
-        >
+        <OpButton type="button" onClick={() => setMode("pass")} variant="ok" size="sm">
           Pasar a triage
-        </button>
+        </OpButton>
         <button
           type="button"
           onClick={() => setMode("spam")}

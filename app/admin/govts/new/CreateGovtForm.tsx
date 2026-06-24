@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import { createInstitutionalAccountAction } from "@/app/actions/admin-institutional";
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
+import { OpButton } from "@/components/ui/dashboard";
 
 // One row per assigned locality. provinceName is the canonical display
 // name from ar_provincias (resolved via LocalityPickerAcross), passed to
@@ -204,13 +205,9 @@ export function CreateGovtForm() {
       )}
 
       <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-5 py-2 text-[13px] font-semibold bg-ln-op-azul text-white rounded-[6px] hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
+        <OpButton type="submit" disabled={loading} loading={loading} variant="primary">
           {loading ? "Creando..." : "Crear cuenta govt"}
-        </button>
+        </OpButton>
         <a
           href="/admin/govts"
           className="px-5 py-2 text-[13px] border border-ln-op-line rounded-[6px] hover:bg-ln-op-stripe"

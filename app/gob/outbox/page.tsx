@@ -21,7 +21,7 @@ import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpBreach, OpCard, OpPill } from "@/components/ui/dashboard";
+import { OpBreach, OpButton, OpCard, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, eventNotificationOutbox } from "@/db";
 import type { OutboxStatus, OutboxTargetKind } from "@/db";
@@ -290,12 +290,9 @@ export default async function GobOutboxPage({
           ))}
         </select>
 
-        <button
-          type="submit"
-          className="text-[13px] px-3 py-1.5 rounded-[6px] bg-ln-op-navy text-white font-semibold hover:opacity-90"
-        >
+        <OpButton type="submit" variant="primary" size="sm">
           Filtrar
-        </button>
+        </OpButton>
 
         {hasFilters && (
           <a

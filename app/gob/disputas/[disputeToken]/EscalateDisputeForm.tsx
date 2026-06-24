@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { escalateDisputeAction } from "@/app/actions/custody-disputes";
+import { OpButton } from "@/components/ui/dashboard";
 
 export function EscalateDisputeForm({ disputeToken }: { disputeToken: string }) {
   const router = useRouter();
@@ -37,13 +38,9 @@ export function EscalateDisputeForm({ disputeToken }: { disputeToken: string }) 
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="px-3 py-1.5 rounded-[6px] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
-      >
+      <OpButton type="button" onClick={() => setOpen(true)} variant="ghost" size="sm">
         Escalar a vía judicial
-      </button>
+      </OpButton>
     );
   }
 
@@ -75,22 +72,24 @@ export function EscalateDisputeForm({ disputeToken }: { disputeToken: string }) 
       {okMessage && <output className="block text-[13px] text-ln-op-ok">{okMessage}</output>}
 
       <div className="flex gap-2">
-        <button
+        <OpButton
           type="button"
           onClick={submit}
           disabled={pending}
-          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50 transition-colors"
+          variant="primary"
+          className="px-4 py-2"
         >
           {pending ? "Registrando..." : "Confirmar escalada"}
-        </button>
-        <button
+        </OpButton>
+        <OpButton
           type="button"
           onClick={cancel}
           disabled={pending}
-          className="px-3 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
+          variant="ghost"
+          className="px-3 py-2"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

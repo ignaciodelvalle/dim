@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import {
   type InvestigationNoteEntryType,
   addInvestigationNoteAction,
@@ -260,7 +261,7 @@ export function InvestigationActions({
       {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-2">
-        <button
+        <OpButton
           type="button"
           onClick={submit}
           disabled={
@@ -269,18 +270,20 @@ export function InvestigationActions({
               ? notes.trim().length < 5
               : notes.trim().length < 10)
           }
-          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:bg-ln-op-azul-700 transition-colors"
+          variant="primary"
+          className="px-4 py-2"
         >
           {pending ? "Procesando..." : "Confirmar"}
-        </button>
-        <button
+        </OpButton>
+        <OpButton
           type="button"
           onClick={reset}
           disabled={pending}
-          className="px-4 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          variant="ghost"
+          className="px-4 py-2"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

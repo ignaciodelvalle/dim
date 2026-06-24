@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import { assignWelfareToMeAction, unassignWelfareAction } from "@/src/modules/welfare/actions";
 
 type AssignmentActionsProps = {
@@ -53,14 +54,15 @@ export function AssignmentActions({
     return (
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <button
+          <OpButton
             type="button"
             onClick={handleAssign}
             disabled={pending}
-            className="px-3 py-1.5 rounded-[4px] text-[12px] font-medium bg-ln-op-azul text-white hover:opacity-90 disabled:opacity-50"
+            variant="primary"
+            size="sm"
           >
             {pending ? "Procesando..." : "Asignármela"}
-          </button>
+          </OpButton>
         </div>
         {error && (
           <p role="alert" className="text-[12px] text-ln-op-danger">
@@ -75,14 +77,15 @@ export function AssignmentActions({
     return (
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <button
+          <OpButton
             type="button"
             onClick={handleUnassign}
             disabled={pending}
-            className="px-3 py-1.5 rounded-[4px] text-[12px] font-medium border border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe disabled:opacity-50"
+            variant="ghost"
+            size="sm"
           >
             {pending ? "Procesando..." : "Desasignar"}
-          </button>
+          </OpButton>
         </div>
         {error && (
           <p role="alert" className="text-[12px] text-ln-op-danger">

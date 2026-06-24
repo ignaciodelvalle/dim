@@ -14,7 +14,7 @@ import Link from "next/link";
 
 import { JurisdictionFilter } from "@/components/JurisdictionFilter";
 import { EventLedgerTable } from "@/components/admin/EventLedgerTable";
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import type { EventType } from "@/db/schema";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
@@ -247,12 +247,9 @@ export default async function AdminLibroPage({
         </label>
 
         <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            className="h-11 rounded-[6px] border border-ln-op-line bg-ln-op-ink px-4 text-[13px] font-medium text-ln-op-card hover:opacity-90"
-          >
+          <OpButton type="submit" variant="primary" className="h-11 px-4">
             Aplicar
-          </button>
+          </OpButton>
           {hasActiveFilters && (
             <Link
               href="/admin/libro"

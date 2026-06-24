@@ -20,6 +20,7 @@ import { revokeVetRoleAction } from "@/app/actions/admin-revocations";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 import { canRevoke } from "@/lib/revocation-scope";
 import type { AdminOrGovtJurisdiction } from "@/lib/revocation-scope";
 import { createClient } from "@/lib/supabase/client";
@@ -80,13 +81,9 @@ export function RevokeUserActions({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => setMode("confirming")}
-      className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-danger text-ln-op-danger hover:opacity-90 transition-opacity"
-    >
+    <OpButton type="button" onClick={() => setMode("confirming")} variant="danger" size="sm">
       Revocar rol vet
-    </button>
+    </OpButton>
   );
 }
 
@@ -250,22 +247,12 @@ function RevokeVetForm({
       {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
 
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSubmit}
-          className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-danger text-white hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={!canSubmit} variant="danger" size="sm">
           {pending ? "Revocando..." : "Revocar"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
-        >
+        </OpButton>
+        <OpButton type="button" onClick={onCancel} disabled={pending} variant="ghost" size="sm">
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

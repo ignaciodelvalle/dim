@@ -178,8 +178,8 @@ describe("CaseQueue — SLA age badge", () => {
       expect(days).toBeLessThan(CASE_SLA_WARNING_DAYS);
     }
     // More direct: check the escalated-toned pill is absent.
-    // OpPill with tone="escalated" gets bg-ln-op-danger-bg.
-    expect(html).not.toContain("bg-ln-op-danger-bg");
+    // OpPill with tone="escalated" now uses st-err token (not raw ln-op-danger-bg).
+    expect(html).not.toContain("var(--color-st-err-bg)");
   });
 
   it("does NOT render SLA badge on a closed case even if old", () => {
@@ -188,7 +188,7 @@ describe("CaseQueue — SLA age badge", () => {
       <CaseQueue rows={[makeRow({ openedAt: veryOld, closedAt: new Date(), status: "closed" })]} />,
     );
     // Closed cases must never show a breach badge.
-    expect(html).not.toContain("bg-ln-op-danger-bg");
+    expect(html).not.toContain("var(--color-st-err-bg)");
   });
 });
 

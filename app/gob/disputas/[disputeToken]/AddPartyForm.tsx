@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { addDisputePartyAction } from "@/app/actions/custody-disputes";
+import { OpButton } from "@/components/ui/dashboard";
 
 const ROLE_OPTIONS = [
   { value: "current_owner", label: "Dueño actual" },
@@ -145,22 +146,18 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
       {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={pending}
-          className="px-3 py-1.5 rounded-[6px] text-[13px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 disabled:opacity-50 transition-colors"
-        >
+        <OpButton type="button" onClick={submit} disabled={pending} variant="primary" size="sm">
           {pending ? "Sumando..." : "Sumar parte"}
-        </button>
-        <button
+        </OpButton>
+        <OpButton
           type="button"
           onClick={() => setOpen(false)}
           disabled={pending}
-          className="px-3 py-1.5 rounded-[6px] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
+          variant="ghost"
+          size="sm"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

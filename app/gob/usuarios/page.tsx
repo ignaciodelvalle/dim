@@ -2,7 +2,15 @@ import Link from "next/link";
 
 import { logPiiReadSafely } from "@/app/actions/admin-proposals";
 import { BulkRevokeList } from "@/components/BulkRevokeList";
-import { OpBreach, OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
+import {
+  OpBreach,
+  OpButton,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpKpi,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { searchUsers } from "@/lib/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -116,12 +124,9 @@ export default async function UsuariosPage({
           placeholder="Buscar por nombre o DNI"
           className="flex-1 text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
-        <button
-          type="submit"
-          className="text-[13px] px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors"
-        >
+        <OpButton type="submit" variant="primary" size="sm">
           Buscar
-        </button>
+        </OpButton>
       </form>
 
       <p className="text-[12px] text-ln-op-mute">

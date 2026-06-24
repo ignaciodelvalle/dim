@@ -3,6 +3,7 @@
 import { useId, useState, useTransition } from "react";
 
 import { proposeVetUpgradeAction } from "@/app/actions/admin-proposals";
+import { OpButton } from "@/components/ui/dashboard";
 
 type Target = { id: string; displayName: string; role: "owner" | "vet" | "govt" | "admin" };
 
@@ -138,21 +139,12 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
       </div>
       {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={pending}
-          className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={pending} variant="primary" size="sm">
           {pending ? "Creando..." : "Crear solicitud"}
-        </button>
-        <button
-          type="button"
-          onClick={onDone}
-          className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
-        >
+        </OpButton>
+        <OpButton type="button" onClick={onDone} variant="ghost" size="sm">
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

@@ -22,6 +22,7 @@
 import { useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { isReasonValid, selectionSummary } from "@/lib/bulk-select";
 
 export type OpBulkAction = {
@@ -112,20 +113,16 @@ export function OpBulkBar({ count, actions, onClear }: Props) {
             Limpiar
           </button>
           {actions.map((action) => (
-            <button
+            <OpButton
               key={action.key}
               type="button"
+              variant={action.tone === "danger" ? "danger" : "primary"}
+              size="sm"
               disabled={action.disabled || pending}
               onClick={(e) => handleClick(action, e)}
-              className={[
-                "rounded-md px-4 py-1.5 text-[13px] font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-50",
-                action.tone === "danger"
-                  ? "bg-ln-op-danger hover:opacity-90"
-                  : "bg-ln-op-azul hover:bg-ln-op-azul-700",
-              ].join(" ")}
             >
               {action.label}
-            </button>
+            </OpButton>
           ))}
         </div>
       </div>

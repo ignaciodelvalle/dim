@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { lookupTransferTargetAction, resolveDisputeAction } from "@/app/actions/custody-disputes";
+import { OpButton } from "@/components/ui/dashboard";
 
 const OUTCOMES = [
   { value: "ownership_confirmed", label: "Confirma al dueño actual" },
@@ -166,14 +167,15 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
                 placeholder="00000000-0000-0000-0000-000000000000"
                 className="flex-1 px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
               />
-              <button
+              <OpButton
                 type="button"
                 onClick={verify}
                 disabled={pending || !currentTargetId.trim()}
-                className="px-3 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-40 transition-colors whitespace-nowrap"
+                variant="ghost"
+                className="px-3 py-2 whitespace-nowrap"
               >
                 {verifyState.status === "loading" ? "Verificando..." : "Verificar"}
-              </button>
+              </OpButton>
             </div>
 
             {verifyState.status === "ok" && (
@@ -230,14 +232,15 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
       {okMessage && <output className="block text-[13px] text-ln-op-ok">{okMessage}</output>}
 
       <div className="flex gap-2">
-        <button
+        <OpButton
           type="button"
           onClick={submit}
           disabled={pending}
-          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50 transition-colors"
+          variant="primary"
+          className="px-4 py-2"
         >
           {pending ? "Resolviendo..." : "Resolver disputa"}
-        </button>
+        </OpButton>
       </div>
     </div>
   );

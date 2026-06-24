@@ -31,6 +31,7 @@
 //   - intakeCondition:              optional text
 //   - attachmentFiles:              >= 2 mandatory files (photo + acta)
 
+import { OpButton } from "@/components/ui/dashboard";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
@@ -377,14 +378,15 @@ export function DecomisoForm({
                     className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink placeholder-ln-op-faint focus:outline-none focus:border-ln-op-azul"
                   />
                 </div>
-                <button
+                <OpButton
                   type="button"
                   onClick={lookupPet}
                   disabled={petLookupPending || !petToken.trim()}
-                  className="self-end px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:bg-ln-op-azul-700 transition-colors"
+                  variant="primary"
+                  className="self-end"
                 >
                   {petLookupPending ? "Buscando..." : "Buscar"}
-                </button>
+                </OpButton>
               </div>
 
               {petLookupError && (
@@ -833,14 +835,17 @@ export function DecomisoForm({
         )}
 
         {/* --- Submit --- */}
-        <button
+        <OpButton
           type="button"
           onClick={handleSubmit}
           disabled={isPending}
-          className="w-full py-4 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-semibold hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          loading={isPending}
+          variant="primary"
+          block
+          className="py-4"
         >
           {isPending ? "Ejecutando decomiso..." : "Ejecutar decomiso"}
-        </button>
+        </OpButton>
 
         <p className="text-[12px] text-ln-op-mute text-center">
           Esta acción es irreversible — el decomiso quedará registrado en el sistema de casos bajo
@@ -893,22 +898,26 @@ export function DecomisoForm({
                 : ""}
             </p>
             <div className="flex gap-3 pt-2">
-              <button
+              <OpButton
                 type="button"
                 onClick={executeDecomiso}
                 disabled={isPending}
-                className="flex-1 py-3 rounded-[6px] bg-ln-op-danger text-white text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+                variant="danger"
+                block
+                className="py-3"
               >
                 {isPending ? "Ejecutando..." : "Si, ejecutar decomiso"}
-              </button>
-              <button
+              </OpButton>
+              <OpButton
                 type="button"
                 onClick={() => setShowConfirmModal(false)}
                 disabled={isPending}
-                className="flex-1 py-3 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
+                variant="ghost"
+                block
+                className="py-3"
               >
                 Cancelar
-              </button>
+              </OpButton>
             </div>
           </div>
         </dialog>

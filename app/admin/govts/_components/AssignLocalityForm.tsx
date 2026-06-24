@@ -11,6 +11,7 @@ import { useState, useTransition } from "react";
 
 import { assignGovtLocalityAction } from "@/app/actions/admin-institutional";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
+import { OpButton } from "@/components/ui/dashboard";
 
 type Mode = "idle" | "confirming" | "done";
 
@@ -85,25 +86,27 @@ export function AssignLocalityForm({
         {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
 
         <div className="flex items-center gap-2">
-          <button
+          <OpButton
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 disabled:opacity-50"
+            variant="primary"
+            size="sm"
           >
             {pending ? "Asignando..." : "Confirmar asignacion"}
-          </button>
-          <button
+          </OpButton>
+          <OpButton
             type="button"
             onClick={() => {
               setMode("idle");
               setError(null);
             }}
             disabled={pending}
-            className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
+            variant="ghost"
+            size="sm"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
       </div>
     );

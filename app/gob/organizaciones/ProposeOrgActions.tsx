@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { proposeOrgVerificationAction } from "@/app/actions/admin-proposals";
+import { OpButton } from "@/components/ui/dashboard";
 
 type Org = {
   id: string;
@@ -42,14 +43,9 @@ export function ProposeOrgActions({ org }: { org: Org }) {
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={propose}
-        disabled={pending}
-        className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line text-ln-op-ink-2 hover:opacity-90 disabled:opacity-50"
-      >
+      <OpButton type="button" onClick={propose} disabled={pending} variant="ghost" size="sm">
         {pending ? "Creando..." : "Proponer verificacion"}
-      </button>
+      </OpButton>
       {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
     </div>
   );

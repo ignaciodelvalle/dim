@@ -1,3 +1,5 @@
+export { OpButton } from "./OpButton";
+export type { OpButtonVariant, OpButtonSize } from "./OpButton";
 export { OpRail } from "./OpRail";
 export { OpRailNav } from "./OpRailNav";
 export type { NavSection } from "./OpRailNav";
@@ -10,6 +12,8 @@ export { OpScopeChip } from "./OpScopeChip";
 export { OpMobileDrawer } from "./OpMobileDrawer";
 export { OpKpi, OpKpiSm } from "./OpKpi";
 export { OpPill } from "./OpPill";
+export { OpStatusPill } from "./OpStatusPill";
+export type { StatusTone } from "./OpStatusPill";
 export { OpCodeBadge } from "./OpCodeBadge";
 export { OpCard, OpCardHead, OpCardBody } from "./OpCard";
 export { OpBreach } from "./OpBreach";

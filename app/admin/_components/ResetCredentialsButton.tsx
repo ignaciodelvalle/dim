@@ -17,6 +17,7 @@ import { resetInstitutionalCredentialsAction } from "@/app/actions/admin-institu
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 
 type Mode = "idle" | "confirming" | "done";
 
@@ -67,13 +68,9 @@ export function ResetCredentialsButton({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => setMode("confirming")}
-      className="rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
-    >
+    <OpButton type="button" onClick={() => setMode("confirming")} variant="ghost" size="sm">
       Resetear credentials
-    </button>
+    </OpButton>
   );
 }
 
@@ -140,22 +137,12 @@ function ResetCredentialsForm({
       {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
 
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSubmit}
-          className="rounded-[6px] bg-ln-op-danger px-3 py-1.5 text-[12px] text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={!canSubmit} variant="danger" size="sm">
           {pending ? "Generando link..." : "Resetear credentials"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] transition-colors hover:bg-ln-op-stripe disabled:opacity-50"
-        >
+        </OpButton>
+        <OpButton type="button" onClick={onCancel} disabled={pending} variant="ghost" size="sm">
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

@@ -8,6 +8,8 @@ import type {
 } from "react";
 import { useId } from "react";
 
+import { OpButton } from "@/components/ui/dashboard/OpButton";
+
 /**
  * Operator-tier (op) form primitives.
  *
@@ -253,8 +255,11 @@ type OpSubmitButtonProps = {
 /**
  * Full-width submit button for op-tier attendance forms.
  *
- * Emits:
- *   <button type="submit" disabled={pending} className="w-full px-4 py-2 rounded-md bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+ * Renders OpButton variant="primary" (blue, ln-op-azul) — not green.
+ * Green (ok variant) is reserved for explicit positive-confirmation flows.
+ *
+ * Public props (pending, pendingLabel, children) are unchanged; call-sites
+ * do not need to change.
  */
 export function OpSubmitButton({
   pending,
@@ -262,12 +267,8 @@ export function OpSubmitButton({
   children,
 }: OpSubmitButtonProps) {
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="w-full px-4 py-2 rounded-md bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-    >
+    <OpButton type="submit" variant="primary" block loading={pending}>
       {pending ? pendingLabel : children}
-    </button>
+    </OpButton>
   );
 }

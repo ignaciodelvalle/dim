@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import { deriveWelfareToOrgAction } from "@/src/modules/welfare/actions";
 
 type OrgOption = {
@@ -63,13 +64,9 @@ export function DerivationPanel({
             </span>
           </p>
         )}
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="px-3 py-1.5 rounded-[4px] text-[12px] font-medium bg-ln-op-azul text-white hover:opacity-90"
-        >
+        <OpButton type="button" onClick={() => setOpen(true)} variant="primary" size="sm">
           {alreadyDerivedTo ? "Cambiar derivación" : "Derivar a org"}
-        </button>
+        </OpButton>
       </div>
     );
   }
@@ -97,15 +94,16 @@ export function DerivationPanel({
       )}
       {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
-        <button
+        <OpButton
           type="button"
           onClick={handleConfirm}
           disabled={pending || !selectedOrgId}
-          className="px-4 py-2 rounded-[4px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50"
+          variant="primary"
+          className="px-4 py-2"
         >
           {pending ? "Procesando..." : "Confirmar derivación"}
-        </button>
-        <button
+        </OpButton>
+        <OpButton
           type="button"
           onClick={() => {
             setOpen(false);
@@ -113,10 +111,11 @@ export function DerivationPanel({
             setError(null);
           }}
           disabled={pending}
-          className="px-4 py-2 rounded-[4px] border border-ln-op-line text-[13px] text-ln-op-ink-2"
+          variant="ghost"
+          className="px-4 py-2"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

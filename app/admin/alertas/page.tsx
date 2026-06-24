@@ -10,7 +10,7 @@
 // Auth: requireAdminOrRedirect (admin-only; govt + everyone else → /).
 
 import { AlertInboxTable } from "@/components/admin/AlertInboxTable";
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { ALERT_FIRING_STATUSES, ALERT_METRIC_KEYS, type AlertMetricKey } from "@/db/schema";
 import { PROVINCES } from "@/lib/ar-provincias";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
@@ -145,12 +145,9 @@ export default async function AdminAlertasPage({
               <input type="date" name="to" defaultValue={filters.to ?? ""} className={inputCls} />
             </label>
 
-            <button
-              type="submit"
-              className="h-11 rounded-[6px] border border-ln-op-azul bg-ln-op-azul px-4 text-[12px] font-semibold text-white hover:opacity-90"
-            >
+            <OpButton type="submit" variant="primary" size="sm" className="h-11 px-4">
               Aplicar
-            </button>
+            </OpButton>
           </form>
         </OpCardBody>
       </OpCard>

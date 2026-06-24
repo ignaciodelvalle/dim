@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import {
   closeWelfareReportAction,
   startWelfareReportAction,
@@ -129,22 +130,24 @@ export function TriageActions({
       <p className="text-[11px] text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
       {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
-        <button
+        <OpButton
           type="button"
           onClick={submit}
           disabled={pending || notes.trim().length < 10}
-          className="px-4 py-2 rounded-[4px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50"
+          variant="primary"
+          className="px-4 py-2"
         >
           {pending ? "Procesando..." : "Confirmar"}
-        </button>
-        <button
+        </OpButton>
+        <OpButton
           type="button"
           onClick={reset}
           disabled={pending}
-          className="px-4 py-2 rounded-[4px] border border-ln-op-line text-[13px] text-ln-op-ink-2"
+          variant="ghost"
+          className="px-4 py-2"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

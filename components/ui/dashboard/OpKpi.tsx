@@ -99,19 +99,21 @@ const TONE_LABELS: Partial<Record<Tone, string>> = {
 // Token maps
 // ---------------------------------------------------------------------------
 
+// Status tones use st-* tokens — resolved to ln-op-* values via .op-surface
+// cascade (zero visual diff; see globals.css .op-surface block).
 const toneCard: Record<Tone, string> = {
   neutral: "bg-ln-op-card border-ln-op-line",
-  danger: "bg-ln-op-danger-bg border-ln-op-danger-bd",
-  warn: "bg-ln-op-warn-bg border-ln-op-warn-bd",
-  ok: "bg-ln-op-ok-bg border-ln-op-ok-bd",
+  danger: "bg-[var(--color-st-err-bg)] border-[var(--color-st-err-bd)]",
+  warn: "bg-[var(--color-st-warn-bg)] border-[var(--color-st-warn-bd)]",
+  ok: "bg-[var(--color-st-ok-bg)] border-[var(--color-st-ok-bd)]",
   blue: "bg-ln-op-blue-bg border-ln-op-blue-bd",
 };
 
 const toneValue: Record<Tone, string> = {
   neutral: "text-ln-op-ink",
-  danger: "text-ln-op-danger",
-  warn: "text-ln-op-warn",
-  ok: "text-ln-op-ok",
+  danger: "text-[var(--color-st-err)]",
+  warn: "text-[var(--color-st-warn)]",
+  ok: "text-[var(--color-st-ok)]",
   blue: "text-ln-op-azul",
 };
 
@@ -285,7 +287,7 @@ export function OpKpi({
         <div
           className={[
             "mt-2 flex items-center gap-1.5 text-[12px] font-semibold",
-            delta.up ? "text-ln-op-ok" : "text-ln-op-danger",
+            delta.up ? "text-[var(--color-st-ok)]" : "text-[var(--color-st-err)]",
           ].join(" ")}
         >
           <span aria-hidden="true">{delta.up ? "↑" : "↓"}</span>
@@ -299,7 +301,7 @@ export function OpKpi({
         <div
           className={[
             "mt-1 flex items-center gap-1.5 text-[12px] font-semibold",
-            deltaV2.value >= 0 ? "text-ln-op-ok" : "text-ln-op-danger",
+            deltaV2.value >= 0 ? "text-[var(--color-st-ok)]" : "text-[var(--color-st-err)]",
           ].join(" ")}
         >
           <span aria-hidden="true">{deltaV2.value >= 0 ? "↑" : "↓"}</span>

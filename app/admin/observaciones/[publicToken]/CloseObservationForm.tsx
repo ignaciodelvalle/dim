@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { LnCheckbox, LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 import {
   POSITIVE_RABIES_OUTCOME,
   RABIES_CONFIRMATION_WORD,
@@ -119,13 +120,9 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending || !canSubmit}
-        className="w-full rounded-[6px] bg-ln-op-navy px-4 py-3 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-      >
+      <OpButton type="submit" disabled={isPending || !canSubmit} variant="primary" block>
         {isPending ? "Cerrando..." : "Cerrar observación"}
-      </button>
+      </OpButton>
     </form>
   );
 }
