@@ -20,14 +20,27 @@
  *       * "Componente de localidad compuesta" → mapped to category='componente'
  *         (CABA barrios, since CABA is one composite locality in INDEC's model)
  *
+ * Data source resolution (checked in order):
+ *   1. `INDEC_LOCALITIES_CSV` env var — absolute or repo-relative path to a
+ *      local CSV file (vendored dataset). Fastest, no network dependency.
+ *      Example: INDEC_LOCALITIES_CSV=scripts/__fixtures__/indec-localidades-sample.csv
+ *   2. `--source-url=<url>` CLI flag — fetch from an explicit URL.
+ *   3. Default live URL (datos.gob.ar). If the fetch fails, the script
+ *      falls back to the bundled sample fixture with a warning so that
+ *      `db:bootstrap` / CI never hard-fail due to a network hiccup.
+ *
  * Run:
  *   pnpm tsx scripts/import-indec-localities.ts            # apply (writes to DB)
  *   pnpm tsx scripts/import-indec-localities.ts --dry-run  # parse + count only
  *   pnpm tsx scripts/import-indec-localities.ts --source-url=<override>
+ *   INDEC_LOCALITIES_CSV=/path/to/full.csv pnpm tsx scripts/import-indec-localities.ts
  *
  * Idempotent: re-running a second time produces no changes when the CSV is
  * unchanged. Soft-deletes rows that disappear from the source between runs.
  */
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { parse } from "csv-parse/sync";
 import { eq } from "drizzle-orm";
@@ -42,6 +55,15 @@ import {
 import type { ProvinceCode } from "@/lib/ar-provincias";
 
 const DEFAULT_SOURCE_URL = "https://infra.datos.gob.ar/georef/localidades_censales.csv";
+
+// Bundled sample fixture used as a last-resort fallback when the live source is
+// unreachable and no vendored CSV has been configured. Keeps bootstrap/CI green
+// even when datos.gob.ar is down — at the cost of only loading a small subset.
+const FALLBACK_FIXTURE_PATH = join(
+  import.meta.dirname ?? __dirname,
+  "__fixtures__",
+  "indec-localidades-sample.csv",
+);
 
 // INDEC 2-digit provincia codes → ISO 3166-2:AR codes used by lib/ar-provincias.
 // Verified against the live dataset (provincia_id + provincia_nombre pairs)
@@ -114,14 +136,25 @@ export type ImportStats = {
   removed: number;
   skipped: number;
   errors: { row: number; reason: string }[];
+  /** True when the live fetch failed and the bundled sample fixture was used instead. */
+  usedFallback?: boolean;
 };
 
 export async function runImport(options?: {
   dryRun?: boolean;
+  /** Explicit URL to fetch the CSV from. Takes precedence over INDEC_LOCALITIES_CSV. */
   sourceUrl?: string;
+  /**
+   * Absolute or repo-relative path to a local CSV file. When set, no network
+   * request is made. Defaults to the INDEC_LOCALITIES_CSV env var if present.
+   */
+  localCsvPath?: string;
 }): Promise<ImportStats> {
   const dryRun = options?.dryRun ?? false;
-  const sourceUrl = options?.sourceUrl ?? DEFAULT_SOURCE_URL;
+  const localCsvPath = options?.localCsvPath ?? process.env.INDEC_LOCALITIES_CSV;
+  const sourceUrl = localCsvPath
+    ? `file://${localCsvPath}`
+    : (options?.sourceUrl ?? DEFAULT_SOURCE_URL);
   const source: ArgentineLocalitySource = "indec_cppdyl";
 
   // 1. Open the import run row first so partial / failed runs are still traced.
@@ -139,16 +172,56 @@ export async function runImport(options?: {
     removed: 0,
     skipped: 0,
     errors: [],
+    usedFallback: false,
   };
 
+  // Track whether we fell back to the bundled fixture so the caller (and logs)
+  // can distinguish a degraded-mode run from a full-catalog run.
+  let usedFallback = false;
+
   try {
-    // 2. Download the CSV.
-    const res = await fetch(sourceUrl);
-    if (!res.ok) {
-      throw new Error(`Failed to fetch CSV: ${res.status} ${res.statusText}`);
+    // 2. Load the CSV — from a local file, a URL, or the fallback fixture.
+    let csvText: string;
+    let sourceVersion: string;
+
+    if (localCsvPath) {
+      // Vendored local file: no network dependency.
+      console.log(`Loading CSV from local file: ${localCsvPath}`);
+      csvText = readFileSync(localCsvPath, "utf-8");
+      sourceVersion = new Date().toISOString().slice(0, 10);
+    } else {
+      // Remote fetch — attempt live source, fall back to fixture on failure.
+      let fetchOk = false;
+      try {
+        const res = await fetch(sourceUrl);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        }
+        csvText = await res.text();
+        sourceVersion = res.headers.get("last-modified") ?? new Date().toISOString().slice(0, 10);
+        fetchOk = true;
+      } catch (fetchErr) {
+        console.warn(
+          `[import-indec-localities] WARNING: live fetch failed (${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}).`,
+        );
+        console.warn(
+          `[import-indec-localities] Falling back to bundled sample fixture (${FALLBACK_FIXTURE_PATH}).`,
+        );
+        console.warn(
+          "[import-indec-localities] The catalog will be INCOMPLETE. Run the import again once the source is reachable,",
+        );
+        console.warn(
+          "[import-indec-localities] or set INDEC_LOCALITIES_CSV to a vendored full CSV before bootstrapping.",
+        );
+        csvText = readFileSync(FALLBACK_FIXTURE_PATH, "utf-8");
+        sourceVersion = "fallback-fixture";
+        usedFallback = true;
+      }
+      if (!fetchOk && !usedFallback) {
+        // Should not reach here, but keeps TS happy.
+        throw new Error("CSV loading failed unexpectedly.");
+      }
     }
-    const csvText = await res.text();
-    const sourceVersion = res.headers.get("last-modified") ?? new Date().toISOString().slice(0, 10);
 
     // 3. Parse.
     const records: Record<string, string>[] = parse(csvText, {
@@ -277,6 +350,9 @@ export async function runImport(options?: {
       }
     }
 
+    // Propagate fallback flag to stats before finalizing.
+    stats.usedFallback = usedFallback;
+
     // 6. Finalize the import run row.
     if (!dryRun) {
       await db
@@ -289,13 +365,20 @@ export async function runImport(options?: {
           updatedCount: stats.updated,
           noopCount: stats.noop,
           removedCount: stats.removed,
-          details: { errors: stats.errors.slice(0, 50), skippedNonRelevant: stats.skipped },
+          details: {
+            errors: stats.errors.slice(0, 50),
+            skippedNonRelevant: stats.skipped,
+            ...(usedFallback ? { usedFallback: true } : {}),
+          },
         })
         .where(eq(arLocalitiesImportRuns.id, run.id));
     }
 
+    const fallbackSuffix = usedFallback
+      ? " [DEGRADED — used sample fixture, catalog incomplete]"
+      : "";
     console.log(
-      `Done. inserted=${stats.inserted} updated=${stats.updated} noop=${stats.noop} removed=${stats.removed} skipped=${stats.skipped} errors=${stats.errors.length}`,
+      `Done. inserted=${stats.inserted} updated=${stats.updated} noop=${stats.noop} removed=${stats.removed} skipped=${stats.skipped} errors=${stats.errors.length}${fallbackSuffix}`,
     );
     if (stats.errors.length > 0) {
       console.warn("First few errors:", stats.errors.slice(0, 5));
@@ -320,8 +403,15 @@ export async function runImport(options?: {
 async function cli(): Promise<void> {
   const dryRun = process.argv.includes("--dry-run");
   const urlOverride = process.argv.find((a) => a.startsWith("--source-url="))?.split("=")[1];
+  // INDEC_LOCALITIES_CSV env var is read inside runImport automatically.
   try {
-    await runImport({ dryRun, sourceUrl: urlOverride });
+    const stats = await runImport({ dryRun, sourceUrl: urlOverride });
+    if (stats.usedFallback) {
+      console.warn(
+        "[import-indec-localities] DEGRADED MODE: catalog has only the sample fixture rows.",
+        "Re-run when datos.gob.ar is reachable, or set INDEC_LOCALITIES_CSV to a vendored full CSV.",
+      );
+    }
     process.exit(0);
   } catch (err) {
     console.error("Import failed:", err);

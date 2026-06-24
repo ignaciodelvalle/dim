@@ -181,4 +181,32 @@ describe("import-indec-localities", () => {
       .where(eq(arLocalities.indecId, "02014010"));
     expect(fixtureRowsCount).toHaveLength(0);
   });
+
+  // Graceful fallback: when the live fetch fails, the script loads the bundled
+  // sample fixture instead of throwing. Bootstrap / CI stay green.
+  it("falls back to the bundled fixture when the live fetch fails", async () => {
+    global.fetch = vi.fn(async () => {
+      throw new Error("Network unreachable (simulated)");
+    });
+    const stats = await runImport({ sourceUrl: "https://test.example/fixture.csv" });
+
+    expect(stats.usedFallback).toBe(true);
+    // Fixture has 5 valid rows.
+    expect(stats.inserted).toBe(5);
+    expect(stats.errors.length).toBeGreaterThanOrEqual(2);
+  }, 60_000);
+
+  // Local file path override: when localCsvPath is provided, no fetch is made.
+  it("loads from a local CSV file when localCsvPath is provided (no fetch)", async () => {
+    const fetchSpy = vi.fn();
+    global.fetch = fetchSpy;
+    const stats = await runImport({
+      localCsvPath: FIXTURE_PATH,
+      sourceUrl: "https://test.example/fixture.csv",
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(stats.usedFallback).toBe(false);
+    expect(stats.inserted).toBe(5);
+  }, 60_000);
 });
