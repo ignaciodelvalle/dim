@@ -1,3 +1,4 @@
+import { JurisdictionFilter } from "@/components/JurisdictionFilter";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
@@ -104,36 +105,14 @@ export default async function VoluntariosPage({
             <option value="other">Otras</option>
           </select>
         </div>
-        <div>
-          <label
-            htmlFor="filter-province"
-            className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
-          >
-            Provincia
-          </label>
-          <input
-            id="filter-province"
-            type="text"
-            name="province"
-            defaultValue={filters.province ?? ""}
-            className="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-[12px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="filter-locality"
-            className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
-          >
-            Localidad
-          </label>
-          <input
-            id="filter-locality"
-            type="text"
-            name="locality"
-            defaultValue={filters.locality ?? ""}
-            className="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-[12px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          />
-        </div>
+        <JurisdictionFilter
+          provinceParam="province"
+          localityParam="locality"
+          defaultProvince={filters.province ?? ""}
+          defaultLocality={filters.locality ?? ""}
+          labelClassName="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+          selectClassName="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-[12px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+        />
         <div>
           <label
             htmlFor="filter-pet"

@@ -20,6 +20,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { searchLocalitiesAction } from "@/app/actions/localities";
+import type { SearchLocalitiesResult } from "@/app/actions/localities";
 import { LnInput } from "@/components/ui/Field";
 import type { LocalitySearchResult } from "@/lib/ar-localidades";
 
@@ -63,6 +64,12 @@ type Props = {
   onQueryChange?: (query: string) => void;
   /** Placeholder copy override. */
   placeholder?: string;
+  /** Injectable search action. Defaults to the auth-required searchLocalitiesAction.
+   * Pass searchLocalitiesPublicAction for unauthenticated surfaces (e.g. public filter bars). */
+  searchAction?: (input: {
+    provinceCode?: string;
+    query: string;
+  }) => Promise<SearchLocalitiesResult>;
 };
 
 export function LocalityPickerAcross({
@@ -75,6 +82,7 @@ export function LocalityPickerAcross({
   onSelect,
   onQueryChange,
   placeholder = "Ej: Palermo, La Plata, Mendoza…",
+  searchAction = searchLocalitiesAction,
 }: Props) {
   const [query, setQuery] = useState(defaultValue?.localityName ?? "");
   // Hold the picked result so we can surface its provinceCode + indecId in
@@ -101,7 +109,7 @@ export function LocalityPickerAcross({
         // scopeProvinceCode (when set) restricts results to one province;
         // otherwise the action returns matches across every province (it
         // filters only when provinceCode is supplied).
-        const res = await searchLocalitiesAction({
+        const res = await searchAction({
           query,
           provinceCode: scopeProvinceCode ?? undefined,
         });
@@ -118,7 +126,7 @@ export function LocalityPickerAcross({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, scopeProvinceCode]);
+  }, [query, scopeProvinceCode, searchAction]);
 
   function handleSelect(r: LocalitySearchResult) {
     setSelected(r);

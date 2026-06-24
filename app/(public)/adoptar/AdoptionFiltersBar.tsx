@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
+
 import Link from "next/link";
 
+import { searchLocalitiesPublicAction } from "@/app/actions/localities";
+import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnCheckbox } from "@/components/ui/Field";
 import {
   ADOPTION_AGE_BUCKETS,
@@ -10,6 +14,7 @@ import {
   type AdoptionListingFilters,
   buildSearchParams,
 } from "@/lib/adoption-listing";
+import { PROVINCES } from "@/lib/ar-provincias";
 
 // URL-driven filters bar — every change submits a GET form so the URL
 // stays the source of truth (D11). No client state, no hydration mismatch.
@@ -81,6 +86,8 @@ const CHIP_LABELS: Partial<Record<keyof AdoptionListingFilters, (v: unknown) => 
 
 export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilters }) {
   const hasActiveFilters = Object.values(filters).some((v) => v !== undefined);
+  const [provinceName, setProvinceName] = useState(filters.province ?? "");
+  const provinceCode = PROVINCES.find((p) => p.name === provinceName)?.code;
 
   // Active chips: collect filter keys that have a non-undefined value and
   // have a defined chip label. organizationToken is intentionally excluded
@@ -144,30 +151,41 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
             >
               Provincia
             </label>
-            <input
+            <select
               id="provincia"
-              type="text"
               name="provincia"
-              defaultValue={filters.province ?? ""}
-              placeholder="Ej: Buenos Aires"
-              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
-            />
+              value={provinceName}
+              onChange={(e) => setProvinceName(e.target.value)}
+              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+            >
+              <option value="">Todas</option>
+              {PROVINCES.map((p) => (
+                <option key={p.code} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label
-              htmlFor="localidad"
+              htmlFor="localidad-input"
               className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
             >
               Localidad
             </label>
-            <input
+            <LocalityPickerAcross
+              key={provinceCode ?? "all"}
               id="localidad"
-              type="text"
               name="localidad"
-              defaultValue={filters.locality ?? ""}
-              placeholder="Ej: La Plata"
-              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
+              scopeProvinceCode={provinceCode}
+              disabled={!provinceName}
+              defaultValue={{
+                localityName: filters.locality ?? null,
+                provinceName: provinceName || null,
+              }}
+              placeholder={provinceName ? "Buscar localidad…" : "Elegí una provincia"}
+              searchAction={searchLocalitiesPublicAction}
             />
           </div>
 

@@ -68,3 +68,38 @@ export async function searchLocalitiesAction(input: {
 
   return { results };
 }
+
+// Public variant — identical logic but no auth guard. Safe because ar_localities
+// is INDEC reference data (locality names only, no PII). Rate-limited by a
+// dedicated bucket keyed on a fixed sentinel so anonymous callers share one
+// window (generous enough for real typeahead use, tight enough against scraping).
+const PUBLIC_RATE_LIMIT_SENTINEL = "__public__";
+
+// @no-auth-required: ar_localities is public INDEC reference data (locality
+// names only, no PII). Rate-limited via the shared __public__ bucket. Powers the
+// public filter typeaheads (perdidas / adoptar) where there is no session.
+export async function searchLocalitiesPublicAction(input: {
+  provinceCode?: string;
+  query: string;
+}): Promise<SearchLocalitiesResult> {
+  if (!checkRateLimit(PUBLIC_RATE_LIMIT_SENTINEL)) {
+    return { error: "rate_limited" };
+  }
+
+  if (input.query.length < 2) return { results: [] };
+
+  let provinceCode: ProvinceCode | undefined;
+  if (input.provinceCode) {
+    const province = provinceByCode(input.provinceCode);
+    if (!province) return { error: "invalid_province" };
+    provinceCode = province.code as ProvinceCode;
+  }
+
+  const results = await searchLocalities({
+    provinceCode,
+    query: input.query,
+    limit: 20,
+  });
+
+  return { results };
+}

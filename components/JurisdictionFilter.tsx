@@ -22,6 +22,7 @@
 
 import { useState } from "react";
 
+import type { SearchLocalitiesResult } from "@/app/actions/localities";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { PROVINCES } from "@/lib/ar-provincias";
 
@@ -40,6 +41,12 @@ type Props = {
   labelClassName?: string;
   /** Class for the province <select> (match the host form's inputs). */
   selectClassName?: string;
+  /** Injectable search action forwarded to LocalityPickerAcross. Defaults to the
+   * auth-required variant. Pass searchLocalitiesPublicAction for public pages. */
+  searchAction?: (input: {
+    provinceCode?: string;
+    query: string;
+  }) => Promise<SearchLocalitiesResult>;
 };
 
 export function JurisdictionFilter({
@@ -51,6 +58,7 @@ export function JurisdictionFilter({
   labelLocality = "Localidad",
   labelClassName,
   selectClassName,
+  searchAction,
 }: Props) {
   const [provinceName, setProvinceName] = useState(defaultProvince);
 
@@ -77,12 +85,13 @@ export function JurisdictionFilter({
         </select>
       </label>
 
-      <label className={labelClassName}>
+      <label htmlFor="jurisdiction-filter-locality-input" className={labelClassName}>
         {labelLocality}
         <LocalityPickerAcross
           // Remount on province change so the query + picked locality reset —
           // a locality from the previous province is never carried over.
           key={provinceCode ?? "all"}
+          id="jurisdiction-filter-locality"
           name={localityParam}
           scopeProvinceCode={provinceCode}
           disabled={!provinceName}
@@ -91,6 +100,7 @@ export function JurisdictionFilter({
             provinceName: defaultProvince || null,
           }}
           placeholder={provinceName ? "Buscar localidad…" : "Elegí una provincia"}
+          searchAction={searchAction}
         />
       </label>
     </>

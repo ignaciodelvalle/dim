@@ -12,8 +12,8 @@
 
 import Link from "next/link";
 
-import { EventLedgerTable } from "@/components/admin/EventLedgerTable";
 import { JurisdictionFilter } from "@/components/JurisdictionFilter";
+import { EventLedgerTable } from "@/components/admin/EventLedgerTable";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import type { EventType } from "@/db/schema";
