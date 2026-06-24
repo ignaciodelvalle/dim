@@ -125,6 +125,17 @@ node --env-file=.env.local --import tsx scripts/import-indec-localities.ts
 node --env-file=.env.local --import tsx scripts/import-caba-barrios.ts
 ```
 
+If datos.gob.ar is unreachable, point the importer at a vendored local CSV:
+
+```powershell
+$env:INDEC_LOCALITIES_CSV = "C:\path\to\localidades_censales.csv"
+node --env-file=.env.local --import tsx scripts/import-indec-localities.ts
+```
+
+See [`db-bootstrap-runbook.md`](./db-bootstrap-runbook.md#indec-localities-catalog)
+for the full data-source resolution order, idempotency details, and how to
+obtain the vendored CSV.
+
 Expected: ~4027 INDEC localities + 48 CABA barrios ≈ **4075** rows in
 `ar_localities`.
 

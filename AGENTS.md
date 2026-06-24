@@ -1073,7 +1073,7 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | RLS aplicada en todas las tablas PII/tenant (43 tablas) — authz model documentado (Wave 5 Item 26) | migrations 0086 + 0105; `__tests__/rls/coverage.test.ts`; `e2e/cross-tenant-isolation.spec.ts` |
 | ✅ | RLS smoke test cross-account vía PostgREST (extendido Item 26: pet_identifications, pet_transfers) | `pnpm rls:smoke` |
 | ✅ | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D complete | `components/layout/AppShell.tsx` + `lib/shell-nav.ts` (auth-aware `resolveShellNav`). All surfaces migrated; legacy `LnOwnerNav`/`AppHeader`/`OpShell` deleted (Phase D). Plan: `docs/superpowers/plans/2026-06-18-unified-app-shell.md` |
-| 🟢 | Localities catalog INDEC (catalog reference) | spec + plan listos |
+| ✅ | Localities catalog INDEC (catalog reference) | `ar_localities` table + `scripts/import-indec-localities.ts`; seeded via `db:bootstrap` step 4; graceful fallback + vendored-CSV override (`INDEC_LOCALITIES_CSV`). Runbook: `docs/ops/remote-supabase-bootstrap-runbook.md` §3 + `docs/ops/db-bootstrap-runbook.md` |
 | ⚪ | Push notifications (iOS PWA limitations) | — |
 | ⚪ | Native mobile via React Native sharing data layer | — |
 | ⚪ | Agente conversacional con LLM (audio/text → intent → form prefilled) | Captura rápida ya cubre el path determinístico; LLM aterriza encima del mismo registry |
