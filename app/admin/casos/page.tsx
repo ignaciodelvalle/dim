@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { CaseBadge } from "@/components/CaseBadge";
+import { OpSelect } from "@/components/ui/dashboard/OpField";
 import { PROVINCES } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listCasesForAdmin } from "@/lib/case-queries";
@@ -111,59 +112,48 @@ export default async function AdminCasosPage({
       {/* Filter form */}
       <form action="/admin/casos" method="get" className="flex flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
-          <label htmlFor="casos-status" className="text-[11px] font-medium text-ln-op-mute">
+          <label htmlFor="casos-status" className="block text-xs font-medium text-ln-op-ink-2">
             Estado
           </label>
-          <select
+          <OpSelect
             id="casos-status"
             name="status"
             defaultValue={rawStatus === "all" ? "all" : (statusFilter ?? "open")}
-            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
-          </select>
+          </OpSelect>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="casos-kind" className="text-[11px] font-medium text-ln-op-mute">
+          <label htmlFor="casos-kind" className="block text-xs font-medium text-ln-op-ink-2">
             Tipo
           </label>
-          <select
-            id="casos-kind"
-            name="kind"
-            defaultValue={kindFilter ?? ""}
-            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          >
+          <OpSelect id="casos-kind" name="kind" defaultValue={kindFilter ?? ""}>
             <option value="">Todos los tipos</option>
             {CASE_KINDS.map((k) => (
               <option key={k} value={k}>
                 {caseKindLabel(k)}
               </option>
             ))}
-          </select>
+          </OpSelect>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="casos-province" className="text-[11px] font-medium text-ln-op-mute">
+          <label htmlFor="casos-province" className="block text-xs font-medium text-ln-op-ink-2">
             Provincia
           </label>
-          <select
-            id="casos-province"
-            name="province"
-            defaultValue={provinceFilter ?? ""}
-            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          >
+          <OpSelect id="casos-province" name="province" defaultValue={provinceFilter ?? ""}>
             <option value="">Todas las provincias</option>
             {PROVINCES.map((p) => (
               <option key={p.code} value={p.name}>
                 {p.name}
               </option>
             ))}
-          </select>
+          </OpSelect>
         </div>
 
         <button
@@ -191,7 +181,7 @@ export default async function AdminCasosPage({
           {items.map((c) => (
             <li
               key={c.id}
-              className="flex flex-col gap-3 rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 md:flex-row md:items-center md:justify-between"
+              className="flex min-h-[44px] flex-col gap-2 rounded-[6px] border border-ln-op-line bg-ln-op-card p-3 md:min-h-0 md:flex-row md:items-center md:justify-between md:py-2"
             >
               <div className="flex flex-col gap-1">
                 <CaseBadge
