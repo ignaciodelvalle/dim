@@ -198,7 +198,7 @@ export default async function GobProgramaPage({
       {/* Filters row */}
       <div className="grid md:grid-cols-2 gap-3">
         <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="ytd" />
+        <PeriodPicker defaultPreset="trailing12m" />
       </div>
 
       {/* North-Star KPI strip */}

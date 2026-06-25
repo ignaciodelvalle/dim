@@ -91,7 +91,7 @@ export default async function GobSistemaPage({
       : jurisdictions.filter((j) => j.province === provinceName);
   }
 
-  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
+  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
 
   const [enoSla, queue] = await Promise.all([
@@ -126,7 +126,7 @@ export default async function GobSistemaPage({
       {/* Filters row */}
       <div className="grid md:grid-cols-2 gap-3">
         <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="ytd" />
+        <PeriodPicker defaultPreset="30d" />
       </div>
 
       {/* Top KPI strip */}

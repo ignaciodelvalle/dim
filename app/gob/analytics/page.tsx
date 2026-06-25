@@ -176,7 +176,7 @@ export default async function GobAnalyticsPage({
       {/* Filters row */}
       <div className="grid md:grid-cols-2 gap-3">
         <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="30d" />
+        <PeriodPicker defaultPreset="trailing12m" />
       </div>
 
       {/* 4 KPI tiles */}

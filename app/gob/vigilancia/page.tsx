@@ -30,7 +30,7 @@ import {
   fetchVigilanciaMetrics,
   fetchZoonosisTrend,
 } from "@/lib/govt-dashboards";
-import { buildProjectionContext, fetchKpiTrend } from "@/lib/metrics";
+import { buildProjectionContext, fetchKpiTrend, windows } from "@/lib/metrics";
 import { fetchSurveillanceCompliance } from "@/lib/surveillance-metrics";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
@@ -50,7 +50,7 @@ export default async function GobVigilanciaPage({
   const actor = { role: profile.role };
 
   const sp = await searchParams;
-  const period = resolveAnalyticsPeriod(sp);
+  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
   const { since } = period;
 
   // Resolve selected province ISO code (e.g. "AR-B") → ProvinceCode + canonical name.
