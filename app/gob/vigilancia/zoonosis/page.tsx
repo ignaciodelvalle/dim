@@ -94,7 +94,9 @@ export default async function GobVigilanciazoonosisPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Enfermedades reportables</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Resumen por enfermedad y tendencia mensual en tu cobertura.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Resumen por enfermedad y tendencia mensual en tu cobertura."}
         </p>
       </header>
 

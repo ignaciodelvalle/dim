@@ -189,7 +189,9 @@ export default async function GobProgramaPage({
           Resumen ejecutivo — tu jurisdicción
         </h1>
         <p className="text-[13px] text-ln-op-mute">
-          KPIs North-Star, outliers, calidad de datos y oversight de PII en tu cobertura asignada.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "KPIs North-Star, outliers, calidad de datos y oversight de PII en tu cobertura asignada."}
         </p>
       </header>
 

@@ -160,7 +160,9 @@ export default async function GobMortalidadPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Mortalidad y disposición</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Trazabilidad de la disposición final de fallecimientos (Ley CABA 5470) en tu cobertura.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Trazabilidad de la disposición final de fallecimientos (Ley CABA 5470) en tu cobertura."}
         </p>
       </header>
 

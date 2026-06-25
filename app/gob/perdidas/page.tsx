@@ -153,7 +153,9 @@ export default async function GobPerdidasPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Mascotas perdidas</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Mascotas marcadas como perdidas dentro de tu cobertura.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Mascotas marcadas como perdidas dentro de tu cobertura."}
         </p>
       </header>
 

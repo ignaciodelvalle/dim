@@ -152,7 +152,9 @@ export default async function GobPoblacionPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Control poblacional</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Cobertura de esterilización, reproducción activa y balance poblacional en tu cobertura.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Cobertura de esterilización, reproducción activa y balance poblacional en tu cobertura."}
         </p>
       </header>
 

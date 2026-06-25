@@ -167,7 +167,9 @@ export default async function GobAnalyticsPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Analítica</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Métricas analíticas de salud animal y gestión de mascotas en tu cobertura.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Métricas analíticas de salud animal y gestión de mascotas en tu cobertura."}
         </p>
       </header>
 
