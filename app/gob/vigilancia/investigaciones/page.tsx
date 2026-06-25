@@ -34,14 +34,14 @@ export default async function GobInvestigacionesPage() {
           </p>
           <h1 className="text-[22px] font-semibold text-ln-op-ink">Investigaciones de brote</h1>
           <p className="text-[13px] text-ln-op-mute">
-            Casos abiertos, escalados y cerrados en los ultimos 90 dias.
+            Casos abiertos, escalados y cerrados en los últimos 90 días.
           </p>
         </div>
         <Link
           href="/gob/vigilancia/investigaciones/nuevo"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
         >
-          + Nueva investigacion
+          Nueva investigación
         </Link>
       </header>
 
@@ -55,8 +55,9 @@ export default async function GobInvestigacionesPage() {
         <OpCardHead
           title={
             <span>
-              {investigations.length} investigacion
-              {investigations.length !== 1 ? "es" : ""}
+              {investigations.length === 1
+                ? "1 investigación"
+                : `${investigations.length} investigaciones`}
             </span>
           }
         />
@@ -66,7 +67,7 @@ export default async function GobInvestigacionesPage() {
               <LnEmptyState
                 icon="shield-check"
                 title="Sin investigaciones en este periodo"
-                description="No hay investigaciones de brote en tu cobertura en los ultimos 90 dias."
+                description="No hay investigaciones de brote en tu cobertura en los últimos 90 días."
               />
             </div>
           ) : (
@@ -94,7 +95,7 @@ export default async function GobInvestigacionesPage() {
                     <p className="text-[12px] text-ln-op-mute">
                       {[inv.jurisdictionLocality, inv.jurisdictionProvince]
                         .filter(Boolean)
-                        .join(", ") || "Jurisdiccion nacional"}{" "}
+                        .join(", ") || "Jurisdicción nacional"}{" "}
                       &middot; Abierta {formatDateTime(inv.openedAt)}
                     </p>
                   </div>

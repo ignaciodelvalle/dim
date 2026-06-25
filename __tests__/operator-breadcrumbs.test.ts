@@ -38,9 +38,16 @@ describe("deriveOperatorCrumbs — gob portal", () => {
     expect(crumbs[1]).toEqual({ label: "Organizaciones" });
   });
 
-  it("maps /gob/servicios to 'Catálogo' (nav preset label)", () => {
+  it("maps /gob/servicios to 'Servicios' (nav preset label)", () => {
     const crumbs = deriveOperatorCrumbs("/gob/servicios", "gob");
-    expect(crumbs[1]).toEqual({ label: "Catálogo" });
+    expect(crumbs[1]).toEqual({ label: "Servicios" });
+  });
+
+  it("maps /gob/vigilancia/investigaciones to 'Investigaciones' (static segment, not Detalle)", () => {
+    const crumbs = deriveOperatorCrumbs("/gob/vigilancia/investigaciones", "gob");
+    expect(crumbs).toHaveLength(3);
+    expect(crumbs[1]).toEqual({ label: "Vigilancia", href: "/gob/vigilancia" });
+    expect(crumbs[2]).toEqual({ label: "Investigaciones" });
   });
 
   it("returns 'Detalle' for dynamic id segment — does NOT echo the raw id", () => {

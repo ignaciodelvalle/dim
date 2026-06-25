@@ -265,7 +265,7 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
   {
     label: "Referencia",
     items: [
-      { href: "/gob/servicios", label: "Catálogo", matchPrefix: "/gob/servicios" },
+      { href: "/gob/servicios", label: "Servicios", matchPrefix: "/gob/servicios" },
       { href: "/gob/historial", label: "Mi actividad", matchPrefix: "/gob/historial" },
     ],
   },

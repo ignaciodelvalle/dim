@@ -66,6 +66,9 @@ const STATIC_SEGMENT_LABELS: Record<string, string> = {
   reglas: "Reglas",
   editar: "Editar",
   usuarios: "Usuarios",
+  // "investigaciones" is 16 chars — isLikelyId() would misclassify it as a
+  // token. List it here so /gob/vigilancia/investigaciones resolves correctly.
+  investigaciones: "Investigaciones",
 };
 
 /** Localized label for a path segment. The static map wins over the nav-preset
@@ -143,7 +146,12 @@ export function deriveOperatorCrumbs(pathname: string, portal: OperatorPortal): 
   // hyphens, is long, or matches a hex pattern), treat it as an id → "Detalle".
   // Otherwise try to resolve it as a sub-section label.
   const secondSeg = deeperSegs[0] ?? "";
-  const looksLikeId = isLikelyId(secondSeg);
+  // A segment that appears in STATIC_SEGMENT_LABELS is always a known sub-path
+  // regardless of its length. Check this before the isLikelyId heuristic to
+  // prevent long-but-static words (e.g. "investigaciones", 16 chars) from being
+  // misclassified as dynamic tokens.
+  const isKnownStatic = secondSeg in STATIC_SEGMENT_LABELS || segmentMap.has(secondSeg);
+  const looksLikeId = !isKnownStatic && isLikelyId(secondSeg);
 
   if (!looksLikeId && deeperSegs.length === 1) {
     // Known static sub-path — treat as a deeper section label (localized).
