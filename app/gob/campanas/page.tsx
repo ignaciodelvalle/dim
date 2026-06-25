@@ -30,6 +30,7 @@ import {
   buildProjectionContext,
   resolveAnalyticsPeriod,
   toneForTarget,
+  windows,
 } from "@/lib/metrics";
 import { findServiceKind } from "@/lib/service-kinds";
 import { RAMP_BLUE, RAMP_GREEN } from "@/lib/viz-scales";
@@ -101,7 +102,7 @@ export default async function GobCampanasPage({
     }
   }
 
-  const period = resolveAnalyticsPeriod(sp);
+  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
 
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
   const dashboard = await fetchCampaignDashboard(ctx);

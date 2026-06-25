@@ -167,7 +167,7 @@ export default async function GobMortalidadPage({
       {/* Filters row */}
       <div className="grid md:grid-cols-2 gap-3">
         <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="30d" />
+        <PeriodPicker defaultPreset="trailing12m" />
       </div>
 
       {/* Conditional breach banner — low disposal traceability */}
