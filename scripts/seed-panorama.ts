@@ -128,7 +128,7 @@ if (ALLOW_REMOTE && !isLocalDb) {
 // 4. Deferred imports (after env is populated)
 // ---------------------------------------------------------------------------
 
-const { inArray, isNull, like, sql } = await import("drizzle-orm");
+const { eq, inArray, isNull, like, sql } = await import("drizzle-orm");
 const {
   db,
   pets,
@@ -139,6 +139,7 @@ const {
   arLocalities,
   jurisdictionsCensus,
   cases,
+  custodyDisputes,
   enoProcessingQueue,
   eventNotificationOutbox,
   serviceOfferings,
@@ -2086,26 +2087,75 @@ async function seedEnforcementCases(): Promise<{ decomisos: number; disputes: nu
     decomisos++;
   }
 
-  // 5 custody disputes (open) → analytics custodyDisputes + Panorama drawer.
+  // 5 custody disputes (open). A real dispute is created in lockstep with its
+  // case (ARCH-E, app/actions/custody-disputes.ts): the case row, a
+  // custody_dispute_raised pet_event, and the custody_disputes row the case
+  // links back to via custody_dispute_id. /gob/analytics counts the open
+  // `cases`; /gob/disputas lists the `custody_disputes` table — seeding only the
+  // case half left the disputas list empty for everyone while analytics showed 5.
   for (let k = 0; k < 5 && cursor < panoPets.length; k++, cursor++) {
     const pet = panoPets[cursor];
     const prov = pet.province ?? "Buenos Aires";
-    await db.insert(cases).values({
-      publicCode: `PANO-CASE-DISPUTE-${String(k).padStart(4, "0")}`,
-      caseKind: "custody_dispute",
-      status: "open",
-      primarySubjectKind: "registered_pet",
-      primaryPetId: pet.id,
-      jurisdictionCountry: "AR",
-      jurisdictionProvince: prov,
-      jurisdictionLocality: pet.locality,
-      openedReason: "auto: disputa de custodia entre partes (seed-panorama)",
-      openedAt: randomWindowDate(WINDOW_DAYS),
-    } as Parameters<typeof db.insert<typeof cases>>[0] extends {
-      values: (v: infer V) => unknown;
-    }
-      ? V
-      : never);
+    // custody_disputes.jurisdiction_locality is NOT NULL; coalesce so a pet
+    // without a locality still yields a valid dispute row.
+    const locality = pet.locality ?? "Sin especificar";
+    const raisedAt = randomWindowDate(WINDOW_DAYS);
+
+    const [disputeCase] = await db
+      .insert(cases)
+      .values({
+        publicCode: `PANO-CASE-DISPUTE-${String(k).padStart(4, "0")}`,
+        caseKind: "custody_dispute",
+        status: "open",
+        primarySubjectKind: "registered_pet",
+        primaryPetId: pet.id,
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: prov,
+        jurisdictionLocality: locality,
+        openedReason: "auto: disputa de custodia entre partes (seed-panorama)",
+        openedAt: raisedAt,
+      } as Parameters<typeof db.insert<typeof cases>>[0] extends {
+        values: (v: infer V) => unknown;
+      }
+        ? V
+        : never)
+      .returning({ id: cases.id });
+
+    // Raising event — custody_disputes.raising_event_id is NOT NULL and FKs to
+    // pet_events (ON DELETE CASCADE, so it cleans up with the pet).
+    const [raisingEvent] = await db
+      .insert(petEvents)
+      .values({
+        petId: pet.id,
+        eventType: "custody_dispute_raised" satisfies EventType,
+        occurredAt: raisedAt,
+        authorRole: "govt",
+        payload: { source: "seed-panorama-enforcement", motive: "disputa de custodia" },
+      })
+      .returning({ id: petEvents.id });
+
+    const [dispute] = await db
+      .insert(custodyDisputes)
+      .values({
+        publicToken: `DIS-PANO-${String(k).padStart(4, "0")}`,
+        petId: pet.id,
+        raisedByRole: "govt",
+        raisingEventId: raisingEvent.id,
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: prov,
+        jurisdictionLocality: locality,
+        status: "open",
+      })
+      .returning({ id: custodyDisputes.id });
+
+    // Link the case to its dispute (the production lockstep invariant) and flip
+    // the pet's in_custody_dispute flag, mirroring openDisputeFromEvent.
+    await db
+      .update(cases)
+      .set({ custodyDisputeId: dispute.id, updatedAt: new Date() })
+      .where(eq(cases.id, disputeCase.id));
+    await db.update(pets).set({ inCustodyDispute: true }).where(eq(pets.id, pet.id));
+
     disputes++;
   }
 
