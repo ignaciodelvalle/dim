@@ -74,6 +74,13 @@ export default async function GobPanoramaPage({
       : jurisdictions.filter((j) => j.province === provinceObj.name);
   }
 
+  // Admin province drill-down: canonical stored names derived server-side from
+  // provinceByCode() and localityByName(). Only passed for admin role — govt
+  // actors must NOT receive these; their scope is enforced by filteredJurisdictions.
+  const adminProvince = profile.role === "admin" ? (provinceObj?.name ?? undefined) : undefined;
+  const adminLocality =
+    profile.role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
+
   // allowedProvinces: admin → all 24; govt → derive from assigned jurisdictions.
   const allowedProvinces =
     profile.role === "admin"
@@ -91,8 +98,16 @@ export default async function GobPanoramaPage({
   // level would leave the provinceDataRef cache empty on first render and produce
   // a blank map (C2).
   const [result, kpis, initialBounds] = await Promise.all([
-    getLayerFeatures("perdidas", actor, scoped, { since }, "province"),
-    getPanoramaKpis(actor, scoped, period),
+    getLayerFeatures(
+      "perdidas",
+      actor,
+      scoped,
+      { since },
+      "province",
+      adminProvince,
+      adminLocality,
+    ),
+    getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
     // Govt → bbox of their assigned localities; admin (jurisdictions=[]) → null.
     jurisdictionBounds(jurisdictions),
   ]);

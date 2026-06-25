@@ -437,15 +437,33 @@ export type PerdidasMetrics = {
 export async function fetchPerdidasMetrics(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
-  opts?: { lostPets?: LostPetRow[] },
+  opts?: {
+    lostPets?: LostPetRow[];
+    /**
+     * Admin province drill-down (Panorama). Only set when actor.role === "admin"
+     * and a province was selected. Never set from govt page code.
+     */
+    adminProvince?: string;
+    adminLocality?: string;
+  },
 ): Promise<PerdidasMetrics> {
   const now = Date.now();
   const since30d = new Date(now - 30 * DAY_MS);
+  const adminProvince = opts?.adminProvince;
+  const adminLocality = opts?.adminLocality;
 
   // 1. Count active lost pets in scope.
   const activeConditions = [eq(pets.status, "lost")];
   const petsScope = petsScopeClause(actor, jurisdictions);
   if (petsScope) activeConditions.push(sql`(${petsScope})`);
+  // Admin province drill-down: append explicit province predicate (same pattern
+  // as buildMaltratoListConditions). Govt users must NOT pass adminProvince.
+  if (actor.role === "admin" && adminProvince) {
+    activeConditions.push(sql`${pets.jurisdictionProvince} = ${adminProvince}`);
+    if (adminLocality) {
+      activeConditions.push(sql`${pets.jurisdictionLocality} = ${adminLocality}`);
+    }
+  }
 
   // 2. Count `status_changed` events where `from_status = 'lost'` within 30d in scope.
   // These events represent pets that were recovered (or had their status changed)
@@ -470,24 +488,39 @@ export async function fetchPerdidasMetrics(
     );
     recoveredConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
   }
+  // Admin province drill-down: narrow the recovered count to the province.
+  // The pets table join is added below for the admin+province path.
+  if (actor.role === "admin" && adminProvince) {
+    recoveredConditions.push(sql`${pets.jurisdictionProvince} = ${adminProvince}`);
+    if (adminLocality) {
+      recoveredConditions.push(sql`${pets.jurisdictionLocality} = ${adminLocality}`);
+    }
+  }
 
   // 3. Average days active: average of (now - occurredAt) for the most recent
   // `status_changed → lost` event per pet, for pets currently in status='lost'.
   // We compute this in JS using the per-pet markedLostAt timestamps from
   // fetchLostPets. If the caller already holds the lostPets array (e.g. /gob/perdidas
   // fetches it in parallel), pass it via opts.lostPets to avoid a redundant DB call.
+  // For admin+province, filter the JS array to the province after fetching (the
+  // LostPetRow already carries province/locality fields).
 
   const lostPetsPromise =
     opts?.lostPets !== undefined
       ? Promise.resolve(opts.lostPets)
       : fetchLostPets(actor, jurisdictions);
 
-  const [activeRows, recoveredRows, lostPets] = await Promise.all([
+  // Whether to join the pets table for the recovered-count query.
+  // Govt always joins (to apply jurisdiction pairs on pets columns).
+  // Admin+province also needs the join to apply the province predicate.
+  const needsRecoveredJoin = actor.role === "govt" || (actor.role === "admin" && !!adminProvince);
+
+  const [activeRows, recoveredRows, lostPetsRaw] = await Promise.all([
     db
       .select({ n: count() })
       .from(pets)
       .where(and(...activeConditions)),
-    actor.role === "govt"
+    needsRecoveredJoin
       ? db
           .select({ n: count() })
           .from(petEvents)
@@ -499,6 +532,14 @@ export async function fetchPerdidasMetrics(
           .where(and(...recoveredConditions)),
     lostPetsPromise,
   ]);
+
+  // For admin+province, narrow the lostPets JS array to the selected province.
+  const lostPets =
+    actor.role === "admin" && adminProvince
+      ? lostPetsRaw.filter(
+          (p) => p.province === adminProvince && (!adminLocality || p.locality === adminLocality),
+        )
+      : lostPetsRaw;
 
   const activeCount = activeRows[0]?.n ?? 0;
   const recoveredMonth = recoveredRows[0]?.n ?? 0;
@@ -1572,7 +1613,15 @@ export type AnalyticsMetrics = {
 export async function fetchAnalyticsMetrics(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
-  opts: { since?: Date } = {},
+  opts: {
+    since?: Date;
+    /**
+     * Admin province drill-down (Panorama). Only set when actor.role === "admin"
+     * and a province was selected. Never set from govt page code.
+     */
+    adminProvince?: string;
+    adminLocality?: string;
+  } = {},
 ): Promise<AnalyticsMetrics> {
   // Early-return for govt with no assignments.
   if (actor.role === "govt" && jurisdictions.length === 0) {
@@ -1580,6 +1629,8 @@ export async function fetchAnalyticsMetrics(
   }
 
   const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
+  const adminProvince = opts.adminProvince;
+  const adminLocality = opts.adminLocality;
 
   const petsScope = petsScopeClause(actor, jurisdictions);
   const casesScope = casesScopeClause(actor, jurisdictions);
@@ -1587,6 +1638,12 @@ export async function fetchAnalyticsMetrics(
   // 1. totalPets: active or lost in scope.
   const totalConditions = [sql`${pets.status} IN ('active', 'lost')`];
   if (petsScope) totalConditions.push(sql`(${petsScope})`);
+  // Admin province drill-down: append explicit province predicate (same pattern
+  // as buildMaltratoListConditions). Govt users must NOT pass adminProvince.
+  if (actor.role === "admin" && adminProvince) {
+    totalConditions.push(sql`${pets.jurisdictionProvince} = ${adminProvince}`);
+    if (adminLocality) totalConditions.push(sql`${pets.jurisdictionLocality} = ${adminLocality}`);
+  }
 
   // 2. adoptionRate: pet_registered events with acquisition_method='adopted', last 12m.
   //    Scope via inner join to pets.jurisdictionProvince/Locality.
@@ -1601,6 +1658,14 @@ export async function fetchAnalyticsMetrics(
         sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
     );
     acquisitionConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+  }
+  // Admin province drill-down for acquisition events: add province predicate.
+  // The innerJoin to pets is added below via needsJoin.
+  if (actor.role === "admin" && adminProvince) {
+    acquisitionConditions.push(sql`${pets.jurisdictionProvince} = ${adminProvince}`);
+    if (adminLocality) {
+      acquisitionConditions.push(sql`${pets.jurisdictionLocality} = ${adminLocality}`);
+    }
   }
 
   // 3. rabiesVaccinationRate: distinct petIds with ≥1 vaccination_administered where
@@ -1622,10 +1687,28 @@ export async function fetchAnalyticsMetrics(
     );
     rabiesConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
   }
+  // Admin province drill-down for rabies events: add province predicate.
+  if (actor.role === "admin" && adminProvince) {
+    rabiesConditions.push(sql`${pets.jurisdictionProvince} = ${adminProvince}`);
+    if (adminLocality) {
+      rabiesConditions.push(sql`${pets.jurisdictionLocality} = ${adminLocality}`);
+    }
+  }
 
   // 4. custodyDisputes: open cases with case_kind='custody_dispute'.
   const disputeConditions = [eq(cases.caseKind, "custody_dispute"), eq(cases.status, "open")];
   if (casesScope) disputeConditions.push(sql`(${casesScope})`);
+  // Admin province drill-down for disputes (casesScope is null for admin).
+  if (actor.role === "admin" && adminProvince) {
+    disputeConditions.push(sql`${cases.jurisdictionProvince} = ${adminProvince}`);
+    if (adminLocality) {
+      disputeConditions.push(sql`${cases.jurisdictionLocality} = ${adminLocality}`);
+    }
+  }
+
+  // Whether petEvents sub-queries need an innerJoin to pets for province scoping.
+  // Govt always joins (to apply jurisdiction pairs). Admin+province also joins.
+  const needsJoin = actor.role === "govt" || (actor.role === "admin" && !!adminProvince);
 
   const [totalRows, acquisitionRows, adoptedRows, rabiesRows, disputeRows] = await Promise.all([
     db
@@ -1634,7 +1717,7 @@ export async function fetchAnalyticsMetrics(
       .where(and(...totalConditions)),
 
     // Total registrations in last 12m for adoption-rate denominator.
-    actor.role === "govt"
+    needsJoin
       ? db
           .select({ n: count() })
           .from(petEvents)
@@ -1646,7 +1729,7 @@ export async function fetchAnalyticsMetrics(
           .where(and(...acquisitionConditions)),
 
     // Adopted registrations in last 12m.
-    actor.role === "govt"
+    needsJoin
       ? db
           .select({ n: count() })
           .from(petEvents)
@@ -1668,7 +1751,7 @@ export async function fetchAnalyticsMetrics(
           ),
 
     // Distinct pet IDs with ≥1 rabia vaccination.
-    actor.role === "govt"
+    needsJoin
       ? db
           .select({ n: countDistinct(petEvents.petId) })
           .from(petEvents)

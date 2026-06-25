@@ -162,3 +162,71 @@ describe("petsScopeClause", () => {
     expect(clause).not.toBeNull();
   });
 });
+
+// Count MST- prefixed pets that match a scope clause (null clause = no restriction).
+async function countPetsWithScope(ctx: ReturnType<typeof buildProjectionContext>) {
+  const clause = petsScopeClause(ctx);
+  const prefix = sql`${pets.publicToken} LIKE ${"MST-%"}`;
+  const where = clause ? and(clause, prefix) : prefix;
+  const rows = await db.select({ n: count() }).from(pets).where(where);
+  return rows[0]?.n ?? 0;
+}
+
+describe("petsScopeClause — admin province drill-down (Panorama)", () => {
+  // Fixtures: 3 MST- pets in Santa Fe/Rosario (PROV_A/LOC_A) + 1 in Córdoba (PROV_B/LOC_B).
+
+  it("admin with no province → national (sees all provinces)", async () => {
+    const ctx = buildProjectionContext({ role: "admin" }, [], period);
+    // All 4 MST- pets (3 Santa Fe + 1 Córdoba). No status filter in petsScopeClause.
+    expect(await countPetsWithScope(ctx)).toBe(4);
+  });
+
+  it("admin + province narrows to that province", async () => {
+    const ctx = buildProjectionContext({ role: "admin" }, [], period, { adminProvince: PROV_A });
+    // Only the 3 Santa Fe pets; Córdoba excluded.
+    expect(await countPetsWithScope(ctx)).toBe(3);
+
+    const ctxB = buildProjectionContext({ role: "admin" }, [], period, { adminProvince: PROV_B });
+    // Only the 1 Córdoba pet.
+    expect(await countPetsWithScope(ctxB)).toBe(1);
+  });
+
+  it("admin + province + locality narrows further", async () => {
+    const ctx = buildProjectionContext({ role: "admin" }, [], period, {
+      adminProvince: PROV_A,
+      adminLocality: LOC_A,
+    });
+    expect(await countPetsWithScope(ctx)).toBe(3);
+
+    // A locality with no MST- pets → zero.
+    const ctxEmpty = buildProjectionContext({ role: "admin" }, [], period, {
+      adminProvince: PROV_A,
+      adminLocality: "Santo Tomé",
+    });
+    expect(await countPetsWithScope(ctxEmpty)).toBe(0);
+  });
+
+  // SECURITY INVARIANT — the critical test: an adminProvince injected on a GOVT
+  // context must have ZERO effect. Govt scope is enforced by jurisdiction pairs
+  // (scope.kind === "jurisdictions"), so the admin branch never fires and the
+  // govt user can be neither widened nor redirected to another province.
+  it("govt scope is immune to an injected adminProvince (cannot widen or redirect)", async () => {
+    const govtBase = buildProjectionContext(
+      { role: "govt" },
+      [{ province: PROV_A, locality: LOC_A }],
+      period,
+    );
+    const baseline = await countPetsWithScope(govtBase);
+    expect(baseline).toBe(3); // the 3 Santa Fe/Rosario pets
+
+    // Inject a foreign province (Córdoba) the govt user is NOT assigned to.
+    const govtInjected = buildProjectionContext(
+      { role: "govt" },
+      [{ province: PROV_A, locality: LOC_A }],
+      period,
+      { adminProvince: PROV_B },
+    );
+    // Must be IDENTICAL — the injection is ignored for govt.
+    expect(await countPetsWithScope(govtInjected)).toBe(baseline);
+  });
+});

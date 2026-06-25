@@ -63,6 +63,13 @@ export default async function AdminPanoramaPage({
       : jurisdictions.filter((j) => j.province === provinceObj.name);
   }
 
+  // Admin province drill-down: canonical stored names derived server-side from
+  // provinceByCode() and localityByName(). Only passed for admin role — govt
+  // actors must NOT receive these; their scope is enforced by filteredJurisdictions.
+  const adminProvince = profile.role === "admin" ? (provinceObj?.name ?? undefined) : undefined;
+  const adminLocality =
+    profile.role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
+
   // biome-ignore lint/style/noNonNullAssertion: "perdidas" is a static registry id.
   const layer = getLayer("perdidas")!;
   // Default layer features + the headline KPIs resolve concurrently. The KPIs
@@ -71,8 +78,16 @@ export default async function AdminPanoramaPage({
   // aggregation axis of "province"). Seeding at locality level would leave the
   // provinceDataRef cache empty on first render and produce a blank map (C2).
   const [result, kpis] = await Promise.all([
-    getLayerFeatures("perdidas", actor, scoped, { since }, "province"),
-    getPanoramaKpis(actor, scoped, period),
+    getLayerFeatures(
+      "perdidas",
+      actor,
+      scoped,
+      { since },
+      "province",
+      adminProvince,
+      adminLocality,
+    ),
+    getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
   ]);
 
   return (

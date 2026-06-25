@@ -128,14 +128,30 @@ async function choroplethResult(
   level: AggregationLevel,
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<LayerFeaturesResult> {
   if (level === "province") {
     return provinceChoroplethResult(
-      await loadChoroplethByLevel(metric, "province", actor, jurisdictions),
+      await loadChoroplethByLevel(
+        metric,
+        "province",
+        actor,
+        jurisdictions,
+        adminProvince,
+        adminLocality,
+      ),
     );
   }
   return localityChoroplethResult(
-    await loadChoroplethByLevel(metric, "locality", actor, jurisdictions),
+    await loadChoroplethByLevel(
+      metric,
+      "locality",
+      actor,
+      jurisdictions,
+      adminProvince,
+      adminLocality,
+    ),
   );
 }
 
@@ -152,6 +168,15 @@ export async function getLayerFeatures(
    * Defaults to "locality" (historical / pre-U5 behavior).
    */
   level: AggregationLevel = "locality",
+  /**
+   * Admin province drill-down (Panorama only). When an ADMIN selects a province
+   * via JurisdictionSwitcher, this narrows all layer loaders to that province
+   * (and optionally locality). Only applied when actor.role === "admin".
+   * Govt actors must NOT pass these — their scope is already enforced by
+   * filteredJurisdictions.
+   */
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<LayerFeaturesResult> {
   switch (layer) {
     // -----------------------------------------------------------------------
@@ -161,11 +186,27 @@ export async function getLayerFeatures(
     // level applies suppressSmallCells (k=5).
     // -----------------------------------------------------------------------
     case "perdidas": {
-      const r = await loadPerdidasByUnit(level, actor, jurisdictions, period.since, period.asOf);
+      const r = await loadPerdidasByUnit(
+        level,
+        actor,
+        jurisdictions,
+        period.since,
+        period.asOf,
+        adminProvince,
+        adminLocality,
+      );
       return aggregatedPointResult(r, level);
     }
     case "mordeduras": {
-      const r = await loadMordedurassByUnit(level, actor, jurisdictions, period.since, period.asOf);
+      const r = await loadMordedurassByUnit(
+        level,
+        actor,
+        jurisdictions,
+        period.since,
+        period.asOf,
+        adminProvince,
+        adminLocality,
+      );
       return aggregatedPointResult(r, level);
     }
     case "denuncias": {
@@ -173,14 +214,30 @@ export async function getLayerFeatures(
       // At locality level, each unit's centroid represents all reports in that
       // locality (no individual coordinates). At province level, the province
       // centroid is used. k-anon applies at locality level only.
-      const r = await loadDenunciasByUnit(level, actor, jurisdictions, period.since, period.asOf);
+      const r = await loadDenunciasByUnit(
+        level,
+        actor,
+        jurisdictions,
+        period.since,
+        period.asOf,
+        adminProvince,
+        adminLocality,
+      );
       return aggregatedPointResult(r, level);
     }
     // -----------------------------------------------------------------------
     // F1: SIGNAL point layer — per-unit aggregated.
     // -----------------------------------------------------------------------
     case "zoonosis": {
-      const r = await loadZoonosisByUnit(level, actor, jurisdictions, period.since, period.asOf);
+      const r = await loadZoonosisByUnit(
+        level,
+        actor,
+        jurisdictions,
+        period.since,
+        period.asOf,
+        adminProvince,
+        adminLocality,
+      );
       return aggregatedPointResult(r, level);
     }
     // -----------------------------------------------------------------------
@@ -191,11 +248,18 @@ export async function getLayerFeatures(
     case "refugios": {
       // Shelters have no time dimension — period/asOf are not applied. The
       // console dims this layer while a scrub is active (not reproducible in time).
-      const r = await loadShelters(actor, jurisdictions);
+      const r = await loadShelters(actor, jurisdictions, adminProvince, adminLocality);
       return pointResult(r, buildRefugiosFeatures(r.rows));
     }
     case "decomisos": {
-      const r = await loadDecomisos(actor, jurisdictions, period.since, period.asOf);
+      const r = await loadDecomisos(
+        actor,
+        jurisdictions,
+        period.since,
+        period.asOf,
+        adminProvince,
+        adminLocality,
+      );
       return pointResult(r, buildDecomisosFeatures(r.rows));
     }
     // -----------------------------------------------------------------------
@@ -205,20 +269,41 @@ export async function getLayerFeatures(
       // Current-state rollup (EXISTS rabies vaccination) — not event-windowed in
       // v1, so `asOf` is intentionally ignored; the console dims it under a scrub.
       // U5: the level selects province (filled polygons, ratePct) vs locality (centroids, count).
-      return choroplethResult("rabies-coverage", level, actor, jurisdictions);
+      return choroplethResult(
+        "rabies-coverage",
+        level,
+        actor,
+        jurisdictions,
+        adminProvince,
+        adminLocality,
+      );
     }
     case "esterilizacion": {
       // Current-state rollup (EXISTS sterilization_performed) — not event-windowed in
       // v1, so `asOf` is intentionally ignored; the console dims it under a scrub.
       // Province level: ratePct (true percentage, divergent at complianceTarget:70).
       // Locality level: count-density (v1 limitation; rate-by-locality deferred).
-      return choroplethResult("sterilization-coverage", level, actor, jurisdictions);
+      return choroplethResult(
+        "sterilization-coverage",
+        level,
+        actor,
+        jurisdictions,
+        adminProvince,
+        adminLocality,
+      );
     }
     case "mortalidad": {
       // Current-state rollup (pets.status='deceased') — not event-windowed in v1;
       // `asOf` is intentionally ignored; the console dims it under a scrub.
       // U5: the level selects province (filled polygons) vs locality (centroids).
-      return choroplethResult("mortality", level, actor, jurisdictions);
+      return choroplethResult(
+        "mortality",
+        level,
+        actor,
+        jurisdictions,
+        adminProvince,
+        adminLocality,
+      );
     }
     default:
       return empty();

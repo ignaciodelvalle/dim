@@ -60,31 +60,74 @@ export type LayerRows<Row> = {
 // Scope clauses — reuse the canonical lib/metrics helpers (tested).
 // ---------------------------------------------------------------------------
 
-/** pets-table scope (province/locality columns). admin → null. */
-function petsScope(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
-  return metricsPetsScopeClause(
-    buildProjectionContext(actor, jurisdictions, windows.trailing12m()),
+/** pets-table scope (province/locality columns).
+ * admin → null (national) OR province predicate when adminProvince is set.
+ * See ProjectionContext.adminProvince for the security invariant. */
+function petsScope(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): SQL | null {
+  // Drizzle's `and()` has a declared return type of SQL | undefined (even with
+  // non-null args). Normalize to SQL | null to match rollupPetsPerLocality/Province.
+  return (
+    metricsPetsScopeClause(
+      buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+        adminProvince,
+        adminLocality,
+      }),
+    ) ?? null
   );
 }
 
-/** pet_events scope (JSONB payload jurisdiction). admin → null. */
-function petEventsScope(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
+/** pet_events scope (JSONB payload jurisdiction).
+ * admin → null (national) OR payload province predicate when adminProvince is set. */
+function petEventsScope(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+) {
   return metricsPetEventsScopeClause(
-    buildProjectionContext(actor, jurisdictions, windows.trailing12m()),
+    buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+      adminProvince,
+      adminLocality,
+    }),
   );
 }
 
 /** welfare_reports / cases / organizations share the same (province name, locality
  * name) jurisdiction columns. Build an OR of pair-matches against the given
- * province/locality columns. admin → null (no restriction); govt with no
- * assignments → false (match nothing). */
+ * province/locality columns.
+ *
+ * - admin, no province → null (no restriction)
+ * - admin + province   → province (and optionally locality) predicate
+ * - govt, no assignments → false (match nothing)
+ * - govt, with assignments → OR of (province=X AND locality=Y) pairs
+ *
+ * SECURITY: the admin province branch fires ONLY when actor.role === "admin".
+ * Govt users must NOT pass adminProvince — their scope is enforced by
+ * the jurisdictions pairs (same invariant as buildMaltratoListConditions).
+ */
 function jurisdictionColumnsScope(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   provinceCol: SQL | ReturnType<typeof sql.raw>,
   localityCol: SQL | ReturnType<typeof sql.raw>,
+  adminProvince?: string,
+  adminLocality?: string,
 ): SQL | null {
-  if (actor.role === "admin") return null;
+  if (actor.role === "admin") {
+    if (!adminProvince) return null;
+    if (adminLocality) {
+      return and(
+        sql`${provinceCol} = ${adminProvince}`,
+        sql`${localityCol} = ${adminLocality}`,
+      ) as SQL;
+    }
+    return sql`${provinceCol} = ${adminProvince}`;
+  }
   if (jurisdictions.length === 0) return sql`false`;
   const pairs = jurisdictions.map(
     (j) => sql`(${provinceCol} = ${j.province} AND ${localityCol} = ${j.locality})`,
@@ -109,6 +152,8 @@ export async function loadBiteEvents(
   jurisdictions: DashboardJurisdiction[],
   since: Date,
   asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<LayerRows<BiteRow>> {
   const conditions = [
     eq(petEvents.eventType, "incident_reported"),
@@ -121,7 +166,7 @@ export async function loadBiteEvents(
   // F4 temporal reproduction: upper-bound the event window so the layer can be
   // reconstructed "as of t" while the TimeScrubber plays.
   if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
-  const scope = petEventsScope(actor, jurisdictions);
+  const scope = petEventsScope(actor, jurisdictions, adminProvince, adminLocality);
   if (scope) conditions.push(sql`(${scope})`);
 
   const rows = await db
@@ -164,6 +209,8 @@ export async function loadDenunciaCentroids(
   jurisdictions: DashboardJurisdiction[],
   since: Date,
   asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<LayerRows<DenunciaCentroidRow>> {
   const conditions = [
     gte(welfareReports.createdAt, since),
@@ -178,6 +225,8 @@ export async function loadDenunciaCentroids(
     jurisdictions,
     sql`${welfareReports.jurisdictionProvince}`,
     sql`${welfareReports.jurisdictionLocality}`,
+    adminProvince,
+    adminLocality,
   );
   if (scope) conditions.push(sql`(${scope})`);
 
@@ -242,6 +291,8 @@ export async function loadOutbreakSignals(
   jurisdictions: DashboardJurisdiction[],
   since: Date,
   asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<LayerRows<OutbreakRow>> {
   const conditions = [
     eq(petEvents.eventType, "outbreak_signal"),
@@ -251,7 +302,7 @@ export async function loadOutbreakSignals(
   // F4: upper-bound the outbreak-signal window for temporal reproduction.
   if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
   // outbreak_signal stores its own jurisdiction keys; reuse the payload scope.
-  const scope = petEventsScope(actor, jurisdictions);
+  const scope = petEventsScope(actor, jurisdictions, adminProvince, adminLocality);
   if (scope) conditions.push(sql`(${scope})`);
 
   const rows = await db
@@ -287,6 +338,8 @@ export async function loadOutbreakSignals(
 export async function loadShelters(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<LayerRows<ShelterRow>> {
   const conditions = [
     eq(organizations.orgType, "shelter"),
@@ -298,6 +351,8 @@ export async function loadShelters(
     jurisdictions,
     sql`${organizations.jurisdictionProvince}`,
     sql`${organizations.jurisdictionLocality}`,
+    adminProvince,
+    adminLocality,
   );
   if (scope) conditions.push(sql`(${scope})`);
 
@@ -341,6 +396,8 @@ export async function loadDecomisos(
   jurisdictions: DashboardJurisdiction[],
   since: Date,
   asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<LayerRows<DecomisoRow>> {
   const conditions = [
     eq(cases.caseKind, "custody_episode"),
@@ -354,6 +411,8 @@ export async function loadDecomisos(
     jurisdictions,
     sql`${cases.jurisdictionProvince}`,
     sql`${cases.jurisdictionLocality}`,
+    adminProvince,
+    adminLocality,
   );
   if (scope) conditions.push(sql`(${scope})`);
 
@@ -676,8 +735,10 @@ function toProvinceChoroplethCells(rollup: ProvinceRollupRow[]): ProvinceChoropl
 export async function loadRabiesCoverage(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<ChoroplethRows> {
-  const scope = petsScope(actor, jurisdictions);
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
   const rollup = await rollupPetsPerLocality([metricPredicate("rabies-coverage")], scope);
   const { cells, suppressedCount } = toChoroplethCells(rollup);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
@@ -692,8 +753,10 @@ export async function loadRabiesCoverage(
 export async function loadSterilizationCoverage(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<ChoroplethRows> {
-  const scope = petsScope(actor, jurisdictions);
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
   const rollup = await rollupPetsPerLocality([metricPredicate("sterilization-coverage")], scope);
   const { cells, suppressedCount } = toChoroplethCells(rollup);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
@@ -704,8 +767,10 @@ export async function loadSterilizationCoverage(
 export async function loadMortality(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<ChoroplethRows> {
-  const scope = petsScope(actor, jurisdictions);
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
   const rollup = await rollupPetsPerLocality([metricPredicate("mortality")], scope);
   const { cells, suppressedCount } = toChoroplethCells(rollup);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
@@ -734,8 +799,13 @@ export async function loadMortality(
 export async function loadRabiesCoverageByProvince(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<ProvinceChoroplethRows> {
-  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m());
+  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+    adminProvince,
+    adminLocality,
+  });
   const byProvince = await fetchRabiesCoverageByProvince(ctx);
   const cells: ProvinceChoroplethCell[] = [];
   for (const r of byProvince) {
@@ -756,8 +826,13 @@ export async function loadRabiesCoverageByProvince(
 export async function loadSterilizationCoverageByProvince(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<ProvinceChoroplethRows> {
-  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m());
+  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+    adminProvince,
+    adminLocality,
+  });
   const { byProvince } = await fetchSterilizationCoverage(ctx);
   const cells: ProvinceChoroplethCell[] = [];
   for (const r of byProvince) {
@@ -771,8 +846,10 @@ export async function loadSterilizationCoverageByProvince(
 export async function loadMortalityByProvince(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<ProvinceChoroplethRows> {
-  const scope = petsScope(actor, jurisdictions);
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
   const rollup = await rollupPetsPerProvince([metricPredicate("mortality")], scope);
   return { cells: toProvinceChoroplethCells(rollup), truncated: rollup.length >= PER_LAYER_CAP };
 }
@@ -797,29 +874,43 @@ export function loadChoroplethByLevel(
   level: "province",
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<ProvinceChoroplethRows>;
 export function loadChoroplethByLevel(
   metric: ChoroplethMetric,
   level: "locality",
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<ChoroplethRows>;
 export function loadChoroplethByLevel(
   metric: ChoroplethMetric,
   level: AggregationLevel,
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<ChoroplethRows | ProvinceChoroplethRows> {
   if (level === "province") {
-    if (metric === "rabies-coverage") return loadRabiesCoverageByProvince(actor, jurisdictions);
+    if (metric === "rabies-coverage")
+      return loadRabiesCoverageByProvince(actor, jurisdictions, adminProvince, adminLocality);
     if (metric === "sterilization-coverage")
-      return loadSterilizationCoverageByProvince(actor, jurisdictions);
-    return loadMortalityByProvince(actor, jurisdictions);
+      return loadSterilizationCoverageByProvince(
+        actor,
+        jurisdictions,
+        adminProvince,
+        adminLocality,
+      );
+    return loadMortalityByProvince(actor, jurisdictions, adminProvince, adminLocality);
   }
   // Locality level.
-  if (metric === "rabies-coverage") return loadRabiesCoverage(actor, jurisdictions);
-  if (metric === "sterilization-coverage") return loadSterilizationCoverage(actor, jurisdictions);
-  return loadMortality(actor, jurisdictions);
+  if (metric === "rabies-coverage")
+    return loadRabiesCoverage(actor, jurisdictions, adminProvince, adminLocality);
+  if (metric === "sterilization-coverage")
+    return loadSterilizationCoverage(actor, jurisdictions, adminProvince, adminLocality);
+  return loadMortality(actor, jurisdictions, adminProvince, adminLocality);
 }
 
 // ---------------------------------------------------------------------------
@@ -918,8 +1009,10 @@ export async function loadPerdidasByUnit(
   jurisdictions: DashboardJurisdiction[],
   since: Date,
   asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<AggregatedPointRows> {
-  const scope = petEventsScope(actor, jurisdictions);
+  const scope = petEventsScope(actor, jurisdictions, adminProvince, adminLocality);
   const conditions: SQL[] = [
     // lost/sighting pet events (F1 — matches the per-event perdidas loader logic).
     sql`(${petEvents.payload}->>'kind') IN ('pet_lost', 'pet_found_sighting')`,
@@ -1011,8 +1104,10 @@ export async function loadMordedurassByUnit(
   jurisdictions: DashboardJurisdiction[],
   since: Date,
   asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<AggregatedPointRows> {
-  const scope = petEventsScope(actor, jurisdictions);
+  const scope = petEventsScope(actor, jurisdictions, adminProvince, adminLocality);
   const conditions: SQL[] = [
     eq(petEvents.eventType, "incident_reported"),
     sql`(${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered')`,
@@ -1104,12 +1199,16 @@ export async function loadDenunciasByUnit(
   jurisdictions: DashboardJurisdiction[],
   since: Date,
   asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<AggregatedPointRows> {
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
     sql`${welfareReports.jurisdictionProvince}`,
     sql`${welfareReports.jurisdictionLocality}`,
+    adminProvince,
+    adminLocality,
   );
   const conditions: SQL[] = [
     gte(welfareReports.createdAt, since),
@@ -1201,8 +1300,10 @@ export async function loadZoonosisByUnit(
   jurisdictions: DashboardJurisdiction[],
   since: Date,
   asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<AggregatedPointRows> {
-  const scope = petEventsScope(actor, jurisdictions);
+  const scope = petEventsScope(actor, jurisdictions, adminProvince, adminLocality);
   const conditions: SQL[] = [
     eq(petEvents.eventType, "outbreak_signal"),
     gte(petEvents.occurredAt, since),
