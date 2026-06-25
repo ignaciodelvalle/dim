@@ -48,6 +48,17 @@ Ultimate trajectory: **Mi Argentina integration** — federation with the Argent
 
 **spec → plan → PR → flip README status.** Code descends from documents, not the other way around. If a change feels in tension with what's written, raise it before coding around it.
 
+### Agent collaboration contract (Cowork ⇄ Claude Code)
+
+Two AI agents work this repo, **never in parallel** (one session at a time). They run in **different environments**, so their git/filesystem state can diverge — a lock or stale tree in one agent's sandbox may not exist in the canonical repo. Serializing sessions does NOT sync them; only a shared source of truth does.
+
+- **Single source of truth.** The canonical repo is the one **Claude Code** operates (Ignacio's local Windows machine). Claude Code owns git (commits, branches, merges, stash) and running tests / verify / build / migration files. If the two agents disagree about repo, test, or build state, **Claude Code's live check wins — after verifying, never by assertion.**
+- **Lanes.** *Claude Code* = ground truth: touches files, commits, runs the gate, writes migrations. *Cowork* = thinking: exploration, design, planning, drafting specs/PRDs, research → produces **proposals, not facts**. Cowork must not assert git/test/environment state as settled, and must not "fix" a broken-looking environment from its sandbox — it **flags it as a checkable claim** instead.
+- **Handoffs carry evidence, not narrative.** Stamp every handoff with the **branch + HEAD SHA** it was written against. Separate **DONE (with commit SHA)** from **TODO (unverified)**. Back every claim with a SHA, a `file:line`, or pasted command output. Banned: "git is broken", "X is done" with nothing to check. Required: the command and its output. The receiver **verifies every claim against the live repo before acting — trust SHAs, not prose.**
+- **Shared Definition of Done.** "Done" = `pnpm verify` + `pnpm test` green (with the actual output as evidence) **and committed**. No "should be fine."
+- **Human-gated actions.** Agents produce artifacts; **Ignacio authorizes anything that hits prod or external services, or is hard to reverse**: applying migrations to remote Supabase, deploys, pushing to origin / opening PRs, dashboard/account toggles. Writing a migration *file* is agent work; *applying* it to a remote DB is not.
+- **Shared conventions already in force** (see Invariants above): conventional commits, **no `Co-Authored-By` / AI attribution**, Spanish UI / English code, append-only events, forward-only immutable migrations.
+
 ### Event-design checklist
 
 Before writing a new event type, walk through `docs/event-design-checklist.md`. It covers: cross-cutting pattern, projection target, auto-close cron + idempotency, Zod schema + `schemaVersion`, libreta vs non-libreta, dashboard consumers, required test surface.
