@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { dateInYear, makeMulberry32, pickRegisteredYear } from "./seed-history-utils";
+import {
+  dateInYear,
+  makeMulberry32,
+  pickRegisteredYear,
+  provinceProfile,
+} from "./seed-history-utils";
 
 // These are PURE helpers for the multi-year panorama history seed. They take an
 // injected rng (so the seed can pass its global mulberry32 and keep the run
@@ -50,6 +55,26 @@ describe("dateInYear", () => {
       expect(d.getUTCMonth()).toBeLessThanOrEqual(4);
       expect(d.getUTCFullYear()).toBe(2026);
     }
+  });
+});
+
+describe("provinceProfile", () => {
+  it("Córdoba improving, Salta worsening, others uniform", () => {
+    expect(provinceProfile("Córdoba").archetype).toBe("improving");
+    expect(provinceProfile("Salta").archetype).toBe("worsening");
+    expect(provinceProfile("Mendoza").archetype).toBe("uniform");
+  });
+  it("improving coverage rises, worsening falls", () => {
+    const c = provinceProfile("Córdoba").coverageByYear;
+    expect(c[2026].vacc).toBeGreaterThan(c[2024].vacc);
+    const s = provinceProfile("Salta").coverageByYear;
+    expect(s[2026].vacc).toBeLessThan(s[2024].vacc);
+  });
+  it("uniform province has all three years populated", () => {
+    const u = provinceProfile("Mendoza");
+    expect(u.coverageByYear[2024].vacc).toBeGreaterThan(0);
+    expect(u.coverageByYear[2026].vacc).toBeGreaterThan(0);
+    expect(u.zoonosisByYear[2025]).toBeGreaterThanOrEqual(0);
   });
 });
 
