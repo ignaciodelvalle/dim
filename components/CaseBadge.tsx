@@ -25,22 +25,29 @@ const KIND_ICON: Record<CaseKind, string> = {
   microchip_remediation: "reparacion",
 };
 
+// Canonical case-status tones (decision 2026-06-24, triage model):
+// open=warn (atención) · escalated=err · closed=ok (resuelto) · merged=info.
+// Uses the --color-st-* indirection layer so tones auto-remap per skin
+// (operator surfaces under .op-surface → ln-op-*; citizen → ln-*).
 const STATUS_STYLES: Record<CaseStatus, { label: string; classes: string }> = {
   open: {
     label: "Abierto",
-    classes: "bg-[var(--color-ln-ok-050)] text-ln-ok ring-1 ring-ln-ok   ",
+    classes:
+      "bg-[var(--color-st-warn-bg)] text-[var(--color-st-warn)] ring-1 ring-[var(--color-st-warn)]",
   },
   escalated: {
     label: "Escalado",
-    classes: "bg-[var(--color-ln-warn-050)] text-ln-warn ring-1 ring-ln-warn   ",
+    classes:
+      "bg-[var(--color-st-err-bg)] text-[var(--color-st-err)] ring-1 ring-[var(--color-st-err)]",
   },
   closed: {
     label: "Cerrado",
-    classes: "bg-ln-stripe text-ln-ink ring-1 ring-ln-line   ",
+    classes: "bg-[var(--color-st-ok-bg)] text-[var(--color-st-ok)] ring-1 ring-[var(--color-st-ok)]",
   },
   merged: {
     label: "Fusionado",
-    classes: "bg-ln-stripe text-ln-ink ring-1 ring-ln-line   ",
+    classes:
+      "bg-[var(--color-st-info-bg)] text-[var(--color-st-info)] ring-1 ring-[var(--color-st-info)]",
   },
 };
 

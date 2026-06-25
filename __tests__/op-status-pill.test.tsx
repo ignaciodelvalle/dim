@@ -15,6 +15,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { CaseBadge } from "@/components/CaseBadge";
 import { CaseStatusBadge } from "@/components/ui/dashboard/CaseStatusBadge";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
 import { OpStateBadge } from "@/components/ui/dashboard/OpStateBadge";
@@ -256,7 +257,15 @@ describe("OpPill — tone → st-* mapping", () => {
 // ---------------------------------------------------------------------------
 
 describe("Cross-component grammar invariant — same term, same resolved color token", () => {
-  it('"open" → st-warn in both CaseStatusBadge and OpPill', () => {
+  /** First bg-[var(...)] token of the CaseBadge status pill for a given status. */
+  function caseBadgeBg(status: "open" | "escalated" | "closed" | "merged"): string | null {
+    const html = renderToStaticMarkup(
+      <CaseBadge publicCode="CAS-TEST-0001" caseKind="bite_incident" status={status} />,
+    );
+    return extractBgToken(html);
+  }
+
+  it('"open" → st-warn in CaseStatusBadge, OpPill and CaseBadge', () => {
     const caseHtml = renderToStaticMarkup(<CaseStatusBadge status="open" />);
     const pillHtml = renderToStaticMarkup(<OpPill tone="open">Abierto</OpPill>);
 
@@ -265,10 +274,11 @@ describe("Cross-component grammar invariant — same term, same resolved color t
 
     expect(caseBg).toBe("--color-st-warn-bg");
     expect(pillBg).toBe("--color-st-warn-bg");
+    expect(caseBadgeBg("open")).toBe("--color-st-warn-bg");
     expect(caseBg).toBe(pillBg);
   });
 
-  it('"escalated" → st-err in both CaseStatusBadge and OpPill', () => {
+  it('"escalated" → st-err in CaseStatusBadge, OpPill and CaseBadge', () => {
     const caseHtml = renderToStaticMarkup(<CaseStatusBadge status="escalated" />);
     const pillHtml = renderToStaticMarkup(<OpPill tone="escalated">Escalado</OpPill>);
 
@@ -277,10 +287,11 @@ describe("Cross-component grammar invariant — same term, same resolved color t
 
     expect(caseBg).toBe("--color-st-err-bg");
     expect(pillBg).toBe("--color-st-err-bg");
+    expect(caseBadgeBg("escalated")).toBe("--color-st-err-bg");
     expect(caseBg).toBe(pillBg);
   });
 
-  it('"closed" → st-ok in both CaseStatusBadge and OpPill', () => {
+  it('"closed" → st-ok in CaseStatusBadge, OpPill and CaseBadge', () => {
     const caseHtml = renderToStaticMarkup(<CaseStatusBadge status="closed" />);
     const pillHtml = renderToStaticMarkup(<OpPill tone="closed">Cerrado</OpPill>);
 
@@ -289,10 +300,11 @@ describe("Cross-component grammar invariant — same term, same resolved color t
 
     expect(caseBg).toBe("--color-st-ok-bg");
     expect(pillBg).toBe("--color-st-ok-bg");
+    expect(caseBadgeBg("closed")).toBe("--color-st-ok-bg");
     expect(caseBg).toBe(pillBg);
   });
 
-  it('"merged/progress" → st-info in both CaseStatusBadge and OpPill', () => {
+  it('"merged/progress" → st-info in CaseStatusBadge, OpPill and CaseBadge', () => {
     const caseHtml = renderToStaticMarkup(<CaseStatusBadge status="merged" />);
     const pillHtml = renderToStaticMarkup(<OpPill tone="progress">En curso</OpPill>);
 
@@ -301,6 +313,7 @@ describe("Cross-component grammar invariant — same term, same resolved color t
 
     expect(caseBg).toBe("--color-st-info-bg");
     expect(pillBg).toBe("--color-st-info-bg");
+    expect(caseBadgeBg("merged")).toBe("--color-st-info-bg");
     expect(caseBg).toBe(pillBg);
   });
 });
