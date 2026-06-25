@@ -89,7 +89,10 @@ export function PanoramaShell({
           the client re-fetches active layers with the new params. */}
       <div className="space-y-3 rounded-[8px] border border-ln-op-line bg-ln-op-card/40 p-3">
         <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="30d" />
+        {/* Panorama defaults to a multi-year window (3 años) and exposes the 3a/5a
+            chips so the temporal reproduction spans the seeded history. The detail
+            dashboards keep their own short defaults (multiYear only here). */}
+        <PeriodPicker defaultPreset="3y" multiYear />
       </div>
 
       {/* Demo-data disclosure — synthetic dataset (exec-gate credibility).

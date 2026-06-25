@@ -11,6 +11,8 @@
  *   "90d"         → last 90 days
  *   "ytd"         → Jan 1 of the current year → now
  *   "trailing12m" → last 365 days (default for admin dashboards)
+ *   "3y"          → last 3 years (Panorama multi-year default — long history)
+ *   "5y"          → last 5 years (Panorama multi-year, max preset)
  *   "custom"      → `from` / `to` ISO date strings (YYYY-MM-DD) from searchParams
  *
  * Fallback: missing, unknown, or un-parseable input → 12-month window
@@ -34,6 +36,14 @@ export type PeriodSearchParams = {
  * always matches the data window on first load (C32).
  */
 export const DEFAULT_DASHBOARD_PRESET = "trailing12m" as const;
+
+/**
+ * Default preset for the Panorama situational console (map + time scrubber).
+ * Panorama defaults to a multi-year window so the temporal reproduction spans
+ * the seeded history (system "started" ~3 years ago) instead of a short recent
+ * slice. Scoped to Panorama only — the detail dashboards keep their own defaults.
+ */
+export const PANORAMA_DEFAULT_PRESET = "3y" as const;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -80,6 +90,10 @@ export function resolveAnalyticsPeriod(
       return { since: new Date(now - 90 * DAY_MS), until };
     case "trailing12m":
       return { since: new Date(now - 365 * DAY_MS), until };
+    case "3y":
+      return { since: new Date(now - 3 * 365 * DAY_MS), until };
+    case "5y":
+      return { since: new Date(now - 5 * 365 * DAY_MS), until };
     case "ytd": {
       const jan1 = new Date(`${new Date(now).getUTCFullYear()}-01-01T00:00:00Z`);
       return { since: jan1, until };

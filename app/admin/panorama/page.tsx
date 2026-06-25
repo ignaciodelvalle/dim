@@ -1,5 +1,5 @@
 import { PanoramaShell } from "@/components/panorama/PanoramaShell";
-import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
+import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import {
   listLocalitiesByProvince,
   listLocalityCentroids,
@@ -34,7 +34,9 @@ export default async function AdminPanoramaPage({
   const actor = { role: profile.role };
 
   const sp = await searchParams;
-  const period = resolveAnalyticsPeriod(sp);
+  // Panorama defaults to a multi-year window (system "started" ~3 years ago) so
+  // the map + scrubber span the seeded history. Detail dashboards are unchanged.
+  const period = resolveAnalyticsPeriod({ ...sp, period: sp.period ?? PANORAMA_DEFAULT_PRESET });
   const { since } = period;
 
   // Selected province/locality from the filters.
