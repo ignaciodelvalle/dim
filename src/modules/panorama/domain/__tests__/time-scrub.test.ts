@@ -68,6 +68,45 @@ describe("nextPlayIndex", () => {
   });
 });
 
+describe("buildScrubWindow — long windows step by month", () => {
+  it("steps by whole UTC months when the window exceeds ~90 days", () => {
+    // A 3-year window: day stepping would be ~1095 steps (unusable). Month
+    // stepping collapses it to 36 usable steps.
+    const win = buildScrubWindow(d("2023-06-20T00:00:00Z"), d("2026-06-20T00:00:00Z"));
+    expect(win.step).toBe("month");
+    expect(win.steps).toBe(36);
+    // `since` is floored to the START of its UTC month.
+    expect(win.since.toISOString()).toBe("2023-06-01T00:00:00.000Z");
+  });
+
+  it("keeps day stepping at or below the ~90-day threshold", () => {
+    const win = buildScrubWindow(d("2026-03-20T00:00:00Z"), d("2026-06-13T00:00:00Z")); // ~85 days
+    expect(win.step).toBe("day");
+  });
+
+  it("maps a month-stepped index to since + n whole months", () => {
+    const win = buildScrubWindow(d("2023-06-20T00:00:00Z"), d("2026-06-20T00:00:00Z"));
+    expect(dayIndexToDate(win, 0).toISOString()).toBe("2023-06-01T00:00:00.000Z");
+    expect(dayIndexToDate(win, 12).toISOString()).toBe("2024-06-01T00:00:00.000Z");
+    // The final index is the live edge ("ahora") = until, unchanged.
+    expect(dayIndexToDate(win, win.steps).toISOString()).toBe(win.until.toISOString());
+  });
+
+  it("round-trips a month-stepped date back to its month index", () => {
+    const win = buildScrubWindow(d("2023-06-20T00:00:00Z"), d("2026-06-20T00:00:00Z"));
+    expect(dateToDayIndex(win, d("2024-06-15T00:00:00Z"))).toBe(12);
+    expect(dateToDayIndex(win, d("2020-01-01T00:00:00Z"))).toBe(0); // clamped low
+    expect(dateToDayIndex(win, d("2030-01-01T00:00:00Z"))).toBe(win.steps); // clamped high
+  });
+
+  it("advances one month per play tick on a long window", () => {
+    const win = buildScrubWindow(d("2023-06-20T00:00:00Z"), d("2026-06-20T00:00:00Z"));
+    const next = nextPlayIndex(win, 0);
+    expect(next).toBe(1);
+    expect(dayIndexToDate(win, next as number).toISOString()).toBe("2023-07-01T00:00:00.000Z");
+  });
+});
+
 describe("clampAsOf", () => {
   const since = d("2026-06-01T00:00:00Z");
   const until = d("2026-06-13T00:00:00Z");

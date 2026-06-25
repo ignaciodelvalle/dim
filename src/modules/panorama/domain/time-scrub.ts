@@ -7,23 +7,63 @@
 //
 // Domain purity: NO @/db, NO next, NO React (enforced by the noRestrictedImports
 // override for src/modules/*/domain/**). `Date` is allowed; the scrubber steps in
-// whole days over a fixed [since, until] window the caller provides.
+// whole days over short windows and whole MONTHS over long ones (> ~90 days), so a
+// multi-year reproduction collapses from ~1095 day-steps to ~36 month-steps. The
+// 0..steps index interface is unchanged, so the slider control adapts for free.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** A discrete day-stepped reproduction axis over [since, until]. */
+// Windows longer than this step by whole MONTHS instead of days, so a multi-year
+// reproduction stays usable (a 3-year span is ~36 month-steps, not ~1095 days).
+const MONTH_STEP_THRESHOLD_DAYS = 90;
+
+/** Each scrub step is a whole day (short windows) or a whole month (long ones). */
+export type ScrubGranularity = "day" | "month";
+
+/** A discrete reproduction axis over [since, until], stepped by day or month. */
 export type ScrubWindow = {
-  /** Inclusive lower bound (the active period's `since`). */
+  /** Inclusive lower bound (the active period's `since`, floored to the step). */
   since: Date;
   /** Inclusive upper bound ("ahora" / live). */
   until: Date;
-  /** Number of whole-day steps from `since` to `until` (>= 0). */
+  /** Number of whole steps from `since` to `until` (>= 0). */
   steps: number;
+  /** Whether each step is a whole day or a whole month. */
+  step: ScrubGranularity;
 };
 
 /** Floor a timestamp to the start of its UTC day. */
 function floorToUtcDay(ms: number): number {
   return Math.floor(ms / DAY_MS) * DAY_MS;
+}
+
+/** Floor a timestamp to the start of its UTC month (day 1, 00:00:00). */
+function floorToUtcMonth(ms: number): number {
+  const d = new Date(ms);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+}
+
+/** Add `n` whole months to a UTC timestamp (handles year wrap via Date.UTC). */
+function addUtcMonths(ms: number, n: number): number {
+  const d = new Date(ms);
+  return Date.UTC(
+    d.getUTCFullYear(),
+    d.getUTCMonth() + n,
+    d.getUTCDate(),
+    d.getUTCHours(),
+    d.getUTCMinutes(),
+    d.getUTCSeconds(),
+    d.getUTCMilliseconds(),
+  );
+}
+
+/** Whole UTC months from `aMs` to `bMs`. `a` is expected to be month-floored. */
+function monthsBetween(aMs: number, bMs: number): number {
+  const a = new Date(aMs);
+  const b = new Date(bMs);
+  const months =
+    (b.getUTCFullYear() - a.getUTCFullYear()) * 12 + (b.getUTCMonth() - a.getUTCMonth());
+  return Math.max(0, months);
 }
 
 /**
@@ -32,14 +72,27 @@ function floorToUtcDay(ms: number): number {
  * days inclusively. A degenerate or inverted window collapses to a single step.
  */
 export function buildScrubWindow(since: Date, until: Date): ScrubWindow {
-  const sinceMs = floorToUtcDay(since.getTime());
+  const rawSinceMs = since.getTime();
   const untilMs = until.getTime();
-  if (!Number.isFinite(sinceMs) || !Number.isFinite(untilMs) || untilMs <= sinceMs) {
-    return { since: new Date(sinceMs), until: new Date(untilMs), steps: 0 };
+  if (!Number.isFinite(rawSinceMs) || !Number.isFinite(untilMs)) {
+    return { since: new Date(rawSinceMs), until: new Date(untilMs), steps: 0, step: "day" };
+  }
+
+  // Long windows step by month so multi-year reproduction stays usable.
+  if ((untilMs - rawSinceMs) / DAY_MS > MONTH_STEP_THRESHOLD_DAYS) {
+    const sinceMs = floorToUtcMonth(rawSinceMs);
+    const steps = untilMs <= sinceMs ? 0 : monthsBetween(sinceMs, untilMs);
+    return { since: new Date(sinceMs), until: new Date(untilMs), steps, step: "month" };
+  }
+
+  // Short windows keep whole-day stepping (unchanged behaviour).
+  const sinceMs = floorToUtcDay(rawSinceMs);
+  if (untilMs <= sinceMs) {
+    return { since: new Date(sinceMs), until: new Date(untilMs), steps: 0, step: "day" };
   }
   // Inclusive whole-day count from the start-of-day `since` to `until`.
   const steps = Math.max(0, Math.floor((floorToUtcDay(untilMs) - sinceMs) / DAY_MS));
-  return { since: new Date(sinceMs), until: new Date(untilMs), steps };
+  return { since: new Date(sinceMs), until: new Date(untilMs), steps, step: "day" };
 }
 
 /**
@@ -50,13 +103,16 @@ export function buildScrubWindow(since: Date, until: Date): ScrubWindow {
 export function dayIndexToDate(win: ScrubWindow, index: number): Date {
   const clamped = Math.max(0, Math.min(win.steps, Math.round(index)));
   if (clamped >= win.steps) return new Date(win.until.getTime());
+  if (win.step === "month") return new Date(addUtcMonths(win.since.getTime(), clamped));
   return new Date(win.since.getTime() + clamped * DAY_MS);
 }
 
 /** Map an as-of Date back to its nearest 0..steps slider index. */
 export function dateToDayIndex(win: ScrubWindow, asOf: Date): number {
-  const offset = asOf.getTime() - win.since.getTime();
-  const idx = Math.round(offset / DAY_MS);
+  const idx =
+    win.step === "month"
+      ? monthsBetween(win.since.getTime(), asOf.getTime())
+      : Math.round((asOf.getTime() - win.since.getTime()) / DAY_MS);
   return Math.max(0, Math.min(win.steps, idx));
 }
 
