@@ -345,7 +345,9 @@ export default async function GobMortalidadPage({
             <StackedTimeSeriesChartDynamic
               seriesKeys={causesTrend.series.seriesKeys}
               points={causesTrend.series.points}
-              seriesLabel={deathCauseLabel}
+              seriesLabels={Object.fromEntries(
+                causesTrend.series.seriesKeys.map((key) => [key, deathCauseLabel(key)]),
+              )}
               yLabel="Fallecimientos"
               fallbackTableLabel={`Fallecimientos por ${causeBucketWord} y causa`}
             />

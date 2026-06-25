@@ -42,8 +42,14 @@ export type StackedTimeSeriesChartProps = {
   seriesKeys: string[];
   /** Chronologically ordered points; each carries a value per series key. */
   points: StackedSeriesPoint[];
-  /** Map a raw series key → its es-AR display label (e.g. deathCauseLabel). */
-  seriesLabel: (key: string) => string;
+  /**
+   * Resolved raw-key → es-AR label map. MUST be plain serializable data, never a
+   * function: this is a Client Component, and passing a function across the
+   * server → client boundary crashes the route (Next RSC). Resolve labels
+   * server-side at the call-site (e.g. `Object.fromEntries(keys.map(k => [k,
+   * deathCauseLabel(k)]))`). Missing keys fall back to the raw key.
+   */
+  seriesLabels: Record<string, string>;
   /** Optional y-axis label. */
   yLabel?: string;
   /** Chart height in px. Default 320. */
@@ -59,12 +65,13 @@ const PALETTE: ChartColorKey[] = ["blue", "orange", "green", "purple", "teal", "
 export function StackedTimeSeriesChart({
   seriesKeys,
   points,
-  seriesLabel,
+  seriesLabels,
   yLabel,
   height = 320,
   className = "",
   fallbackTableLabel = "Datos del gráfico",
 }: StackedTimeSeriesChartProps) {
+  const labelFor = (key: string) => seriesLabels[key] ?? key;
   const [reducedMotion, setReducedMotion] = useState(false);
 
   useEffect(() => {
@@ -108,7 +115,7 @@ export function StackedTimeSeriesChart({
                 key={key}
                 type="monotone"
                 dataKey={key}
-                name={seriesLabel(key)}
+                name={labelFor(key)}
                 stackId="1"
                 stroke={color}
                 fill={`${color}66`}
@@ -142,7 +149,7 @@ export function StackedTimeSeriesChart({
                     scope="col"
                     className="border border-ln-line px-3 py-1.5 text-left font-semibold text-ln-ink-2 bg-ln-stripe"
                   >
-                    {seriesLabel(key)}
+                    {labelFor(key)}
                   </th>
                 ))}
               </tr>
