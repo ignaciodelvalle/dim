@@ -42,7 +42,8 @@ const STATUS_STYLES: Record<CaseStatus, { label: string; classes: string }> = {
   },
   closed: {
     label: "Cerrado",
-    classes: "bg-[var(--color-st-ok-bg)] text-[var(--color-st-ok)] ring-1 ring-[var(--color-st-ok)]",
+    classes:
+      "bg-[var(--color-st-ok-bg)] text-[var(--color-st-ok)] ring-1 ring-[var(--color-st-ok)]",
   },
   merged: {
     label: "Fusionado",
