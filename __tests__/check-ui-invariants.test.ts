@@ -331,10 +331,12 @@ describe("RAW_BUTTON_BASELINE", () => {
     expect(Number.isInteger(RAW_BUTTON_BASELINE)).toBe(true);
   });
 
-  it("baseline is 138 (66 admin + 72 gob, set 2026-06-24)", () => {
+  it("baseline is 47 (91 migrated to OpButton, remaining honest exceptions, set 2026-06-24)", () => {
     // If this test fails, either:
     //  (a) buttons were migrated → lower RAW_BUTTON_BASELINE to match, OR
     //  (b) new raw buttons were added → migrate them to OpButton instead.
-    expect(RAW_BUTTON_BASELINE).toBe(138);
+    // F3-full migrated 91 admin/gob buttons to OpButton, ratcheting the
+    // baseline down from 138 to 47 (the remaining genuine exceptions).
+    expect(RAW_BUTTON_BASELINE).toBe(47);
   });
 });
