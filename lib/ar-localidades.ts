@@ -32,6 +32,13 @@ export type LocalitySearchResult = Locality & {
  */
 export type LocalityOption = { slug: string; name: string };
 
+/**
+ * [lng, lat] centroid for a locality, keyed by locality slug.
+ * Only entries with non-null coordinates are included.
+ * Used by SituationalMap to autozoom when a locality is selected (A1 PR-7).
+ */
+export type LocalityCentroids = Record<string, [number, number]>;
+
 const MIN_QUERY_LENGTH = 2;
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 50;
@@ -139,6 +146,37 @@ export async function listLocalitiesByProvince(
     .orderBy(asc(arLocalities.localityName));
 
   return rows.map((r) => ({ slug: r.localitySlug, name: r.localityName }));
+}
+
+/**
+ * Returns a centroid map (slug → [lng, lat]) for all localities in a province
+ * that have non-null coordinates in the INDEC catalog.
+ *
+ * Used by the Panorama SituationalMap to autozoom when an operator selects a
+ * locality from the JurisdictionSwitcher (A1 PR-7). The centroids are computed
+ * once on the server and passed as a prop so the client never needs a DB call.
+ *
+ * Entries with null latitude or longitude are omitted from the result.
+ */
+export async function listLocalityCentroids(
+  provinceCode: ProvinceCode,
+): Promise<LocalityCentroids> {
+  const rows = await db
+    .select({
+      localitySlug: arLocalities.localitySlug,
+      latitude: arLocalities.latitude,
+      longitude: arLocalities.longitude,
+    })
+    .from(arLocalities)
+    .where(and(eq(arLocalities.provinceCode, provinceCode), isNull(arLocalities.removedAt)));
+
+  const out: LocalityCentroids = {};
+  for (const r of rows) {
+    if (r.latitude !== null && r.longitude !== null) {
+      out[r.localitySlug] = [Number(r.longitude), Number(r.latitude)];
+    }
+  }
+  return out;
 }
 
 export async function searchLocalities(input: {

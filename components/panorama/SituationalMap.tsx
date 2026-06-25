@@ -4,10 +4,10 @@ import type maplibregl from "maplibre-gl";
 import { useEffect, useRef } from "react";
 
 import {
+  computeJurisdictionViewport,
   countRenderableFeatures,
   hasProvinceChoroplethLayer,
 } from "@/components/panorama/situational-map-utils";
-
 import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 // maplibre-gl ships its own CSS (popups, controls, canvas). It is imported
@@ -122,6 +122,18 @@ type Props = {
    * national/data-extent fit.
    */
   initialBounds?: [[number, number], [number, number]];
+  /**
+   * A1 PR-7: ISO 3166-2:AR province code currently selected in the
+   * JurisdictionSwitcher (e.g. "AR-X"). null = national (no province filter).
+   * When this changes, the map autozoom to the province's polygon bbox.
+   */
+  selectedProvinceCode?: string | null;
+  /**
+   * A1 PR-7: [lng, lat] centroid of the currently selected locality, or null
+   * when no locality is selected. When non-null, the map fliesTo this center
+   * at zoom 9.5 (locality takes precedence over province autozoom).
+   */
+  selectedLocalityCenter?: [number, number] | null;
 };
 
 // Continental Argentina centroid + a zoom that frames the mainland.
@@ -175,6 +187,8 @@ export function SituationalMap({
   height = 560,
   onFeatureClick,
   initialBounds,
+  selectedProvinceCode = null,
+  selectedLocalityCenter = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -192,6 +206,17 @@ export function SituationalMap({
   // Capture initialBounds once at mount — it's a stable server-computed value
   // (jurisdiction bbox) that must not change after the map is constructed.
   const initialBoundsRef = useRef(initialBounds);
+  // A1 PR-7: the national bbox used as fallback for the autozoom helper.
+  // Populated after the initial fitBounds resolves on load. Never mutated.
+  const nationalBboxRef = useRef<[[number, number], [number, number]] | null>(null);
+  // A1 PR-7: the loaded ar-provinces basemap features, stored after the basemap
+  // fetch completes. The autozoom effect reads these to compute the province bbox.
+  const basemapFeaturesRef = useRef<
+    Array<{
+      properties: { code: string; name: string } | null;
+      geometry: { type: string; coordinates: unknown } | null;
+    }>
+  >([]);
 
   // --- One-time map construction (basemap only). ---------------------------
   useEffect(() => {
@@ -228,7 +253,8 @@ export function SituationalMap({
         if (cancelled) return;
         // Local basemap: Argentine province polygons (no external tiles).
         try {
-          const basemap = await fetch(BASEMAP_URL).then((r) => r.json());
+          // biome-ignore lint/suspicious/noExplicitAny: runtime JSON from local GeoJSON asset.
+          const basemap = (await fetch(BASEMAP_URL).then((r) => r.json())) as any;
           if (cancelled) return;
           map.addSource("ar-provinces", { type: "geojson", data: basemap });
           map.addLayer({
@@ -243,6 +269,13 @@ export function SituationalMap({
             source: "ar-provinces",
             paint: { "line-color": COLOR_BORDER, "line-width": 0.8 },
           });
+          // A1 PR-7: cache province features for the autozoom helper.
+          // Safe: the local GeoJSON asset is authored by us and has this shape.
+          basemapFeaturesRef.current =
+            (basemap.features as Array<{
+              properties: { code: string; name: string } | null;
+              geometry: { type: string; coordinates: unknown } | null;
+            }>) ?? [];
         } catch {
           // Basemap unavailable — points still render over the dark canvas.
         }
@@ -253,7 +286,11 @@ export function SituationalMap({
         // data-extent bbox (admin/national). Falls back to the data-extent
         // when no initialBounds was supplied (admin = national view).
         const bbox = initialBoundsRef.current ?? layersBbox(layersRef.current);
-        if (bbox) map.fitBounds(bbox, { padding: 56, animate: false, maxZoom: 11 });
+        if (bbox) {
+          map.fitBounds(bbox, { padding: 56, animate: false, maxZoom: 11 });
+          // A1 PR-7: store as the national fallback for subsequent autozoom.
+          nationalBboxRef.current = bbox;
+        }
       });
     });
 
@@ -274,6 +311,51 @@ export function SituationalMap({
   useEffect(() => {
     if (loadedRef.current) syncLayers();
   }, [layers]);
+
+  // --- A1 PR-7: autozoom on jurisdiction select. ---------------------------
+  // Fires when the operator picks a province or locality in the
+  // JurisdictionSwitcher. The pure helper (situational-map-utils) resolves the
+  // correct viewport descriptor; this effect applies it to the MapLibre instance.
+  //
+  // Guard conditions:
+  //  - Skip until the map is loaded (the load event sets loadedRef).
+  //  - Skip when the national bbox has not yet been captured (first-load init
+  //    hasn't run — e.g. basemap fetch is still in-flight).
+  //  - Cancel the fit when the effect re-runs or on unmount (stale guard via
+  //    `cancelled` flag; MapLibre's flyTo/fitBounds is not directly cancelable
+  //    but the map is removed on unmount so the call is a no-op).
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const nationalBbox = nationalBboxRef.current;
+    if (!nationalBbox) return; // initial bounds not yet captured
+
+    let cancelled = false;
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const viewport = computeJurisdictionViewport(
+      selectedProvinceCode,
+      selectedLocalityCenter,
+      basemapFeaturesRef.current,
+      nationalBbox,
+    );
+
+    if (cancelled) return;
+
+    if (viewport.kind === "fitBounds") {
+      map.fitBounds(viewport.bbox, { padding: 56, animate: !prefersReducedMotion, maxZoom: 11 });
+    } else {
+      map.flyTo({ center: viewport.center, zoom: viewport.zoom, animate: !prefersReducedMotion });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProvinceCode, selectedLocalityCenter]);
 
   // Add/update/remove maplibre sources+layers to match `layersRef.current`.
   function syncLayers() {

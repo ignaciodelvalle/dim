@@ -20,6 +20,7 @@ import type { ActiveLayer, PointRenderMode } from "@/components/panorama/Situati
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
+import type { LocalityCentroids } from "@/lib/ar-localidades";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { checkCompatibility } from "@/src/modules/panorama/domain/compatibility";
 import {
@@ -79,6 +80,12 @@ type Props = {
    * leaves this undefined to keep the national/data-extent view.
    */
   initialBounds?: [[number, number], [number, number]];
+  /**
+   * Centroid map (slug → [lng, lat]) for the selected province's localities.
+   * Passed to SituationalMap so it can autozoom when a locality is selected
+   * from the JurisdictionSwitcher (A1 PR-7). Keyed by locality slug.
+   */
+  localityCentroids?: LocalityCentroids;
 };
 
 export function PanoramaConsole({
@@ -88,6 +95,7 @@ export function PanoramaConsole({
   defaultSuppressedCount = 0,
   initialKpis,
   initialBounds,
+  localityCentroids = {},
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -746,6 +754,17 @@ export function PanoramaConsole({
 
   const onScrub = useCallback((next: Date | null) => setAsOf(next), []);
 
+  // A1 PR-7: autozoom — derive the current jurisdiction selection from
+  // searchParams (set by JurisdictionSwitcher via router.replace).
+  // The province code is an ISO 3166-2:AR string (e.g. "AR-X"); the locality
+  // is identified by its slug. The locality centroid comes from the server-
+  // preloaded localityCentroids map (keyed by slug), so no client-side DB
+  // call is needed.
+  const selectedProvinceCode = searchParams.get("province") ?? null;
+  const selectedLocalitySlug = searchParams.get("locality") ?? null;
+  const selectedLocalityCenter: [number, number] | null =
+    selectedLocalitySlug !== null ? (localityCentroids[selectedLocalitySlug] ?? null) : null;
+
   return (
     <div className="space-y-4">
       {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked by
@@ -758,6 +777,8 @@ export function PanoramaConsole({
           label={mapLabel}
           onFeatureClick={onFeatureClick}
           initialBounds={initialBounds}
+          selectedProvinceCode={selectedProvinceCode}
+          selectedLocalityCenter={selectedLocalityCenter}
         />
         <div className="space-y-3">
           <PresetPanel
