@@ -158,7 +158,10 @@ describe("getPanoramaKpis", () => {
     expect(fetchAnalyticsMetrics).toHaveBeenCalledWith({ role: "govt" }, jur, {
       since: period.since,
     });
-    expect(fetchPerdidasMetrics).toHaveBeenCalledWith({ role: "govt" }, jur);
+    expect(fetchPerdidasMetrics).toHaveBeenCalledWith({ role: "govt" }, jur, {
+      adminProvince: undefined,
+      adminLocality: undefined,
+    });
   });
 
   it("describes the recalculation alcance for admin vs scoped govt", async () => {

@@ -85,7 +85,15 @@ describe("getLayerFeatures — perdidas (F1 aggregated point)", () => {
     const result = await getLayerFeatures("perdidas", actor, jur, { since, asOf }, "province");
 
     expect(mockLoadPerdidas).toHaveBeenCalledOnce();
-    expect(mockLoadPerdidas).toHaveBeenCalledWith("province", actor, jur, since, asOf);
+    expect(mockLoadPerdidas).toHaveBeenCalledWith(
+      "province",
+      actor,
+      jur,
+      since,
+      asOf,
+      undefined,
+      undefined,
+    );
 
     // Return shape: aggregated features + envelope.
     expect(result.level).toBe("province");
@@ -113,6 +121,8 @@ describe("getLayerFeatures — perdidas (F1 aggregated point)", () => {
       [],
       expect.any(Date),
       asOf,
+      undefined,
+      undefined,
     );
   });
 
@@ -129,6 +139,8 @@ describe("getLayerFeatures — perdidas (F1 aggregated point)", () => {
       { role: "govt" },
       jur,
       expect.any(Date),
+      undefined,
+      undefined,
       undefined,
     );
   });
@@ -166,7 +178,15 @@ describe("getLayerFeatures — mordeduras (F1 aggregated point)", () => {
       "province",
     );
 
-    expect(mockLoadMordeduras).toHaveBeenCalledWith("province", actor, [], expect.any(Date), asOf);
+    expect(mockLoadMordeduras).toHaveBeenCalledWith(
+      "province",
+      actor,
+      [],
+      expect.any(Date),
+      asOf,
+      undefined,
+      undefined,
+    );
     expect(result.level).toBe("province");
   });
 });
@@ -203,6 +223,8 @@ describe("getLayerFeatures — denuncias (F1 aggregated point)", () => {
       jur,
       expect.any(Date),
       undefined,
+      undefined,
+      undefined,
     );
     expect(result.features.features).toHaveLength(1);
     expect(result.level).toBe("locality");
@@ -226,6 +248,8 @@ describe("getLayerFeatures — zoonosis (F1 aggregated signal point)", () => {
       { role: "admin" },
       [],
       expect.any(Date),
+      undefined,
+      undefined,
       undefined,
     );
     expect(result.level).toBe("province");
@@ -333,7 +357,14 @@ describe("getLayerFeatures — mortalidad (LOCALITY choropleth)", () => {
       since: new Date("2026-06-01T00:00:00.000Z"),
     });
 
-    expect(mockLoadChoropleth).toHaveBeenCalledWith("mortality", "locality", { role: "admin" }, []);
+    expect(mockLoadChoropleth).toHaveBeenCalledWith(
+      "mortality",
+      "locality",
+      { role: "admin" },
+      [],
+      undefined,
+      undefined,
+    );
     expect(result.features.features).toHaveLength(2);
     expect(result.suppressedCount).toBe(1);
     expect(result.level).toBe("locality");
@@ -368,6 +399,8 @@ describe("getLayerFeatures — cobertura (PROVINCE choropleth)", () => {
       "province",
       { role: "admin" },
       [],
+      undefined,
+      undefined,
     );
     expect(result.level).toBe("province");
     expect(result.features.features).toHaveLength(2);
@@ -404,6 +437,8 @@ describe("getLayerFeatures — esterilizacion (North-Star PROVINCE choropleth)",
       "province",
       { role: "admin" },
       [],
+      undefined,
+      undefined,
     );
     expect(result.level).toBe("province");
     expect(result.features.features).toHaveLength(2);
@@ -433,6 +468,8 @@ describe("getLayerFeatures — esterilizacion (North-Star PROVINCE choropleth)",
       "locality",
       { role: "admin" },
       [],
+      undefined,
+      undefined,
     );
     expect(result.level).toBe("locality");
   });
