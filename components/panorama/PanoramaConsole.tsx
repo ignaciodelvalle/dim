@@ -19,7 +19,7 @@ import { PresetPanel } from "@/components/panorama/PresetPanel";
 import type { ActiveLayer, PointRenderMode } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
-import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
+import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import type { LocalityCentroids } from "@/lib/ar-localidades";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { checkCompatibility } from "@/src/modules/panorama/domain/compatibility";
@@ -182,7 +182,9 @@ export function PanoramaConsole({
   const { since, until } = useMemo(
     () =>
       resolveAnalyticsPeriod({
-        period: searchParams.get("period") ?? undefined,
+        // Panorama defaults to a multi-year window so the scrubber spans the
+        // seeded history; the detail dashboards keep their own short defaults.
+        period: searchParams.get("period") ?? PANORAMA_DEFAULT_PRESET,
         from: searchParams.get("from") ?? undefined,
         to: searchParams.get("to") ?? undefined,
       }),

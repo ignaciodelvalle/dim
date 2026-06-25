@@ -30,7 +30,7 @@ import type { DateRange } from "./DateRangePicker";
  * ```
  */
 
-export type PeriodPreset = "7d" | "30d" | "90d" | "ytd" | "trailing12m" | "custom";
+export type PeriodPreset = "7d" | "30d" | "90d" | "ytd" | "trailing12m" | "3y" | "5y" | "custom";
 
 export type PeriodPickerProps = {
   /** Preset por defecto cuando no hay searchParam. Default "30d". */
@@ -39,6 +39,12 @@ export type PeriodPickerProps = {
   presetParamKey?: string;
   /** Claves de searchParam para el rango personalizado. Default { from: "from", to: "to" }. */
   customParamKeys?: { from: string; to: string };
+  /**
+   * Mostrar los chips multi-año ("3 años" / "5 años"). Solo lo usa el Panorama,
+   * cuya reproducción temporal abarca la historia sembrada (varios años). Los
+   * dashboards de detalle NO los muestran (mantienen su ventana corta). Default false.
+   */
+  multiYear?: boolean;
   className?: string;
 };
 
@@ -55,6 +61,12 @@ const PRESETS: PresetConfig[] = [
   { value: "ytd", label: "Año en curso" },
 ];
 
+/** Multi-year chips appended only when `multiYear` is set (Panorama-only). */
+const MULTI_YEAR_PRESETS: PresetConfig[] = [
+  { value: "3y", label: "3 años" },
+  { value: "5y", label: "5 años" },
+];
+
 const chipBase =
   "inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium border " +
   "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul focus-visible:ring-offset-1 " +
@@ -68,10 +80,13 @@ export function PeriodPicker({
   defaultPreset = "30d",
   presetParamKey = "period",
   customParamKeys = { from: "from", to: "to" },
+  multiYear = false,
   className = "",
 }: PeriodPickerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const presets = multiYear ? [...PRESETS, ...MULTI_YEAR_PRESETS] : PRESETS;
 
   const activePreset = (searchParams.get(presetParamKey) as PeriodPreset | null) ?? defaultPreset;
 
@@ -122,7 +137,7 @@ export function PeriodPicker({
       {/* Fila de chips */}
       <fieldset className="flex flex-wrap gap-2 border-none p-0 m-0">
         <legend className="sr-only">Seleccionar período</legend>
-        {PRESETS.map(({ value, label }) => {
+        {presets.map(({ value, label }) => {
           const isActive = activePreset === value;
           return (
             <button
