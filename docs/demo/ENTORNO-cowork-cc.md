@@ -71,9 +71,15 @@ levantarlo después. Si un build parece colgado, casi siempre es esto: matar nod
   · `pnpm demo:verify` verde (10/10 invariantes). DB local: `seed:panorama` (~45.8k mascotas) +
   `seed:demo:scenario` (focal CABA) + migración `0112_ownerships_pet_id_idx` aplicada.
   Levantar: `git checkout integration/session-review; git pull; $env:NEXT_PUBLIC_DEMO_MODE="true"; pnpm dev`.
-- **PR de integración:** se abrió UN PR consolidado `integration/session-review` → revisar TODO por su
-  diff + navegar en browser. Los PRs individuales del backlog (#732, #734–#745) quedaron **cerrados con
-  nota** apuntando a esta rama (su contenido está 100% contenido acá; verificado con `git merge-base`).
+- **Dos superficies de revisión (a propósito):**
+  - **Browser QA (cowork):** se navega la app corriendo sobre `integration/session-review` — la ÚNICA rama
+    que junta todo. Es la rama para probar visualmente / filmar.
+  - **Review por diff:** se hace sobre los PRs individuales del backlog (#732, #734–#745), que están
+    **abiertos** y cada uno trae un diff acotado a su feature (bases apiladas). NO se cerraron ni se
+    fusionaron en un PR gigante: `integration/session-review` vs `develop` son ~491 archivos / ~47k líneas,
+    inrevisables como una sola unidad. Cada PR granular sigue siendo la unidad de merge real.
+  - Verificado con `git merge-base`: el contenido de las 14 ramas del backlog está 100% contenido en
+    `integration/session-review`, así que navegar esa rama = ver todo el trabajo de la sesión.
 - **Acción del owner (no-código):** activar *leaked password protection* en el Supabase Dashboard
   (Authentication → Password) para cerrar el último WARN crítico — detalle en el PR #734.
 - **Salud del repo:** `git fsck --full` limpio (solo objetos *dangling* normales). El trabajo uncommitted
