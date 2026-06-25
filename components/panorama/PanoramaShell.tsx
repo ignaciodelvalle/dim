@@ -2,6 +2,7 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { PanoramaConsole } from "@/components/panorama/PanoramaConsole";
 import { PanoramaDemoDisclosure } from "@/components/panorama/PanoramaDemoDisclosure";
+import type { LocalityCentroids } from "@/lib/ar-localidades";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import type { FeatureCollection, PanoramaLayer } from "@/src/modules/panorama/domain/types";
 
@@ -29,6 +30,12 @@ type Props = {
   allowedProvinces: Array<{ code: string; name: string }>;
   /** Localities of the selected province (for the JurisdictionSwitcher). */
   localities: Array<{ slug: string; name: string }>;
+  /**
+   * Centroid map (slug → [lng, lat]) for the selected province's localities.
+   * Used by SituationalMap to autozoom when a locality is picked (A1 PR-7).
+   * Empty object when no province is selected.
+   */
+  localityCentroids?: LocalityCentroids;
   /** Headline KPIs recalculated for the active scope+period (server-rendered). */
   kpis: PanoramaKpis;
   /**
@@ -53,6 +60,7 @@ export function PanoramaShell({
   suppressedCount = 0,
   allowedProvinces,
   localities,
+  localityCentroids = {},
   kpis,
   initialBounds,
   suppressDemoDisclosure = false,
@@ -128,6 +136,7 @@ export function PanoramaShell({
         defaultSuppressedCount={suppressedCount}
         initialKpis={kpis}
         initialBounds={initialBounds}
+        localityCentroids={localityCentroids}
       />
     </div>
   );

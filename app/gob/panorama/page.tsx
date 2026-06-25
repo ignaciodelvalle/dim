@@ -1,6 +1,10 @@
 import { PanoramaShell } from "@/components/panorama/PanoramaShell";
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import {
+  listLocalitiesByProvince,
+  listLocalityCentroids,
+  localityByName,
+} from "@/lib/ar-localidades";
 import type { ProvinceCode } from "@/lib/ar-provincias";
 import { provinceByCode } from "@/lib/ar-provincias";
 import { type AdminOrGovtJurisdiction, requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
@@ -46,9 +50,12 @@ export default async function GobPanoramaPage({
   const { since } = period;
 
   const provinceObj = sp.province ? provinceByCode(sp.province) : null;
-  const localities = provinceObj
-    ? await listLocalitiesByProvince(provinceObj.code as ProvinceCode)
-    : [];
+  const [localities, localityCentroids] = provinceObj
+    ? await Promise.all([
+        listLocalitiesByProvince(provinceObj.code as ProvinceCode),
+        listLocalityCentroids(provinceObj.code as ProvinceCode),
+      ])
+    : [[], {}];
   const localityRow =
     provinceObj && sp.locality
       ? await localityByName(provinceObj.code as ProvinceCode, sp.locality)
@@ -97,6 +104,7 @@ export default async function GobPanoramaPage({
       suppressedCount={result.suppressedCount}
       allowedProvinces={allowedProvinces}
       localities={localities}
+      localityCentroids={localityCentroids}
       kpis={kpis}
       initialBounds={initialBounds ?? undefined}
     />
