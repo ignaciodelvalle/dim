@@ -59,14 +59,17 @@ const ARBITRARY_HEX_ALLOWLIST = new Set<string>([
   // (empty — all previously allowlisted hex values now have ln-* tokens)
 ]);
 
-// Operator status components that should prefer st-* over raw ln-op-ok/warn/danger/viol.
-// This is a WARN-level guard (not hard-error) — emits advisory messages without
-// incrementing the exit-1 hit counter. These raw tokens are still valid CSS; this
-// guard nudges future authors toward the semantic st-* layer.
-const OP_STATUS_COMPONENTS = new Set(
+// Status components that render the canonical open/escalated/closed/merged grammar.
+// They must source status tones from the semantic st-* layer so the color
+// auto-remaps per skin (operator → ln-op-*, citizen → ln-*). CaseBadge is included
+// because it was the F2 holdout: it shipped raw citizen ln-ok (green "Abierto")
+// before the st-* migration. OpStatusPill is the shared primitive.
+export const STATUS_COMPONENTS = new Set(
   [
+    "components/CaseBadge.tsx",
     "components/ui/dashboard/OpPill.tsx",
     "components/ui/dashboard/OpStateBadge.tsx",
+    "components/ui/dashboard/OpStatusPill.tsx",
     "components/ui/dashboard/CaseStatusBadge.tsx",
     "components/ui/dashboard/OpKpi.tsx",
   ].map((p) => p.replaceAll("/", sep)),
@@ -74,50 +77,85 @@ const OP_STATUS_COMPONENTS = new Set(
 
 // Matches raw ln-op-ok/warn/danger/viol token utilities that the st-* layer replaces.
 // Does NOT match ln-op-ok-bg / ln-op-ok-bd companions (those are covered transitively).
-const RAW_OP_STATUS = /\b(?:bg|text|border)-ln-op-(?:ok|warn|danger|viol)(?:-bg|-bd)?\b/g;
+// WARN-level: still valid CSS, just nudges toward st-*.
+export const RAW_OP_STATUS = /\b(?:bg|text|border)-ln-op-(?:ok|warn|danger|viol)(?:-bg|-bd)?\b/g;
 
-let hits = 0;
-for (const file of FILES) {
-  const lines = readFileSync(file, "utf8").split(/\r?\n/);
-  lines.forEach((line, i) => {
-    for (const match of line.matchAll(RAW_PALETTE)) {
-      console.error(
-        `${file}:${i + 1}:${(match.index ?? 0) + 1}: raw Tailwind palette "${match[0]}" — use a gob-* semantic token`,
-      );
-      hits += 1;
-    }
-    for (const match of line.matchAll(DARK_PREFIX)) {
-      console.error(
-        `${file}:${i + 1}:${(match.index ?? 0) + 1}: "${match[0]}" — dark mode is disabled, remove the prefix`,
-      );
-      hits += 1;
-    }
-    for (const match of line.matchAll(ARBITRARY_HEX)) {
-      if (ARBITRARY_HEX_ALLOWLIST.has(match[0])) continue;
-      console.error(
-        `${file}:${i + 1}:${(match.index ?? 0) + 1}: arbitrary hex "${match[0]}" — use a ln-* token utility (e.g. bg-[var(--color-ln-ok-050)]). Autofix: pnpm tsx scripts/codemod-status-tints.cjs`,
-      );
-      hits += 1;
-    }
-    // Warn-level: raw ln-op-ok/warn/danger/viol in operator status components.
-    if (OP_STATUS_COMPONENTS.has(file)) {
-      for (const match of line.matchAll(RAW_OP_STATUS)) {
-        // Skip comment lines (TSX single-line comments // …)
-        if (line.trimStart().startsWith("//")) continue;
-        console.warn(
-          `[warn] ${file}:${i + 1}:${(match.index ?? 0) + 1}: "${match[0]}" in operator status component — prefer st-* token (e.g. text-[var(--color-st-ok)]). See globals.css .op-surface block.`,
+// Matches raw CITIZEN status tones (ln-ok/warn/err/danger/violeta) — both the class
+// utility form (text-ln-ok, ring-ln-warn) and the arbitrary CSS-var form
+// (bg-[var(--color-ln-ok-050)]). This is the exact CaseBadge regression: a status
+// pill hardcoding a citizen tone instead of st-*, so "Abierto" rendered green on
+// operator surfaces. HARD-ERROR inside STATUS_COMPONENTS. Structural ln-* tokens
+// (ln-card/ink/line/mute/stripe) and ln-op-* are intentionally NOT matched.
+export const RAW_CITIZEN_STATUS =
+  /\b(?:bg|text|border|ring)-(?:\[var\(--color-)?ln-(?:ok|warn|err|danger|violeta)(?:-\d+)?/g;
+
+function runChecks(): void {
+  let hits = 0;
+  for (const file of FILES) {
+    const lines = readFileSync(file, "utf8").split(/\r?\n/);
+    lines.forEach((line, i) => {
+      for (const match of line.matchAll(RAW_PALETTE)) {
+        console.error(
+          `${file}:${i + 1}:${(match.index ?? 0) + 1}: raw Tailwind palette "${match[0]}" — use a gob-* semantic token`,
         );
+        hits += 1;
       }
-    }
-  });
+      for (const match of line.matchAll(DARK_PREFIX)) {
+        console.error(
+          `${file}:${i + 1}:${(match.index ?? 0) + 1}: "${match[0]}" — dark mode is disabled, remove the prefix`,
+        );
+        hits += 1;
+      }
+      for (const match of line.matchAll(ARBITRARY_HEX)) {
+        if (ARBITRARY_HEX_ALLOWLIST.has(match[0])) continue;
+        console.error(
+          `${file}:${i + 1}:${(match.index ?? 0) + 1}: arbitrary hex "${match[0]}" — use a ln-* token utility (e.g. bg-[var(--color-ln-ok-050)]). Autofix: pnpm tsx scripts/codemod-status-tints.cjs`,
+        );
+        hits += 1;
+      }
+      if (STATUS_COMPONENTS.has(file)) {
+        // Skip comment lines (TSX single-line comments // …) for both status rules.
+        const isComment = line.trimStart().startsWith("//");
+        // Hard-error: raw citizen status tone in a status component (CaseBadge regression).
+        if (!isComment) {
+          for (const match of line.matchAll(RAW_CITIZEN_STATUS)) {
+            console.error(
+              `${file}:${i + 1}:${(match.index ?? 0) + 1}: raw citizen status tone "${match[0]}" in a status component — use the st-* layer (e.g. text-[var(--color-st-warn)]) so the tone auto-remaps per skin.`,
+            );
+            hits += 1;
+          }
+        }
+        // Warn-level: raw ln-op-ok/warn/danger/viol — nudge toward st-*.
+        if (!isComment) {
+          for (const match of line.matchAll(RAW_OP_STATUS)) {
+            console.warn(
+              `[warn] ${file}:${i + 1}:${(match.index ?? 0) + 1}: "${match[0]}" in operator status component — prefer st-* token (e.g. text-[var(--color-st-ok)]). See globals.css .op-surface block.`,
+            );
+          }
+        }
+      }
+    });
+  }
+
+  if (hits > 0) {
+    console.error(
+      `\n✗ ${hits} design-token violation(s). Autofix: pnpm tsx scripts/codemod-poncho-tokens.ts && pnpm tsx scripts/codemod-purge-dark.ts && node scripts/codemod-status-tints.cjs`,
+    );
+    process.exit(1);
+  }
+  console.log(
+    `✓ Design tokens clean — 0 raw palette, 0 dark: prefix, 0 arbitrary hex across ${FILES.length} files.`,
+  );
 }
 
-if (hits > 0) {
-  console.error(
-    `\n✗ ${hits} design-token violation(s). Autofix: pnpm tsx scripts/codemod-poncho-tokens.ts && pnpm tsx scripts/codemod-purge-dark.ts && node scripts/codemod-status-tints.cjs`,
-  );
-  process.exit(1);
+// Only scan the repo when invoked as a CLI (pnpm lint:tokens / tsx). Importing
+// this module from unit tests must not trigger the scan or process.exit.
+const isMain =
+  process.argv[1] !== undefined &&
+  (process.argv[1].endsWith("check-design-tokens.ts") ||
+    process.argv[1].endsWith("check-design-tokens.js") ||
+    import.meta.url === `file:///${process.argv[1].replaceAll("\\", "/")}`);
+
+if (isMain) {
+  runChecks();
 }
-console.log(
-  `✓ Design tokens clean — 0 raw palette, 0 dark: prefix, 0 arbitrary hex across ${FILES.length} files.`,
-);
