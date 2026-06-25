@@ -30,7 +30,7 @@ Ultimate trajectory: **Mi Argentina integration** — federation with the Argent
 |---|---|
 | Domain specs & plans index | `docs/superpowers/README.md` |
 | Implementation plans | `docs/superpowers/plans/` |
-| 45 event types (`EVENT_TYPES` const) | `db/schema.ts` |
+| 47 event types (`EVENT_TYPES` const) | `db/schema.ts` |
 | Per-event Zod schemas | `lib/event-schemas.ts` |
 | Libreta sanitaria event filter | `lib/libreta-sanitaria.ts` |
 | Metrics / projection primitives | `lib/metrics/` (context, scope, period, anonymity, population, cache) |
@@ -66,7 +66,7 @@ Before writing a new event type, walk through `docs/event-design-checklist.md`. 
 | Legal framework | [#legal-framework](#legal-framework) | Compliance, SENASA, Ley 25.326 |
 | Data model | [#data-model](#data-model) | Schema, new tables, migrations |
 | Libreta sanitaria | [#libreta-sanitaria](#libreta-sanitaria) | Medical events, UI surfaces |
-| Event catalog — 45 types | [#event-catalog--45-types](#event-catalog--45-types) | New event types, payload design |
+| Event catalog — 47 types | [#event-catalog--47-types](#event-catalog--47-types) | New event types, payload design |
 | Privacy tiers | [#privacy-tiers-the-public-surface](#privacy-tiers-the-public-surface) | Public credential, Tier 0/1/2 |
 | Dashboards & projections | [#dashboards--projections-the-consumers](#dashboards--projections-the-consumers) | Govt / analyst / welfare views |
 | Aggregation & privacy policy | [#aggregation--privacy-policy](#aggregation--privacy-policy) | k-anonymity, opt-in, PII rules |
