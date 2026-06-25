@@ -2,8 +2,9 @@
 
 // ContextSwitcher — renders the entitlement-filtered portal switcher (D6).
 //
-// Consumes `buildSwitcher(session)` from lib/shell-nav and renders the
-// resulting destinations in the operator topbar's `actions` slot.
+// Consumes `buildSwitcher(session, pathname)` from lib/shell-nav and renders
+// the resulting destinations in the operator topbar's `actions` slot. The
+// pathname makes the admin ⇄ gob pair surface-aware (back to /admin from /gob).
 // A single-context user (empty switcher) renders nothing.
 //
 // Client component: uses usePathname to decide whether to close a popover
@@ -71,8 +72,8 @@ function SwitcherItem({
  * does not need to guard against it.
  */
 export function ContextSwitcher({ session }: Props) {
-  const targets = buildSwitcher(session);
   const pathname = usePathname();
+  const targets = buildSwitcher(session, pathname);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

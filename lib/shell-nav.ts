@@ -136,30 +136,38 @@ function citizenNavFor(_role: ShellRole): NavItem[] {
 
 /**
  * Build the entitlement-filtered context-switcher destinations (D6). Exported
- * so a future `ContextSwitcher` component (Phase B) can reuse the exact same
- * entitlement logic without re-deriving it. Returns `[]` for a single-context
- * user — the caller renders nothing in that case.
+ * so the `ContextSwitcher` component reuses the exact same entitlement logic
+ * without re-deriving it. Returns `[]` for a single-context user — the caller
+ * renders nothing in that case.
+ *
+ * Surface-aware: the admin ⇄ gob pair depends on where the operator currently
+ * is, not on role alone. `pathname` is the current request path.
+ *
+ * Institutional roles (govt/admin) get NO "volver a ciudadano" target: they are
+ * service accounts with no owner identity and cannot own pets (DB-enforced), so
+ * `/mis-mascotas` only bounces them back. The citizen escape is for personal
+ * roles (owner/vet) operating inside an org context — handled by the role-return
+ * affordance in `resolveShellNav`, not here.
  */
-export function buildSwitcher(session: ShellSession | null): SwitcherTarget[] {
+export function buildSwitcher(session: ShellSession | null, pathname: string): SwitcherTarget[] {
   if (!session) return [];
 
   const targets: SwitcherTarget[] = [];
   const { role, govtAssignments, orgMemberships } = session;
 
-  const isOperatorRole = role === "govt" || role === "admin";
-
-  // From an operator context, always offer a way back to the citizen world.
-  if (isOperatorRole) {
-    targets.push({
-      key: "citizen",
-      label: "Volver a ciudadano",
-      href: "/mis-mascotas",
-    });
-  }
-
-  // admin ⇄ gob: an admin who also holds govt assignments may hop to /gob.
-  if (role === "admin" && govtAssignments) {
-    targets.push({ key: "gob", label: "Ir a Gobierno", href: "/gob" });
+  // admin ⇄ gob, surface-aware (the bug this fixes: there was no way back to
+  // /admin from /gob, because the switcher was built from role alone).
+  if (role === "admin") {
+    const onGob = pathname === "/gob" || pathname.startsWith("/gob/");
+    if (onGob) {
+      // From /gob, an admin (universal scope) must always be able to return to
+      // the admin panel — independent of govtAssignments.
+      targets.push({ key: "admin", label: "Volver a Admin", href: "/admin" });
+    } else if (govtAssignments) {
+      // From /admin (or any non-gob surface), offer the hop to /gob when the
+      // admin also holds govt assignments.
+      targets.push({ key: "gob", label: "Ir a Gobierno", href: "/gob" });
+    }
   }
 
   // owner/vet who belongs to one or more orgs may hop into the org operator
@@ -183,7 +191,7 @@ export function buildSwitcher(session: ShellSession | null): SwitcherTarget[] {
 
 export function resolveShellNav(input: ShellNavInput): ShellNavResult {
   const { session, pathname } = input;
-  const switcher = buildSwitcher(session);
+  const switcher = buildSwitcher(session, pathname);
 
   // D13 — token-landing wins over everything, regardless of auth state.
   if (isTokenLandingPath(pathname)) {

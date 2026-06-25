@@ -253,11 +253,17 @@ describe("resolveShellNav — context switcher (D6)", () => {
     expect(targets).not.toContain("admin");
   });
 
-  it("operator always offers a 'volver a ciudadano' destination", () => {
-    const r = resolveShellNav(govt("/gob"));
-    const citizen = r.switcher.find((s) => s.key === "citizen");
-    expect(citizen).toBeDefined();
-    expect(citizen?.href).toBe("/mis-mascotas");
+  it("admin on /gob → switcher offers 'Volver a Admin', never a citizen escape [B1/B2]", () => {
+    const r = resolveShellNav(admin("/gob"));
+    const back = r.switcher.find((s) => s.key === "admin");
+    expect(back?.href).toBe("/admin");
+    expect(r.switcher.map((s) => s.key)).not.toContain("citizen");
+  });
+
+  it("institutional roles never get a 'volver a ciudadano' escape [B2]", () => {
+    // govt and admin are institutional — no owner identity, cannot own pets.
+    expect(resolveShellNav(govt("/gob")).switcher.map((s) => s.key)).not.toContain("citizen");
+    expect(resolveShellNav(admin("/admin")).switcher.map((s) => s.key)).not.toContain("citizen");
   });
 
   it("a single-context owner (no org, no govt) yields an empty switcher (D6: not shown)", () => {
@@ -289,17 +295,25 @@ describe("resolveShellNav — context switcher (D6)", () => {
 // buildSwitcher — exported entitlement helper, tested directly (Phase B reuse).
 // ---------------------------------------------------------------------------
 
-describe("buildSwitcher (D6, exported)", () => {
+describe("buildSwitcher (D6, exported, surface-aware)", () => {
   it("returns [] for an anonymous session", () => {
-    expect(buildSwitcher(null)).toEqual([]);
+    expect(buildSwitcher(null, "/gob")).toEqual([]);
   });
 
-  it("admin + govtAssignments → citizen escape + gob", () => {
-    const targets = buildSwitcher({
-      role: "admin",
-      displayName: "Root",
-      govtAssignments: true,
-    });
-    expect(targets.map((t) => t.key)).toEqual(["citizen", "gob"]);
+  it("admin on /admin with govtAssignments → only the gob hop (no citizen escape)", () => {
+    const targets = buildSwitcher(
+      { role: "admin", displayName: "Root", govtAssignments: true },
+      "/admin",
+    );
+    expect(targets.map((t) => t.key)).toEqual(["gob"]);
+  });
+
+  it("admin on /gob → only the way back to admin (B1), never citizen (B2)", () => {
+    const targets = buildSwitcher(
+      { role: "admin", displayName: "Root", govtAssignments: true },
+      "/gob/mortalidad",
+    );
+    expect(targets.map((t) => t.key)).toEqual(["admin"]);
+    expect(targets[0].href).toBe("/admin");
   });
 });

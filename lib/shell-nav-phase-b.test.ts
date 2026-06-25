@@ -229,22 +229,25 @@ describe("Phase B operator parity — org", () => {
 // buildSwitcher is the pure entitlement kernel; ContextSwitcher renders it.
 // ---------------------------------------------------------------------------
 
-describe("ContextSwitcher entitlements — buildSwitcher", () => {
+describe("ContextSwitcher entitlements — buildSwitcher (surface-aware)", () => {
   // Owner: no org memberships → no switcher (single-context user, D6 not shown)
   it("plain owner with no memberships → empty switcher (not rendered)", () => {
-    expect(buildSwitcher({ role: "owner", displayName: "Ana" })).toEqual([]);
+    expect(buildSwitcher({ role: "owner", displayName: "Ana" }, "/inicio")).toEqual([]);
   });
 
   // Owner: org memberships → org destinations, never gob/admin
   it("owner with org memberships → only org destinations listed", () => {
-    const targets = buildSwitcher({
-      role: "owner",
-      displayName: "Ana",
-      orgMemberships: [
-        { token: "ORG-1", name: "Refugio Norte" },
-        { token: "ORG-2", name: "Refugio Sur" },
-      ],
-    });
+    const targets = buildSwitcher(
+      {
+        role: "owner",
+        displayName: "Ana",
+        orgMemberships: [
+          { token: "ORG-1", name: "Refugio Norte" },
+          { token: "ORG-2", name: "Refugio Sur" },
+        ],
+      },
+      "/inicio",
+    );
     expect(targets.map((t) => t.key)).toEqual(["org", "org"]);
     expect(targets.map((t) => t.href)).toEqual(["/org/ORG-1", "/org/ORG-2"]);
     // NEVER exposes gob or admin to an owner (D6 security invariant)
@@ -252,67 +255,71 @@ describe("ContextSwitcher entitlements — buildSwitcher", () => {
     expect(targets.map((t) => t.key)).not.toContain("admin");
   });
 
-  // govt: single context within gob — always gets a "volver a ciudadano" escape
-  it("govt on /gob → switcher offers volver-a-ciudadano, nothing else", () => {
-    const targets = buildSwitcher({ role: "govt", displayName: "Inspector" });
-    expect(targets).toHaveLength(1);
-    expect(targets[0].key).toBe("citizen");
-    expect(targets[0].href).toBe("/mis-mascotas");
+  // B2: govt is institutional — no owner identity, cannot own pets (DB-enforced),
+  // so NO "volver a ciudadano". govt only ever operates /gob → empty switcher.
+  it("govt → empty switcher (single operator context, no citizen escape) [B2]", () => {
+    expect(buildSwitcher({ role: "govt", displayName: "Inspector" }, "/gob")).toEqual([]);
   });
 
-  // govt: never sees gob or admin offered (already on gob, admin is forbidden)
-  it("govt never sees gob or admin in the switcher", () => {
-    const targets = buildSwitcher({ role: "govt", displayName: "Inspector" });
-    expect(targets.map((t) => t.key)).not.toContain("gob");
-    expect(targets.map((t) => t.key)).not.toContain("admin");
-  });
-
-  // admin WITH govt assignments: citizen + gob offered
-  it("admin with govtAssignments → citizen escape + gob hop, never re-lists admin", () => {
-    const targets = buildSwitcher({
-      role: "admin",
-      displayName: "Root",
-      govtAssignments: true,
-    });
-    const keys = targets.map((t) => t.key);
-    expect(keys).toContain("citizen");
-    expect(keys).toContain("gob");
-    // admin is already "here" — MUST NOT appear in its own switcher
+  it("govt never sees citizen, gob or admin in the switcher [B2]", () => {
+    const keys = buildSwitcher({ role: "govt", displayName: "Inspector" }, "/gob").map(
+      (t) => t.key,
+    );
+    expect(keys).not.toContain("citizen");
+    expect(keys).not.toContain("gob");
     expect(keys).not.toContain("admin");
   });
 
-  // admin WITHOUT govt assignments: only citizen escape, no gob
-  it("admin without govtAssignments → citizen escape only, no gob", () => {
-    const targets = buildSwitcher({
-      role: "admin",
-      displayName: "Root",
-      govtAssignments: false,
-    });
-    const keys = targets.map((t) => t.key);
-    expect(keys).toContain("citizen");
-    expect(keys).not.toContain("gob");
+  // B1: admin ⇄ gob is surface-aware. From /admin (entitled) → hop to gob,
+  // and NEVER a citizen escape (B2).
+  it("admin on /admin with govtAssignments → gob hop only, never citizen [B1/B2]", () => {
+    const targets = buildSwitcher(
+      { role: "admin", displayName: "Root", govtAssignments: true },
+      "/admin/casos",
+    );
+    expect(targets.map((t) => t.key)).toEqual(["gob"]);
+    expect(targets[0].href).toBe("/gob");
+  });
+
+  // B1: from /gob the admin can always return to /admin — this was the bug
+  // (the switcher was built from role alone, so there was no way back).
+  it("admin on /gob → 'Volver a Admin' → /admin, never citizen [B1/B2]", () => {
+    const targets = buildSwitcher(
+      { role: "admin", displayName: "Root", govtAssignments: true },
+      "/gob/disputas",
+    );
+    expect(targets.map((t) => t.key)).toEqual(["admin"]);
+    expect(targets[0].href).toBe("/admin");
+    expect(targets[0].label).toBe("Volver a Admin");
+  });
+
+  // The return-to-admin from /gob does not depend on govtAssignments: an admin
+  // operating in /gob is universal-scope and must always have a way back.
+  it("admin on /gob without govtAssignments still gets 'Volver a Admin' [B1]", () => {
+    const targets = buildSwitcher(
+      { role: "admin", displayName: "Root", govtAssignments: false },
+      "/gob",
+    );
+    expect(targets.map((t) => t.key)).toEqual(["admin"]);
+  });
+
+  // Without govtAssignments and on /admin, there is no second portal to offer.
+  it("admin on /admin without govtAssignments → empty switcher", () => {
+    const targets = buildSwitcher(
+      { role: "admin", displayName: "Root", govtAssignments: false },
+      "/admin",
+    );
+    expect(targets).toEqual([]);
   });
 
   // anon: empty (no session → no switcher)
   it("null session → empty switcher", () => {
-    expect(buildSwitcher(null)).toEqual([]);
-  });
-
-  // citizen escape always points to /mis-mascotas (the "personal world" landing)
-  it("operator citizen escape always targets /mis-mascotas", () => {
-    const govtTargets = buildSwitcher({ role: "govt", displayName: "Inspector" });
-    const adminTargets = buildSwitcher({
-      role: "admin",
-      displayName: "Root",
-      govtAssignments: false,
-    });
-    expect(govtTargets[0].href).toBe("/mis-mascotas");
-    expect(adminTargets[0].href).toBe("/mis-mascotas");
+    expect(buildSwitcher(null, "/gob")).toEqual([]);
   });
 
   // single-context user never exposes gob to a plain owner
   it("never exposes gob or admin to a plain owner (D6 security invariant)", () => {
-    const targets = buildSwitcher({ role: "owner", displayName: "Owner" });
+    const targets = buildSwitcher({ role: "owner", displayName: "Owner" }, "/inicio");
     expect(targets.map((t) => t.key)).not.toContain("gob");
     expect(targets.map((t) => t.key)).not.toContain("admin");
   });
