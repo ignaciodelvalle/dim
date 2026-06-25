@@ -32,6 +32,22 @@ export type ProjectionContext = {
   scope: ProjectionScope;
   /** The resolved time window from resolveAnalyticsPeriod (carries {since, until}). */
   period: AnalyticsPeriod;
+  /**
+   * Admin province drill-down (Panorama console). Only set when
+   * actor.role === "admin" and a specific province was selected via the URL
+   * (?province=AR-X). Never set for govt actors — their scope is already
+   * enforced by the jurisdiction pairs in scope.jurisdictions.
+   *
+   * When set, petsScopeClause / petEventsScopeClause append an ADDITIONAL
+   * province (and optionally locality) predicate that narrows from universal
+   * scope to the selected area.
+   */
+  adminProvince?: string;
+  /**
+   * Admin locality drill-down. Only meaningful when adminProvince is also set.
+   * Never set for govt actors.
+   */
+  adminLocality?: string;
 };
 
 /**
@@ -40,21 +56,37 @@ export type ProjectionContext = {
  *  - actor       — from requireAdminOrGovtOrRedirect
  *  - jurisdictions — from getJurisdictionsCached (empty for admin)
  *  - period      — from resolveAnalyticsPeriod(searchParams)
+ *
+ * The optional `opts` argument accepts an `adminProvince` / `adminLocality`
+ * pair for the Panorama admin drill-down. These are silently ignored for govt
+ * actors (scope.kind is "jurisdictions" so the admin branch never fires in
+ * the scope helpers). Never pass them from govt page code.
  */
 export function buildProjectionContext(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   period: AnalyticsPeriod,
+  opts?: { adminProvince?: string; adminLocality?: string },
 ): ProjectionContext {
   const scope: ProjectionScope =
     actor.role === "admin" ? { kind: "global" } : { kind: "jurisdictions", jurisdictions };
 
-  return { actor, scope, period };
+  return {
+    actor,
+    scope,
+    period,
+    // adminProvince/adminLocality are only meaningful for admin actors; the
+    // scope helpers already gate on scope.kind === "global" before reading them.
+    adminProvince: opts?.adminProvince,
+    adminLocality: opts?.adminLocality,
+  };
 }
 
 /**
  * A stable string key for a ProjectionContext, suitable as a React.cache
- * surrogate key. Two contexts with the same scope+period produce the same key.
+ * surrogate key. Two contexts with the same scope+period+adminProvince produce
+ * the same key. Admin drill-down (adminProvince) extends the key so that a
+ * national admin ctx and a province-scoped admin ctx never collide in cache.
  */
 export function ctxKey(ctx: ProjectionContext): string {
   const scopePart =
@@ -64,5 +96,8 @@ export function ctxKey(ctx: ProjectionContext): string {
           .map((j) => `${j.province}:${j.locality}`)
           .sort()
           .join(",");
-  return `${scopePart}|${ctx.period.since.toISOString()}|${ctx.period.until.toISOString()}`;
+  const adminPart = ctx.adminProvince
+    ? `|admin:${ctx.adminProvince}${ctx.adminLocality ? `:${ctx.adminLocality}` : ""}`
+    : "";
+  return `${scopePart}${adminPart}|${ctx.period.since.toISOString()}|${ctx.period.until.toISOString()}`;
 }

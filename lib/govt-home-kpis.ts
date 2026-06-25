@@ -32,7 +32,17 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Scope clause for cases rows (uses cases.jurisdictionProvince/Locality).
 function casesScopeClause(ctx: ProjectionContext) {
-  if (ctx.scope.kind === "global") return null;
+  if (ctx.scope.kind === "global") {
+    // Admin province drill-down: narrow to the selected province/locality.
+    if (!ctx.adminProvince) return null;
+    if (ctx.adminLocality) {
+      return and(
+        eq(cases.jurisdictionProvince, ctx.adminProvince),
+        eq(cases.jurisdictionLocality, ctx.adminLocality),
+      );
+    }
+    return eq(cases.jurisdictionProvince, ctx.adminProvince);
+  }
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
   const pairs = jurisdictions.map(
@@ -44,7 +54,17 @@ function casesScopeClause(ctx: ProjectionContext) {
 
 // Scope clause for welfare_reports rows.
 function welfareReportsScopeClause(ctx: ProjectionContext) {
-  if (ctx.scope.kind === "global") return null;
+  if (ctx.scope.kind === "global") {
+    // Admin province drill-down: narrow to the selected province/locality.
+    if (!ctx.adminProvince) return null;
+    if (ctx.adminLocality) {
+      return and(
+        eq(welfareReports.jurisdictionProvince, ctx.adminProvince),
+        eq(welfareReports.jurisdictionLocality, ctx.adminLocality),
+      );
+    }
+    return eq(welfareReports.jurisdictionProvince, ctx.adminProvince);
+  }
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
   const pairs = jurisdictions.map(
@@ -326,7 +346,16 @@ async function fetchCensusPopulation(ctx: ProjectionContext): Promise<number> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) return 0;
 
   if (ctx.scope.kind === "global") {
-    // Sum the entire census table for the national total.
+    if (ctx.adminProvince) {
+      // Admin province drill-down: use the selected province's census population
+      // as the denominator (same approach as the scoped govt path below).
+      const rows = await db
+        .select({ total: sum(jurisdictionsCensus.population) })
+        .from(jurisdictionsCensus)
+        .where(eq(jurisdictionsCensus.provinceName, ctx.adminProvince));
+      return Number(rows[0]?.total ?? 0);
+    }
+    // National total for unrestricted admin.
     const rows = await db
       .select({ total: sum(jurisdictionsCensus.population) })
       .from(jurisdictionsCensus);

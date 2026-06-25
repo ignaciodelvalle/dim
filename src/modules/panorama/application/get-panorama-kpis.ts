@@ -107,24 +107,36 @@ function dec(value: number): string {
  * period). Reuses the tested dashboard fetchers so the numbers are IDENTICAL to
  * the detail dashboards. Never widens scope (the fetchers intersect with the
  * viewer's assignments). All fetchers run concurrently.
+ *
+ * `adminProvince` / `adminLocality` are ONLY for admin actors drilling into a
+ * province via the Panorama JurisdictionSwitcher. Never pass them for govt actors
+ * (their scope is enforced by filteredJurisdictions).
  */
 export async function getPanoramaKpis(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   period: AnalyticsPeriod,
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<PanoramaKpis> {
-  // One ProjectionContext for the ctx-based fetchers. The dashboards fetchers
-  // that take (actor, jurisdictions, opts) get the same period via opts.since.
-  const ctx = buildProjectionContext(actor, jurisdictions, period);
+  // One ProjectionContext for the ctx-based fetchers. Thread adminProvince so
+  // petsScopeClause / petEventsScopeClause narrow from global to the selected province.
+  const ctx = buildProjectionContext(actor, jurisdictions, period, { adminProvince, adminLocality });
 
   const [coverage, analytics, perdidas, bites, zoonosis, welfare, sterilization] =
     await Promise.all([
       // 1. Cobertura antirrábica — lib/govt-home-kpis.fetchRabiesCoverage (ctx).
       fetchRabiesCoverage(ctx),
       // 2. Mascotas en cobertura (totalPets) — lib/govt-dashboards.fetchAnalyticsMetrics.
-      fetchAnalyticsMetrics(actor, jurisdictions, { since: period.since }),
+      //    Non-ctx fetcher: thread adminProvince via opts so it applies explicit predicates.
+      fetchAnalyticsMetrics(actor, jurisdictions, {
+        since: period.since,
+        adminProvince,
+        adminLocality,
+      }),
       // 3. Pérdidas activas — lib/govt-dashboards.fetchPerdidasMetrics (population metric).
-      fetchPerdidasMetrics(actor, jurisdictions),
+      //    Non-ctx fetcher: thread adminProvince via opts.
+      fetchPerdidasMetrics(actor, jurisdictions, { adminProvince, adminLocality }),
       // 4. Mordeduras / 10k hab. — lib/govt-home-kpis.fetchBitesPer10k (ctx).
       fetchBitesPer10k(ctx),
       // 5. Zoonosis activas — lib/govt-home-kpis.fetchActiveZoonosis (ctx).
@@ -259,12 +271,29 @@ export async function getPanoramaKpis(
     },
   ];
 
-  return { kpis, recalculatedFor: describeRecalc(actor, jurisdictions) };
+  return {
+    kpis,
+    recalculatedFor: describeRecalc(actor, jurisdictions, adminProvince, adminLocality),
+  };
 }
 
 /** es-AR cue describing the alcance the KPIs were recalculated for. */
-function describeRecalc(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]): string {
-  if (actor.role === "admin" || jurisdictions.length === 0) {
+function describeRecalc(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): string {
+  if (actor.role === "admin") {
+    if (adminLocality) {
+      return `Recalculado para ${adminLocality}, ${adminProvince} y el período seleccionado.`;
+    }
+    if (adminProvince) {
+      return `Recalculado para ${adminProvince} y el período seleccionado.`;
+    }
+    return "Recalculado para el alcance nacional y el período seleccionado.";
+  }
+  if (jurisdictions.length === 0) {
     return "Recalculado para el alcance nacional y el período seleccionado.";
   }
   const provinces = [...new Set(jurisdictions.map((j) => j.province))];

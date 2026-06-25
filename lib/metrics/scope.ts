@@ -8,7 +8,7 @@
 // Import note: this file uses @/db (Drizzle) — it lives in infrastructure,
 // not domain/. This is Pattern-B territory (aggregate reads, not pure rules).
 
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { petEvents, pets } from "@/db";
 
@@ -18,12 +18,32 @@ import type { ProjectionContext } from "./context";
  * Returns a Drizzle SQL clause that restricts a `pets`-based query to the
  * viewer's jurisdiction scope.
  *
- * - admin → null (no restriction; caller omits the WHERE clause)
- * - govt with no assignments → `false` (matches nothing; preserves early-return semantics)
- * - govt with assignments → OR of (province=X AND locality=Y) pairs
+ * - admin, no province selected → null (no restriction; caller omits the WHERE clause)
+ * - admin + province selected  → province (and optionally locality) predicate
+ *   (Panorama admin drill-down only — scope.kind is still "global" but we
+ *   append an ADDITIONAL narrowing predicate; see ProjectionContext.adminProvince)
+ * - govt with no assignments   → `false` (matches nothing; preserves early-return semantics)
+ * - govt with assignments      → OR of (province=X AND locality=Y) pairs
+ *
+ * SECURITY: the admin province branch fires ONLY when scope.kind === "global"
+ * (i.e. actor.role === "admin"). Govt actors always have scope.kind ===
+ * "jurisdictions" so they never reach this branch and adminProvince has zero
+ * effect on their clause.
  */
 export function petsScopeClause(ctx: ProjectionContext) {
-  if (ctx.scope.kind === "global") return null;
+  if (ctx.scope.kind === "global") {
+    // Admin province drill-down: narrow from universal to the selected province.
+    // Govt users must NOT pass these fields — their scope is enforced by
+    // the jurisdiction pairs below (same invariant as buildMaltratoListConditions).
+    if (!ctx.adminProvince) return null;
+    if (ctx.adminLocality) {
+      return and(
+        eq(pets.jurisdictionProvince, ctx.adminProvince),
+        eq(pets.jurisdictionLocality, ctx.adminLocality),
+      );
+    }
+    return eq(pets.jurisdictionProvince, ctx.adminProvince);
+  }
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
   const pairs = jurisdictions.map(
@@ -38,12 +58,25 @@ export function petsScopeClause(ctx: ProjectionContext) {
  * viewer's jurisdiction scope, using the JSONB payload fields that event types
  * such as vaccination_administered and incident_reported carry.
  *
- * - admin → null
+ * - admin, no province → null
+ * - admin + province   → payload province (and optionally locality) predicate
  * - govt with no assignments → `false`
- * - govt with assignments → OR of payload province+locality pairs
+ * - govt with assignments    → OR of payload province+locality pairs
+ *
+ * SECURITY: same guarantee as petsScopeClause — the admin branch only fires
+ * when scope.kind === "global".
  */
 export function petEventsScopeClause(ctx: ProjectionContext) {
-  if (ctx.scope.kind === "global") return null;
+  if (ctx.scope.kind === "global") {
+    if (!ctx.adminProvince) return null;
+    if (ctx.adminLocality) {
+      return and(
+        sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${ctx.adminProvince}`,
+        sql`(${petEvents.payload}->>'pet_jurisdiction_locality') = ${ctx.adminLocality}`,
+      );
+    }
+    return sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${ctx.adminProvince}`;
+  }
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
   const pairs = jurisdictions.map(
