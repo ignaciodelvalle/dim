@@ -121,7 +121,10 @@ export async function getPanoramaKpis(
 ): Promise<PanoramaKpis> {
   // One ProjectionContext for the ctx-based fetchers. Thread adminProvince so
   // petsScopeClause / petEventsScopeClause narrow from global to the selected province.
-  const ctx = buildProjectionContext(actor, jurisdictions, period, { adminProvince, adminLocality });
+  const ctx = buildProjectionContext(actor, jurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
 
   const [coverage, analytics, perdidas, bites, zoonosis, welfare, sterilization] =
     await Promise.all([

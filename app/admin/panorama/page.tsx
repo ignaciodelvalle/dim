@@ -78,7 +78,15 @@ export default async function AdminPanoramaPage({
   // aggregation axis of "province"). Seeding at locality level would leave the
   // provinceDataRef cache empty on first render and produce a blank map (C2).
   const [result, kpis] = await Promise.all([
-    getLayerFeatures("perdidas", actor, scoped, { since }, "province", adminProvince, adminLocality),
+    getLayerFeatures(
+      "perdidas",
+      actor,
+      scoped,
+      { since },
+      "province",
+      adminProvince,
+      adminLocality,
+    ),
     getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
   ]);
 

@@ -537,8 +537,7 @@ export async function fetchPerdidasMetrics(
   const lostPets =
     actor.role === "admin" && adminProvince
       ? lostPetsRaw.filter(
-          (p) =>
-            p.province === adminProvince && (!adminLocality || p.locality === adminLocality),
+          (p) => p.province === adminProvince && (!adminLocality || p.locality === adminLocality),
         )
       : lostPetsRaw;
 

@@ -98,7 +98,15 @@ export default async function GobPanoramaPage({
   // level would leave the provinceDataRef cache empty on first render and produce
   // a blank map (C2).
   const [result, kpis, initialBounds] = await Promise.all([
-    getLayerFeatures("perdidas", actor, scoped, { since }, "province", adminProvince, adminLocality),
+    getLayerFeatures(
+      "perdidas",
+      actor,
+      scoped,
+      { since },
+      "province",
+      adminProvince,
+      adminLocality,
+    ),
     getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
     // Govt → bbox of their assigned localities; admin (jurisdictions=[]) → null.
     jurisdictionBounds(jurisdictions),

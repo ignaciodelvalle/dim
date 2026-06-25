@@ -71,12 +71,14 @@ function petsScope(
 ): SQL | null {
   // Drizzle's `and()` has a declared return type of SQL | undefined (even with
   // non-null args). Normalize to SQL | null to match rollupPetsPerLocality/Province.
-  return metricsPetsScopeClause(
-    buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
-      adminProvince,
-      adminLocality,
-    }),
-  ) ?? null;
+  return (
+    metricsPetsScopeClause(
+      buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+        adminProvince,
+        adminLocality,
+      }),
+    ) ?? null
+  );
 }
 
 /** pet_events scope (JSONB payload jurisdiction).
@@ -895,7 +897,12 @@ export function loadChoroplethByLevel(
     if (metric === "rabies-coverage")
       return loadRabiesCoverageByProvince(actor, jurisdictions, adminProvince, adminLocality);
     if (metric === "sterilization-coverage")
-      return loadSterilizationCoverageByProvince(actor, jurisdictions, adminProvince, adminLocality);
+      return loadSterilizationCoverageByProvince(
+        actor,
+        jurisdictions,
+        adminProvince,
+        adminLocality,
+      );
     return loadMortalityByProvince(actor, jurisdictions, adminProvince, adminLocality);
   }
   // Locality level.
