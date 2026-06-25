@@ -121,7 +121,9 @@ export default async function GobVigilanciaBrotesPage({
           Brotes y signals epidemiológicos
         </h1>
         <p className="text-[13px] text-ln-op-mute">
-          Lista completa de outbreak signals en tu cobertura.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Lista completa de outbreak signals en tu cobertura."}
         </p>
       </header>
 

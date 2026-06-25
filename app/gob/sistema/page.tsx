@@ -117,7 +117,9 @@ export default async function GobSistemaPage({
           Salud operativa — tu jurisdicción
         </h1>
         <p className="text-[13px] text-ln-op-mute">
-          SLA de notificaciones ENO y antigüedad de la cola de aprobaciones en tu cobertura.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "SLA de notificaciones ENO y antigüedad de la cola de aprobaciones en tu cobertura."}
         </p>
       </header>
 

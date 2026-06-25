@@ -141,7 +141,9 @@ export default async function GobAdopcionesPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Adopciones</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Embudo de colocación, tiempos de custodia y pool de tránsitos en tu cobertura.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Embudo de colocación, tiempos de custodia y pool de tránsitos en tu cobertura."}
         </p>
       </header>
 

@@ -228,7 +228,9 @@ export default async function GobVigilanciaPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Mapa de vigilancia</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Señales de zoonosis y enfermedades reportables detectadas en tu cobertura.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Señales de zoonosis y enfermedades reportables detectadas en tu cobertura."}
         </p>
       </header>
 

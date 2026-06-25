@@ -144,7 +144,9 @@ export default async function GobCensoPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Censo y salud del registro</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Crecimiento del padrón, mascotas dormant y calidad de identificación en tu cobertura.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Crecimiento del padrón, mascotas dormant y calidad de identificación en tu cobertura."}
         </p>
       </header>
 

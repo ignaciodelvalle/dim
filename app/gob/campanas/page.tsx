@@ -170,8 +170,9 @@ export default async function GobCampanasPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Performance de campañas</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Inscripciones, completitud y alcance geográfico de las campañas sanitarias en tu
-          cobertura.
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Inscripciones, completitud y alcance geográfico de las campañas sanitarias en tu cobertura."}
         </p>
       </header>
 
