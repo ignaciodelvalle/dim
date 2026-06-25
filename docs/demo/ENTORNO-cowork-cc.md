@@ -60,20 +60,26 @@ levantarlo después. Si un build parece colgado, casi siempre es esto: matar nod
 
 ---
 
-### Estado actual (2026-06-24)
-- **▶ Rama activa (browser/review): `integration/session-review`** — TODO junto: demo+panorama (#732)
-  **+** seguridad advisor (#734) mergeados. Es la ÚNICA rama que refleja el estado completo actual;
-  cowork la checkea para navegar y revisar honestamente. `pnpm verify` verde · `pnpm demo:verify` verde
-  · tests RLS verdes. DB local: `seed:panorama` (45.796 mascotas) + `seed:demo:scenario` (focal CABA).
+### Estado actual (2026-06-24, sesión integrada)
+- **▶ Rama activa (browser/review): `integration/session-review`** — TODO el trabajo de la sesión
+  mergeado en UNA rama: demo+panorama (#732) **+** seguridad advisor (#734) **+** backlog completo
+  (A3 invariante account_type↔role · A4 nav dedupe · A7 DNI RUPPPA · A8 INDEC fallback · A10
+  panorama↔analytics se mantienen ambos · A11 quick-capture prefill) **+** design-system operador
+  (F1 tokens `st-*` · F2 OpStatusPill · F3 OpButton · F3-full 91 botones migrados · F4 casos density).
+  Es la ÚNICA rama que refleja el estado completo; cowork la checkea para navegar y revisar honestamente.
+  **Probada end-to-end:** `pnpm verify` verde · `pnpm test` verde (**6511 passed, 0 failed**, 510 files)
+  · `pnpm demo:verify` verde (10/10 invariantes). DB local: `seed:panorama` (~45.8k mascotas) +
+  `seed:demo:scenario` (focal CABA) + migración `0112_ownerships_pet_id_idx` aplicada.
   Levantar: `git checkout integration/session-review; git pull; $env:NEXT_PUBLIC_DEMO_MODE="true"; pnpm dev`.
-- PRs abiertos (unidades de review en GitHub — NO navegar acá, revisar el diff):
-  - **#732** demo+panorama (base `feat/nav-deferred-population-cycle`) — lo **visible** en browser.
-  - **#734** seguridad advisor 0113+0114 (base `review/all-session-prs`) — **solo DB** (RLS/migraciones/
-    grants), no se ve en browser; se revisa por el diff + el advisor.
-  - #733 cerrado sin merge; rama `fix/sec-advisor-rls-errors` borrada (su contenido vive en #734).
+- **PR de integración:** se abrió UN PR consolidado `integration/session-review` → revisar TODO por su
+  diff + navegar en browser. Los PRs individuales del backlog (#732, #734–#745) quedaron **cerrados con
+  nota** apuntando a esta rama (su contenido está 100% contenido acá; verificado con `git merge-base`).
 - **Acción del owner (no-código):** activar *leaked password protection* en el Supabase Dashboard
   (Authentication → Password) para cerrar el último WARN crítico — detalle en el PR #734.
-- **Salud del repo:** `git fsck --full` limpio (sin corrupción; solo objetos *dangling* normales). El
-  trabajo uncommitted previo se preservó en `wip/demo-panorama-rescue`. ⚠️ La base
-  `review/all-session-prs` está **stale**: le falta el fix de `server-only` (seeds crashean en bootstrap)
-  — conviene forward-portear `ca44d624`+`488337bb` o rebasear. Detalle en el reporte de la sesión.
+- **Salud del repo:** `git fsck --full` limpio (solo objetos *dangling* normales). El trabajo uncommitted
+  previo se preservó en `wip/demo-panorama-rescue`. El fix de `server-only` (`ca44d624`+`488337bb`) **ya
+  está** en `integration/session-review` → los seeds corren sin el workaround manual del stub.
+- **Gotcha resuelto:** la migración `0112` (índice `ownerships_pet_id_idx`) no se había aplicado en la DB
+  local (0113/0114 sí, 0112 no — se saltó), lo que hacía timeoutear los tests de performance de
+  `/admin/programa` (seq-scan ~135s). Resuelto con `pnpm db:migrate`. Si `admin-analytics-perf` vuelve a
+  timeoutear a los 5000ms exactos → falta un índice en la DB local, correr `pnpm db:migrate`.

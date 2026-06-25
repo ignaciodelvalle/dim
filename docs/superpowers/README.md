@@ -1,7 +1,9 @@
 # Superpowers — Specs & Plans
 
-> **▶ Rama activa (Cowork ↔ CC):** `fix/demo-panorama-consolidated` ([PR #732](https://github.com/ignaciodelvalle/dim/pull/732)) — base para probar/filmar la demo.
-> Antes de probar: `git fetch && git checkout fix/demo-panorama-consolidated && git pull && pnpm install`.
+> **▶ Rama activa (Cowork ↔ CC):** `integration/session-review` — TODO el trabajo de la sesión junto
+> (demo+panorama + seguridad advisor + backlog A3/A4/A7/A8/A10/A11 + design-system F1–F4 + F3-full).
+> Es la ÚNICA rama que refleja el estado completo. `pnpm verify` verde · `pnpm test` verde (6511) · `pnpm demo:verify` verde.
+> Antes de probar: `git fetch && git checkout integration/session-review && git pull && pnpm install`.
 > Working copy único = `C:\dim` (las otras `C:\dim-*` son fantasmas — borrar). Protocolo completo:
 > [`docs/demo/ENTORNO-cowork-cc.md`](../demo/ENTORNO-cowork-cc.md).
 
