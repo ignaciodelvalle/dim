@@ -43,6 +43,11 @@
 
 import type { EventType } from "../db/schema";
 
+// Pure date/trend helpers for the multi-year history seed. Side-effect-free and
+// db-free, so a static import here is safe (it does NOT trigger the deferred
+// db/index.ts load that the env bootstrap below must precede).
+import { dateInYear, pickRegisteredYear } from "./seed-history-utils";
+
 // ---------------------------------------------------------------------------
 // 1. Env bootstrap (must run before db/index.ts is imported)
 // ---------------------------------------------------------------------------
@@ -2422,6 +2427,396 @@ async function seedHealthCampaigns(
 }
 
 // ---------------------------------------------------------------------------
+// 15b. Multi-year, locality-level synthetic history (model provinces)
+// ---------------------------------------------------------------------------
+
+/**
+ * Model provinces with DIVERGENT multi-year trends. Córdoba improves (vaccination
+ * + sterilization coverage rise, zoonosis declines); Salta worsens (coverage
+ * low and declining, zoonosis rises). The panorama scrubber filters events with
+ * `lte(pet_events.occurred_at, asOf)`, so dating coverage events inside a given
+ * year makes the measured rate climb / stagnate as `asOf` advances year over
+ * year — that is the whole point of this additive history.
+ */
+const HISTORY_YEARS = [2024, 2025, 2026] as const;
+type HistoryYear = (typeof HISTORY_YEARS)[number];
+
+const MODEL_PROVINCES = [
+  { name: "Córdoba", trend: "improving" },
+  { name: "Salta", trend: "worsening" },
+] as const;
+
+/**
+ * Per-province, per-year target coverage [0..1] for vaccination (rabies) and
+ * sterilization. Córdoba rises; Salta declines/stagnates. Applied as a per-pet
+ * Bernoulli draw per year ≥ the pet's registration year.
+ */
+const PROVINCE_YEAR_COVERAGE: Record<
+  string,
+  Record<HistoryYear, { vacc: number; ster: number }>
+> = {
+  Córdoba: {
+    2024: { vacc: 0.3, ster: 0.25 },
+    2025: { vacc: 0.43, ster: 0.35 },
+    2026: { vacc: 0.55, ster: 0.44 },
+  },
+  Salta: {
+    2024: { vacc: 0.28, ster: 0.2 },
+    2025: { vacc: 0.21, ster: 0.16 },
+    2026: { vacc: 0.16, ster: 0.12 },
+  },
+};
+
+/**
+ * Per-province, per-year zoonosis intensity = expected number of zoonosis
+ * events per locality in that year. Córdoba declines toward zero; Salta rises.
+ * Fractional values are realised as a floor + a Bernoulli draw on the remainder,
+ * so e.g. 0.4 ≈ a 40% chance of one event in that locality-year.
+ */
+const PROVINCE_YEAR_ZOONOSIS: Record<string, Record<HistoryYear, number>> = {
+  Córdoba: { 2024: 0.6, 2025: 0.3, 2026: 0.1 },
+  Salta: { 2024: 0.5, 2025: 1.1, 2026: 1.8 },
+};
+
+// Target ~a few hundred history pets per model province. Pets-per-locality is
+// derived per province so the per-locality count stays sane across all locality
+// counts (Córdoba has 532 coord'd localities; Salta has 163).
+const HISTORY_TARGET_PETS_PER_PROVINCE = 300;
+const HISTORY_MIN_PETS_PER_LOCALITY = 5;
+const HISTORY_MAX_PETS_PER_LOCALITY = 300;
+
+/** Pets per locality so the province total lands near the target, within sane bounds. */
+function historyPetsPerLocality(localityCount: number): number {
+  if (localityCount <= 0) return 0;
+  const ideal = Math.ceil(HISTORY_TARGET_PETS_PER_PROVINCE / localityCount);
+  return Math.min(HISTORY_MAX_PETS_PER_LOCALITY, Math.max(HISTORY_MIN_PETS_PER_LOCALITY, ideal));
+}
+
+/**
+ * Seed the multi-year history for the model provinces. ADDITIVE — does not touch
+ * the existing per-province seed. Pets are named `PANO-HIST-…` so runClean()'s
+ * `name LIKE 'PANO-%'` filter cleans them automatically (no runClean change).
+ */
+async function seedModelProvinceHistory(
+  localitiesByCode: Map<string, LocalityRow[]>,
+  ownerUserId: string,
+): Promise<{
+  pets: number;
+  eventCounts: Record<string, number>;
+  localitiesCovered: Record<string, number>;
+}> {
+  log("STEP", "Seeding multi-year locality-level history (model provinces)…");
+
+  const eventCounts: Record<string, number> = {};
+  const localitiesCovered: Record<string, number> = {};
+  let totalHistoryPets = 0;
+  let histIdx = 0;
+
+  // Deterministic, collision-free token + name for history rows. Distinct from
+  // the numeric PANO-NNNNNN tokens used by the main seed.
+  const histToken = (i: number): string => `PANO-HIST-${String(i).padStart(6, "0")}`;
+  const histName = (i: number, base: string): string =>
+    `${PANO_TAG}HIST-${String(i).padStart(6, "0")} ${base}`;
+
+  for (const model of MODEL_PROVINCES) {
+    const provinceName = model.name;
+    const code = PROVINCE_TO_CODE.get(provinceName);
+    const localities = code ? (localitiesByCode.get(code) ?? []) : [];
+
+    if (localities.length === 0) {
+      log("WARN", `  ${provinceName}: no localities with coordinates — skipping`);
+      continue;
+    }
+
+    localitiesCovered[provinceName] = localities.length;
+    const petsPerLocality = historyPetsPerLocality(localities.length);
+    const coverageByYear = PROVINCE_YEAR_COVERAGE[provinceName];
+    const zoonosisByYear = PROVINCE_YEAR_ZOONOSIS[provinceName];
+
+    // Per-province / per-year tallies for the validation summary lines.
+    const perYear: Record<HistoryYear, { pets: number; vacc: number; ster: number; zoon: number }> =
+      {
+        2024: { pets: 0, vacc: 0, ster: 0, zoon: 0 },
+        2025: { pets: 0, vacc: 0, ster: 0, zoon: 0 },
+        2026: { pets: 0, vacc: 0, ster: 0, zoon: 0 },
+      };
+
+    const petRows: Array<Record<string, unknown>> = [];
+    const perPetMeta: Array<{
+      token: string;
+      registeredYear: HistoryYear;
+      species: string;
+      lat: number;
+      lng: number;
+    }> = [];
+
+    // 1. Build pet rows: a fixed number per locality, registration year spread
+    //    across 2024–2026.
+    for (const loc of localities) {
+      for (let p = 0; p < petsPerLocality; p++) {
+        const speciesEntry = pickWeighted(
+          SPECIES_DIST as unknown as Array<{ species: string; weight: number }>,
+        );
+        const species = speciesEntry.species;
+        const baseName = pick(PET_NAMES);
+        const sex = pick(SEXES);
+        const registeredYear = pickRegisteredYear(rng, HISTORY_YEARS);
+        const { lat, lng } = jitteredCoord(loc.lat, loc.lng, 0.02);
+
+        const token = histToken(histIdx);
+        petRows.push({
+          publicToken: token,
+          species,
+          name: histName(histIdx, baseName),
+          sex,
+          status: "active",
+          jurisdictionCountry: "AR",
+          jurisdictionProvince: provinceName,
+          jurisdictionLocality: loc.localityName,
+          potentiallyDangerousBreed: false,
+          emergencyInfoVisible: false,
+        });
+        perPetMeta.push({ token, registeredYear, species, lat, lng });
+        perYear[registeredYear].pets++;
+        histIdx++;
+      }
+    }
+
+    // 2. Batch insert pets, then fetch their ids by token.
+    for (let b = 0; b < petRows.length; b += BATCH_SIZE) {
+      const batch = petRows.slice(b, b + BATCH_SIZE);
+      await db.insert(pets).values(
+        batch as Parameters<typeof db.insert<typeof pets>>[0] extends {
+          values: (v: infer V) => unknown;
+        }
+          ? V
+          : never,
+      );
+    }
+
+    const tokens = perPetMeta.map((m) => m.token);
+    const tokenToId = new Map<string, string>();
+    for (let b = 0; b < tokens.length; b += BATCH_SIZE) {
+      const batchTokens = tokens.slice(b, b + BATCH_SIZE);
+      const inserted = await db
+        .select({ id: pets.id, publicToken: pets.publicToken })
+        .from(pets)
+        .where(inArray(pets.publicToken, batchTokens));
+      for (const row of inserted) tokenToId.set(row.publicToken, row.id);
+    }
+
+    // 3. Build ownerships + per-pet, per-year coverage events.
+    const ownershipRows: Array<Record<string, unknown>> = [];
+    const eventRows: Array<Record<string, unknown>> = [];
+
+    const bump = (type: string): void => {
+      eventCounts[type] = (eventCounts[type] ?? 0) + 1;
+    };
+
+    for (const meta of perPetMeta) {
+      const petId = tokenToId.get(meta.token);
+      if (!petId) continue;
+
+      ownershipRows.push({ petId, ownerUserId, role: "owner" });
+
+      // pet_registered — dated in the registration year. Mirrors the main seed's
+      // pet_registered payload shape + writePoint location.
+      eventRows.push({
+        petId,
+        eventType: "pet_registered" satisfies EventType,
+        occurredAt: dateInYear(meta.registeredYear, rng),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        authorVerified: false,
+        payload: {
+          source: "seed-panorama-history",
+          species: meta.species,
+          acquisition_method: pick([
+            "purchased",
+            "found_stray",
+            "gift",
+            "born_in_litter",
+            "other",
+          ] as const),
+          potentially_dangerous_breed: false,
+        },
+        ...writePoint(jitteredCoord(meta.lat, meta.lng, 0.01)),
+      });
+      bump("pet_registered");
+
+      // Per year ≥ registeredYear: emit vaccination / sterilization per that
+      // province-year's coverage rate. This makes the measured coverage rate
+      // climb (Córdoba) or stagnate (Salta) as `asOf` advances.
+      for (const year of HISTORY_YEARS) {
+        if (year < meta.registeredYear) continue;
+        const cov = coverageByYear[year];
+
+        if (rng() < cov.vacc) {
+          eventRows.push({
+            petId,
+            eventType: "vaccination_administered" satisfies EventType,
+            occurredAt: dateInYear(year, rng),
+            recordedByUserId: ownerUserId,
+            authorRole: "owner",
+            authorVerified: false,
+            payload: {
+              source: "seed-panorama-history",
+              vaccine_name: "antirrábica",
+              brand: pick(["Defensor 3", "Rabvac 3", "Nobivac Rabies"]),
+              batch: `PANO-HIST-${String(histIdx % 9999).padStart(4, "0")}`,
+              next_due_at: null,
+            },
+            ...writePoint(jitteredCoord(meta.lat, meta.lng, 0.01)),
+          });
+          bump("vaccination_administered");
+          perYear[year].vacc++;
+        }
+
+        if (rng() < cov.ster) {
+          eventRows.push({
+            petId,
+            eventType: "sterilization_performed" satisfies EventType,
+            occurredAt: dateInYear(year, rng),
+            recordedByUserId: ownerUserId,
+            authorRole: "owner",
+            authorVerified: false,
+            payload: {
+              source: "seed-panorama-history",
+              procedure: meta.species === "cat" || rng() < 0.5 ? "castration" : "spay",
+              performed_by: null,
+              clinic: null,
+            },
+            ...writePoint(jitteredCoord(meta.lat, meta.lng, 0.01)),
+          });
+          bump("sterilization_performed");
+          perYear[year].ster++;
+        }
+      }
+    }
+
+    // 4. Per-locality, per-year zoonosis events per the trend intensity. Attach
+    //    each to one of that locality's history pets (in that province) so the
+    //    event has a valid pet_id and inherits the locality's jurisdiction.
+    const petsByLocality = new Map<string, string[]>();
+    for (let i = 0; i < perPetMeta.length; i++) {
+      const meta = perPetMeta[i];
+      const petId = tokenToId.get(meta.token);
+      if (!petId) continue;
+      // Recover the locality from the row order: pets were generated locality by
+      // locality in petsPerLocality-sized contiguous blocks.
+      const localityIndex = Math.floor(i / petsPerLocality);
+      const loc = localities[localityIndex];
+      if (!loc) continue;
+      if (!petsByLocality.has(loc.localityName)) petsByLocality.set(loc.localityName, []);
+      petsByLocality.get(loc.localityName)!.push(petId);
+    }
+
+    for (const loc of localities) {
+      const carrierPets = petsByLocality.get(loc.localityName) ?? [];
+      if (carrierPets.length === 0) continue;
+
+      for (const year of HISTORY_YEARS) {
+        const intensity = zoonosisByYear[year];
+        // floor guaranteed events + one Bernoulli draw on the fractional part.
+        const guaranteed = Math.floor(intensity);
+        const remainder = intensity - guaranteed;
+        const count = guaranteed + (rng() < remainder ? 1 : 0);
+
+        for (let z = 0; z < count; z++) {
+          const petId = carrierPets[Math.floor(rng() * carrierPets.length)];
+          const useOutbreak = rng() < 0.5;
+          const occurredAt = dateInYear(year, rng);
+          const { lat, lng } = jitteredCoord(loc.lat, loc.lng, 0.01);
+
+          if (useOutbreak) {
+            eventRows.push({
+              petId,
+              eventType: "outbreak_signal" satisfies EventType,
+              occurredAt,
+              recordedByUserId: ownerUserId,
+              authorRole: "govt",
+              authorVerified: true,
+              payload: {
+                source: "seed-panorama-history",
+                disease_code: "rabies_suspected",
+                disease_label: "Rabia (sospechada)",
+                pet_jurisdiction_province: provinceName,
+                pet_jurisdiction_locality: loc.localityName,
+                status: "open",
+              },
+              ...writePoint({ lat, lng }),
+            });
+            bump("outbreak_signal");
+          } else {
+            eventRows.push({
+              petId,
+              eventType: "disease_reported" satisfies EventType,
+              occurredAt,
+              recordedByUserId: ownerUserId,
+              authorRole: "vet",
+              authorVerified: true,
+              payload: {
+                source: "seed-panorama-history",
+                disease: pick(["lepto", "hidatidosis", "other"] as const),
+                confirmed_by_lab: rng() < 0.5,
+                date_of_onset: new Date(occurredAt.getTime() - 3 * 24 * 3600 * 1000)
+                  .toISOString()
+                  .slice(0, 10),
+                clinical_notes: `Zoonosis history ${provinceName} ${year} (seed-panorama-history)`,
+              },
+              ...writePoint({ lat, lng }),
+            });
+            bump("disease_reported");
+          }
+          perYear[year].zoon++;
+        }
+      }
+    }
+
+    // 5. Batch insert ownerships + events.
+    for (let b = 0; b < ownershipRows.length; b += BATCH_SIZE) {
+      const batch = ownershipRows.slice(b, b + BATCH_SIZE);
+      await db.insert(ownerships).values(
+        batch as Parameters<typeof db.insert<typeof ownerships>>[0] extends {
+          values: (v: infer V) => unknown;
+        }
+          ? V
+          : never,
+      );
+    }
+    for (let b = 0; b < eventRows.length; b += BATCH_SIZE) {
+      const batch = eventRows.slice(b, b + BATCH_SIZE);
+      await db.insert(petEvents).values(
+        batch as Parameters<typeof db.insert<typeof petEvents>>[0] extends {
+          values: (v: infer V) => unknown;
+        }
+          ? V
+          : never,
+      );
+    }
+
+    const provincePets = perPetMeta.length;
+    totalHistoryPets += provincePets;
+
+    // 6. Validation evidence — per-province / per-year summary lines.
+    log(
+      "INFO",
+      `  ${provinceName} (${model.trend}): ${provincePets} pets across ${localities.length} localities`,
+    );
+    for (const year of HISTORY_YEARS) {
+      const y = perYear[year];
+      log(
+        "INFO",
+        `    ${provinceName} ${year}: pets=${y.pets} vacc=${y.vacc} ster=${y.ster} zoonosis=${y.zoon}`,
+      );
+    }
+  }
+
+  log("INFO", `  History total: ${totalHistoryPets} pets (model provinces)`);
+  return { pets: totalHistoryPets, eventCounts, localitiesCovered };
+}
+
+// ---------------------------------------------------------------------------
 // 16. Main entry point
 // ---------------------------------------------------------------------------
 
@@ -2505,11 +2900,20 @@ async function main(): Promise<void> {
   // Seed health campaigns (service_offerings + slots + appointments) → /gob/campanas.
   const campaigns = await seedHealthCampaigns(ownerUserId, shelterOrgs);
 
+  // Seed multi-year, locality-level history for the model provinces (Córdoba
+  // improving / Salta worsening). Additive — uses PANO-HIST- names so runClean
+  // cleans it. Runs LAST so it does not perturb the main seed's RNG-dependent
+  // counts above.
+  const history = await seedModelProvinceHistory(localitiesByCode, ownerUserId);
+  for (const [k, v] of Object.entries(history.eventCounts)) {
+    eventCounts[k] = (eventCounts[k] ?? 0) + v;
+  }
+
   // Final summary
   const totalEvents = Object.values(eventCounts).reduce((s, v) => s + v, 0);
 
   log("DONE", "=== seed-panorama complete ===");
-  log("INFO", `Total pets inserted     : ${totalPets + (finalIndex - globalIndex)}`);
+  log("INFO", `Total pets inserted     : ${totalPets + (finalIndex - globalIndex) + history.pets}`);
   log("INFO", `  Lost                  : ${lostPets}`);
   log("INFO", `  Deceased              : ${deceasedPets}`);
   log("INFO", `Total events            : ${totalEvents}`);
@@ -2527,6 +2931,13 @@ async function main(): Promise<void> {
     "INFO",
     `Campaign appointments   : ${campaigns.appointments} ` +
       `(${campaigns.attended} attended / ${campaigns.noShow} no-show / ${campaigns.confirmed} confirmed)`,
+  );
+  log(
+    "INFO",
+    `History pets (model)    : ${history.pets} ` +
+      `(${Object.entries(history.localitiesCovered)
+        .map(([p, n]) => `${p}:${n} localities`)
+        .join(", ")})`,
   );
   log("INFO", "Event breakdown:");
   for (const [k, v] of Object.entries(eventCounts).sort((a, b) => b[1] - a[1])) {

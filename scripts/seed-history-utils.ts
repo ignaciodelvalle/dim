@@ -1,0 +1,59 @@
+/**
+ * Pure date / trend helpers for the multi-year panorama history seed
+ * (seedModelProvinceHistory in seed-panorama.ts).
+ *
+ * These are intentionally isolated from seed-panorama.ts so they are importable
+ * by a unit test WITHOUT pulling in the seed's deferred db imports / local-only
+ * guard. Every helper takes an injected `rng: () => number` (a mulberry32 draw
+ * in [0,1)) so the seed can pass its single global PRNG and keep the whole run
+ * deterministic. NEVER use Math.random here.
+ */
+
+/**
+ * mulberry32 PRNG factory — re-exported here so the unit test can construct an
+ * isolated, seeded stream without importing the seed script. This is the SAME
+ * algorithm seed-panorama.ts uses for its global `rng`.
+ */
+export function makeMulberry32(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s += 0x6d2b79f5;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    t = (t ^ (t >>> 14)) >>> 0;
+    return t / 0x100000000;
+  };
+}
+
+/**
+ * Return a Date uniformly within a given calendar year (UTC), optionally bounded
+ * to a [minMonth, maxMonth] window (0-indexed months, inclusive).
+ *
+ * The history seed needs ABSOLUTE dates spread across 2024–2026 — the seed's
+ * `randomWindowDate` is anchored to a single 2026 date and is unsuitable. The
+ * panorama scrubber filters with `lte(pet_events.occurred_at, asOf)`, so dating
+ * a coverage event inside year Y means it only counts once `asOf` reaches Y,
+ * which is exactly how the year-over-year trend climbs (CABA) or stagnates
+ * (Salta).
+ *
+ * Bounds: result is always within [Y-01-01T00:00:00.000Z, Y-12-31T23:59:59.999Z]
+ * (or the month-bounded sub-range). Uses one rng draw.
+ */
+export function dateInYear(year: number, rng: () => number, minMonth = 0, maxMonth = 11): Date {
+  const lo = Date.UTC(year, minMonth, 1, 0, 0, 0, 0);
+  // Day 0 of (maxMonth + 1) is the LAST day of maxMonth; +1 day minus 1ms gives
+  // the inclusive end-of-month instant without overflowing into the next month.
+  const hiExclusive = Date.UTC(year, maxMonth + 1, 1, 0, 0, 0, 0);
+  const hi = hiExclusive - 1; // last representable ms inside the window
+  const span = hi - lo;
+  return new Date(lo + Math.floor(rng() * (span + 1)));
+}
+
+/**
+ * Pick a registration year from a list, spread (roughly uniform) across the
+ * provided years so every year is represented. Uses one rng draw. Determinism
+ * is inherited from the injected rng.
+ */
+export function pickRegisteredYear<T extends number>(rng: () => number, years: readonly T[]): T {
+  return years[Math.floor(rng() * years.length)];
+}
