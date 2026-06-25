@@ -133,7 +133,7 @@ export default async function GobSistemaPage({
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
       >
         <OpKpi
-          label="SLA ENO"
+          label="SLA ENO (resueltos)"
           value={enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
           tone={
             enoSla.onTimePct !== null
@@ -142,9 +142,9 @@ export default async function GobSistemaPage({
           }
           sub={
             enoSla.breachedOpen > 0
-              ? `${enoSla.breachedOpen} en breach activo`
+              ? `${enoSla.breachedOpen} en incumplimiento activo`
               : enoSla.total > 0
-                ? "sin breach activo"
+                ? "sin incumplimientos activos"
                 : "sin notificaciones en el período"
           }
           href="/gob/outbox"
@@ -208,7 +208,7 @@ export default async function GobSistemaPage({
               </span>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[12px] text-ln-op-mute">En breach activo</span>
+              <span className="text-[12px] text-ln-op-mute">En incumplimiento activo</span>
               <span
                 className={[
                   "text-[13px] font-medium tabular-nums",

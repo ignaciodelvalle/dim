@@ -27,8 +27,8 @@ export const dynamic = "force-dynamic";
 const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
   ppp_breed_list: "Lista de razas PPP",
   ppp_weight_threshold: "Umbral de peso PPP",
-  ppp_attestation_required_registries: "Registros de atestacion requeridos",
-  physical_credential_channels: "Canales de credencial fisica",
+  ppp_attestation_required_registries: "Registros de atestación requeridos",
+  physical_credential_channels: "Canales de credencial física",
 };
 
 const RULE_TYPE_DESCRIPTION: Record<GovtBusinessRuleType, string> = {
@@ -52,7 +52,7 @@ function decodeNullable(raw: string): string | null {
 }
 
 function jurisdictionLabel(country: string, province: string | null, locality: string | null) {
-  const parts = [country, province ?? "(nivel pais)", locality ?? "(toda la provincia)"];
+  const parts = [country, province ?? "(nivel país)", locality ?? "(toda la provincia)"];
   return parts.join(" · ");
 }
 

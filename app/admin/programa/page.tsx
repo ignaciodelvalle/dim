@@ -248,7 +248,7 @@ export default async function AdminProgramaPage({
           }}
         />
         <OpKpi
-          label="SLA ENO"
+          label="SLA ENO (resueltos)"
           value={enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
           tone={
             enoSla.onTimePct !== null
@@ -257,8 +257,8 @@ export default async function AdminProgramaPage({
           }
           sub={
             enoSla.breachedOpen > 0
-              ? `${enoSla.breachedOpen} en breach activo`
-              : "sin breach activo"
+              ? `${enoSla.breachedOpen} en incumplimiento activo`
+              : "sin incumplimientos activos"
           }
           href="/admin/outbox"
           info={{

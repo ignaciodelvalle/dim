@@ -85,8 +85,8 @@ export default async function GobServiciosPage() {
 
   const subtitle =
     pendingOfferings.length === 0
-      ? "No hay servicios pendientes de revision en tu cobertura."
-      : `${pendingOfferings.length} servicio${pendingOfferings.length === 1 ? "" : "s"} pendiente${pendingOfferings.length === 1 ? "" : "s"} de revision.`;
+      ? "No hay servicios pendientes de revisión en tu cobertura."
+      : `${pendingOfferings.length} servicio${pendingOfferings.length === 1 ? "" : "s"} pendiente${pendingOfferings.length === 1 ? "" : "s"} de revisión.`;
 
   return (
     <div className="space-y-6">

@@ -148,6 +148,7 @@ export default async function GobHistorialPage({
         action: auditLog.action,
         performedAt: auditLog.performedAt,
         approvalRequestId: auditLog.approvalRequestId,
+        payload: auditLog.payload,
       })
       .from(auditLog)
       .where(whereClause)
@@ -191,7 +192,7 @@ export default async function GobHistorialPage({
       </header>
 
       {entries.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute">No registraste acciones todavia.</p>
+        <p className="text-[13px] text-ln-op-mute">No registraste acciones todavía.</p>
       ) : (
         <ul className="space-y-2">
           {entries.map((entry) => (
@@ -202,6 +203,23 @@ export default async function GobHistorialPage({
                     <p className="text-[13px] text-ln-op-ink">
                       {ACTION_LABELS[entry.action] ?? entry.action}
                     </p>
+                    {entry.action === "pii_queried" &&
+                      entry.payload != null &&
+                      typeof entry.payload === "object" &&
+                      (() => {
+                        const p = entry.payload as Record<string, unknown>;
+                        const query = typeof p.query === "string" ? p.query : null;
+                        const surface = typeof p.surface === "string" ? p.surface : null;
+                        const count = typeof p.result_count === "number" ? p.result_count : null;
+                        const parts: string[] = [];
+                        if (query) parts.push(`"${query}"`);
+                        if (surface) parts.push(surface);
+                        if (count !== null)
+                          parts.push(`${count} resultado${count !== 1 ? "s" : ""}`);
+                        return parts.length > 0 ? (
+                          <p className="text-[11px] text-ln-op-mute">{parts.join(" · ")}</p>
+                        ) : null;
+                      })()}
                     {entry.approvalRequestId &&
                       (() => {
                         const token = tokenByReqId.get(entry.approvalRequestId);

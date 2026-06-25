@@ -17,8 +17,8 @@ export const dynamic = "force-dynamic";
 const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
   ppp_breed_list: "Lista de razas PPP",
   ppp_weight_threshold: "Umbral de peso PPP",
-  ppp_attestation_required_registries: "Registros de atestacion requeridos",
-  physical_credential_channels: "Canales de credencial fisica",
+  ppp_attestation_required_registries: "Registros de atestación requeridos",
+  physical_credential_channels: "Canales de credencial física",
 };
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -80,7 +80,13 @@ export default async function GobReglasPage() {
       {groups.map((g, idx) => (
         <OpCard key={`${g.scope.province ?? "country"}-${g.scope.locality ?? "all"}-${idx}`}>
           <OpCardHead
-            title={`AR · ${g.scope.province ?? "(nivel país)"} · ${g.scope.locality ?? "(toda la provincia)"}`}
+            title={
+              g.scope.province == null
+                ? "AR · (nivel país)"
+                : g.scope.locality == null
+                  ? `AR · ${g.scope.province}`
+                  : `AR · ${g.scope.province} · ${g.scope.locality}`
+            }
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line-2">
@@ -92,9 +98,23 @@ export default async function GobReglasPage() {
                     </p>
                     <span className="text-[12px] text-ln-op-mute">{SOURCE_LABEL[source]}</span>
                   </div>
-                  <pre className="text-[11px] bg-ln-op-stripe rounded-[4px] p-3 overflow-x-auto text-ln-op-ink-2 font-mono">
-                    {JSON.stringify(payload, null, 2)}
-                  </pre>
+                  {ruleType === "ppp_breed_list" &&
+                  payload != null &&
+                  typeof payload === "object" &&
+                  "breeds" in payload &&
+                  Array.isArray((payload as { breeds: unknown }).breeds) ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {(payload as { breeds: string[] }).breeds.map((breed) => (
+                        <OpCodeBadge key={breed} tone="neutral">
+                          {breed}
+                        </OpCodeBadge>
+                      ))}
+                    </div>
+                  ) : (
+                    <pre className="text-[11px] bg-ln-op-stripe rounded-[4px] p-3 overflow-x-auto text-ln-op-ink-2 font-mono">
+                      {JSON.stringify(payload, null, 2)}
+                    </pre>
+                  )}
                 </li>
               ))}
             </ul>
