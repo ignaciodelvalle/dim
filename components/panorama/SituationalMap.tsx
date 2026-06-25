@@ -3,6 +3,11 @@
 import type maplibregl from "maplibre-gl";
 import { useEffect, useRef } from "react";
 
+import {
+  countRenderableFeatures,
+  hasProvinceChoroplethLayer,
+} from "@/components/panorama/situational-map-utils";
+
 import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 // maplibre-gl ships its own CSS (popups, controls, canvas). It is imported
@@ -721,7 +726,14 @@ export function SituationalMap({
     });
   }
 
-  const totalPoints = layers.reduce((sum, l) => sum + l.features.features.length, 0);
+  // PR-6: count only features with non-null geometry (Point coordinates).
+  // Province-choropleth features carry geometry: null — they color basemap
+  // polygons via a data-join and are visible even when this count is 0.
+  const renderableCount = countRenderableFeatures(layers);
+  // True when at least one active layer fills the province basemap polygons.
+  // Province choropleth layers ARE visible on the map even when renderableCount
+  // is 0, so the "Sin datos" overlay must be suppressed when this is true.
+  const hasProvChoro = hasProvinceChoroplethLayer(layers);
 
   // U5 + F5: province-choropleth scale legend. One entry per active province-mode
   // choropleth layer, with its value min→max range and (for rate layers) the
@@ -769,9 +781,9 @@ export function SituationalMap({
         className="h-full w-full overflow-hidden rounded-[8px] border border-ln-op-line"
         style={{ background: COLOR_CANVAS }}
         role="img"
-        aria-label={`${label}. ${totalPoints} ${totalPoints === 1 ? "punto" : "puntos"} en la vista.`}
+        aria-label={`${label}. ${renderableCount} ${renderableCount === 1 ? "punto" : "puntos"} en la vista.`}
       />
-      {totalPoints === 0 && (
+      {renderableCount === 0 && !hasProvChoro && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="rounded-[6px] bg-black/40 px-4 py-2 text-[13px] text-white/80">
             Sin datos para esta capa en tu cobertura.
