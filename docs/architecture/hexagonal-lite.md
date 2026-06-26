@@ -144,7 +144,48 @@ flowchart LR
     Caller --> Shim --> Mod
 ```
 
-This is the **strangler pattern**: the new implementation grows around the old seam; the old file is reduced to a pass-through and deleted only once every importer is repointed (a low-risk follow-up). The same technique let `app/actions/events.ts` shrink from **2,920 lines to a 142-line shim** while every event form kept working.
+This is the **strangler pattern**: the new implementation grows around the old seam; the old file is reduced to a pass-through and deleted only once every importer is repointed (a low-risk follow-up).
+
+### Strangler migration status — `app/actions/` (as of 2026-06-26)
+
+> **Status: IN PROGRESS — only one file is fully migrated.**
+
+The `events` module is the completed reference slice: the old `app/actions/events.ts` (≈2,920 lines) has been replaced by a thin shim in `src/modules/events/actions.ts`, and all business logic lives in `src/modules/events/application/`. The shim now lives at `src/modules/events/actions.ts`; the `app/actions/events.ts` path no longer exists.
+
+The remaining **~61 files in `app/actions/`** (≈20,000 lines total) are still fat actions pending migration. The largest files by line count:
+
+| File | Lines | Notes |
+|---|---|---|
+| `return-to-owner.ts` | 1,929 | Critical flow — needs extra parity coverage + browser QA |
+| `decomiso.ts` | 1,574 | Critical flow — same caution |
+| `admin-institutional.ts` | 915 | |
+| `service-offerings.ts` | 782 | |
+| `bulk-pet-events.ts` | 752 | |
+| `custody-disputes.ts` | 729 | |
+| `upgrade.ts` | 667 | |
+| `admin-revocations.ts` | 606 | |
+| `profile-self-service.ts` | 510 | |
+| `pet-claim.ts` | 495 | |
+
+The ordered migration backlog and per-file recipe are in
+[`docs/superpowers/plans/2026-06-26-strangler-finish-plan.md`](../superpowers/plans/2026-06-26-strangler-finish-plan.md).
+
+A **CI line-budget ratchet** (`pnpm lint:actions`) prevents existing fat actions from
+growing further and caps new `app/actions/*.ts` files at 150 lines. This stops the
+bleeding while migration proceeds file-by-file.
+
+### Strangler cut (per-file recipe)
+
+The recipe below applies to every file in the backlog:
+
+1. **Scaffold** `src/modules/<domain>/{domain,application,infrastructure}/` if not already present.
+2. **Domain first (test-first):** extract pure rules from the fat action; reuse existing projections and lifecycles.
+3. **Repository:** wrap the Drizzle queries, transaction-threaded, returning domain types. Integration-test against Postgres.
+4. **Use-cases:** one per operation; inject repo + authorized context; orchestrate; collect post-tx notifications.
+5. **Thin actions:** parse → auth → call use-case → flush → redirect. No business rules.
+6. **Parity tests:** verify the new path produces identical side-effects, audit rows, idempotency keys, and cascade closes as the original.
+7. **Delete the fat body** in `app/actions/<file>.ts` — replace with a re-export shim if callers reference the old path, or delete outright if the new `src/modules/` path is the only entry point.
+8. **Verify:** `pnpm lint:actions` must still pass (file shrinks → within budget).
 
 ---
 
@@ -209,17 +250,18 @@ Each migration was independently **verified** against the deleted original for b
 
 ## Module map
 
-| Module | Replaces (old fat actions) | Notes |
+| Module | Replaces (old fat actions) | Migration status |
 |---|---|---|
-| `adoption` | `adoption*.ts` | reference slice |
-| `pets` | `pets.ts` | |
-| `foster` | `foster*.ts` | |
-| `transfers` | `pet-transfer.ts`, `cross-org-transfer.ts`, `transfer.ts` | 3 sub-flows |
-| `cases` | `lib/case-*` | **shared kernel** (shims) |
-| `welfare` | `welfare*.ts` | rate-limit, moderation, escalation |
-| `surveillance` | `bite.ts`, `outbreak-investigation.ts`, ENO | bite / rabies / ENO / outbreak |
-| `organizations` | `org*.ts`, `lib/capabilities.ts` | **auth kernel** (shims) |
-| `events` | `events.ts` (2,919 → 142-line shim) | the event spine |
+| `adoption` | `adoption*.ts` | done — reference slice |
+| `pets` | `pets.ts` | done |
+| `foster` | `foster*.ts` | done |
+| `transfers` | `pet-transfer.ts`, `cross-org-transfer.ts`, `transfer.ts` | done — 3 sub-flows |
+| `cases` | `lib/case-*` | done — **shared kernel** (shims in `lib/`) |
+| `welfare` | `welfare*.ts` | done — rate-limit, moderation, escalation |
+| `surveillance` | `bite.ts`, `outbreak-investigation.ts`, ENO | done — bite / rabies / ENO / outbreak |
+| `organizations` | `org*.ts`, `lib/capabilities.ts` | done — **auth kernel** (shims in `lib/`) |
+| `events` | `events.ts` → `src/modules/events/actions.ts` | **done** — the only fully migrated action file (2,919 → thin shim) |
+| _(remaining ~61 files)_ | `app/actions/*.ts` | **pending** — see [strangler plan](../superpowers/plans/2026-06-26-strangler-finish-plan.md) |
 
 ---
 

@@ -68,7 +68,7 @@ pnpm verify            # one shot: typecheck + lint + lint:tokens + build
 pnpm test              # Vitest (needs db:start running) — run separately
 ```
 
-`pnpm verify` is the static gate (tsc + Biome + design tokens + `next build`). **`next build` is non-negotiable** — it catches `"use server"` export, `server-only`, and module-level-evaluation errors that `tsc` and Vitest do *not*. Then run `pnpm test` (needs the local Supabase stack via `pnpm db:start`).
+`pnpm verify` is the static gate (tsc + Biome + design tokens + UI invariants + authz guards + dep-direction + RLS coverage + action line-budget ratchet + `next build`). **`next build` is non-negotiable** — it catches `"use server"` export, `server-only`, and module-level-evaluation errors that `tsc` and Vitest do *not*. Then run `pnpm test` (needs the local Supabase stack via `pnpm db:start`).
 
 If a step fails on your branch but passes on `develop`, your branch is the source. Fix it before opening the PR.
 
@@ -90,4 +90,4 @@ This is not bureaucracy; the patterns in this codebase are dense enough that fre
 
 - Open a draft PR early and `@`-mention a maintainer with a question.
 - For domain-language questions, search `AGENTS.md` before asking.
-- For event-sourcing questions, look at how the closest existing event handles it — see `src/modules/events/actions.ts` (thin actions) and `src/modules/events/application/` (use-cases) for the canonical patterns. (`app/actions/events.ts` is now just a re-export shim.)
+- For event-sourcing questions, look at how the closest existing event handles it — see `src/modules/events/actions.ts` (thin actions) and `src/modules/events/application/` (use-cases) for the canonical patterns. This is the one fully-migrated action file; the remaining ~61 files in `app/actions/` are fat actions pending the strangler migration (see [`docs/architecture/hexagonal-lite.md`](./docs/architecture/hexagonal-lite.md#strangler-migration-status--appactions-as-of-2026-06-26)).
