@@ -171,9 +171,66 @@
   --z-toast: 60;
   --z-tooltip: 70;
 
-  /* Tipos */
+  /* =========================================================================
+     Typography scale
+     Maps 24 arbitrary text-[Npx] values in the codebase to ~7 named steps.
+     Raw px → token:
+       9–10px  → --text-xs   (10px)   micro labels, badge counters
+       11–12px → --text-sm   (12px)   secondary labels, table cells, chips
+       13–14px → --text-md   (14px)   body secondary, form help, nav items
+       15–16px → --text-base (16px)   primary body (also guards iOS zoom)
+       17–18px → --text-lg   (18px)   lead text, card headings
+       19–20px → --text-xl   (20px)   section headings, modal titles
+       22–24px → --text-2xl  (24px)   page headings, KPI values
+     Half-px values (9.5/10.5/11.5/12.5/13.5) consolidate to the step above.
+     ========================================================================= */
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-md: 14px;
   --text-base: 16px;
-  --leading-base: 1.5;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+
+  /* Leading (line-height) scale — paired with text-* steps */
+  --leading-xs: 1.4;    /* tight for micro labels */
+  --leading-sm: 1.4;    /* tight for secondary labels */
+  --leading-md: 1.45;   /* slightly relaxed for body secondary */
+  --leading-base: 1.5;  /* primary body */
+  --leading-lg: 1.35;   /* heading-ish lead text */
+  --leading-xl: 1.3;    /* section headings */
+  --leading-2xl: 1.2;   /* page headings */
+
+  /* Tracking (letter-spacing) scale */
+  --tracking-tight: -0.01em;   /* headings, KPI values */
+  --tracking-normal: 0em;      /* body text */
+  --tracking-wide: 0.02em;     /* badges, chips, micro labels */
+  --tracking-wider: 0.05em;    /* allcaps labels */
+
+  /* =========================================================================
+     Radius scale (extended)
+     Maps 7 raw rounded-[Npx] values to 4 named steps (additive — existing
+     --radius-input/card/pill/op-btn tokens are kept).
+     Raw px → token:
+       1–2px  → --radius-xs   (2px)    hairline corners, avatar/icon pills
+       3–4px  → --radius-sm   (4px)    small chips, tight cards
+       5–6px  → --radius-md   (6px)    operator buttons (alias --radius-op-btn)
+       7–8px  → --radius-lg   (8px)    panels, callout boxes
+     Larger values covered by existing --radius-input (10px) / --radius-card (16px).
+     ========================================================================= */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;   /* matches --radius-op-btn */
+  --radius-lg: 8px;
+
+  /* =========================================================================
+     Shadow scale
+     Three standard elevations for the operator and citizen surfaces.
+     Uses var() so future theming can swap without touching utilities.
+     ========================================================================= */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 6px 0 rgba(0, 0, 0, 0.09), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px 0 rgba(0, 0, 0, 0.10), 0 2px 4px 0 rgba(0, 0, 0, 0.06);
 
   /* =========================================================================
      Libreta Nacional · Tier Operador (gob + admin)
