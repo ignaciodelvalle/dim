@@ -35,10 +35,11 @@ export async function searchOmniboxAction(query: string): Promise<OmniboxResults
     profile.role === "admin" ? { role: "admin" } : { role: "govt", jurisdictions },
   );
 
-  // PII-query trail — same pattern as /gob/usuarios. Fire-and-forget so the
-  // operator gets results immediately; the audit insert finishes in the
-  // background within the request.
-  void logPiiQueryForAuthority(user.id, trimmed, results.total, "omnibox");
+  // PII-query trail — same pattern as /gob/usuarios. Awaited: under Ley 25.326
+  // the access audit must be durable. Fire-and-forget loses the insert if the
+  // serverless function is frozen/killed after the response, leaving an
+  // unlogged PII access.
+  await logPiiQueryForAuthority(user.id, trimmed, results.total, "omnibox");
 
   return results;
 }
@@ -62,7 +63,7 @@ export async function searchOmniboxOrgAction(
     orgToken,
   });
 
-  void logPiiQueryForAuthority(user.id, trimmed, results.total, "omnibox");
+  await logPiiQueryForAuthority(user.id, trimmed, results.total, "omnibox");
 
   return results;
 }
