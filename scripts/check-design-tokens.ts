@@ -10,6 +10,19 @@
 //   3. Arbitrary hex values inside Tailwind arbitrary-value classnames
 //      (e.g. bg-[#eef6f0], border-[#c8e2d2]) — use ln-* token utilities instead
 //      (e.g. bg-[var(--color-ln-ok-050)], border-[var(--color-ln-ok-100)]).
+//   4. Arbitrary text-[Npx] sizes — use --text-xs…2xl scale tokens instead
+//      (text-[var(--text-sm)], text-[var(--text-md)], …).
+//   5. Arbitrary spacing p/m/gap/space-[Npx|rem] — prefer Tailwind's default
+//      spacing scale or --space-* custom tokens.
+//   6. Arbitrary rounded-[Npx] radius — use --radius-xs/sm/md/lg tokens instead.
+//   7. Arbitrary shadow-[...] — use --shadow-sm/md/lg tokens instead.
+//   8. Hex literals in style=/inline CSS props — replace with CSS vars.
+//
+// Rules 4-8 use a RATCHET baseline (scripts/design-tokens-baseline.json):
+//   - Existing violations in baselined files are grandfathered (pass today).
+//   - Any NEW violation (new file or count above baseline) FAILS.
+//   - To clear debt: migrate a file, lower its count in the baseline, or
+//     remove it entirely once fully migrated.
 //
 // Run: pnpm tsx scripts/check-design-tokens.ts
 // Or:  pnpm lint:tokens
@@ -21,21 +34,27 @@
 // scripts/codemod-status-tints.cjs (hex tints → ln-* tokens).
 // Add new mappings to those scripts when this guard catches a pattern they don't yet cover.
 //
-// Out of scope:
-//   - components/ui/** (shadcn primitives — handled separately if migrated)
-//   - app/globals.css is .css, not .ts/.tsx, so it's never globbed in.
+// Note: app/globals.css is .css, not .ts/.tsx, so it's never globbed in.
+// components/ui/** is now INCLUDED — the exclusion was removed per Wave-3 audit
+// (§6.5) because 90% of arbitrary values live there.
 
 import { globSync, readFileSync } from "node:fs";
 import { sep } from "node:path";
+import { createRequire } from "node:module";
 
-// Post-filter approach: glob all files then filter by path.
-// Note: Node 22 globSync `exclude` callback receives bare filenames (not full paths),
-// so directory exclusion must be done as a post-filter on the returned paths.
-const EXCLUDE_PATH_PREFIXES = ["node_modules/", "components/ui/"];
+// ---------------------------------------------------------------------------
+// File set — no components/ui/ exclusion (removed per Wave-3 audit §6.5)
+// ---------------------------------------------------------------------------
+
+const EXCLUDE_PATH_PREFIXES = ["node_modules/"];
 const FILES = globSync("{app,components}/**/*.{ts,tsx}").filter((f) => {
   const p = f.replaceAll("\\", "/");
   return !EXCLUDE_PATH_PREFIXES.some((prefix) => p.startsWith(prefix) || p.includes(`/${prefix}`));
 });
+
+// ---------------------------------------------------------------------------
+// Rules 1–3 (pre-existing hard rules — no ratchet, always fail on any hit)
+// ---------------------------------------------------------------------------
 
 const RAW_PALETTE_FAMILIES =
   "neutral|zinc|slate|stone|gray|amber|emerald|sky|indigo|rose|red|blue|yellow|pink|purple|orange|teal|cyan|lime|fuchsia|violet|green";
@@ -56,7 +75,31 @@ const ARBITRARY_HEX =
 // Allowlist: hex values with no direct token equivalent that are intentionally left as-is.
 // Each entry must include a justification comment.
 const ARBITRARY_HEX_ALLOWLIST = new Set<string>([
-  // (empty — all previously allowlisted hex values now have ln-* tokens)
+  // components/ui/Sheet.tsx — #fcfbf7 is a warm paper tone used in the bottom
+  // sheet handle; grandfathered from the pre-Wave-3 components/ui/ exclusion.
+  // Migration: add --color-ln-paper-warm token when the Sheet is refactored.
+  "bg-[#fcfbf7]",
+
+  // components/ui/dashboard/OpMobileDrawer.tsx + OpRail.tsx — #0B3B42 is the
+  // org-teal rail background (ln-tl-rail). Grandfathered; migrate to
+  // bg-[var(--color-ln-tl-rail)] when the drawer/rail tokens are applied.
+  "bg-[#0B3B42]",
+
+  // components/ui/dashboard/OpMobileDrawer.tsx + OpRailNav.tsx — #5FD0B0 is
+  // the org-teal accent (ln-tl-accent). Grandfathered; migrate to
+  // border-[var(--color-ln-tl-accent)] when teal tokens are adopted.
+  "border-[#5FD0B0]",
+
+  // components/ui/dashboard/OpRail.tsx — gradient from navy-active to violeta.
+  // Grandfathered; these values have no direct ln-* token yet.
+  "from-[#3a6cb3]",
+  "to-[#6a4c93]",
+
+  // components/ui/dashboard/OpRailNav.tsx — rail text colors resolved to
+  // ln-op-rail-text (#dce6f1) and ln-op-rail-mute (#7c93ac). Grandfathered;
+  // migrate to text-[var(--color-ln-op-rail-text)] / text-[var(--color-ln-op-rail-mute)].
+  "text-[#DCE6F1]",
+  "text-[#7C93AC]",
 ]);
 
 // Status components that render the canonical open/escalated/closed/merged grammar.
@@ -89,10 +132,97 @@ export const RAW_OP_STATUS = /\b(?:bg|text|border)-ln-op-(?:ok|warn|danger|viol)
 export const RAW_CITIZEN_STATUS =
   /\b(?:bg|text|border|ring)-(?:\[var\(--color-)?ln-(?:ok|warn|err|danger|violeta)(?:-\d+)?/g;
 
+// ---------------------------------------------------------------------------
+// Rules 4–8 (new ratchet rules — fail only on NEW violations above baseline)
+// ---------------------------------------------------------------------------
+
+// Rule 4: Arbitrary text sizes — text-[Npx] or text-[N.Npx]
+export const ARBITRARY_TEXT_PX = /\btext-\[\d+\.?\d*px\]/g;
+
+// Rule 5: Arbitrary spacing — p/m/gap/space etc. with [Npx] or [Nrem]
+export const ARBITRARY_SPACING_PX =
+  /\b(?:p|m|gap|space|px|py|pt|pb|pl|pr|mx|my|mt|mb|ml|mr|gap-x|gap-y)-\[\d+\.?\d*(?:px|rem)\]/g;
+
+// Rule 6: Arbitrary radius — rounded-[Npx]
+export const ARBITRARY_RADIUS_PX = /\brounded-\[\d+\.?\d*px\]/g;
+
+// Rule 7: Arbitrary shadow — shadow-[...] (any arbitrary shadow value)
+export const ARBITRARY_SHADOW = /\bshadow-\[[^\]]+\]/g;
+
+// Rule 8: Hex literals in style= / inline CSS props
+// Catches: style={{ color: '#abc' }}, fill="#123456", backgroundColor="#fff"
+export const HEX_IN_STYLE =
+  /(?:style|fill|color|stroke|background|backgroundColor)=\{[^}]*#[0-9a-fA-F]{3,8}/g;
+
+// ---------------------------------------------------------------------------
+// Baseline loader — reads scripts/design-tokens-baseline.json
+//
+// Format: { files: { "relative/path.tsx": { text, space, rounded, shadow, hexStyle } } }
+// Any file absent from the baseline has an implicit baseline of 0 for all counts.
+// A file present in the baseline is grandfathered up to that count per category.
+// New violations (count > baseline OR new file not in baseline) FAIL.
+// ---------------------------------------------------------------------------
+
+type BaselineCounts = {
+  text: number;
+  space: number;
+  rounded: number;
+  shadow: number;
+  hexStyle: number;
+};
+
+type BaselineFile = {
+  _meta: { totalViolations: number };
+  files: Record<string, BaselineCounts>;
+};
+
+function loadBaseline(): BaselineFile["files"] {
+  try {
+    const req = createRequire(import.meta.url);
+    const data = req("./design-tokens-baseline.json") as BaselineFile;
+    return data.files;
+  } catch {
+    console.warn(
+      "[warn] scripts/design-tokens-baseline.json not found — all ratchet rules will be strict (no grandfather). Run: node scripts/generate-design-tokens-baseline.mjs to regenerate.",
+    );
+    return {};
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Ratchet counter — counts per-file hits for rules 4–8, compares to baseline
+// ---------------------------------------------------------------------------
+
+function countMatches(src: string, re: RegExp): number {
+  return [...src.matchAll(re)].length;
+}
+
 function runChecks(): void {
+  const baseline = loadBaseline();
+
   let hits = 0;
+
+  // Ratchet per-file totals for rules 4–8
+  const ratchetResults: Array<{
+    file: string;
+    category: keyof BaselineCounts;
+    actual: number;
+    allowed: number;
+  }> = [];
+
   for (const file of FILES) {
-    const lines = readFileSync(file, "utf8").split(/\r?\n/);
+    const relPath = file.replaceAll("\\", "/");
+    const src = readFileSync(file, "utf8");
+    const lines = src.split(/\r?\n/);
+    const baselineCounts: BaselineCounts = baseline[relPath] ?? {
+      text: 0,
+      space: 0,
+      rounded: 0,
+      shadow: 0,
+      hexStyle: 0,
+    };
+
+    // --- Rules 1–3 (line-level, no ratchet) ---
     lines.forEach((line, i) => {
       for (const match of line.matchAll(RAW_PALETTE)) {
         console.error(
@@ -135,6 +265,43 @@ function runChecks(): void {
         }
       }
     });
+
+    // --- Rules 4–8 (file-level ratchet) ---
+    const actual = {
+      text: countMatches(src, ARBITRARY_TEXT_PX),
+      space: countMatches(src, ARBITRARY_SPACING_PX),
+      rounded: countMatches(src, ARBITRARY_RADIUS_PX),
+      shadow: countMatches(src, ARBITRARY_SHADOW),
+      hexStyle: countMatches(src, HEX_IN_STYLE),
+    };
+
+    const categories: Array<[keyof BaselineCounts, string, string]> = [
+      ["text", "text-[Npx]", "use a --text-* token (e.g. text-[var(--text-sm)])"],
+      [
+        "space",
+        "spacing-[Npx|rem]",
+        "use Tailwind spacing scale or --space-* tokens (e.g. p-3 instead of p-[12px])",
+      ],
+      ["rounded", "rounded-[Npx]", "use a --radius-* token (e.g. rounded-[var(--radius-sm)])"],
+      [
+        "shadow",
+        "shadow-[...]",
+        "use a --shadow-* token (e.g. shadow-[var(--shadow-md)])",
+      ],
+      ["hexStyle", "hex in style=", "use a CSS var (e.g. var(--color-ln-ok)) in style props"],
+    ];
+
+    for (const [key, label, hint] of categories) {
+      const allowed = baselineCounts[key];
+      const seen = actual[key];
+      if (seen > allowed) {
+        ratchetResults.push({ file: relPath, category: key, actual: seen, allowed });
+        console.error(
+          `${file}: ratchet — ${seen} ${label} violation(s) (baseline allows ${allowed}). ${hint}. To grandfather, run: node scripts/generate-design-tokens-baseline.mjs`,
+        );
+        hits += 1;
+      }
+    }
   }
 
   if (hits > 0) {
@@ -143,8 +310,16 @@ function runChecks(): void {
     );
     process.exit(1);
   }
+
+  const totalBaselined = Object.values(baseline).reduce(
+    (sum, c) => sum + c.text + c.space + c.rounded + c.shadow + c.hexStyle,
+    0,
+  );
   console.log(
     `✓ Design tokens clean — 0 raw palette, 0 dark: prefix, 0 arbitrary hex across ${FILES.length} files.`,
+  );
+  console.log(
+    `  Ratchet: ${totalBaselined} grandfathered arbitrary values across ${Object.keys(baseline).length} files (rules 4–8). New violations will fail.`,
   );
 }
 
