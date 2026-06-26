@@ -27,6 +27,7 @@ import { resolveVetLanding } from "@/lib/role-landing";
 import { petPhotoUrl } from "@/lib/storage";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 import { and, count, eq, isNull } from "drizzle-orm";
+import Image from "next/image";
 import Link from "next/link";
 
 /**
@@ -285,8 +286,7 @@ function MemorialRow({
         style={{ filter: "grayscale(1) sepia(0.25) opacity(0.85)" }}
       >
         {photoSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={photoSrc} alt={name} className="absolute inset-0 h-full w-full object-cover" />
+          <Image src={photoSrc} alt={name} fill sizes="64px" className="object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-[repeating-linear-gradient(135deg,#e7e2d6_0_6px,#f3f0e7_6px_12px)]">
             <span className="font-[var(--font-ln-mono)] text-[7px] uppercase tracking-[.04em] text-[var(--color-ln-mute)]">

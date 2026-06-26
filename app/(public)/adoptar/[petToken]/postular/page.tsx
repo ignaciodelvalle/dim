@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -170,7 +171,13 @@ export default async function PostularPage({
             }}
           >
             {petPhotoUrlValue ? (
-              <img src={petPhotoUrlValue} alt={pet.name} className="w-full h-full object-cover" />
+              <Image
+                src={petPhotoUrlValue}
+                alt={pet.name}
+                fill
+                sizes="64px"
+                className="object-cover"
+              />
             ) : (
               <div
                 className="w-full h-full grid place-items-center font-[var(--font-ln-serif)] text-[22px] font-semibold"

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 // PetCredentialCard — the digital pet ID surface on the owner profile.
@@ -53,12 +54,13 @@ export function PetCredentialCard({
         </Link>
       </div>
       <div className="grid grid-cols-[88px_1fr] items-center gap-3">
-        <img
+        <Image
           src={qrUrl}
           alt={`QR de la mascota ${publicToken}`}
           width={88}
           height={88}
           className="rounded-lg border border-ln-line bg-ln-card p-1 "
+          unoptimized
         />
         <div className="min-w-0">
           <p className="text-xs font-medium text-ln-mute ">Token público</p>

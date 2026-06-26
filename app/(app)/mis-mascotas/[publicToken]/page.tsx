@@ -116,6 +116,7 @@ import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";
 import { eventAttachmentSignedUrl, eventAttachmentSignedUrls, petPhotoUrl } from "@/lib/storage";
 import { markMedicationDoseTakenAction } from "@/src/modules/events/actions";
 import { and, asc, count, desc, eq, gt, inArray, isNull } from "drizzle-orm";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -464,7 +465,7 @@ function DeceasedView({
         <div className="mb-[36px] flex flex-col items-center gap-[14px] pt-[12px] text-center">
           {/* Photo: grayscale + sepia, opacity 0.82 */}
           <div
-            className="overflow-hidden rounded-full border-2 border-[var(--color-ln-line-strong)]"
+            className="relative overflow-hidden rounded-full border-2 border-[var(--color-ln-line-strong)]"
             style={{
               width: 150,
               height: 150,
@@ -473,8 +474,7 @@ function DeceasedView({
             }}
           >
             {photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={photoUrl} alt={pet.name} className="h-full w-full object-cover" />
+              <Image src={photoUrl} alt={pet.name} fill sizes="150px" className="object-cover" />
             ) : (
               <div
                 className="flex h-full w-full items-center justify-center font-[var(--font-ln-serif)] text-[56px] font-semibold text-[var(--color-ln-mute)]"

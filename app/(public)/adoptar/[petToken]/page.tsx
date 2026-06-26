@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Script from "next/script";
@@ -252,7 +253,14 @@ export default async function AdoptarFichaPage({
                 background: "repeating-linear-gradient(135deg,#e7e2d6 0 12px,#f1eee5 12px 24px)",
               }}
             >
-              <img src={galleryUrls[0]} alt={pet.name} className="w-full h-full object-cover" />
+              <Image
+                src={galleryUrls[0]}
+                alt={pet.name}
+                fill
+                sizes="(max-width: 480px) 100vw, 480px"
+                className="object-cover"
+                priority
+              />
               {/* "En adopción" status chip */}
               <span
                 className="absolute top-[12px] left-[12px] inline-flex items-center gap-[6px] rounded-full border px-[12px] py-[5px] text-[12px] font-semibold"

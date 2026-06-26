@@ -10,6 +10,7 @@
 // across the home and the profile.
 
 import type { PetState } from "@/components/EventCatcher";
+import Image from "next/image";
 
 export type PetHeroPet = {
   name: string;
@@ -59,7 +60,14 @@ export function PetProfileHero({ pet }: { pet: PetHeroPet }) {
           className={`flex h-[148px] w-[148px] items-center justify-center overflow-hidden rounded-full bg-ln-card ring-[5px]  ${RING_BORDER[pet.state]}`}
         >
           {pet.photoUrl ? (
-            <img src={pet.photoUrl} alt={pet.name} className="h-full w-full object-cover" />
+            <Image
+              src={pet.photoUrl}
+              alt={pet.name}
+              fill
+              sizes="148px"
+              className="object-cover"
+              priority
+            />
           ) : (
             <span className="text-6xl font-semibold text-ln-ink-2 ">
               {pet.name.charAt(0).toUpperCase()}

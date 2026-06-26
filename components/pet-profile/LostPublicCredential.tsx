@@ -19,6 +19,7 @@ import { BRANDING } from "@/lib/branding";
 import { lostBannerHeadline, lostFirstPersonLine, normalizePhoneForTel } from "@/lib/format";
 import { tattooLocationLabel } from "@/lib/lookups";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import Link from "next/link";
 
 // Live mini-map of the last-seen point. Loaded via next/dynamic (maplibre-gl must
@@ -124,7 +125,14 @@ export function LostPublicCredential({
           <div className="mx-auto inline-block">
             <span className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-[var(--color-ln-warn-050)] ring-[5px] ring-ln-err">
               {petPhotoUrl ? (
-                <img src={petPhotoUrl} alt={petName} className="h-full w-full object-cover" />
+                <Image
+                  src={petPhotoUrl}
+                  alt={petName}
+                  fill
+                  sizes="128px"
+                  className="object-cover"
+                  priority
+                />
               ) : (
                 <span className="text-5xl font-bold text-ln-warn">
                   {petName.charAt(0).toUpperCase()}
@@ -224,11 +232,15 @@ export function LostPublicCredential({
               <p className="mt-1 text-xs italic text-ln-ink-2 ">{tattooDescription}</p>
             )}
             {tattooPhotoUrl && (
-              <img
-                src={tattooPhotoUrl}
-                alt={`Tatuaje de ${petName}`}
-                className="mt-3 w-full rounded-xl object-cover"
-              />
+              <div className="relative mt-3 aspect-video w-full overflow-hidden rounded-xl">
+                <Image
+                  src={tattooPhotoUrl}
+                  alt={`Tatuaje de ${petName}`}
+                  fill
+                  sizes="(max-width: 480px) 100vw, 480px"
+                  className="object-cover"
+                />
+              </div>
             )}
             <p className="mt-2 text-[11px] text-ln-mute ">
               Compará el código y la foto con el animal que tenés en frente antes de confirmar la

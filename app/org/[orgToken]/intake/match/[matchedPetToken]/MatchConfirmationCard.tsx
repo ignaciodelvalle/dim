@@ -7,6 +7,7 @@
 //   "Es la misma mascota" → confirmChipMatchAction(decision='same')
 //   "No es la misma"     → confirmChipMatchAction(decision='not_same')
 
+import Image from "next/image";
 import { useState, useTransition } from "react";
 
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
@@ -81,8 +82,14 @@ export function MatchConfirmationCard({
 
       <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card overflow-hidden">
         {petPhotoUrl && (
-          <div className="aspect-video overflow-hidden bg-ln-op-stripe">
-            <img src={petPhotoUrl} alt={petName} className="w-full h-full object-cover" />
+          <div className="relative aspect-video overflow-hidden bg-ln-op-stripe">
+            <Image
+              src={petPhotoUrl}
+              alt={petName}
+              fill
+              sizes="(max-width: 768px) 100vw, 600px"
+              className="object-cover"
+            />
           </div>
         )}
 

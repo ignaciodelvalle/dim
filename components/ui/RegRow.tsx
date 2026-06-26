@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 import type { LnPetStatus } from "./Chip";
 import { LnStatusFlag } from "./StatusFlag";
@@ -40,8 +41,7 @@ export function LnPetPhoto({ src, alt, status, size = 56, radius = "full" }: LnP
       style={{ width: size, height: size }}
     >
       {src ? (
-        // eslint-disable-next-line @next/next/no-img-element -- presentational primitive, no next/image dependency
-        <img src={src} alt={alt} className="absolute inset-0 h-full w-full object-cover" />
+        <Image src={src} alt={alt} fill sizes={`${size}px`} className="object-cover" />
       ) : (
         <span className="font-[var(--font-ln-mono)] text-[7px] uppercase tracking-[.04em] text-[var(--color-ln-mute)]">
           foto

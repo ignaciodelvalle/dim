@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
@@ -345,7 +346,7 @@ function PetChip({
           className={`relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full ring-[3px] transition-shadow ${PET_STATE_RING[pet.state ?? "ok"]}`}
         >
           {pet.photoUrl ? (
-            <img src={pet.photoUrl} alt="" className="h-full w-full object-cover" />
+            <Image src={pet.photoUrl} alt="" fill sizes="72px" className="object-cover" />
           ) : (
             <span className="flex h-full w-full items-center justify-center bg-ln-stripe text-2xl font-semibold text-ln-ink-2">
               {pet.name.charAt(0).toUpperCase()}

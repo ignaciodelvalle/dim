@@ -25,6 +25,7 @@ import { LnStatusFlag } from "@/components/ui/StatusFlag";
 import { foundParticiple, lostThirdPersonPhrase } from "@/lib/format";
 import type { LostEpisode } from "@/lib/lost-mode";
 import { setPetFoundAction } from "@/src/modules/events/actions";
+import Image from "next/image";
 import Link from "next/link";
 import { MarkFoundButton } from "./MarkFoundButton";
 
@@ -163,10 +164,9 @@ export async function LostCockpit({
 
           <div className="relative flex flex-wrap items-center gap-[16px] px-[22px] py-[20px]">
             {/* Avatar */}
-            <div className="h-[52px] w-[52px] flex-shrink-0 overflow-hidden rounded-full border-2 border-white/80 bg-white/20">
+            <div className="relative h-[52px] w-[52px] flex-shrink-0 overflow-hidden rounded-full border-2 border-white/80 bg-white/20">
               {photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoUrl} alt={pet.name} className="h-full w-full object-cover" />
+                <Image src={photoUrl} alt={pet.name} fill sizes="52px" className="object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center font-[var(--font-ln-serif)] text-[22px] font-bold text-white">
                   {pet.name.charAt(0).toUpperCase()}

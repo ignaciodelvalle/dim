@@ -4,6 +4,7 @@
 // Extracted as a thin wrapper so the vecino page can stay a pure server component.
 
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -74,8 +75,14 @@ export function MatchConfirmationCardVecino({
 
       <div className="rounded-[4px] border border-[var(--color-ln-line)] overflow-hidden">
         {petPhotoUrl && (
-          <div className="aspect-video overflow-hidden bg-[var(--color-ln-stripe)]">
-            <img src={petPhotoUrl} alt={petName} className="w-full h-full object-cover" />
+          <div className="relative aspect-video overflow-hidden bg-[var(--color-ln-stripe)]">
+            <Image
+              src={petPhotoUrl}
+              alt={petName}
+              fill
+              sizes="(max-width: 768px) 100vw, 600px"
+              className="object-cover"
+            />
           </div>
         )}
         <div className="p-4 space-y-3">

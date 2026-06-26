@@ -12,6 +12,7 @@
 
 import { and, eq, isNull } from "drizzle-orm";
 import { cookies } from "next/headers";
+import Image from "next/image";
 import Link from "next/link";
 
 import { dismissApplyIntentAction } from "@/app/actions/apply-intent";
@@ -74,7 +75,13 @@ export async function IntentApplyBanner() {
       data-section="intent-apply-banner"
     >
       {photoUrl ? (
-        <img src={photoUrl} alt="" className="h-12 w-12 rounded-full object-cover flex-shrink-0" />
+        <Image
+          src={photoUrl}
+          alt=""
+          width={48}
+          height={48}
+          className="h-12 w-12 rounded-full object-cover flex-shrink-0"
+        />
       ) : (
         <div
           className="h-12 w-12 rounded-full bg-[var(--color-ln-stripe)] flex-shrink-0"

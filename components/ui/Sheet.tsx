@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 /**
@@ -353,7 +354,7 @@ export function LnSheetPetRow({ name, meta, photoUrl, onChangePet }: LnSheetPetR
       {/* Photo / placeholder */}
       <div className="h-[38px] w-[38px] flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-ln-line-strong)]">
         {photoUrl ? (
-          <img src={photoUrl} alt={name} className="h-full w-full object-cover" />
+          <Image src={photoUrl} alt={name} fill sizes="38px" className="object-cover" />
         ) : (
           <div className="h-full w-full bg-[repeating-linear-gradient(135deg,#e7e2d6_0_4px,#f2efe6_4px_8px)]" />
         )}
