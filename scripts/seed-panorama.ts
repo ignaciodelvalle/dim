@@ -3349,6 +3349,232 @@ async function seedHistoryWelfareAndCases(
 }
 
 // ---------------------------------------------------------------------------
+// 15f. Historical campaigns 2024-2026 — service_offerings + time_slots + appointments
+// ---------------------------------------------------------------------------
+// Backs /gob/campanas year-over-year trend: fetchCampaignDashboard filters
+// appointments by appointments.createdAt within the period window. Adding
+// historical offerings + appointments with createdAt in 2024/2025/2026 gives
+// the dashboard real multi-year enrollment data.
+//
+// One offering per org × year × quarter (10 per org: 4+4+2 for 2024/2025/2026).
+// Three slots per offering (one per month in the quarter, fixed to the 15th).
+// Appointments createdAt is set explicitly to the booking year so the period
+// filter returns non-empty for any 12-month window anchored to that year.
+//
+// Idempotency:
+//   PANO-SVO-HIST-* → caught by existing runClean() `PANO-SVO-%` LIKE pattern
+//   PANO-APT-HIST-* → caught by existing runClean() `PANO-APT-%` LIKE pattern
+// No runClean() change required.
+
+async function seedHistoryCampaigns(
+  ownerUserId: string,
+  shelterOrgs: PanoOrg[],
+): Promise<{ offerings: number; slots: number; appointments: number }> {
+  log("STEP", "Seeding historical campaigns 2024-2026 (service_offerings + appointments)…");
+
+  if (shelterOrgs.length === 0) {
+    log("WARN", "  No PANO orgs available — skipping historical campaigns");
+    return { offerings: 0, slots: 0, appointments: 0 };
+  }
+
+  // Pre-fetch PANO pet IDs per province. Appointments need a valid pet_id FK.
+  const petPoolRows = await db
+    .select({ id: pets.id, province: pets.jurisdictionProvince })
+    .from(pets)
+    .where(like(pets.name, `${PANO_TAG}%`));
+
+  const petsByProvince = new Map<string, string[]>();
+  for (const r of petPoolRows) {
+    const key = r.province ?? "Buenos Aires";
+    if (!petsByProvince.has(key)) petsByProvince.set(key, []);
+    petsByProvince.get(key)!.push(r.id);
+  }
+  const allPetIds = petPoolRows.map((r) => r.id);
+
+  if (allPetIds.length === 0) {
+    log("WARN", "  No PANO pets found — skipping historical campaigns");
+    return { offerings: 0, slots: 0, appointments: 0 };
+  }
+
+  // Q0=Jan-Mar, Q1=Apr-Jun, Q2=Jul-Sep, Q3=Oct-Dec (0-indexed month triplets)
+  const QUARTERS: ReadonlyArray<readonly [number, number, number]> = [
+    [0, 1, 2],
+    [3, 4, 5],
+    [6, 7, 8],
+    [9, 10, 11],
+  ];
+
+  // For 2026 only emit Q0 (Jan-Mar) and Q1 (Apr-Jun): the anchor is 2026-06-20,
+  // so Q2/Q3 start dates are in the future. Fixed slot date is the 15th, which
+  // gives Jun-15 < Jun-20 for Q1 month 5 — safely in the past.
+  const YEAR_QUARTERS: ReadonlyArray<{ year: HistoryYear; quarters: readonly number[] }> = [
+    { year: 2024, quarters: [0, 1, 2, 3] },
+    { year: 2025, quarters: [0, 1, 2, 3] },
+    { year: 2026, quarters: [0, 1] },
+  ];
+
+  let histSvoIdx = 0;
+  let histAptIdx = 0;
+  let totalSlots = 0;
+  let totalAppointments = 0;
+
+  for (const org of shelterOrgs) {
+    const demand = PROVINCE_CAMPAIGN_DEMAND[org.provinceName] ?? { demand: 0.5, attend: 0.55 };
+    const provincePets = petsByProvince.get(org.provinceName) ?? [];
+    const pool = provincePets.length >= 4 ? provincePets : allPetIds;
+    const bookingProb = Math.min(0.95, CAMPAIGN_BOOKING_RATE * demand.demand + 0.05);
+
+    for (const { year, quarters } of YEAR_QUARTERS) {
+      for (const qIdx of quarters) {
+        const qMonths = QUARTERS[qIdx];
+        if (!qMonths) continue; // safety guard — qIdx is always 0-3
+        const template = CAMPAIGN_TEMPLATES[histSvoIdx % CAMPAIGN_TEMPLATES.length];
+        const svoToken = `PANO-SVO-HIST-${String(histSvoIdx).padStart(5, "0")}`;
+        histSvoIdx++;
+
+        const effFrom = new Date(Date.UTC(year, qMonths[0], 1)).toISOString().slice(0, 10);
+        // Last day of quarter: month after last quarter month, day 0 = last day of prev month
+        const effUntil = new Date(Date.UTC(year, qMonths[2] + 1, 0)).toISOString().slice(0, 10);
+
+        const [offeringRow] = await db
+          .insert(serviceOfferings)
+          .values({
+            publicToken: svoToken,
+            organizationId: org.id,
+            jurisdictionCountry: "AR",
+            jurisdictionProvince: org.provinceName,
+            jurisdictionLocality: org.locality,
+            serviceKind: template.kind,
+            displayName: `PANO — ${template.label} ${year} Q${qIdx + 1} (${org.locality})`,
+            description: "Campaña histórica sintética de demostración (seed-panorama)",
+            durationMinutes: template.durationMinutes,
+            slotCapacity: template.slotCapacity,
+            eligibilitySpecies: [...template.species],
+            status: "approved",
+            isPublic: false,
+          } as Parameters<typeof db.insert<typeof serviceOfferings>>[0] extends {
+            values: (v: infer V) => unknown;
+          }
+            ? V
+            : never)
+          .returning({ id: serviceOfferings.id });
+
+        // One weekly schedule rule covering the quarter.
+        const [ruleRow] = await db
+          .insert(serviceScheduleRules)
+          .values({
+            serviceOfferingId: offeringRow.id,
+            daysOfWeek: [1, 3, 5],
+            startTimeLocal: "09:00:00",
+            endTimeLocal: "12:00:00",
+            effectiveFrom: effFrom,
+            effectiveUntil: effUntil,
+            status: "active",
+          } as Parameters<typeof db.insert<typeof serviceScheduleRules>>[0] extends {
+            values: (v: infer V) => unknown;
+          }
+            ? V
+            : never)
+          .returning({ id: serviceScheduleRules.id });
+
+        // Three slots: one per month in the quarter, pinned to the 15th at
+        // staggered hours (9, 11, 13 UTC) to satisfy the
+        // time_slots_unique_starts (serviceOfferingId, startsAt) constraint
+        // even if two months accidentally share a calendar day.
+        for (let mIdx = 0; mIdx < 3; mIdx++) {
+          const month = qMonths[mIdx];
+          // Fixed day-of-month (15) keeps the date predictable and always < 28,
+          // safe for all months. Hour stagger ensures uniqueness within offering.
+          const startsAt = new Date(Date.UTC(year, month, 15, 9 + mIdx * 2, 0, 0, 0));
+          const endsAt = new Date(startsAt.getTime() + template.durationMinutes * 60 * 1000);
+          const capacity = template.slotCapacity;
+
+          // Guarantee at least one booking so every offering shows enrollment.
+          let bookings = 0;
+          for (let c = 0; c < capacity; c++) {
+            if (rng() < bookingProb) bookings++;
+          }
+          if (bookings === 0) bookings = 1;
+
+          const [slotRow] = await db
+            .insert(timeSlots)
+            .values({
+              serviceOfferingId: offeringRow.id,
+              ruleId: ruleRow.id,
+              startsAt,
+              endsAt,
+              capacity,
+              bookingsCount: bookings,
+              status: bookings >= capacity ? "full" : "open",
+            } as Parameters<typeof db.insert<typeof timeSlots>>[0] extends {
+              values: (v: infer V) => unknown;
+            }
+              ? V
+              : never)
+            .returning({ id: timeSlots.id });
+          totalSlots++;
+
+          // Appointments — all historical slots are in the past: attended / no_show.
+          // createdAt is set explicitly to a few days before the slot start so the
+          // fetchCampaignDashboard period filter (gte/lt on createdAt) returns these
+          // rows when the window is scoped to `year`.
+          const apptRows: Array<Record<string, unknown>> = [];
+          for (let b = 0; b < bookings; b++) {
+            const petId = pool[Math.floor(rng() * pool.length)];
+            const aptToken = `PANO-APT-HIST-${String(histAptIdx).padStart(6, "0")}`;
+            histAptIdx++;
+
+            const attended = rng() < demand.attend;
+            const status = attended ? "attended" : ("no_show" as const);
+            const attendedAt = attended
+              ? new Date(startsAt.getTime() + template.durationMinutes * 60 * 1000)
+              : null;
+            const noShowMarkedAt = !attended ? new Date(startsAt.getTime() + 30 * 60 * 1000) : null;
+
+            // Book 2–10 days before the slot, floored at Jan 1 of the year.
+            const leadDays = randInt(2, 10);
+            const createdAt = new Date(
+              Math.max(startsAt.getTime() - leadDays * 24 * 3600 * 1000, Date.UTC(year, 0, 1)),
+            );
+
+            apptRows.push({
+              publicToken: aptToken,
+              slotId: slotRow.id,
+              petId,
+              ownerUserId,
+              serviceOfferingId: offeringRow.id,
+              organizationId: org.id,
+              status,
+              ...(attendedAt ? { attendedAt, attendedByUserId: ownerUserId } : {}),
+              ...(noShowMarkedAt ? { noShowMarkedAt } : {}),
+              createdAt,
+              updatedAt: createdAt,
+            });
+            totalAppointments++;
+          }
+
+          if (apptRows.length > 0) {
+            await db.insert(appointments).values(
+              apptRows as Parameters<typeof db.insert<typeof appointments>>[0] extends {
+                values: (v: infer V) => unknown;
+              }
+                ? V
+                : never,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  log(
+    "INFO",
+    `  Historical campaigns: ${histSvoIdx} offerings, ${totalSlots} slots, ${totalAppointments} appointments`,
+  );
+  return { offerings: histSvoIdx, slots: totalSlots, appointments: totalAppointments };
+}
+
+// ---------------------------------------------------------------------------
 // 16. Main entry point
 // ---------------------------------------------------------------------------
 
@@ -3445,6 +3671,10 @@ async function main(): Promise<void> {
   // Runs after seedModelProvinceHistory to preserve RNG sequence for pet events.
   const historyWelfCases = await seedHistoryWelfareAndCases(localitiesByCode);
 
+  // Seed multi-year historical campaigns (2024-2026). Runs last so pet pool
+  // is fully populated when appointments FK into pets.
+  const historyCampaigns = await seedHistoryCampaigns(ownerUserId, shelterOrgs);
+
   // Final summary
   const totalEvents = Object.values(eventCounts).reduce((s, v) => s + v, 0);
 
@@ -3476,6 +3706,9 @@ async function main(): Promise<void> {
   log("INFO", `Hist welfare reports    : ${historyWelfCases.welfare}`);
   log("INFO", `Hist decomisos (cases)  : ${historyWelfCases.decomisos}`);
   log("INFO", `Hist disputes (cases)   : ${historyWelfCases.disputes}`);
+  log("INFO", `Hist campaign offerings : ${historyCampaigns.offerings}`);
+  log("INFO", `Hist campaign slots     : ${historyCampaigns.slots}`);
+  log("INFO", `Hist campaign appts     : ${historyCampaigns.appointments}`);
   log("INFO", "Event breakdown:");
   for (const [k, v] of Object.entries(eventCounts).sort((a, b) => b[1] - a[1])) {
     log("INFO", `  ${k.padEnd(35)}: ${v}`);
