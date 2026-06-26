@@ -34,6 +34,7 @@
     "seed:demo": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-demo.ts",
     "seed:coverage": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-coverage.ts",
     "seed:panorama": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-panorama.ts",
+    "verify:history": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/verify-history-coverage.ts",
     "seed:demo:scenario": "node --conditions=react-server --import tsx scripts/seed-demo-scenario.ts",
     "demo:verify": "node --conditions=react-server --import tsx scripts/demo-verify.ts",
     "materialize:slots": "tsx scripts/materialize-slots.ts",
