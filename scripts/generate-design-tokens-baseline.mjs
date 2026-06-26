@@ -9,9 +9,7 @@ const EXCLUDE_PATH_PREFIXES = ["node_modules/"];
 
 const filtered = files.filter((f) => {
   const p = f.replaceAll("\\", "/");
-  return !EXCLUDE_PATH_PREFIXES.some(
-    (prefix) => p.startsWith(prefix) || p.includes(`/${prefix}`),
-  );
+  return !EXCLUDE_PATH_PREFIXES.some((prefix) => p.startsWith(prefix) || p.includes(`/${prefix}`));
 });
 
 const textRe = /text-\[\d+\.?\d*px\]/g;
@@ -54,4 +52,6 @@ const output = {
 };
 
 writeFileSync("scripts/design-tokens-baseline.json", JSON.stringify(output, null, 2) + "\n");
-console.log(`Baseline written: ${grandTotal} total violations across ${Object.keys(baseline).length} files.`);
+console.log(
+  `Baseline written: ${grandTotal} total violations across ${Object.keys(baseline).length} files.`,
+);
