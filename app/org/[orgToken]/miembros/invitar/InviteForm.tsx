@@ -66,12 +66,12 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
           icon={<Icon name="check-circle" decorative />}
         />
         <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
-          <p className="break-all font-ln-mono text-[12px] text-ln-op-ink">{inviteUrl}</p>
+          <p className="break-all font-ln-mono text-sm text-ln-op-ink">{inviteUrl}</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={handleCopy}
-              className="inline-flex items-center gap-1 rounded-[4px] bg-ln-op-azul px-4 py-[7px] text-[12px] font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
+              className="inline-flex items-center gap-1 rounded-[4px] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
             >
               {copied ? "¡Copiado!" : "Copiar link"}
             </button>
@@ -79,12 +79,12 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
               href={`https://wa.me/?text=${encodeURIComponent(inviteUrl)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-[4px] border border-ln-op-line px-4 py-[7px] text-[12px] font-semibold text-ln-op-ink transition-colors hover:bg-ln-op-stripe no-underline"
+              className="inline-flex items-center gap-1 rounded-[4px] border border-ln-op-line px-4 py-[7px] text-sm font-semibold text-ln-op-ink transition-colors hover:bg-ln-op-stripe no-underline"
             >
               WhatsApp
             </a>
           </div>
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Este link vence en 14 días. Solo puede ser aceptado por la cuenta con el email indicado.
           </p>
         </div>
@@ -153,7 +153,7 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
 
       {error && (
         <p
-          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-[12px] text-ln-op-danger"
+          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
           role="alert"
         >
           {error}

@@ -202,7 +202,7 @@ export default async function OrgMaltratoRecibidosPage({
         })}
       </nav>
 
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         {activeTab === "recibidos"
           ? `Denuncias derivadas a ${organization.displayName} por el gobierno para seguimiento en campo.`
           : `Reportes emitidos por miembros de ${organization.displayName}.`}
@@ -238,14 +238,14 @@ export default async function OrgMaltratoRecibidosPage({
                           {welfareReportSeverityLabel(r.severity)}
                         </OpPill>
                       </p>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {welfareReportSubjectKindLabel(r.subjectKind)}
                         {r.petName ? ` · 🐾 ${r.petName}` : ""}
                         {!r.petName && r.subjectDescription
                           ? ` · ${r.subjectDescription.slice(0, 60)}`
                           : ""}
                       </p>
-                      <p className="text-[12px] font-mono text-ln-op-mute">
+                      <p className="text-sm font-mono text-ln-op-mute">
                         {r.referenceCode} ·{" "}
                         {activeTab === "recibidos" && r.derivedAt
                           ? `derivada el ${formatDate(r.derivedAt)}`

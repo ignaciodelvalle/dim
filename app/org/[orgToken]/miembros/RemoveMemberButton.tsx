@@ -40,12 +40,12 @@ export function RemoveMemberButton({ organizationId, membershipId, displayName }
         ref={triggerRef}
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-[12px] font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white"
+        className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-sm font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white"
       >
         Quitar
       </button>
       {error && (
-        <p className="text-[12px] text-ln-op-danger" role="alert">
+        <p className="text-sm text-ln-op-danger" role="alert">
           {error}
         </p>
       )}

@@ -154,11 +154,11 @@ function InfoButton({ info }: { info: InfoTooltip }) {
           >
             <p className="font-medium text-ln-ink-2 mb-1">{info.definition}</p>
             {info.formula && (
-              <p className="text-ln-ink-3 font-mono text-[10px] bg-ln-stripe rounded px-2 py-1 mb-1">
+              <p className="text-ln-ink-3 font-mono text-xs bg-ln-stripe rounded px-2 py-1 mb-1">
                 {info.formula}
               </p>
             )}
-            {info.caveat && <p className="text-ln-op-warn text-[10px]">{info.caveat}</p>}
+            {info.caveat && <p className="text-ln-op-warn text-xs">{info.caveat}</p>}
           </div>
         </>
       )}
@@ -250,7 +250,7 @@ export function OpKpi({
             <span className="sr-only">{TONE_LABELS[tone]}:</span>
           </>
         )}
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <span className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {label}
         </span>
         {info && <InfoButton info={info} />}
@@ -286,7 +286,7 @@ export function OpKpi({
       {delta && (
         <div
           className={[
-            "mt-2 flex items-center gap-1.5 text-[12px] font-semibold",
+            "mt-2 flex items-center gap-1.5 text-sm font-semibold",
             delta.up ? "text-[var(--color-st-ok)]" : "text-[var(--color-st-err)]",
           ].join(" ")}
         >
@@ -300,7 +300,7 @@ export function OpKpi({
       {deltaV2 && (
         <div
           className={[
-            "mt-1 flex items-center gap-1.5 text-[12px] font-semibold",
+            "mt-1 flex items-center gap-1.5 text-sm font-semibold",
             deltaV2.value >= 0 ? "text-[var(--color-st-ok)]" : "text-[var(--color-st-err)]",
           ].join(" ")}
         >
@@ -368,7 +368,7 @@ export function OpKpiSm({ label, value, tone = "neutral", sub, href }: SmProps) 
       >
         {value}
       </div>
-      {sub && <div className="mt-1 text-[10px] text-ln-op-mute">{sub}</div>}
+      {sub && <div className="mt-1 text-xs text-ln-op-mute">{sub}</div>}
     </>
   );
 

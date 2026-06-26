@@ -123,7 +123,7 @@ function EnableForm({ enableAction }: { enableAction: (formData: FormData) => Pr
                     {card.title}
                   </span>
                   {!card.enabled && (
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-[var(--color-ln-mute)] px-1.5 py-0.5 rounded-full border border-[var(--color-ln-line-strong)]">
+                    <span className="text-xs uppercase tracking-wider font-semibold text-[var(--color-ln-mute)] px-1.5 py-0.5 rounded-full border border-[var(--color-ln-line-strong)]">
                       Próximamente
                     </span>
                   )}

@@ -182,7 +182,7 @@ export default async function GobProgramaPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Gobierno · Resumen ejecutivo
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">
@@ -453,7 +453,7 @@ export default async function GobProgramaPage({
               <div className="space-y-3">
                 <div>
                   <div className="flex justify-between items-baseline mb-1">
-                    <span className="text-[12px] text-ln-op-mute">Completitud</span>
+                    <span className="text-sm text-ln-op-mute">Completitud</span>
                     <span
                       className={[
                         "text-[13px] font-semibold tabular-nums",
@@ -486,7 +486,7 @@ export default async function GobProgramaPage({
                     />
                   </div>
                 </div>
-                <ul className="space-y-1.5 text-[12px]" aria-label="Campos faltantes por categoría">
+                <ul className="space-y-1.5 text-sm" aria-label="Campos faltantes por categoría">
                   <li className="flex justify-between items-baseline">
                     <span className="text-ln-op-mute">Sin localidad</span>
                     <span className="tabular-nums text-ln-op-ink">
@@ -517,7 +517,7 @@ export default async function GobProgramaPage({
                     </span>
                   </li>
                 </ul>
-                <p className="text-[10px] text-ln-op-mute">
+                <p className="text-xs text-ln-op-mute">
                   Completitud = mascotas sin ningún campo faltante (localidad + sexo + chip) ÷
                   total.
                 </p>
@@ -534,19 +534,19 @@ export default async function GobProgramaPage({
           <OpCardBody>
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[12px] text-ln-op-mute">Pendientes</span>
+                <span className="text-sm text-ln-op-mute">Pendientes</span>
                 <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
                   {queue.pendingTotal}
                 </span>
               </div>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[12px] text-ln-op-mute">Más vieja (días)</span>
+                <span className="text-sm text-ln-op-mute">Más vieja (días)</span>
                 <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
                   {queue.oldestPendingDaysAgo ?? "—"}
                 </span>
               </div>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[12px] text-ln-op-mute">14d+ / 30d+ / 60d+</span>
+                <span className="text-sm text-ln-op-mute">14d+ / 30d+ / 60d+</span>
                 <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
                   {queue.pending14dPlus} / {queue.pending30dPlus} / {queue.pending60dPlus}
                 </span>
@@ -565,7 +565,7 @@ export default async function GobProgramaPage({
         <OpCardBody>
           {/* (a) Active breaching alerts */}
           <section aria-label="Alertas activas" className="mb-5">
-            <h4 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+            <h4 className="mb-2 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
               Alertas activas
             </h4>
             {breachingAlerts.length === 0 ? (
@@ -602,7 +602,7 @@ export default async function GobProgramaPage({
 
           {/* (b) My subscriptions list with delete / toggle */}
           <section aria-label="Mis suscripciones" className="mb-5">
-            <h4 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+            <h4 className="mb-2 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
               Mis suscripciones
             </h4>
             {alertEvals.length === 0 ? (
@@ -663,7 +663,7 @@ export default async function GobProgramaPage({
 
           {/* (c) Create subscription form */}
           <section aria-label="Crear suscripción">
-            <h4 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+            <h4 className="mb-3 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
               Crear suscripción
             </h4>
             <AlertSubscriptionForm />

@@ -87,7 +87,7 @@ export function LnHero({
             {status && <LnStatusFlag status={status} />}
           </div>
 
-          {breed && <p className="mt-[3px] text-[14px] text-[var(--color-ln-mute)]">{breed}</p>}
+          {breed && <p className="mt-[3px] text-md text-[var(--color-ln-mute)]">{breed}</p>}
 
           {tags.length > 0 && (
             <div className="mt-[12px] flex flex-wrap gap-[7px]">

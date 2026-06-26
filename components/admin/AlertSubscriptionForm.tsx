@@ -76,7 +76,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
     >
       {/* Metric key */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="alert-metric-key" className="text-[12px] font-semibold text-ln-op-ink">
+        <label htmlFor="alert-metric-key" className="text-sm font-semibold text-ln-op-ink">
           Métrica
         </label>
         <select
@@ -97,7 +97,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
 
       {/* Direction */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="alert-direction" className="text-[12px] font-semibold text-ln-op-ink">
+        <label htmlFor="alert-direction" className="text-sm font-semibold text-ln-op-ink">
           Dirección
         </label>
         <select
@@ -118,7 +118,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
 
       {/* Threshold */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="alert-threshold" className="text-[12px] font-semibold text-ln-op-ink">
+        <label htmlFor="alert-threshold" className="text-sm font-semibold text-ln-op-ink">
           Umbral
         </label>
         <input
@@ -137,7 +137,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
       <div className="flex flex-col gap-1">
         <label
           htmlFor="alert-jurisdiction-province"
-          className="text-[12px] font-semibold text-ln-op-ink"
+          className="text-sm font-semibold text-ln-op-ink"
         >
           Provincia (opcional)
           <span className="ml-1 font-normal text-ln-op-mute">
@@ -158,7 +158,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
 
       {/* Label (optional) */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="alert-label" className="text-[12px] font-semibold text-ln-op-ink">
+        <label htmlFor="alert-label" className="text-sm font-semibold text-ln-op-ink">
           Etiqueta (opcional)
         </label>
         <input

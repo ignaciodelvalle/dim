@@ -21,7 +21,7 @@ export default function CookiesPage() {
           <h2 id="que-son-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
             ¿Qué son las cookies?
           </h2>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Las cookies son pequeños archivos de texto que un sitio web almacena en tu dispositivo
             para recordar información entre visitas. MiMAR usa un número mínimo de cookies, todas
             estrictamente necesarias para el funcionamiento del servicio.
@@ -32,7 +32,7 @@ export default function CookiesPage() {
           <h2 id="cuales-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
             ¿Qué cookies usa MiMAR?
           </h2>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             MiMAR utiliza <strong>Supabase Auth</strong> para la autenticación. Supabase gestiona la
             sesión del usuario mediante cookies seguras (<code>HttpOnly</code>, <code>Secure</code>,{" "}
             <code>SameSite</code>). Estas cookies son necesarias para mantener tu sesión iniciada
@@ -65,7 +65,7 @@ export default function CookiesPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             No usamos cookies de terceros, cookies de rastreo publicitario ni servicios de analítica
             de terceros que depositen cookies en tu dispositivo.
           </p>
@@ -75,12 +75,12 @@ export default function CookiesPage() {
           <h2 id="control-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
             ¿Podés controlarlas?
           </h2>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Podés eliminar las cookies de autenticación en cualquier momento desde la configuración
             de tu navegador, o cerrando sesión desde MiMAR. Al eliminar la cookie de sesión, tu
             sesión quedará cerrada y deberás iniciar sesión nuevamente para acceder a tu portal.
           </p>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Las páginas públicas de MiMAR (credenciales, adopciones, denuncias) no requieren cookies
             para funcionar.
           </p>

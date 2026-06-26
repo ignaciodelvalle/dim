@@ -181,9 +181,7 @@ export default async function GobHistorialPage({
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Historial
-        </p>
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Historial</p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Mi historial</h1>
         <p className="text-[13px] text-ln-op-mute">
           Últimas {entries.length} acciones realizadas por{" "}
@@ -237,7 +235,7 @@ export default async function GobHistorialPage({
                         );
                       })()}
                   </div>
-                  <time className="text-[12px] text-ln-op-mute whitespace-nowrap tabular-nums">
+                  <time className="text-sm text-ln-op-mute whitespace-nowrap tabular-nums">
                     {new Date(entry.performedAt).toLocaleString("es-AR", {
                       dateStyle: "short",
                       timeStyle: "short",
@@ -260,7 +258,7 @@ export default async function GobHistorialPage({
             {newerLink && (
               <Link
                 href={newerLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 ← Más recientes
               </Link>
@@ -270,7 +268,7 @@ export default async function GobHistorialPage({
             {olderLink && (
               <Link
                 href={olderLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 Ver más antiguos →
               </Link>

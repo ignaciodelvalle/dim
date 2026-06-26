@@ -28,7 +28,7 @@ function FriendlyOwnerOnlyPage({ pet, role }: { pet: Pet; role: string }) {
       >
         ← Volver al perfil
       </Link>
-      <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-[24px] font-semibold text-[var(--color-ln-ink)]">
+      <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
         Perro de asistencia · {pet.name}
       </h1>
       <LnCallout

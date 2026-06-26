@@ -128,7 +128,7 @@ export function TriageActions({
         className="w-full px-3 py-2 rounded border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
       />
       <p className="text-[11px] text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
-      {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+      {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
         <OpButton
           type="button"
@@ -172,7 +172,7 @@ function ActionButton({
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-[4px] text-[12px] font-medium ${toneClass}`}
+      className={`px-3 py-1.5 rounded-[4px] text-sm font-medium ${toneClass}`}
     >
       {children}
     </button>

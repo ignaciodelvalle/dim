@@ -131,7 +131,7 @@ export default async function CuentaPage() {
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mi cuenta
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Perfil, verificaciones y configuración.
         </p>
       </div>
@@ -158,11 +158,11 @@ export default async function CuentaPage() {
             )}
 
             <div className="min-w-0 flex-1">
-              <p className="font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight text-[var(--color-ln-ink)]">
+              <p className="font-[var(--font-ln-serif)] text-lg font-semibold leading-tight text-[var(--color-ln-ink)]">
                 {profile.displayName}
               </p>
               {email && (
-                <p className="mt-[2px] font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+                <p className="mt-[2px] font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
                   {email}
                 </p>
               )}
@@ -206,7 +206,7 @@ export default async function CuentaPage() {
                 <span className="text-[13px] text-[var(--color-ln-mute)]">DNI no declarado</span>
                 <Link
                   href="?sheet=verificar-dni"
-                  className="inline-flex items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[11px] py-[6px] text-[12px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] no-underline"
+                  className="inline-flex items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[11px] py-[6px] text-sm font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] no-underline"
                 >
                   Declarar ahora
                 </Link>
@@ -261,7 +261,7 @@ export default async function CuentaPage() {
               <p className="text-[13px] font-semibold text-[var(--color-ln-ink)]">
                 ¿Vas a ofrecer servicios profesionales?
               </p>
-              <p className="mt-[2px] text-[12px] text-[var(--color-ln-ink-2)]">
+              <p className="mt-[2px] text-sm text-[var(--color-ln-ink-2)]">
                 Creá tu consultorio para publicar servicios, gestionar turnos y emitir eventos en
                 libretas sanitarias.
               </p>
@@ -372,7 +372,7 @@ export default async function CuentaPage() {
           {/* Custom error-tone section heading — not using LnSectionHead      */}
           {/* because we need the error color variant.                          */}
           <div className="mb-[16px] flex items-baseline gap-[14px] border-b-2 border-[var(--color-ln-err)] pb-[10px]">
-            <span className="font-[var(--font-ln-mono)] text-[12px] font-semibold tracking-[.04em] text-[var(--color-ln-err)]">
+            <span className="font-[var(--font-ln-mono)] text-sm font-semibold tracking-[.04em] text-[var(--color-ln-err)]">
               04
             </span>
             <h2
@@ -489,7 +489,7 @@ function ActionRow({
           className={`flex items-center gap-[6px] text-[13.5px] font-medium leading-tight ${danger ? "text-[var(--color-ln-err)]" : "text-[var(--color-ln-ink)]"}`}
         >
           {danger && (
-            <span aria-hidden="true" className="text-[12px] leading-none">
+            <span aria-hidden="true" className="text-sm leading-none">
               ⚠
             </span>
           )}
@@ -497,7 +497,7 @@ function ActionRow({
         </p>
         <p className="mt-[2px] text-[11.5px] text-[var(--color-ln-mute)]">{description}</p>
       </div>
-      <span aria-hidden="true" className="flex-shrink-0 text-[var(--color-ln-mute)] text-[16px]">
+      <span aria-hidden="true" className="flex-shrink-0 text-[var(--color-ln-mute)] text-base">
         ›
       </span>
     </Link>

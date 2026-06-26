@@ -90,12 +90,12 @@ export function EligibilityForm({
       </div>
 
       <div className="space-y-2">
-        <p className="text-[12px] font-medium text-ln-op-ink">Decisión</p>
+        <p className="text-sm font-medium text-ln-op-ink">Decisión</p>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => setDecision("eligible")}
-            className={`px-3 py-1.5 rounded-[6px] border text-[12px] ${
+            className={`px-3 py-1.5 rounded-[6px] border text-sm ${
               decision === "eligible"
                 ? "bg-ln-op-ok text-white border-ln-op-ok"
                 : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe"
@@ -106,7 +106,7 @@ export function EligibilityForm({
           <button
             type="button"
             onClick={() => setDecision("not_eligible")}
-            className={`px-3 py-1.5 rounded-[6px] border text-[12px] ${
+            className={`px-3 py-1.5 rounded-[6px] border text-sm ${
               decision === "not_eligible"
                 ? "bg-ln-op-azul text-white border-ln-op-azul"
                 : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe"
@@ -120,10 +120,7 @@ export function EligibilityForm({
       {decision === "not_eligible" && (
         <div className="space-y-3">
           <div>
-            <label
-              htmlFor="elig-reason"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
-            >
+            <label htmlFor="elig-reason" className="block text-sm font-medium text-ln-op-ink mb-1">
               Motivo
             </label>
             <select
@@ -140,10 +137,7 @@ export function EligibilityForm({
             </select>
           </div>
           <div>
-            <label
-              htmlFor="elig-notes"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
-            >
+            <label htmlFor="elig-notes" className="block text-sm font-medium text-ln-op-ink mb-1">
               Notas {reason === "other" && <span className="text-ln-op-danger">*</span>}
             </label>
             <textarea
@@ -156,10 +150,7 @@ export function EligibilityForm({
             />
           </div>
           <div>
-            <label
-              htmlFor="elig-until"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
-            >
+            <label htmlFor="elig-until" className="block text-sm font-medium text-ln-op-ink mb-1">
               Hasta (opcional)
             </label>
             <input
@@ -176,8 +167,8 @@ export function EligibilityForm({
         </div>
       )}
 
-      {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
-      {okMessage && <output className="block text-[12px] text-ln-op-ok">{okMessage}</output>}
+      {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
+      {okMessage && <output className="block text-sm text-ln-op-ok">{okMessage}</output>}
 
       <div className="flex gap-2">
         <button

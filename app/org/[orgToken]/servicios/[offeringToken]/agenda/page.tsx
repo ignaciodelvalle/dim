@@ -89,7 +89,7 @@ export default async function AgendaPage({
     <div className="max-w-3xl mx-auto space-y-8">
       {/* Header */}
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName} · {kind?.label ?? offering.serviceKind}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Agenda</h1>
@@ -101,7 +101,7 @@ export default async function AgendaPage({
 
       {/* Existing rules */}
       <section className="space-y-4">
-        <h2 className="text-[14px] font-semibold text-ln-op-ink">Reglas activas</h2>
+        <h2 className="text-md font-semibold text-ln-op-ink">Reglas activas</h2>
         {rules.length === 0 ? (
           <p className="text-[13px] text-ln-op-mute">
             Todavía no hay reglas de agenda. Agregá una abajo para que se materialicen turnos.
@@ -156,7 +156,7 @@ export default async function AgendaPage({
                         <td className="px-4 py-3 text-[13px] text-ln-op-ink">
                           {formatDays(rule.daysOfWeek as number[])}
                         </td>
-                        <td className="px-4 py-3 font-mono text-[12px] text-ln-op-ink-2">
+                        <td className="px-4 py-3 font-mono text-sm text-ln-op-ink-2">
                           {rule.startTimeLocal} – {rule.endTimeLocal}
                         </td>
                         <td className="px-4 py-3 text-[13px] text-ln-op-mute">
@@ -175,7 +175,7 @@ export default async function AgendaPage({
                             >
                               <button
                                 type="submit"
-                                className="text-[12px] text-ln-op-danger hover:underline"
+                                className="text-sm text-ln-op-danger hover:underline"
                               >
                                 Eliminar
                               </button>
@@ -195,7 +195,7 @@ export default async function AgendaPage({
       {/* Add rule form */}
       {canManage && (
         <section className="space-y-4">
-          <h2 className="text-[14px] font-semibold text-ln-op-ink">Agregar regla</h2>
+          <h2 className="text-md font-semibold text-ln-op-ink">Agregar regla</h2>
           <OpCard>
             <OpCardBody>
               <AgendaRuleForm
@@ -212,7 +212,7 @@ export default async function AgendaPage({
       {/* Materialization — immediate preview */}
       {canManage && rules.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-[14px] font-semibold text-ln-op-ink">Materializar turnos</h2>
+          <h2 className="text-md font-semibold text-ln-op-ink">Materializar turnos</h2>
           <p className="text-[13px] text-ln-op-mute">
             Genera los turnos de los próximos 60 días a partir de las reglas activas. El cron lo
             hace automáticamente; este botón es para preview inmediato.
@@ -227,7 +227,7 @@ export default async function AgendaPage({
       <footer className="pt-4 border-t border-ln-op-line">
         <Link
           href={`/org/${orgToken}/servicios/${offeringToken}`}
-          className="text-[12px] text-ln-op-azul hover:underline"
+          className="text-sm text-ln-op-azul hover:underline"
         >
           ← Volver al servicio
         </Link>

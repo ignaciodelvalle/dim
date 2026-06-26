@@ -185,7 +185,7 @@ export function LnSheetCard({
 
 export function LnSheetRouteChip({ children }: { children: ReactNode }) {
   return (
-    <div className="absolute left-[18px] top-[12px] rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[10px] py-[3px] font-[var(--font-ln-mono)] text-[10px] tracking-[.08em] text-[var(--color-ln-faint)]">
+    <div className="absolute left-[18px] top-[12px] rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[10px] py-[3px] font-[var(--font-ln-mono)] text-xs tracking-[.08em] text-[var(--color-ln-faint)]">
       {children}
     </div>
   );
@@ -221,7 +221,7 @@ export function LnSheetHeader({
       {icon && (
         <div
           className={[
-            "grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[8px] border text-[16px]",
+            "grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[8px] border text-base",
             toneIconBg[tone],
           ]
             .filter(Boolean)
@@ -234,10 +234,10 @@ export function LnSheetHeader({
 
       {/* Text */}
       <div className="min-w-0 flex-1">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {title}
         </h1>
-        {subtitle && <p className="mt-[2px] text-[12px] text-[var(--color-ln-mute)]">{subtitle}</p>}
+        {subtitle && <p className="mt-[2px] text-sm text-[var(--color-ln-mute)]">{subtitle}</p>}
       </div>
 
       {/* Close */}
@@ -248,7 +248,7 @@ export function LnSheetHeader({
           aria-label="Cerrar"
           className="grid h-[30px] w-[30px] flex-shrink-0 cursor-pointer place-items-center rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-stripe)]"
         >
-          <span aria-hidden="true" className="text-[18px] leading-none">
+          <span aria-hidden="true" className="text-lg leading-none">
             ×
           </span>
         </button>
@@ -371,7 +371,7 @@ export function LnSheetPetRow({ name, meta, photoUrl, onChangePet }: LnSheetPetR
         <button
           type="button"
           onClick={onChangePet}
-          className="ml-auto cursor-pointer font-[var(--font-ln-mono)] text-[10px] tracking-[.04em] text-[var(--color-ln-azul)]"
+          className="ml-auto cursor-pointer font-[var(--font-ln-mono)] text-xs tracking-[.04em] text-[var(--color-ln-azul)]"
         >
           CAMBIAR
         </button>
@@ -402,7 +402,7 @@ export function LnSubCard({ heading, children, className = "" }: LnSubCardProps)
         .join(" ")}
     >
       {heading && (
-        <p className="border-b border-[var(--color-ln-line-2)] pb-[7px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-azul)]">
+        <p className="border-b border-[var(--color-ln-line-2)] pb-[7px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-azul)]">
           {heading}
         </p>
       )}
@@ -449,7 +449,7 @@ export function LnSheetAccordion({
     >
       <summary className="flex cursor-pointer select-none list-none items-center gap-[12px] px-[14px] py-[11px] hover:bg-[var(--color-ln-stripe)]">
         {/* Number */}
-        <span className="font-[var(--font-ln-mono)] text-[12px] font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
+        <span className="font-[var(--font-ln-mono)] text-sm font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
           {num}
         </span>
         {/* Title */}
@@ -458,7 +458,7 @@ export function LnSheetAccordion({
         </span>
         {/* Complete badge — hidden when open */}
         {complete && (
-          <span className="font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-ok)] group-open:hidden">
+          <span className="font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-ok)] group-open:hidden">
             ✓ completo
           </span>
         )}

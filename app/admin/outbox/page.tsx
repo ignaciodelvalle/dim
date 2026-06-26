@@ -186,7 +186,7 @@ export default async function AdminOutboxPage({
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin {"·"} Outbox
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Outbox de notificaciones</h1>
@@ -261,10 +261,7 @@ export default async function AdminOutboxPage({
         </OpButton>
 
         {hasFilters && (
-          <a
-            href="/admin/outbox"
-            className="text-[12px] text-ln-op-mute underline underline-offset-4"
-          >
+          <a href="/admin/outbox" className="text-sm text-ln-op-mute underline underline-offset-4">
             Limpiar filtros
           </a>
         )}
@@ -288,49 +285,49 @@ export default async function AdminOutboxPage({
                 <tr className="border-b border-ln-op-line">
                   <th
                     scope="col"
-                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                   >
                     SLA
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                   >
                     Destino
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                   >
                     Jurisdiccion
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                   >
                     Evento origen
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                   >
                     Intentos
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                   >
                     Creado
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                   >
                     SLA vence
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                   >
                     Accion
                   </th>
@@ -354,7 +351,7 @@ export default async function AdminOutboxPage({
                       <td className="py-2 px-3 whitespace-nowrap">
                         <OpPill tone={BREACH_PILL_TONE[cue]}>{BREACH_PILL_LABEL[cue]}</OpPill>
                       </td>
-                      <td className="py-2 px-3 whitespace-nowrap text-[12px] text-ln-op-ink-2">
+                      <td className="py-2 px-3 whitespace-nowrap text-sm text-ln-op-ink-2">
                         {TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind}
                       </td>
                       <td className="py-2 px-3 text-[11px] text-ln-op-ink-2">
@@ -376,7 +373,7 @@ export default async function AdminOutboxPage({
                           </span>
                         )}
                       </td>
-                      <td className="py-2 px-3 text-[12px] text-ln-op-ink-2 text-center">
+                      <td className="py-2 px-3 text-sm text-ln-op-ink-2 text-center">
                         {row.attempts}
                       </td>
                       <td className="py-2 px-3 text-[11px] text-ln-op-mute whitespace-nowrap">
@@ -394,7 +391,7 @@ export default async function AdminOutboxPage({
                       <td className="py-2 px-3">
                         <Link
                           href={`/admin/outbox/${row.id}`}
-                          className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-2 hover:underline whitespace-nowrap"
+                          className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-2 hover:underline whitespace-nowrap"
                         >
                           {"Detalle ->"}
                         </Link>
@@ -418,7 +415,7 @@ export default async function AdminOutboxPage({
             {newerLink && (
               <Link
                 href={newerLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 ← Más recientes
               </Link>
@@ -428,7 +425,7 @@ export default async function AdminOutboxPage({
             {olderLink && (
               <Link
                 href={olderLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 Ver más antiguos →
               </Link>

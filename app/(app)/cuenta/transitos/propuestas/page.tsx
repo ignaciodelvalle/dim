@@ -45,7 +45,7 @@ export default async function PropuestasInboxPage() {
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Propuestas de tránsito
           </h1>
-          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
             Los refugios te proponen cuidar mascotas que tienen en custodia. Tenés 7 días para
             responder antes de que la propuesta expire.
           </p>
@@ -101,7 +101,7 @@ export default async function PropuestasInboxPage() {
                   </div>
                   <span
                     aria-hidden="true"
-                    className="flex-shrink-0 text-[16px] text-[var(--color-ln-mute)]"
+                    className="flex-shrink-0 text-base text-[var(--color-ln-mute)]"
                   >
                     ›
                   </span>
@@ -125,7 +125,7 @@ export default async function PropuestasInboxPage() {
                     {org.displayName} · {pet.name}
                   </p>
                   <span
-                    className={`flex-shrink-0 font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em] ${
+                    className={`flex-shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] ${
                       proposal.status === "accepted"
                         ? "text-[var(--color-ln-ok)]"
                         : "text-[var(--color-ln-mute)]"

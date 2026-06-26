@@ -142,7 +142,7 @@ export default async function SolicitudesPage({
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis solicitudes
         </h1>
-        <span className="font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+        <span className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
           {totalCount === 0
             ? "ninguna"
             : totalCount === 1
@@ -181,7 +181,7 @@ export default async function SolicitudesPage({
                     </div>
                     <Link
                       href={`/r/invite/${inv.invitationToken}`}
-                      className="flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-[13px] py-[7px] font-[var(--font-ln-sans)] text-[12px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+                      className="flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-[13px] py-[7px] font-[var(--font-ln-sans)] text-sm font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
                     >
                       Ver invitación
                     </Link>
@@ -287,7 +287,7 @@ export default async function SolicitudesPage({
                   {/* Rejection reason */}
                   {req.status === "rejected" && req.decisionNotes && (
                     <div className="mb-[10px] rounded-[4px] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-[12px] py-[8px]">
-                      <p className="text-[12px] text-[var(--color-ln-err)]">
+                      <p className="text-sm text-[var(--color-ln-err)]">
                         <span className="font-semibold">Motivo:</span> {req.decisionNotes}
                       </p>
                     </div>
@@ -323,7 +323,7 @@ function FilterChip({
       href={href}
       aria-current={active ? "page" : undefined}
       className={[
-        "inline-flex cursor-pointer items-center rounded-full border px-[11px] py-[5px] font-[var(--font-ln-sans)] text-[12px] font-medium transition-colors no-underline",
+        "inline-flex cursor-pointer items-center rounded-full border px-[11px] py-[5px] font-[var(--font-ln-sans)] text-sm font-medium transition-colors no-underline",
         active
           ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]"
           : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)]",

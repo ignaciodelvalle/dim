@@ -230,7 +230,7 @@ export function ServiceOfferingForm({
             </button>
             <a
               href={`/org/${orgToken}/servicios`}
-              className="text-[12px] text-ln-op-azul hover:underline"
+              className="text-sm text-ln-op-azul hover:underline"
             >
               Cancelar
             </a>

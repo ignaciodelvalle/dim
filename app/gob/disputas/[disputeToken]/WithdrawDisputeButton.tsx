@@ -45,11 +45,11 @@ export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }
   return (
     <div className="space-y-3 rounded-[6px] border border-ln-op-danger p-4">
       <p className="text-[13px] font-medium text-ln-op-danger">Retirar disputa</p>
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         Esto cierra la disputa sin resolución y desbloquea la mascota para transferencias.
       </p>
       <div>
-        <label htmlFor="withdraw-reason" className="block text-[12px] text-ln-op-mute mb-1">
+        <label htmlFor="withdraw-reason" className="block text-sm text-ln-op-mute mb-1">
           Motivo del retiro (opcional)
         </label>
         <textarea

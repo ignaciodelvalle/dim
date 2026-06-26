@@ -114,7 +114,7 @@ export default async function GobVigilanciaBrotesPage({
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Vigilancia · Brotes
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">
@@ -154,7 +154,7 @@ export default async function GobVigilanciaBrotesPage({
           {soloVerificados && (
             <a
               href={`/gob/vigilancia/brotes${sp.period ? `?period=${sp.period}` : ""}`}
-              className="text-[12px] text-ln-op-mute underline"
+              className="text-sm text-ln-op-mute underline"
             >
               Quitar filtro
             </a>

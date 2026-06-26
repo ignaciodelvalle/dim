@@ -157,7 +157,7 @@ function shortDate(iso: string | null): string {
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 border-b border-ln-op-line-2 py-2 last:border-b-0">
-      <dt className="text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">{label}</dt>
+      <dt className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">{label}</dt>
       <dd className="text-[13px] text-ln-op-ink">{value ?? "—"}</dd>
     </div>
   );
@@ -205,7 +205,7 @@ function FeatureBody({
         .join(", ");
       return (
         <>
-          <p className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-[12px] text-ln-op-ink-2">
+          <p className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-sm text-ln-op-ink-2">
             Ubicación aproximada (centroide de localidad). No se muestra la ubicación exacta de la
             denuncia.
           </p>
@@ -430,19 +430,19 @@ function UnitHistorySection({
       </h3>
 
       {state.status === "loading" && (
-        <output aria-busy="true" className="text-[12px] text-ln-op-mute">
+        <output aria-busy="true" className="text-sm text-ln-op-mute">
           Cargando historial…
         </output>
       )}
 
       {state.status === "error" && (
-        <p role="alert" className="text-[12px] text-ln-op-warn">
+        <p role="alert" className="text-sm text-ln-op-warn">
           {state.message}
         </p>
       )}
 
       {state.status === "ok" && state.data.suppressed && (
-        <p className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-[12px] text-ln-op-ink-2">
+        <p className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-sm text-ln-op-ink-2">
           Suprimido por k-anonimato (menos de 5 eventos en el período).
         </p>
       )}
@@ -452,7 +452,7 @@ function UnitHistorySection({
           {/* Sparkline — daily trend over the active period */}
           {state.data.trend.length > 0 && (
             <div>
-              <p className="mb-1 text-[10px] text-ln-op-mute">Tendencia diaria</p>
+              <p className="mb-1 text-xs text-ln-op-mute">Tendencia diaria</p>
               <Sparkline
                 points={state.data.trend.map((b) => b.count)}
                 width={288}
@@ -465,13 +465,13 @@ function UnitHistorySection({
           {/* Recent events list */}
           {state.data.events.length > 0 ? (
             <div>
-              <p className="mb-1 text-[10px] text-ln-op-mute">
+              <p className="mb-1 text-xs text-ln-op-mute">
                 Eventos recientes ({state.data.events.length})
               </p>
               <ul className="flex flex-col gap-1">
                 {state.data.events.map((ev, idx) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: stable ordered list
-                  <li key={idx} className="flex items-start gap-2 text-[12px]">
+                  <li key={idx} className="flex items-start gap-2 text-sm">
                     <span className="shrink-0 text-ln-op-mute">{shortDate(ev.date)}</span>
                     <span className="text-ln-op-ink-2">{ev.label}</span>
                   </li>
@@ -479,16 +479,16 @@ function UnitHistorySection({
               </ul>
             </div>
           ) : (
-            <p className="text-[12px] text-ln-op-mute">Sin eventos en el período.</p>
+            <p className="text-sm text-ln-op-mute">Sin eventos en el período.</p>
           )}
 
           {/* byType breakdown */}
           {Object.keys(state.data.byType).length > 0 && (
             <div>
-              <p className="mb-1 text-[10px] text-ln-op-mute">Por tipo</p>
+              <p className="mb-1 text-xs text-ln-op-mute">Por tipo</p>
               <dl className="flex flex-col gap-0.5">
                 {Object.entries(state.data.byType).map(([type, n]) => (
-                  <div key={type} className="flex items-center justify-between text-[12px]">
+                  <div key={type} className="flex items-center justify-between text-sm">
                     <dt className="text-ln-op-ink-2">{type}</dt>
                     <dd className="font-medium text-ln-op-ink">{n}</dd>
                   </div>
@@ -557,7 +557,7 @@ export function DetailDrawer({ selected, onClose }: Props) {
         <>
           <header className="flex items-start justify-between gap-3 border-b border-ln-op-line px-4 py-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
                 Detalle de capa
               </p>
               <h2 id={titleId} className="text-[15px] font-semibold text-ln-op-ink">

@@ -204,7 +204,7 @@ export function AppCitizenMasthead({
               href="/cuenta"
               className="flex items-center gap-[9px] no-underline transition-opacity hover:opacity-80"
             >
-              <span className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-celeste)] font-[var(--font-ln-mono)] text-[12px] font-semibold text-[var(--color-ln-azul-900)]">
+              <span className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-celeste)] font-[var(--font-ln-mono)] text-sm font-semibold text-[var(--color-ln-azul-900)]">
                 {user.initials}
               </span>
               <span className="hidden text-[12.5px] font-medium md:block">{user.name}</span>
@@ -378,7 +378,7 @@ function CitizenMobileDrawer({
                 >
                   <span className="flex-1 truncate">{item.label}</span>
                   {badge != null && badge > 0 && (
-                    <span className="inline-flex items-center justify-center rounded-full bg-[var(--color-ln-celeste)] px-1.5 py-0.5 font-[var(--font-ln-mono)] text-[10px] font-bold leading-none text-[var(--color-ln-azul-900)]">
+                    <span className="inline-flex items-center justify-center rounded-full bg-[var(--color-ln-celeste)] px-1.5 py-0.5 font-[var(--font-ln-mono)] text-xs font-bold leading-none text-[var(--color-ln-azul-900)]">
                       {badge > 9 ? "9+" : badge}
                     </span>
                   )}

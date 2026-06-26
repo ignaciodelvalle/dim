@@ -153,7 +153,7 @@ export function InvestigationActions({
 
       {mode === "add_note" && (
         <div className="space-y-1.5">
-          <label htmlFor="entry-type" className="block text-[12px] font-medium text-ln-op-mute">
+          <label htmlFor="entry-type" className="block text-sm font-medium text-ln-op-mute">
             Tipo de registro
           </label>
           <select
@@ -174,7 +174,7 @@ export function InvestigationActions({
       {mode === "external_notification" && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
-            <label htmlFor="ext-date" className="block text-[12px] font-medium text-ln-op-mute">
+            <label htmlFor="ext-date" className="block text-sm font-medium text-ln-op-mute">
               Fecha de notificación
             </label>
             <input
@@ -186,7 +186,7 @@ export function InvestigationActions({
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="ext-channel" className="block text-[12px] font-medium text-ln-op-mute">
+            <label htmlFor="ext-channel" className="block text-sm font-medium text-ln-op-mute">
               Canal
             </label>
             <input
@@ -199,10 +199,7 @@ export function InvestigationActions({
             />
           </div>
           <div className="space-y-1.5">
-            <label
-              htmlFor="ext-reference"
-              className="block text-[12px] font-medium text-ln-op-mute"
-            >
+            <label htmlFor="ext-reference" className="block text-sm font-medium text-ln-op-mute">
               Referencia (opcional)
             </label>
             <input
@@ -219,7 +216,7 @@ export function InvestigationActions({
 
       {mode === "close_resolved" && (
         <div className="space-y-1.5">
-          <label htmlFor="final-report" className="block text-[12px] font-medium text-ln-op-mute">
+          <label htmlFor="final-report" className="block text-sm font-medium text-ln-op-mute">
             Informe final (si no lo registraste antes)
           </label>
           <textarea
@@ -234,7 +231,7 @@ export function InvestigationActions({
       )}
 
       <div className="space-y-1.5">
-        <label htmlFor="notes" className="block text-[12px] font-medium text-ln-op-mute">
+        <label htmlFor="notes" className="block text-sm font-medium text-ln-op-mute">
           {mode === "add_note"
             ? "Detalle (mínimo 5 caracteres)"
             : mode === "external_notification"
@@ -255,7 +252,7 @@ export function InvestigationActions({
           }
           className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         />
-        <p className="text-[12px] text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
+        <p className="text-sm text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
       </div>
 
       {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}

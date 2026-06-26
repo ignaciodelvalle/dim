@@ -48,12 +48,12 @@ export function ReplaceMicrochipForm({
   return (
     <form action={formAction} className="space-y-5">
       {/* Current chip info row */}
-      <div className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-[12px] text-ln-op-ink-2">
+      <div className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-sm text-ln-op-ink-2">
         Chip actual: <span className="font-mono font-semibold text-ln-op-ink">{currentChip}</span>
       </div>
 
       <div className="space-y-1.5">
-        <p className="text-[12px] font-semibold text-ln-op-ink-2">
+        <p className="text-sm font-semibold text-ln-op-ink-2">
           Motivo del reemplazo
           <span className="ml-0.5 text-ln-op-danger">*</span>
         </p>
@@ -141,7 +141,7 @@ export function ReplaceMicrochipForm({
 
       {isFraud && (
         <div
-          className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-4 py-3 text-[12px] text-ln-op-danger"
+          className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-4 py-3 text-sm text-ln-op-danger"
           role="alert"
         >
           Esta acción notifica a todos los administradores activos y abre un caso de investigación
@@ -150,7 +150,7 @@ export function ReplaceMicrochipForm({
       )}
 
       {state.error && (
-        <p className="text-[12px] text-ln-op-danger" role="alert">
+        <p className="text-sm text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}

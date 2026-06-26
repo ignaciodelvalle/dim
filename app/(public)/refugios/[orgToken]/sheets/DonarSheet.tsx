@@ -83,7 +83,7 @@ export function DonarSheet({ orgDisplayName, methods }: Props) {
                   key={row.label}
                   className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3"
                 >
-                  <p className="text-[10px] uppercase tracking-wider text-[var(--color-ln-mute)]">
+                  <p className="text-xs uppercase tracking-wider text-[var(--color-ln-mute)]">
                     {row.label}
                   </p>
                   {row.href ? (

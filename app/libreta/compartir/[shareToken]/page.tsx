@@ -152,7 +152,7 @@ export default async function PublicLibretaPage({
           <div className="print:hidden flex flex-wrap items-center gap-[8px]">
             {ownerFirstName && (
               <span
-                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-[12px] font-medium"
+                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-sm font-medium"
                 style={{
                   background: "var(--color-ln-stripe)",
                   borderColor: "var(--color-ln-line-2)",
@@ -165,7 +165,7 @@ export default async function PublicLibretaPage({
             )}
             {relativeExpiry && (
               <span
-                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-[12px] font-medium"
+                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-sm font-medium"
                 style={{
                   background: "var(--color-ln-warn-025)",
                   borderColor: "var(--color-ln-warn-050)",
@@ -202,7 +202,7 @@ export default async function PublicLibretaPage({
         <footer className="border-t border-[var(--color-ln-line-2)] pt-8 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
           <p>Generada por MiMAR · {new Date().toLocaleString("es-AR")}</p>
           {share.expiresAt && <p>El enlace vence el {share.expiresAt.toLocaleString("es-AR")}.</p>}
-          <p className="mt-1 text-[10px]">Token: {shareToken}</p>
+          <p className="mt-1 text-xs">Token: {shareToken}</p>
         </footer>
 
         <ViewLogger shareToken={shareToken} />

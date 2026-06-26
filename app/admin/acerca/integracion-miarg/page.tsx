@@ -51,7 +51,7 @@ export default function IntegracionMiArgPage() {
               Ciudadano verificado
             </p>
             <p className="text-lg font-semibold text-ln-op-ink">Carlos Ramírez Moreno</p>
-            <p className="text-[12px] text-ln-op-ink-2">DNI 30.485.211</p>
+            <p className="text-sm text-ln-op-ink-2">DNI 30.485.211</p>
           </div>
 
           <div className="rounded-[8px] border border-ln-op-line bg-ln-op-bg px-4 py-3 space-y-1">
@@ -68,7 +68,7 @@ export default function IntegracionMiArgPage() {
             <p className="text-[11px] font-semibold uppercase tracking-wide text-ln-op-mute">
               Acciones disponibles
             </p>
-            <ul className="space-y-0.5 text-[12px] text-ln-op-ink-2">
+            <ul className="space-y-0.5 text-sm text-ln-op-ink-2">
               <li>• Ver historial sanitario</li>
               <li>• Descargar constancia de vacunación antirrábica</li>
               <li>• Reportar mascota perdida</li>

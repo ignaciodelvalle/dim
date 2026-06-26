@@ -141,7 +141,7 @@ export function ExportFormClient({
           >
             Descargar export →
           </a>
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Este link vence en 24 horas (Ley 25.326 de Proteccion de Datos Personales).
             {state.emailSent
               ? " También te enviamos el link por email."

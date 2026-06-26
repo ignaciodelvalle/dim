@@ -38,7 +38,7 @@ export function LnLedger<T>({ columns, rows, rowKey, className = "" }: LnLedgerP
             {columns.map((col) => (
               <th
                 key={col.key}
-                className="border-b border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[16px] py-[10px] text-left font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+                className="border-b border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[16px] py-[10px] text-left font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
                 style={col.width ? { width: col.width } : undefined}
               >
                 {col.header}
@@ -101,7 +101,7 @@ export function LnVaccineLedger({
       header: "Fecha",
       render: (r) => (
         <div>
-          <p className="font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-ink-2)]">
+          <p className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-ink-2)]">
             {r.appliedAt}
           </p>
           {r.nextDue && (

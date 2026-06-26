@@ -51,7 +51,7 @@ export default async function AdoptarPage({
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[42px] font-semibold leading-[1.05] tracking-[-0.025em] text-[var(--color-ln-ink)]">
             Adoptar en <span className="text-[var(--color-ln-azul)]">MiMAR</span>
           </h1>
-          <p className="text-[16px] leading-[1.55] text-[var(--color-ln-ink-2)]">
+          <p className="text-base leading-[1.55] text-[var(--color-ln-ink-2)]">
             Mascotas publicadas por refugios verificados en Argentina. Si ves alguna que te resuene,
             postulate y el refugio te contacta.
           </p>
@@ -86,7 +86,7 @@ export default async function AdoptarPage({
           </div>
         ) : (
           <>
-            <p className="font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+            <p className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
               <strong className="text-[var(--color-ln-ink)] font-semibold">
                 {items.length} mascota{items.length === 1 ? "" : "s"}
               </strong>

@@ -58,7 +58,7 @@ export default async function AdminPoblacionPage({
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
     <header className="space-y-2">
-      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         Admin · Control poblacional nacional
       </p>
       <h1 className="text-[22px] font-semibold text-ln-op-ink">Control poblacional</h1>
@@ -222,7 +222,7 @@ export default async function AdminPoblacionPage({
           title={<span id={panelTrendId}>Tendencia de esterilizaciones</span>}
           actions={
             sterilTrend.suppressedCount > 0 ? (
-              <span className="text-[12px] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 {sterilTrend.suppressedCount}{" "}
                 {sterilTrend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"}{" "}
                 (privacidad)
@@ -352,7 +352,7 @@ export default async function AdminPoblacionPage({
                 const unassigned = coverage.total - assignedTotal;
                 if (unassigned <= 0) return null;
                 return (
-                  <p className="mt-2 text-[10px] text-ln-op-mute">
+                  <p className="mt-2 text-xs text-ln-op-mute">
                     * {unassigned.toLocaleString("es-AR")} mascotas sin provincia asignada no
                     aparecen en la tabla — la suma de las filas no equivale al total nacional.
                   </p>

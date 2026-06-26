@@ -23,7 +23,7 @@ const selectClasses =
   "focus:border-ln-op-azul focus:outline-none focus:ring-1 focus:ring-ln-op-azul " +
   "disabled:opacity-50 disabled:cursor-not-allowed w-full";
 
-const labelClasses = "text-[12px] font-medium text-ln-op-mute";
+const labelClasses = "text-sm font-medium text-ln-op-mute";
 
 type Props = {
   orgToken: string;
@@ -94,7 +94,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
     <div className="space-y-6">
       {canManage && (
         <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-5 space-y-4">
-          <h2 className="text-[14px] font-semibold text-ln-op-ink">Agregar zona de cobertura</h2>
+          <h2 className="text-md font-semibold text-ln-op-ink">Agregar zona de cobertura</h2>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -139,7 +139,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
           </div>
 
           {error && (
-            <p className="text-[12px] text-ln-op-danger" role="alert">
+            <p className="text-sm text-ln-op-danger" role="alert">
               {error}
             </p>
           )}
@@ -156,9 +156,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
       )}
 
       <div className="space-y-2">
-        <h2 className="text-[14px] font-semibold text-ln-op-ink">
-          Zonas registradas ({zones.length})
-        </h2>
+        <h2 className="text-md font-semibold text-ln-op-ink">Zonas registradas ({zones.length})</h2>
 
         {zones.length === 0 ? (
           <p className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-4 py-6 text-center text-[13px] text-ln-op-mute">
@@ -174,26 +172,26 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
                 <tr className="border-b border-ln-op-line bg-ln-op-stripe">
                   <th
                     scope="col"
-                    className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute"
+                    className="px-4 py-3 text-left text-sm font-medium text-ln-op-mute"
                   >
                     Provincia
                   </th>
                   <th
                     scope="col"
-                    className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute"
+                    className="px-4 py-3 text-left text-sm font-medium text-ln-op-mute"
                   >
                     Localidad
                   </th>
                   <th
                     scope="col"
-                    className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute"
+                    className="px-4 py-3 text-left text-sm font-medium text-ln-op-mute"
                   >
                     Principal
                   </th>
                   {canManage && (
                     <th
                       scope="col"
-                      className="px-4 py-3 text-right text-[12px] font-medium text-ln-op-mute"
+                      className="px-4 py-3 text-right text-sm font-medium text-ln-op-mute"
                     >
                       Acciones
                     </th>
@@ -226,7 +224,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
                               type="button"
                               onClick={() => handleSetPrimary(zone.id)}
                               disabled={pending}
-                              className="rounded-full border border-ln-op-line px-3 py-1 text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
+                              className="rounded-full border border-ln-op-line px-3 py-1 text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
                             >
                               Marcar principal
                             </button>
@@ -235,7 +233,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
                             type="button"
                             onClick={() => handleRemove(zone.id)}
                             disabled={pending}
-                            className="rounded-full border border-ln-op-danger-bd px-3 py-1 text-[12px] font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white disabled:opacity-60"
+                            className="rounded-full border border-ln-op-danger-bd px-3 py-1 text-sm font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white disabled:opacity-60"
                           >
                             Eliminar
                           </button>

@@ -25,7 +25,7 @@ export function OpScopeChip({ code, label, variant = "default" }: Props) {
           {code}
         </span>
         {label && (
-          <span className="text-[10px] uppercase tracking-[0.04em] text-ln-op-mute">· {label}</span>
+          <span className="text-xs uppercase tracking-[0.04em] text-ln-op-mute">· {label}</span>
         )}
       </span>
     );
@@ -48,9 +48,7 @@ export function OpScopeChip({ code, label, variant = "default" }: Props) {
     >
       <span className="font-ln-mono font-bold tracking-[0.04em]">{code}</span>
       {label && (
-        <span className="text-[10px] uppercase tracking-[0.04em] text-ln-op-rail-mute">
-          · {label}
-        </span>
+        <span className="text-xs uppercase tracking-[0.04em] text-ln-op-rail-mute">· {label}</span>
       )}
     </span>
   );

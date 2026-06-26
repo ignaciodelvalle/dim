@@ -75,7 +75,7 @@ export default async function MisDenunciasPage() {
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis denuncias
           </h1>
-          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
             {reports.length === 0
               ? "Sin denuncias enviadas."
               : `${reports.length} denuncia${reports.length === 1 ? "" : "s"} enviada${reports.length === 1 ? "" : "s"}.`}
@@ -103,7 +103,7 @@ export default async function MisDenunciasPage() {
               className="flex items-start justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
             >
               <div className="min-w-0 flex-1">
-                <p className="font-[var(--font-ln-serif)] text-[14px] font-semibold text-[var(--color-ln-ink)]">
+                <p className="font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]">
                   {welfareReportKindLabel(report.kind)}
                 </p>
                 <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
@@ -116,7 +116,7 @@ export default async function MisDenunciasPage() {
                     ? `${report.description.slice(0, 150)}…`
                     : report.description}
                 </p>
-                <p className="mt-[4px] font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-mute)]">
+                <p className="mt-[4px] font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
                   {formatDateTime(report.createdAt)}
                   {(report.jurisdictionLocality || report.jurisdictionProvince) && (
                     <>
@@ -134,7 +134,7 @@ export default async function MisDenunciasPage() {
                 >
                   {welfareReportStatusLabel(report.status)}
                 </span>
-                <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+                <span aria-hidden="true" className="text-base text-[var(--color-ln-mute)]">
                   ›
                 </span>
               </div>

@@ -148,9 +148,7 @@ export default async function GobPerdidasPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Perdidas
-        </p>
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Perdidas</p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Mascotas perdidas</h1>
         <p className="text-[13px] text-ln-op-mute">
           {profile.role === "admin"

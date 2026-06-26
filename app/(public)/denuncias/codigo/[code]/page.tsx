@@ -156,7 +156,7 @@ export default async function WelfareReportByCodePage({
               Tu denuncia fue registrada.
             </p>
             <p
-              className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"
+              className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"
               style={{ fontFamily: "var(--font-ln-mono)" }}
             >
               Tu código de seguimiento

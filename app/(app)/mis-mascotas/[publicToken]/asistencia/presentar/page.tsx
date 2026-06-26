@@ -78,7 +78,7 @@ export default async function AsistenciaPresentarPage({
       <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center gap-[24px] px-[24px] py-[32px]">
         {/* Credential title */}
         <div className="text-center">
-          <p className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
+          <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
             Credencial de perro de asistencia
           </p>
           <p className="mt-[3px] font-[var(--font-ln-mono)] text-[11px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
@@ -105,7 +105,7 @@ export default async function AsistenciaPresentarPage({
           <h1 className="font-[var(--font-ln-serif)] text-[40px] font-semibold tracking-tight text-[var(--color-ln-ink)]">
             {pet.name}
           </h1>
-          <p className="mt-[4px] text-[18px] text-[var(--color-ln-ok)]">{serviceTypeLabel}</p>
+          <p className="mt-[4px] text-lg text-[var(--color-ln-ok)]">{serviceTypeLabel}</p>
         </div>
 
         {/* Credential fields */}
@@ -151,7 +151,7 @@ export default async function AsistenciaPresentarPage({
         </dl>
 
         {/* Legal text */}
-        <p className="max-w-sm text-center text-[12px] leading-relaxed text-[var(--color-ln-mute)]">
+        <p className="max-w-sm text-center text-sm leading-relaxed text-[var(--color-ln-mute)]">
           Esta credencial habilita el acceso, deambulación y permanencia con este perro en todos los
           espacios públicos y privados de uso público (Arts. 1 y 7, Ley 26.858).
         </p>
@@ -168,7 +168,7 @@ export default async function AsistenciaPresentarPage({
               // biome-ignore lint/security/noDangerouslySetInnerHtml: server-generated SVG from the qrcode library
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
-            <p className="max-w-xs break-all font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-mute)]">
+            <p className="max-w-xs break-all font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
               {publicVerifyUrl}
             </p>
           </div>

@@ -105,7 +105,7 @@ export default async function IntakeMatchPage({
       />
 
       <header className="space-y-1">
-        <p className="text-[12px] uppercase tracking-wider text-ln-op-mute">
+        <p className="text-sm uppercase tracking-wider text-ln-op-mute">
           {organization.displayName}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Coincidencia de microchip</h1>

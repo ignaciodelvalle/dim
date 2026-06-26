@@ -66,7 +66,7 @@ export default async function TransitosActivosPage() {
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Tránsitos activos
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Mascotas que estás cuidando hoy. Tenés los mismos permisos sobre la libreta sanitaria y
           eventos que un dueño mientras dure el tránsito.
         </p>
@@ -97,7 +97,7 @@ export default async function TransitosActivosPage() {
                 <div className="px-[16px] py-[14px]">
                   <Link
                     href={`/mis-mascotas/${pet.publicToken}`}
-                    className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink)] no-underline hover:underline"
+                    className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)] no-underline hover:underline"
                   >
                     {pet.name}
                   </Link>

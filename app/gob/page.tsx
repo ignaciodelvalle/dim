@@ -199,7 +199,7 @@ export default async function GobiernoDashboardPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           MiMAR Gobierno · {profile.role} · {scopeLabel}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Panel de jurisdicción</h1>
@@ -391,7 +391,7 @@ export default async function GobiernoDashboardPage({
           }
           actions={
             bitesTrend.suppressedCount > 0 ? (
-              <span className="text-[12px] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 {bitesTrend.suppressedCount}{" "}
                 {bitesTrend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"}{" "}
                 (privacidad)
@@ -426,7 +426,7 @@ export default async function GobiernoDashboardPage({
               actions={
                 <Link
                   href="/gob/cola"
-                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                  className="text-sm text-ln-op-azul hover:underline no-underline"
                 >
                   Ver cola →
                 </Link>
@@ -440,7 +440,7 @@ export default async function GobiernoDashboardPage({
                   <p className="font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] text-ln-op-ink">
                     {pending.length}
                   </p>
-                  <p className="text-[12px] text-ln-op-mute">solicitudes esperando revisión</p>
+                  <p className="text-sm text-ln-op-mute">solicitudes esperando revisión</p>
                 </div>
               )}
             </OpCardBody>
@@ -452,7 +452,7 @@ export default async function GobiernoDashboardPage({
               title="Actividad reciente"
               actions={
                 recentDecisions.length > 0 ? (
-                  <span className="text-[12px] text-ln-op-mute">últimos 7 días</span>
+                  <span className="text-sm text-ln-op-mute">últimos 7 días</span>
                 ) : null
               }
             />
@@ -471,7 +471,7 @@ export default async function GobiernoDashboardPage({
                       <p className="text-[13px] text-ln-op-ink">
                         {ACTION_LABELS[entry.action] ?? entry.action}
                       </p>
-                      <time className="text-[12px] text-ln-op-mute tabular-nums whitespace-nowrap">
+                      <time className="text-sm text-ln-op-mute tabular-nums whitespace-nowrap">
                         {new Date(entry.performedAt).toLocaleString("es-AR", {
                           dateStyle: "short",
                           timeStyle: "short",
@@ -491,7 +491,7 @@ export default async function GobiernoDashboardPage({
               actions={
                 <Link
                   href="/gob/casos"
-                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                  className="text-sm text-ln-op-azul hover:underline no-underline"
                 >
                   {openCasesTotal > openCases.length
                     ? `Ver todos (${openCasesTotal}) →`
@@ -520,14 +520,14 @@ export default async function GobiernoDashboardPage({
                           status={c.status}
                           size="sm"
                         />
-                        <time className="text-[12px] text-ln-op-mute tabular-nums whitespace-nowrap">
+                        <time className="text-sm text-ln-op-mute tabular-nums whitespace-nowrap">
                           {formatDate(c.openedAt)}
                         </time>
                       </div>
                       {c.primaryPetPublicToken && c.primaryPetName ? (
                         <Link
                           href={`/mis-mascotas/${c.primaryPetPublicToken}`}
-                          className="text-[12px] text-ln-op-mute hover:underline no-underline"
+                          className="text-sm text-ln-op-mute hover:underline no-underline"
                         >
                           🐾 {c.primaryPetName}
                         </Link>
@@ -549,7 +549,7 @@ export default async function GobiernoDashboardPage({
               actions={
                 <Link
                   href="/gob/vigilancia"
-                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                  className="text-sm text-ln-op-azul hover:underline no-underline"
                 >
                   Ver →
                 </Link>
@@ -569,7 +569,7 @@ export default async function GobiernoDashboardPage({
               actions={
                 <Link
                   href="/gob/maltrato"
-                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                  className="text-sm text-ln-op-azul hover:underline no-underline"
                 >
                   Ver bandeja →
                 </Link>
@@ -585,7 +585,7 @@ export default async function GobiernoDashboardPage({
                   <p className="font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] text-ln-op-ink">
                     {openWelfareReports.count}
                   </p>
-                  <p className="text-[12px] text-ln-op-mute">
+                  <p className="text-sm text-ln-op-mute">
                     {openWelfareReports.count === 1 ? "denuncia activa" : "denuncias activas"}
                   </p>
                 </div>
@@ -600,7 +600,7 @@ export default async function GobiernoDashboardPage({
               actions={
                 <Link
                   href="/gob/perdidas"
-                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                  className="text-sm text-ln-op-azul hover:underline no-underline"
                 >
                   Ver →
                 </Link>

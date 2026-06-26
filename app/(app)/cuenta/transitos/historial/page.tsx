@@ -60,7 +60,7 @@ export default async function TransitosHistorialPage() {
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Historial de tránsitos
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Tránsitos terminados y propuestas que no llegaron a aceptarse.
         </p>
       </div>
@@ -136,7 +136,7 @@ export default async function TransitosHistorialPage() {
                       </p>
                     )}
                   </div>
-                  <span className="flex-shrink-0 font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
+                  <span className="flex-shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
                     {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ??
                       proposal.status}
                   </span>

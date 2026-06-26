@@ -71,7 +71,7 @@ export function BulkRevokeList({ items, targetKind, actorUserId }: Props) {
             onChange={handleToggleSelectPage}
             aria-label="Seleccionar todas las filas revocables de esta página"
           />
-          <span className="text-[12px] text-ln-op-mute">Seleccionar página</span>
+          <span className="text-sm text-ln-op-mute">Seleccionar página</span>
         </div>
       )}
       <ul className="space-y-2">

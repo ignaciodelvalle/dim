@@ -51,7 +51,7 @@ export default async function NewRulePage({
         <OpBreach title="Falta ?ruleType= en la URL." />
         <Link
           href={backHref}
-          className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+          className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
         >
           {"<- Volver"}
         </Link>

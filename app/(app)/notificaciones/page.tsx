@@ -195,7 +195,7 @@ export default async function NotificacionesPage({
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Notificaciones
           </h1>
-          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
             {counts.all === 0
               ? "Sin notificaciones."
               : unreadCount > 0
@@ -242,7 +242,7 @@ export default async function NotificacionesPage({
                 {CATEGORY_LABELS[c]}
                 <span
                   className={[
-                    "rounded-full px-[6px] py-[1px] font-[var(--font-ln-mono)] text-[10px]",
+                    "rounded-full px-[6px] py-[1px] font-[var(--font-ln-mono)] text-xs",
                     isActive
                       ? "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]"
                       : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
@@ -261,7 +261,7 @@ export default async function NotificacionesPage({
       {/* Notification list */}
       {rows.length === 0 ? (
         <div className="py-[32px] text-center">
-          <p className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink-2)]">
+          <p className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink-2)]">
             {EMPTY_CATEGORY_TITLES[activeCat]}
           </p>
           {(EMPTY_CATEGORY_DESCRIPTIONS[activeCat] ??

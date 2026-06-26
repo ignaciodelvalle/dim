@@ -25,11 +25,11 @@ export function OpBreach({ title, detail, icon }: Props) {
         "bg-ln-op-danger-bg px-4 py-3",
       ].join(" ")}
     >
-      {icon && <span className="flex-shrink-0 text-[18px] text-ln-op-danger">{icon}</span>}
+      {icon && <span className="flex-shrink-0 text-lg text-ln-op-danger">{icon}</span>}
 
       <div className="min-w-0 flex-1">
         <b className="block text-[13px] font-bold text-ln-op-danger">{title}</b>
-        {detail && <span className="text-[12px] text-ln-op-danger opacity-85">{detail}</span>}
+        {detail && <span className="text-sm text-ln-op-danger opacity-85">{detail}</span>}
       </div>
     </div>
   );

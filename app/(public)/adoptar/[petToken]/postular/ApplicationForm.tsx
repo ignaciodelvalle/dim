@@ -89,7 +89,7 @@ function StepQuestion({
         {label}
       </p>
       {hint && (
-        <p className="text-[12px]" style={HINT_STYLE}>
+        <p className="text-sm" style={HINT_STYLE}>
           {hint}
         </p>
       )}
@@ -296,7 +296,7 @@ export function ApplicationForm({
           : undefined
       }
     >
-      <p className="text-[12px]" style={HINT_STYLE}>
+      <p className="text-sm" style={HINT_STYLE}>
         Te van a contactar a{" "}
         <span className="font-semibold" style={{ color: "var(--color-ln-ink)" }}>
           {applicantEmail}
@@ -341,7 +341,7 @@ export function ApplicationForm({
           type="button"
           onClick={advanceStep1}
           disabled={motivationChars < MIN_MOTIVATION_LEN}
-          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -384,7 +384,7 @@ export function ApplicationForm({
           type="button"
           onClick={advanceStep2}
           disabled={!priorPets}
-          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -412,7 +412,7 @@ export function ApplicationForm({
           type="button"
           onClick={() => setStep(4)}
           disabled={!housingType}
-          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -449,7 +449,7 @@ export function ApplicationForm({
         <button
           type="button"
           onClick={() => setStep(5)}
-          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white"
+          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-md font-semibold text-white"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -467,11 +467,11 @@ export function ApplicationForm({
             Resumen
           </p>
           <dl
-            className="grid gap-x-[14px] gap-y-[6px] text-[12px]"
+            className="grid gap-x-[14px] gap-y-[6px] text-sm"
             style={{ gridTemplateColumns: "auto 1fr" }}
           >
             <dt
-              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
               style={HINT_STYLE}
             >
               Por qué adoptás
@@ -480,7 +480,7 @@ export function ApplicationForm({
               {motivation.trim() || "—"}
             </dd>
             <dt
-              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
               style={HINT_STYLE}
             >
               Experiencia con mascotas
@@ -489,7 +489,7 @@ export function ApplicationForm({
               {PRIOR_PETS_OPTIONS.find((o) => o.value === priorPets)?.label ?? "—"}
             </dd>
             <dt
-              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
               style={HINT_STYLE}
             >
               Vivienda
@@ -498,7 +498,7 @@ export function ApplicationForm({
               {HOUSING_OPTIONS.find((o) => o.value === housingType)?.label ?? "—"}
             </dd>
             <dt
-              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
               style={HINT_STYLE}
             >
               Otras mascotas
@@ -507,7 +507,7 @@ export function ApplicationForm({
               {otherPets || "—"}
             </dd>
             <dt
-              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
               style={HINT_STYLE}
             >
               Día a día
@@ -516,7 +516,7 @@ export function ApplicationForm({
               {dailyRoutine || "—"}
             </dd>
             <dt
-              className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em]"
+              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
               style={HINT_STYLE}
             >
               Notas
@@ -614,7 +614,7 @@ export function ApplicationForm({
           type="button"
           onClick={submit}
           disabled={pending || !profileSharingConsent}
-          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           {pending ? "Enviando postulación..." : "Enviar postulación"}

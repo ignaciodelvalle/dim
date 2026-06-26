@@ -104,7 +104,7 @@ export default async function AppointmentDetailPage({
 
       {/* Header */}
       <div className="mb-[24px] flex items-start justify-between gap-3">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[24px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {offering.displayName}
         </h1>
         <span
@@ -160,7 +160,7 @@ export default async function AppointmentDetailPage({
               // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
-            <p className="select-all text-center font-[var(--font-ln-mono)] text-[18px] font-bold tracking-widest text-[var(--color-ln-ink)]">
+            <p className="select-all text-center font-[var(--font-ln-mono)] text-lg font-bold tracking-widest text-[var(--color-ln-ink)]">
               {appointmentToken}
             </p>
           </LnCardBody>
@@ -200,7 +200,7 @@ export default async function AppointmentDetailPage({
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
       <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>

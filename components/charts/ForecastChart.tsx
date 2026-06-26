@@ -256,7 +256,7 @@ export function ForecastChart({
       {/* Crossing callout — sales beat for the executive. */}
       {!cannotPlot && crossingText ? (
         <p
-          className={`mt-2 text-[12px] font-medium ${
+          className={`mt-2 text-sm font-medium ${
             crossing != null ? "text-ln-op-ok" : "text-ln-op-mute"
           }`}
         >
@@ -265,7 +265,7 @@ export function ForecastChart({
       ) : null}
 
       {/* Honesty footnote — band + n + method (acceptance requirement). */}
-      <figcaption className="mt-2 text-[10px] italic leading-snug text-ln-op-mute">
+      <figcaption className="mt-2 text-xs italic leading-snug text-ln-op-mute">
         {footnote}
       </figcaption>
 

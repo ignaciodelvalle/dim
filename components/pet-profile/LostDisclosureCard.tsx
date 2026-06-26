@@ -72,7 +72,7 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
       <div className="mb-[12px] flex items-baseline justify-between">
         <h3
           id="lp-discl-h"
-          className="m-0 font-[var(--font-ln-serif)] text-[14px] font-semibold"
+          className="m-0 font-[var(--font-ln-serif)] text-md font-semibold"
           style={{ color: "var(--color-ln-ink)" }}
         >
           Qué se muestra al público

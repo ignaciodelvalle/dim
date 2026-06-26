@@ -49,7 +49,7 @@ export function PostCreateModal({ publicToken }: { publicToken: string }) {
         className="fixed left-1/2 top-1/2 z-[calc(var(--z-overlay,50)+1)] m-0 w-full max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-[8px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[28px] py-[28px] shadow-xl"
       >
         {/* Eyebrow */}
-        <p className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
+        <p className="mb-[6px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
           Libreta creada
         </p>
 
@@ -62,7 +62,7 @@ export function PostCreateModal({ publicToken }: { publicToken: string }) {
         </h2>
 
         {/* Body */}
-        <p className="mb-[24px] text-[14px] leading-[1.55] text-[var(--color-ln-ink-2)]">
+        <p className="mb-[24px] text-md leading-[1.55] text-[var(--color-ln-ink-2)]">
           Podés agregar más datos ahora (raza, microchip, vacunas…) o hacerlo más tarde desde su
           perfil.
         </p>

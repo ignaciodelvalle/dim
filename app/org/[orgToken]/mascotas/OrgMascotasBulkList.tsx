@@ -205,7 +205,7 @@ export function OrgMascotasBulkList({
       {/* View toggle: Lista / Tablero */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         {canBulkSelect && view === "list" && (
-          <div className="flex items-center gap-3 text-[12px] text-ln-op-mute">
+          <div className="flex items-center gap-3 text-sm text-ln-op-mute">
             <button
               type="button"
               onClick={allSelected ? clear : selectAll}
@@ -217,7 +217,7 @@ export function OrgMascotasBulkList({
         )}
         {!canBulkSelect && <div />}
 
-        <fieldset className="inline-flex rounded-[6px] border border-ln-op-line overflow-hidden text-[12px] p-0">
+        <fieldset className="inline-flex rounded-[6px] border border-ln-op-line overflow-hidden text-sm p-0">
           <legend className="sr-only">Vista</legend>
           <button
             type="button"
@@ -311,8 +311,8 @@ export function OrgMascotasBulkList({
                       href={`/mis-mascotas/${card.publicToken}`}
                       className="flex-1 min-w-0 hover:underline"
                     >
-                      <p className="text-[14px] font-semibold text-ln-op-ink">{card.name}</p>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-md font-semibold text-ln-op-ink">{card.name}</p>
+                      <p className="text-sm text-ln-op-mute">
                         {speciesLabel(card.species)}
                         {card.breed ? ` · ${card.breed}` : ""}
                         {card.color ? ` · ${card.color}` : ""}
@@ -320,13 +320,13 @@ export function OrgMascotasBulkList({
                     </Link>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${badge.className}`}
+                        className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${badge.className}`}
                       >
                         {badge.label}
                       </span>
                       {hasFoster && card.ownershipRole === "shelter_custody" && (
                         <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${ROLE_BADGE.foster.className}`}
+                          className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${ROLE_BADGE.foster.className}`}
                         >
                           + tránsito
                         </span>
@@ -335,13 +335,13 @@ export function OrgMascotasBulkList({
                     </div>
                   </div>
                 </div>
-                <p className="text-[12px] text-ln-op-mute">
+                <p className="text-sm text-ln-op-mute">
                   {ageInfo} · ingreso{" "}
                   {new Date(card.startedAt).toLocaleDateString("es-AR", {
                     dateStyle: "medium",
                   })}
                 </p>
-                <p className="text-[12px] text-ln-op-mute">
+                <p className="text-sm text-ln-op-mute">
                   <code className="font-ln-mono">{card.publicToken}</code>
                 </p>
                 {anyCta && (
@@ -349,7 +349,7 @@ export function OrgMascotasBulkList({
                     {showFosterCta && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}/foster`}
-                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                        className="inline-block text-sm px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
                         Asignar tránsito
                       </Link>
@@ -357,7 +357,7 @@ export function OrgMascotasBulkList({
                     {canEndFoster && hasFoster && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=fin-transito`}
-                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                        className="inline-block text-sm px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
                         Cerrar tránsito
                       </Link>
@@ -365,7 +365,7 @@ export function OrgMascotasBulkList({
                     {canIntake && card.ownershipRole === "shelter_custody" && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=elegibilidad`}
-                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                        className="inline-block text-sm px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
                         {card.adoptionEligible === true
                           ? "Apta ✓"
@@ -377,7 +377,7 @@ export function OrgMascotasBulkList({
                     {canManageAdoptionListing && card.ownershipRole === "shelter_custody" && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}/adoptar`}
-                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                        className="inline-block text-sm px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
                         {card.adoptionListedAt && !card.adoptionListingPausedAt
                           ? "Publicada ✓"
@@ -389,7 +389,7 @@ export function OrgMascotasBulkList({
                     {canFinalizeAdoption && card.ownershipRole === "shelter_custody" && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}/adoption`}
-                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] bg-ln-op-ok text-white hover:opacity-90"
+                        className="inline-block text-sm px-2 py-1 rounded-[4px] bg-ln-op-ok text-white hover:opacity-90"
                       >
                         Finalizar adopción
                       </Link>
@@ -397,7 +397,7 @@ export function OrgMascotasBulkList({
                     {showReturnToOwnerCta && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=devolver-al-dueno`}
-                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
+                        className="inline-block text-sm px-2 py-1 rounded-[4px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
                       >
                         Devolver al dueño
                       </Link>
@@ -405,7 +405,7 @@ export function OrgMascotasBulkList({
                     {showTransferCta && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}/transfer`}
-                        className="inline-block text-[12px] px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                        className="inline-block text-sm px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
                         Transferir
                       </Link>
@@ -439,7 +439,7 @@ export function OrgMascotasBulkList({
                     <span className="font-medium">{selected.size}</span> seleccionada
                     {selected.size === 1 ? "" : "s"}
                     {selected.size > BULK_MAX && (
-                      <span className="ml-2 text-ln-op-danger text-[12px]">(máx. {BULK_MAX})</span>
+                      <span className="ml-2 text-ln-op-danger text-sm">(máx. {BULK_MAX})</span>
                     )}
                   </p>
                 </div>
@@ -447,7 +447,7 @@ export function OrgMascotasBulkList({
                   <button
                     type="button"
                     onClick={clear}
-                    className="text-[12px] text-ln-op-mute hover:text-ln-op-ink"
+                    className="text-sm text-ln-op-mute hover:text-ln-op-ink"
                   >
                     Limpiar
                   </button>
@@ -623,7 +623,7 @@ function BulkVaccinationForm({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-[12px] text-ln-op-mute" htmlFor="bulk-vax-name">
+          <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-name">
             Vacuna <span className="text-ln-op-danger">*</span>
           </label>
           <input
@@ -637,7 +637,7 @@ function BulkVaccinationForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-[12px] text-ln-op-mute" htmlFor="bulk-vax-date">
+          <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-date">
             Fecha de aplicación <span className="text-ln-op-danger">*</span>
           </label>
           <input
@@ -650,7 +650,7 @@ function BulkVaccinationForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-[12px] text-ln-op-mute" htmlFor="bulk-vax-brand">
+          <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-brand">
             Marca (opcional)
           </label>
           <input
@@ -664,7 +664,7 @@ function BulkVaccinationForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-[12px] text-ln-op-mute" htmlFor="bulk-vax-batch">
+          <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-batch">
             Lote (opcional)
           </label>
           <input
@@ -678,7 +678,7 @@ function BulkVaccinationForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-[12px] text-ln-op-mute" htmlFor="bulk-vax-by">
+          <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-by">
             Aplicado por (opcional)
           </label>
           <input
@@ -692,7 +692,7 @@ function BulkVaccinationForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-[12px] text-ln-op-mute" htmlFor="bulk-vax-next">
+          <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-next">
             Próxima dosis (opcional)
           </label>
           <input
@@ -809,7 +809,7 @@ function BulkEligibilityForm({
       {needsReason && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="space-y-1">
-            <label className="text-[12px] text-ln-op-mute" htmlFor="bulk-elig-reason">
+            <label className="text-sm text-ln-op-mute" htmlFor="bulk-elig-reason">
               Razón <span className="text-ln-op-danger">*</span>
             </label>
             <select
@@ -830,7 +830,7 @@ function BulkEligibilityForm({
           </div>
 
           <div className="space-y-1">
-            <label className="text-[12px] text-ln-op-mute" htmlFor="bulk-elig-until">
+            <label className="text-sm text-ln-op-mute" htmlFor="bulk-elig-until">
               No apta hasta (opcional)
             </label>
             <input
@@ -844,7 +844,7 @@ function BulkEligibilityForm({
 
           {needsNotes && (
             <div className="space-y-1 sm:col-span-2">
-              <label className="text-[12px] text-ln-op-mute" htmlFor="bulk-elig-notes">
+              <label className="text-sm text-ln-op-mute" htmlFor="bulk-elig-notes">
                 Notas <span className="text-ln-op-danger">*</span>
               </label>
               <input
@@ -900,7 +900,7 @@ function BulkListingForm({
       <p className="text-[13px] font-medium text-ln-op-ink">
         Publicar en adopción — {count} animal{count === 1 ? "" : "es"}
       </p>
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         Solo se publicarán las mascotas que cumplan todos los requisitos (apta para adopción, sin
         disputas, sin observación sanitaria activa, etc.). Las que no cumplan aparecerán en el
         detalle de fallos con la razón específica.
@@ -973,13 +973,13 @@ function ResultPanel({
         <button
           type="button"
           onClick={onDismiss}
-          className="text-[12px] text-ln-op-mute hover:text-ln-op-ink"
+          className="text-sm text-ln-op-mute hover:text-ln-op-ink"
         >
           Cerrar
         </button>
       </div>
       {result.failed.length > 0 && (
-        <ul className="text-[12px] text-ln-op-danger space-y-0.5">
+        <ul className="text-sm text-ln-op-danger space-y-0.5">
           {result.failed.map((f) => (
             <li key={f.id}>
               <span className="font-mono">{f.id}</span> — {f.reason}
@@ -987,7 +987,7 @@ function ResultPanel({
           ))}
         </ul>
       )}
-      <p className="text-[10px] text-ln-op-mute font-mono">bulk: {result.bulkActionId}</p>
+      <p className="text-xs text-ln-op-mute font-mono">bulk: {result.bulkActionId}</p>
     </div>
   );
 }

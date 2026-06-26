@@ -47,16 +47,14 @@ export default async function AdminsPage() {
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-[20px] font-semibold tracking-tight text-ln-op-ink">
-              Administradores
-            </h1>
-            <p className="text-[12px] text-ln-op-ink-2">
+            <h1 className="text-xl font-semibold tracking-tight text-ln-op-ink">Administradores</h1>
+            <p className="text-sm text-ln-op-ink-2">
               Operadores institucionales con acceso de administrador.
             </p>
           </div>
           <Link
             href="/admin/admins/new"
-            className="px-4 py-2 text-[12px] font-semibold bg-ln-op-azul text-white rounded-[6px] hover:bg-ln-op-azul-700 shrink-0"
+            className="px-4 py-2 text-sm font-semibold bg-ln-op-azul text-white rounded-[6px] hover:bg-ln-op-azul-700 shrink-0"
           >
             + Crear admin
           </Link>
@@ -64,8 +62,8 @@ export default async function AdminsPage() {
 
         {humanActive.length === 0 ? (
           <div className="text-center py-12 rounded-[6px] border border-dashed border-ln-op-line">
-            <p className="text-[12px] text-ln-op-mute">No hay administradores activos.</p>
-            <p className="text-[12px] text-ln-op-mute mt-1">
+            <p className="text-sm text-ln-op-mute">No hay administradores activos.</p>
+            <p className="text-sm text-ln-op-mute mt-1">
               Para el bootstrap inicial, usa Supabase Studio para asignar el primer admin
               manualmente.
             </p>
@@ -80,7 +78,7 @@ export default async function AdminsPage() {
 
         {systemActive.length > 0 && (
           <details className="group">
-            <summary className="cursor-pointer text-[12px] text-ln-op-mute hover:text-ln-op-ink-2 select-none">
+            <summary className="cursor-pointer text-sm text-ln-op-mute hover:text-ln-op-ink-2 select-none">
               Cuentas de sistema ({systemActive.length})
             </summary>
             <p className="mt-1 text-[11px] text-ln-op-mute">
@@ -96,7 +94,7 @@ export default async function AdminsPage() {
 
         {deactivatedAdmins.length > 0 && (
           <details className="group">
-            <summary className="cursor-pointer text-[12px] text-ln-op-mute hover:text-ln-op-ink-2 select-none">
+            <summary className="cursor-pointer text-sm text-ln-op-mute hover:text-ln-op-ink-2 select-none">
               Desactivados ({deactivatedAdmins.length})
             </summary>
             <ul className="mt-2 space-y-2">
@@ -107,7 +105,7 @@ export default async function AdminsPage() {
           </details>
         )}
 
-        <p className="text-[12px] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           <Link href="/admin" className="underline underline-offset-4 hover:text-ln-op-ink-2">
             {"←"} Volver al dashboard
           </Link>
@@ -145,7 +143,7 @@ function AdminRow({ admin }: AdminRowProps) {
                 </Link>
                 {admin.isSelf && <OpPill tone="open">Vos</OpPill>}
               </div>
-              <p className="text-[12px] text-ln-op-mute">{admin.email}</p>
+              <p className="text-sm text-ln-op-mute">{admin.email}</p>
             </div>
           </div>
 

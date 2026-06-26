@@ -48,7 +48,7 @@ export function DeactivateAdminActions({
 
   if (mode === "done") {
     return (
-      <p className="text-[12px] text-ln-op-ok font-medium">
+      <p className="text-sm text-ln-op-ok font-medium">
         Admin desactivado. {target.displayName} fue notificado.
       </p>
     );
@@ -65,7 +65,7 @@ export function DeactivateAdminActions({
 
     if (!reason) return null;
 
-    return <p className="text-[10px] text-ln-op-mute italic">{reason}</p>;
+    return <p className="text-xs text-ln-op-mute italic">{reason}</p>;
   }
 
   if (mode === "confirming") {
@@ -148,10 +148,10 @@ function DeactivateAdminForm({
 
   return (
     <div className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3 space-y-3">
-      <p className="text-[10px] uppercase tracking-wider font-bold text-ln-op-danger">
+      <p className="text-xs uppercase tracking-wider font-bold text-ln-op-danger">
         Desactivar admin &mdash; {target.displayName}
       </p>
-      <p className="text-[10px] text-ln-op-danger">
+      <p className="text-xs text-ln-op-danger">
         Esta acción es irreversible desde esta interfaz. El usuario quedará desactivado y recibirá
         una notificación con el motivo.
       </p>
@@ -161,7 +161,7 @@ function DeactivateAdminForm({
       <div className="space-y-1">
         <label
           htmlFor="deactivate-admin-evidence"
-          className="block text-[10px] uppercase tracking-wider text-ln-op-mute"
+          className="block text-xs uppercase tracking-wider text-ln-op-mute"
         >
           Evidencia (al menos 1 archivo)
         </label>
@@ -173,13 +173,13 @@ function DeactivateAdminForm({
           multiple
           onChange={handleFilesChange}
           disabled={uploading || pending}
-          className="text-[12px] text-ln-op-ink-2"
+          className="text-sm text-ln-op-ink-2"
         />
-        {uploading && <p className="text-[10px] text-ln-op-mute">Subiendo...</p>}
+        {uploading && <p className="text-xs text-ln-op-mute">Subiendo...</p>}
         {selectedFiles.length > 0 && (
           <ul className="space-y-0.5">
             {selectedFiles.map((f) => (
-              <li key={f.key} className="flex items-center gap-2 text-[10px] text-ln-op-ink-2">
+              <li key={f.key} className="flex items-center gap-2 text-xs text-ln-op-ink-2">
                 <span className="truncate max-w-[200px]">{f.file.name}</span>
                 <button
                   type="button"
@@ -204,7 +204,7 @@ function DeactivateAdminForm({
         registro permanente en el audit log.
       </LnCheckbox>
 
-      {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+      {error && <p className="text-sm text-ln-op-danger">{error}</p>}
 
       <div className="flex items-center gap-2">
         <OpButton type="button" onClick={submit} disabled={!canSubmit} variant="danger" size="sm">

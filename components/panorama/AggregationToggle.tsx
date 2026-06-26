@@ -33,7 +33,7 @@ const OPTIONS: ReadonlyArray<{ value: AggregationLevel; label: string }> = [
 export function AggregationToggle({ level, onChange, relevant = true }: Props) {
   return (
     <fieldset className="space-y-1.5">
-      <legend className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+      <legend className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         Agregación
       </legend>
       {/* Segmented control. Following the repo convention (PeriodPicker): each
@@ -50,7 +50,7 @@ export function AggregationToggle({ level, onChange, relevant = true }: Props) {
               type="button"
               aria-pressed={active}
               onClick={() => onChange(opt.value)}
-              className={`flex-1 rounded-[4px] px-2 py-1 text-[12px] font-medium transition-colors ${
+              className={`flex-1 rounded-[4px] px-2 py-1 text-sm font-medium transition-colors ${
                 active ? "bg-ln-op-azul text-white" : "text-ln-op-ink-2 hover:bg-ln-op-line/40"
               }`}
             >
@@ -59,7 +59,7 @@ export function AggregationToggle({ level, onChange, relevant = true }: Props) {
           );
         })}
       </div>
-      <p className="text-[10px] leading-snug text-ln-op-mute">
+      <p className="text-xs leading-snug text-ln-op-mute">
         Eje de agrupación de todas las capas de eventos (perdidas, denuncias, mordeduras, zoonosis)
         y de superficie (cobertura, mortalidad). Distinto del filtro de alcance de arriba.
         {!relevant && (

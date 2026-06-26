@@ -131,9 +131,7 @@ export default async function MiembrosPage({
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            Equipo
-          </p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Equipo</p>
           <h1 className="text-[22px] font-semibold text-ln-op-ink">
             Miembros activos e invitaciones pendientes de {organization.displayName}
           </h1>
@@ -141,7 +139,7 @@ export default async function MiembrosPage({
         {canInvite && (
           <Link
             href={`/org/${orgToken}/miembros/invitar`}
-            className="inline-flex shrink-0 items-center gap-2 rounded-[6px] bg-ln-op-azul px-4 py-[7px] text-[12px] font-semibold text-white transition-colors hover:bg-ln-op-azul-700 no-underline"
+            className="inline-flex shrink-0 items-center gap-2 rounded-[6px] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700 no-underline"
           >
             Invitar miembro
           </Link>
@@ -180,12 +178,10 @@ export default async function MiembrosPage({
                       <p className="truncate text-[13px] font-medium text-ln-op-ink">
                         {profile.displayName}
                         {isSelf && (
-                          <span className="ml-2 text-[12px] font-normal text-ln-op-mute">
-                            (vos)
-                          </span>
+                          <span className="ml-2 text-sm font-normal text-ln-op-mute">(vos)</span>
                         )}
                       </p>
-                      {m.title && <p className="truncate text-[12px] text-ln-op-mute">{m.title}</p>}
+                      {m.title && <p className="truncate text-sm text-ln-op-mute">{m.title}</p>}
                     </div>
 
                     {/* Role pill — replaced by selector when actor can manage (never for foster) */}
@@ -266,7 +262,7 @@ export default async function MiembrosPage({
                         <p className="truncate text-[13px] font-medium text-ln-op-ink">
                           {inv.email}
                         </p>
-                        <p className="text-[12px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           Vence{" "}
                           {inv.expiresAt.toLocaleDateString("es-AR", {
                             day: "numeric",

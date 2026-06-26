@@ -294,7 +294,7 @@ export default async function OrgDashboardPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Panel de {ORG_TYPE_LABELS[organization.orgType] ?? "organización"}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">{organization.displayName}</h1>
@@ -400,7 +400,7 @@ export default async function OrgDashboardPage({
               actionItems.length > 0 ? (
                 <Link
                   href={`/org/${orgToken}/mascotas`}
-                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                  className="text-sm text-ln-op-azul hover:underline no-underline"
                 >
                   Ver todos →
                 </Link>
@@ -414,7 +414,7 @@ export default async function OrgDashboardPage({
                 <Icon name="check-circle" size="md" className="text-ln-op-ok shrink-0" decorative />
                 <div>
                   <p className="text-[13px] font-semibold text-ln-op-ink">Todo en orden</p>
-                  <p className="text-[12px] text-ln-op-mute">
+                  <p className="text-sm text-ln-op-mute">
                     Ningún animal requiere atención inmediata.
                   </p>
                 </div>
@@ -514,7 +514,7 @@ export default async function OrgDashboardPage({
               className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
               <p className="text-[13px] font-semibold text-ln-op-ink">Animales en custodia</p>
-              <p className="text-[12px] text-ln-op-mute mt-1">
+              <p className="text-sm text-ln-op-mute mt-1">
                 Listado de animales bajo custodia activa de la organización.
               </p>
             </Link>
@@ -525,7 +525,7 @@ export default async function OrgDashboardPage({
               className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
               <p className="text-[13px] font-semibold text-ln-op-ink">Registrar ingreso</p>
-              <p className="text-[12px] text-ln-op-mute mt-1">
+              <p className="text-sm text-ln-op-mute mt-1">
                 Dar de alta un animal que entra a custodia del refugio.
               </p>
             </Link>
@@ -536,7 +536,7 @@ export default async function OrgDashboardPage({
               className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
               <p className="text-[13px] font-semibold text-ln-op-ink">Check-ins post-adopción</p>
-              <p className="text-[12px] text-ln-op-mute mt-1">
+              <p className="text-sm text-ln-op-mute mt-1">
                 Seguimiento de los adoptantes en las ventanas pactadas.
               </p>
             </Link>
@@ -548,7 +548,7 @@ export default async function OrgDashboardPage({
                 className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">Pool de voluntarios</p>
-                <p className="text-[12px] text-ln-op-mute mt-1">
+                <p className="text-sm text-ln-op-mute mt-1">
                   Buscar voluntarios y proponer tránsitos.
                 </p>
               </Link>
@@ -557,7 +557,7 @@ export default async function OrgDashboardPage({
                 className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">Propuestas emitidas</p>
-                <p className="text-[12px] text-ln-op-mute mt-1">
+                <p className="text-sm text-ln-op-mute mt-1">
                   Estado de las propuestas de tránsito que enviaste.
                 </p>
               </Link>
@@ -566,7 +566,7 @@ export default async function OrgDashboardPage({
                 className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">Tránsitos activos</p>
-                <p className="text-[12px] text-ln-op-mute mt-1">
+                <p className="text-sm text-ln-op-mute mt-1">
                   Mascotas con tránsito en curso (pool, miembro o vecino).
                 </p>
               </Link>
@@ -580,7 +580,7 @@ export default async function OrgDashboardPage({
               <p className="text-[13px] font-semibold text-ln-op-ink">
                 Mascotas no aptas para adopción
               </p>
-              <p className="text-[12px] text-ln-op-mute mt-1">
+              <p className="text-sm text-ln-op-mute mt-1">
                 Animales marcados como no aptos, agrupados por motivo.
               </p>
             </Link>
@@ -604,7 +604,7 @@ export default async function OrgDashboardPage({
                 className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">Agenda</p>
-                <p className="text-[12px] text-ln-op-mute mt-1">
+                <p className="text-sm text-ln-op-mute mt-1">
                   Turnos del día: asistencia, ausencias y cancelaciones.
                 </p>
               </Link>
@@ -615,7 +615,7 @@ export default async function OrgDashboardPage({
                 className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">Servicios</p>
-                <p className="text-[12px] text-ln-op-mute mt-1">
+                <p className="text-sm text-ln-op-mute mt-1">
                   Publicar y gestionar ofrecimientos de servicios.
                 </p>
               </Link>
@@ -633,9 +633,7 @@ export default async function OrgDashboardPage({
             className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
           >
             <p className="text-[13px] font-semibold text-ln-op-ink">Casos</p>
-            <p className="text-[12px] text-ln-op-mute mt-1">
-              Expedientes abiertos por la autoridad.
-            </p>
+            <p className="text-sm text-ln-op-mute mt-1">Expedientes abiertos por la autoridad.</p>
           </Link>
           {granted.has("bite.report") && (
             <Link
@@ -643,7 +641,7 @@ export default async function OrgDashboardPage({
               className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
               <p className="text-[13px] font-semibold text-ln-op-ink">Mordeduras</p>
-              <p className="text-[12px] text-ln-op-mute mt-1">
+              <p className="text-sm text-ln-op-mute mt-1">
                 Registrar una mordedura e iniciar la observación antirrábica.
               </p>
             </Link>
@@ -661,7 +659,7 @@ export default async function OrgDashboardPage({
               {canDecideRequests && (
                 <Link
                   href={`/org/${orgToken}/admin/permisos`}
-                  className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                  className="text-sm text-ln-op-azul hover:underline no-underline"
                 >
                   Revisar solicitudes →
                 </Link>
@@ -674,7 +672,7 @@ export default async function OrgDashboardPage({
               line explains the link and points to the request path below, so a
               missing section reads as "ask for access" instead of a dead end. */}
           {!isAdmin && (
-            <p className="px-4 pt-3 text-[12px] text-ln-op-mute">
+            <p className="px-4 pt-3 text-sm text-ln-op-mute">
               Cada permiso habilita su módulo en el menú. Si no ves una sección que esperabas, pedí
               el permiso correspondiente acá abajo y un admin lo aprueba.
             </p>
@@ -696,9 +694,9 @@ export default async function OrgDashboardPage({
                       {entry.label}
                       <OpCodeBadge tone="neutral">{entry.capability}</OpCodeBadge>
                     </p>
-                    <p className="text-[12px] text-ln-op-mute">{entry.description}</p>
+                    <p className="text-sm text-ln-op-mute">{entry.description}</p>
                     {(state.kind === "denied" || state.kind === "revoked") && state.reason && (
-                      <p className="text-[12px] italic text-ln-op-faint">Motivo: {state.reason}</p>
+                      <p className="text-sm italic text-ln-op-faint">Motivo: {state.reason}</p>
                     )}
                     {showRequestForm && (
                       <div className="pt-1">

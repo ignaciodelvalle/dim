@@ -356,14 +356,14 @@ function PetChip({
         <span className="text-[13px] font-medium leading-tight text-ln-ink">{pet.name}</span>
         {pet.stateLabel ? (
           <span
-            className={`text-[10px] font-medium leading-tight ${PET_STATE_LABEL[pet.state ?? "ok"]}`}
+            className={`text-xs font-medium leading-tight ${PET_STATE_LABEL[pet.state ?? "ok"]}`}
           >
             {pet.stateLabel}
           </span>
         ) : (
           <span
             aria-hidden
-            className={`text-[10px] font-medium leading-tight text-ln-celeste transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
+            className={`text-xs font-medium leading-tight text-ln-celeste transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
           >
             ↗ Abrir perfil
           </span>

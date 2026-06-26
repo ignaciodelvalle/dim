@@ -187,7 +187,7 @@ export default async function AdminAuditoriaPage({
         {hasFilters && (
           <a
             href="/admin/auditoria"
-            className="text-[12px] text-ln-op-mute underline underline-offset-4"
+            className="text-sm text-ln-op-mute underline underline-offset-4"
           >
             Limpiar filtros
           </a>
@@ -200,7 +200,7 @@ export default async function AdminAuditoriaPage({
         <OpCard>
           <OpCardHead
             title="Registro de auditoría"
-            actions={<span className="text-[12px] text-ln-op-mute">{entries.length} entradas</span>}
+            actions={<span className="text-sm text-ln-op-mute">{entries.length} entradas</span>}
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line-2">
@@ -213,7 +213,7 @@ export default async function AdminAuditoriaPage({
                     <p className="text-[13px] font-medium text-ln-op-ink" title={entry.action}>
                       {auditActionLabel(entry.action)}
                     </p>
-                    <p className="text-[12px] text-ln-op-mute">
+                    <p className="text-sm text-ln-op-mute">
                       {entry.actorUserId
                         ? (namesById.get(entry.actorUserId) ?? "Desconocido")
                         : "Usuario eliminado"}
@@ -250,7 +250,7 @@ export default async function AdminAuditoriaPage({
                       )}
                     </p>
                   </div>
-                  <time className="whitespace-nowrap text-[12px] text-ln-op-mute">
+                  <time className="whitespace-nowrap text-sm text-ln-op-mute">
                     {new Date(entry.performedAt).toLocaleString("es-AR", {
                       dateStyle: "short",
                       timeStyle: "short",
@@ -273,7 +273,7 @@ export default async function AdminAuditoriaPage({
             {newerLink && (
               <Link
                 href={newerLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 ← Más recientes
               </Link>
@@ -283,7 +283,7 @@ export default async function AdminAuditoriaPage({
             {olderLink && (
               <Link
                 href={olderLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 Ver más antiguos →
               </Link>

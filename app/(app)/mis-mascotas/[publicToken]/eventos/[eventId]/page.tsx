@@ -87,10 +87,10 @@ export default async function EventDetailPage({
 
       {/* Header */}
       <div className="mb-[24px]">
-        <p className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
+        <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
           {eventTypeLabel(eventType)}
         </p>
-        <h1 className="mt-[4px] font-[var(--font-ln-serif)] text-[24px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+        <h1 className="mt-[4px] font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {heading}
         </h1>
         {summary.secondary && (
@@ -218,7 +218,7 @@ export default async function EventDetailPage({
                   ) : (
                     <li
                       key={a.id}
-                      className="flex h-[96px] w-full items-center justify-center rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] text-[12px] text-[var(--color-ln-mute)]"
+                      className="flex h-[96px] w-full items-center justify-center rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)]"
                     >
                       Adjunto no disponible
                     </li>
@@ -240,7 +240,7 @@ export default async function EventDetailPage({
 function Detail({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
       <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{value || "—"}</dd>

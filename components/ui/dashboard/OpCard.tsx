@@ -59,13 +59,13 @@ export function OpCard({ children, accent, className = "" }: CardProps) {
 export function OpCardHead({ title, actions }: CardHeadProps) {
   return (
     <div className="flex items-baseline gap-2 border-b border-ln-op-line-2 px-[15px] py-[11px]">
-      <h3 className="m-0 font-ln-serif text-[14px] font-semibold tracking-[-0.005em] text-ln-op-ink">
+      <h3 className="m-0 font-ln-serif text-md font-semibold tracking-[-0.005em] text-ln-op-ink">
         {title}
       </h3>
       {actions && (
         <>
           <div className="flex-1" />
-          <div className="text-[12px] font-semibold text-ln-op-azul">{actions}</div>
+          <div className="text-sm font-semibold text-ln-op-azul">{actions}</div>
         </>
       )}
     </div>

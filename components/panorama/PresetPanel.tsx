@@ -21,7 +21,7 @@ type Props = {
 export function PresetPanel({ presets, activePresetId, onPreset }: Props) {
   return (
     <div className="space-y-1.5">
-      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">Vista</p>
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Vista</p>
       <ul className="space-y-1">
         {presets.map((preset) => {
           const isActive = activePresetId === preset.id;
@@ -37,8 +37,8 @@ export function PresetPanel({ presets, activePresetId, onPreset }: Props) {
                     : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul/40 hover:bg-ln-op-card"
                 }`}
               >
-                <span className="block text-[12px] font-medium leading-tight">{preset.label}</span>
-                <span className="mt-0.5 block text-[10px] leading-snug text-ln-op-mute">
+                <span className="block text-sm font-medium leading-tight">{preset.label}</span>
+                <span className="mt-0.5 block text-xs leading-snug text-ln-op-mute">
                   {preset.description}
                 </span>
               </button>

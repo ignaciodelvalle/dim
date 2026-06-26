@@ -50,9 +50,7 @@ export default async function OrgPropuestasPage({
   return (
     <div className="space-y-6">
       <header>
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Voluntarios
-        </p>
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Voluntarios</p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">
           Propuestas de tránsito emitidas
         </h1>
@@ -105,7 +103,7 @@ export default async function OrgPropuestasPage({
                     {volunteer.displayName}{" "}
                     <span className="font-normal text-ln-op-mute">→ {pet.name}</span>
                   </p>
-                  <p className="text-[12px] text-ln-op-mute">
+                  <p className="text-sm text-ln-op-mute">
                     {new Date(proposal.proposedAt).toLocaleDateString("es-AR", {
                       day: "numeric",
                       month: "short",
@@ -150,7 +148,7 @@ function FilterLink({
     <a
       href={href}
       className={[
-        "rounded-full border px-3 py-[5px] text-[12px] no-underline transition-colors",
+        "rounded-full border px-3 py-[5px] text-sm no-underline transition-colors",
         active
           ? "border-ln-op-azul bg-ln-op-azul text-white"
           : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe",

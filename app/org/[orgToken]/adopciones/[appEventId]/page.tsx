@@ -33,7 +33,7 @@ export default async function AdoptionReviewDetailPage({
       <div className="max-w-2xl mx-auto space-y-4">
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
         <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
-        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+        <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Volver al panel
         </Link>
       </div>
@@ -135,13 +135,13 @@ export default async function AdoptionReviewDetailPage({
     <div className="max-w-3xl mx-auto space-y-6">
       <Link
         href={`/org/${orgToken}/adopciones`}
-        className="text-[12px] text-ln-op-azul hover:underline"
+        className="text-sm text-ln-op-azul hover:underline"
       >
         ← Volver a postulaciones
       </Link>
 
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Postulación para {pet.name}</h1>
@@ -196,7 +196,7 @@ export default async function AdoptionReviewDetailPage({
                   : "rechazada"}
               .
             </p>
-            <p className="text-[12px] text-ln-op-mute mt-1">
+            <p className="text-sm text-ln-op-mute mt-1">
               {new Date(decision[0].decided_at).toLocaleString("es-AR")}
               {decision[0].notes && ` · ${decision[0].notes}`}
             </p>
@@ -215,7 +215,7 @@ export default async function AdoptionReviewDetailPage({
         />
       )}
 
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         <Link
           href={`/org/${orgToken}/mascotas/${pet.publicToken}`}
           className="text-ln-op-azul hover:underline"
@@ -259,7 +259,7 @@ async function recordAdopterPiiView(args: {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-2">
-      <dt className="text-[12px] text-ln-op-mute w-32">{label}</dt>
+      <dt className="text-sm text-ln-op-mute w-32">{label}</dt>
       <dd className="text-[13px] text-ln-op-ink">{value}</dd>
     </div>
   );
@@ -268,7 +268,7 @@ function Row({ label, value }: { label: string; value: string }) {
 function Block({ label, body }: { label: string; body: string }) {
   return (
     <div className="space-y-1">
-      <p className="text-[12px] text-ln-op-mute">{label}</p>
+      <p className="text-sm text-ln-op-mute">{label}</p>
       <p className="text-[13px] text-ln-op-ink-2 whitespace-pre-wrap">{body}</p>
     </div>
   );

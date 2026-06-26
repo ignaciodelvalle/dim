@@ -22,7 +22,7 @@ function StatusBadge({ pending }: { pending: number }) {
     : "border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-ink)]";
   return (
     <span
-      className={`inline-flex flex-shrink-0 items-center rounded-full border px-[8px] py-[1px] font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.05em] ${cls}`}
+      className={`inline-flex flex-shrink-0 items-center rounded-full border px-[8px] py-[1px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.05em] ${cls}`}
     >
       {ok ? "Al día" : `${pending} pendiente${pending !== 1 ? "s" : ""}`}
     </span>

@@ -123,14 +123,14 @@ export function LnRegRow({
       {/* Info column */}
       <div className="min-w-0">
         <div className="flex items-center gap-[10px]">
-          <span className="font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          <span className="font-[var(--font-ln-serif)] text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {name}
           </span>
           {status && <LnStatusFlag status={status} />}
         </div>
         {breed && <p className="mt-[1px] text-[12.5px] text-[var(--color-ln-mute)]">{breed}</p>}
         {nextLine && (
-          <div className="mt-[7px] inline-flex items-center gap-[7px] text-[12px] text-[var(--color-ln-ink-2)]">
+          <div className="mt-[7px] inline-flex items-center gap-[7px] text-sm text-[var(--color-ln-ink-2)]">
             {nextLine}
           </div>
         )}

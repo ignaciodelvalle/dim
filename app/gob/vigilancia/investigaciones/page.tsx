@@ -29,7 +29,7 @@ export default async function GobInvestigacionesPage() {
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div className="space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             Vigilancia · Investigaciones
           </p>
           <h1 className="text-[22px] font-semibold text-ln-op-ink">Investigaciones de brote</h1>
@@ -92,7 +92,7 @@ export default async function GobInvestigacionesPage() {
                           (inv.openedReason.length > 80 ? "..." : "")
                         : "Sin motivo registrado"}
                     </p>
-                    <p className="text-[12px] text-ln-op-mute">
+                    <p className="text-sm text-ln-op-mute">
                       {[inv.jurisdictionLocality, inv.jurisdictionProvince]
                         .filter(Boolean)
                         .join(", ") || "Jurisdicción nacional"}{" "}

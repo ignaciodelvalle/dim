@@ -219,7 +219,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
               setLocalityName(result?.localityName ?? "");
             }}
           />
-          <p className="mt-1 text-[12px] text-ln-op-mute">
+          <p className="mt-1 text-sm text-ln-op-mute">
             Para enrutar el reporte a la autoridad sanitaria correspondiente. Si no la elegís,
             usamos la jurisdicción registrada de la mascota.
           </p>
@@ -258,7 +258,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
 
         {victimKind === "human" && (
           <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-4 space-y-3">
-            <p className="text-[12px] text-ln-op-mute">
+            <p className="text-sm text-ln-op-mute">
               Datos de contacto opcionales — para denuncia obligatoria a autoridad sanitaria si
               corresponde.
             </p>

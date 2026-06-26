@@ -76,7 +76,7 @@ export default async function ModeracionListPage({
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {"Admin · Moderación"}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">{"Moderación de denuncias"}</h1>
@@ -150,7 +150,7 @@ export default async function ModeracionListPage({
         {hasFilters && (
           <a
             href="/admin/moderacion"
-            className="text-[12px] text-ln-op-mute underline underline-offset-4"
+            className="text-sm text-ln-op-mute underline underline-offset-4"
           >
             Limpiar filtros
           </a>
@@ -191,13 +191,13 @@ export default async function ModeracionListPage({
                           </div>
                           <ul className="space-y-0.5">
                             {reasons.map((reason) => (
-                              <li key={reason} className="text-[12px] text-ln-op-warn">
+                              <li key={reason} className="text-sm text-ln-op-warn">
                                 {"• "}
                                 {reasonLabel(reason as FlagReason)}
                               </li>
                             ))}
                           </ul>
-                          <p className="font-mono text-[10px] text-ln-op-faint">
+                          <p className="font-mono text-xs text-ln-op-faint">
                             {r.referenceCode}
                             {" · "}
                             {r.flaggedAt &&
@@ -215,7 +215,7 @@ export default async function ModeracionListPage({
                             )}
                           </p>
                         </div>
-                        <span className="text-[12px] font-semibold text-ln-op-azul">{"→"}</span>
+                        <span className="text-sm font-semibold text-ln-op-azul">{"→"}</span>
                       </div>
                     </OpCardBody>
                   </Link>

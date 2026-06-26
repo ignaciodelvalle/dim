@@ -68,7 +68,7 @@ export function RevokeOrgActions({
 
   if (mode === "done") {
     return (
-      <p className="text-[12px] text-ln-op-ok">
+      <p className="text-sm text-ln-op-ok">
         Verificacion revocada. El titular de {org.displayName} fue notificado.
       </p>
     );
@@ -191,10 +191,10 @@ function RevokeOrgForm({
 
   return (
     <div className="rounded-[6px] border border-ln-op-danger p-3 space-y-3 bg-ln-op-danger-bg">
-      <p className="text-[10px] uppercase tracking-wider text-ln-op-danger">
+      <p className="text-xs uppercase tracking-wider text-ln-op-danger">
         Revocar verificación — {org.displayName}
       </p>
-      <p className="text-[10px] text-ln-op-danger">
+      <p className="text-xs text-ln-op-danger">
         La organización pasará a estado no verificado. Los campos verified_at y verified_by se
         conservan como registro histórico. El titular recibirá una notificación.
       </p>
@@ -204,7 +204,7 @@ function RevokeOrgForm({
       <div className="space-y-1">
         <label
           htmlFor="revoke-org-evidence-files"
-          className="block text-[10px] uppercase tracking-wider text-ln-op-mute"
+          className="block text-xs uppercase tracking-wider text-ln-op-mute"
         >
           Evidencia (al menos 1 archivo)
         </label>
@@ -216,16 +216,13 @@ function RevokeOrgForm({
           multiple
           onChange={handleFilesChange}
           disabled={uploading || pending}
-          className="text-[12px] text-ln-op-ink-2"
+          className="text-sm text-ln-op-ink-2"
         />
-        {uploading && <p className="text-[10px] text-ln-op-mute">Subiendo...</p>}
+        {uploading && <p className="text-xs text-ln-op-mute">Subiendo...</p>}
         {uploadedFiles.length > 0 && (
           <ul className="space-y-0.5">
             {uploadedFiles.map((f) => (
-              <li
-                key={f.attachmentId}
-                className="flex items-center gap-2 text-[10px] text-ln-op-ink-2"
-              >
+              <li key={f.attachmentId} className="flex items-center gap-2 text-xs text-ln-op-ink-2">
                 <span className="truncate max-w-[200px]">{f.name}</span>
                 <button
                   type="button"
@@ -249,7 +246,7 @@ function RevokeOrgForm({
         registro permanente en el audit log.
       </LnCheckbox>
 
-      {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+      {error && <p className="text-sm text-ln-op-danger">{error}</p>}
 
       <div className="flex items-center gap-2">
         <OpButton type="button" onClick={submit} disabled={!canSubmit} variant="danger" size="sm">

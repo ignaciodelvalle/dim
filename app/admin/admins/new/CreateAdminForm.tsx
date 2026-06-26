@@ -78,7 +78,7 @@ export function CreateAdminForm() {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-[12px] font-medium text-ln-op-ink-2 mb-1">
+          <label htmlFor="email" className="block text-sm font-medium text-ln-op-ink-2 mb-1">
             Email{" "}
             <span className="text-ln-op-danger" aria-hidden="true">
               *
@@ -96,10 +96,7 @@ export function CreateAdminForm() {
         </div>
 
         <div>
-          <label
-            htmlFor="displayName"
-            className="block text-[12px] font-medium text-ln-op-ink-2 mb-1"
-          >
+          <label htmlFor="displayName" className="block text-sm font-medium text-ln-op-ink-2 mb-1">
             Nombre de display{" "}
             <span className="text-ln-op-danger" aria-hidden="true">
               *

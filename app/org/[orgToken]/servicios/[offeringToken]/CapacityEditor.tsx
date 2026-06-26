@@ -62,7 +62,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
   if (!editing) {
     return (
       <div className="flex flex-col gap-1">
-        {successMsg && <output className="text-[12px] text-ln-op-ok">{successMsg}</output>}
+        {successMsg && <output className="text-sm text-ln-op-ok">{successMsg}</output>}
         <div className="flex items-center gap-3">
           <span className="text-[13px] text-ln-op-ink">
             {currentCapacity} lugar{currentCapacity === 1 ? "" : "es"} por turno
@@ -70,7 +70,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
           <button
             type="button"
             onClick={openEditor}
-            className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
+            className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
           >
             Editar cupos
           </button>
@@ -81,7 +81,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-[12px] font-medium text-ln-op-mute" htmlFor="capacity-input">
+      <label className="text-sm font-medium text-ln-op-mute" htmlFor="capacity-input">
         Cupos por turno
       </label>
       <div className="flex items-center gap-2">
@@ -103,7 +103,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
           type="button"
           onClick={handleSave}
           disabled={pending}
-          className="rounded-[4px] bg-ln-op-azul px-3 py-[5px] text-[12px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-60"
+          className="rounded-[4px] bg-ln-op-azul px-3 py-[5px] text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-60"
         >
           {pending ? "Guardando..." : "Guardar"}
         </button>
@@ -111,13 +111,13 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
           type="button"
           onClick={cancel}
           disabled={pending}
-          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
+          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
         >
           Cancelar
         </button>
       </div>
       {error && (
-        <p className="text-[12px] text-ln-op-danger" role="alert">
+        <p className="text-sm text-ln-op-danger" role="alert">
           {error}
         </p>
       )}

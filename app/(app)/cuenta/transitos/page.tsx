@@ -31,7 +31,7 @@ export default async function TransitosHubPage() {
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Tránsitos
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Gestioná tu participación como hogar de tránsito voluntario.
         </p>
       </div>
@@ -107,11 +107,11 @@ function HubRow({
       </div>
       <div className="flex flex-shrink-0 items-center gap-[8px]">
         {badge !== undefined && (
-          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-[5px] font-[var(--font-ln-mono)] text-[10px] font-semibold text-white">
+          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-[5px] font-[var(--font-ln-mono)] text-xs font-semibold text-white">
             {badge}
           </span>
         )}
-        <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+        <span aria-hidden="true" className="text-base text-[var(--color-ln-mute)]">
           ›
         </span>
       </div>

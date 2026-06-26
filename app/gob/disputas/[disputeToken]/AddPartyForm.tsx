@@ -70,7 +70,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
     <div className="rounded-[6px] border border-ln-op-line p-3 space-y-3">
       <p className="text-[13px] font-medium text-ln-op-ink">Sumar parte a la disputa</p>
 
-      <div className="flex gap-2 text-[12px]">
+      <div className="flex gap-2 text-sm">
         <button
           type="button"
           onClick={() => setPartyKind("user")}
@@ -96,7 +96,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
       </div>
 
       <div>
-        <label htmlFor="party-id" className="block text-[12px] text-ln-op-mute mb-1">
+        <label htmlFor="party-id" className="block text-sm text-ln-op-mute mb-1">
           {partyKind === "user" ? "User ID (UUID)" : "Organization ID (UUID)"}
         </label>
         <input
@@ -112,7 +112,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
       </div>
 
       <div>
-        <label htmlFor="party-role" className="block text-[12px] text-ln-op-mute mb-1">
+        <label htmlFor="party-role" className="block text-sm text-ln-op-mute mb-1">
           Rol en la disputa
         </label>
         <select
@@ -130,7 +130,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
       </div>
 
       <div>
-        <label htmlFor="party-summary" className="block text-[12px] text-ln-op-mute mb-1">
+        <label htmlFor="party-summary" className="block text-sm text-ln-op-mute mb-1">
           Posicion / nota (opcional)
         </label>
         <textarea

@@ -24,7 +24,7 @@ function formatAmendedAt(date: Date | string): string {
 export function AmendedBadge({ amendedAt, originalHref }: AmendedBadgeProps) {
   return (
     <output
-      className="inline-flex items-center gap-[5px] rounded-full border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-bg,var(--color-ln-stripe))] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-ink-2)]"
+      className="inline-flex items-center gap-[5px] rounded-full border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-bg,var(--color-ln-stripe))] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-ink-2)]"
       aria-label={`Registro corregido el ${formatAmendedAt(amendedAt)}`}
     >
       <span aria-hidden="true">✎</span>

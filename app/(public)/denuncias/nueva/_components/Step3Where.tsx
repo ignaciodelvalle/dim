@@ -86,7 +86,7 @@ export function Step3Where({
       <div className="space-y-1.5">
         <label
           htmlFor="description"
-          className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+          className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
           Contanos lo que viste{" "}
@@ -120,7 +120,7 @@ export function Step3Where({
       {/* When */}
       <fieldset className="space-y-2">
         <legend
-          className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-2"
+          className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-2"
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
           ¿Cuándo pasó?{" "}
@@ -174,7 +174,7 @@ export function Step3Where({
           FormData at submit. */}
       <div className="space-y-1.5">
         <p
-          className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-2"
+          className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-2"
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
           Lugar (opcional pero muy útil)

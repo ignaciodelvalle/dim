@@ -170,7 +170,7 @@ export default async function OrgAgendaPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Agenda del día</h1>
@@ -180,14 +180,14 @@ export default async function OrgAgendaPage({
       <div className="flex items-center gap-3">
         <Link
           href={`/org/${orgToken}/agenda?fecha=${prevDate}`}
-          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[12px] text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           ← Anterior
         </Link>
         {!isToday && (
           <Link
             href={`/org/${orgToken}/agenda`}
-            className="px-3 py-1.5 rounded-[6px] border border-ln-op-azul bg-ln-op-card text-[12px] font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors"
+            className="px-3 py-1.5 rounded-[6px] border border-ln-op-azul bg-ln-op-card text-sm font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors"
           >
             Hoy
           </Link>
@@ -202,7 +202,7 @@ export default async function OrgAgendaPage({
         </span>
         <Link
           href={`/org/${orgToken}/agenda?fecha=${nextDate}`}
-          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[12px] text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           Siguiente →
         </Link>
@@ -247,7 +247,7 @@ export default async function OrgAgendaPage({
                       const canBlock = slot.bookingsCount === 0 && slot.status === "open";
                       return (
                         <li key={slot.id} className="flex items-center gap-4 px-4 py-3">
-                          <div className="shrink-0 text-[12px] font-mono text-ln-op-mute w-28">
+                          <div className="shrink-0 text-sm font-mono text-ln-op-mute w-28">
                             {startStr}–{endStr}
                           </div>
                           <div className="flex-1 flex items-center gap-2 min-w-0">
@@ -290,7 +290,7 @@ export default async function OrgAgendaPage({
 
                 return (
                   <li key={appointment.id} className="flex items-start gap-4 px-4 py-3">
-                    <div className="shrink-0 text-[12px] font-mono text-ln-op-mute w-14 pt-0.5">
+                    <div className="shrink-0 text-sm font-mono text-ln-op-mute w-14 pt-0.5">
                       {slotTime}
                     </div>
                     <div className="flex-1 min-w-0 space-y-1">
@@ -298,7 +298,7 @@ export default async function OrgAgendaPage({
                         <p className="text-[13px] font-semibold text-ln-op-ink">{pet.name}</p>
                         <OpPill tone={pill.tone}>{pill.label}</OpPill>
                       </div>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {kindDef?.label ?? offering.serviceKind} · <span>{ownerLabel}</span>
                         {ownerProfile?.phone && <> · {ownerProfile.phone}</>}
                       </p>
@@ -307,7 +307,7 @@ export default async function OrgAgendaPage({
                       <div className="shrink-0">
                         <Link
                           href={`/org/${orgToken}/agenda/turnos/${appointment.publicToken}`}
-                          className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors text-ln-op-azul"
+                          className="text-sm px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors text-ln-op-azul"
                         >
                           Gestionar
                         </Link>
@@ -322,7 +322,7 @@ export default async function OrgAgendaPage({
       )}
 
       <footer className="pt-4 border-t border-ln-op-line">
-        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+        <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Volver al panel
         </Link>
       </footer>

@@ -148,7 +148,7 @@ export function CaseDetailShell({
           <OpCodeBadge tone="blue">{publicCode}</OpCodeBadge>
           <CaseStatusBadge status={status} />
         </div>
-        <h1 className="font-ln-serif text-[24px] font-semibold tracking-[-0.02em] text-ln-op-ink">
+        <h1 className="font-ln-serif text-2xl font-semibold tracking-[-0.02em] text-ln-op-ink">
           {caseKindLabel(kind)}
         </h1>
         <p className="font-ln-mono text-[11px] text-ln-op-mute">
@@ -171,7 +171,7 @@ export function CaseDetailShell({
           aria-label="Partes del caso"
           className="rounded-[4px] border border-ln-op-line bg-ln-op-card p-4"
         >
-          <h2 className="font-ln-mono text-[10px] font-semibold uppercase tracking-[.14em] text-ln-op-mute">
+          <h2 className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-ln-op-mute">
             Partes
           </h2>
           {parties.length === 0 ? (
@@ -197,7 +197,7 @@ export function CaseDetailShell({
           aria-label="Jurisdicción"
           className="rounded-[4px] border border-ln-op-line bg-ln-op-card p-4"
         >
-          <h2 className="font-ln-mono text-[10px] font-semibold uppercase tracking-[.14em] text-ln-op-mute">
+          <h2 className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-ln-op-mute">
             Jurisdicción
           </h2>
           <p className="mt-2 text-[13px] text-ln-op-ink">
@@ -212,7 +212,7 @@ export function CaseDetailShell({
           aria-label="Normativa aplicable"
           className="rounded-[4px] border border-ln-op-line bg-ln-op-card p-4"
         >
-          <h2 className="font-ln-mono text-[10px] font-semibold uppercase tracking-[.14em] text-ln-op-mute">
+          <h2 className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-ln-op-mute">
             Normativa aplicable
           </h2>
           {resolvedNormatives.length === 0 ? (
@@ -251,7 +251,7 @@ export function CaseDetailShell({
           aria-label="Motivo de apertura"
           className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe p-4"
         >
-          <h2 className="font-ln-mono text-[10px] font-semibold uppercase tracking-[.14em] text-ln-op-mute">
+          <h2 className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-ln-op-mute">
             Motivo de apertura
           </h2>
           <p className="mt-2 text-[13px] text-ln-op-ink">{openedReason}</p>
@@ -293,17 +293,17 @@ function SubjectCard({ subject }: { subject: CaseSubjectDescriptor }) {
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="font-ln-serif text-[18px] font-semibold text-ln-op-ink truncate">
+          <p className="font-ln-serif text-lg font-semibold text-ln-op-ink truncate">
             {subject.petName}
           </p>
           {subject.petSpecies ? (
-            <p className="text-[12px] text-ln-op-mute">{subject.petSpecies}</p>
+            <p className="text-sm text-ln-op-mute">{subject.petSpecies}</p>
           ) : null}
         </div>
         {subject.petHref ? (
           <Link
             href={subject.petHref}
-            className="inline-flex flex-shrink-0 items-center rounded-[3px] bg-ln-op-azul px-4 py-2 text-[12px] font-semibold text-white no-underline transition-colors hover:opacity-90"
+            className="inline-flex flex-shrink-0 items-center rounded-[3px] bg-ln-op-azul px-4 py-2 text-sm font-semibold text-white no-underline transition-colors hover:opacity-90"
           >
             Ver mascota →
           </Link>

@@ -97,7 +97,7 @@ export default async function PerdidasPage({
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[42px] font-semibold leading-[1.05] tracking-[-0.025em] text-[var(--color-ln-ink)]">
             Mascotas <span className="text-[var(--color-ln-err)]">perdidas</span>
           </h1>
-          <p className="text-[16px] leading-[1.55] text-[var(--color-ln-ink-2)]">
+          <p className="text-base leading-[1.55] text-[var(--color-ln-ink-2)]">
             Animales marcados como perdidos por sus dueños. Si reconocés alguno o lo viste cerca,
             abrí su credencial y dejá tu contacto — el dueño recibe la notificación al instante.
           </p>
@@ -134,7 +134,7 @@ export default async function PerdidasPage({
           </div>
         ) : (
           <>
-            <p className="font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+            <p className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
               <strong className="text-[var(--color-ln-ink)] font-semibold">
                 {items.length} mascota{items.length === 1 ? "" : "s"}
               </strong>
@@ -323,12 +323,12 @@ function LostListingCard({ item }: { item: LostListingItem }) {
             </div>
           )}
           {/* PERDIDA/PERDIDO pennant — top left */}
-          <span className="absolute top-0 left-0 px-3 py-1 bg-[var(--color-ln-err)] text-white text-[10px] font-bold uppercase tracking-wider">
+          <span className="absolute top-0 left-0 px-3 py-1 bg-[var(--color-ln-err)] text-white text-xs font-bold uppercase tracking-wider">
             {lostWord}
           </span>
           {/* Time-since chip — top right */}
           <span
-            className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${urgencyChipClass}`}
+            className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ${urgencyChipClass}`}
           >
             {timeLabel}
           </span>

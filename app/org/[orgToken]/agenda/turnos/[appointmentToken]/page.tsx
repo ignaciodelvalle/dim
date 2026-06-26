@@ -85,12 +85,12 @@ export default async function OrgAppointmentDetailPage({
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
-      <Link href={backUrl} className="inline-block text-[12px] text-ln-op-azul hover:underline">
+      <Link href={backUrl} className="inline-block text-sm text-ln-op-azul hover:underline">
         ← Volver a la agenda
       </Link>
 
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">{offering.displayName}</h1>
@@ -135,7 +135,7 @@ export default async function OrgAppointmentDetailPage({
               <strong className="text-ln-op-ink">{appointment.status}</strong>).
             </p>
             {appointment.attendedAt && (
-              <p className="text-[12px] text-ln-op-mute mt-1">
+              <p className="text-sm text-ln-op-mute mt-1">
                 Asistencia registrada el {appointment.attendedAt.toLocaleDateString("es-AR")}.
               </p>
             )}
@@ -149,7 +149,7 @@ export default async function OrgAppointmentDetailPage({
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-[10px] text-ln-op-mute uppercase tracking-[0.08em]">{label}</dt>
+      <dt className="text-xs text-ln-op-mute uppercase tracking-[0.08em]">{label}</dt>
       <dd className="text-[13px] text-ln-op-ink mt-0.5">{children}</dd>
     </div>
   );

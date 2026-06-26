@@ -65,7 +65,7 @@ export function AssignmentActions({
           </OpButton>
         </div>
         {error && (
-          <p role="alert" className="text-[12px] text-ln-op-danger">
+          <p role="alert" className="text-sm text-ln-op-danger">
             {error}
           </p>
         )}
@@ -88,7 +88,7 @@ export function AssignmentActions({
           </OpButton>
         </div>
         {error && (
-          <p role="alert" className="text-[12px] text-ln-op-danger">
+          <p role="alert" className="text-sm text-ln-op-danger">
             {error}
           </p>
         )}

@@ -68,7 +68,7 @@ export function ErrorBoundary({
         {!isProd && (
           <details className="text-left text-xs text-[var(--color-ln-mute)] mt-4 pt-4 border-t border-[var(--color-ln-line)]">
             <summary className="cursor-pointer font-medium">Stack trace (solo dev)</summary>
-            <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[10px]">
+            <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs">
               {error.stack ?? "(sin stack)"}
             </pre>
           </details>

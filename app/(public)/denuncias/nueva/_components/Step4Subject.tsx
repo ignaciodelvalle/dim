@@ -139,7 +139,7 @@ export function Step4Subject({
           <div className="space-y-1.5">
             <label
               htmlFor="subjectPetToken"
-              className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+              className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
               style={{ fontFamily: "var(--font-ln-mono)" }}
             >
               Código MiMAR o microchip{" "}
@@ -165,7 +165,7 @@ export function Step4Subject({
           <div className="space-y-1.5">
             <label
               htmlFor="subjectDescription"
-              className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+              className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
               style={{ fontFamily: "var(--font-ln-mono)" }}
             >
               Descripción del animal
@@ -186,7 +186,7 @@ export function Step4Subject({
         <div className="space-y-1.5">
           <label
             htmlFor="subjectDescription"
-            className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+            className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
             style={{ fontFamily: "var(--font-ln-mono)" }}
           >
             Describí al animal
@@ -206,7 +206,7 @@ export function Step4Subject({
         <div className="space-y-1.5">
           <label
             htmlFor="subjectDescription"
-            className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+            className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
             style={{ fontFamily: "var(--font-ln-mono)" }}
           >
             Describí el lugar o situación

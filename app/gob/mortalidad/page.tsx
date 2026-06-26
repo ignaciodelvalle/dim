@@ -155,7 +155,7 @@ export default async function GobMortalidadPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Vigilancia sanitaria · Mortalidad y disposición
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Mortalidad y disposición</h1>
@@ -290,7 +290,7 @@ export default async function GobMortalidadPage({
                     );
                   })}
                 </ul>
-                <p className="mt-1.5 text-[10px] text-ln-op-mute">
+                <p className="mt-1.5 text-xs text-ln-op-mute">
                   Escala: 0 – {maxBucket} fallecimiento{maxBucket !== 1 ? "s" : ""} · cada barra
                   representa el total en el período.
                 </p>
@@ -329,7 +329,7 @@ export default async function GobMortalidadPage({
           title={<span id={panelCauseId}>{causesCardTitle}</span>}
           actions={
             causesTrend.suppressedCount > 0 ? (
-              <span className="text-[12px] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 {causesTrend.suppressedCount}{" "}
                 {causesTrend.suppressedCount === 1 ? "celda oculta" : "celdas ocultas"} (privacidad)
               </span>
@@ -363,7 +363,7 @@ export default async function GobMortalidadPage({
           title={<span id={panelLocId}>Distribución por localidad</span>}
           actions={
             m.byLocality.suppressedCount > 0 ? (
-              <span className="text-[12px] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 {m.byLocality.suppressedCount}{" "}
                 {m.byLocality.suppressedCount === 1 ? "localidad oculta" : "localidades ocultas"}{" "}
                 (privacidad)
@@ -417,7 +417,7 @@ export default async function GobMortalidadPage({
                   );
                 })}
               </ul>
-              <p className="mt-1.5 text-[10px] text-ln-op-mute">
+              <p className="mt-1.5 text-xs text-ln-op-mute">
                 Escala: 0 – {maxLocality} fallecimiento{maxLocality !== 1 ? "s" : ""} · celdas &lt;
                 5 ocultas (k-anonimato).
               </p>

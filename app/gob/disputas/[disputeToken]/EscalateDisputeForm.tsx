@@ -47,12 +47,12 @@ export function EscalateDisputeForm({ disputeToken }: { disputeToken: string }) 
   return (
     <div className="space-y-3 rounded-[6px] border border-ln-op-line p-4">
       <p className="text-[13px] font-medium text-ln-op-ink">Escalar a vía judicial</p>
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         La disputa queda abierta. Se registra una nota en la historia de la mascota y en el
         historial de auditoría.
       </p>
       <div>
-        <label htmlFor="escalate-notes" className="block text-[12px] text-ln-op-mute mb-1">
+        <label htmlFor="escalate-notes" className="block text-sm text-ln-op-mute mb-1">
           Motivo de la escalada (mínimo 20 caracteres)
         </label>
         <textarea
@@ -63,9 +63,7 @@ export function EscalateDisputeForm({ disputeToken }: { disputeToken: string }) 
           placeholder="Describí el motivo para derivar a vía judicial."
           className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
-        <p className="text-[12px] text-ln-op-mute mt-1 tabular-nums">
-          {notes.trim().length} / 20 mín.
-        </p>
+        <p className="text-sm text-ln-op-mute mt-1 tabular-nums">{notes.trim().length} / 20 mín.</p>
       </div>
 
       {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}

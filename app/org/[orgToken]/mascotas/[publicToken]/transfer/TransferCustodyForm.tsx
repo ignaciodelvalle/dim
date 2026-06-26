@@ -62,7 +62,7 @@ export function TransferCustodyForm({
         </LnField>
 
         <fieldset className="space-y-2">
-          <legend className="text-[12px] text-ln-op-ink-2">Rol en el destino</legend>
+          <legend className="text-sm text-ln-op-ink-2">Rol en el destino</legend>
           <label className="flex items-start gap-2">
             <input
               type="radio"
@@ -116,7 +116,7 @@ export function TransferCustodyForm({
       </p>
 
       {state.error && (
-        <p className="text-[12px] rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+        <p className="text-sm rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}

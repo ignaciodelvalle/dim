@@ -57,7 +57,7 @@ export function LibretaHealthStatusSection({
     >
       <h2
         id="estado-medico-h"
-        className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em] font-semibold"
+        className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] font-semibold"
         style={{ color: "var(--color-ln-mute)" }}
       >
         Estado médico actual
@@ -117,7 +117,7 @@ function Card({
       >
         {label}
       </p>
-      <p className="text-[24px] font-semibold leading-tight" style={{ color: valueColor }}>
+      <p className="text-2xl font-semibold leading-tight" style={{ color: valueColor }}>
         {value}
       </p>
       <p className="text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
@@ -150,13 +150,13 @@ function ConditionsCard({ labels }: { labels: string[] }) {
         Condiciones
       </p>
       {labels.length === 0 ? (
-        <p className="text-[12px] mt-[4px]" style={{ color: "var(--color-ln-faint)" }}>
+        <p className="text-sm mt-[4px]" style={{ color: "var(--color-ln-faint)" }}>
           Sin condiciones
         </p>
       ) : (
         <>
           <p
-            className="text-[24px] font-semibold leading-tight"
+            className="text-2xl font-semibold leading-tight"
             style={{ color: "var(--color-ln-ink)" }}
           >
             {labels.length}
@@ -184,13 +184,13 @@ function MedicationCard({
         Medicación activa
       </p>
       {items.length === 0 ? (
-        <p className="text-[12px] mt-[4px]" style={{ color: "var(--color-ln-faint)" }}>
+        <p className="text-sm mt-[4px]" style={{ color: "var(--color-ln-faint)" }}>
           Ninguna
         </p>
       ) : (
         <>
           <p
-            className="text-[24px] font-semibold leading-tight"
+            className="text-2xl font-semibold leading-tight"
             style={{ color: "var(--color-ln-ink)" }}
           >
             {items.length}

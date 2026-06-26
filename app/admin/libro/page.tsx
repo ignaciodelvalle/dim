@@ -165,7 +165,7 @@ export default async function AdminLibroPage({
     <div className="mx-auto max-w-5xl space-y-6 px-[32px] py-[28px] pb-[48px]">
       {/* Header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin · Gobernanza
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Libro de eventos</h1>

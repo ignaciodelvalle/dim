@@ -104,7 +104,7 @@ export default async function AdminDetailPage({
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Back nav */}
-        <p className="text-[12px] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           <Link
             href="/admin/admins"
             className="underline underline-offset-4 hover:text-ln-op-ink-2"
@@ -129,8 +129,8 @@ export default async function AdminDetailPage({
             }
           />
           <OpCardBody>
-            <p className="text-[12px] text-ln-op-mute mb-3">{email}</p>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[12px]">
+            <p className="text-sm text-ln-op-mute mb-3">{email}</p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
               <dt className="text-ln-op-mute">Tipo de cuenta</dt>
               <dd className="text-ln-op-ink capitalize">{target.accountType}</dd>
               <dt className="text-ln-op-mute">Rol</dt>
@@ -182,7 +182,7 @@ export default async function AdminDetailPage({
             Audit log (últimas {auditEntries.length} entradas)
           </h2>
           {auditEntries.length === 0 ? (
-            <p className="text-[12px] text-ln-op-mute">Sin registros.</p>
+            <p className="text-sm text-ln-op-mute">Sin registros.</p>
           ) : (
             <ul className="divide-y divide-ln-op-line-2">
               {auditEntries.map((entry) => {
@@ -198,7 +198,7 @@ export default async function AdminDetailPage({
                       </span>
                       <OpCodeBadge tone="neutral">{entry.action}</OpCodeBadge>
                     </div>
-                    <p className="text-[12px] text-ln-op-mute">
+                    <p className="text-sm text-ln-op-mute">
                       {actorName}
                       <span className="mx-1 text-ln-op-faint">·</span>
                       <span className="tabular-nums">
@@ -209,17 +209,17 @@ export default async function AdminDetailPage({
                       </span>
                     </p>
                     {view.reason && (
-                      <p className="text-[12px] text-ln-op-ink-2">
+                      <p className="text-sm text-ln-op-ink-2">
                         <span className="text-ln-op-mute">Motivo:</span> {view.reason}
                       </p>
                     )}
                     {view.evidenceCount !== undefined && (
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {view.evidenceCount} archivo(s) de evidencia
                       </p>
                     )}
                     {view.resetMethod && (
-                      <p className="text-[12px] text-ln-op-mute">Método: {view.resetMethod}</p>
+                      <p className="text-sm text-ln-op-mute">Método: {view.resetMethod}</p>
                     )}
                   </li>
                 );

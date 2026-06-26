@@ -95,9 +95,9 @@ export function MatchConfirmationCard({
 
         <div className="p-4 space-y-3">
           <div>
-            <h2 className="text-[18px] font-semibold text-ln-op-ink">{petName}</h2>
+            <h2 className="text-lg font-semibold text-ln-op-ink">{petName}</h2>
             {speciesLine && <p className="text-[13px] text-ln-op-ink-2">{speciesLine}</p>}
-            {details && <p className="text-[12px] text-ln-op-mute">{details}</p>}
+            {details && <p className="text-sm text-ln-op-mute">{details}</p>}
           </div>
 
           <div className="flex items-center gap-2">
@@ -150,7 +150,7 @@ export function MatchConfirmationCard({
         </button>
       </div>
 
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         Si es la misma mascota, se notificara al dueno/a para coordinar la devolucion. Si no es la
         misma, esta acción queda registrada y podes continuar el ingreso normalmente.
       </p>

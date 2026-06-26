@@ -31,7 +31,7 @@ export type LnBadgeProps = {
 // Base: pill geometry, mono font, small uppercase — modelled on LnStatusFlag/LnVstamp
 const base =
   "inline-flex items-center gap-[5px] rounded-[2px] border " +
-  "px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.08em]";
+  "px-[7px] py-[2px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.08em]";
 
 // Soft bg + colored text + tinted border — same pattern as StatusFlag
 const variantClasses: Record<BadgeVariant, string> = {

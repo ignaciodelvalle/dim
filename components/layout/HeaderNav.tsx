@@ -107,7 +107,7 @@ export function HeaderNav({ nav, user }: Props) {
             >
               {item.label}
               {item.badge != null && item.badge > 0 && (
-                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-ln-seal px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-ln-seal px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
                   {item.badge}
                 </span>
               )}
@@ -195,7 +195,7 @@ export function HeaderNav({ nav, user }: Props) {
                   >
                     {item.label}
                     {item.badge != null && item.badge > 0 && (
-                      <span className="inline-flex items-center justify-center rounded-full bg-ln-seal px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                      <span className="inline-flex items-center justify-center rounded-full bg-ln-seal px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
                         {item.badge}
                       </span>
                     )}

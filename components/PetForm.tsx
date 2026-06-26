@@ -293,7 +293,7 @@ export function PetForm({
       {/* Location — REQUIRED in the full (non-compact) form */}
       {!compact && (
         <div className="flex flex-col gap-[6px]">
-          <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+          <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
             Localidad{" "}
             <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
               *
@@ -315,7 +315,7 @@ export function PetForm({
       {/* ── "OTROS" COLLAPSIBLE SECTION ───────────────────────── */}
       {!compact && (
         <details className="group rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-[8px] px-[14px] py-[12px] text-[12px] font-semibold text-[var(--color-ln-ink-2)] select-none">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-[8px] px-[14px] py-[12px] text-sm font-semibold text-[var(--color-ln-ink-2)] select-none">
             <span>Otros datos</span>
             <span
               aria-hidden="true"
@@ -545,7 +545,7 @@ export function PetForm({
           {!sensitiveUnlocked ? (
             <>
               {(conditions.size > 0 || emergencyInfoVisible) && (
-                <p className="text-[12px] text-[var(--color-ln-mute)]">
+                <p className="text-sm text-[var(--color-ln-mute)]">
                   {conditions.size > 0
                     ? `${conditions.size} condición${conditions.size > 1 ? "es" : ""} registrada${conditions.size > 1 ? "s" : ""}.`
                     : "Aviso de emergencia médica activo."}
@@ -555,7 +555,7 @@ export function PetForm({
                 ref={sensitiveButtonRef}
                 type="button"
                 onClick={() => setSensitiveDialogOpen(true)}
-                className="self-start rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[12px] py-[8px] text-[12px] font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+                className="self-start rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[12px] py-[8px] text-sm font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)]"
               >
                 Editar condiciones sensibles
               </button>
@@ -652,7 +652,7 @@ function SensitiveFields({
 }) {
   return (
     <div className="flex flex-col gap-[12px]">
-      <p className="text-[12px] text-[var(--color-ln-mute)]">
+      <p className="text-sm text-[var(--color-ln-mute)]">
         Marcá si tu mascota convive con alguna condición de por vida (sentidos, motora, médica).
       </p>
       <div className="flex flex-col gap-[10px]">
@@ -727,7 +727,7 @@ function CustodyKindToggle({
 }) {
   return (
     <div className="flex flex-col gap-[10px]">
-      <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+      <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         ¿Es tu mascota o la estás cuidando?
       </p>
       <input type="hidden" name="custodyKind" value={value} />
@@ -746,7 +746,7 @@ function CustodyKindToggle({
         />
       </div>
       {value === "foster_in_transit" && (
-        <p className="rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[12px] py-[10px] text-[12px] text-[var(--color-ln-ink-2)]">
+        <p className="rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[12px] py-[10px] text-sm text-[var(--color-ln-ink-2)]">
           Vas a poder llevarle la libreta sanitaria mientras la cuidás. La información viaja con la
           mascota si aparece su familia o pasa a un refugio.
         </p>
@@ -814,7 +814,7 @@ function LnAgeFields({
   const [months, setMonths] = useState<string>(defaultMonths != null ? String(defaultMonths) : "");
   return (
     <div className="flex flex-col gap-[6px]">
-      <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+      <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         Edad aproximada
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]">
@@ -984,7 +984,7 @@ function LnPhotoField({
 }) {
   return (
     <div className="flex flex-col gap-[6px]">
-      <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+      <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         Foto{" "}
         <span className="font-normal lowercase tracking-[.04em] text-[var(--color-ln-faint)]">
           opcional

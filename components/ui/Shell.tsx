@@ -113,7 +113,7 @@ export function LnMasthead({
       {/* Right side */}
       <div className="ml-auto flex items-center gap-[16px]">
         {/* Bell */}
-        <div className="relative text-white/80 text-[16px]">
+        <div className="relative text-white/80 text-base">
           <span
             aria-label={`Notificaciones${notificationCount > 0 ? `: ${notificationCount}` : ""}`}
           >
@@ -131,7 +131,7 @@ export function LnMasthead({
 
         {/* Avatar + username */}
         <div className="flex items-center gap-[9px] border-l border-white/[0.18] pl-[16px]">
-          <div className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-celeste)] font-[var(--font-ln-mono)] text-[12px] font-semibold text-[var(--color-ln-azul-900)]">
+          <div className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-celeste)] font-[var(--font-ln-mono)] text-sm font-semibold text-[var(--color-ln-azul-900)]">
             {avatarInitials}
           </div>
           {!compact && userName && <span className="text-[12.5px] font-medium">{userName}</span>}

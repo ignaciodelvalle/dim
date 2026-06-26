@@ -201,7 +201,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             placeholder="Ej: K9-2014, A1B2"
             className={inputCls}
           />
-          <span className="text-[12px] text-ln-op-mute">
+          <span className="text-sm text-ln-op-mute">
             Opcional. Se verificará contra registros existentes antes de guardar.
           </span>
         </label>
@@ -366,7 +366,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             >
               <span className="space-y-0.5">
                 <span className="block font-medium">Custodia temporal</span>
-                <span className="block text-[12px]! text-ln-op-mute!">
+                <span className="block text-sm! text-ln-op-mute!">
                   El animal queda bajo cuidado del refugio hasta que se concrete una adopción.
                 </span>
               </span>
@@ -379,7 +379,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             >
               <span className="space-y-0.5">
                 <span className="block font-medium">Dueño/a permanente</span>
-                <span className="block text-[12px]! text-ln-op-mute!">
+                <span className="block text-sm! text-ln-op-mute!">
                   El animal queda registrado a nombre de la organización (santuario, adopción
                   institucional).
                 </span>
@@ -436,7 +436,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
       <section className={step === 4 ? "space-y-5" : "sr-only"} aria-hidden={step !== 4}>
         <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-4 space-y-2">
           <p className="text-[13px] font-semibold text-ln-op-ink">Resumen del ingreso</p>
-          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-[12px]">
+          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-sm">
             <dt className="text-ln-op-mute">Nombre</dt>
             <dd className="col-span-2 text-ln-op-ink">{name || "—"}</dd>
             <dt className="text-ln-op-mute">Especie</dt>
@@ -459,14 +459,14 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </div>
 
         {state.warning === "CHIP_MATCH_ACTIVE" && (
-          <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-[12px] text-ln-op-ink-2">
+          <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2">
             El chip que ingresaste coincide con una mascota activa en otro registro. Revisá con un
             admin antes de continuar.
           </div>
         )}
 
         {state.warning === "TATTOO_MATCH_POSSIBLE" && state.matchedPetToken && (
-          <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-[12px] text-ln-op-ink-2 space-y-2">
+          <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2 space-y-2">
             <p>
               <strong>Posible coincidencia por tatuaje.</strong> El código que ingresaste coincide
               con una mascota ya registrada en MiMAR. Verificá con la foto antes de continuar.

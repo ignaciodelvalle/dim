@@ -42,7 +42,7 @@ export default async function OrgConfigPage({
         </OpCardBody>
       </OpCard>
 
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         El tipo de organización, la jurisdicción y el estado de verificación son gestionados por el
         equipo de MiMAR.
       </p>

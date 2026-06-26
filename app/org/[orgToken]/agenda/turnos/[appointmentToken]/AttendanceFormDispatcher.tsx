@@ -86,7 +86,7 @@ export function AttendanceFormDispatcher({
   return (
     <div className="space-y-8">
       <section>
-        <h2 className="text-[14px] font-semibold text-ln-op-ink mb-4">Registrar asistencia</h2>
+        <h2 className="text-md font-semibold text-ln-op-ink mb-4">Registrar asistencia</h2>
 
         {isVaccination && (
           <VaccinationAttendanceForm
@@ -130,7 +130,7 @@ export function AttendanceFormDispatcher({
       </section>
 
       <section className="border-t border-ln-op-line pt-6 space-y-3">
-        <h2 className="text-[12px] font-medium text-ln-op-mute uppercase tracking-[0.08em]">
+        <h2 className="text-sm font-medium text-ln-op-mute uppercase tracking-[0.08em]">
           Otras acciones
         </h2>
 
@@ -164,7 +164,7 @@ export function AttendanceFormDispatcher({
 
         {actionMode === "noshow" && (
           <div className="space-y-2 rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3">
-            <label htmlFor="noshow-reason" className="block text-[12px] font-medium text-ln-op-ink">
+            <label htmlFor="noshow-reason" className="block text-sm font-medium text-ln-op-ink">
               Motivo de la ausencia (opcional)
             </label>
             <input
@@ -198,7 +198,7 @@ export function AttendanceFormDispatcher({
 
         {actionMode === "cancel" && (
           <div className="space-y-2 rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
-            <label htmlFor="cancel-reason" className="block text-[12px] font-medium text-ln-op-ink">
+            <label htmlFor="cancel-reason" className="block text-sm font-medium text-ln-op-ink">
               Motivo de la cancelación (opcional)
             </label>
             <input

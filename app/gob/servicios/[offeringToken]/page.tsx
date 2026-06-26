@@ -99,7 +99,7 @@ export default async function GobServicioDetailPage({
           </OpPill>
         </div>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">{offering.displayName}</h1>
-        <p className="text-[12px] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           <OpCodeBadge tone="neutral">{offering.publicToken}</OpCodeBadge>
           {location ? ` · ${location}` : ""}
           {" · enviado "}
@@ -113,31 +113,31 @@ export default async function GobServicioDetailPage({
       <DetailSection title="Proveedor">
         <p className="text-[13px] text-ln-op-ink">{providerLabel}</p>
         {offering.organizationId && org?.legalName && (
-          <p className="text-[12px] text-ln-op-mute">{org.legalName}</p>
+          <p className="text-sm text-ln-op-mute">{org.legalName}</p>
         )}
       </DetailSection>
 
       <DetailSection title="Servicio">
         <p className="text-[13px] text-ln-op-ink">{kindLabel}</p>
         {offering.description && (
-          <p className="text-[12px] text-ln-op-ink-2 mt-1">{offering.description}</p>
+          <p className="text-sm text-ln-op-ink-2 mt-1">{offering.description}</p>
         )}
       </DetailSection>
 
       <DetailSection title="Detalles">
         <dl className="space-y-1">
           <div className="flex gap-3">
-            <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Duracion</dt>
+            <dt className="text-sm text-ln-op-mute w-32 shrink-0">Duracion</dt>
             <dd className="text-[13px] text-ln-op-ink">{offering.durationMinutes} min</dd>
           </div>
           <div className="flex gap-3">
-            <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Capacidad</dt>
+            <dt className="text-sm text-ln-op-mute w-32 shrink-0">Capacidad</dt>
             <dd className="text-[13px] text-ln-op-ink">
               {offering.slotCapacity} turno{offering.slotCapacity === 1 ? "" : "s"} por slot
             </dd>
           </div>
           <div className="flex gap-3">
-            <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Precio</dt>
+            <dt className="text-sm text-ln-op-mute w-32 shrink-0">Precio</dt>
             <dd className="text-[13px] text-ln-op-ink">
               {offering.priceArs !== null
                 ? `$${Number(offering.priceArs).toLocaleString("es-AR")}`
@@ -146,7 +146,7 @@ export default async function GobServicioDetailPage({
           </div>
           {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
             <div className="flex gap-3">
-              <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Especies</dt>
+              <dt className="text-sm text-ln-op-mute w-32 shrink-0">Especies</dt>
               <dd className="text-[13px] text-ln-op-ink">
                 {offering.eligibilitySpecies.join(", ")}
               </dd>
@@ -155,7 +155,7 @@ export default async function GobServicioDetailPage({
           {(offering.eligibilityAgeMinMonths !== null ||
             offering.eligibilityAgeMaxMonths !== null) && (
             <div className="flex gap-3">
-              <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Edad elegible</dt>
+              <dt className="text-sm text-ln-op-mute w-32 shrink-0">Edad elegible</dt>
               <dd className="text-[13px] text-ln-op-ink">
                 {offering.eligibilityAgeMinMonths !== null
                   ? `desde ${offering.eligibilityAgeMinMonths} meses`
@@ -188,7 +188,7 @@ export default async function GobServicioDetailPage({
               })}`}
           </p>
           {offering.rejectionReason && (
-            <p className="text-[12px] text-ln-op-ink-2 mt-1">Motivo: {offering.rejectionReason}</p>
+            <p className="text-sm text-ln-op-ink-2 mt-1">Motivo: {offering.rejectionReason}</p>
           )}
         </DetailSection>
       )}
@@ -199,7 +199,7 @@ export default async function GobServicioDetailPage({
 function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-[10px] uppercase tracking-[0.18em] text-ln-op-mute">{title}</h2>
+      <h2 className="text-xs uppercase tracking-[0.18em] text-ln-op-mute">{title}</h2>
       <OpCard>
         <OpCardBody className="space-y-1">{children}</OpCardBody>
       </OpCard>

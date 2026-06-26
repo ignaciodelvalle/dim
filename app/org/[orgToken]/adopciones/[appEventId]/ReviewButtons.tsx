@@ -144,7 +144,7 @@ export function ReviewButtons({
   return (
     <div className="space-y-3 rounded-[6px] border border-ln-op-line bg-ln-op-card p-4">
       <p className="text-[13px] font-medium text-ln-op-ink">{labelMap[mode]}</p>
-      <p className="text-[12px] text-ln-op-mute">{hintMap[mode]}</p>
+      <p className="text-sm text-ln-op-mute">{hintMap[mode]}</p>
       <textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
@@ -152,7 +152,7 @@ export function ReviewButtons({
         placeholder={placeholderMap[mode]}
         className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
       />
-      {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+      {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
         <button
           type="button"

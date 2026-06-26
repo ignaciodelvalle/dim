@@ -186,7 +186,7 @@ export default async function OrgTransitosPage({
                             → {foster.displayName}
                           </span>
                         </p>
-                        <p className="text-[12px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           {pet.species} · iniciado{" "}
                           {new Date(ownership.startedAt).toLocaleDateString("es-AR", {
                             day: "numeric",
@@ -230,14 +230,14 @@ export default async function OrgTransitosPage({
                             → {foster.displayName}
                           </span>
                         </p>
-                        <p className="text-[12px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           {pet.species} · {formatDate(ownership.startedAt)}
                           {ownership.endedAt ? ` – ${formatDate(ownership.endedAt)}` : ""}
                         </p>
                       </div>
                       <Link
                         href={`/org/${orgToken}/mascotas/${pet.publicToken}`}
-                        className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
+                        className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
                       >
                         Ver ficha
                       </Link>

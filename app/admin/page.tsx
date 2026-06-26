@@ -31,7 +31,7 @@ export default async function AdminDashboardPage() {
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           MiMAR Plataforma {"·"} ADMIN {"·"} Universal
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Panel de administración</h1>
@@ -82,7 +82,7 @@ export default async function AdminDashboardPage() {
           </p>
           <Link
             href="/gob/analytics"
-            className="mt-2 inline-block text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+            className="mt-2 inline-block text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
           >
             Ir a Analítica nacional {"→"}
           </Link>
@@ -128,7 +128,7 @@ function AccountCard({
         <p className="text-[13px] text-ln-op-ink-2">{description}</p>
         <Link
           href={cta.href}
-          className="mt-2 inline-block text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+          className="mt-2 inline-block text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
         >
           {cta.label} {"→"}
         </Link>

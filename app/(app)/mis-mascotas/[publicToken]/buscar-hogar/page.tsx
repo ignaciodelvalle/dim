@@ -118,7 +118,7 @@ export default async function BuscarHogarPage({
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           Buscar nuevo hogar para {pet.name}
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Estas organizaciones están verificadas y operan en tu zona. Enviando una solicitud, les
           avisás que {pet.name} necesita un hogar definitivo.
         </p>
@@ -151,7 +151,7 @@ export default async function BuscarHogarPage({
               className="flex flex-col gap-[10px] border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
-                <p className="font-[var(--font-ln-serif)] text-[14px] font-semibold text-[var(--color-ln-ink)]">
+                <p className="font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]">
                   {org.displayName}
                 </p>
                 <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] capitalize text-[var(--color-ln-mute)]">
@@ -171,7 +171,7 @@ export default async function BuscarHogarPage({
         </div>
       )}
 
-      <p className="mt-[20px] text-[12px] text-[var(--color-ln-mute)]">
+      <p className="mt-[20px] text-sm text-[var(--color-ln-mute)]">
         Las organizaciones recibirán una notificación con tus datos de contacto para hacer el
         seguimiento. No se compromete ningún acuerdo — es un primer contacto.
       </p>

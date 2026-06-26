@@ -82,7 +82,7 @@ export function OwnerReturnProposalCard({
       <OpCard accent="warn">
         <OpCardHead title="Devolución propuesta" />
         <OpCardBody>
-          <p className="text-[12px] text-ln-op-ok font-medium">
+          <p className="text-sm text-ln-op-ok font-medium">
             {doneMode === "accept"
               ? "Devolución aceptada. La custodia fue transferida correctamente."
               : "Propuesta rechazada. El adoptante fue notificado."}
@@ -101,11 +101,11 @@ export function OwnerReturnProposalCard({
             Aceptar la devolución de <strong>{petName}</strong> del adoptante{" "}
             <strong>{ownerDisplayName ?? "desconocido"}</strong>.
           </p>
-          <p className="text-[12px] text-ln-op-mute mb-4">
+          <p className="text-sm text-ln-op-mute mb-4">
             La custodia pasa a tu organización. El adoptante pierde el vínculo activo. Esta acción
             no se puede deshacer.
           </p>
-          {error && <output className="block text-[12px] text-ln-op-danger mb-3">{error}</output>}
+          {error && <output className="block text-sm text-ln-op-danger mb-3">{error}</output>}
           <div className="flex gap-2">
             <button
               type="button"
@@ -147,7 +147,7 @@ export function OwnerReturnProposalCard({
             placeholder="Motivo del rechazo (requerido)"
             className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul mb-3"
           />
-          {error && <output className="block text-[12px] text-ln-op-danger mb-3">{error}</output>}
+          {error && <output className="block text-sm text-ln-op-danger mb-3">{error}</output>}
           <div className="flex gap-2">
             <button
               type="button"
@@ -191,23 +191,23 @@ export function OwnerReturnProposalCard({
             </>
           )}
         </dl>
-        <p className="text-[12px] text-ln-op-mute mb-4">
+        <p className="text-sm text-ln-op-mute mb-4">
           El adoptante quiere devolver a <strong>{petName}</strong> a tu organización. Aceptá para
           tomar la custodia o rechazá con un motivo.
         </p>
-        {error && <output className="block text-[12px] text-ln-op-danger mb-3">{error}</output>}
+        {error && <output className="block text-sm text-ln-op-danger mb-3">{error}</output>}
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setMode("accept")}
-            className="px-3 py-1.5 rounded-[6px] bg-ln-op-ok text-white text-[12px] font-medium hover:opacity-90 transition-opacity"
+            className="px-3 py-1.5 rounded-[6px] bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 transition-opacity"
           >
             Aceptar devolución
           </button>
           <button
             type="button"
             onClick={() => setMode("reject")}
-            className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[12px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+            className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-sm font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
           >
             Rechazar
           </button>

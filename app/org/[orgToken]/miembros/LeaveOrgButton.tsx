@@ -39,7 +39,7 @@ export function LeaveOrgButton({ organizationId, isLastAdmin }: Props) {
         type="button"
         disabled
         title="Sos el único administrador. Asigná otro administrador antes de salir."
-        className="cursor-not-allowed rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-mute opacity-50"
+        className="cursor-not-allowed rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-mute opacity-50"
       >
         Salir de la organización
       </button>
@@ -52,12 +52,12 @@ export function LeaveOrgButton({ organizationId, isLastAdmin }: Props) {
         ref={triggerRef}
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
+        className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
       >
         Salir de la organización
       </button>
       {error && (
-        <p className="text-[12px] text-ln-op-danger" role="alert">
+        <p className="text-sm text-ln-op-danger" role="alert">
           {error}
         </p>
       )}

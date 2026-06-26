@@ -34,7 +34,7 @@ export function VerifyOrgButton({ org }: { org: Org }) {
 
   if (done) {
     return (
-      <p className="text-[12px] text-ln-op-ok">
+      <p className="text-sm text-ln-op-ok">
         Organización verificada. Los administradores de la org fueron notificados.
       </p>
     );
@@ -59,13 +59,13 @@ export function VerifyOrgButton({ org }: { org: Org }) {
           ¿Confirmas la verificación de <span className="font-medium">{org.displayName}</span>? Esta
           acción queda registrada en el audit log y notifica a los administradores de la org.
         </p>
-        {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+        {error && <p className="text-sm text-ln-op-danger">{error}</p>}
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleVerify}
             disabled={pending}
-            className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white font-semibold hover:opacity-90 disabled:opacity-50"
+            className="text-sm px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white font-semibold hover:opacity-90 disabled:opacity-50"
           >
             {pending ? "Verificando..." : "Sí, verificar"}
           </button>
@@ -73,7 +73,7 @@ export function VerifyOrgButton({ org }: { org: Org }) {
             type="button"
             onClick={() => setConfirming(false)}
             disabled={pending}
-            className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
+            className="text-sm px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
           >
             Cancelar
           </button>
@@ -87,11 +87,11 @@ export function VerifyOrgButton({ org }: { org: Org }) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white font-semibold hover:opacity-90"
+        className="text-sm px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white font-semibold hover:opacity-90"
       >
         Verificar organización
       </button>
-      {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+      {error && <p className="text-sm text-ln-op-danger">{error}</p>}
     </div>
   );
 }

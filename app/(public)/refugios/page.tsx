@@ -76,13 +76,13 @@ export default async function RefugiosIndexPage() {
           >
             Refugios y redes de rescate
           </h1>
-          <p className="text-[14px] text-[var(--color-ln-mute)] max-w-xl">
+          <p className="text-md text-[var(--color-ln-mute)] max-w-xl">
             Organizaciones verificadas en el Registro Nacional de Mascotas. Si buscás un animal para
             adoptar o querés colaborar, encontrá una cerca tuyo.
           </p>
           <Link
             href="/adoptar"
-            className="inline-block text-[12px] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="inline-block text-sm text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             Ver animales en adopción →
           </Link>

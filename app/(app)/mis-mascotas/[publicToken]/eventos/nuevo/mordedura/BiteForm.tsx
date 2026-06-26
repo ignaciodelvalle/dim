@@ -93,7 +93,7 @@ export function BiteForm({
 
           {/* Victim kind — pill radio group wrapped in fieldset for SR grouping */}
           <fieldset className="flex flex-col gap-[6px] border-0 m-0 p-0">
-            <legend className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)] mb-[6px]">
+            <legend className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)] mb-[6px]">
               ¿A quién mordió {petName}?{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *

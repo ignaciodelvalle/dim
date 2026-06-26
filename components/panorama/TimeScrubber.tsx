@@ -144,13 +144,10 @@ export function TimeScrubber({ since, until, onChange }: Props) {
       aria-labelledby={labelId}
     >
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <p
-          id={labelId}
-          className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute"
-        >
+        <p id={labelId} className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Reproducción temporal
         </p>
-        <p className="tabular-nums text-[12px] font-semibold text-ln-op-ink">{asOfLabel}</p>
+        <p className="tabular-nums text-sm font-semibold text-ln-op-ink">{asOfLabel}</p>
       </div>
 
       <div className="flex items-center gap-2.5">
@@ -192,7 +189,7 @@ export function TimeScrubber({ since, until, onChange }: Props) {
         </button>
       </div>
 
-      <div className="flex items-center justify-between text-[10px] text-ln-op-mute">
+      <div className="flex items-center justify-between text-xs text-ln-op-mute">
         <span className="tabular-nums">{sinceLabel}</span>
         <span className="tabular-nums">Ahora</span>
       </div>

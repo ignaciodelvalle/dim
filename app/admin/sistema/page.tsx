@@ -52,7 +52,7 @@ export default async function AdminSistemaPage() {
   return (
     <div className="space-y-8">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin {"·"} Sistema
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Salud del sistema</h1>
@@ -63,14 +63,14 @@ export default async function AdminSistemaPage() {
         <div className="flex flex-wrap gap-4 pt-1">
           <Link
             href="/gob/analytics"
-            className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+            className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
           >
             Ver analítica nacional {"→"}
           </Link>
           {/* Paquete H — executive summary cross-link */}
           <Link
             href="/admin/programa"
-            className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+            className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
           >
             Resumen ejecutivo {"→"}
           </Link>
@@ -157,7 +157,7 @@ export default async function AdminSistemaPage() {
                   return (
                     <li key={c.cronName} className="space-y-1">
                       <div className="flex items-baseline justify-between gap-3">
-                        <span className="text-[12px] text-ln-op-ink-2">{c.cronName}</span>
+                        <span className="text-sm text-ln-op-ink-2">{c.cronName}</span>
                         <span className="tabular-nums text-[11px] flex items-center gap-1.5">
                           {c.lastRunAt
                             ? new Date(c.lastRunAt).toLocaleString("es-AR", {
@@ -190,7 +190,7 @@ export default async function AdminSistemaPage() {
                           <summary className="cursor-pointer select-none font-medium">
                             Ver detalle del error
                           </summary>
-                          <pre className="mt-1 whitespace-pre-wrap break-all rounded bg-ln-op-danger-bg px-2 py-1 text-[10px] text-ln-op-danger">
+                          <pre className="mt-1 whitespace-pre-wrap break-all rounded bg-ln-op-danger-bg px-2 py-1 text-xs text-ln-op-danger">
                             {errorSummary ??
                               JSON.stringify(c.lastDetails, null, 2) ??
                               "Sin detalle disponible."}
@@ -212,7 +212,7 @@ export default async function AdminSistemaPage() {
       </section>
 
       <section className="space-y-3">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Actividad por govt
         </p>
         {govts.length === 0 ? (
@@ -228,25 +228,25 @@ export default async function AdminSistemaPage() {
                   <tr className="border-b border-ln-op-line">
                     <th
                       scope="col"
-                      className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                      className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                     >
                       Govt
                     </th>
                     <th
                       scope="col"
-                      className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                      className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                     >
                       Localidades
                     </th>
                     <th
                       scope="col"
-                      className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                      className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                     >
                       Decisiones 30d
                     </th>
                     <th
                       scope="col"
-                      className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                      className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                     >
                       Última acción
                     </th>
@@ -258,10 +258,10 @@ export default async function AdminSistemaPage() {
                       <td className="px-3 py-2 text-[13px] font-medium text-ln-op-ink">
                         {g.displayName}
                       </td>
-                      <td className="px-3 py-2 tabular-nums text-[12px] text-ln-op-ink-2">
+                      <td className="px-3 py-2 tabular-nums text-sm text-ln-op-ink-2">
                         {g.localitiesCount}
                       </td>
-                      <td className="px-3 py-2 tabular-nums text-[12px] text-ln-op-ink-2">
+                      <td className="px-3 py-2 tabular-nums text-sm text-ln-op-ink-2">
                         {g.decisions30d}
                       </td>
                       <td className="px-3 py-2 text-[11px] text-ln-op-mute">
@@ -290,7 +290,7 @@ export default async function AdminSistemaPage() {
 function StatRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className="text-[12px] text-ln-op-mute">{label}</span>
+      <span className="text-sm text-ln-op-mute">{label}</span>
       <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">{value}</span>
     </div>
   );

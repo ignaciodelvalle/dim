@@ -116,7 +116,7 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
           </div>
 
           {/* Trust copy */}
-          <p className="text-[12px] text-[var(--color-ln-ink-2)] max-w-prose leading-relaxed">
+          <p className="text-sm text-[var(--color-ln-ink-2)] max-w-prose leading-relaxed">
             {TRUST_COPY}
           </p>
 
@@ -145,16 +145,14 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
             <div className="font-[var(--font-ln-serif)] text-[26px] font-semibold leading-none text-[var(--color-ln-azul)]">
               {adoptionCount}
             </div>
-            <div className="mt-[5px] text-[12px] text-[var(--color-ln-mute)]">
-              En adopción ahora
-            </div>
+            <div className="mt-[5px] text-sm text-[var(--color-ln-mute)]">En adopción ahora</div>
           </div>
           {serviceCount > 0 && (
             <div className="border-r border-[var(--color-ln-line-2)] px-[18px] py-[15px] sm:border-r-0 md:border-r">
               <div className="font-[var(--font-ln-serif)] text-[26px] font-semibold leading-none text-[var(--color-ln-azul)]">
                 {serviceCount}
               </div>
-              <div className="mt-[5px] text-[12px] text-[var(--color-ln-mute)]">Servicios</div>
+              <div className="mt-[5px] text-sm text-[var(--color-ln-mute)]">Servicios</div>
             </div>
           )}
         </div>

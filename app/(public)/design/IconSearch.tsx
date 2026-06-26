@@ -64,7 +64,7 @@ export function IconSearch() {
             <Icon name={name} size={28} color="var(--color-ln-azul)" />
             <code className="block w-full truncate text-xs text-ln-ink-2">{name}</code>
             <span
-              className="block text-[10px] text-ln-ok"
+              className="block text-xs text-ln-ok"
               style={{ opacity: copied === name ? 1 : 0, transition: "opacity 150ms" }}
             >
               copiado

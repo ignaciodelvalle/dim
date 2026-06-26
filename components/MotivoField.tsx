@@ -31,11 +31,11 @@ export function MotivoField({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label htmlFor={id} className="block text-[10px] uppercase tracking-wider text-ln-op-mute">
+        <label htmlFor={id} className="block text-xs uppercase tracking-wider text-ln-op-mute">
           Motivo (minimo {MOTIVO_MIN} caracteres)
         </label>
         <span
-          className={`text-[10px] tabular-nums ${tooShort ? "text-ln-op-danger" : "text-ln-op-mute"}`}
+          className={`text-xs tabular-nums ${tooShort ? "text-ln-op-danger" : "text-ln-op-mute"}`}
         >
           {len}/{MOTIVO_MIN}
         </span>

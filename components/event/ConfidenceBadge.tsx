@@ -24,7 +24,7 @@ const TIER_STYLES: Record<ConfidenceTier, string> = {
 export function ConfidenceBadge({ tier, className = "" }: Props) {
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${TIER_STYLES[tier]} ${className}`.trim()}
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${TIER_STYLES[tier]} ${className}`.trim()}
     >
       {confidenceLabel(tier)}
     </span>

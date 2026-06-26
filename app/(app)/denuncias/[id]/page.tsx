@@ -330,7 +330,7 @@ export default async function WelfareReportDetailPage({
                           className="w-full aspect-video object-cover bg-[var(--color-ln-stripe)]"
                         />
                         {a.originalFilename && (
-                          <p className="px-[8px] py-[4px] font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-mute)] truncate">
+                          <p className="px-[8px] py-[4px] font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)] truncate">
                             {a.originalFilename}
                           </p>
                         )}
@@ -372,7 +372,7 @@ export default async function WelfareReportDetailPage({
                       <p className="text-[13px] text-[var(--color-ln-ink-2)] whitespace-pre-wrap">
                         {c.notes}
                       </p>
-                      <time className="mt-[4px] block font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-mute)]">
+                      <time className="mt-[4px] block font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
                         {formatDateTime(c.occurredAt)}
                       </time>
                     </li>

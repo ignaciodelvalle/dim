@@ -64,7 +64,7 @@ export function AcquisitionChart({ data, className }: Props) {
         fallbackTableLabel="Tendencia de adquisiciones por mes"
       />
       {methodSummary && (
-        <p className="mt-2 text-[12px] text-ln-op-mute">
+        <p className="mt-2 text-sm text-ln-op-mute">
           <span className="font-medium">Metodos:</span> {methodSummary}
         </p>
       )}

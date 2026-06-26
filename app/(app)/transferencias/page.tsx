@@ -91,7 +91,7 @@ export default async function TransferenciasHubPage() {
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Transferencias
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Transferencias de mascotas recibidas y enviadas.
         </p>
       </div>
@@ -138,7 +138,7 @@ export default async function TransferenciasHubPage() {
                             </span>
                           </p>
                           {fromDisplayName && (
-                            <p className="mt-[2px] text-[12px] text-[var(--color-ln-mute)]">
+                            <p className="mt-[2px] text-sm text-[var(--color-ln-mute)]">
                               De: {fromDisplayName}
                             </p>
                           )}
@@ -157,7 +157,7 @@ export default async function TransferenciasHubPage() {
                           </span>
                           <span
                             aria-hidden="true"
-                            className="text-[16px] text-[var(--color-ln-mute)]"
+                            className="text-base text-[var(--color-ln-mute)]"
                           >
                             ›
                           </span>
@@ -198,7 +198,7 @@ export default async function TransferenciasHubPage() {
                       </p>
                       <span
                         aria-hidden="true"
-                        className="flex-shrink-0 text-[14px] text-[var(--color-ln-mute)]"
+                        className="flex-shrink-0 text-md text-[var(--color-ln-mute)]"
                       >
                         ›
                       </span>
@@ -265,7 +265,7 @@ export default async function TransferenciasHubPage() {
                     >
                       {STATUS_LABELS[transfer.status] ?? transfer.status}
                     </span>
-                    <span aria-hidden="true" className="text-[14px] text-[var(--color-ln-mute)]">
+                    <span aria-hidden="true" className="text-md text-[var(--color-ln-mute)]">
                       ›
                     </span>
                   </div>

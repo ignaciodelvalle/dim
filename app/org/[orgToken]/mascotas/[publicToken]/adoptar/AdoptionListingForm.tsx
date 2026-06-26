@@ -135,7 +135,7 @@ export function AdoptionListingForm({
       <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
         <form onSubmit={saveContent} className="space-y-4">
           <div>
-            <label htmlFor="story" className="block text-[12px] font-medium text-ln-op-ink mb-1">
+            <label htmlFor="story" className="block text-sm font-medium text-ln-op-ink mb-1">
               Historia
             </label>
             <textarea
@@ -150,10 +150,7 @@ export function AdoptionListingForm({
           </div>
 
           <div>
-            <label
-              htmlFor="requirements"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
-            >
+            <label htmlFor="requirements" className="block text-sm font-medium text-ln-op-ink mb-1">
               Requisitos para adoptar
             </label>
             <textarea
@@ -224,7 +221,7 @@ export function AdoptionListingForm({
           </div>
 
           <fieldset className="space-y-2">
-            <legend className="text-[12px] font-medium text-ln-op-ink">Convivencia</legend>
+            <legend className="text-sm font-medium text-ln-op-ink">Convivencia</legend>
             <TriState
               label="¿Se lleva bien con chicos?"
               value={goodWithKids}
@@ -261,8 +258,8 @@ export function AdoptionListingForm({
             </p>
           </div>
 
-          {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
-          {okMessage && <output className="block text-[12px] text-ln-op-ok">{okMessage}</output>}
+          {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
+          {okMessage && <output className="block text-sm text-ln-op-ok">{okMessage}</output>}
 
           <button
             type="submit"
@@ -278,7 +275,7 @@ export function AdoptionListingForm({
       <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
         <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-2 text-[13px]">
           <p className="font-semibold text-ln-op-ink">Lo que vas a publicar</p>
-          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-[12px]">
+          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-sm">
             <dt className="text-ln-op-mute">Historia</dt>
             <dd className="col-span-2 text-ln-op-ink-2">
               {story ? `${story.slice(0, 80)}${story.length > 80 ? "…" : ""}` : "Sin definir"}
@@ -367,8 +364,8 @@ export function AdoptionListingForm({
           )}
         </div>
 
-        {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
-        {okMessage && <output className="block text-[12px] text-ln-op-ok">{okMessage}</output>}
+        {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
+        {okMessage && <output className="block text-sm text-ln-op-ok">{okMessage}</output>}
       </section>
     </LnWizardShell>
   );
@@ -384,7 +381,7 @@ function TriState({
   onChange: (v: boolean | null) => void;
 }) {
   return (
-    <div className="flex items-center gap-3 text-[12px]">
+    <div className="flex items-center gap-3 text-sm">
       <span className="flex-1 text-ln-op-ink-2">{label}</span>
       <div className="flex gap-1">
         {(

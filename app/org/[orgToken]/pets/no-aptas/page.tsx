@@ -97,7 +97,7 @@ export default async function PetsNoAptasPage({
                           </Link>
                           {reEvalDue && <OpPill tone="open">Re-evaluación vencida</OpPill>}
                         </div>
-                        <p className="text-[12px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           {pet.species}
                           {pet.adoptionIneligibleReasonNotes &&
                             ` · ${pet.adoptionIneligibleReasonNotes}`}
@@ -127,7 +127,7 @@ export default async function PetsNoAptasPage({
         <footer className="pt-4 border-t border-ln-op-line">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver al listado
           </Link>

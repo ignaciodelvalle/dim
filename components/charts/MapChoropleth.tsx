@@ -630,14 +630,14 @@ export function MapChoropleth({
                 : `Escala de color para ${scaleLabel}: de ${scaleBounds.min} (mínimo) a ${scaleBounds.max} (máximo)`
             }
           >
-            <p className="text-[10px] text-ln-ink-3 mb-0.5">{scaleLabel}</p>
+            <p className="text-xs text-ln-ink-3 mb-0.5">{scaleLabel}</p>
             {scaleMode === "divergent" && typeof target === "number" ? (
               // Divergent legend: two poles with the target anchor labeled.
               // Mirrors the F5 Panorama province-choropleth legend semantics.
               // Colorblind-safe: orange=below, neutral=at target, teal=above.
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-ln-ink-3">bajo meta</span>
+                  <span className="text-xs text-ln-ink-3">bajo meta</span>
                   <div
                     className="h-2.5 flex-1 rounded-sm border border-ln-line"
                     style={{
@@ -645,9 +645,9 @@ export function MapChoropleth({
                     }}
                     aria-hidden="true"
                   />
-                  <span className="text-[10px] text-ln-ink-3">sobre meta</span>
+                  <span className="text-xs text-ln-ink-3">sobre meta</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-ln-ink-3">
+                <div className="flex items-center gap-1.5 text-xs text-ln-ink-3">
                   <span
                     className="inline-block w-2.5 h-2.5 rounded-[2px] border border-ln-line"
                     style={{ background: COLOR_DIVERGENT_NEUTRAL }}
@@ -661,7 +661,7 @@ export function MapChoropleth({
             ) : (
               // Sequential legend: min → max gradient bar.
               <div className="flex items-center gap-2">
-                <span className="text-[10px] tabular-nums text-ln-ink-3">{scaleBounds.min}</span>
+                <span className="text-xs tabular-nums text-ln-ink-3">{scaleBounds.min}</span>
                 <div
                   className="h-2.5 flex-1 rounded-sm border border-ln-line"
                   style={{
@@ -669,7 +669,7 @@ export function MapChoropleth({
                   }}
                   aria-hidden="true"
                 />
-                <span className="text-[10px] tabular-nums text-ln-ink-3">{scaleBounds.max}</span>
+                <span className="text-xs tabular-nums text-ln-ink-3">{scaleBounds.max}</span>
               </div>
             )}
           </div>
@@ -677,7 +677,7 @@ export function MapChoropleth({
 
         {/* Discrete swatches: no-data + suppressed */}
         <ul
-          className="flex items-center gap-3 list-none m-0 p-0 text-[10px] text-ln-ink-3"
+          className="flex items-center gap-3 list-none m-0 p-0 text-xs text-ln-ink-3"
           aria-label="Estados especiales"
         >
           <li className="flex items-center gap-1">

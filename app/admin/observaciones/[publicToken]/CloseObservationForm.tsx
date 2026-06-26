@@ -71,7 +71,7 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
       {/* C6 — typed confirmation for the public-health critical outcome. */}
       {isPositiveRabies && (
         <div className="space-y-3 rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
-          <p className="text-[12px] font-semibold text-ln-op-danger">
+          <p className="text-sm font-semibold text-ln-op-danger">
             {"Confirmar rabia positiva dispara notificaciones de salud pública."}
           </p>
           <LnField
@@ -115,7 +115,7 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
       </LnField>
 
       {error && (
-        <p className="text-[12px] text-ln-op-danger" role="alert">
+        <p className="text-sm text-ln-op-danger" role="alert">
           {error}
         </p>
       )}

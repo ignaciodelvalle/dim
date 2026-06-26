@@ -42,7 +42,7 @@ export default async function ServiciosPage({
       {/* Page header */}
       <header className="flex items-baseline justify-between gap-3 flex-wrap">
         <div className="space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             {organization.displayName}
           </p>
           <h1 className="text-[22px] font-semibold text-ln-op-ink">Mis servicios</h1>
@@ -92,7 +92,7 @@ export default async function ServiciosPage({
                     >
                       <div className="min-w-0 space-y-0.5">
                         <p className="text-[13px] font-medium text-ln-op-ink">{o.displayName}</p>
-                        <p className="text-[12px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           {kind?.label ?? o.serviceKind}
                           {o.priceArs !== null
                             ? ` · $${Number(o.priceArs).toLocaleString("es-AR")}`
@@ -112,7 +112,7 @@ export default async function ServiciosPage({
       )}
 
       <footer className="pt-4 border-t border-ln-op-line">
-        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+        <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Volver al panel
         </Link>
       </footer>

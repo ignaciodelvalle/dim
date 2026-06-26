@@ -107,7 +107,7 @@ export default async function AdminProgramaPage({
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
     <header className="space-y-2">
-      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         Admin · Resumen ejecutivo
       </p>
       <h1 className="text-[22px] font-semibold text-ln-op-ink">Salud del programa</h1>
@@ -509,7 +509,7 @@ export default async function AdminProgramaPage({
                 {/* Completeness bar */}
                 <div>
                   <div className="flex justify-between items-baseline mb-1">
-                    <span className="text-[12px] text-ln-op-mute">Completitud</span>
+                    <span className="text-sm text-ln-op-mute">Completitud</span>
                     <span
                       className={[
                         "text-[13px] font-semibold tabular-nums",
@@ -544,7 +544,7 @@ export default async function AdminProgramaPage({
                 </div>
 
                 {/* Missing field counts */}
-                <ul className="space-y-1.5 text-[12px]" aria-label="Campos faltantes por categoría">
+                <ul className="space-y-1.5 text-sm" aria-label="Campos faltantes por categoría">
                   <li className="flex justify-between items-baseline">
                     <span className="text-ln-op-mute">Sin localidad</span>
                     <span className="tabular-nums text-ln-op-ink">
@@ -576,7 +576,7 @@ export default async function AdminProgramaPage({
                   </li>
                 </ul>
 
-                <p className="text-[10px] text-ln-op-mute">
+                <p className="text-xs text-ln-op-mute">
                   Completitud = mascotas sin ningún campo faltante (localidad + sexo + chip) ÷
                   total. Huérfanas: sin ninguna fila en ownerships.
                 </p>
@@ -596,7 +596,7 @@ export default async function AdminProgramaPage({
                 {crons.map((c) => (
                   <li
                     key={c.cronName}
-                    className="flex items-baseline justify-between gap-3 text-[12px]"
+                    className="flex items-baseline justify-between gap-3 text-sm"
                     aria-label={`${c.cronName}: ${c.lastStatus ?? "desconocido"}`}
                   >
                     <span className="text-ln-op-ink-2 truncate max-w-[160px]">{c.cronName}</span>
@@ -632,7 +632,7 @@ export default async function AdminProgramaPage({
         <OpCardBody>
           {/* (a) Alertas activas — breaching subscriptions */}
           <section aria-label="Alertas activas" className="mb-5">
-            <h4 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+            <h4 className="mb-2 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
               Alertas activas
             </h4>
             {breachingAlerts.length === 0 ? (
@@ -669,7 +669,7 @@ export default async function AdminProgramaPage({
 
           {/* (b) Mis suscripciones — all subscriptions list with delete / toggle */}
           <section aria-label="Mis suscripciones" className="mb-5">
-            <h4 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+            <h4 className="mb-2 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
               Mis suscripciones
             </h4>
             {alertEvals.length === 0 ? (
@@ -721,7 +721,7 @@ export default async function AdminProgramaPage({
 
           {/* (c) Crear suscripción form */}
           <section aria-label="Crear suscripción">
-            <h4 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+            <h4 className="mb-3 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
               Crear suscripción
             </h4>
             <AlertSubscriptionForm />

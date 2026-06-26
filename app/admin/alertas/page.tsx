@@ -75,12 +75,12 @@ export default async function AdminAlertasPage({
   await logAlertInboxView(session.user.id, filters, rows.length);
 
   const inputCls =
-    "h-11 rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-[12px] text-ln-op-ink";
+    "h-11 rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-sm text-ln-op-ink";
 
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin · Operaciones
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Bandeja de alertas</h1>

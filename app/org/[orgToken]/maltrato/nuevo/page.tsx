@@ -117,7 +117,7 @@ export default async function OrgNuevaDenunciaPage({
       <OpCallout
         title="Particularidades del canal profesional"
         body={
-          <ul className="list-disc pl-5 space-y-1 text-[12px]">
+          <ul className="list-disc pl-5 space-y-1 text-sm">
             <li>
               Severidad <strong>crítica automática</strong> — tu rol profesional eleva la prioridad
               sin importar lo que selecciones abajo.
@@ -136,7 +136,7 @@ export default async function OrgNuevaDenunciaPage({
       <WelfareReportForm action={boundAction} isAnonymous={false} />
 
       <footer className="pt-4 border-t border-ln-op-line">
-        <p className="text-[12px] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           Ley Nacional 14.346 (1954) — Malos tratos y actos de crueldad contra animales.
         </p>
       </footer>

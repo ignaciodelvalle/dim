@@ -373,7 +373,7 @@ export function MarkLostWizard({
             aria-hidden={step !== totalSteps}
           >
             <LnSubCard heading="Preferencias de divulgación">
-              <p className="text-[12px] text-[var(--color-ln-mute)]">
+              <p className="text-sm text-[var(--color-ln-mute)]">
                 ¿Qué información mostramos en tu credencial pública mientras esté perdida? Podés
                 cambiar esto en cualquier momento.
               </p>

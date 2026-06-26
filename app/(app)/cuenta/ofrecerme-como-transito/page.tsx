@@ -59,7 +59,7 @@ export default async function OfrecermeComoTransitoPage() {
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Ofrecerme como hogar de tránsito
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Inscribite en el pool de voluntarios. Los refugios cerca tuyo te van a poder proponer
           tránsitos según tus preferencias.
         </p>
@@ -143,7 +143,7 @@ function PreCheckChecklist({
         {items.map((item) => (
           <li key={item.label} className="flex items-center gap-[8px]">
             <span
-              className={`flex-shrink-0 font-[var(--font-ln-mono)] text-[12px] ${item.ok ? "text-[var(--color-ln-ok)]" : "text-[var(--color-ln-warn)]"}`}
+              className={`flex-shrink-0 font-[var(--font-ln-mono)] text-sm ${item.ok ? "text-[var(--color-ln-ok)]" : "text-[var(--color-ln-warn)]"}`}
             >
               {item.ok ? "✓" : "○"}
             </span>

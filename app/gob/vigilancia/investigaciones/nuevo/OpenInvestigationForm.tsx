@@ -76,9 +76,7 @@ export function OpenInvestigationForm({
           placeholder="Describe la situacion epidemiologica que motiva la apertura..."
           className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         />
-        <p className="text-[12px] text-ln-op-mute tabular-nums">
-          {reason.trim().length} caracteres
-        </p>
+        <p className="text-sm text-ln-op-mute tabular-nums">{reason.trim().length} caracteres</p>
       </div>
 
       <div className="space-y-1.5">

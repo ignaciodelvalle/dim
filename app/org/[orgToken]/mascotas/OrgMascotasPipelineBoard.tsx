@@ -123,7 +123,7 @@ function PipelineCard({
         {card.breed ? ` · ${card.breed}` : ""}
         {ageInfo ? ` · ${ageInfo}` : ""}
       </p>
-      <p className="text-[10px] text-ln-op-mute font-ln-mono truncate">{card.publicToken}</p>
+      <p className="text-xs text-ln-op-mute font-ln-mono truncate">{card.publicToken}</p>
     </Link>
   );
 }
@@ -163,7 +163,7 @@ function PipelineColumn({
           {label}
         </h2>
         <span
-          className={`text-[10px] font-ln-mono font-bold px-[6px] py-[1px] rounded-full ${style.countBadge}`}
+          className={`text-xs font-ln-mono font-bold px-[6px] py-[1px] rounded-full ${style.countBadge}`}
           aria-label={`${cards.length} animales`}
         >
           {cards.length}

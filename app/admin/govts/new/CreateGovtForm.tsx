@@ -115,7 +115,7 @@ export function CreateGovtForm() {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-[12px] font-medium text-ln-op-ink-2 mb-1">
+          <label htmlFor="email" className="block text-sm font-medium text-ln-op-ink-2 mb-1">
             Email{" "}
             <span className="text-ln-op-danger" aria-hidden="true">
               *
@@ -133,10 +133,7 @@ export function CreateGovtForm() {
         </div>
 
         <div>
-          <label
-            htmlFor="displayName"
-            className="block text-[12px] font-medium text-ln-op-ink-2 mb-1"
-          >
+          <label htmlFor="displayName" className="block text-sm font-medium text-ln-op-ink-2 mb-1">
             Nombre de display{" "}
             <span className="text-ln-op-danger" aria-hidden="true">
               *
@@ -156,16 +153,16 @@ export function CreateGovtForm() {
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="block text-[12px] font-medium text-ln-op-ink-2">Localidades iniciales</p>
+            <p className="block text-sm font-medium text-ln-op-ink-2">Localidades iniciales</p>
             <button
               type="button"
               onClick={addLocality}
-              className="text-[12px] text-ln-op-azul hover:text-ln-op-azul-700 underline underline-offset-4"
+              className="text-sm text-ln-op-azul hover:text-ln-op-azul-700 underline underline-offset-4"
             >
               + Agregar localidad
             </button>
           </div>
-          <p className="text-[12px] text-ln-op-mute mb-3">
+          <p className="text-sm text-ln-op-mute mb-3">
             Opcional. Se pueden asignar más localidades luego desde la página del operador.
           </p>
           <div className="space-y-2">

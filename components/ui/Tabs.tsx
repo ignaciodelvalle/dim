@@ -60,7 +60,7 @@ export function LnTabs({ tabs, active, onChange, className = "" }: LnTabsProps) 
             {tab.count !== undefined && (
               <span
                 className={[
-                  "rounded-full px-[6px] py-[1px] font-[var(--font-ln-mono)] text-[10px]",
+                  "rounded-full px-[6px] py-[1px] font-[var(--font-ln-mono)] text-xs",
                   isActive
                     ? "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]"
                     : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
@@ -112,7 +112,7 @@ export function LnAccordion({
       <summary
         className={[
           "flex cursor-pointer list-none items-center gap-[10px] px-[15px] py-[13px]",
-          "font-[var(--font-ln-serif)] text-[14px] font-semibold text-[var(--color-ln-ink)]",
+          "font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]",
           "group-open:border-b group-open:border-[var(--color-ln-line-2)] group-open:bg-[var(--color-ln-stripe)]",
           // Remove default marker
           "[&::-webkit-details-marker]:hidden",
@@ -130,7 +130,7 @@ export function LnAccordion({
 
         {/* "✓ completo" — only shown when closed */}
         {complete && (
-          <span className="flex items-center gap-[4px] font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-ok)] group-open:hidden">
+          <span className="flex items-center gap-[4px] font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-ok)] group-open:hidden">
             ✓ completo
           </span>
         )}

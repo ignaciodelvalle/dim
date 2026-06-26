@@ -263,7 +263,7 @@ export default async function GobMaltratoDetailPage({
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Breadcrumb */}
-        <Link href="/gob/maltrato" className="text-[12px] text-ln-op-mute hover:text-ln-op-ink-2">
+        <Link href="/gob/maltrato" className="text-sm text-ln-op-mute hover:text-ln-op-ink-2">
           ← Volver al listado
         </Link>
 
@@ -273,11 +273,11 @@ export default async function GobMaltratoDetailPage({
               {welfareReportKindLabel(report.kind)}
             </h1>
             <OpPill tone={statusTone}>{welfareReportStatusLabel(report.status)}</OpPill>
-            <span className="text-[10px] uppercase tracking-wider text-ln-op-mute">
+            <span className="text-xs uppercase tracking-wider text-ln-op-mute">
               {welfareReportSeverityLabel(report.severity)}
             </span>
           </div>
-          <p className="text-[10px] font-mono text-ln-op-mute">
+          <p className="text-xs font-mono text-ln-op-mute">
             {report.referenceCode} · creada {formatDateTime(report.createdAt)}
           </p>
         </header>
@@ -285,25 +285,25 @@ export default async function GobMaltratoDetailPage({
         {/* Summary chips row — case metadata at a glance */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-            <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">Edad del caso</p>
+            <p className="text-xs uppercase tracking-wider text-ln-op-mute">Edad del caso</p>
             <p className="text-[13px] font-semibold text-ln-op-ink">
               {ageInDays === 0 ? "Hoy" : ageInDays === 1 ? "1 día" : `${ageInDays} días`}
             </p>
           </div>
           <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-            <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">Gravedad</p>
+            <p className="text-xs uppercase tracking-wider text-ln-op-mute">Gravedad</p>
             <p className="text-[13px] font-semibold text-ln-op-ink">
               {welfareReportSeverityLabel(report.severity)}
             </p>
           </div>
           <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-            <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">Estado</p>
+            <p className="text-xs uppercase tracking-wider text-ln-op-mute">Estado</p>
             <p className="text-[13px] font-semibold text-ln-op-ink">
               {welfareReportStatusLabel(report.status)}
             </p>
           </div>
           <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-            <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">Asignado a</p>
+            <p className="text-xs uppercase tracking-wider text-ln-op-mute">Asignado a</p>
             <p className="text-[13px] font-semibold text-ln-op-ink truncate">
               {assignedToName ?? "Sin asignar"}
             </p>
@@ -339,7 +339,7 @@ export default async function GobMaltratoDetailPage({
               {welfareReportSubjectKindLabel(report.subjectKind)}
             </p>
             {report.subjectDescription && (
-              <p className="text-[12px] text-ln-op-ink-2 whitespace-pre-wrap">
+              <p className="text-sm text-ln-op-ink-2 whitespace-pre-wrap">
                 {report.subjectDescription}
               </p>
             )}
@@ -349,7 +349,7 @@ export default async function GobMaltratoDetailPage({
         <OpCard>
           <OpCardHead title="Lugar" />
           <OpCardBody className="space-y-3">
-            <div className="text-[12px] text-ln-op-ink-2 space-y-1">
+            <div className="text-sm text-ln-op-ink-2 space-y-1">
               {report.locationAddress && <p>{report.locationAddress}</p>}
               {(report.jurisdictionLocality || report.jurisdictionProvince) && (
                 <p>
@@ -361,11 +361,11 @@ export default async function GobMaltratoDetailPage({
             </div>
             {locationPoint && (
               <>
-                <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">
+                <p className="text-xs uppercase tracking-wider text-ln-op-mute">
                   Ubicación exacta — uso oficial (Ley 14.346)
                 </p>
                 <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
-                <p className="text-[10px] text-ln-op-mute font-mono">
+                <p className="text-xs text-ln-op-mute font-mono">
                   {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
                 </p>
               </>
@@ -406,7 +406,7 @@ export default async function GobMaltratoDetailPage({
           <OpCardHead title="Reportante" />
           <OpCardBody>
             {report.reporterUserId ? (
-              <p className="text-[12px] text-ln-op-ink-2">
+              <p className="text-sm text-ln-op-ink-2">
                 {actorNames.get(report.reporterUserId) ?? "Usuario registrado"}
                 {report.reporterContactEmail && (
                   <span className="text-ln-op-mute"> · {report.reporterContactEmail}</span>
@@ -416,7 +416,7 @@ export default async function GobMaltratoDetailPage({
                 )}
               </p>
             ) : (
-              <p className="text-[12px] text-ln-op-mute">
+              <p className="text-sm text-ln-op-mute">
                 Denuncia anónima.
                 {(report.reporterContactEmail || report.reporterContactPhone) && (
                   <span>
@@ -461,7 +461,7 @@ export default async function GobMaltratoDetailPage({
 
         {!isTerminal && (
           <section className="space-y-3 pt-2 border-t border-ln-op-line">
-            <h2 className="text-[14px] font-semibold text-ln-op-ink">Acciones</h2>
+            <h2 className="text-md font-semibold text-ln-op-ink">Acciones</h2>
             <TriageActions welfareReportId={report.id} currentStatus={report.status} />
           </section>
         )}
@@ -478,7 +478,7 @@ export default async function GobMaltratoDetailPage({
               {/* Org intervention state (UI-7) */}
               {report.orgInterventionStatus === "tomado" && (
                 <div className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe px-3 py-2">
-                  <p className="text-[12px] text-ln-op-ink">
+                  <p className="text-sm text-ln-op-ink">
                     <span className="font-medium">En intervención</span> — la organización tomó la
                     denuncia
                     {report.orgInterventionAt && (
@@ -493,7 +493,7 @@ export default async function GobMaltratoDetailPage({
               )}
               {report.orgInterventionStatus === "devuelto" && (
                 <div className="rounded-[4px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2">
-                  <p className="text-[12px] text-ln-op-warn">
+                  <p className="text-sm text-ln-op-warn">
                     <span className="font-medium">Devuelta por la organización</span>
                     {orgReturnReason ? `: ${orgReturnReason}` : "."} Volvé a derivarla a otra
                     organización o gestionala directamente.
@@ -562,12 +562,12 @@ export default async function GobMaltratoDetailPage({
               });
               if (normativas.length === 0)
                 return (
-                  <p className="text-[12px] text-ln-op-mute">
+                  <p className="text-sm text-ln-op-mute">
                     Sin normativa catalogada para esta jurisdicción.
                   </p>
                 );
               return (
-                <ul className="space-y-2 text-[12px] text-ln-op-ink-2">
+                <ul className="space-y-2 text-sm text-ln-op-ink-2">
                   {normativas.map((law) => (
                     <li key={law.id}>
                       <span className="font-medium text-ln-op-ink">{law.label}</span>

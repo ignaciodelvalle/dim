@@ -94,7 +94,7 @@ export default async function OrgTransferenciasSalientesPage({
         </Link>
       </header>
 
-      <nav className="flex gap-4 text-[12px]">
+      <nav className="flex gap-4 text-sm">
         <span className="font-semibold text-ln-op-ink">Salientes</span>
         <Link
           href={`/org/${orgToken}/transferencias/recibidas`}
@@ -120,17 +120,15 @@ export default async function OrgTransferenciasSalientesPage({
                     <div className="min-w-0 space-y-1">
                       <p className="text-[13px] font-medium text-ln-op-ink">
                         {r.petName ?? "(sin pet)"}{" "}
-                        <span className="font-mono text-[12px] text-ln-op-mute">
-                          · {r.publicCode}
-                        </span>
+                        <span className="font-mono text-sm text-ln-op-mute">· {r.publicCode}</span>
                       </p>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         Abierta el {formatDate(r.openedAt)}
                         {r.closedAt ? ` · Cerrada el ${formatDate(r.closedAt)}` : ""}
                       </p>
                       <Link
                         href={`/casos/${r.publicCode}`}
-                        className="inline-block text-[12px] text-ln-op-azul hover:underline no-underline"
+                        className="inline-block text-sm text-ln-op-azul hover:underline no-underline"
                       >
                         Ver caso →
                       </Link>

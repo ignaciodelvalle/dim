@@ -46,8 +46,8 @@ export default async function IntakePage({
           <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
           <p className="text-[13px] text-ln-op-mute">
             Para registrar ingresos necesitás el permiso{" "}
-            <code className="text-[12px] font-mono">intake.create</code>. Pedíselo a un
-            administrador desde el panel.
+            <code className="text-sm font-mono">intake.create</code>. Pedíselo a un administrador
+            desde el panel.
           </p>
           <Link
             href={`/org/${orgToken}`}
@@ -90,7 +90,7 @@ export default async function IntakePage({
 
       <header className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">
-          <p className="text-[12px] uppercase tracking-wider text-ln-op-mute">
+          <p className="text-sm uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
           <h1 className="text-[22px] font-semibold text-ln-op-ink">Ingresos</h1>
@@ -152,14 +152,14 @@ export default async function IntakePage({
                   >
                     <div className="min-w-0 space-y-0.5">
                       <p className="text-[13px] font-medium text-ln-op-ink">{row.petName}</p>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {SPECIES_LABEL[row.petSpecies] ?? row.petSpecies} ·{" "}
                         {formatDate(row.occurredAt)}
                       </p>
                     </div>
                     <Link
                       href={`/org/${orgToken}/mascotas/${row.petPublicToken}`}
-                      className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
+                      className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
                     >
                       Ver ficha
                     </Link>

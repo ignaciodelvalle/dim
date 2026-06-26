@@ -25,7 +25,7 @@ export function DeleteRuleButton({
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="text-[12px] font-semibold text-ln-op-danger no-underline underline-offset-4 hover:underline"
+        className="text-sm font-semibold text-ln-op-danger no-underline underline-offset-4 hover:underline"
       >
         Eliminar
       </button>
@@ -51,13 +51,13 @@ export function DeleteRuleButton({
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Motivo de la eliminación (queda en el audit log)"
-          className="w-full rounded-md border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+          className="w-full rounded-md border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
         />
         <div className="flex gap-2">
           <button
             type="submit"
             disabled={!reasonValid}
-            className="text-[12px] font-semibold text-ln-op-danger underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+            className="text-sm font-semibold text-ln-op-danger underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
           >
             Confirmar eliminación
           </button>
@@ -67,7 +67,7 @@ export function DeleteRuleButton({
               setConfirming(false);
               setReason("");
             }}
-            className="text-[12px] text-ln-op-mute transition-colors hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute transition-colors hover:text-ln-op-ink"
           >
             Cancelar
           </button>

@@ -38,7 +38,7 @@ export default async function OrganizacionesPage({
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           MiMAR Gobierno · Organizaciones
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Organizaciones</h1>
@@ -62,7 +62,7 @@ export default async function OrganizacionesPage({
         </OpButton>
       </form>
 
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         {results.length === 0
           ? query
             ? "Sin resultados."
@@ -84,11 +84,11 @@ export default async function OrganizacionesPage({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-0.5">
                       <p className="text-[13px] font-medium text-ln-op-ink">{o.displayName}</p>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {o.legalName} · {ORG_TYPE_LABELS[o.orgType] ?? o.orgType}
                         {o.cuit && ` · CUIT ${o.cuit}`}
                       </p>
-                      <p className="text-[10px] text-ln-op-mute">
+                      <p className="text-xs text-ln-op-mute">
                         {o.jurisdictionLocality ?? "—"}, {o.jurisdictionProvince ?? "—"}
                       </p>
                     </div>
@@ -118,7 +118,7 @@ export default async function OrganizacionesPage({
         actorUserId={user.id}
       />
 
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         <Link href="/gob" className="underline underline-offset-4 hover:text-ln-op-ink-2">
           {"←"} Volver al dashboard
         </Link>

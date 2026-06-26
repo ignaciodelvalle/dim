@@ -114,7 +114,7 @@ export default async function OfferingDetailPage({
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName} · Servicios
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">{offering.displayName}</h1>
@@ -127,12 +127,12 @@ export default async function OfferingDetailPage({
       <div className="flex items-center gap-3">
         <OpPill tone={statusConfig.tone}>{statusConfig.label}</OpPill>
         {offering.status === "pending_approval" && (
-          <span className="text-[12px] text-ln-op-mute">
+          <span className="text-sm text-ln-op-mute">
             La autoridad revisará tu solicitud y te notificaremos por email y en el panel.
           </span>
         )}
         {offering.status === "approved" && (
-          <span className="text-[12px] text-ln-op-mute">
+          <span className="text-sm text-ln-op-mute">
             Ya podés{" "}
             <Link
               href={`/org/${orgToken}/servicios/${offeringToken}/agenda`}
@@ -144,7 +144,7 @@ export default async function OfferingDetailPage({
           </span>
         )}
         {offering.status === "rejected" && offering.rejectionReason && (
-          <span className="text-[12px] text-ln-op-danger">Motivo: {offering.rejectionReason}</span>
+          <span className="text-sm text-ln-op-danger">Motivo: {offering.rejectionReason}</span>
         )}
       </div>
 
@@ -166,7 +166,7 @@ export default async function OfferingDetailPage({
             <Row label="Duración" value={`${offering.durationMinutes} minutos`} />
             {canCreate && offering.status !== "archived" ? (
               <div className="flex items-baseline gap-3 px-4 py-3 flex-wrap">
-                <dt className="text-[12px] text-ln-op-mute shrink-0 w-36">Capacidad por turno</dt>
+                <dt className="text-sm text-ln-op-mute shrink-0 w-36">Capacidad por turno</dt>
                 <dd className="text-[13px] text-ln-op-ink flex-1">
                   <CapacityEditor
                     orgToken={orgToken}
@@ -259,7 +259,7 @@ export default async function OfferingDetailPage({
       <footer className="pt-4 border-t border-ln-op-line">
         <Link
           href={`/org/${orgToken}/servicios`}
-          className="text-[12px] text-ln-op-azul hover:underline"
+          className="text-sm text-ln-op-azul hover:underline"
         >
           ← Volver a mis servicios
         </Link>
@@ -279,7 +279,7 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline gap-3 px-4 py-3 flex-wrap">
-      <dt className="text-[12px] text-ln-op-mute shrink-0 w-36">{label}</dt>
+      <dt className="text-sm text-ln-op-mute shrink-0 w-36">{label}</dt>
       <dd className={`text-[13px] text-ln-op-ink flex-1 ${mono ? "font-mono" : ""}`}>{value}</dd>
     </div>
   );

@@ -132,7 +132,7 @@ export default async function ModeracionDetailPage({
       />
 
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {"Admin · Moderación"}
         </p>
         <div className="flex flex-wrap items-center gap-2">
@@ -141,7 +141,7 @@ export default async function ModeracionDetailPage({
           </h1>
           <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>
         </div>
-        <p className="font-mono text-[10px] text-ln-op-faint">
+        <p className="font-mono text-xs text-ln-op-faint">
           {report.referenceCode}
           {" · creada "}
           {formatDateTime(report.createdAt)}
@@ -192,7 +192,7 @@ export default async function ModeracionDetailPage({
             )}
           </p>
           {report.subjectDescription && (
-            <p className="mt-1 whitespace-pre-wrap text-[12px] text-ln-op-ink-2">
+            <p className="mt-1 whitespace-pre-wrap text-sm text-ln-op-ink-2">
               {report.subjectDescription}
             </p>
           )}
@@ -204,7 +204,7 @@ export default async function ModeracionDetailPage({
         <OpCard>
           <OpCardHead title="Lugar" />
           <OpCardBody className="space-y-3">
-            <div className="space-y-1 text-[12px] text-ln-op-ink-2">
+            <div className="space-y-1 text-sm text-ln-op-ink-2">
               {report.locationAddress && <p>{report.locationAddress}</p>}
               {(report.jurisdictionLocality || report.jurisdictionProvince) && (
                 <p>
@@ -216,7 +216,7 @@ export default async function ModeracionDetailPage({
             </div>
             {locationPoint && (
               <>
-                <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">
+                <p className="text-xs uppercase tracking-wider text-ln-op-mute">
                   Ubicación exacta — uso oficial (Ley 14.346)
                 </p>
                 <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
@@ -242,7 +242,7 @@ export default async function ModeracionDetailPage({
                       href={a.signedUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[12px] font-semibold text-ln-op-azul underline underline-offset-4"
+                      className="text-sm font-semibold text-ln-op-azul underline underline-offset-4"
                     >
                       {"Abrir ->"}
                     </a>

@@ -115,7 +115,7 @@ export default async function AdminJurisdiccionReglasPage({
 
       {/* Active rules */}
       <section className="space-y-3">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Reglas activas
         </p>
         {rows.length === 0 && (
@@ -131,7 +131,7 @@ export default async function AdminJurisdiccionReglasPage({
                 <div className="flex gap-3">
                   <Link
                     href={`/admin/jurisdicciones/${segCountry}/${segProvince}/${segLocality}/reglas/editar/${rule.id}`}
-                    className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+                    className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                   >
                     Editar
                   </Link>
@@ -151,7 +151,7 @@ export default async function AdminJurisdiccionReglasPage({
               <pre className="text-[11px] bg-ln-op-stripe rounded-[4px] p-3 overflow-x-auto text-ln-op-ink-2">
                 {JSON.stringify(rule.rulePayload, null, 2)}
               </pre>
-              {rule.notes && <p className="text-[12px] text-ln-op-ink-2 mt-2">{rule.notes}</p>}
+              {rule.notes && <p className="text-sm text-ln-op-ink-2 mt-2">{rule.notes}</p>}
             </OpCardBody>
           </OpCard>
         ))}
@@ -160,7 +160,7 @@ export default async function AdminJurisdiccionReglasPage({
       {/* Missing types */}
       {missingTypes.length > 0 && (
         <section className="space-y-3">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             Tipos sin override (usando defaults)
           </p>
           <ul className="space-y-2">
@@ -181,7 +181,7 @@ export default async function AdminJurisdiccionReglasPage({
                       </div>
                       <Link
                         href={`/admin/jurisdicciones/${segCountry}/${segProvince}/${segLocality}/reglas/nueva?ruleType=${t}`}
-                        className="shrink-0 text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+                        className="shrink-0 text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                       >
                         {"Configurar ->"}
                       </Link>

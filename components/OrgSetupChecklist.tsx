@@ -42,7 +42,7 @@ export function OrgSetupChecklist({ steps, orgToken, autoFocusFirst = false }: P
       <OpCardHead
         title="Primeros pasos"
         actions={
-          <span className="text-[12px] text-ln-op-mute font-normal" aria-hidden>
+          <span className="text-sm text-ln-op-mute font-normal" aria-hidden>
             {doneCount} / {total}
           </span>
         }
@@ -91,7 +91,7 @@ export function OrgSetupChecklist({ steps, orgToken, autoFocusFirst = false }: P
                       {step.label}
                       {step.done && <span className="sr-only">(completado)</span>}
                     </p>
-                    {!step.done && <p className="text-[12px] text-ln-op-mute">{step.hint}</p>}
+                    {!step.done && <p className="text-sm text-ln-op-mute">{step.hint}</p>}
                   </div>
 
                   {/* CTA — only shown when pending. */}
@@ -100,7 +100,7 @@ export function OrgSetupChecklist({ steps, orgToken, autoFocusFirst = false }: P
                       href={`/org/${orgToken}/${step.href}`}
                       className={[
                         "shrink-0 rounded-[4px] border border-ln-op-azul px-3 py-1",
-                        "text-[12px] font-semibold text-ln-op-azul no-underline",
+                        "text-sm font-semibold text-ln-op-azul no-underline",
                         "hover:bg-ln-op-azul hover:text-white transition-colors",
                         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ln-op-azul",
                       ].join(" ")}

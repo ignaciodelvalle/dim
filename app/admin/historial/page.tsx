@@ -83,7 +83,7 @@ export default async function AdminHistorialPage({
         <OpCard>
           <OpCardHead
             title="Acciones registradas"
-            actions={<span className="text-[12px] text-ln-op-mute">{entries.length} entradas</span>}
+            actions={<span className="text-sm text-ln-op-mute">{entries.length} entradas</span>}
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line-2">
@@ -111,7 +111,7 @@ export default async function AdminHistorialPage({
                         );
                       })()}
                   </div>
-                  <time className="whitespace-nowrap text-[12px] text-ln-op-mute">
+                  <time className="whitespace-nowrap text-sm text-ln-op-mute">
                     {new Date(entry.performedAt).toLocaleString("es-AR", {
                       dateStyle: "short",
                       timeStyle: "short",
@@ -134,7 +134,7 @@ export default async function AdminHistorialPage({
             {newerLink && (
               <Link
                 href={newerLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 ← Más recientes
               </Link>
@@ -144,7 +144,7 @@ export default async function AdminHistorialPage({
             {olderLink && (
               <Link
                 href={olderLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 Ver más antiguos →
               </Link>

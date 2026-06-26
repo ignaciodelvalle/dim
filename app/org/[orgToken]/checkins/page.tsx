@@ -136,7 +136,7 @@ export default async function CheckinsPage({
       <PageHeader orgName={organization.displayName} />
 
       <section className="space-y-3">
-        <h2 className="text-[16px] font-semibold text-ln-op-ink">
+        <h2 className="text-base font-semibold text-ln-op-ink">
           Vencidos{" "}
           <span className="text-[13px] font-normal text-ln-op-mute">({overdue.length})</span>
         </h2>
@@ -165,12 +165,12 @@ export default async function CheckinsPage({
                           </Link>{" "}
                           — {row.title}
                         </p>
-                        <p className="text-[12px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           Adoptante: {row.adopterName ?? "—"} · vencido hace {days}{" "}
                           {days === 1 ? "día" : "días"}
                         </p>
                       </div>
-                      <span className="text-[12px] text-ln-op-danger shrink-0">Vencido</span>
+                      <span className="text-sm text-ln-op-danger shrink-0">Vencido</span>
                     </li>
                   );
                 })}
@@ -181,7 +181,7 @@ export default async function CheckinsPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-[16px] font-semibold text-ln-op-ink">
+        <h2 className="text-base font-semibold text-ln-op-ink">
           Próximos{" "}
           <span className="text-[13px] font-normal text-ln-op-mute">({upcoming.length})</span>
         </h2>
@@ -208,7 +208,7 @@ export default async function CheckinsPage({
                           </Link>{" "}
                           — {row.title}
                         </p>
-                        <p className="text-[12px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           Adoptante: {row.adopterName ?? "—"} · en {days}{" "}
                           {days === 1 ? "día" : "días"} ({formatDate(row.dueAt)})
                         </p>
@@ -223,7 +223,7 @@ export default async function CheckinsPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-[16px] font-semibold text-ln-op-ink">
+        <h2 className="text-base font-semibold text-ln-op-ink">
           Check-ins recibidos{" "}
           <span className="text-[13px] font-normal text-ln-op-mute">({recentCheckins.length})</span>
         </h2>
@@ -243,11 +243,11 @@ export default async function CheckinsPage({
                         {row.petName}
                       </Link>
                     </p>
-                    <p className="text-[12px] text-ln-op-mute">
+                    <p className="text-sm text-ln-op-mute">
                       {row.adopterName ?? "Adoptante"} · {formatDate(row.occurredAt)}
                     </p>
                     {row.notes && (
-                      <p className="text-[12px] italic text-ln-op-ink-2 pt-1">"{row.notes}"</p>
+                      <p className="text-sm italic text-ln-op-ink-2 pt-1">"{row.notes}"</p>
                     )}
                   </li>
                 ))}
@@ -265,9 +265,7 @@ export default async function CheckinsPage({
 function PageHeader({ orgName }: { orgName: string }) {
   return (
     <header className="space-y-2">
-      <p className="text-[12px] uppercase tracking-wider text-ln-op-mute">
-        Seguimiento · {orgName}
-      </p>
+      <p className="text-sm uppercase tracking-wider text-ln-op-mute">Seguimiento · {orgName}</p>
       <h1 className="text-[22px] font-semibold text-ln-op-ink">Check-ins post-adopción</h1>
       <p className="text-[13px] text-ln-op-mute">
         Los adoptantes se autoreportan en las ventanas pactadas. Acá ves lo que llegó, lo que está

@@ -39,7 +39,7 @@ export function ServiceDogCredentialCard({
         <h2 className="text-xs font-semibold uppercase tracking-wider">
           Credencial de perro de asistencia
         </h2>
-        <span className="text-[10px] font-medium uppercase tracking-wider">Ley 26.858</span>
+        <span className="text-xs font-medium uppercase tracking-wider">Ley 26.858</span>
       </header>
 
       <div className="flex items-start gap-4 p-4">
@@ -88,7 +88,7 @@ export function ServiceDogCredentialCard({
               <dd className="text-ln-ink-2 ">
                 {formatDate(serviceDog.credentialExpiryDate)}
                 {expiringSoon ? (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-[var(--color-ln-warn-050)] px-2 py-0.5 text-[10px] font-medium text-ln-warn  ">
+                  <span className="ml-2 inline-flex items-center rounded-full bg-[var(--color-ln-warn-050)] px-2 py-0.5 text-xs font-medium text-ln-warn  ">
                     Renovar pronto
                   </span>
                 ) : null}

@@ -136,7 +136,7 @@ export default async function GobAdopcionesPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Custodia & adopción
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Adopciones</h1>
@@ -323,7 +323,7 @@ export default async function GobAdopcionesPage({
                   </span>
                 </li>
               </ul>
-              <p className="mt-2 text-[10px] text-ln-op-mute">
+              <p className="mt-2 text-xs text-ln-op-mute">
                 Porcentajes relativos al total de ingresos en el período y cobertura seleccionados.
                 Las etapas son conteos de eventos independientes (no cohorte).
               </p>
@@ -391,7 +391,7 @@ export default async function GobAdopcionesPage({
                   })}
                 </tbody>
               </table>
-              <p className="mt-2 text-[10px] text-ln-op-mute">
+              <p className="mt-2 text-xs text-ln-op-mute">
                 Duración: COALESCE(ended_at, now()) − started_at para ownerships que se superponen
                 con el período en la cobertura seleccionada.
               </p>
@@ -445,7 +445,7 @@ export default async function GobAdopcionesPage({
                   />
                 </div>
               )}
-              <p className="text-[10px] text-ln-op-mute">
+              <p className="text-xs text-ln-op-mute">
                 Ocupados: ownerships shelter_custody activos scoped a la cobertura · Cupo: SUM de
                 organizations.capacity_total para orgs tipo shelter.
               </p>
@@ -460,25 +460,25 @@ export default async function GobAdopcionesPage({
         <OpCardBody>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <div className="text-[20px] font-semibold text-ln-op-ink tabular-nums">
+              <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.activeVolunteers.toLocaleString("es-AR")}
               </div>
               <div className="text-[11px] text-ln-op-mute mt-0.5">Voluntarios activos</div>
             </div>
             <div className="text-center">
-              <div className="text-[20px] font-semibold text-ln-op-ink tabular-nums">
+              <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.withCapacity.toLocaleString("es-AR")}
               </div>
               <div className="text-[11px] text-ln-op-mute mt-0.5">Con cupo disponible</div>
             </div>
             <div className="text-center">
-              <div className="text-[20px] font-semibold text-ln-op-ink tabular-nums">
+              <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.activeFosterPlacements.toLocaleString("es-AR")}
               </div>
               <div className="text-[11px] text-ln-op-mute mt-0.5">Colocaciones activas</div>
             </div>
           </div>
-          <p className="mt-3 text-[10px] text-ln-op-mute">
+          <p className="mt-3 text-xs text-ln-op-mute">
             Voluntarios filtrados por jurisdicción cuando corresponde.
           </p>
         </OpCardBody>
@@ -490,7 +490,7 @@ export default async function GobAdopcionesPage({
           title={<span id={panelTrendId}>Tendencia de adopciones</span>}
           actions={
             adoptionTrend.suppressedCount > 0 ? (
-              <span className="text-[12px] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 {adoptionTrend.suppressedCount}{" "}
                 {adoptionTrend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"}{" "}
                 (privacidad)

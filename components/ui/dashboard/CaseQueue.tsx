@@ -174,7 +174,7 @@ export function CaseQueue({
               href={buildFilterHref(filterBase, activeKind, opt.value)}
               aria-pressed={isActive}
               className={[
-                "rounded-full border px-3 py-1 text-[12px] font-medium no-underline transition-colors",
+                "rounded-full border px-3 py-1 text-sm font-medium no-underline transition-colors",
                 isActive
                   ? "border-ln-op-azul bg-ln-op-azul text-white"
                   : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe",
@@ -187,7 +187,7 @@ export function CaseQueue({
       </nav>
 
       {/* Row count */}
-      <p aria-live="polite" className="text-[12px] text-ln-op-mute">
+      <p aria-live="polite" className="text-sm text-ln-op-mute">
         {rows.length === 0
           ? "Sin casos"
           : `${rows.length} caso${rows.length !== 1 ? "s" : ""}${truncated ? " (hay más — refiná los filtros)" : ""}`}
@@ -220,37 +220,37 @@ export function CaseQueue({
                 )}
                 <th
                   scope="col"
-                  className="px-3 py-2 text-left font-ln-mono text-[10px] font-bold uppercase tracking-[.1em] text-ln-op-mute"
+                  className="px-3 py-2 text-left font-ln-mono text-xs font-bold uppercase tracking-[.1em] text-ln-op-mute"
                 >
                   Código
                 </th>
                 <th
                   scope="col"
-                  className="px-3 py-2 text-left font-ln-mono text-[10px] font-bold uppercase tracking-[.1em] text-ln-op-mute"
+                  className="px-3 py-2 text-left font-ln-mono text-xs font-bold uppercase tracking-[.1em] text-ln-op-mute"
                 >
                   Tipo
                 </th>
                 <th
                   scope="col"
-                  className="px-3 py-2 text-left font-ln-mono text-[10px] font-bold uppercase tracking-[.1em] text-ln-op-mute"
+                  className="px-3 py-2 text-left font-ln-mono text-xs font-bold uppercase tracking-[.1em] text-ln-op-mute"
                 >
                   Estado
                 </th>
                 <th
                   scope="col"
-                  className="hidden px-3 py-2 text-left font-ln-mono text-[10px] font-bold uppercase tracking-[.1em] text-ln-op-mute sm:table-cell"
+                  className="hidden px-3 py-2 text-left font-ln-mono text-xs font-bold uppercase tracking-[.1em] text-ln-op-mute sm:table-cell"
                 >
                   Mascota
                 </th>
                 <th
                   scope="col"
-                  className="hidden px-3 py-2 text-left font-ln-mono text-[10px] font-bold uppercase tracking-[.1em] text-ln-op-mute md:table-cell"
+                  className="hidden px-3 py-2 text-left font-ln-mono text-xs font-bold uppercase tracking-[.1em] text-ln-op-mute md:table-cell"
                 >
                   Jurisdicción
                 </th>
                 <th
                   scope="col"
-                  className="px-3 py-2 text-left font-ln-mono text-[10px] font-bold uppercase tracking-[.1em] text-ln-op-mute"
+                  className="px-3 py-2 text-left font-ln-mono text-xs font-bold uppercase tracking-[.1em] text-ln-op-mute"
                 >
                   Apertura
                 </th>

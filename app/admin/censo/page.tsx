@@ -53,7 +53,7 @@ export default async function AdminCensoPage({
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
     <header className="space-y-2">
-      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         Admin · Censo nacional
       </p>
       <h1 className="text-[22px] font-semibold text-ln-op-ink">Censo y salud del registro</h1>
@@ -178,7 +178,7 @@ export default async function AdminCensoPage({
           title={<span id={panelTrendId}>Altas nuevas</span>}
           actions={
             trend.suppressedCount > 0 ? (
-              <span className="text-[12px] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 {trend.suppressedCount}{" "}
                 {trend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"} (privacidad)
               </span>
@@ -340,7 +340,7 @@ export default async function AdminCensoPage({
                   );
                 })()}
               </ul>
-              <p className="mt-2 text-[10px] text-ln-op-mute">
+              <p className="mt-2 text-xs text-ln-op-mute">
                 Meta chip: {TARGETS.MICROCHIP_PENETRATION_PCT}% · Escaneada en el período: solo
                 últimos 90 días (los eventos se purgan automáticamente).
               </p>
@@ -417,7 +417,7 @@ export default async function AdminCensoPage({
                   counts.total > 0 ? Math.round((unassigned / counts.total) * 1000) / 10 : 0;
                 if (unassigned <= 0) return null;
                 return (
-                  <p className="mt-2 text-[10px] text-ln-op-mute">
+                  <p className="mt-2 text-xs text-ln-op-mute">
                     * {unassignedPct}% sin provincia asignada ({unassigned.toLocaleString("es-AR")}{" "}
                     mascotas) no aparece en la tabla — los porcentajes no suman 100%.
                   </p>

@@ -68,10 +68,10 @@ export function DecomisoHandoffActions({
         <p className="text-[13px] font-medium text-ln-op-ink">
           Aceptar la custodia estatal de {petName}.
         </p>
-        <p className="text-[12px] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           Tu organización asume la custodia bajo Ley 14.346. Esta acción no se puede deshacer.
         </p>
-        {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+        {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
         <div className="flex gap-2">
           <button
             type="button"
@@ -103,7 +103,7 @@ export function DecomisoHandoffActions({
         <p className="text-[13px] font-medium text-ln-op-ink">
           Rechazar la custodia estatal de {petName}.
         </p>
-        <p className="text-[12px] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           La autoridad sanitaria mantiene la custodia transitoria del animal.
         </p>
         <textarea
@@ -113,7 +113,7 @@ export function DecomisoHandoffActions({
           placeholder="Motivo del rechazo (opcional)"
           className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
-        {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+        {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
         <div className="flex gap-2">
           <button
             type="button"
@@ -145,14 +145,14 @@ export function DecomisoHandoffActions({
       <button
         type="button"
         onClick={() => setMode("accept")}
-        className="px-3 py-1.5 rounded-[6px] bg-ln-op-ok text-white text-[12px] font-medium hover:opacity-90 transition-opacity"
+        className="px-3 py-1.5 rounded-[6px] bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 transition-opacity"
       >
         Aceptar custodia
       </button>
       <button
         type="button"
         onClick={() => setMode("reject")}
-        className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[12px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+        className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-sm font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
       >
         Rechazar
       </button>

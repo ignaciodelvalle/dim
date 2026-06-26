@@ -44,7 +44,7 @@ export function SterilizationForm({
         <form id={FORM_ID} action={formAction} className="contents">
           <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
           <div className="flex flex-col gap-[6px]">
-            <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+            <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               Procedimiento{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *

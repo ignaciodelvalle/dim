@@ -48,7 +48,7 @@ export function ConsultaSinTurnoSheet({
         <div className="space-y-2">
           {orgPhone && (
             <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--color-ln-mute)]">
+              <p className="text-xs uppercase tracking-wider text-[var(--color-ln-mute)]">
                 Teléfono
               </p>
               <a
@@ -61,9 +61,7 @@ export function ConsultaSinTurnoSheet({
           )}
           {orgEmail && (
             <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--color-ln-mute)]">
-                Email
-              </p>
+              <p className="text-xs uppercase tracking-wider text-[var(--color-ln-mute)]">Email</p>
               <a
                 href={`mailto:${orgEmail}`}
                 className="text-base text-[var(--color-ln-azul)] underline"
@@ -74,9 +72,7 @@ export function ConsultaSinTurnoSheet({
           )}
           {jurisdictionLabel && (
             <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--color-ln-mute)]">
-                Zona
-              </p>
+              <p className="text-xs uppercase tracking-wider text-[var(--color-ln-mute)]">Zona</p>
               <p className="text-base text-[var(--color-ln-ink)]">{jurisdictionLabel}</p>
             </div>
           )}

@@ -32,7 +32,7 @@ export default async function CartelPage({
   if (pet.status !== "lost") {
     return (
       <div className="mx-auto max-w-md px-[32px] py-[48px] text-center">
-        <p className="font-[var(--font-ln-serif)] text-[20px] font-semibold text-[var(--color-ln-ink)]">
+        <p className="font-[var(--font-ln-serif)] text-xl font-semibold text-[var(--color-ln-ink)]">
           {pet.name} no está marcada como perdida.
         </p>
         <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">

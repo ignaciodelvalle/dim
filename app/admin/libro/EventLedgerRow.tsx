@@ -100,7 +100,7 @@ export function EventLedgerRow({ row }: Props) {
         <td className="py-2 pr-4 text-ln-op-ink-2">{jurisdiction}</td>
 
         {/* Occurred + Recorded (both, to reinforce the model) */}
-        <td className="py-2 pr-4 text-[12px] tabular-nums text-ln-op-ink-2">
+        <td className="py-2 pr-4 text-sm tabular-nums text-ln-op-ink-2">
           <span className="block">
             <span className="text-ln-op-mute">ocurrió</span> {row.occurredAtLabel}
           </span>
@@ -113,7 +113,7 @@ export function EventLedgerRow({ row }: Props) {
         <td className="py-2 text-right">
           <a
             href={row.replayHref}
-            className="text-[12px] text-ln-op-azul underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ln-op-azul"
+            className="text-sm text-ln-op-azul underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ln-op-azul"
           >
             Ver situación a esta fecha
           </a>
@@ -125,20 +125,20 @@ export function EventLedgerRow({ row }: Props) {
         <tr id={panelId} ref={panelRef} tabIndex={-1} className="border-b border-ln-op-line">
           <td colSpan={5} className="bg-ln-op-stripe/40 px-4 py-3">
             <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-3">
-              <p className="mb-2 text-[12px] font-semibold text-ln-op-ink">
+              <p className="mb-2 text-sm font-semibold text-ln-op-ink">
                 Corregido por enmienda — el original se conserva
               </p>
-              {loading && <p className="text-[12px] text-ln-op-mute">Cargando corrección…</p>}
-              {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+              {loading && <p className="text-sm text-ln-op-mute">Cargando corrección…</p>}
+              {error && <p className="text-sm text-ln-op-danger">{error}</p>}
               {chain && chain.length === 0 && (
-                <p className="text-[12px] text-ln-op-mute">Sin enmiendas registradas.</p>
+                <p className="text-sm text-ln-op-mute">Sin enmiendas registradas.</p>
               )}
               {chain && chain.length > 0 && (
                 <ol className="space-y-2">
                   {chain.map((a) => (
                     <li
                       key={a.id}
-                      className="rounded-[6px] border border-ln-op-line-2 bg-ln-op-stripe/40 p-2 text-[12px]"
+                      className="rounded-[6px] border border-ln-op-line-2 bg-ln-op-stripe/40 p-2 text-sm"
                     >
                       <div className="mb-1 flex flex-wrap items-baseline gap-2">
                         <span className="font-medium text-ln-op-ink">

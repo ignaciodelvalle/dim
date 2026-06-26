@@ -42,7 +42,7 @@ type PromptKind = "resolve" | "dismiss" | "followup" | null;
 const ZOONOSIS_METRIC: AlertMetricKey = "active_zoonosis";
 
 const BTN =
-  "h-11 rounded-[6px] border px-2.5 text-[12px] disabled:opacity-50 disabled:cursor-not-allowed";
+  "h-11 rounded-[6px] border px-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed";
 
 export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }: Props) {
   const [pending, startTransition] = useTransition();
@@ -51,7 +51,7 @@ export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }
   const [noteValue, setNoteValue] = useState("");
 
   if (status === "resuelta" || status === "descartada") {
-    return <span className="text-[12px] text-ln-op-mute">—</span>;
+    return <span className="text-sm text-ln-op-mute">—</span>;
   }
 
   function run(fn: () => Promise<{ ok: true } | { error: string }>) {
@@ -85,7 +85,7 @@ export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }
           value={noteValue}
           onChange={(e) => setNoteValue(e.target.value)}
           rows={2}
-          className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-[12px] text-ln-op-ink"
+          className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-sm text-ln-op-ink"
           placeholder={
             prompt === "followup"
               ? "Qué se hizo / a quién se contactó…"

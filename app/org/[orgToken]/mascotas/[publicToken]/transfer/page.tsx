@@ -32,7 +32,7 @@ export default async function TransferCustodyPage({
           <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver a mascotas
           </Link>
@@ -69,7 +69,7 @@ export default async function TransferCustodyPage({
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver a mascotas
           </Link>
@@ -129,7 +129,7 @@ export default async function TransferCustodyPage({
         <footer className="pt-4 border-t border-ln-op-line">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver a mascotas
           </Link>

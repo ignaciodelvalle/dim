@@ -24,7 +24,7 @@ export default function SugerenciasPage() {
           <p className="text-[15px] font-semibold text-[var(--color-ln-ink)]">
             Canal de sugerencias en preparación.
           </p>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Estamos preparando un espacio formal para recibir ideas y comentarios. Mientras tanto,
             si encontrás un error o una barrera de accesibilidad, podés reportarlo a través del{" "}
             <a

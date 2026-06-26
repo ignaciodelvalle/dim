@@ -94,7 +94,7 @@ export function LocalityRuleDrilldown({ provinceCode, provinceName }: Props) {
         placeholder="Buscar localidad…"
         aria-autocomplete="list"
         aria-expanded={open}
-        className="w-full max-w-sm text-[12px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+        className="w-full max-w-sm text-sm rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
       />
       {open && results.length > 0 && (
         <ul className="absolute z-10 mt-1 max-h-72 w-full max-w-sm overflow-auto rounded-[6px] border border-ln-op-line bg-ln-op-card shadow-lg">
@@ -106,7 +106,7 @@ export function LocalityRuleDrilldown({ provinceCode, provinceName }: Props) {
                   e.preventDefault();
                   goToLocalityRules(r.localityName);
                 }}
-                className="block w-full text-left px-3 py-2 text-[12px] text-ln-op-ink hover:bg-ln-op-stripe"
+                className="block w-full text-left px-3 py-2 text-sm text-ln-op-ink hover:bg-ln-op-stripe"
               >
                 {r.localityName}
                 {r.departmentName ? (

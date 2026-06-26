@@ -91,7 +91,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
     <main className="px-6 py-8">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Back nav */}
-        <p className="text-[12px] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           <Link href="/admin/govts" className="underline underline-offset-4 hover:text-ln-op-ink-2">
             {"←"} Volver a Gobiernos
           </Link>
@@ -108,8 +108,8 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
             }
           />
           <OpCardBody>
-            <p className="text-[12px] text-ln-op-mute mb-3">{email}</p>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[12px]">
+            <p className="text-sm text-ln-op-mute mb-3">{email}</p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
               <dt className="text-ln-op-mute">Tipo de cuenta</dt>
               <dd className="text-ln-op-ink capitalize">{govt.accountType}</dd>
               <dt className="text-ln-op-mute">Rol</dt>
@@ -135,7 +135,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
           </h2>
 
           {activeAssignments.length === 0 ? (
-            <p className="text-[12px] text-ln-op-mute">Sin localidades activas.</p>
+            <p className="text-sm text-ln-op-mute">Sin localidades activas.</p>
           ) : (
             <ul className="space-y-2">
               {activeAssignments.map((a) => {
@@ -171,12 +171,12 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
         {/* Revoked localities (collapsible) */}
         {revokedAssignments.length > 0 && (
           <details className="group">
-            <summary className="cursor-pointer text-[12px] text-ln-op-mute hover:text-ln-op-ink-2 select-none">
+            <summary className="cursor-pointer text-sm text-ln-op-mute hover:text-ln-op-ink-2 select-none">
               Localidades revocadas ({revokedAssignments.length})
             </summary>
             <ul className="mt-2 space-y-2">
               {revokedAssignments.map((a) => (
-                <li key={a.id} className="text-[12px] text-ln-op-mute px-3 space-y-0.5">
+                <li key={a.id} className="text-sm text-ln-op-mute px-3 space-y-0.5">
                   <span className="text-ln-op-ink-2">
                     {a.jurisdictionLocality}, {a.jurisdictionProvince}
                   </span>
@@ -225,7 +225,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
             Audit log (últimas {auditEntries.length} entradas)
           </h2>
           {auditEntries.length === 0 ? (
-            <p className="text-[12px] text-ln-op-mute">Sin registros.</p>
+            <p className="text-sm text-ln-op-mute">Sin registros.</p>
           ) : (
             <ul className="divide-y divide-ln-op-line-2">
               {auditEntries.map((entry) => {
@@ -241,7 +241,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
                       </span>
                       <OpCodeBadge tone="neutral">{entry.action}</OpCodeBadge>
                     </div>
-                    <p className="text-[12px] text-ln-op-mute">
+                    <p className="text-sm text-ln-op-mute">
                       {actorName}
                       <span className="mx-1 text-ln-op-faint">·</span>
                       <span className="tabular-nums">
@@ -252,17 +252,17 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
                       </span>
                     </p>
                     {view.reason && (
-                      <p className="text-[12px] text-ln-op-ink-2">
+                      <p className="text-sm text-ln-op-ink-2">
                         <span className="text-ln-op-mute">Motivo:</span> {view.reason}
                       </p>
                     )}
                     {view.evidenceCount !== undefined && (
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {view.evidenceCount} archivo(s) de evidencia
                       </p>
                     )}
                     {view.resetMethod && (
-                      <p className="text-[12px] text-ln-op-mute">Método: {view.resetMethod}</p>
+                      <p className="text-sm text-ln-op-mute">Método: {view.resetMethod}</p>
                     )}
                   </li>
                 );

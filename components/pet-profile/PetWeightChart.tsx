@@ -92,7 +92,7 @@ export function PetWeightChart({ samples, title = "Peso · últimos 12 meses", h
           fill="#0F6E56"
         />
       </svg>
-      <footer className="mt-1 flex items-baseline justify-between text-[10px] text-ln-mute ">
+      <footer className="mt-1 flex items-baseline justify-between text-xs text-ln-mute ">
         <span>{first.date.toLocaleDateString("es-AR", { month: "short", year: "2-digit" })}</span>
         <span>{last.date.toLocaleDateString("es-AR", { month: "short", year: "2-digit" })}</span>
       </footer>

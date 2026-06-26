@@ -75,12 +75,12 @@ export function AdoptionListingCard({
           {(item.isSterilized || item.microchipId) && (
             <div className="absolute top-2 left-2 flex flex-wrap gap-1">
               {item.isSterilized && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-ln-ok text-white">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ln-ok text-white">
                   {sterilizedLabel}
                 </span>
               )}
               {item.microchipId && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-ln-celeste text-white">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ln-celeste text-white">
                   Con chip
                 </span>
               )}
@@ -89,7 +89,7 @@ export function AdoptionListingCard({
           {/* Top-right: "Nuevo" badge for recently listed pets (≤7 days) */}
           {isNew && (
             <span
-              className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+              className="absolute top-2 right-2 text-xs font-semibold px-2 py-0.5 rounded-full border"
               style={{
                 background: "var(--color-ln-ok-050)",
                 color: "var(--color-ln-ok)",

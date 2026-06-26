@@ -102,7 +102,7 @@ export default async function ReviewRequestPage({
           <h1 className="text-[22px] font-semibold tracking-tight text-ln-op-ink">
             {TYPE_LABELS[request.type] ?? request.type}
           </h1>
-          <p className="text-[12px] text-ln-op-mute flex flex-wrap gap-x-2 gap-y-1 items-center">
+          <p className="text-sm text-ln-op-mute flex flex-wrap gap-x-2 gap-y-1 items-center">
             <OpCodeBadge tone="neutral">{request.publicToken}</OpCodeBadge>
             <span>·</span>
             <span>
@@ -122,14 +122,14 @@ export default async function ReviewRequestPage({
         {/* Applicant */}
         <Section title="Aplicante">
           <p className="text-[13px] text-ln-op-ink">{applicant?.displayName ?? "Usuario"}</p>
-          <p className="text-[12px] text-ln-op-mute">Rol actual: {applicant?.role ?? "owner"}</p>
+          <p className="text-sm text-ln-op-mute">Rol actual: {applicant?.role ?? "owner"}</p>
         </Section>
 
         {/* Target org */}
         {targetOrg && (
           <Section title="Organización a verificar">
             <p className="text-[13px] text-ln-op-ink">{targetOrg.displayName}</p>
-            <p className="text-[12px] text-ln-op-mute">
+            <p className="text-sm text-ln-op-mute">
               {targetOrg.legalName} · <OpCodeBadge tone="neutral">{targetOrg.orgType}</OpCodeBadge>
             </p>
           </Section>
@@ -158,7 +158,7 @@ export default async function ReviewRequestPage({
                 })}`}
             </p>
             {request.decisionNotes && (
-              <p className="text-[12px] text-ln-op-mute mt-1">Notas: {request.decisionNotes}</p>
+              <p className="text-sm text-ln-op-mute mt-1">Notas: {request.decisionNotes}</p>
             )}
           </Section>
         )}
@@ -170,7 +170,7 @@ export default async function ReviewRequestPage({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-[10px] uppercase tracking-[0.18em] font-bold text-ln-op-mute">{title}</h2>
+      <h2 className="text-xs uppercase tracking-[0.18em] font-bold text-ln-op-mute">{title}</h2>
       <OpCard>
         <OpCardBody className="space-y-1">{children}</OpCardBody>
       </OpCard>

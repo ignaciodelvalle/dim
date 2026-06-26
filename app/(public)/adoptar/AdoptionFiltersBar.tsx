@@ -312,7 +312,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
               <Link
                 key={key}
                 href={urlWithout(filters, key)}
-                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-[12px] font-medium hover:bg-[var(--color-ln-stripe)]"
+                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-sm font-medium hover:bg-[var(--color-ln-stripe)]"
                 style={{
                   background: "var(--color-ln-celeste-050)",
                   borderColor: "var(--color-ln-celeste-100)",
@@ -320,7 +320,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
                 }}
               >
                 {label}
-                <span aria-hidden="true" className="text-[10px] leading-none">
+                <span aria-hidden="true" className="text-xs leading-none">
                   ×
                 </span>
               </Link>

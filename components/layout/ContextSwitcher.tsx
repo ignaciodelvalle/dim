@@ -107,7 +107,7 @@ export function ContextSwitcher({ session }: Props) {
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-[4px] border border-ln-op-line px-2.5 py-[5px] text-[12px] text-ln-op-ink-2 transition-colors hover:border-ln-op-line-2 hover:text-ln-op-ink"
+        className="flex items-center gap-1.5 rounded-[4px] border border-ln-op-line px-2.5 py-[5px] text-sm text-ln-op-ink-2 transition-colors hover:border-ln-op-line-2 hover:text-ln-op-ink"
       >
         Portales
         <ChevronIcon />

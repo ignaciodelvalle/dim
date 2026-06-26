@@ -338,15 +338,12 @@ function LnMemorialTimeline({
                 {summary.primary}
               </p>
               {summary.secondary && (
-                <p className="mt-[2px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+                <p className="mt-[2px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
                   {summary.secondary}
                 </p>
               )}
               {ev.notes && (
-                <p
-                  className="mt-[3px] text-[12px] italic"
-                  style={{ color: "var(--color-ln-mute)" }}
-                >
+                <p className="mt-[3px] text-sm italic" style={{ color: "var(--color-ln-mute)" }}>
                   {ev.notes}
                 </p>
               )}
@@ -543,7 +540,7 @@ function DeceasedView({
         <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[24px] py-[22px]">
           {/* Eyebrow + heading */}
           <p
-            className="mb-[4px] font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.14em]"
+            className="mb-[4px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.14em]"
             style={{ color: "var(--color-ln-mute)" }}
           >
             Libreta sanitaria
@@ -554,7 +551,7 @@ function DeceasedView({
           >
             Historial
           </h2>
-          <p className="mb-[20px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+          <p className="mb-[20px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
             Solo lectura. Los eventos registrados en vida se conservan.
           </p>
 
@@ -1359,7 +1356,7 @@ export default async function PetDetailPage({
                 <LnCard>
                   <LnCardHead title="Identificación" />
                   <LnCardBody>
-                    <div className="space-y-[10px] font-[var(--font-ln-mono)] text-[12px] leading-[1.9]">
+                    <div className="space-y-[10px] font-[var(--font-ln-mono)] text-sm leading-[1.9]">
                       {canonicalIds.microchip && (
                         <>
                           <p className="text-[var(--color-ln-mute)]">MICROCHIP</p>
@@ -1498,7 +1495,7 @@ function MedicationDosesSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink)]">
+        <h2 className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
           Próximas dosis
         </h2>
         <Link
@@ -1542,7 +1539,7 @@ function MedicationDosesSection({
                         <input type="hidden" name="reminderId" value={reminder.id} />
                         <button
                           type="submit"
-                          className="flex-shrink-0 rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[10px] py-[5px] font-[var(--font-ln-sans)] text-[12px] font-medium text-[var(--color-ln-azul)] transition-opacity hover:opacity-80"
+                          className="flex-shrink-0 rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[10px] py-[5px] font-[var(--font-ln-sans)] text-sm font-medium text-[var(--color-ln-azul)] transition-opacity hover:opacity-80"
                         >
                           Marcar dada
                         </button>
@@ -1598,7 +1595,7 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
         {pet.name} está en observación obligatoria de 10 días.
         {observationUntil && ` Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}.`}
       </p>
-      <p className="text-[12px] text-[var(--color-ln-warn)]">
+      <p className="text-sm text-[var(--color-ln-warn)]">
         Si {pet.name} muestra salivación excesiva, agresividad inusual, parálisis o cambios bruscos
         de comportamiento, consultá al veterinario de inmediato.
       </p>
@@ -1674,7 +1671,7 @@ function UpcomingAppointments({
 
   return (
     <section className="space-y-3">
-      <h2 className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink)]">
+      <h2 className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
         Próximos turnos
       </h2>
       {sorted.length === 0 ? (
@@ -1690,7 +1687,7 @@ function UpcomingAppointments({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-[var(--font-ln-serif)] text-[14px] font-semibold text-[var(--color-ln-ink)]">
+                  <p className="font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]">
                     {apt.offeringDisplayName}
                   </p>
                   <p className="mt-[2px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
@@ -1725,7 +1722,7 @@ function UpcomingAppointments({
 function Detail({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
       <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{value || "—"}</dd>

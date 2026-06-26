@@ -109,9 +109,7 @@ export default async function DecomisosDashboardPage() {
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <div className="space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            Decomisos
-          </p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Decomisos</p>
           <h1 className="text-[22px] font-semibold text-ln-op-ink">Decomisos</h1>
           <p className="text-[13px] text-ln-op-mute">
             {session.profile.role === "admin"
@@ -170,7 +168,7 @@ export default async function DecomisosDashboardPage() {
       {rows.length === 0 ? (
         <div className="rounded-[6px] border border-dashed border-ln-op-line p-12 text-center space-y-2">
           <p className="text-[13px] text-ln-op-mute">No hay decomisos registrados todavia.</p>
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             {'Usa el boton "Nuevo decomiso" para registrar una incautacion por Ley 14.346.'}
           </p>
         </div>
@@ -215,12 +213,12 @@ export default async function DecomisosDashboardPage() {
 
                       {/* Days elapsed */}
                       <div className="text-right flex-shrink-0">
-                        <p className="text-[18px] font-bold text-ln-op-ink tabular-nums">{days}</p>
-                        <p className="text-[12px] text-ln-op-mute">{days === 1 ? "dia" : "dias"}</p>
+                        <p className="text-lg font-bold text-ln-op-ink tabular-nums">{days}</p>
+                        <p className="text-sm text-ln-op-mute">{days === 1 ? "dia" : "dias"}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between gap-3 flex-wrap text-[12px] text-ln-op-mute mt-3">
+                    <div className="flex items-center justify-between gap-3 flex-wrap text-sm text-ln-op-mute mt-3">
                       <div className="space-y-0.5">
                         <p>
                           Abierto el {formatDate(c.openedAt)}
@@ -240,7 +238,7 @@ export default async function DecomisosDashboardPage() {
                       <div className="flex gap-2">
                         <Link
                           href={`/casos/${c.publicCode}`}
-                          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline text-[12px]"
+                          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline text-sm"
                         >
                           Ver caso
                         </Link>

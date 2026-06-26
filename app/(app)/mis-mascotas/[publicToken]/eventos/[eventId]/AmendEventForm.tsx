@@ -159,10 +159,10 @@ export function AmendEventForm({
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[20px] py-[16px]">
           <div>
-            <p className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
+            <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
               Corrección por enmienda
             </p>
-            <h2 className="mt-[2px] font-[var(--font-ln-serif)] text-[18px] font-semibold text-[var(--color-ln-ink)]">
+            <h2 className="mt-[2px] font-[var(--font-ln-serif)] text-lg font-semibold text-[var(--color-ln-ink)]">
               Corregir registro
             </h2>
           </div>
@@ -211,7 +211,7 @@ export function AmendEventForm({
                   key={key}
                   className="rounded-[4px] border border-[var(--color-ln-line)] p-[12px]"
                 >
-                  <p className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-[6px]">
+                  <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-[6px]">
                     {formatFieldLabel(key)}
                   </p>
                   <div className="grid grid-cols-1 gap-[8px] sm:grid-cols-2">
@@ -219,7 +219,7 @@ export function AmendEventForm({
                       <p className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-[2px]">
                         Valor actual
                       </p>
-                      <p className="rounded-[3px] bg-[var(--color-ln-stripe)] px-[10px] py-[8px] text-[12px] text-[var(--color-ln-ink-2)] min-h-[36px] break-words">
+                      <p className="rounded-[3px] bg-[var(--color-ln-stripe)] px-[10px] py-[8px] text-sm text-[var(--color-ln-ink-2)] min-h-[36px] break-words">
                         {stringifyValue(currentPayload[key]) || (
                           <span className="italic text-[var(--color-ln-mute)]">vacío</span>
                         )}

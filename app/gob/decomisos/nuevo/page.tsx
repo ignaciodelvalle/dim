@@ -45,7 +45,7 @@ export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
   return (
     <div className="max-w-2xl space-y-6">
       <header className="space-y-1">
-        <nav className="text-[12px] text-ln-op-mute mb-4" aria-label="Breadcrumb">
+        <nav className="text-sm text-ln-op-mute mb-4" aria-label="Breadcrumb">
           <Link
             href="/gob/decomisos"
             className="hover:text-ln-op-ink transition-colors no-underline text-ln-op-mute"

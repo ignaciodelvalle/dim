@@ -74,7 +74,7 @@ export function LnPhoto({ status, size = "md", src, alt, className = "" }: LnPho
           className={`
             absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4
             inline-flex items-center rounded-full px-1.5 py-px
-            text-[10px] font-semibold leading-none whitespace-nowrap
+            text-xs font-semibold leading-none whitespace-nowrap
             ${toneBadgeClasses[badge.tone]}
           `}
         >

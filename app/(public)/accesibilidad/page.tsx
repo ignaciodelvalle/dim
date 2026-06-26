@@ -25,7 +25,7 @@ export default function AccesibilidadPage() {
           >
             Nuestro compromiso
           </h2>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             MiMAR está diseñado apuntando al nivel de conformidad <strong>WCAG 2.1 AA</strong> (Web
             Content Accessibility Guidelines, versión 2.1, nivel de éxito AA). Esto significa que
             buscamos activamente que el producto sea usable por personas con distintas capacidades,
@@ -40,10 +40,10 @@ export default function AccesibilidadPage() {
           <h2 id="medidas-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
             Medidas implementadas
           </h2>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Las siguientes medidas están presentes en el código actual del producto:
           </p>
-          <ul className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed space-y-2 list-disc pl-5">
+          <ul className="text-md text-[var(--color-ln-ink-2)] leading-relaxed space-y-2 list-disc pl-5">
             <li>
               <strong>Estructura semántica y landmarks:</strong> las páginas usan elementos HTML
               semánticos (<code>&lt;main&gt;</code>, <code>&lt;nav&gt;</code>,{" "}
@@ -104,7 +104,7 @@ export default function AccesibilidadPage() {
           >
             Limitaciones conocidas
           </h2>
-          <ul className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed space-y-2 list-disc pl-5">
+          <ul className="text-md text-[var(--color-ln-ink-2)] leading-relaxed space-y-2 list-disc pl-5">
             <li>
               <strong>Íconos tipográficos:</strong> el sistema de íconos vectoriales está en
               desarrollo. Algunas secciones usan emojis como íconos decorativos en puntos donde el
@@ -131,7 +131,7 @@ export default function AccesibilidadPage() {
           >
             Reportar un problema de accesibilidad
           </h2>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Si encontrás una barrera de accesibilidad en MiMAR, podés reportarla a través del{" "}
             <a
               href="https://github.com/galdoneudi/dim/issues"

@@ -40,7 +40,7 @@ export function AssignLocalityForm({
   if (mode === "done" && lastAssigned) {
     return (
       <div className="space-y-2">
-        <p className="text-[12px] text-ln-op-ok font-medium">
+        <p className="text-sm text-ln-op-ok font-medium">
           Localidad asignada: {lastAssigned.locality}, {lastAssigned.province}
         </p>
         <button
@@ -51,7 +51,7 @@ export function AssignLocalityForm({
             setLocality("");
             setLastAssigned(null);
           }}
-          className="text-[10px] underline underline-offset-2 text-ln-op-mute hover:text-ln-op-ink-2"
+          className="text-xs underline underline-offset-2 text-ln-op-mute hover:text-ln-op-ink-2"
         >
           Asignar otra
         </button>
@@ -62,14 +62,14 @@ export function AssignLocalityForm({
   if (mode === "confirming") {
     return (
       <div className="rounded-[6px] border border-ln-op-blue-bd bg-ln-op-blue-bg p-3 space-y-3">
-        <p className="text-[10px] uppercase tracking-wider font-bold text-ln-op-azul">
+        <p className="text-xs uppercase tracking-wider font-bold text-ln-op-azul">
           Asignar nueva localidad
         </p>
 
         <div className="space-y-1">
           <label
             htmlFor="assign-locality-locality"
-            className="block text-[10px] uppercase tracking-wider text-ln-op-mute"
+            className="block text-xs uppercase tracking-wider text-ln-op-mute"
           >
             Localidad
           </label>
@@ -80,10 +80,10 @@ export function AssignLocalityForm({
               setLocality(r?.localityName ?? "");
             }}
           />
-          {provinceName && <p className="text-[10px] text-ln-op-mute">Provincia: {provinceName}</p>}
+          {provinceName && <p className="text-xs text-ln-op-mute">Provincia: {provinceName}</p>}
         </div>
 
-        {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+        {error && <p className="text-sm text-ln-op-danger">{error}</p>}
 
         <div className="flex items-center gap-2">
           <OpButton
@@ -116,7 +116,7 @@ export function AssignLocalityForm({
     <button
       type="button"
       onClick={() => setMode("confirming")}
-      className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-blue-bd text-ln-op-azul hover:bg-ln-op-blue-bg transition-colors"
+      className="text-sm px-3 py-1.5 rounded-[6px] border border-ln-op-blue-bd text-ln-op-azul hover:bg-ln-op-blue-bg transition-colors"
     >
       Asignar nueva localidad
     </button>

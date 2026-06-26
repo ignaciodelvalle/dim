@@ -42,7 +42,7 @@ export function PpPCard({ petPublicToken, breed, events, isTransit }: Props) {
         <h2 className="text-sm font-semibold text-ln-warn ">
           ⚠ Animal Potencialmente Peligroso (PPP)
         </h2>
-        <span className="text-[10px] font-medium uppercase tracking-wider text-ln-warn ">
+        <span className="text-xs font-medium uppercase tracking-wider text-ln-warn ">
           Ley CABA 4078 · Prov 14.107
         </span>
       </header>

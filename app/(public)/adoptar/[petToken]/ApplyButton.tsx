@@ -111,14 +111,14 @@ export function ApplyButton({
       >
         <input type="hidden" name="petToken" value={petToken} />
         <SubmitButton
-          className="block w-full rounded-[6px] border-0 px-[16px] py-[13px] text-[14px] font-semibold text-white transition-opacity disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          className="block w-full rounded-[6px] border-0 px-[16px] py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
           pendingLabel="Procesando..."
           idleLabel={stickyIdleLabel}
           siblingPending={isPending}
         />
         {error && (
           <output
-            className="mt-[6px] block text-center text-[12px]"
+            className="mt-[6px] block text-center text-sm"
             style={{ color: "var(--color-ln-err)" }}
           >
             {error}

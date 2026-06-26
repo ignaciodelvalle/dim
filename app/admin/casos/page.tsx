@@ -161,10 +161,7 @@ export default async function AdminCasosPage({
           Filtrar
         </OpButton>
         {hasFilters && (
-          <a
-            href="/admin/casos"
-            className="text-[12px] text-ln-op-mute underline underline-offset-4"
-          >
+          <a href="/admin/casos" className="text-sm text-ln-op-mute underline underline-offset-4">
             Limpiar filtros
           </a>
         )}
@@ -188,7 +185,7 @@ export default async function AdminCasosPage({
                   status={c.status}
                   size="sm"
                 />
-                <span className="text-[12px] text-ln-op-mute">
+                <span className="text-sm text-ln-op-mute">
                   {c.jurisdictionLocality && c.jurisdictionProvince
                     ? `${c.jurisdictionLocality}, ${c.jurisdictionProvince} · `
                     : ""}
@@ -221,7 +218,7 @@ export default async function AdminCasosPage({
             {newerLink && (
               <Link
                 href={newerLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 ← Más recientes
               </Link>
@@ -231,7 +228,7 @@ export default async function AdminCasosPage({
             {olderLink && (
               <Link
                 href={olderLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 Ver más antiguos →
               </Link>

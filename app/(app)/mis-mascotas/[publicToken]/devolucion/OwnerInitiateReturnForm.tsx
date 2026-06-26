@@ -56,7 +56,7 @@ export function OwnerInitiateReturnForm({
         className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-[20px] space-y-[10px]"
         role="alert"
       >
-        <p className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ok)]">
+        <p className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ok)]">
           Devolución iniciada
         </p>
         <p className="text-[13px] text-[var(--color-ln-ink-2)]">
@@ -65,7 +65,7 @@ export function OwnerInitiateReturnForm({
         </p>
         <Link
           href={backUrl}
-          className="inline-block text-[12px] text-[var(--color-ln-ok)] underline hover:opacity-80"
+          className="inline-block text-sm text-[var(--color-ln-ok)] underline hover:opacity-80"
         >
           Ir a mis mascotas
         </Link>
@@ -79,7 +79,7 @@ export function OwnerInitiateReturnForm({
       <div className="flex flex-col">
         <label
           htmlFor="reason"
-          className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           Razón de la devolución <span className="text-[var(--color-ln-seal)]">*</span>
         </label>
@@ -105,7 +105,7 @@ export function OwnerInitiateReturnForm({
       <div className="flex flex-col">
         <label
           htmlFor="notes"
-          className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           Notas{" "}
           <span className="font-normal lowercase tracking-[.04em] text-[var(--color-ln-faint)]">
@@ -128,7 +128,7 @@ export function OwnerInitiateReturnForm({
       <div className="flex flex-col">
         <label
           htmlFor="proposedAt"
-          className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           Fecha sugerida para la entrega
         </label>

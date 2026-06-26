@@ -73,7 +73,7 @@ export function LnCardHead({ title, label, icon, actions, className = "" }: LnCa
       {(label || actions) && (
         <div className="ml-auto flex items-center gap-[8px]">
           {label && (
-            <span className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
+            <span className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
               {label}
             </span>
           )}
@@ -151,7 +151,7 @@ export function LnSheet({
     >
       {/* Route chip */}
       {routeChip && (
-        <span className="absolute left-[18px] top-[12px] rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[10px] py-[3px] font-[var(--font-ln-mono)] text-[10px] tracking-[.08em] text-[var(--color-ln-faint)]">
+        <span className="absolute left-[18px] top-[12px] rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[10px] py-[3px] font-[var(--font-ln-mono)] text-xs tracking-[.08em] text-[var(--color-ln-faint)]">
           {routeChip}
         </span>
       )}
@@ -178,7 +178,7 @@ export function LnSheet({
           {icon && (
             <div
               className={[
-                "grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[8px] border text-[16px]",
+                "grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[8px] border text-base",
                 toneIconColors[tone],
               ]
                 .filter(Boolean)
@@ -190,12 +190,10 @@ export function LnSheet({
 
           {/* Title */}
           <div className="min-w-0 flex-1">
-            <h2 className="m-0 font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+            <h2 className="m-0 font-[var(--font-ln-serif)] text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
               {title}
             </h2>
-            {subtitle && (
-              <p className="mt-[2px] text-[12px] text-[var(--color-ln-mute)]">{subtitle}</p>
-            )}
+            {subtitle && <p className="mt-[2px] text-sm text-[var(--color-ln-mute)]">{subtitle}</p>}
           </div>
 
           {/* Close button */}
@@ -206,7 +204,7 @@ export function LnSheet({
               onClick={onClose}
               className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
             >
-              <span aria-hidden="true" className="text-[16px] leading-none">
+              <span aria-hidden="true" className="text-base leading-none">
                 ×
               </span>
             </button>
@@ -273,7 +271,7 @@ export function LnSheetPet({ photo, name, meta, onChangePet, className = "" }: L
         <button
           type="button"
           onClick={onChangePet}
-          className="flex-shrink-0 cursor-pointer font-[var(--font-ln-mono)] text-[10px] tracking-[.04em] text-[var(--color-ln-azul)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
+          className="flex-shrink-0 cursor-pointer font-[var(--font-ln-mono)] text-xs tracking-[.04em] text-[var(--color-ln-azul)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
         >
           CAMBIAR
         </button>

@@ -101,7 +101,7 @@ export function LnVstamp({ variant, className = "" }: LnVstampProps) {
     <span
       className={[
         "inline-flex items-center gap-[5px] rounded-[2px] border px-[8px] py-[3px]",
-        "font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.08em]",
+        "font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.08em]",
         cfg.bg,
         cfg.text,
         cfg.border,
@@ -123,7 +123,7 @@ export function LnMemorialChip({ className = "" }: { className?: string }) {
     <span
       className={[
         "inline-flex items-center gap-[6px] rounded-full border border-[var(--color-ln-memorial-chip-bd)] bg-[var(--color-ln-memorial-chip-bg)] px-[10px] py-[3px]",
-        "font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.1em] text-[var(--color-ln-memorial-chip-text)]",
+        "font-[var(--font-ln-mono)] text-xs uppercase tracking-[.1em] text-[var(--color-ln-memorial-chip-text)]",
         className,
       ]
         .filter(Boolean)

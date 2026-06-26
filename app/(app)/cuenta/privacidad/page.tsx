@@ -31,7 +31,7 @@ export default async function PrivacidadPage() {
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Privacidad y datos personales
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Ejercé los derechos que te garantiza la Ley 25.326 de Protección de Datos Personales.
           Pedido y supresión quedan registrados en el audit log con la cita normativa.
         </p>

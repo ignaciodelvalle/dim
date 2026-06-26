@@ -53,16 +53,16 @@ export function LostPetRow({ pet }: LostPetRowProps) {
             <OpPill tone="neutral">{pet.species}</OpPill>
             <OpPill tone={statusTone}>{statusLabel}</OpPill>
           </div>
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             {pet.locality ?? "—"}, {pet.province ?? "—"}
           </p>
           {pet.ownerDisplayName && (
-            <p className="text-[12px] text-ln-op-mute">
+            <p className="text-sm text-ln-op-mute">
               {"Dueño/a:"} {pet.ownerDisplayName}
             </p>
           )}
           {pet.lastSeenLat != null && pet.lastSeenLng != null && (
-            <p className="text-[12px] text-ln-op-mute">
+            <p className="text-sm text-ln-op-mute">
               {"Ultima ubicación:"}{" "}
               <a
                 href={`https://www.openstreetmap.org/?mlat=${pet.lastSeenLat}&mlon=${pet.lastSeenLng}#map=16/${pet.lastSeenLat}/${pet.lastSeenLng}`}
@@ -76,12 +76,10 @@ export function LostPetRow({ pet }: LostPetRowProps) {
           )}
         </div>
         <div className="text-right space-y-1 whitespace-nowrap">
-          <p className="text-[12px] text-ln-op-mute tabular-nums">
-            {formatRelative(pet.markedLostAt)}
-          </p>
+          <p className="text-sm text-ln-op-mute tabular-nums">{formatRelative(pet.markedLostAt)}</p>
           <Link
             href={`/p/${pet.petPublicToken}`}
-            className="inline-block text-[12px] underline underline-offset-2 text-ln-op-mute hover:text-ln-op-ink"
+            className="inline-block text-sm underline underline-offset-2 text-ln-op-mute hover:text-ln-op-ink"
           >
             Ver credencial
           </Link>

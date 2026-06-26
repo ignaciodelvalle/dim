@@ -33,7 +33,7 @@ export default async function VecinoMatchPage({
   if (pet.status !== "lost") {
     return (
       <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px] text-center">
-        <p className="font-[var(--font-ln-serif)] text-[20px] font-semibold text-[var(--color-ln-ink)]">
+        <p className="font-[var(--font-ln-serif)] text-xl font-semibold text-[var(--color-ln-ink)]">
           Mascota ya no está perdida
         </p>
         <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
@@ -89,7 +89,7 @@ export default async function VecinoMatchPage({
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Coincidencia de microchip
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           El chip que ingresaste ya está registrado en MiMAR. Confirmá si es el mismo animal.
         </p>
       </div>

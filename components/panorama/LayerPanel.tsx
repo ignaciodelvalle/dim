@@ -41,7 +41,7 @@ type Props = {
 export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
   return (
     <details className="group space-y-1.5">
-      <summary className="cursor-pointer list-none text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
         Capas (modo avanzado)
       </summary>
       <fieldset className="mt-1.5 space-y-1.5">
@@ -60,7 +60,7 @@ export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
             return (
               <li key={layer.id}>
                 <label
-                  className={`flex items-center gap-2.5 rounded-[6px] px-1.5 py-1 text-[12px] text-ln-op-ink-2 ${
+                  className={`flex items-center gap-2.5 rounded-[6px] px-1.5 py-1 text-sm text-ln-op-ink-2 ${
                     isBlocked
                       ? "cursor-not-allowed opacity-40"
                       : "cursor-pointer hover:bg-ln-op-card"
@@ -86,7 +86,7 @@ export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
                   <span className="flex-1">{layer.label}</span>
                   {notReproducible && (
                     <span
-                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-[10px] text-ln-op-mute"
+                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-xs text-ln-op-mute"
                       title="Esta capa no tiene dimensión temporal: muestra el estado actual, no reproducible en el tiempo."
                     >
                       no reproducible en el tiempo
@@ -104,7 +104,7 @@ export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
                   )}
                   {active && !st?.loading && st.suppressedCount > 0 && (
                     <span
-                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-[10px] text-ln-op-mute"
+                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-xs text-ln-op-mute"
                       title="Celdas ocultas por privacidad (k-anonimato, k=5)"
                     >
                       {st.suppressedCount} suprimido{st.suppressedCount === 1 ? "" : "s"}
@@ -112,7 +112,7 @@ export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
                   )}
                   {active && !st?.loading && st.truncated && (
                     <span
-                      className="rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-1.5 py-0.5 text-[10px] text-ln-op-ink-2"
+                      className="rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-1.5 py-0.5 text-xs text-ln-op-ink-2"
                       title="Se alcanzó el tope por capa; hay más registros fuera de la vista."
                     >
                       capá al máximo (2.000)
@@ -120,7 +120,7 @@ export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
                   )}
                   {isBlocked && (
                     <span
-                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-[10px] text-ln-op-mute"
+                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-xs text-ln-op-mute"
                       aria-hidden="true"
                     >
                       bloqueada
@@ -133,7 +133,7 @@ export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
                 {isBlocked && compatibilityHint && (
                   <p
                     id={`compat-hint-${layer.id}`}
-                    className="mt-0.5 px-1.5 text-[10px] text-ln-op-mute"
+                    className="mt-0.5 px-1.5 text-xs text-ln-op-mute"
                     role="note"
                   >
                     {compatibilityHint}

@@ -22,7 +22,7 @@ export function PppPublicBadge({ petName, breed }: Props) {
     >
       <header className="flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-semibold text-ln-warn ">{buildPppHeadline()}</h2>
-        <span className="text-[10px] font-medium uppercase tracking-wider text-ln-warn ">
+        <span className="text-xs font-medium uppercase tracking-wider text-ln-warn ">
           Ley 4078 · Prov 14.107
         </span>
       </header>

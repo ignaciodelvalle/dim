@@ -37,7 +37,7 @@ const base =
   "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]";
 
 const sizes: Record<LnButtonSize, string> = {
-  sm: "px-[11px] py-[6px] text-[12px]",
+  sm: "px-[11px] py-[6px] text-sm",
   md: "px-[14px] py-[8px] text-[12.5px]",
   lg: "px-[18px] py-[10px] text-[13px]",
 };

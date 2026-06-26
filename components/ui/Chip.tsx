@@ -66,7 +66,7 @@ export function LnChip({
   className = "",
 }: LnChipProps) {
   const base =
-    "inline-flex cursor-pointer items-center rounded-full border px-[11px] py-[5px] text-[12px] font-medium transition-colors " +
+    "inline-flex cursor-pointer items-center rounded-full border px-[11px] py-[5px] text-sm font-medium transition-colors " +
     "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]";
   const inactive =
     "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)]";

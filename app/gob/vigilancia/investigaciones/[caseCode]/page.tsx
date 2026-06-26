@@ -128,18 +128,18 @@ export default async function InvestigacionDetailPage({
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {diseaseCode && (
           <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-            <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">Enfermedad</p>
+            <p className="text-xs uppercase tracking-wider text-ln-op-mute">Enfermedad</p>
             <p className="text-[13px] font-semibold text-ln-op-ink">{diseaseCode}</p>
           </div>
         )}
         <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-          <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">Estado</p>
+          <p className="text-xs uppercase tracking-wider text-ln-op-mute">Estado</p>
           <p className="text-[13px] font-semibold text-ln-op-ink">
             {STATUS_LABEL[detail.status] ?? detail.status}
           </p>
         </div>
         <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-          <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">Jurisdiccion</p>
+          <p className="text-xs uppercase tracking-wider text-ln-op-mute">Jurisdiccion</p>
           <p className="text-[13px] font-semibold text-ln-op-ink">
             {[detail.jurisdictionLocality, detail.jurisdictionProvince]
               .filter(Boolean)
@@ -171,7 +171,7 @@ export default async function InvestigacionDetailPage({
                       <span className="flex items-center gap-2 text-[13px] font-medium text-ln-op-ink">
                         {isExternal && (
                           <span
-                            className="inline-flex items-center rounded-[3px] border border-ln-op-line bg-ln-op-stripe px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-ln-op-ink-2"
+                            className="inline-flex items-center rounded-[3px] border border-ln-op-line bg-ln-op-stripe px-1.5 py-0.5 text-xs uppercase tracking-wider text-ln-op-ink-2"
                             aria-hidden="true"
                           >
                             Externa
@@ -179,12 +179,12 @@ export default async function InvestigacionDetailPage({
                         )}
                         {ENTRY_LABEL[n.entryType] ?? n.entryType}
                       </span>
-                      <span className="text-[12px] text-ln-op-mute">
+                      <span className="text-sm text-ln-op-mute">
                         {formatDateTime(n.occurredAt)}
                       </span>
                     </div>
                     {externalDetail && (
-                      <p className="text-[12px] font-mono text-ln-op-ink-2">{externalDetail}</p>
+                      <p className="text-sm font-mono text-ln-op-ink-2">{externalDetail}</p>
                     )}
                     {n.notes && (
                       <p className="text-[13px] text-ln-op-ink-2 whitespace-pre-wrap">{n.notes}</p>
@@ -204,7 +204,7 @@ export default async function InvestigacionDetailPage({
             <ul className="divide-y divide-ln-op-line-2">
               {timelineNotes.map((n) => (
                 <li key={n.id} className="flex gap-3 px-4 py-3">
-                  <span className="text-[12px] text-ln-op-mute shrink-0 mt-0.5 tabular-nums">
+                  <span className="text-sm text-ln-op-mute shrink-0 mt-0.5 tabular-nums">
                     {formatDateTime(n.occurredAt)}
                   </span>
                   <span className="text-[13px] text-ln-op-ink">
@@ -220,7 +220,7 @@ export default async function InvestigacionDetailPage({
 
       {!isClosed && (
         <section className="space-y-3 pt-2 border-t border-ln-op-line">
-          <h2 className="text-[14px] font-semibold text-ln-op-ink">Acciones</h2>
+          <h2 className="text-md font-semibold text-ln-op-ink">Acciones</h2>
           <InvestigationActions casePublicCode={detail.publicCode} currentStatus={detail.status} />
         </section>
       )}

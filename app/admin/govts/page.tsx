@@ -55,14 +55,14 @@ export default async function GovtsPage() {
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-[20px] font-semibold tracking-tight text-ln-op-ink">Gobiernos</h1>
-            <p className="text-[12px] text-ln-op-ink-2">
+            <h1 className="text-xl font-semibold tracking-tight text-ln-op-ink">Gobiernos</h1>
+            <p className="text-sm text-ln-op-ink-2">
               Operadores institucionales con rol de gobierno.
             </p>
           </div>
           <Link
             href="/admin/govts/new"
-            className="px-4 py-2 text-[12px] font-semibold bg-ln-op-azul text-white rounded-[6px] hover:bg-ln-op-azul-700 shrink-0"
+            className="px-4 py-2 text-sm font-semibold bg-ln-op-azul text-white rounded-[6px] hover:bg-ln-op-azul-700 shrink-0"
           >
             + Crear govt
           </Link>
@@ -70,10 +70,10 @@ export default async function GovtsPage() {
 
         {activeGovts.length === 0 ? (
           <div className="text-center py-12 rounded-[6px] border border-dashed border-ln-op-line">
-            <p className="text-[12px] text-ln-op-mute">Aun no hay govts activos.</p>
+            <p className="text-sm text-ln-op-mute">Aun no hay govts activos.</p>
             <Link
               href="/admin/govts/new"
-              className="mt-3 inline-block text-[12px] underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
+              className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
             >
               Crear el primer govt
             </Link>
@@ -88,7 +88,7 @@ export default async function GovtsPage() {
 
         {deactivatedGovts.length > 0 && (
           <details className="group">
-            <summary className="cursor-pointer text-[12px] text-ln-op-mute hover:text-ln-op-ink-2 select-none">
+            <summary className="cursor-pointer text-sm text-ln-op-mute hover:text-ln-op-ink-2 select-none">
               Desactivados ({deactivatedGovts.length})
             </summary>
             <ul className="mt-2 space-y-2">
@@ -99,7 +99,7 @@ export default async function GovtsPage() {
           </details>
         )}
 
-        <p className="text-[12px] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           <Link href="/admin" className="underline underline-offset-4 hover:text-ln-op-ink-2">
             {"←"} Volver al dashboard
           </Link>
@@ -137,13 +137,13 @@ function GovtRow({ govt }: GovtRowProps) {
             >
               {govt.displayName}
             </Link>
-            <p className="text-[12px] text-ln-op-mute">{govt.email}</p>
+            <p className="text-sm text-ln-op-mute">{govt.email}</p>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
             {/* C24: "open" is the OpPill warn (amber) palette — see OpPill tones. */}
             {isDead && <OpPill tone="open">sin localidades — no puede operar</OpPill>}
-            <span className="text-[12px] text-ln-op-mute">
+            <span className="text-sm text-ln-op-mute">
               {govt.activeLocalityCount} localidad{govt.activeLocalityCount !== 1 ? "es" : ""}
             </span>
             <OpPill tone={isActive ? "ok" : "neutral"}>

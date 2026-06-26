@@ -43,7 +43,7 @@ export default async function GobOutreachPage() {
     return (
       <div className="space-y-4">
         <header className="space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             MiMAR Gobierno · Outreach
           </p>
           <h1 className="text-[22px] font-semibold text-ln-op-ink">Pipelines de outreach</h1>
@@ -85,9 +85,7 @@ export default async function GobOutreachPage() {
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Outreach
-        </p>
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Outreach</p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Pipelines de outreach</h1>
         <p className="text-[13px] text-ln-op-mute">
           Del dato a la acción: cada pipeline convierte un indicador en una lista objetivo para
@@ -172,7 +170,7 @@ export default async function GobOutreachPage() {
                 return (
                   <li
                     key={pet.petId}
-                    className="flex items-center justify-between gap-3 rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[12px]"
+                    className="flex items-center justify-between gap-3 rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-sm"
                   >
                     <div className="min-w-0 space-y-0.5">
                       <p className="font-medium text-ln-op-ink">{pet.petName}</p>
@@ -241,7 +239,7 @@ export default async function GobOutreachPage() {
               description="No se registraron escaneos de credencial no propios en los últimos 30 días en tu cobertura."
             />
           ) : (
-            <table className="w-full text-[12px] border-collapse">
+            <table className="w-full text-sm border-collapse">
               <caption className="sr-only">Áreas con escaneos de animales callejeros</caption>
               <thead>
                 <tr className="border-b border-ln-op-line">
@@ -292,7 +290,7 @@ export default async function GobOutreachPage() {
               description="No hay esterilizaciones registradas en DIM en los últimos 30 días para tu cobertura."
             />
           ) : (
-            <table className="w-full text-[12px] border-collapse">
+            <table className="w-full text-sm border-collapse">
               <caption className="sr-only">Ranking de esterilizaciones por veterinario/a</caption>
               <thead>
                 <tr className="border-b border-ln-op-line">
@@ -337,7 +335,7 @@ export default async function GobOutreachPage() {
         </OpCardBody>
       </OpCard>
 
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         <Link href="/gob" className="underline underline-offset-4 hover:text-ln-op-ink-2">
           ← Volver al dashboard
         </Link>

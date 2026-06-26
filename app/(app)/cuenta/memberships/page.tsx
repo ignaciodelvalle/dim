@@ -69,7 +69,7 @@ export default async function MembershipsPage() {
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis organizaciones
         </h1>
-        <span className="font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+        <span className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
           {membershipCount === 0
             ? "ninguna"
             : membershipCount === 1

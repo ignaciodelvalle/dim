@@ -90,7 +90,7 @@ export function MagicLinkResultPanel({
   return (
     <div className="rounded-[6px] border border-ln-op-ok-bd bg-ln-op-ok-bg p-6 space-y-4">
       <div>
-        <h3 className="text-[16px] font-semibold text-ln-op-ok">{title}</h3>
+        <h3 className="text-base font-semibold text-ln-op-ok">{title}</h3>
         <p className="mt-1 text-[13px] text-ln-op-ok">
           {displayName} &middot; {email}
         </p>

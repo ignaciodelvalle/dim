@@ -68,7 +68,7 @@ export default async function UsuariosPage({
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           MiMAR Gobierno · Usuarios
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Usuarios</h1>
@@ -129,7 +129,7 @@ export default async function UsuariosPage({
         </OpButton>
       </form>
 
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         {results.length === 0
           ? query
             ? "Sin resultados."
@@ -151,7 +151,7 @@ export default async function UsuariosPage({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-0.5">
                       <p className="text-[13px] font-medium text-ln-op-ink">{u.displayName}</p>
-                      <p className="text-[10px] font-mono text-ln-op-mute">{u.id}</p>
+                      <p className="text-xs font-mono text-ln-op-mute">{u.id}</p>
                     </div>
                     <OpPill tone={ROLE_TONES[u.role] ?? "neutral"}>
                       {ROLE_LABELS[u.role] ?? u.role}
@@ -183,7 +183,7 @@ export default async function UsuariosPage({
         actorUserId={user.id}
       />
 
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         <Link href="/gob" className="underline underline-offset-4 hover:text-ln-op-ink-2">
           ← Volver al dashboard
         </Link>

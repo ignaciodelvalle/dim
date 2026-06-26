@@ -29,27 +29,27 @@ function render(node: React.ReactElement): string {
 // ---------------------------------------------------------------------------
 
 describe("LnInput — mobile font size", () => {
-  it("includes text-[16px] class for mobile iOS zoom prevention", () => {
+  it("includes text-base class for mobile iOS zoom prevention", () => {
     const html = render(<LnInput name="test" />);
-    expect(html).toContain("text-[16px]");
+    expect(html).toContain("text-base");
   });
 });
 
 describe("LnSelect — mobile font size", () => {
-  it("includes text-[16px] class for mobile iOS zoom prevention", () => {
+  it("includes text-base class for mobile iOS zoom prevention", () => {
     const html = render(
       <LnSelect name="test">
         <option value="a">A</option>
       </LnSelect>,
     );
-    expect(html).toContain("text-[16px]");
+    expect(html).toContain("text-base");
   });
 });
 
 describe("LnTextarea — mobile font size", () => {
-  it("includes text-[16px] class for mobile iOS zoom prevention", () => {
+  it("includes text-base class for mobile iOS zoom prevention", () => {
     const html = render(<LnTextarea name="test" />);
-    expect(html).toContain("text-[16px]");
+    expect(html).toContain("text-base");
   });
 });
 

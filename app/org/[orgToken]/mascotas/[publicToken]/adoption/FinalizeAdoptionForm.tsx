@@ -137,14 +137,14 @@ export function FinalizeAdoptionForm({
               type="file"
               accept="application/pdf,image/*"
               aria-describedby={describedBy}
-              className="block w-full text-[12px] text-ln-op-ink-2 file:mr-3 file:rounded-[4px] file:border-0 file:bg-ln-op-azul file:px-3 file:py-1.5 file:text-white file:text-[12px]"
+              className="block w-full text-sm text-ln-op-ink-2 file:mr-3 file:rounded-[4px] file:border-0 file:bg-ln-op-azul file:px-3 file:py-1.5 file:text-white file:text-sm"
             />
           )}
         </LnField>
       </section>
 
       {state.error && (
-        <p className="text-[12px] rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+        <p className="text-sm rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}

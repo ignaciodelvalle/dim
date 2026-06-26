@@ -59,7 +59,7 @@ export default async function UpgradePage() {
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Tu rol en MiMAR
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Ampliá tus permisos registrando tu matrícula profesional o creando una organización.
         </p>
       </div>
@@ -97,7 +97,7 @@ export default async function UpgradePage() {
                     <p className="text-[13px] font-semibold text-[var(--color-ln-ok)]">
                       ¡Solicitud aprobada!
                     </p>
-                    <p className="mt-[2px] text-[12px] text-[var(--color-ln-ok)]">
+                    <p className="mt-[2px] text-sm text-[var(--color-ln-ok)]">
                       Tu matrícula fue verificada. Tu cuenta va a reflejar el rol veterinario en tu
                       próxima sesión.{" "}
                       <a href="/cuenta" className="underline hover:no-underline">
@@ -112,11 +112,11 @@ export default async function UpgradePage() {
                         Tu última solicitud fue rechazada.
                       </p>
                       {latestVetRequest.decisionNotes && (
-                        <p className="mt-[2px] text-[12px] text-[var(--color-ln-err)]">
+                        <p className="mt-[2px] text-sm text-[var(--color-ln-err)]">
                           Motivo: {latestVetRequest.decisionNotes}
                         </p>
                       )}
-                      <p className="mt-[2px] text-[12px] text-[var(--color-ln-err)]">
+                      <p className="mt-[2px] text-sm text-[var(--color-ln-err)]">
                         Corregí los datos y volvé a enviar.
                       </p>
                     </div>
@@ -147,11 +147,11 @@ export default async function UpgradePage() {
                   <p className="text-[13px] font-semibold text-[var(--color-ln-ink)]">
                     Ya administrás una organización
                   </p>
-                  <p className="mt-[1px] text-[12px] text-[var(--color-ln-mute)]">
+                  <p className="mt-[1px] text-sm text-[var(--color-ln-mute)]">
                     {adminMembership.organization.displayName}
                   </p>
                 </div>
-                <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+                <span aria-hidden="true" className="text-base text-[var(--color-ln-mute)]">
                   ›
                 </span>
               </Link>

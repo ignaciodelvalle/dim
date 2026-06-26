@@ -252,7 +252,7 @@ export default async function OrgPetDetailPage({
               {canManageEligibility && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=elegibilidad`}
-                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                  className="inline-block text-sm px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
                 >
                   {pet.adoptionEligible === true
                     ? "Elegibilidad · Apta ✓"
@@ -264,7 +264,7 @@ export default async function OrgPetDetailPage({
               {canReplaceMicrochip && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=reemplazar-microchip`}
-                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                  className="inline-block text-sm px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
                 >
                   Reemplazar microchip
                 </Link>
@@ -272,7 +272,7 @@ export default async function OrgPetDetailPage({
               {canEndFoster && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=fin-transito`}
-                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                  className="inline-block text-sm px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
                 >
                   Cerrar tránsito
                 </Link>
@@ -280,7 +280,7 @@ export default async function OrgPetDetailPage({
               {canProposeReturn && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=devolver-al-dueno`}
-                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
+                  className="inline-block text-sm px-3 py-1.5 rounded-[4px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
                 >
                   Devolver al dueño
                 </Link>
@@ -317,7 +317,7 @@ export default async function OrgPetDetailPage({
         <footer className="pt-4 border-t border-ln-op-line">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver al listado
           </Link>

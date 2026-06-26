@@ -124,13 +124,13 @@ function ResultPanel({ result, onDismiss }: { result: BulkResult; onDismiss: () 
         <button
           type="button"
           onClick={onDismiss}
-          className="text-[12px] text-ln-op-mute hover:text-ln-op-ink"
+          className="text-sm text-ln-op-mute hover:text-ln-op-ink"
         >
           Cerrar
         </button>
       </div>
       {result.failed.length > 0 && (
-        <ul className="text-[12px] text-ln-op-danger space-y-0.5">
+        <ul className="text-sm text-ln-op-danger space-y-0.5">
           {result.failed.map((f) => (
             <li key={f.id}>
               <span className="font-mono">{f.id.slice(0, 8)}…</span> — {f.reason}
@@ -253,7 +253,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
               href={`/org/${orgToken}/adopciones?status=${chip.value}`}
               aria-pressed={isActive}
               className={[
-                "rounded-full border px-3 py-1 text-[12px] font-medium no-underline transition-colors",
+                "rounded-full border px-3 py-1 text-sm font-medium no-underline transition-colors",
                 isActive
                   ? "border-ln-op-azul bg-ln-op-azul text-white"
                   : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe",
@@ -266,7 +266,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
       </nav>
 
       {/* Row count */}
-      <p aria-live="polite" className="text-[12px] text-ln-op-mute">
+      <p aria-live="polite" className="text-sm text-ln-op-mute">
         {rows.length === 0
           ? "Sin postulaciones"
           : `${rows.length} postulación${rows.length !== 1 ? "es" : ""}`}
@@ -285,7 +285,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
         <>
           {/* Select-all toggle — only shown for pending (bulk actions apply to pending) */}
           {activeStatus === "pending" && (
-            <div className="flex items-center gap-3 text-[12px] text-ln-op-mute">
+            <div className="flex items-center gap-3 text-sm text-ln-op-mute">
               <button
                 type="button"
                 onClick={allSelected ? clearSelection : toggleAll}
@@ -340,9 +340,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
                     <div className="flex flex-wrap items-center gap-2 justify-between">
                       <p className="flex items-center gap-2 flex-wrap text-[13px] font-medium text-ln-op-ink">
                         {row.applicantName ?? "Postulante"}
-                        <span className="text-[12px] font-normal text-ln-op-mute">
-                          → {row.petName}
-                        </span>
+                        <span className="text-sm font-normal text-ln-op-mute">→ {row.petName}</span>
                         {row.infoRequested && (
                           <span className="inline-flex items-center rounded-[2px] border border-ln-op-azul bg-ln-op-celeste-050 px-[6px] py-[1px] text-[9px] font-semibold uppercase tracking-[.08em] text-ln-op-azul">
                             Info pedida
@@ -357,7 +355,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
                       </OpPill>
                     </div>
 
-                    <p className="text-[12px] text-ln-op-mute">
+                    <p className="text-sm text-ln-op-mute">
                       Vivienda: {housingTypeLabel(row.housingType)}
                     </p>
                   </Link>

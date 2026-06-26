@@ -177,7 +177,7 @@ export default async function PermisosPage({
           title={
             <>
               Pendientes{" "}
-              <span className="text-[12px] text-ln-op-mute font-normal">({pending.length})</span>
+              <span className="text-sm text-ln-op-mute font-normal">({pending.length})</span>
             </>
           }
         />
@@ -194,15 +194,13 @@ export default async function PermisosPage({
                         {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}{" "}
                         <OpCodeBadge tone="neutral">{row.capability}</OpCodeBadge>
                       </p>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {row.requesterDisplayName} ·{" "}
                         {ROLE_LABELS[row.requesterRole] ?? row.requesterRole} ·{" "}
                         {formatDate(row.requestedAt)}
                       </p>
                       {row.requestedReason && (
-                        <p className="text-[12px] italic text-ln-op-faint">
-                          "{row.requestedReason}"
-                        </p>
+                        <p className="text-sm italic text-ln-op-faint">"{row.requestedReason}"</p>
                       )}
                     </div>
                     <OpPill tone="open">Pendiente</OpPill>
@@ -221,7 +219,7 @@ export default async function PermisosPage({
           title={
             <>
               Concedidos activos{" "}
-              <span className="text-[12px] text-ln-op-mute font-normal">({approved.length})</span>
+              <span className="text-sm text-ln-op-mute font-normal">({approved.length})</span>
             </>
           }
         />
@@ -240,7 +238,7 @@ export default async function PermisosPage({
                         {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}{" "}
                         <OpCodeBadge tone="neutral">{row.capability}</OpCodeBadge>
                       </p>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {row.requesterDisplayName} ·{" "}
                         {ROLE_LABELS[row.requesterRole] ?? row.requesterRole} · concedido{" "}
                         {row.decidedAt ? formatDate(row.decidedAt) : "—"}

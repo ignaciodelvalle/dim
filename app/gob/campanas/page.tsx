@@ -59,7 +59,7 @@ export default async function GobCampanasPage({
     return (
       <div className="space-y-4">
         <header className="space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             MiMAR Gobierno · Campañas
           </p>
           <h1 className="text-[22px] font-semibold text-ln-op-ink">Performance de campañas</h1>
@@ -166,9 +166,7 @@ export default async function GobCampanasPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Campañas
-        </p>
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Campañas</p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Performance de campañas</h1>
         <p className="text-[13px] text-ln-op-mute">
           {profile.role === "admin"
@@ -307,7 +305,7 @@ export default async function GobCampanasPage({
                       <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                         {/* Enrollment */}
                         <div className="rounded-[4px] bg-ln-op-stripe px-2 py-1.5">
-                          <p className="text-[18px] font-semibold font-ln-serif text-ln-op-ink leading-none">
+                          <p className="text-lg font-semibold font-ln-serif text-ln-op-ink leading-none">
                             {offering.enrollment}
                           </p>
                           <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
@@ -319,7 +317,7 @@ export default async function GobCampanasPage({
                         <div className="rounded-[4px] bg-ln-op-stripe px-2 py-1.5">
                           <p
                             className={[
-                              "text-[18px] font-semibold font-ln-serif leading-none",
+                              "text-lg font-semibold font-ln-serif leading-none",
                               offering.completionRate !== null &&
                               offering.completionRate >= TARGETS.CAMPAIGN_COMPLETION_PCT
                                 ? "text-ln-op-ok"
@@ -350,7 +348,7 @@ export default async function GobCampanasPage({
                         <div className="rounded-[4px] bg-ln-op-stripe px-2 py-1.5">
                           <p
                             className={[
-                              "text-[18px] font-semibold font-ln-serif leading-none",
+                              "text-lg font-semibold font-ln-serif leading-none",
                               offering.noShow > 0 ? "text-ln-op-warn" : "text-ln-op-ink",
                             ].join(" ")}
                           >
@@ -406,7 +404,7 @@ export default async function GobCampanasPage({
                   <summary className="text-[11px] text-ln-op-mute cursor-pointer hover:text-ln-op-ink">
                     Ver datos de alcance geográfico (tabla)
                   </summary>
-                  <table className="mt-2 w-full text-[12px] border-collapse">
+                  <table className="mt-2 w-full text-sm border-collapse">
                     <caption className="sr-only">
                       Inscripciones por localidad en campañas sanitarias
                     </caption>

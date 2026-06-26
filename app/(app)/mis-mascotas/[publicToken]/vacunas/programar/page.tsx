@@ -33,7 +33,7 @@ export default async function ScheduleVaccinePage({
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Programar vacuna
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Anotá la próxima vacuna de {pet.name} para no olvidártela. Vas a verla en "Próximas
           vacunas" hasta que la marques como aplicada.
         </p>

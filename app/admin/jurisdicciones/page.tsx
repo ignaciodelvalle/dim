@@ -72,7 +72,7 @@ export default async function AdminJurisdiccionesPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin {"·"} Jurisdicciones
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Jurisdicciones</h1>
@@ -87,7 +87,7 @@ export default async function AdminJurisdiccionesPage() {
         <OpCardHead
           title="AR (país)"
           actions={
-            <span className="text-[12px] text-ln-op-mute">
+            <span className="text-sm text-ln-op-mute">
               {countryWideCount} regla{countryWideCount === 1 ? "" : "s"}
             </span>
           }
@@ -98,7 +98,7 @@ export default async function AdminJurisdiccionesPage() {
               <span className="text-[13px] text-ln-op-ink-2">Reglas a nivel país AR</span>
               <Link
                 href={buildJurisdictionRulesHref({ country: "AR" })}
-                className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+                className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
               >
                 {"Ver reglas ->"}
               </Link>
@@ -136,7 +136,7 @@ export default async function AdminJurisdiccionesPage() {
                     </div>
                     <Link
                       href={buildJurisdictionRulesHref({ country: "AR", province: p.name })}
-                      className="shrink-0 text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+                      className="shrink-0 text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                     >
                       {pwCount === 0 ? "Crear regla ->" : "Ver reglas ->"}
                     </Link>

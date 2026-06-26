@@ -223,7 +223,7 @@ export default async function GobVigilanciaPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Vigilancia epidemiológica
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Mapa de vigilancia</h1>
@@ -445,7 +445,7 @@ export default async function GobVigilanciaPage({
             actions={
               <Link
                 href="/admin/outbox"
-                className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                className="text-sm text-ln-op-azul hover:underline no-underline"
               >
                 Ver outbox →
               </Link>
@@ -480,7 +480,7 @@ export default async function GobVigilanciaPage({
           />
           <OpCardBody className="p-0">
             <div className="flex items-baseline justify-between px-4 py-3 border-b border-ln-op-line-2">
-              <span className="text-[12px] text-ln-op-mute">Confirmación de laboratorio (A10)</span>
+              <span className="text-sm text-ln-op-mute">Confirmación de laboratorio (A10)</span>
               <span className="font-semibold text-ln-op-ink">
                 {pct(reportableIncidence.labConfirmationPct)}
               </span>
@@ -563,7 +563,7 @@ export default async function GobVigilanciaPage({
             actions={
               <Link
                 href="/gob/vigilancia/brotes"
-                className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                className="text-sm text-ln-op-azul hover:underline no-underline"
               >
                 Ver todos →
               </Link>

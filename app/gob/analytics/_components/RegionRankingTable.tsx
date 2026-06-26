@@ -19,9 +19,7 @@ function CoverageBar({ pct }: { pct: number }) {
           aria-hidden="true"
         />
       </div>
-      <span className="w-10 shrink-0 text-right text-[12px] tabular-nums text-ln-op-ink">
-        {pct}%
-      </span>
+      <span className="w-10 shrink-0 text-right text-sm tabular-nums text-ln-op-ink">{pct}%</span>
     </div>
   );
 }
@@ -84,7 +82,7 @@ export function RegionRankingTable({ top, bottom }: Props) {
   return (
     <div className="grid md:grid-cols-2 gap-6">
       <section aria-labelledby="ranking-top-title">
-        <h3 id="ranking-top-title" className="text-[12px] font-semibold text-ln-op-ink mb-3">
+        <h3 id="ranking-top-title" className="text-sm font-semibold text-ln-op-ink mb-3">
           Mayor cobertura antirrábica
         </h3>
         <RankingHalf
@@ -94,7 +92,7 @@ export function RegionRankingTable({ top, bottom }: Props) {
         />
       </section>
       <section aria-labelledby="ranking-bottom-title">
-        <h3 id="ranking-bottom-title" className="text-[12px] font-semibold text-ln-op-ink mb-3">
+        <h3 id="ranking-bottom-title" className="text-sm font-semibold text-ln-op-ink mb-3">
           Menor cobertura antirrábica
         </h3>
         <RankingHalf

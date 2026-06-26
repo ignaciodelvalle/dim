@@ -145,7 +145,7 @@ export function BulkApprovalQueueList({
                 <p className="text-xs text-ln-op-mute">
                   {item.applicantName} · {item.jurisdiction}
                 </p>
-                <p className="text-[10px] text-ln-op-mute font-mono">
+                <p className="text-xs text-ln-op-mute font-mono">
                   {item.publicToken} · {item.createdAt}
                 </p>
               </Link>
@@ -325,7 +325,7 @@ function ResultPanel({ result, onDismiss }: { result: BulkResult; onDismiss: () 
           ))}
         </ul>
       )}
-      <p className="text-[10px] text-ln-op-mute font-mono">bulk: {result.bulkActionId}</p>
+      <p className="text-xs text-ln-op-mute font-mono">bulk: {result.bulkActionId}</p>
     </div>
   );
 }

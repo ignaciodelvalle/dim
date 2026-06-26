@@ -92,7 +92,7 @@ export default async function GobAnalyticsExportPage({
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="text-[12px] text-ln-op-mute">
+      <nav aria-label="Breadcrumb" className="text-sm text-ln-op-mute">
         <Link href="/gob/analytics" className="hover:underline text-ln-op-azul">
           Analytics
         </Link>

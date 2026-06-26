@@ -29,7 +29,7 @@ export default async function NewBitePage({
       <LnSheetWrap>
         <LnSheetCard>
           <div className="px-[18px] py-[24px] space-y-[10px]">
-            <p className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-warn)]">
+            <p className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-warn)]">
               Ya hay una observación en curso
             </p>
             <p className="text-[13px] text-[var(--color-ln-mute)]">

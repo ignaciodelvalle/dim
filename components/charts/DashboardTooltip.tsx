@@ -111,7 +111,7 @@ export function DashboardTooltip({
 
       {/* Nota metodológica */}
       {methodNote && (
-        <p className="mt-1.5 text-[10px] text-ln-op-mute italic leading-snug border-t border-ln-line pt-1">
+        <p className="mt-1.5 text-xs text-ln-op-mute italic leading-snug border-t border-ln-line pt-1">
           {methodNote}
         </p>
       )}

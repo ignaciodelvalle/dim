@@ -42,7 +42,7 @@ export function OpCrumbs({ items }: Props) {
     // the topbar (D1): the current-page crumb truncates with an ellipsis instead
     // of wrapping the topbar onto a second row at ≥1280px.
     <nav aria-label="Ruta de navegación" className="min-w-0">
-      <ol className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden text-[12px] text-ln-op-mute">
+      <ol className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden text-sm text-ln-op-mute">
         {items.map((item, i) => {
           const isLast = i === items.length - 1;
           const textClass = isLast

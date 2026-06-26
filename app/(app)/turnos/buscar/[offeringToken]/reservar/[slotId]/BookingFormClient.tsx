@@ -42,7 +42,7 @@ export function BookingFormClient({
       <div>
         <label
           htmlFor="pet_select"
-          className="mb-[6px] block font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-[6px] block font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           ¿Para qué mascota?
         </label>
@@ -62,7 +62,7 @@ export function BookingFormClient({
       </div>
 
       {state.error && (
-        <p className="text-[12px] font-medium text-[var(--color-ln-err)]" role="alert">
+        <p className="text-sm font-medium text-[var(--color-ln-err)]" role="alert">
           {state.error}
         </p>
       )}

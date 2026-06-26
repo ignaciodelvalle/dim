@@ -79,7 +79,7 @@ export default async function AdminAdopcionesPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin · Pipeline de custodia & adopción
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Adopciones</h1>
@@ -272,7 +272,7 @@ export default async function AdminAdopcionesPage({
                   </span>
                 </li>
               </ul>
-              <p className="mt-2 text-[10px] text-ln-op-mute">
+              <p className="mt-2 text-xs text-ln-op-mute">
                 Porcentajes relativos al total de ingresos al refugio en el período. Las etapas son
                 conteos de eventos independientes (no cohorte).
               </p>
@@ -340,7 +340,7 @@ export default async function AdminAdopcionesPage({
                   })}
                 </tbody>
               </table>
-              <p className="mt-2 text-[10px] text-ln-op-mute">
+              <p className="mt-2 text-xs text-ln-op-mute">
                 Duración por custodia activa o cerrada en el período. Los registros abiertos usan la
                 fecha actual como cierre estimado.
               </p>
@@ -394,7 +394,7 @@ export default async function AdminAdopcionesPage({
                   />
                 </div>
               )}
-              <p className="text-[10px] text-ln-op-mute">
+              <p className="text-xs text-ln-op-mute">
                 Ocupados: total de animales en custodia activa en refugios. Cupo: capacidad
                 declarada por las organizaciones tipo refugio.
               </p>
@@ -409,25 +409,25 @@ export default async function AdminAdopcionesPage({
         <OpCardBody>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <div className="text-[20px] font-semibold text-ln-op-ink tabular-nums">
+              <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.activeVolunteers.toLocaleString("es-AR")}
               </div>
               <div className="text-[11px] text-ln-op-mute mt-0.5">Voluntarios activos</div>
             </div>
             <div className="text-center">
-              <div className="text-[20px] font-semibold text-ln-op-ink tabular-nums">
+              <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.withCapacity.toLocaleString("es-AR")}
               </div>
               <div className="text-[11px] text-ln-op-mute mt-0.5">Con cupo disponible</div>
             </div>
             <div className="text-center">
-              <div className="text-[20px] font-semibold text-ln-op-ink tabular-nums">
+              <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.activeFosterPlacements.toLocaleString("es-AR")}
               </div>
               <div className="text-[11px] text-ln-op-mute mt-0.5">Colocaciones activas</div>
             </div>
           </div>
-          <p className="mt-3 text-[10px] text-ln-op-mute">
+          <p className="mt-3 text-xs text-ln-op-mute">
             Voluntarios activos con estado activo en el padrón de tránsitos. Con cupo: voluntarios
             con lugares disponibles. Colocaciones activas: animales en tránsito sin fecha de cierre.
           </p>
@@ -440,7 +440,7 @@ export default async function AdminAdopcionesPage({
           title={<span id={panelTrendId}>Tendencia de adopciones</span>}
           actions={
             adoptionTrend.suppressedCount > 0 ? (
-              <span className="text-[12px] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 {adoptionTrend.suppressedCount}{" "}
                 {adoptionTrend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"}{" "}
                 (privacidad)

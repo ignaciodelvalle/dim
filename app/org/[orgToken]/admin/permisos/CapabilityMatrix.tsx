@@ -66,7 +66,7 @@ function RevokeCell({ grantId }: { grantId: string }) {
             onClick={() => setConfirming(false)}
             className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-danger text-white transition-colors hover:opacity-90 disabled:opacity-50"
           >
-            <span aria-hidden className="text-[12px] leading-none font-bold">
+            <span aria-hidden className="text-sm leading-none font-bold">
               ✓
             </span>
           </button>
@@ -79,7 +79,7 @@ function RevokeCell({ grantId }: { grantId: string }) {
         >
           ✕
         </button>
-        {state.error && <span className="text-[10px] text-ln-op-danger">{state.error}</span>}
+        {state.error && <span className="text-xs text-ln-op-danger">{state.error}</span>}
       </div>
     );
   }
@@ -94,11 +94,11 @@ function RevokeCell({ grantId }: { grantId: string }) {
         onClick={() => setConfirming(true)}
         className="group flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok-bg text-ln-op-ok transition-colors hover:bg-ln-op-danger-bg hover:text-ln-op-danger disabled:opacity-50"
       >
-        <span aria-hidden className="text-[14px] leading-none">
+        <span aria-hidden className="text-md leading-none">
           ✓
         </span>
       </button>
-      {state.error && <span className="text-[10px] text-ln-op-danger">{state.error}</span>}
+      {state.error && <span className="text-xs text-ln-op-danger">{state.error}</span>}
     </div>
   );
 }
@@ -164,7 +164,7 @@ function GrantCell({
           onClick={handleGrant}
           className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok text-white transition-colors hover:opacity-90 disabled:opacity-50"
         >
-          <span aria-hidden className="text-[12px] leading-none font-bold">
+          <span aria-hidden className="text-sm leading-none font-bold">
             ✓
           </span>
         </button>
@@ -176,7 +176,7 @@ function GrantCell({
         >
           ✕
         </button>
-        {error && <span className="text-[10px] text-ln-op-danger">{error}</span>}
+        {error && <span className="text-xs text-ln-op-danger">{error}</span>}
       </div>
     );
   }
@@ -191,11 +191,11 @@ function GrantCell({
         onClick={() => setConfirming(true)}
         className="flex h-6 w-6 items-center justify-center rounded-[3px] text-ln-op-faint transition-colors hover:bg-ln-op-ok-bg hover:text-ln-op-ok disabled:opacity-50"
       >
-        <span aria-hidden className="text-[14px] leading-none">
+        <span aria-hidden className="text-md leading-none">
           +
         </span>
       </button>
-      {error && <span className="text-[10px] text-ln-op-danger">{error}</span>}
+      {error && <span className="text-xs text-ln-op-danger">{error}</span>}
     </div>
   );
 }
@@ -218,7 +218,7 @@ export function CapabilityMatrix({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-max border-collapse text-[12px]">
+      <table className="w-full min-w-max border-collapse text-sm">
         <caption className="sr-only">Matriz de permisos por miembro y capacidad</caption>
         <thead>
           <tr className="border-b border-ln-op-line-2">

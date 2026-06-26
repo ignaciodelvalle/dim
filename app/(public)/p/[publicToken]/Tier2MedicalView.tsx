@@ -83,7 +83,7 @@ export function Tier2MedicalView({
       </p>
       <h2
         id="tier2-h"
-        className="m-0 mb-[2px] font-[var(--font-ln-serif)] text-[16px] font-semibold text-ln-ink"
+        className="m-0 mb-[2px] font-[var(--font-ln-serif)] text-base font-semibold text-ln-ink"
       >
         Resumen médico vigente
       </h2>
@@ -124,7 +124,7 @@ export function Tier2MedicalView({
                 key={drug}
                 className="flex items-center gap-[7px] border-b border-ln-line-2 py-[4px] text-[13px] text-ln-ink"
               >
-                <span aria-hidden="true" className="text-[10px] text-ln-azul">
+                <span aria-hidden="true" className="text-xs text-ln-azul">
                   ●
                 </span>
                 {drug}

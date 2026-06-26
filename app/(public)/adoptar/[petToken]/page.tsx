@@ -263,7 +263,7 @@ export default async function AdoptarFichaPage({
               />
               {/* "En adopción" status chip */}
               <span
-                className="absolute top-[12px] left-[12px] inline-flex items-center gap-[6px] rounded-full border px-[12px] py-[5px] text-[12px] font-semibold"
+                className="absolute top-[12px] left-[12px] inline-flex items-center gap-[6px] rounded-full border px-[12px] py-[5px] text-sm font-semibold"
                 style={{
                   background: "var(--color-ln-ok-050)",
                   color: "var(--color-ln-ok)",
@@ -367,7 +367,7 @@ export default async function AdoptarFichaPage({
           </h1>
           {pet.breed && (
             <p
-              className="mt-[4px] mb-[10px] text-[14px] font-medium"
+              className="mt-[4px] mb-[10px] text-md font-medium"
               style={{ color: "var(--color-ln-ink-2)" }}
             >
               {pet.breed}
@@ -376,7 +376,7 @@ export default async function AdoptarFichaPage({
           {/* Meta chips */}
           <div className="flex flex-wrap gap-[6px]">
             <span
-              className="rounded-[4px] border px-[10px] py-[4px] text-[12px]"
+              className="rounded-[4px] border px-[10px] py-[4px] text-sm"
               style={{
                 color: "var(--color-ln-ink-2)",
                 background: "var(--color-ln-stripe)",
@@ -386,7 +386,7 @@ export default async function AdoptarFichaPage({
               {speciesLabel(pet.species)}
             </span>
             <span
-              className="rounded-[4px] border px-[10px] py-[4px] text-[12px]"
+              className="rounded-[4px] border px-[10px] py-[4px] text-sm"
               style={{
                 color: "var(--color-ln-ink-2)",
                 background: "var(--color-ln-stripe)",
@@ -398,7 +398,7 @@ export default async function AdoptarFichaPage({
             {facts.map((f) => (
               <span
                 key={f}
-                className="rounded-[4px] border px-[10px] py-[4px] text-[12px]"
+                className="rounded-[4px] border px-[10px] py-[4px] text-sm"
                 style={{
                   color: "var(--color-ln-ink-2)",
                   background: "var(--color-ln-stripe)",
@@ -410,7 +410,7 @@ export default async function AdoptarFichaPage({
             ))}
           </div>
           {(pet.color || pet.distinguishingFeatures) && (
-            <p className="mt-[10px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+            <p className="mt-[10px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
               {[pet.color, pet.distinguishingFeatures].filter(Boolean).join(" · ")}
             </p>
           )}
@@ -427,19 +427,19 @@ export default async function AdoptarFichaPage({
             }}
           >
             <p
-              className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em]"
+              className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               Su historia
             </p>
             <h2
-              className="m-0 mb-[12px] font-[var(--font-ln-serif)] font-semibold text-[18px] tracking-[-0.01em]"
+              className="m-0 mb-[12px] font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
               style={{ color: "var(--color-ln-ink)" }}
             >
               Sobre {pet.name}
             </h2>
             <p
-              className="m-0 text-[14px] leading-[1.6] whitespace-pre-wrap"
+              className="m-0 text-md leading-[1.6] whitespace-pre-wrap"
               style={{ color: "var(--color-ln-ink-2)" }}
             >
               {pet.adoptionStory}
@@ -453,13 +453,13 @@ export default async function AdoptarFichaPage({
           style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
         >
           <p
-            className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em]"
+            className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
             style={{ color: "var(--color-ln-mute)" }}
           >
             Estado médico
           </p>
           <h2
-            className="m-0 mb-[14px] font-[var(--font-ln-serif)] font-semibold text-[18px] tracking-[-0.01em]"
+            className="m-0 mb-[14px] font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
             style={{ color: "var(--color-ln-ink)" }}
           >
             Salud
@@ -480,7 +480,7 @@ export default async function AdoptarFichaPage({
               detail={microchipMasked ?? undefined}
             />
           </ul>
-          <p className="mt-[14px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+          <p className="mt-[14px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
             El detalle clínico completo se comparte al finalizar la adopción.
           </p>
         </div>
@@ -492,20 +492,20 @@ export default async function AdoptarFichaPage({
             style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
           >
             <p
-              className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em]"
+              className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               Cómo es en el día a día
             </p>
             <h2
-              className="m-0 mb-[12px] font-[var(--font-ln-serif)] font-semibold text-[18px] tracking-[-0.01em]"
+              className="m-0 mb-[12px] font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
               style={{ color: "var(--color-ln-ink)" }}
             >
               Qué necesita su nuevo hogar
             </h2>
             {pet.adoptionRequirements && (
               <p
-                className="mb-[12px] text-[14px] leading-[1.6] whitespace-pre-wrap"
+                className="mb-[12px] text-md leading-[1.6] whitespace-pre-wrap"
                 style={{ color: "var(--color-ln-ink-2)" }}
               >
                 {pet.adoptionRequirements}
@@ -528,18 +528,18 @@ export default async function AdoptarFichaPage({
             style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
           >
             <p
-              className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em]"
+              className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               A tener en cuenta
             </p>
             <h2
-              className="m-0 mb-[8px] font-[var(--font-ln-serif)] font-semibold text-[18px] tracking-[-0.01em]"
+              className="m-0 mb-[8px] font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
               style={{ color: "var(--color-ln-ink)" }}
             >
               Necesidades especiales
             </h2>
-            <p className="mb-[12px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+            <p className="mb-[12px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
               {pet.name} convive con condiciones permanentes que es importante que conozcas antes de
               postularte. El refugio puede contarte cómo cuidarla.
             </p>
@@ -549,7 +549,7 @@ export default async function AdoptarFichaPage({
                 .map((code: PermanentCondition) => (
                   <span
                     key={code}
-                    className="inline-flex rounded-full border px-[10px] py-[4px] text-[12px] font-semibold"
+                    className="inline-flex rounded-full border px-[10px] py-[4px] text-sm font-semibold"
                     style={{
                       background: "var(--color-ln-celeste-050)",
                       color: "var(--color-ln-azul-700)",
@@ -577,14 +577,14 @@ export default async function AdoptarFichaPage({
           style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
         >
           <p
-            className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em]"
+            className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
             style={{ color: "var(--color-ln-mute)" }}
           >
             Refugio responsable
           </p>
           <div className="flex items-flex-start gap-[14px]">
             <div
-              className="flex-shrink-0 w-[56px] h-[56px] rounded-[8px] grid place-items-center font-[var(--font-ln-serif)] text-[24px] font-semibold text-white"
+              className="flex-shrink-0 w-[56px] h-[56px] rounded-[8px] grid place-items-center font-[var(--font-ln-serif)] text-2xl font-semibold text-white"
               style={{ background: "var(--color-ln-azul)" }}
             >
               {org.displayName.charAt(0).toUpperCase()}
@@ -597,7 +597,7 @@ export default async function AdoptarFichaPage({
                 {org.displayName}
               </p>
               {(org.jurisdictionLocality || org.jurisdictionProvince) && (
-                <p className="mt-[4px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+                <p className="mt-[4px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
                   {[org.jurisdictionLocality, org.jurisdictionProvince].filter(Boolean).join(", ")}
                 </p>
               )}
@@ -614,7 +614,7 @@ export default async function AdoptarFichaPage({
               </p>
               <Link
                 href={`/refugios/${org.publicToken}`}
-                className="mt-[8px] inline-block text-[12px] font-semibold no-underline hover:underline"
+                className="mt-[8px] inline-block text-sm font-semibold no-underline hover:underline"
                 style={{ color: "var(--color-ln-azul)" }}
               >
                 Ver perfil del refugio →
@@ -635,10 +635,10 @@ export default async function AdoptarFichaPage({
               borderColor: "var(--color-ln-line-2)",
             }}
           >
-            <p className="text-[14px] font-semibold" style={{ color: "var(--color-ln-ink)" }}>
+            <p className="text-md font-semibold" style={{ color: "var(--color-ln-ink)" }}>
               Adopción solidaria: ${pet.adoptionFeeArs.toLocaleString("es-AR")}
             </p>
-            <p className="text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+            <p className="text-sm" style={{ color: "var(--color-ln-mute)" }}>
               Este aporte ayuda al refugio a cubrir vacunación, castración y atención veterinaria.
             </p>
           </div>
@@ -697,7 +697,7 @@ function ConvivenciaChip({ label, value }: { label: string; value: boolean | nul
       : { background: "#fff4d6", color: "#8a5e00", borderColor: "#ffe39c" };
   return (
     <span
-      className="inline-flex rounded-full border px-[11px] py-[5px] text-[12px] font-semibold"
+      className="inline-flex rounded-full border px-[11px] py-[5px] text-sm font-semibold"
       style={style}
     >
       {value ? "✓" : "✗"} {label}
@@ -727,7 +727,7 @@ function RecentlyAdopted({ name }: { name: string }) {
         >
           ¡{name} ya encontró su hogar!
         </h1>
-        <p className="text-[14px]" style={{ color: "var(--color-ln-ink-2)" }}>
+        <p className="text-md" style={{ color: "var(--color-ln-ink-2)" }}>
           Esta mascota fue adoptada hace pocos días. Hay muchas otras buscando su familia.
         </p>
         <Link
@@ -773,7 +773,7 @@ function PausedView({ name, orgName }: { name: string; orgName: string }) {
         >
           {name} no está disponible en este momento
         </h1>
-        <p className="text-[14px]" style={{ color: "var(--color-ln-ink-2)" }}>
+        <p className="text-md" style={{ color: "var(--color-ln-ink-2)" }}>
           {orgName} pausó temporalmente la adopción de {name}. Podés volver más adelante o explorar
           otras mascotas en adopción.
         </p>

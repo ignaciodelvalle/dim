@@ -75,7 +75,7 @@ export default async function AdoptionReviewIndexPage({
       <div className="max-w-2xl mx-auto space-y-4">
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
         <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
-        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+        <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Volver al panel
         </Link>
       </div>
@@ -198,7 +198,7 @@ export default async function AdoptionReviewIndexPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Postulaciones</h1>
@@ -219,7 +219,7 @@ export default async function AdoptionReviewIndexPage({
                 <p className="text-[13px] font-medium text-ln-op-ink">
                   No tenés postulaciones pendientes.
                 </p>
-                <p className="text-[12px] text-ln-op-mute">
+                <p className="text-sm text-ln-op-mute">
                   Cuando alguien se postule a una mascota publicada en /adoptar, aparece acá.
                 </p>
               </div>
@@ -230,7 +230,7 @@ export default async function AdoptionReviewIndexPage({
         <>
           <AdoptionQueueList rows={rows} orgToken={orgToken} activeStatus={activeStatus} />
           {truncated && (
-            <p className="text-[12px] text-ln-op-mute">
+            <p className="text-sm text-ln-op-mute">
               Mostrando las primeras 200. Hay más — refiná los filtros para acotar la lista.
             </p>
           )}
@@ -238,7 +238,7 @@ export default async function AdoptionReviewIndexPage({
       )}
 
       <footer className="pt-4 border-t border-ln-op-line">
-        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+        <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Panel de {organization.displayName}
         </Link>
       </footer>

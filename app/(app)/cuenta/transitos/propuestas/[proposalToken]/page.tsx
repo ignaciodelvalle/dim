@@ -94,7 +94,7 @@ export default async function ProposalDetailPage({
           <LnCallout tone="warn" title="Avisos del matching">
             <ul className="mt-[6px] flex flex-col gap-[4px]">
               {warnings.map((w) => (
-                <li key={w} className="text-[12px]">
+                <li key={w} className="text-sm">
                   · {w}
                 </li>
               ))}
@@ -128,7 +128,7 @@ function DetailRow({
 }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
       <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>

@@ -131,7 +131,7 @@ export default async function DisputeDetailPage({
           {pet.breed && ` · ${pet.breed}`} · {dispute.jurisdictionLocality},{" "}
           {dispute.jurisdictionProvince}
         </p>
-        <p className="text-[10px] text-ln-op-faint font-mono">{dispute.publicToken}</p>
+        <p className="text-xs text-ln-op-faint font-mono">{dispute.publicToken}</p>
       </header>
 
       {dispute.status === "open" && (
@@ -151,7 +151,7 @@ export default async function DisputeDetailPage({
       )}
 
       <section className="space-y-3">
-        <h2 className="text-[16px] font-semibold text-ln-op-ink">Partes</h2>
+        <h2 className="text-base font-semibold text-ln-op-ink">Partes</h2>
         {parties.length === 0 ? (
           <p className="text-[13px] text-ln-op-mute">Sin partes registradas todavia.</p>
         ) : (
@@ -162,16 +162,14 @@ export default async function DisputeDetailPage({
                   <OpCardBody>
                     <p className="text-[13px] font-medium text-ln-op-ink">
                       {userProfile?.displayName ?? org?.displayName ?? "Desconocido"}
-                      <span className="ml-2 text-[12px] text-ln-op-mute font-normal">
+                      <span className="ml-2 text-sm text-ln-op-mute font-normal">
                         {PARTY_ROLE_LABELS[party.partyRole] ?? party.partyRole}
                       </span>
                     </p>
                     {party.partyPositionSummary && (
-                      <p className="text-[12px] text-ln-op-mute mt-1">
-                        {party.partyPositionSummary}
-                      </p>
+                      <p className="text-sm text-ln-op-mute mt-1">{party.partyPositionSummary}</p>
                     )}
-                    <p className="text-[10px] text-ln-op-faint mt-1">
+                    <p className="text-xs text-ln-op-faint mt-1">
                       Sumada el{" "}
                       {new Date(party.addedAt).toLocaleDateString("es-AR", {
                         day: "numeric",
@@ -189,7 +187,7 @@ export default async function DisputeDetailPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-[16px] font-semibold text-ln-op-ink">Historia de custodia</h2>
+        <h2 className="text-base font-semibold text-ln-op-ink">Historia de custodia</h2>
         {timeline.length === 0 ? (
           <p className="text-[13px] text-ln-op-mute">Sin eventos de custodia previos.</p>
         ) : (
@@ -199,8 +197,8 @@ export default async function DisputeDetailPage({
                 key={e.id}
                 className="flex items-baseline justify-between gap-3 border-l-2 border-ln-op-line pl-3 py-1"
               >
-                <span className="font-mono text-[12px] text-ln-op-ink-2">{e.eventType}</span>
-                <span className="text-[12px] text-ln-op-mute whitespace-nowrap">
+                <span className="font-mono text-sm text-ln-op-ink-2">{e.eventType}</span>
+                <span className="text-sm text-ln-op-mute whitespace-nowrap">
                   {new Date(e.occurredAt).toLocaleDateString("es-AR", {
                     day: "numeric",
                     month: "short",
@@ -216,10 +214,10 @@ export default async function DisputeDetailPage({
 
       {canResolve && (
         <section className="space-y-3 pt-2 border-t border-ln-op-line">
-          <h2 className="text-[16px] font-semibold text-ln-op-ink">Resolver disputa</h2>
+          <h2 className="text-base font-semibold text-ln-op-ink">Resolver disputa</h2>
           <ResolveDisputeForm disputeToken={disputeToken} />
           <div className="pt-2 space-y-2">
-            <p className="text-[12px] text-ln-op-mute">Otras acciones</p>
+            <p className="text-sm text-ln-op-mute">Otras acciones</p>
             <EscalateDisputeForm disputeToken={disputeToken} />
             {canWithdraw && <WithdrawDisputeButton disputeToken={disputeToken} />}
           </div>

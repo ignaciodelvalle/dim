@@ -65,7 +65,7 @@ export default async function PostAdoptionCheckinPage({
       <LnSheetWrap>
         <LnSheetCard>
           <div className="px-[18px] py-[24px] space-y-[10px]">
-            <p className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink)]">
+            <p className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
               Sin check-ins pendientes
             </p>
             <p className="text-[13px] text-[var(--color-ln-mute)]">

@@ -25,7 +25,7 @@ export default function AyudaPage() {
           >
             ¿Cómo registro a mi mascota?
           </h2>
-          <ol className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed space-y-1 list-decimal pl-5">
+          <ol className="text-md text-[var(--color-ln-ink-2)] leading-relaxed space-y-1 list-decimal pl-5">
             <li>
               Creá tu cuenta en{" "}
               <Link
@@ -56,14 +56,14 @@ export default function AyudaPage() {
           <h2 id="qr-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
             ¿Qué es la credencial QR?
           </h2>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Cada mascota registrada tiene una <strong>credencial digital pública</strong>, accesible
             vía QR desde cualquier dispositivo. Podés compartirla, imprimirla o usarla como
             identificación ante veterinarios, refugios o autoridades. El QR resuelve a una página
             con los datos básicos del animal (foto, nombre, especie, microchip si existe) sin
             exponer información personal del dueño por defecto.
           </p>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Si tu mascota está reportada como perdida, la credencial muestra también las
             instrucciones de contacto para quien la encuentre.
           </p>
@@ -74,7 +74,7 @@ export default function AyudaPage() {
           <h2 id="perdida-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
             Mi mascota se perdió — ¿qué hago?
           </h2>
-          <ol className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed space-y-1 list-decimal pl-5">
+          <ol className="text-md text-[var(--color-ln-ink-2)] leading-relaxed space-y-1 list-decimal pl-5">
             <li>
               Entrá a <strong>Mis mascotas</strong>, seleccioná a tu animal y usá la opción "Marcar
               como perdida".
@@ -108,7 +108,7 @@ export default function AyudaPage() {
           >
             ¿Cómo reporto un caso de maltrato o animal en riesgo?
           </h2>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Accedé a la sección{" "}
             <Link
               href="/denuncias"
@@ -130,7 +130,7 @@ export default function AyudaPage() {
           >
             ¿Cómo busco mascotas en adopción?
           </h2>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Visitá la sección{" "}
             <Link
               href="/adoptar"
@@ -152,7 +152,7 @@ export default function AyudaPage() {
           >
             ¿Dónde veo los refugios y organizaciones?
           </h2>
-          <p className="text-[14px] text-[var(--color-ln-ink-2)] leading-relaxed">
+          <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             En la sección{" "}
             <Link
               href="/refugios"

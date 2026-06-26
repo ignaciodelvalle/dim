@@ -79,7 +79,7 @@ export function ReasignarButton({ casePublicCode, currentReceiverName }: Reasign
         </p>
 
         <div className="space-y-1">
-          <label htmlFor="newReceiverId" className="block text-[12px] font-medium text-ln-op-ink">
+          <label htmlFor="newReceiverId" className="block text-sm font-medium text-ln-op-ink">
             ID del nuevo refugio destinatario
           </label>
           <input
@@ -90,13 +90,13 @@ export function ReasignarButton({ casePublicCode, currentReceiverName }: Reasign
             placeholder="UUID del refugio (shelter / rescue_network verificado)"
             className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
           />
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Podes obtener el UUID desde la seccion Organizaciones.
           </p>
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="reassignReason" className="block text-[12px] font-medium text-ln-op-ink">
+          <label htmlFor="reassignReason" className="block text-sm font-medium text-ln-op-ink">
             Motivo de reasignacion (opcional)
           </label>
           <textarea

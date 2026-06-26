@@ -147,7 +147,7 @@ export default async function GobPoblacionPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Registro · Control poblacional
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Control poblacional</h1>
@@ -267,26 +267,24 @@ export default async function GobPoblacionPage({
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-[11px] text-ln-op-mute">Altas nuevas</p>
-              <p className="text-[18px] font-semibold tabular-nums text-ln-op-ink">
+              <p className="text-lg font-semibold tabular-nums text-ln-op-ink">
                 +{netGrowth.altas.toLocaleString("es-AR")}
               </p>
             </div>
             <div>
               <p className="text-[11px] text-ln-op-mute">Nacimientos registrados</p>
-              <p className="text-[18px] font-semibold tabular-nums text-ln-op-ink">
+              <p className="text-lg font-semibold tabular-nums text-ln-op-ink">
                 +{netGrowth.registeredBirths.toLocaleString("es-AR")}
               </p>
             </div>
             <div>
               <p className="text-[11px] text-ln-op-mute">Muertes registradas</p>
-              <p className="text-[18px] font-semibold tabular-nums text-ln-op-ink">
+              <p className="text-lg font-semibold tabular-nums text-ln-op-ink">
                 −{netGrowth.deaths.toLocaleString("es-AR")}
               </p>
             </div>
           </div>
-          <p className="mt-3 text-[10px] text-ln-op-mute text-center italic">
-            {natalidadCaveatText}
-          </p>
+          <p className="mt-3 text-xs text-ln-op-mute text-center italic">{natalidadCaveatText}</p>
         </div>
       )}
 
@@ -296,7 +294,7 @@ export default async function GobPoblacionPage({
           title={<span id={panelTrendId}>Tendencia de esterilizaciones</span>}
           actions={
             sterilTrend.suppressedCount > 0 ? (
-              <span className="text-[12px] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 {sterilTrend.suppressedCount}{" "}
                 {sterilTrend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"}{" "}
                 (privacidad)

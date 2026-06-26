@@ -548,14 +548,14 @@ export default async function PublicCredentialPage({
             className="sticky top-0 z-30 -mx-[16px] mb-[16px] flex items-start gap-[11px] border-b border-ln-err-100 bg-ln-err-050 px-[18px] py-[13px] md:static md:mx-0 md:mb-[16px] md:rounded-[4px]"
           >
             {/* Heartbeat icon */}
-            <span aria-hidden="true" className="mt-[1px] flex-shrink-0 text-[18px] text-ln-seal">
+            <span aria-hidden="true" className="mt-[1px] flex-shrink-0 text-lg text-ln-seal">
               ♥
             </span>
             <div>
-              <p className="m-0 font-[var(--font-ln-serif)] text-[14px] font-semibold text-ln-ink">
+              <p className="m-0 font-[var(--font-ln-serif)] text-md font-semibold text-ln-ink">
                 Alerta médica
               </p>
-              <p className="mt-[2px] text-[12px] leading-[1.45] text-ln-ink-2">
+              <p className="mt-[2px] text-sm leading-[1.45] text-ln-ink-2">
                 Esta mascota requiere atención médica. Contactá al dueño escaneando el QR.
               </p>
             </div>
@@ -576,7 +576,7 @@ export default async function PublicCredentialPage({
               Esta mascota está bajo custodia oficial.
             </p>
             {openCustodyEpisode?.authorityName && (
-              <p className="mt-[4px] text-[12px] text-ln-ink-2">
+              <p className="mt-[4px] text-sm text-ln-ink-2">
                 Autoridad a cargo: {openCustodyEpisode.authorityName}
               </p>
             )}
@@ -623,7 +623,7 @@ export default async function PublicCredentialPage({
             {/* Crest circle */}
             <div
               aria-hidden="true"
-              className="grid h-[26px] w-[26px] flex-shrink-0 place-items-center rounded-full border-[1.5px] border-ln-azul bg-ln-celeste-050 font-[var(--font-ln-serif)] text-[12px] font-semibold text-ln-azul"
+              className="grid h-[26px] w-[26px] flex-shrink-0 place-items-center rounded-full border-[1.5px] border-ln-azul bg-ln-celeste-050 font-[var(--font-ln-serif)] text-sm font-semibold text-ln-azul"
             >
               m
             </div>
@@ -686,7 +686,7 @@ export default async function PublicCredentialPage({
 
           {/* Tier 2 enabled notice */}
           {tier2Active && (
-            <div className="flex items-center gap-[7px] border-t border-ln-celeste-100 bg-ln-celeste-050 px-[16px] py-[10px] font-[var(--font-ln-mono)] text-[10px] leading-[1.5] tracking-[.02em] text-ln-azul-700">
+            <div className="flex items-center gap-[7px] border-t border-ln-celeste-100 bg-ln-celeste-050 px-[16px] py-[10px] font-[var(--font-ln-mono)] text-xs leading-[1.5] tracking-[.02em] text-ln-azul-700">
               <span aria-hidden="true">🔓</span>
               {pet.tier2PublicPermanent
                 ? "El dueño habilitó la libreta médica de forma permanente"
@@ -774,7 +774,7 @@ export default async function PublicCredentialPage({
             <details className="group">
               <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-[12px]">
                 <div>
-                  <p className="m-0 font-[var(--font-ln-serif)] text-[14px] font-semibold text-ln-ink">
+                  <p className="m-0 font-[var(--font-ln-serif)] text-md font-semibold text-ln-ink">
                     ¿Encontraste a esta mascota?
                   </p>
                   <p className="mt-[2px] text-[11.5px] text-ln-mute">
@@ -783,7 +783,7 @@ export default async function PublicCredentialPage({
                 </div>
                 <span
                   aria-hidden="true"
-                  className="flex-shrink-0 text-[18px] text-ln-mute transition-transform group-open:rotate-90"
+                  className="flex-shrink-0 text-lg text-ln-mute transition-transform group-open:rotate-90"
                 >
                   ›
                 </span>
@@ -818,10 +818,10 @@ function ThrottleNotice() {
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.
     <div className="flex min-h-screen items-center justify-center bg-ln-paper font-[var(--font-ln-sans)]">
       <div className="mx-auto max-w-[400px] px-[24px] py-[48px] text-center text-ln-ink">
-        <p className="mb-[12px] font-[var(--font-ln-serif)] text-[18px] font-semibold">
+        <p className="mb-[12px] font-[var(--font-ln-serif)] text-lg font-semibold">
           Demasiadas consultas
         </p>
-        <p className="text-[14px] leading-[1.6] text-ln-ink-2">
+        <p className="text-md leading-[1.6] text-ln-ink-2">
           Estás realizando demasiadas consultas desde esta conexión. Esperá unos minutos y volvé a
           intentarlo.
         </p>
@@ -850,9 +850,7 @@ function CredField({
       </p>
       <p
         className={`mt-[1px] break-words font-medium text-ln-ink ${
-          mono
-            ? "font-[var(--font-ln-mono)] text-[12px]"
-            : "font-[var(--font-ln-sans)] text-[13.5px]"
+          mono ? "font-[var(--font-ln-mono)] text-sm" : "font-[var(--font-ln-sans)] text-[13.5px]"
         }`}
       >
         {value}
@@ -874,7 +872,7 @@ function ServiceDogBanner({ rabiesAtRisk }: { rabiesAtRisk: boolean }) {
       <p className="mb-[6px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-azul">
         Perro de Asistencia
       </p>
-      <p className="mb-[6px] font-[var(--font-ln-serif)] text-[14px] font-semibold leading-[1.45] text-ln-ink">
+      <p className="mb-[6px] font-[var(--font-ln-serif)] text-md font-semibold leading-[1.45] text-ln-ink">
         Esta persona tiene derecho a ingresar, deambular y permanecer con su perro en este
         establecimiento, espacio privado de acceso público y transporte público.
       </p>
@@ -915,13 +913,13 @@ function PermanentConditionsBanner({
         {safe.map((code) => (
           <span
             key={code}
-            className="inline-flex rounded-full bg-ln-azul px-[10px] py-[4px] text-[12px] font-semibold text-white"
+            className="inline-flex rounded-full bg-ln-azul px-[10px] py-[4px] text-sm font-semibold text-white"
           >
             {permanentConditionShortLabel(code)}
           </span>
         ))}
       </div>
-      {hasOther && other && <p className="mt-[6px] text-[12px] text-ln-ink-2">{other}</p>}
+      {hasOther && other && <p className="mt-[6px] text-sm text-ln-ink-2">{other}</p>}
     </section>
   );
 }

@@ -107,13 +107,13 @@ export function PppExportCabaButton({ petPublicToken }: Props) {
         )}
       </button>
 
-      {error && <p className="text-[10px] text-ln-err ">{error}</p>}
+      {error && <p className="text-xs text-ln-err ">{error}</p>}
       {success && (
-        <p className="text-[10px] text-ln-ok ">
+        <p className="text-xs text-ln-ok ">
           PDF generado. Se abrió en una nueva pestaña. El link expira en 24 horas.
         </p>
       )}
-      <p className="text-[10px] text-ln-warn ">
+      <p className="text-xs text-ln-warn ">
         Documento para presentar en la comuna o registro RUPPPA de CABA (Ley 4078).
       </p>
     </div>

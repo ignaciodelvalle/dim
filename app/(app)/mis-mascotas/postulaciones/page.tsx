@@ -244,7 +244,7 @@ export default async function MisPostulacionesPage({
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis postulaciones para adoptar
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Acá ves el estado de tus postulaciones. El refugio te contacta por email cuando avanza.
         </p>
       </div>
@@ -290,7 +290,7 @@ export default async function MisPostulacionesPage({
                 className={`flex flex-col gap-[6px] border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] last:border-b-0 ${isHighlight ? "bg-[var(--color-ln-celeste-050)]" : ""}`}
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <p className="font-[var(--font-ln-serif)] text-[14px] font-semibold text-[var(--color-ln-ink)]">
+                  <p className="font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]">
                     {app.petName}
                   </p>
                   <span

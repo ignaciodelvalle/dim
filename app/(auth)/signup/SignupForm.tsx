@@ -71,7 +71,7 @@ export function SignupForm({
   if (step === "identity") {
     return (
       <div className="space-y-5">
-        <p className="text-center text-[10px] uppercase tracking-[0.3em] text-[var(--color-ln-mute)]">
+        <p className="text-center text-xs uppercase tracking-[0.3em] text-[var(--color-ln-mute)]">
           Paso 2 de 2
         </p>
 
@@ -160,7 +160,7 @@ export function SignupForm({
 
   return (
     <div className="space-y-5">
-      <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-ln-mute)] text-center">
+      <p className="text-xs uppercase tracking-[0.3em] text-[var(--color-ln-mute)] text-center">
         Paso 1 de 2
       </p>
 

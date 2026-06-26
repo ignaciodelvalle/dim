@@ -91,7 +91,7 @@ export default async function ColaPage({
           <Link
             href="/gob/cola"
             className={[
-              "inline-flex items-center rounded-full border px-3.5 py-1 text-[12px] font-medium no-underline transition-colors",
+              "inline-flex items-center rounded-full border px-3.5 py-1 text-sm font-medium no-underline transition-colors",
               !activeType
                 ? "border-ln-op-azul bg-ln-op-azul text-white"
                 : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-ink-2",
@@ -104,7 +104,7 @@ export default async function ColaPage({
               key={t}
               href={`/gob/cola?type=${t}`}
               className={[
-                "inline-flex items-center rounded-full border px-3.5 py-1 text-[12px] font-medium no-underline transition-colors",
+                "inline-flex items-center rounded-full border px-3.5 py-1 text-sm font-medium no-underline transition-colors",
                 activeType === t
                   ? "border-ln-op-azul bg-ln-op-azul text-white"
                   : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-ink-2",
@@ -137,7 +137,7 @@ export default async function ColaPage({
               {newerLink && (
                 <Link
                   href={newerLink}
-                  className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                  className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
                 >
                   ← Más recientes
                 </Link>
@@ -147,7 +147,7 @@ export default async function ColaPage({
               {olderLink && (
                 <Link
                   href={olderLink}
-                  className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                  className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
                 >
                   Ver más antiguos →
                 </Link>

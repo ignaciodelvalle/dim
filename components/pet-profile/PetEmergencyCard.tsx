@@ -112,7 +112,7 @@ function ContactCard({
         {icon}
       </span>
       <span className="min-w-0">
-        <span className="block text-[10px] font-semibold uppercase tracking-wider text-ln-mute ">
+        <span className="block text-xs font-semibold uppercase tracking-wider text-ln-mute ">
           {contact.role}
         </span>
         <span className="block text-sm font-semibold text-ln-ink ">

@@ -34,7 +34,7 @@ export function OpCallout({ title, body, icon }: Props) {
 
       <div className="flex-1">
         <b className="mb-0.5 block text-[13.5px] font-bold text-ln-op-ink">{title}</b>
-        {body && <span className="text-[12px] leading-[1.5] text-ln-op-ink-2">{body}</span>}
+        {body && <span className="text-sm leading-[1.5] text-ln-op-ink-2">{body}</span>}
       </div>
     </div>
   );

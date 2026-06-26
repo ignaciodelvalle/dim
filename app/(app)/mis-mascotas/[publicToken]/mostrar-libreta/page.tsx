@@ -41,7 +41,7 @@ export default async function MostrarLibretaPage({
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           Mostrar libreta
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Activá el acceso temporal para que alguien pueda ver la libreta de {pet.name} sin iniciar
           sesión.
         </p>

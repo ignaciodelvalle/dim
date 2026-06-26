@@ -218,7 +218,7 @@ export function OpOmnibox({ orgToken }: { orgToken?: string } = {}) {
       {query.length === 0 && (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-ln-op-line bg-ln-op-stripe px-1.5 py-0.5 text-[10px] font-ln-mono text-ln-op-mute"
+          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-ln-op-line bg-ln-op-stripe px-1.5 py-0.5 text-xs font-ln-mono text-ln-op-mute"
         >
           /
         </span>
@@ -236,7 +236,7 @@ export function OpOmnibox({ orgToken }: { orgToken?: string } = {}) {
           className="absolute right-0 z-[var(--z-header)] mt-1 max-h-[60vh] w-80 overflow-y-auto rounded-[8px] border border-ln-op-line bg-ln-op-card shadow-[0_18px_50px_rgba(20,40,60,.22)]"
         >
           {loading && (
-            <div className="flex items-center gap-2 px-4 py-3 text-[12px] text-ln-op-mute">
+            <div className="flex items-center gap-2 px-4 py-3 text-sm text-ln-op-mute">
               <span
                 aria-hidden="true"
                 className="h-3 w-3 animate-spin rounded-full border-2 border-ln-op-line border-t-ln-op-azul"
@@ -246,7 +246,7 @@ export function OpOmnibox({ orgToken }: { orgToken?: string } = {}) {
           )}
 
           {!loading && noResults && (
-            <div className="px-4 py-3 text-[12px] text-ln-op-mute">
+            <div className="px-4 py-3 text-sm text-ln-op-mute">
               Sin coincidencias en tu jurisdicción
             </div>
           )}
@@ -254,7 +254,7 @@ export function OpOmnibox({ orgToken }: { orgToken?: string } = {}) {
           {!loading &&
             groups.map((group) => (
               <div key={group.key} className="border-b border-ln-op-line-2 last:border-b-0">
-                <p className="px-4 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+                <p className="px-4 pt-2 pb-1 text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
                   {group.label}
                 </p>
                 {group.items.map((item) => {
@@ -290,7 +290,7 @@ export function OpOmnibox({ orgToken }: { orgToken?: string } = {}) {
             ))}
 
           {/* PII audit notice — always visible at the bottom when the dropdown is open. */}
-          <p className="border-t border-ln-op-line px-4 py-2 text-[10px] text-ln-op-mute">
+          <p className="border-t border-ln-op-line px-4 py-2 text-xs text-ln-op-mute">
             Las búsquedas quedan registradas.
           </p>
         </div>

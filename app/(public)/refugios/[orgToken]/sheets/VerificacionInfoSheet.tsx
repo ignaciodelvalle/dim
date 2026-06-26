@@ -50,7 +50,7 @@ export function VerificacionInfoSheet({ verifiedByName, verifiedAt }: Props) {
 
         {(verifiedByName || verifiedAt) && (
           <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3 text-xs text-[var(--color-ln-ink-2)] space-y-1">
-            <p className="text-[10px] uppercase tracking-wider text-[var(--color-ln-mute)]">
+            <p className="text-xs uppercase tracking-wider text-[var(--color-ln-mute)]">
               Datos de verificación
             </p>
             {verifiedByName && (

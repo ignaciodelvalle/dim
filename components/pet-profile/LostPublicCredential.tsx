@@ -201,7 +201,7 @@ export function LostPublicCredential({
                 <span aria-hidden="true" className="text-3xl">
                   📍
                 </span>
-                <span className="text-[10px] text-[var(--color-ln-mute)]">
+                <span className="text-xs text-[var(--color-ln-mute)]">
                   Sin punto exacto en el mapa
                 </span>
               </div>
@@ -261,7 +261,7 @@ export function LostPublicCredential({
               </p>
               {lostDescription.accessoriesWhenLost && (
                 <div className="mt-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ln-mute">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute">
                     Accesorios
                   </p>
                   <p className="mt-0.5 text-sm text-ln-ink">
@@ -271,7 +271,7 @@ export function LostPublicCredential({
               )}
               {lostDescription.behaviorNotes && (
                 <div className="mt-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ln-mute">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute">
                     Comportamiento
                   </p>
                   <p className="mt-0.5 text-sm text-ln-ink">{lostDescription.behaviorNotes}</p>
@@ -279,7 +279,7 @@ export function LostPublicCredential({
               )}
               {lostDescription.lastSeenContext && (
                 <div className="mt-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ln-mute">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute">
                     Contexto
                   </p>
                   <p className="mt-0.5 text-sm text-ln-ink">{lostDescription.lastSeenContext}</p>

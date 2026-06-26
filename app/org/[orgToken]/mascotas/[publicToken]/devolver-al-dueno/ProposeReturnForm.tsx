@@ -125,7 +125,7 @@ export function ProposeReturnForm({
         {/* Step 3 — Confirmar + notes */}
         <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
           <div className="space-y-1">
-            <label htmlFor="notes" className="block text-[12px] font-medium text-ln-op-ink-2">
+            <label htmlFor="notes" className="block text-sm font-medium text-ln-op-ink-2">
               Notas para el dueño (opcional)
             </label>
             <textarea
@@ -139,7 +139,7 @@ export function ProposeReturnForm({
           </div>
 
           {state.error && (
-            <p className="text-[12px] rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+            <p className="text-sm rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
               {state.error}
             </p>
           )}

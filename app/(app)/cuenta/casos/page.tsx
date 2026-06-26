@@ -29,7 +29,7 @@ export default async function CasosPage() {
         <h1 className="m-0 mt-[8px] font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis casos
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Todos tus casos: los abiertos y el historial de cerrados y pasados.
         </p>
       </div>

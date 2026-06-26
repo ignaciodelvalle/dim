@@ -117,9 +117,9 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       {/* Step 1 — Mascota recap */}
       <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
         <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-4">
-          <p className="text-[12px] uppercase tracking-wider text-ln-op-mute">Vas a transferir</p>
-          <p className="mt-1 text-[16px] font-semibold text-ln-op-ink">{petName}</p>
-          <p className="mt-2 text-[12px] text-ln-op-mute">
+          <p className="text-sm uppercase tracking-wider text-ln-op-mute">Vas a transferir</p>
+          <p className="mt-1 text-base font-semibold text-ln-op-ink">{petName}</p>
+          <p className="mt-2 text-sm text-ln-op-mute">
             Token: <span className="font-mono">{petPublicToken}</span>
           </p>
         </div>
@@ -160,7 +160,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
               </option>
             ))}
           </select>
-          <p className="mt-1 text-[12px] text-ln-op-mute">
+          <p className="mt-1 text-sm text-ln-op-mute">
             Solo aparecen orgs verificadas activas. Sin auto-selección por proximidad.
           </p>
         </div>
@@ -211,7 +211,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           />
         </div>
 
-        <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-[12px] text-ln-op-ink-2">
+        <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2">
           <p>
             La propuesta expira en <strong>30 días</strong> si no recibe respuesta del destinatario.{" "}
             {petName} sigue bajo tu custodia hasta que la organización destinataria acepte.

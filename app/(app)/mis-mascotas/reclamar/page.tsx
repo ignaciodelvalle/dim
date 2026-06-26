@@ -25,7 +25,7 @@ export default async function ClaimPage() {
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Reclamar una mascota
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Si tu mascota ya está registrada por su microchip o tatuaje, podés vincularla a tu cuenta
           — o iniciar una disputa si figura a nombre de otra persona.
         </p>

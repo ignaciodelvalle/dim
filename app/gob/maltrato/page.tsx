@@ -204,7 +204,7 @@ export default async function GobMaltratoPage({
           <h1 className="text-[22px] font-semibold tracking-tight text-ln-op-ink">
             Denuncias de maltrato
           </h1>
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Cola de triage bajo Ley Nacional 14.346.{" "}
             {profile.role === "admin"
               ? "Vista universal — todas las jurisdicciones."
@@ -214,7 +214,7 @@ export default async function GobMaltratoPage({
 
         {/* No-scope warning */}
         {noScope && (
-          <div className="rounded-[6px] border border-ln-op-warn-bd border-l-[4px] border-l-ln-op-warn bg-ln-op-warn-bg px-4 py-3 text-[12px] text-ln-op-warn">
+          <div className="rounded-[6px] border border-ln-op-warn-bd border-l-[4px] border-l-ln-op-warn bg-ln-op-warn-bg px-4 py-3 text-sm text-ln-op-warn">
             Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos
             una.
           </div>
@@ -282,7 +282,7 @@ export default async function GobMaltratoPage({
                   <OpCardHead title={`Denuncias (${totalCount})`} />
                   <OpCardBody>
                     {rows.length === 0 ? (
-                      <p className="text-[12px] text-ln-op-mute py-4 text-center">
+                      <p className="text-sm text-ln-op-mute py-4 text-center">
                         No hay denuncias que coincidan con los filtros seleccionados.
                       </p>
                     ) : (
@@ -295,7 +295,7 @@ export default async function GobMaltratoPage({
                     {totalPages > 1 && (
                       <nav
                         aria-label="Paginación de denuncias"
-                        className="mt-4 flex items-center justify-between gap-2 text-[12px]"
+                        className="mt-4 flex items-center justify-between gap-2 text-sm"
                       >
                         <span className="text-ln-op-mute">
                           Página {currentPage} de {totalPages} ({totalCount} denuncias)

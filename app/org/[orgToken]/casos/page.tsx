@@ -33,7 +33,7 @@ function parseStatus(raw: string | undefined): "open" | "closed" | null {
 
 function filterChipCls(active: boolean) {
   return [
-    "rounded-full border px-3 py-[5px] text-[12px] no-underline transition-colors",
+    "rounded-full border px-3 py-[5px] text-sm no-underline transition-colors",
     active
       ? "border-ln-op-azul bg-ln-op-azul text-white"
       : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe",

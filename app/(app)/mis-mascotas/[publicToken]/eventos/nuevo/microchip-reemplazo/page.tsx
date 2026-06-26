@@ -22,7 +22,7 @@ export default async function ReplaceMicrochipPage({
       <LnSheetWrap>
         <LnSheetCard>
           <div className="px-[18px] py-[24px] space-y-[12px]">
-            <p className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink)]">
+            <p className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
               Sin microchip registrado
             </p>
             <p className="text-[13px] text-[var(--color-ln-mute)]">

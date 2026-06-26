@@ -189,7 +189,7 @@ export default async function PostularPage({
           </div>
           <div>
             <p
-              className="mb-[4px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em]"
+              className="mb-[4px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.14em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               Postulación de adopción
@@ -200,7 +200,7 @@ export default async function PostularPage({
             >
               Adoptar a {pet.name}
             </p>
-            <p className="mt-[2px] text-[12px]" style={{ color: "var(--color-ln-mute)" }}>
+            <p className="mt-[2px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
               {org.displayName}
             </p>
           </div>
@@ -224,11 +224,11 @@ export default async function PostularPage({
             <p className="text-[13px] font-semibold" style={{ color: "var(--color-ln-ink)" }}>
               {profile?.displayName ?? "(sin nombre)"}
             </p>
-            <p className="text-[12px]" style={{ color: "var(--color-ln-ink-2)" }}>
+            <p className="text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
               {user.email}
             </p>
             {profile?.phone && (
-              <p className="text-[12px]" style={{ color: "var(--color-ln-ink-2)" }}>
+              <p className="text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
                 {profile.phone}
               </p>
             )}
@@ -281,7 +281,7 @@ function InstitutionalBlocked({ petToken }: { petToken: string }) {
         >
           Esta cuenta no puede postularse
         </h1>
-        <p className="text-[14px]" style={{ color: "var(--color-ln-ink-2)" }}>
+        <p className="text-md" style={{ color: "var(--color-ln-ink-2)" }}>
           Las cuentas institucionales (admin y autoridades sanitarias) no pueden postularse para
           adoptar. Si querés adoptar a título personal, creá una cuenta personal con otro email.
         </p>
@@ -318,7 +318,7 @@ function NoLongerAvailable({ name }: { name: string }) {
         >
           {name} ya no está disponible
         </h1>
-        <p className="text-[14px]" style={{ color: "var(--color-ln-ink-2)" }}>
+        <p className="text-md" style={{ color: "var(--color-ln-ink-2)" }}>
           La publicación cambió desde que entraste a esta página. Volvé al listado y elegí otra
           mascota.
         </p>
@@ -355,7 +355,7 @@ function AlreadyApplied({ name }: { name: string }) {
         >
           Ya postulaste para {name}
         </h1>
-        <p className="text-[14px]" style={{ color: "var(--color-ln-ink-2)" }}>
+        <p className="text-md" style={{ color: "var(--color-ln-ink-2)" }}>
           El refugio recibió tu postulación y la está revisando. Te van a contactar por email cuando
           tengan novedades.
         </p>

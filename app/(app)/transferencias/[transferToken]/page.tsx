@@ -84,7 +84,7 @@ export default async function TransferPage({
       {/* Header */}
       <div className="mb-[24px] flex items-start justify-between gap-3">
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[24px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {transfer.isRecipient
               ? `Recibiste a ${transfer.petName}`
               : `Transferencia de ${transfer.petName}`}
@@ -137,7 +137,7 @@ export default async function TransferPage({
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
       <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>

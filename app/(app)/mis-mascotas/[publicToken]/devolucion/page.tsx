@@ -35,7 +35,7 @@ function FriendlyOwnerOnlyPage({ pet, role }: { pet: Pet; role: string }) {
       >
         ← Volver al perfil
       </Link>
-      <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-[24px] font-semibold text-[var(--color-ln-ink)]">
+      <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
         Devolución de {pet.name}
       </h1>
       <LnCallout tone="warn" title="Aceptar una devolución es acción del dueño legal.">
@@ -108,7 +108,7 @@ export default async function DevolucionPage({
           >
             ← Volver al perfil
           </Link>
-          <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-[24px] font-semibold text-[var(--color-ln-ink)]">
+          <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
             Devolución de {pet.name}
           </h1>
           <LnCallout tone="warn" title="Sin organización asociada.">
@@ -138,7 +138,7 @@ export default async function DevolucionPage({
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Devolver {pet.name}
           </h1>
-          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
             Estás en tránsito con <strong>{pet.name}</strong>. Podés proponer la devolución a{" "}
             <strong>{fosterOrgDisplayName}</strong>.
           </p>
@@ -232,7 +232,7 @@ export default async function DevolucionPage({
             <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
               Devolver {pet.name}
             </h1>
-            <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+            <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
               Estás iniciando la devolución de una mascota recibida en adopción de{" "}
               <strong>{orgDisplayName}</strong>.
             </p>
@@ -266,7 +266,7 @@ export default async function DevolucionPage({
         >
           ← Volver al perfil
         </Link>
-        <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-[24px] font-semibold text-[var(--color-ln-ink)]">
+        <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
           Devolución de {pet.name}
         </h1>
         <LnCallout tone="warn" title="Sin propuestas activas.">
@@ -317,7 +317,7 @@ export default async function DevolucionPage({
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Devolución de {pet.name}
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Alguien tiene a {pet.name} y quiere devolvértela. Confirmá cuando la tengas físicamente.
         </p>
       </div>

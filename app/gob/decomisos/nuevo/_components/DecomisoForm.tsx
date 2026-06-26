@@ -315,7 +315,7 @@ export function DecomisoForm({
       <div className="space-y-6">
         {/* --- Sujeto del decomiso (mode toggle + conditional fields) --- */}
         <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
-          <h2 className="text-[12px] font-semibold text-ln-op-ink uppercase tracking-wider">
+          <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
             1. Sujeto del decomiso
           </h2>
 
@@ -348,14 +348,14 @@ export function DecomisoForm({
           {/* Registered pet fields */}
           {subjectMode === "registered_pet" && (
             <div className="space-y-3">
-              <p className="text-[12px] text-ln-op-mute">
+              <p className="text-sm text-ln-op-mute">
                 Ingresa el token DIM-XXXX-XXXX de la mascota registrada.
               </p>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label
                     htmlFor="petToken"
-                    className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                    className="block text-sm font-medium text-ln-op-ink mb-1"
                   >
                     Token de la mascota
                   </label>
@@ -422,13 +422,13 @@ export function DecomisoForm({
                   </div>
                   <p className="text-[11px] font-mono text-ln-op-mute">{petPreview.publicToken}</p>
                   {petPreview.hasOwner ? (
-                    <p className="text-[12px] text-ln-op-warn mt-1">
+                    <p className="text-sm text-ln-op-warn mt-1">
                       Esta mascota tiene un dueño registrado
                       {petPreview.ownerDisplayName ? ` (${petPreview.ownerDisplayName})` : ""}. Al
                       continuar, se le quitara la custodia legal.
                     </p>
                   ) : (
-                    <p className="text-[12px] text-ln-op-mute mt-1">
+                    <p className="text-sm text-ln-op-mute mt-1">
                       Sin dueño registrado actualmente.
                     </p>
                   )}
@@ -440,7 +440,7 @@ export function DecomisoForm({
           {/* Unowned animal fields */}
           {subjectMode === "unowned_animal" && (
             <div className="space-y-3">
-              <p className="text-[12px] text-ln-op-mute">
+              <p className="text-sm text-ln-op-mute">
                 Describe el animal. Se creara un registro en el sistema para este decomiso. La
                 jurisdicción se asignará desde tu organización sanitaria.
               </p>
@@ -449,7 +449,7 @@ export function DecomisoForm({
                 <div>
                   <label
                     htmlFor="unownedSpecies"
-                    className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                    className="block text-sm font-medium text-ln-op-ink mb-1"
                   >
                     Especie <span className="text-ln-op-danger">*</span>
                   </label>
@@ -469,7 +469,7 @@ export function DecomisoForm({
                 <div>
                   <label
                     htmlFor="unownedSex"
-                    className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                    className="block text-sm font-medium text-ln-op-ink mb-1"
                   >
                     Sexo
                   </label>
@@ -490,7 +490,7 @@ export function DecomisoForm({
                 <div>
                   <label
                     htmlFor="unownedBreed"
-                    className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                    className="block text-sm font-medium text-ln-op-ink mb-1"
                   >
                     Raza (opcional)
                   </label>
@@ -507,7 +507,7 @@ export function DecomisoForm({
                 <div>
                   <label
                     htmlFor="unownedColor"
-                    className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                    className="block text-sm font-medium text-ln-op-ink mb-1"
                   >
                     Color (opcional)
                   </label>
@@ -525,7 +525,7 @@ export function DecomisoForm({
               <div>
                 <label
                   htmlFor="unownedFeatures"
-                  className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                  className="block text-sm font-medium text-ln-op-ink mb-1"
                 >
                   Marcas distintivas (opcional)
                 </label>
@@ -542,7 +542,7 @@ export function DecomisoForm({
               <div>
                 <label
                   htmlFor="unownedAgeMonths"
-                  className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                  className="block text-sm font-medium text-ln-op-ink mb-1"
                 >
                   Edad aproximada en meses (opcional)
                 </label>
@@ -564,13 +564,13 @@ export function DecomisoForm({
 
         {/* --- Motivo --- */}
         <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
-          <h2 className="text-[12px] font-semibold text-ln-op-ink uppercase tracking-wider">
+          <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
             2. Motivo del decomiso
           </h2>
           <div>
             <label
               htmlFor="seizureMotive"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
+              className="block text-sm font-medium text-ln-op-ink mb-1"
             >
               Motivo <span className="text-ln-op-danger">*</span>
             </label>
@@ -595,7 +595,7 @@ export function DecomisoForm({
             <div>
               <label
                 htmlFor="seizureMotiveOtherDetail"
-                className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                className="block text-sm font-medium text-ln-op-ink mb-1"
               >
                 Detalle del motivo <span className="text-ln-op-danger">*</span>
               </label>
@@ -611,10 +611,7 @@ export function DecomisoForm({
           )}
 
           <div>
-            <label
-              htmlFor="judicialRef"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
-            >
+            <label htmlFor="judicialRef" className="block text-sm font-medium text-ln-op-ink mb-1">
               Expediente judicial (opcional)
             </label>
             <input
@@ -630,7 +627,7 @@ export function DecomisoForm({
           <div>
             <label
               htmlFor="welfareReportId"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
+              className="block text-sm font-medium text-ln-op-ink mb-1"
             >
               ID de denuncia de maltrato vinculada (opcional)
             </label>
@@ -643,7 +640,7 @@ export function DecomisoForm({
               className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
             />
             {prefillWelfareReportId && (
-              <p className="text-[12px] text-ln-op-mute mt-1">
+              <p className="text-sm text-ln-op-mute mt-1">
                 Prefilled desde la denuncia de maltrato.
               </p>
             )}
@@ -652,7 +649,7 @@ export function DecomisoForm({
           <div>
             <label
               htmlFor="intakeCondition"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
+              className="block text-sm font-medium text-ln-op-ink mb-1"
             >
               Estado del animal al momento del decomiso (opcional)
             </label>
@@ -669,10 +666,10 @@ export function DecomisoForm({
 
         {/* --- Refugio destinatario --- */}
         <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
-          <h2 className="text-[12px] font-semibold text-ln-op-ink uppercase tracking-wider">
+          <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
             3. Refugio destinatario
           </h2>
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Solo refugios y redes de rescate verificados. El refugio tiene 7 dias para aceptar o
             rechazar el handoff.
           </p>
@@ -681,7 +678,7 @@ export function DecomisoForm({
             <div className="flex items-center justify-between rounded-[6px] border border-ln-op-blue-bd bg-ln-op-blue-bg px-4 py-3">
               <div>
                 <p className="text-[13px] font-medium text-ln-op-ink">{selectedOrg.displayName}</p>
-                <p className="text-[12px] text-ln-op-mute capitalize">
+                <p className="text-sm text-ln-op-mute capitalize">
                   {selectedOrg.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                   {selectedOrg.jurisdictionLocality
                     ? ` · ${selectedOrg.jurisdictionLocality}, ${selectedOrg.jurisdictionProvince ?? ""}`
@@ -691,17 +688,14 @@ export function DecomisoForm({
               <button
                 type="button"
                 onClick={() => setReceiverOrgId("")}
-                className="text-[12px] text-ln-op-mute hover:text-ln-op-ink transition-colors"
+                className="text-sm text-ln-op-mute hover:text-ln-op-ink transition-colors"
               >
                 Cambiar
               </button>
             </div>
           ) : (
             <div className="space-y-2">
-              <label
-                htmlFor="receiverSearch"
-                className="block text-[12px] font-medium text-ln-op-ink"
-              >
+              <label htmlFor="receiverSearch" className="block text-sm font-medium text-ln-op-ink">
                 Buscar por nombre <span className="text-ln-op-danger">*</span>
               </label>
               <input
@@ -713,7 +707,7 @@ export function DecomisoForm({
                 className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
               />
               {receiverOrgs.length === 0 ? (
-                <p className="text-[12px] text-ln-op-mute py-2">
+                <p className="text-sm text-ln-op-mute py-2">
                   No hay refugios verificados disponibles. Contacta al administrador.
                 </p>
               ) : (
@@ -729,7 +723,7 @@ export function DecomisoForm({
                         className="w-full text-left px-4 py-2.5 hover:bg-ln-op-stripe transition-colors"
                       >
                         <p className="text-[13px] text-ln-op-ink">{org.displayName}</p>
-                        <p className="text-[12px] text-ln-op-mute capitalize">
+                        <p className="text-sm text-ln-op-mute capitalize">
                           {org.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                           {org.jurisdictionLocality
                             ? ` · ${org.jurisdictionLocality}, ${org.jurisdictionProvince ?? ""}`
@@ -752,7 +746,7 @@ export function DecomisoForm({
         {/* --- Adjuntos --- */}
         <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-[12px] font-semibold text-ln-op-ink uppercase tracking-wider">
+            <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
               4. Adjuntos
             </h2>
             <span
@@ -765,7 +759,7 @@ export function DecomisoForm({
               {attachments.length} / min. 2
             </span>
           </div>
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Obligatorio: al menos 1 foto del animal y 1 acta administrativa (o screenshot del oficio
             judicial). Hasta {MAX_ATTACHMENTS} archivos, 25 MB cada uno.
           </p>
@@ -776,11 +770,11 @@ export function DecomisoForm({
             multiple
             accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif,application/pdf"
             onChange={(e) => handleFilesSelected(e.target.files)}
-            className="block w-full text-[12px] text-ln-op-mute file:mr-3 file:px-3 file:py-1.5 file:rounded-[6px] file:border-0 file:bg-ln-op-stripe file:text-ln-op-ink file:cursor-pointer"
+            className="block w-full text-sm text-ln-op-mute file:mr-3 file:px-3 file:py-1.5 file:rounded-[6px] file:border-0 file:bg-ln-op-stripe file:text-ln-op-ink file:cursor-pointer"
           />
 
           {attachmentError && (
-            <p className="text-[12px] text-ln-op-danger rounded-[6px] bg-ln-op-danger-bg px-3 py-2">
+            <p className="text-sm text-ln-op-danger rounded-[6px] bg-ln-op-danger-bg px-3 py-2">
               {attachmentError}
             </p>
           )}
@@ -804,17 +798,15 @@ export function DecomisoForm({
                       {entry.file.type === "application/pdf" ? "📄" : "▶"}
                     </div>
                   )}
-                  <span className="text-[12px] text-ln-op-ink truncate flex-1">
-                    {entry.file.name}
-                  </span>
-                  <span className="text-[12px] text-ln-op-mute flex-shrink-0">
+                  <span className="text-sm text-ln-op-ink truncate flex-1">{entry.file.name}</span>
+                  <span className="text-sm text-ln-op-mute flex-shrink-0">
                     {(entry.file.size / 1024 / 1024).toFixed(1)} MB
                   </span>
                   <button
                     type="button"
                     onClick={() => removeAttachment(i)}
                     aria-label={`Quitar ${entry.file.name}`}
-                    className="flex-shrink-0 w-5 h-5 rounded-full bg-ln-op-stripe text-ln-op-mute text-[12px] hover:bg-ln-op-line hover:text-ln-op-ink transition-colors"
+                    className="flex-shrink-0 w-5 h-5 rounded-full bg-ln-op-stripe text-ln-op-mute text-sm hover:bg-ln-op-line hover:text-ln-op-ink transition-colors"
                   >
                     {"×"}
                   </button>
@@ -847,7 +839,7 @@ export function DecomisoForm({
           {isPending ? "Ejecutando decomiso..." : "Ejecutar decomiso"}
         </OpButton>
 
-        <p className="text-[12px] text-ln-op-mute text-center">
+        <p className="text-sm text-ln-op-mute text-center">
           Esta acción es irreversible — el decomiso quedará registrado en el sistema de casos bajo
           Ley 14.346. El refugio destinatario recibirá una notificación de handoff.
         </p>
@@ -868,7 +860,7 @@ export function DecomisoForm({
           />
           {/* Modal */}
           <div className="relative z-10 w-full max-w-md rounded-[8px] bg-ln-op-card border border-ln-op-line shadow-xl p-6 space-y-4">
-            <h3 id="confirm-modal-title" className="text-[16px] font-semibold text-ln-op-ink">
+            <h3 id="confirm-modal-title" className="text-base font-semibold text-ln-op-ink">
               Confirmar decomiso
             </h3>
             <div className="rounded-[6px] bg-ln-op-warn-bg border border-ln-op-warn-bd px-4 py-3 space-y-1">

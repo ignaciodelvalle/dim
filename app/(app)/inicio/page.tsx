@@ -132,7 +132,7 @@ export default async function InicioPage() {
             // UX 3.5 item 6: cap large aggregate counts at "99+" so the greeting
             // does not read as alarming personal debt for high-volume owners.
             // "requieren atención" is also softened to "con novedades".
-            <p className="mt-[6px] text-[14px] text-[var(--color-ln-ink-2)]">
+            <p className="mt-[6px] text-md text-[var(--color-ln-ink-2)]">
               {reminders.length > 0 && (
                 <>
                   Tenés{" "}
@@ -154,7 +154,7 @@ export default async function InicioPage() {
               )}
             </p>
           ) : (
-            <p className="mt-[6px] text-[14px] text-[var(--color-ln-mute)]">Todo en orden.</p>
+            <p className="mt-[6px] text-md text-[var(--color-ln-mute)]">Todo en orden.</p>
           )}
         </div>
         <div className="flex-shrink-0 text-right font-[var(--font-ln-mono)] text-[11px] uppercase leading-[1.6] tracking-[.06em] text-[var(--color-ln-mute)]">
@@ -196,7 +196,7 @@ export default async function InicioPage() {
             <h2 className="m-0 font-[var(--font-ln-serif)] text-[17px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
               Asentar un hecho en la libreta
             </h2>
-            <p className="mt-[2px] text-[12px] text-[var(--color-ln-mute)]">
+            <p className="mt-[2px] text-sm text-[var(--color-ln-mute)]">
               Escribí en lenguaje natural — abrimos el formulario que corresponda.
             </p>
           </div>
@@ -371,7 +371,7 @@ function ApptRow({
         <span className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
           {MONTH_ABBR[date.getMonth()]}
         </span>
-        <span className="font-[var(--font-ln-serif)] text-[16px] font-semibold leading-tight text-[var(--color-ln-ink)]">
+        <span className="font-[var(--font-ln-serif)] text-base font-semibold leading-tight text-[var(--color-ln-ink)]">
           {date.getDate()}
         </span>
       </div>

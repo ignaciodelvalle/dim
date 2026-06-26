@@ -59,7 +59,7 @@ export default async function GobReglasPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           MiMAR Gobierno · Reglas
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">
@@ -96,7 +96,7 @@ export default async function GobReglasPage() {
                     <p className="text-[13px] font-medium text-ln-op-ink">
                       {RULE_TYPE_LABEL[ruleType]}
                     </p>
-                    <span className="text-[12px] text-ln-op-mute">{SOURCE_LABEL[source]}</span>
+                    <span className="text-sm text-ln-op-mute">{SOURCE_LABEL[source]}</span>
                   </div>
                   {ruleType === "ppp_breed_list" &&
                   payload != null &&

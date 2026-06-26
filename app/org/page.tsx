@@ -82,7 +82,7 @@ export default async function OrgIndexPage() {
                 className="block p-4 rounded-[6px] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">{org.displayName}</p>
-                <p className="text-[12px] text-ln-op-mute mt-0.5">
+                <p className="text-sm text-ln-op-mute mt-0.5">
                   {ORG_TYPE_LABELS[org.orgType] ?? org.orgType}
                   {org.jurisdictionLocality ? ` · ${org.jurisdictionLocality}` : ""}
                   {" · "}

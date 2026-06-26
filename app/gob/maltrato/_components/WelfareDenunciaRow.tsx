@@ -83,7 +83,7 @@ export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
               {" · "}
               {timeAgo(new Date(report.createdAt))}
             </p>
-            <p className="text-[10px] text-ln-op-mute font-mono">
+            <p className="text-xs text-ln-op-mute font-mono">
               {report.referenceCode}
               {report.assignedToUserId ? " · Asignada" : ""}
             </p>

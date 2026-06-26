@@ -75,7 +75,7 @@ export function DerivationPanel({
     <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
       <p className="text-[13px] font-medium text-ln-op-ink">Derivar a refugio u org de rescate</p>
       {availableOrgs.length === 0 ? (
-        <p className="text-[12px] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           No hay refugios ni redes de rescate verificados disponibles.
         </p>
       ) : (
@@ -92,7 +92,7 @@ export function DerivationPanel({
           ))}
         </select>
       )}
-      {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+      {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
         <OpButton
           type="button"

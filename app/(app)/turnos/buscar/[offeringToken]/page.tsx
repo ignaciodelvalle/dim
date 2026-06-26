@@ -107,7 +107,7 @@ export default async function OfferingDetailPage({
           />
         )}
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[24px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {offering.displayName}
           </h1>
           <p className="mt-[3px] text-[13px] text-[var(--color-ln-mute)]">{providerLabel}</p>

@@ -41,7 +41,7 @@ export default async function GobServiciosPage() {
       return (
         <div className="space-y-4">
           <header className="space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
               MiMAR Gobierno · Servicios
             </p>
             <h1 className="text-[22px] font-semibold text-ln-op-ink">Servicios pendientes</h1>
@@ -91,7 +91,7 @@ export default async function GobServiciosPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           MiMAR Gobierno · Servicios
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Servicios pendientes</h1>
@@ -130,12 +130,12 @@ export default async function GobServiciosPage() {
                         <p className="text-[13px] font-medium text-ln-op-ink">
                           {offering.displayName}
                         </p>
-                        <p className="text-[12px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           {providerLabel} · {kindLabel}
                           {location ? ` · ${location}` : ""}
                           {` · Capacidad: ${offering.slotCapacity}`}
                         </p>
-                        <p className="text-[10px] text-ln-op-mute font-mono">
+                        <p className="text-xs text-ln-op-mute font-mono">
                           {offering.publicToken} ·{" "}
                           {new Date(offering.submittedAt).toLocaleDateString("es-AR")}
                         </p>

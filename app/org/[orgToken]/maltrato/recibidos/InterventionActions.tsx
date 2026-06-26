@@ -87,7 +87,7 @@ export function InterventionActions({
             type="button"
             onClick={take}
             disabled={pending}
-            className="px-3 py-1.5 rounded-[4px] text-[12px] font-medium bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 rounded-[4px] text-sm font-medium bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors disabled:opacity-50"
           >
             {pending ? "Procesando..." : "Tomar denuncia"}
           </button>
@@ -96,20 +96,20 @@ export function InterventionActions({
             <button
               type="button"
               onClick={() => setMode("add_note")}
-              className="px-3 py-1.5 rounded-[4px] text-[12px] font-medium bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors"
+              className="px-3 py-1.5 rounded-[4px] text-sm font-medium bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors"
             >
               Agregar nota
             </button>
             <button
               type="button"
               onClick={() => setMode("return")}
-              className="px-3 py-1.5 rounded-[4px] text-[12px] font-medium border border-ln-op-warn-bd bg-ln-op-warn-bg text-ln-op-warn hover:opacity-90 transition-opacity"
+              className="px-3 py-1.5 rounded-[4px] text-sm font-medium border border-ln-op-warn-bd bg-ln-op-warn-bg text-ln-op-warn hover:opacity-90 transition-opacity"
             >
               No podemos intervenir
             </button>
           </>
         )}
-        {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+        {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       </div>
     );
   }
@@ -121,7 +121,7 @@ export function InterventionActions({
     <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-3 space-y-2">
       <label
         htmlFor={`intervention-text-${welfareReportId}`}
-        className="block text-[12px] font-medium text-ln-op-mute"
+        className="block text-sm font-medium text-ln-op-mute"
       >
         {isReturn
           ? "Motivo de la devolución (mínimo 10 caracteres)"
@@ -139,13 +139,13 @@ export function InterventionActions({
         }
         className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
       />
-      {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+      {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
         <button
           type="button"
           onClick={isReturn ? submitReturn : submitNote}
           disabled={pending || text.trim().length < minLen}
-          className="px-4 py-2 rounded-[4px] bg-ln-op-azul text-white text-[12px] font-medium disabled:opacity-50 hover:bg-ln-op-azul-700 transition-colors"
+          className="px-4 py-2 rounded-[4px] bg-ln-op-azul text-white text-sm font-medium disabled:opacity-50 hover:bg-ln-op-azul-700 transition-colors"
         >
           {pending ? "Procesando..." : isReturn ? "Confirmar devolución" : "Guardar nota"}
         </button>
@@ -153,7 +153,7 @@ export function InterventionActions({
           type="button"
           onClick={reset}
           disabled={pending}
-          className="px-4 py-2 rounded-[4px] border border-ln-op-line text-[12px] text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          className="px-4 py-2 rounded-[4px] border border-ln-op-line text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           Cancelar
         </button>

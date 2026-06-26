@@ -43,7 +43,7 @@ export default async function GovtCasosPage({
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
       <header className="mb-6 space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Casos regulatorios
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Casos</h1>
@@ -75,7 +75,7 @@ export default async function GovtCasosPage({
                       status={c.status}
                       size="sm"
                     />
-                    <span className="text-[12px] text-ln-op-mute">
+                    <span className="text-sm text-ln-op-mute">
                       {c.jurisdictionLocality}, {c.jurisdictionProvince} · Abierto el{" "}
                       {formatDate(c.openedAt)}
                       {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
@@ -108,7 +108,7 @@ export default async function GovtCasosPage({
             {newerLink && (
               <Link
                 href={newerLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 ← Más recientes
               </Link>
@@ -118,7 +118,7 @@ export default async function GovtCasosPage({
             {olderLink && (
               <Link
                 href={olderLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 Ver más antiguos →
               </Link>

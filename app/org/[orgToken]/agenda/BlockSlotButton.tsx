@@ -38,7 +38,7 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
+        className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
       >
         Bloquear
       </button>
@@ -47,11 +47,9 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
 
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-[12px] text-ln-op-mute">
-        ¿Bloquear este cupo? Nadie va a poder reservarlo.
-      </p>
+      <p className="text-sm text-ln-op-mute">¿Bloquear este cupo? Nadie va a poder reservarlo.</p>
       {error && (
-        <p className="text-[12px] text-ln-op-danger" role="alert">
+        <p className="text-sm text-ln-op-danger" role="alert">
           {error}
         </p>
       )}
@@ -60,7 +58,7 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
           type="button"
           onClick={handleBlock}
           disabled={pending}
-          className="rounded-[4px] bg-ln-op-danger px-3 py-[5px] text-[12px] font-medium text-white transition-colors disabled:opacity-60"
+          className="rounded-[4px] bg-ln-op-danger px-3 py-[5px] text-sm font-medium text-white transition-colors disabled:opacity-60"
         >
           {pending ? "Bloqueando..." : "Confirmar"}
         </button>
@@ -71,7 +69,7 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
             setError(null);
           }}
           disabled={pending}
-          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
+          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
         >
           Cancelar
         </button>

@@ -95,7 +95,7 @@ export function UrlTabs({
                 {tab.badge !== undefined && (
                   <span
                     className={[
-                      "ml-1 rounded-full px-[6px] py-[1px] font-[var(--font-ln-mono)] text-[10px] leading-none",
+                      "ml-1 rounded-full px-[6px] py-[1px] font-[var(--font-ln-mono)] text-xs leading-none",
                       tab.badge > 0
                         ? "bg-[var(--color-ln-seal)] text-white"
                         : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",

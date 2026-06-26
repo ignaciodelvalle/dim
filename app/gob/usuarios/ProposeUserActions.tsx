@@ -26,7 +26,7 @@ export function ProposeUserActions({
 
   if (!canProposeVet) {
     return (
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         Sin acciones disponibles desde tu rol para este usuario.
       </p>
     );
@@ -49,7 +49,7 @@ function ActionButton({
   tone?: "default" | "danger";
 }) {
   const base =
-    "text-[12px] px-3 py-1.5 rounded-[6px] transition-opacity hover:opacity-90 disabled:opacity-50";
+    "text-sm px-3 py-1.5 rounded-[6px] transition-opacity hover:opacity-90 disabled:opacity-50";
   const variant =
     tone === "danger"
       ? "border border-ln-op-warn text-ln-op-warn"
@@ -76,7 +76,7 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
 
   if (submitted) {
     return (
-      <p className="text-[12px] text-ln-op-ok">
+      <p className="text-sm text-ln-op-ok">
         Solicitud creada. {target.displayName} fue notificado.
       </p>
     );
@@ -101,7 +101,7 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
 
   return (
     <div className="rounded-[6px] border border-ln-op-line p-3 space-y-2">
-      <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">
+      <p className="text-xs uppercase tracking-wider text-ln-op-mute">
         Proponer rol vet para {target.displayName}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -137,7 +137,7 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
           inputMode="numeric"
         />
       </div>
-      {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+      {error && <p className="text-sm text-ln-op-danger">{error}</p>}
       <div className="flex items-center gap-2">
         <OpButton type="button" onClick={submit} disabled={pending} variant="primary" size="sm">
           {pending ? "Creando..." : "Crear solicitud"}
@@ -164,7 +164,7 @@ function Field({
   const id = useId();
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-[10px] uppercase tracking-wider text-ln-op-mute">
+      <label htmlFor={id} className="block text-xs uppercase tracking-wider text-ln-op-mute">
         {label}
       </label>
       <input
@@ -173,7 +173,7 @@ function Field({
         inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-[12px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+        className="w-full text-sm rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
       />
     </div>
   );
@@ -193,7 +193,7 @@ function Textarea({
   const id = useId();
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-[10px] uppercase tracking-wider text-ln-op-mute">
+      <label htmlFor={id} className="block text-xs uppercase tracking-wider text-ln-op-mute">
         {label}
       </label>
       <textarea
@@ -201,7 +201,7 @@ function Textarea({
         rows={rows}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-[12px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+        className="w-full text-sm rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
       />
     </div>
   );

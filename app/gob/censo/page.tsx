@@ -139,7 +139,7 @@ export default async function GobCensoPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Registro · Censo poblacional
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Censo y salud del registro</h1>
@@ -220,7 +220,7 @@ export default async function GobCensoPage({
           title={<span id={panelTrendId}>Altas nuevas</span>}
           actions={
             trend.suppressedCount > 0 ? (
-              <span className="text-[12px] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 {trend.suppressedCount}{" "}
                 {trend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"} (privacidad)
               </span>
@@ -386,7 +386,7 @@ export default async function GobCensoPage({
                   );
                 })()}
               </ul>
-              <p className="mt-2 text-[10px] text-ln-op-mute">
+              <p className="mt-2 text-xs text-ln-op-mute">
                 Meta chip: {TARGETS.MICROCHIP_PENETRATION_PCT}% · Escaneada en el período: solo
                 últimos 90 días (los eventos se purgan automáticamente).
               </p>

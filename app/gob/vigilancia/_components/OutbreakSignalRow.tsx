@@ -48,16 +48,16 @@ export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
             <OpCodeBadge tone="warn">{signal.diseaseCode}</OpCodeBadge>
             <ConfidenceBadge tier={confidenceTier} />
           </div>
-          <p className="text-[12px] text-ln-op-ink-2 truncate">
+          <p className="text-sm text-ln-op-ink-2 truncate">
             {signal.petName} · {signal.petSpecies}
           </p>
-          <p className="text-[12px] text-ln-op-mute truncate">
+          <p className="text-sm text-ln-op-mute truncate">
             {signal.locality ?? "—"}, {signal.province ?? "—"}
           </p>
         </div>
         <time
           dateTime={signal.detectedAt.toISOString()}
-          className="text-[12px] text-ln-op-mute tabular-nums whitespace-nowrap shrink-0"
+          className="text-sm text-ln-op-mute tabular-nums whitespace-nowrap shrink-0"
         >
           {timeAgo(signal.detectedAt)}
         </time>
@@ -65,7 +65,7 @@ export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
       <div className="px-1 pb-2">
         <Link
           href={`/gob/vigilancia/investigaciones/nuevo?diseaseCode=${signal.diseaseCode}&signalId=${signal.signalEventId}`}
-          className="text-[12px] text-ln-op-azul hover:underline"
+          className="text-sm text-ln-op-azul hover:underline"
         >
           Abrir investigacion →
         </Link>

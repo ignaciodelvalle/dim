@@ -68,7 +68,7 @@ export function LnField({
       {/* mono uppercase label */}
       <label
         htmlFor={id}
-        className="mb-[6px] flex items-center gap-[5px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+        className="mb-[6px] flex items-center gap-[5px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
       >
         {label}
         {required && (
@@ -108,13 +108,13 @@ export function LnField({
 
 // ---------- Shared control base classes -----------------------------------
 
-// Wave 2 Item 9: text-[16px] on mobile prevents iOS Safari auto-zoom on focus;
+// Wave 2 Item 9: text-base on mobile prevents iOS Safari auto-zoom on focus;
 // sm:text-[13.5px] restores the design-system size on wider viewports.
 // min-h-[44px] ensures touch targets meet WCAG 2.5.5 (44×44 CSS px).
 const controlBase =
   "w-full min-h-[44px] rounded-[4px] border border-[var(--color-ln-line-strong)] " +
   "bg-[var(--color-ln-card)] px-[12px] py-[10px] " +
-  "font-[var(--font-ln-sans)] text-[16px] sm:text-[13.5px] text-[var(--color-ln-ink)] " +
+  "font-[var(--font-ln-sans)] text-base sm:text-[13.5px] text-[var(--color-ln-ink)] " +
   "placeholder:text-[var(--color-ln-faint)] outline-none " +
   "focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] " +
   "aria-[invalid=true]:border-[var(--color-ln-err)]";
@@ -220,7 +220,7 @@ export function LnSuffixWrap({ suffix, children, className = "" }: LnSuffixWrapP
       <div className="min-w-0 flex-1 [&>input]:border-0 [&>input]:shadow-none [&>input]:focus:border-0 [&>input]:focus:shadow-none">
         {children}
       </div>
-      <span className="grid place-items-center border-l border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[13px] font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+      <span className="grid place-items-center border-l border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[13px] font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
         {suffix}
       </span>
     </div>

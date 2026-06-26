@@ -178,7 +178,7 @@ export function EditOrgForm({ organization }: Props) {
         >
           Mostrar a mi organización como refugio de origen en la credencial pública de las mascotas
         </LnCheckbox>
-        <p className="text-[12px] text-ln-op-mute pl-6">
+        <p className="text-sm text-ln-op-mute pl-6">
           Cuando está activo, la credencial pública muestra el nombre de tu organización como
           refugio de origen de la mascota.
         </p>
@@ -188,7 +188,7 @@ export function EditOrgForm({ organization }: Props) {
       {isShelter && (
         <fieldset className="space-y-4 rounded-[6px] border border-ln-op-line p-4">
           <legend className="px-1 text-[13px] font-semibold text-ln-op-ink">Capacidad</legend>
-          <p className="text-[12px] text-ln-op-mute -mt-2">
+          <p className="text-sm text-ln-op-mute -mt-2">
             Declarar la capacidad te permite calcular tu ocupación y recibir alertas cuando estés
             llegando al límite. Los campos son opcionales — podés completar solo los que
             correspondan.

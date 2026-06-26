@@ -109,7 +109,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
   return (
     <div className="space-y-3 rounded-[6px] border border-ln-op-line p-4">
       <div>
-        <label htmlFor="outcome" className="block text-[12px] text-ln-op-mute mb-1">
+        <label htmlFor="outcome" className="block text-sm text-ln-op-mute mb-1">
           Resolución
         </label>
         <select
@@ -128,7 +128,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
 
       {outcome === "ownership_transferred" && (
         <div className="space-y-2 rounded-[6px] border border-ln-op-line p-3">
-          <div className="flex gap-2 text-[12px]">
+          <div className="flex gap-2 text-sm">
             <button
               type="button"
               onClick={() => handleKindChange("user")}
@@ -153,7 +153,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
             </button>
           </div>
           <div>
-            <label htmlFor="transfer-target" className="block text-[12px] text-ln-op-mute mb-1">
+            <label htmlFor="transfer-target" className="block text-sm text-ln-op-mute mb-1">
               {transferKind === "user"
                 ? "User ID destino (UUID)"
                 : "Organization ID destino (UUID)"}
@@ -180,17 +180,17 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
 
             {verifyState.status === "ok" && (
               <p
-                className={`text-[12px] mt-1 ${verifyState.active ? "text-ln-op-ok" : "text-ln-op-danger"}`}
+                className={`text-sm mt-1 ${verifyState.active ? "text-ln-op-ok" : "text-ln-op-danger"}`}
               >
                 {verifyState.active ? "✓" : "✗"} {verifyState.displayName}
                 {!verifyState.active && " — cuenta desactivada"}
               </p>
             )}
             {verifyState.status === "error" && (
-              <p className="text-[12px] text-ln-op-danger mt-1">{verifyState.message}</p>
+              <p className="text-sm text-ln-op-danger mt-1">{verifyState.message}</p>
             )}
 
-            <p className="text-[12px] text-ln-op-mute mt-1">
+            <p className="text-sm text-ln-op-mute mt-1">
               La transferencia cierra todas las ownerships activas y abre una nueva al destino.
             </p>
           </div>
@@ -198,7 +198,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
       )}
 
       <div>
-        <label htmlFor="resolution-summary" className="block text-[12px] text-ln-op-mute mb-1">
+        <label htmlFor="resolution-summary" className="block text-sm text-ln-op-mute mb-1">
           Resumen de la resolución (mínimo 100 caracteres)
         </label>
         <textarea
@@ -209,13 +209,13 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
           placeholder="Explicá el fundamento, evidencia considerada y decisión tomada."
           className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
-        <p className="text-[12px] text-ln-op-mute mt-1 tabular-nums">
+        <p className="text-sm text-ln-op-mute mt-1 tabular-nums">
           {resolutionSummary.trim().length} / 100
         </p>
       </div>
 
       <div>
-        <label htmlFor="resolution-notes" className="block text-[12px] text-ln-op-mute mb-1">
+        <label htmlFor="resolution-notes" className="block text-sm text-ln-op-mute mb-1">
           Notas internas (opcional)
         </label>
         <textarea

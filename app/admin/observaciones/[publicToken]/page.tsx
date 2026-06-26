@@ -80,7 +80,7 @@ export default async function ObservationDetailPage({
       />
 
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {"Admin · Vigilancia · Cierre profesional"}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">
@@ -150,7 +150,7 @@ export default async function ObservationDetailPage({
                       timeStyle: "short",
                     })}
                     {alerted.length > 0 && (
-                      <span className="ml-2 text-[10px] uppercase tracking-wider">
+                      <span className="ml-2 text-xs uppercase tracking-wider">
                         {alerted.join(", ")}
                       </span>
                     )}

@@ -115,10 +115,10 @@ function ResetCredentialsForm({
 
   return (
     <div className="space-y-3 rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-ln-op-danger">
+      <p className="text-xs font-bold uppercase tracking-wider text-ln-op-danger">
         Resetear credentials &mdash; {displayName}
       </p>
-      <p className="text-[10px] text-ln-op-danger">
+      <p className="text-xs text-ln-op-danger">
         Esto genera un nuevo link de acceso y cierra la sesión activa del operador. Queda registrado
         en el audit log con el motivo.
       </p>
@@ -134,7 +134,7 @@ function ResetCredentialsForm({
         permanente en el audit log.
       </LnCheckbox>
 
-      {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+      {error && <p className="text-sm text-ln-op-danger">{error}</p>}
 
       <div className="flex items-center gap-2">
         <OpButton type="button" onClick={submit} disabled={!canSubmit} variant="danger" size="sm">

@@ -27,7 +27,7 @@ export function DiseaseSummaryTable({
           Resumen de señales por enfermedad en los últimos {windowDays} días
         </caption>
         <thead className="bg-ln-op-stripe">
-          <tr className="text-left text-[10px] uppercase tracking-wider text-ln-op-mute">
+          <tr className="text-left text-xs uppercase tracking-wider text-ln-op-mute">
             <th scope="col" className="px-4 py-2">
               Enfermedad
             </th>

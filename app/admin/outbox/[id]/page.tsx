@@ -129,25 +129,25 @@ export default async function AdminOutboxDetailPage({
         <OpCardHead title="Estado de entrega" />
         <OpCardBody>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
-            <dt className="text-[12px] text-ln-op-mute">Estado</dt>
+            <dt className="text-sm text-ln-op-mute">Estado</dt>
             <dd className="text-[13px] text-ln-op-ink">{buildStatusLabel(row.status)}</dd>
 
-            <dt className="text-[12px] text-ln-op-mute">Intentos</dt>
+            <dt className="text-sm text-ln-op-mute">Intentos</dt>
             <dd className="text-[13px] text-ln-op-ink">{row.attempts}</dd>
 
-            <dt className="text-[12px] text-ln-op-mute">Ultimo intento</dt>
+            <dt className="text-sm text-ln-op-mute">Ultimo intento</dt>
             <dd className="text-[13px] text-ln-op-ink">{fmt(row.lastAttemptAt)}</dd>
 
-            <dt className="text-[12px] text-ln-op-mute">Proximo reintento</dt>
+            <dt className="text-sm text-ln-op-mute">Proximo reintento</dt>
             <dd className="text-[13px] text-ln-op-ink">{fmt(row.nextRetryAt)}</dd>
 
-            <dt className="text-[12px] text-ln-op-mute">Entregado</dt>
+            <dt className="text-sm text-ln-op-mute">Entregado</dt>
             <dd className="text-[13px] text-ln-op-ink">{fmt(row.deliveredAt)}</dd>
 
-            <dt className="text-[12px] text-ln-op-mute">Creado</dt>
+            <dt className="text-sm text-ln-op-mute">Creado</dt>
             <dd className="text-[13px] text-ln-op-ink">{fmt(row.createdAt)}</dd>
 
-            <dt className="text-[12px] text-ln-op-mute">SLA vence</dt>
+            <dt className="text-sm text-ln-op-mute">SLA vence</dt>
             <dd className="text-[13px] text-ln-op-ink">
               {fmt(row.slaDueAt)}
               {cue === "breach" && (
@@ -160,7 +160,7 @@ export default async function AdminOutboxDetailPage({
 
           {row.lastError && (
             <div className="mt-3 space-y-1">
-              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">
                 Ultimo error
               </p>
               <pre className="rounded-[6px] bg-ln-op-danger-bg border border-ln-op-danger-bd p-3 text-[11px] text-ln-op-danger overflow-auto whitespace-pre-wrap break-words">
@@ -188,22 +188,22 @@ export default async function AdminOutboxDetailPage({
           {sourceEvent ? (
             <>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
-                <dt className="text-[12px] text-ln-op-mute">Tipo</dt>
+                <dt className="text-sm text-ln-op-mute">Tipo</dt>
                 <dd>
                   <OpCodeBadge tone="blue">{sourceEvent.eventType}</OpCodeBadge>
                 </dd>
-                <dt className="text-[12px] text-ln-op-mute">Ocurrido</dt>
+                <dt className="text-sm text-ln-op-mute">Ocurrido</dt>
                 <dd className="text-[13px] text-ln-op-ink">{fmt(sourceEvent.occurredAt)}</dd>
-                <dt className="text-[12px] text-ln-op-mute">Registrado</dt>
+                <dt className="text-sm text-ln-op-mute">Registrado</dt>
                 <dd className="text-[13px] text-ln-op-ink">{fmt(sourceEvent.recordedAt)}</dd>
-                <dt className="text-[12px] text-ln-op-mute">Rol del autor</dt>
+                <dt className="text-sm text-ln-op-mute">Rol del autor</dt>
                 <dd className="text-[13px] text-ln-op-ink flex items-center gap-1.5">
                   {sourceEvent.authorRole}
                   {sourceEvent.authorVerified && <OpPill tone="ok">verificado</OpPill>}
                 </dd>
                 {sourceEvent.authorOrganizationId && (
                   <>
-                    <dt className="text-[12px] text-ln-op-mute">Organizacion</dt>
+                    <dt className="text-sm text-ln-op-mute">Organizacion</dt>
                     <dd className="font-mono text-[11px] text-ln-op-mute">
                       {sourceEvent.authorOrganizationId}
                     </dd>
@@ -211,21 +211,21 @@ export default async function AdminOutboxDetailPage({
                 )}
                 {sourceEvent.recordedByUserId && (
                   <>
-                    <dt className="text-[12px] text-ln-op-mute">Usuario</dt>
+                    <dt className="text-sm text-ln-op-mute">Usuario</dt>
                     <dd className="font-mono text-[11px] text-ln-op-mute">
                       {sourceEvent.recordedByUserId}
                     </dd>
                   </>
                 )}
-                <dt className="text-[12px] text-ln-op-mute">Pet ID</dt>
+                <dt className="text-sm text-ln-op-mute">Pet ID</dt>
                 <dd className="font-mono text-[11px] text-ln-op-mute">{sourceEvent.petId}</dd>
-                <dt className="text-[12px] text-ln-op-mute">Event ID</dt>
+                <dt className="text-sm text-ln-op-mute">Event ID</dt>
                 <dd className="font-mono text-[11px] text-ln-op-mute">{sourceEvent.id}</dd>
               </dl>
 
               {/* Event payload — the canonical record of what actually happened */}
               <div className="space-y-1 pt-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">
                   Payload del evento
                 </p>
                 <pre className="rounded-[4px] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 overflow-auto whitespace-pre-wrap break-words">
@@ -250,8 +250,8 @@ export default async function AdminOutboxDetailPage({
             <span className="space-y-2 block">
               <span className="block">
                 Este botón no entrega la notificación de forma sincrónica. Resetea{" "}
-                <code className="font-mono text-[10px]">next_retry_at = now()</code> y{" "}
-                <code className="font-mono text-[10px]">status = pending</code> para que el cron de
+                <code className="font-mono text-xs">next_retry_at = now()</code> y{" "}
+                <code className="font-mono text-xs">status = pending</code> para que el cron de
                 drenaje lo procese en el próximo ciclo (máximo 5 min).
               </span>
               <form

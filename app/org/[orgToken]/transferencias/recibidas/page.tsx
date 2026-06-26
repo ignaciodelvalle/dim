@@ -179,7 +179,7 @@ export default async function OrgTransferenciasEntrantesPage({
         </p>
       </header>
 
-      <nav className="flex gap-4 text-[12px]">
+      <nav className="flex gap-4 text-sm">
         <Link
           href={`/org/${orgToken}/transferencias`}
           className="text-ln-op-azul hover:underline no-underline"
@@ -225,7 +225,7 @@ export default async function OrgTransferenciasEntrantesPage({
                         <p className="text-[13px] font-medium text-ln-op-ink">
                           {r.petName ?? "(sin pet)"}
                         </p>
-                        <p className="text-[12px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           {isDecomiso ? (
                             <>
                               Autoridad sanitaria: <strong>{r.senderOrgName ?? "—"}</strong>
@@ -240,16 +240,16 @@ export default async function OrgTransferenciasEntrantesPage({
                             </>
                           )}
                         </p>
-                        <p className="text-[12px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           Recibida el {formatDate(r.openedAt)}
                           {r.closedAt ? ` · Resuelta el ${formatDate(r.closedAt)}` : ""}
                         </p>
                         {!isDecomiso && r.notes ? (
-                          <p className="text-[12px] italic text-ln-op-ink-2">"{r.notes}"</p>
+                          <p className="text-sm italic text-ln-op-ink-2">"{r.notes}"</p>
                         ) : null}
                         <Link
                           href={`/casos/${r.publicCode}`}
-                          className="inline-block text-[12px] text-ln-op-azul hover:underline no-underline"
+                          className="inline-block text-sm text-ln-op-azul hover:underline no-underline"
                         >
                           Ver caso →
                         </Link>

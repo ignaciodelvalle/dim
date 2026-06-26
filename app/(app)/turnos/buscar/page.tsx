@@ -57,7 +57,7 @@ export default async function BuscarTurnosPage({
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Buscar turno
           </h1>
-          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
             Indicá qué servicio buscás.
           </p>
         </div>
@@ -148,7 +148,7 @@ export default async function BuscarTurnosPage({
           {kindDef?.label ?? serviceKind}
         </h1>
         {locationLabel && (
-          <p className="mt-[4px] font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+          <p className="mt-[4px] font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
             {locationLabel}
           </p>
         )}
@@ -200,7 +200,7 @@ export default async function BuscarTurnosPage({
                       : " · Gratuito"}
                     {` · ${offering.durationMinutes} min`}
                   </p>
-                  <p className="mt-[4px] text-[12px] text-[var(--color-ln-ok)]">
+                  <p className="mt-[4px] text-sm text-[var(--color-ln-ok)]">
                     {slots.length} turno{slots.length === 1 ? "" : "s"} disponible
                     {slots.length === 1 ? "" : "s"} en 7 días
                   </p>
@@ -217,7 +217,7 @@ export default async function BuscarTurnosPage({
                         className="h-[36px] w-[36px] rounded-full object-cover"
                       />
                     )}
-                  <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+                  <span aria-hidden="true" className="text-base text-[var(--color-ln-mute)]">
                     ›
                   </span>
                 </div>
@@ -253,7 +253,7 @@ function ServiceKindSelector() {
           className="flex items-center justify-between border-b border-[var(--color-ln-line-2)] px-[16px] py-[13px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
         >
           <span className="text-[13.5px] text-[var(--color-ln-ink)]">{kind.label}</span>
-          <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+          <span aria-hidden="true" className="text-base text-[var(--color-ln-mute)]">
             ›
           </span>
         </Link>

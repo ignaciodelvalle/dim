@@ -149,7 +149,7 @@ export function OpBulkBar({ count, actions, onClear }: Props) {
           <div className="px-5 pb-2">
             <label
               htmlFor="op-bulk-reason"
-              className="mb-1 block text-[12px] font-medium text-[var(--color-ln-ink-2)]"
+              className="mb-1 block text-sm font-medium text-[var(--color-ln-ink-2)]"
             >
               Motivo (mínimo {minReason} caracteres)
             </label>

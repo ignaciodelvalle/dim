@@ -31,7 +31,7 @@ export function SearchForm() {
       <div className="space-y-1.5">
         <label
           htmlFor="code"
-          className="block text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
+          className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
           Código de seguimiento

@@ -110,7 +110,7 @@ export default async function GobSistemaPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Gobierno · Sistema
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">
@@ -198,19 +198,19 @@ export default async function GobSistemaPage({
         <OpCardBody>
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[12px] text-ln-op-mute">En tiempo (on-time)</span>
+              <span className="text-sm text-ln-op-mute">En tiempo (on-time)</span>
               <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
                 {enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
               </span>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[12px] text-ln-op-mute">Total notificaciones</span>
+              <span className="text-sm text-ln-op-mute">Total notificaciones</span>
               <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
                 {enoSla.total.toLocaleString("es-AR")}
               </span>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[12px] text-ln-op-mute">En incumplimiento activo</span>
+              <span className="text-sm text-ln-op-mute">En incumplimiento activo</span>
               <span
                 className={[
                   "text-[13px] font-medium tabular-nums",
@@ -221,7 +221,7 @@ export default async function GobSistemaPage({
               </span>
             </div>
           </div>
-          <p className="mt-3 text-[10px] text-ln-op-mute">
+          <p className="mt-3 text-xs text-ln-op-mute">
             SLA objetivo: {TARGETS.ENO_SLA_PCT}% de notificaciones ENO entregadas en tiempo (A7).
             Solo se muestran notificaciones cuyo target_jurisdiction corresponde a tu jurisdicción
             asignada.
@@ -235,13 +235,13 @@ export default async function GobSistemaPage({
         <OpCardBody>
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[12px] text-ln-op-mute">Pendientes</span>
+              <span className="text-sm text-ln-op-mute">Pendientes</span>
               <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
                 {queue.pendingTotal.toLocaleString("es-AR")}
               </span>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[12px] text-ln-op-mute">Más vieja (días)</span>
+              <span className="text-sm text-ln-op-mute">Más vieja (días)</span>
               <span
                 className={[
                   "text-[13px] font-medium tabular-nums",
@@ -256,13 +256,13 @@ export default async function GobSistemaPage({
               </span>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[12px] text-ln-op-mute">14d+ / 30d+ / 60d+</span>
+              <span className="text-sm text-ln-op-mute">14d+ / 30d+ / 60d+</span>
               <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
                 {queue.pending14dPlus} / {queue.pending30dPlus} / {queue.pending60dPlus}
               </span>
             </div>
           </div>
-          <p className="mt-3 text-[10px] text-ln-op-mute">
+          <p className="mt-3 text-xs text-ln-op-mute">
             Solo incluye solicitudes cuya jurisdicción (provincia + localidad) coincide con tu
             cobertura asignada.
           </p>

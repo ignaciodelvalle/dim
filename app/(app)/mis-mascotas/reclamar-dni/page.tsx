@@ -36,7 +36,7 @@ export default async function ClaimPage() {
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Reclamar adopción por DNI
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           ¿El refugio te registró como adoptante con tu DNI antes de que abrieras tu cuenta? Ingresá
           tu DNI y vinculamos las mascotas a tu perfil. Si tu mascota tiene chip o tatuaje,{" "}
           <Link

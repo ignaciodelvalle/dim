@@ -45,7 +45,7 @@ export function MaterializeNowButton({ offeringToken, materializeAction }: Props
         {isPending ? "Materializando…" : "Materializar ahora"}
       </button>
       {message && (
-        <p className={`text-[12px] ${message.ok ? "text-ln-op-ok" : "text-ln-op-danger"}`}>
+        <p className={`text-sm ${message.ok ? "text-ln-op-ok" : "text-ln-op-danger"}`}>
           {message.text}
         </p>
       )}

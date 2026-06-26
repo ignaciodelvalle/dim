@@ -98,7 +98,7 @@ export function LnLabel({ children, className = "" }: { children: ReactNode; cla
   return (
     <span
       className={[
-        "font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]",
+        "font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]",
         className,
       ]
         .filter(Boolean)
@@ -129,7 +129,7 @@ export function LnSectionHead({ num, title, meta, className = "" }: LnSectionHea
         .join(" ")}
     >
       {num && (
-        <span className="font-[var(--font-ln-mono)] text-[12px] font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
+        <span className="font-[var(--font-ln-mono)] text-sm font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
           {num}
         </span>
       )}

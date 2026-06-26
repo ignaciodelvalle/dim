@@ -127,7 +127,7 @@ export default async function MisMascotasPage({
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis mascotas
           </h1>
-          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
             Cada una con su libreta sanitaria nacional.
           </p>
         </div>
@@ -228,7 +228,7 @@ export default async function MisMascotasPage({
       {/* More actions                                                         */}
       {/* ------------------------------------------------------------------ */}
       <section className="mt-[32px] border-t border-[var(--color-ln-line)] pt-[24px]">
-        <p className="mb-[14px] font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.12em] text-[var(--color-ln-mute)]">
+        <p className="mb-[14px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.12em] text-[var(--color-ln-mute)]">
           Más acciones
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -298,7 +298,7 @@ function MemorialRow({
 
       {/* Info */}
       <div className="min-w-0">
-        <span className="font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-memorial-sepia)]">
+        <span className="font-[var(--font-ln-serif)] text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-memorial-sepia)]">
           {name}
         </span>
         {breed && <p className="mt-[2px] text-[12.5px] text-[var(--color-ln-mute)]">{breed}</p>}

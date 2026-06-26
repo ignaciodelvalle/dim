@@ -17,7 +17,7 @@ export default function DenunciasPage() {
         {/* Header */}
         <header className="mb-10 space-y-3">
           <p
-            className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+            className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
             style={{ fontFamily: "var(--font-ln-mono)" }}
           >
             Portal de bienestar animal
@@ -59,7 +59,7 @@ export default function DenunciasPage() {
               </svg>
             </div>
             <div>
-              <p className="text-[14px] font-semibold text-[var(--color-ln-azul)]">
+              <p className="text-md font-semibold text-[var(--color-ln-azul)]">
                 Hacer una denuncia
               </p>
               <p className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">
@@ -91,7 +91,7 @@ export default function DenunciasPage() {
               </svg>
             </div>
             <div>
-              <p className="text-[14px] font-semibold text-[var(--color-ln-ink)]">
+              <p className="text-md font-semibold text-[var(--color-ln-ink)]">
                 Consultar estado de una denuncia
               </p>
               <p className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">

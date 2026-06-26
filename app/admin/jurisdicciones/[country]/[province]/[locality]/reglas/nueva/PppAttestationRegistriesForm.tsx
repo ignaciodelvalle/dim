@@ -98,14 +98,14 @@ export function PppAttestationRegistriesForm({
             <button
               type="button"
               onClick={() => toggleRequired(r.id)}
-              className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+              className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
             >
               {r.required ? "Hacer opcional" : "Marcar required"}
             </button>
             <button
               type="button"
               onClick={() => removeRegistry(r.id)}
-              className="text-[12px] font-semibold text-ln-op-danger no-underline underline-offset-4 hover:underline"
+              className="text-sm font-semibold text-ln-op-danger no-underline underline-offset-4 hover:underline"
             >
               Quitar
             </button>
@@ -136,7 +136,7 @@ export function PppAttestationRegistriesForm({
         <button
           type="button"
           onClick={addRegistry}
-          className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+          className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
         >
           + Agregar registro
         </button>

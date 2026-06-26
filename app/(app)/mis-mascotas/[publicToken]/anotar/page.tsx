@@ -54,7 +54,7 @@ export default async function CapturePage({
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Anotar algo de {pet.name}
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Contanos qué pasó. Te llevamos al formulario correcto con los datos que pudimos
           identificar. Si preferís, abajo tenés atajos para los eventos más comunes.
         </p>
@@ -76,7 +76,7 @@ export default async function CapturePage({
           const items = optionsWithHref.filter((o) => o.category === category);
           return (
             <section key={category}>
-              <h2 className="mb-[8px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+              <h2 className="mb-[8px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
                 {category}
               </h2>
               <ul className="divide-y divide-[var(--color-ln-stripe)] rounded-[4px] border border-[var(--color-ln-line-strong)] overflow-hidden">

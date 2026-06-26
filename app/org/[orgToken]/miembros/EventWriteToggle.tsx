@@ -43,7 +43,7 @@ export function EventWriteToggle({ organizationId, membershipId, canWrite }: Pro
         aria-pressed={canWrite}
         title={canWrite ? "Quitar acceso a eventos clínicos" : "Dar acceso a eventos clínicos"}
         className={[
-          "rounded-[4px] px-3 py-[5px] text-[12px] font-medium transition-colors disabled:opacity-60",
+          "rounded-[4px] px-3 py-[5px] text-sm font-medium transition-colors disabled:opacity-60",
           canWrite
             ? "border border-ln-op-ok-bd bg-ln-op-ok-bg text-ln-op-ok hover:bg-ln-op-ok hover:text-white"
             : "border border-ln-op-line text-ln-op-mute hover:bg-ln-op-stripe",
@@ -52,7 +52,7 @@ export function EventWriteToggle({ organizationId, membershipId, canWrite }: Pro
         {pending ? "..." : canWrite ? "Clínica ✓" : "Clínica"}
       </button>
       {error && (
-        <p className="text-[12px] text-ln-op-danger" role="alert">
+        <p className="text-sm text-ln-op-danger" role="alert">
           {error}
         </p>
       )}

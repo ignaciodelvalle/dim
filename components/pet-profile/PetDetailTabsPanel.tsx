@@ -62,7 +62,7 @@ function TabLoadingSkeleton() {
 function TabErrorState({ message }: { message: string }) {
   return (
     <div
-      className="py-[32px] text-center font-[var(--font-ln-mono)] text-[12px] uppercase tracking-[.06em]"
+      className="py-[32px] text-center font-[var(--font-ln-mono)] text-sm uppercase tracking-[.06em]"
       style={{ color: "var(--color-ln-err)" }}
       role="alert"
     >

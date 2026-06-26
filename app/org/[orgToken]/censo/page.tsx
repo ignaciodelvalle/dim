@@ -168,7 +168,7 @@ export default async function OrgCensoPage({
           <table className="w-full text-[13px]">
             <caption className="sr-only">Desglose de animales en custodia por especie</caption>
             <thead>
-              <tr className="border-b border-ln-op-line text-[10px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+              <tr className="border-b border-ln-op-line text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">
                 <th scope="col" className="px-4 py-2 text-left">
                   Especie
                 </th>
@@ -210,13 +210,13 @@ export default async function OrgCensoPage({
                   >
                     {slot.pct !== null ? `${slot.pct}%` : "—"}
                     {slot.overCapacity && (
-                      <span className="ml-1 text-[10px] font-bold">SOBRE CAP.</span>
+                      <span className="ml-1 text-xs font-bold">SOBRE CAP.</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
                       href={`/org/${orgToken}/mascotas?species=${species}`}
-                      className="text-[12px] text-ln-op-azul hover:underline no-underline"
+                      className="text-sm text-ln-op-azul hover:underline no-underline"
                     >
                       Ver listado →
                     </Link>

@@ -73,7 +73,7 @@ export function VolunteerRow({
       <div className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">
           <p className="text-[13px] font-medium text-ln-op-ink">{row.displayName}</p>
-          <p className="text-[12px] text-ln-op-mute space-x-2">
+          <p className="text-sm text-ln-op-mute space-x-2">
             <span>{row.availableSlots} slot(s)</span>
             <span>·</span>
             <span>{row.acceptedCount} aceptadas</span>
@@ -95,7 +95,7 @@ export function VolunteerRow({
             )}
           </p>
           {row.matchWarnings.length > 0 && (
-            <ul className="mt-1 space-y-0.5 text-[12px] text-ln-op-warn">
+            <ul className="mt-1 space-y-0.5 text-sm text-ln-op-warn">
               {row.matchWarnings.map((w) => (
                 <li key={w}>• {w}</li>
               ))}
@@ -107,7 +107,7 @@ export function VolunteerRow({
             type="button"
             onClick={() => setOpen(true)}
             disabled={orgPets.length === 0}
-            className="whitespace-nowrap rounded-[4px] bg-ln-op-azul px-3 py-[6px] text-[12px] font-semibold text-white transition-colors hover:bg-ln-op-azul-700 disabled:opacity-50"
+            className="whitespace-nowrap rounded-[4px] bg-ln-op-azul px-3 py-[6px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700 disabled:opacity-50"
           >
             Proponer tránsito
           </button>
@@ -128,7 +128,7 @@ export function VolunteerRow({
                 id={`propose-pet-${row.userId}`}
                 value={petToken}
                 onChange={(e) => setPetToken(e.target.value)}
-                className="w-full rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-[12px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+                className="w-full rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
               >
                 {orgPets.map((p) => (
                   <option key={p.id} value={p.publicToken}>
@@ -151,7 +151,7 @@ export function VolunteerRow({
                 value={durationWeeks}
                 onChange={(e) => setDurationWeeks(e.target.value)}
                 placeholder="Opcional"
-                className="w-full rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-[12px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+                className="w-full rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
               />
             </div>
           </div>
@@ -160,15 +160,15 @@ export function VolunteerRow({
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
             placeholder="Notas para el voluntario (opcional)"
-            className="w-full rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-[12px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="w-full rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
-          {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+          {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
           <div className="flex gap-2">
             <button
               type="button"
               onClick={propose}
               disabled={pending}
-              className="rounded-[4px] bg-ln-op-ok px-4 py-[7px] text-[12px] font-semibold text-white transition-colors disabled:opacity-50"
+              className="rounded-[4px] bg-ln-op-ok px-4 py-[7px] text-sm font-semibold text-white transition-colors disabled:opacity-50"
             >
               {pending ? "Enviando..." : "Enviar propuesta"}
             </button>
@@ -176,7 +176,7 @@ export function VolunteerRow({
               type="button"
               onClick={() => setOpen(false)}
               disabled={pending}
-              className="rounded-[4px] border border-ln-op-line px-4 py-[7px] text-[12px] text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
+              className="rounded-[4px] border border-ln-op-line px-4 py-[7px] text-sm text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
             >
               Cancelar
             </button>
@@ -184,7 +184,7 @@ export function VolunteerRow({
         </div>
       )}
 
-      {okMessage && <output className="block text-[12px] text-ln-op-ok">{okMessage}</output>}
+      {okMessage && <output className="block text-sm text-ln-op-ok">{okMessage}</output>}
     </li>
   );
 }

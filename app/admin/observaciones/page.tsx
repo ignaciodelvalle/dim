@@ -63,7 +63,7 @@ export default async function ObservacionesPage() {
       return (
         <div className="space-y-6">
           <header className="space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
               {eyebrow}
             </p>
             <h1 className="text-[22px] font-semibold text-ln-op-ink">Observaciones antirrábicas</h1>
@@ -100,7 +100,7 @@ export default async function ObservacionesPage() {
     return (
       <div className="space-y-6">
         <header className="space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             {"Admin · Vigilancia"}
           </p>
           <h1 className="text-[22px] font-semibold text-ln-op-ink">Observaciones antirrábicas</h1>
@@ -156,7 +156,7 @@ export default async function ObservacionesPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {"Admin · Vigilancia"}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Observaciones antirrábicas</h1>
@@ -179,35 +179,35 @@ export default async function ObservacionesPage() {
                     <div className="min-w-0 space-y-0.5">
                       <p className="text-[13px] font-semibold text-ln-op-ink">
                         {r.petName}{" "}
-                        <span className="text-[12px] font-normal text-ln-op-mute">
+                        <span className="text-sm font-normal text-ln-op-mute">
                           {"· "}
                           {r.species}
                         </span>
                       </p>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {r.locality ?? "—"}, {r.province ?? "—"}
                       </p>
                       {ownerByPet.get(r.petId) && (
-                        <p className="text-[12px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           {"Dueño/a: "}
                           {ownerByPet.get(r.petId)}
                         </p>
                       )}
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {"Inicio: "}
                         {formatRelative(started?.occurredAt ?? null)}
                         {started?.observationUntil
                           ? ` · Cierre estimado: ${started.observationUntil.toLocaleDateString("es-AR")}`
                           : null}
                       </p>
-                      <p className="font-mono text-[10px] text-ln-op-faint">{r.petPublicToken}</p>
+                      <p className="font-mono text-xs text-ln-op-faint">{r.petPublicToken}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 whitespace-nowrap">
                       <OpPill tone={STATUS_PILL[status]}>{STATUS_LABEL[status]}</OpPill>
                       {status === "in_progress" && (
                         <Link
                           href={`/admin/observaciones/${r.petPublicToken}`}
-                          className="text-[12px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+                          className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                         >
                           {"Cerrar profesionalmente ->"}
                         </Link>

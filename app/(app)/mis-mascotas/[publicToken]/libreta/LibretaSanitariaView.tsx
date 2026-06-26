@@ -240,7 +240,7 @@ function LnTimelineSection({
               >
                 {dayStr} {monthStr}
               </span>
-              <span className="text-[10px]" style={{ color: "var(--color-ln-mute)" }}>
+              <span className="text-xs" style={{ color: "var(--color-ln-mute)" }}>
                 {yearStr}
               </span>
             </div>
@@ -248,7 +248,7 @@ function LnTimelineSection({
             {/* Dot + line */}
             <div className="flex flex-col items-center">
               <div
-                className="mt-[11px] flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-full border-2 text-[12px]"
+                className="mt-[11px] flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-full border-2 text-sm"
                 style={{
                   borderColor: color,
                   color,
@@ -297,15 +297,12 @@ function LnTimelineSection({
                 </p>
               )}
               {summary.secondary && (
-                <p className="mt-[2px] text-[12px]" style={{ color: "var(--color-ln-ink-2)" }}>
+                <p className="mt-[2px] text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
                   {summary.secondary}
                 </p>
               )}
               {event.notes && (
-                <p
-                  className="mt-[3px] text-[12px] italic"
-                  style={{ color: "var(--color-ln-mute)" }}
-                >
+                <p className="mt-[3px] text-sm italic" style={{ color: "var(--color-ln-mute)" }}>
                   {event.notes}
                 </p>
               )}

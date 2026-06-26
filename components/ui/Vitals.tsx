@@ -45,7 +45,7 @@ export function LnVitals({ cells, className = "" }: LnVitalsProps) {
             .join(" ")}
         >
           {/* Mono label */}
-          <p className="mb-[5px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
+          <p className="mb-[5px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
             {cell.label}
           </p>
 
@@ -53,7 +53,7 @@ export function LnVitals({ cells, className = "" }: LnVitalsProps) {
           <p className="font-[var(--font-ln-serif)] text-[19px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {cell.value}
             {cell.unit && (
-              <small className="ml-[3px] font-[var(--font-ln-sans)] text-[12px] font-normal text-[var(--color-ln-mute)]">
+              <small className="ml-[3px] font-[var(--font-ln-sans)] text-sm font-normal text-[var(--color-ln-mute)]">
                 {cell.unit}
               </small>
             )}

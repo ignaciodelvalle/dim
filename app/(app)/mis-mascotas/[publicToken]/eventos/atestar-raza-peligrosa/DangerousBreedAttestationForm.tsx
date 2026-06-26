@@ -82,14 +82,14 @@ function Step1({ onContinue }: { onContinue: () => void }) {
               tenedores de razas consideradas potencialmente peligrosas. La atestación que vas a
               registrar queda anclada a tu DNI y a la jurisdicción de tu domicilio.
             </p>
-            <p className="text-[12px] text-[var(--color-ln-warn)]">
+            <p className="text-sm text-[var(--color-ln-warn)]">
               Este registro es inmutable e integra la libreta sanitaria oficial de la mascota.
             </p>
           </div>
 
           {/* Acknowledgement checkboxes */}
           <fieldset className="space-y-[10px] border-0 p-0 m-0">
-            <legend className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.1em] font-semibold text-[var(--color-ln-mute)] mb-[6px]">
+            <legend className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.1em] font-semibold text-[var(--color-ln-mute)] mb-[6px]">
               Confirmaciones requeridas
             </legend>
             {LEGAL_CHECKS.map((c) => (
@@ -114,7 +114,7 @@ function Step1({ onContinue }: { onContinue: () => void }) {
           type="button"
           disabled={!allChecked}
           onClick={onContinue}
-          className="w-full rounded-[4px] bg-[var(--color-ln-warn)] px-[16px] py-[12px] font-[var(--font-ln-sans)] text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="w-full rounded-[4px] bg-[var(--color-ln-warn)] px-[16px] py-[12px] font-[var(--font-ln-sans)] text-md font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Continuar con la atestación →
         </button>
@@ -160,7 +160,7 @@ function Step2({
         <form id={FORM_ID} action={formAction} className="contents">
           {/* Registry radio group */}
           <div className="flex flex-col gap-[6px]">
-            <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+            <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               Registro{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
@@ -245,7 +245,7 @@ function Step2({
           type="submit"
           form={FORM_ID}
           disabled={isPending}
-          className="w-full rounded-[4px] bg-[var(--color-ln-warn)] px-[16px] py-[12px] font-[var(--font-ln-sans)] text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-[4px] bg-[var(--color-ln-warn)] px-[16px] py-[12px] font-[var(--font-ln-sans)] text-md font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isPending ? "Registrando..." : "Registrar atestación"}
         </button>

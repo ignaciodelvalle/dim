@@ -201,7 +201,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                 <p className="text-xs font-medium text-[var(--color-ln-ink)] truncate">
                   {share.label ?? "Sin etiqueta"}
                 </p>
-                <p className="text-[10px] text-[var(--color-ln-mute)]">
+                <p className="text-xs text-[var(--color-ln-mute)]">
                   {share.expiresAt
                     ? `Vence ${new Date(share.expiresAt).toLocaleDateString("es-AR")}`
                     : "Sin vencimiento"}
@@ -217,7 +217,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                 <button
                   type="button"
                   onClick={() => copyToClipboard(share.shareToken)}
-                  className="text-[10px] px-2 py-1 rounded-[3px] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+                  className="text-xs px-2 py-1 rounded-[3px] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   {copiedToken === share.shareToken ? "Copiado" : "Copiar"}
                 </button>
@@ -227,7 +227,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                     type="submit"
                     disabled={revokePending && revokingId === share.id}
                     onClick={() => setRevokingId(share.id)}
-                    className="text-[10px] px-2 py-1 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors disabled:opacity-50"
+                    className="text-xs px-2 py-1 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors disabled:opacity-50"
                   >
                     Revocar
                   </button>

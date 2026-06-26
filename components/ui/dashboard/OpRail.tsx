@@ -76,9 +76,9 @@ export function OpRail({
             {initials || "?"}
           </div>
           <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-[12px] font-semibold text-white">{user.name}</span>
+            <span className="truncate text-sm font-semibold text-white">{user.name}</span>
             {user.role && (
-              <span className="font-ln-mono text-[10px] text-ln-op-rail-mute">{user.role}</span>
+              <span className="font-ln-mono text-xs text-ln-op-rail-mute">{user.role}</span>
             )}
           </div>
         </div>

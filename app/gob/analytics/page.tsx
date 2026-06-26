@@ -162,7 +162,7 @@ export default async function GobAnalyticsPage({
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Vigilancia sanitaria · Analítica
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Analítica</h1>
@@ -246,7 +246,7 @@ export default async function GobAnalyticsPage({
           actions={
             <Link
               href="/gob/analytics/export"
-              className="text-[12px] text-ln-op-azul hover:underline no-underline"
+              className="text-sm text-ln-op-azul hover:underline no-underline"
             >
               {"Exportar CSV →"}
             </Link>
@@ -273,7 +273,7 @@ export default async function GobAnalyticsPage({
           }
           actions={
             signalsTrend.suppressedCount > 0 ? (
-              <span className="text-[12px] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 {signalsTrend.suppressedCount}{" "}
                 {signalsTrend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"}{" "}
                 (privacidad)

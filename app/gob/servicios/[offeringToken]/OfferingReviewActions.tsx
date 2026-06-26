@@ -49,7 +49,7 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
   if (mode === "approving") {
     return (
       <div className="space-y-2">
-        <p className="text-[12px] text-ln-op-ink-2">
+        <p className="text-sm text-ln-op-ink-2">
           Vas a aprobar este servicio. El proveedor recibirá una notificación.
         </p>
         <div className="flex items-center gap-2">
@@ -68,7 +68,7 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
             Cancelar
           </OpButton>
         </div>
-        {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+        {error && <p className="text-sm text-ln-op-danger">{error}</p>}
       </div>
     );
   }
@@ -82,7 +82,7 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
           onChange={(e) => setReason(e.target.value)}
           placeholder="Motivo del rechazo (minimo 10 caracteres). Se envia al proveedor."
           rows={3}
-          className="w-full text-[12px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="w-full text-sm rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <div className="flex items-center gap-2">
           <OpButton
@@ -107,7 +107,7 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
             Cancelar
           </OpButton>
         </div>
-        {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+        {error && <p className="text-sm text-ln-op-danger">{error}</p>}
       </div>
     );
   }
@@ -125,7 +125,7 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
       >
         Rechazar
       </button>
-      {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+      {error && <p className="text-sm text-ln-op-danger">{error}</p>}
     </div>
   );
 }

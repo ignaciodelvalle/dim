@@ -68,7 +68,7 @@ export function PanoramaShell({
   return (
     <div className="space-y-4">
       <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Centro de Situación Nacional
         </p>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -102,7 +102,7 @@ export function PanoramaShell({
       {/* Methodology / "acerca de estas métricas" — for a government data product
           the operator must be able to see how each indicator is computed, its
           sources, and the privacy treatment (exec-gate E9 credibility). */}
-      <details className="rounded-[6px] border border-ln-op-line bg-ln-op-card/40 px-3 py-2 text-[12px] text-ln-op-ink-2">
+      <details className="rounded-[6px] border border-ln-op-line bg-ln-op-card/40 px-3 py-2 text-sm text-ln-op-ink-2">
         <summary className="cursor-pointer select-none font-medium text-ln-op-ink">
           Acerca de estas métricas
         </summary>
@@ -115,7 +115,7 @@ export function PanoramaShell({
           <li>
             <span className="font-medium text-ln-op-ink">Fuentes.</span> Densidad poblacional del
             Censo 2022 (INDEC); jurisdicciones y centroides de localidades del padrón{" "}
-            <code className="text-[10px]">ar_localities</code>.
+            <code className="text-xs">ar_localities</code>.
           </li>
           <li>
             <span className="font-medium text-ln-op-ink">Privacidad.</span> Las denuncias de

@@ -88,7 +88,7 @@ function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }) {
   return (
     <section aria-label="Estado de vacunación">
       <p
-        className="mb-[8px] font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em] font-semibold"
+        className="mb-[8px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] font-semibold"
         style={{ color: "var(--color-ln-mute)" }}
       >
         Estado de vacunación
@@ -107,7 +107,7 @@ function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }) {
               {b.count}
             </p>
             <p
-              className="mt-[2px] font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.05em]"
+              className="mt-[2px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.05em]"
               style={{ color: b.text }}
             >
               {b.label}
