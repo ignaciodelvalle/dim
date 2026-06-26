@@ -187,7 +187,11 @@ export function LnTextarea({ invalid = false, className = "", ...rest }: LnTexta
 
 export function LnRow({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={["grid grid-cols-2 gap-[12px]", className].filter(Boolean).join(" ")}>
+    <div
+      className={["grid grid-cols-1 sm:grid-cols-2 gap-[12px]", className]
+        .filter(Boolean)
+        .join(" ")}
+    >
       {children}
     </div>
   );

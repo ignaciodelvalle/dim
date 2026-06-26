@@ -265,7 +265,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           </div>
         </fieldset>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
             <span className="text-[13px] text-ln-op-ink">Edad — años</span>
             <input

@@ -74,7 +74,7 @@ export function AgendaRuleForm({
       </div>
 
       {/* Time window */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
           <label htmlFor="startTimeLocal" className="block text-[13px] font-medium text-ln-op-ink">
             Hora inicio <span className="text-ln-op-danger">*</span>
@@ -104,7 +104,7 @@ export function AgendaRuleForm({
       </div>
 
       {/* Effective range */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
           <label htmlFor="effectiveFrom" className="block text-[13px] font-medium text-ln-op-ink">
             Válido desde <span className="text-ln-op-danger">*</span>

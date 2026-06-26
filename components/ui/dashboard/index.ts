@@ -11,6 +11,8 @@ export { OperatorBreadcrumbs } from "./OperatorBreadcrumbs";
 export { OpScopeChip } from "./OpScopeChip";
 export { OpMobileDrawer } from "./OpMobileDrawer";
 export { OpKpi, OpKpiSm } from "./OpKpi";
+export { KpiStrip } from "./KpiStrip";
+export type { KpiStripProps } from "./KpiStrip";
 export { OpPill } from "./OpPill";
 export { OpStatusPill } from "./OpStatusPill";
 export type { StatusTone } from "./OpStatusPill";

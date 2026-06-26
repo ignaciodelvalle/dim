@@ -76,7 +76,7 @@ export function VaccinationAttendanceForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <OpFieldLabel htmlFor="vacc-brand">Marca / laboratorio</OpFieldLabel>
           <OpInput id="vacc-brand" name="brand" type="text" placeholder="Opcional" />

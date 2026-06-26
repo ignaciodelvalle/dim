@@ -731,7 +731,7 @@ function CustodyKindToggle({
         ¿Es tu mascota o la estás cuidando?
       </p>
       <input type="hidden" name="custodyKind" value={value} />
-      <div className="grid grid-cols-2 gap-[8px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]">
         <CustodyOptionCard
           checked={value === "owner"}
           onSelect={() => onChange("owner")}
@@ -817,7 +817,7 @@ function LnAgeFields({
       <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         Edad aproximada
       </p>
-      <div className="grid grid-cols-2 gap-[10px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]">
         {/* B-6: aria-label so each input has an accessible name independent of id/label wiring */}
         <LnInput
           id="ageYears"

@@ -100,7 +100,7 @@ export function MicrochipAttendanceForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <OpFieldLabel htmlFor="chip-country_code">Código de país (ISO)</OpFieldLabel>
           <OpInput

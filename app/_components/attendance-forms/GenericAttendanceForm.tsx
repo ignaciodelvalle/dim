@@ -74,7 +74,7 @@ export function GenericAttendanceForm({
         <OpInput id="gen-diagnosis" name="diagnosis" type="text" placeholder="Opcional" />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <OpFieldLabel htmlFor="gen-vet_name">Veterinario/a</OpFieldLabel>
           <OpInput id="gen-vet_name" name="vet_name" type="text" placeholder="Nombre (opcional)" />
