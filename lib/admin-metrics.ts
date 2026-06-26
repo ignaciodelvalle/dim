@@ -278,3 +278,143 @@ export async function fetchCronRuns(): Promise<CronRunRow[]> {
   }
   return results;
 }
+
+// ---------------------------------------------------------------------------
+// Cron health detail — used by /admin/sistema/crons.
+//
+// Returns one row per cron in the registry (including ones that never ran).
+// The staleness thresholds here mirror the CRON_REGISTRY in
+// app/api/cron/cron-health/route.ts — keep them in sync.
+// ---------------------------------------------------------------------------
+
+const DAILY_STALENESS_MS = 26 * 60 * 60 * 1000; // 26 hours
+
+export type CronHealthRow = {
+  cronName: string;
+  schedule: string;
+  healthy: boolean;
+  reason: "ok" | "never_ran" | "stale" | "last_failed";
+  lastRunAt: Date | null;
+  lastStatus: "ok" | "failed" | "running" | null;
+  lastItemsProcessed: number | null;
+  ageMs: number | null;
+};
+
+const CRON_SCHEDULE_MAP: Record<string, string> = {
+  vaccine_due: "0 12 * * *",
+  post_adoption_checkin: "0 13 * * *",
+  expire_foster_proposals: "0 3 * * *",
+  auto_expire_approvals: "0 4 * * *",
+  close_rabies_observations: "0 0 * * *",
+  close_stale_lost_episodes: "0 4 * * *",
+  close_followup_expired_adoptions: "0 4 * * *",
+  escalate_stale_welfare_cases: "0 4 * * *",
+  escalate_stale_disputes: "0 4 * * *",
+  expire_cross_org_transfers: "0 4 * * *",
+  drain_outbox: "0 6 * * *",
+  process_eno_queue: "0 7 * * *",
+  expire_pet_transfers: "0 4 * * *",
+  expire_decomiso_handoffs: "0 0 * * *",
+  materialize_slots: "0 2 * * *",
+  business_rules_reeval: "0 5 * * *",
+  data_lifecycle: "30 3 * * *",
+  purge_scan_events: "0 1 * * *",
+  evaluate_alerts: "0 8 * * *",
+  reconcile_pet_status: "0 9 * * *",
+  cron_health: "0 10 * * *",
+};
+
+const CRON_REGISTRY_NAMES = Object.keys(CRON_SCHEDULE_MAP);
+
+export async function fetchCronHealth(): Promise<CronHealthRow[]> {
+  const now = Date.now();
+
+  // Fetch the latest run for every known cron name in one pass.
+  const knownNames = await db
+    .selectDistinct({ cronName: cronRuns.cronName })
+    .from(cronRuns)
+    .orderBy(cronRuns.cronName);
+
+  const latestByName = new Map<
+    string,
+    { startedAt: Date; status: string; itemsProcessed: number }
+  >();
+
+  for (const n of knownNames) {
+    const [latest] = await db
+      .select({
+        startedAt: cronRuns.startedAt,
+        status: cronRuns.status,
+        itemsProcessed: cronRuns.itemsProcessed,
+      })
+      .from(cronRuns)
+      .where(eq(cronRuns.cronName, n.cronName))
+      .orderBy(desc(cronRuns.startedAt))
+      .limit(1);
+    if (latest) latestByName.set(n.cronName, latest);
+  }
+
+  const rows: CronHealthRow[] = [];
+  for (const cronName of CRON_REGISTRY_NAMES) {
+    const schedule = CRON_SCHEDULE_MAP[cronName] ?? "?";
+    const latest = latestByName.get(cronName) ?? null;
+
+    if (!latest) {
+      rows.push({
+        cronName,
+        schedule,
+        healthy: false,
+        reason: "never_ran",
+        lastRunAt: null,
+        lastStatus: null,
+        lastItemsProcessed: null,
+        ageMs: null,
+      });
+      continue;
+    }
+
+    const ageMs = now - latest.startedAt.getTime();
+    const status = latest.status as "ok" | "failed" | "running";
+
+    if (status === "failed") {
+      rows.push({
+        cronName,
+        schedule,
+        healthy: false,
+        reason: "last_failed",
+        lastRunAt: latest.startedAt,
+        lastStatus: status,
+        lastItemsProcessed: latest.itemsProcessed,
+        ageMs,
+      });
+      continue;
+    }
+
+    if (ageMs > DAILY_STALENESS_MS) {
+      rows.push({
+        cronName,
+        schedule,
+        healthy: false,
+        reason: "stale",
+        lastRunAt: latest.startedAt,
+        lastStatus: status,
+        lastItemsProcessed: latest.itemsProcessed,
+        ageMs,
+      });
+      continue;
+    }
+
+    rows.push({
+      cronName,
+      schedule,
+      healthy: true,
+      reason: "ok",
+      lastRunAt: latest.startedAt,
+      lastStatus: status,
+      lastItemsProcessed: latest.itemsProcessed,
+      ageMs,
+    });
+  }
+
+  return rows;
+}

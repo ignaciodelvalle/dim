@@ -80,6 +80,10 @@
     {
       "path": "/api/cron/reconcile-pet-status",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/cron-health",
+      "schedule": "0 10 * * *"
     }
   ]
 }

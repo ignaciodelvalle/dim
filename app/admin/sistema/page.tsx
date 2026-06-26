@@ -139,7 +139,17 @@ export default async function AdminSistemaPage() {
         </OpCard>
 
         <OpCard>
-          <OpCardHead title="Crons" />
+          <OpCardHead
+            title="Crons"
+            actions={
+              <Link
+                href="/admin/sistema/crons"
+                className="text-xs font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+              >
+                Ver detalle →
+              </Link>
+            }
+          />
           <OpCardBody>
             {crons.length === 0 ? (
               <p className="text-[13px] text-ln-op-mute">Sin runs registrados.</p>
