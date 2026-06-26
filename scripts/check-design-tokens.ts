@@ -80,26 +80,10 @@ const ARBITRARY_HEX_ALLOWLIST = new Set<string>([
   // Migration: add --color-ln-paper-warm token when the Sheet is refactored.
   "bg-[#fcfbf7]",
 
-  // components/ui/dashboard/OpMobileDrawer.tsx + OpRail.tsx — #0B3B42 is the
-  // org-teal rail background (ln-tl-rail). Grandfathered; migrate to
-  // bg-[var(--color-ln-tl-rail)] when the drawer/rail tokens are applied.
-  "bg-[#0B3B42]",
-
-  // components/ui/dashboard/OpMobileDrawer.tsx + OpRailNav.tsx — #5FD0B0 is
-  // the org-teal accent (ln-tl-accent). Grandfathered; migrate to
-  // border-[var(--color-ln-tl-accent)] when teal tokens are adopted.
-  "border-[#5FD0B0]",
-
   // components/ui/dashboard/OpRail.tsx — gradient from navy-active to violeta.
   // Grandfathered; these values have no direct ln-* token yet.
   "from-[#3a6cb3]",
   "to-[#6a4c93]",
-
-  // components/ui/dashboard/OpRailNav.tsx — rail text colors resolved to
-  // ln-op-rail-text (#dce6f1) and ln-op-rail-mute (#7c93ac). Grandfathered;
-  // migrate to text-[var(--color-ln-op-rail-text)] / text-[var(--color-ln-op-rail-mute)].
-  "text-[#DCE6F1]",
-  "text-[#7C93AC]",
 ]);
 
 // Status components that render the canonical open/escalated/closed/merged grammar.
@@ -136,18 +120,23 @@ export const RAW_CITIZEN_STATUS =
 // Rules 4–8 (new ratchet rules — fail only on NEW violations above baseline)
 // ---------------------------------------------------------------------------
 
-// Rule 4: Arbitrary text sizes — text-[Npx] or text-[N.Npx]
+// Rule 4: Arbitrary text sizes — text-[Npx] or text-[N.Npx].
+// Note: text-[var(--text-*)] is intentionally NOT matched (correct token form).
 export const ARBITRARY_TEXT_PX = /\btext-\[\d+\.?\d*px\]/g;
 
-// Rule 5: Arbitrary spacing — p/m/gap/space etc. with [Npx] or [Nrem]
+// Rule 5: Arbitrary spacing — p/m/gap/space etc. with [Npx] or [Nrem].
+// Note: p-[var(--space-*)] etc. are intentionally NOT matched (correct token form).
 export const ARBITRARY_SPACING_PX =
   /\b(?:p|m|gap|space|px|py|pt|pb|pl|pr|mx|my|mt|mb|ml|mr|gap-x|gap-y)-\[\d+\.?\d*(?:px|rem)\]/g;
 
-// Rule 6: Arbitrary radius — rounded-[Npx]
+// Rule 6: Arbitrary radius — rounded-[Npx].
+// Note: rounded-[var(--radius-*)] is intentionally NOT matched (correct token form).
 export const ARBITRARY_RADIUS_PX = /\brounded-\[\d+\.?\d*px\]/g;
 
-// Rule 7: Arbitrary shadow — shadow-[...] (any arbitrary shadow value)
-export const ARBITRARY_SHADOW = /\bshadow-\[[^\]]+\]/g;
+// Rule 7: Arbitrary shadow — shadow-[...] (any arbitrary shadow value).
+// Exempts shadow-[var(--shadow-*)] which IS the correct token form.
+// Only flags raw value literals like shadow-[0_1px_2px_rgba(0,0,0,0.1)].
+export const ARBITRARY_SHADOW = /\bshadow-\[(?!var\(--)[^\]]+\]/g;
 
 // Rule 8: Hex literals in style= / inline CSS props
 // Catches: style={{ color: '#abc' }}, fill="#123456", backgroundColor="#fff"

@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-06-26",
     "branch": "integration/session-review",
-    "totalViolations": 6343,
+    "totalViolations": 6337,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -312,20 +312,6 @@
       "space": 5,
       "rounded": 1,
       "shadow": 0,
-      "hexStyle": 0
-    },
-    "components/ui/primitives/Box.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 3,
-      "hexStyle": 0
-    },
-    "components/ui/primitives/CardFrame.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 3,
       "hexStyle": 0
     },
     "components/ui/dashboard/AnalyticsLoadFallback.tsx": {
