@@ -51,7 +51,7 @@ const output = {
   files: baseline,
 };
 
-writeFileSync("scripts/design-tokens-baseline.json", JSON.stringify(output, null, 2) + "\n");
+writeFileSync("scripts/design-tokens-baseline.json", `${JSON.stringify(output, null, 2)}\n`);
 console.log(
   `Baseline written: ${grandTotal} total violations across ${Object.keys(baseline).length} files.`,
 );
