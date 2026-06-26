@@ -120,7 +120,9 @@ async function insertLostPet(opts: {
   shelterCustodyOrgId?: string;
   shelterCustodyUserId?: string;
 }): Promise<{ petId: string; publicToken: string }> {
-  const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`.toUpperCase().slice(-6);
+  const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`
+    .toUpperCase()
+    .slice(-6);
   const token = `UCR-${suffix}`;
   const now = new Date();
 
@@ -535,7 +537,10 @@ describe("ownerRejectReturnUseCase", () => {
     expect(cancelPayload.cancelled_by).toBe("owner_reject");
 
     // Pet status unchanged (still lost).
-    const [currentPet] = await db.select({ status: pets.status }).from(pets).where(eq(pets.id, petId));
+    const [currentPet] = await db
+      .select({ status: pets.status })
+      .from(pets)
+      .where(eq(pets.id, petId));
     expect(currentPet.status).toBe("lost");
   });
 
@@ -727,7 +732,9 @@ describe("orgAcceptOwnerReturnUseCase — attribution", () => {
       .returning();
     insertedPetIds.push(pet.id);
 
-    await db.insert(ownerships).values({ petId: pet.id, ownerUserId, role: "owner", startedAt: now });
+    await db
+      .insert(ownerships)
+      .values({ petId: pet.id, ownerUserId, role: "owner", startedAt: now });
 
     const adoptionPayload = validateEventPayload("adoption_finalized", {
       previous_owner_organization_id: orgId,
@@ -807,7 +814,9 @@ describe("orgRejectOwnerReturnUseCase — attribution", () => {
       .returning();
     insertedPetIds.push(pet.id);
 
-    await db.insert(ownerships).values({ petId: pet.id, ownerUserId, role: "owner", startedAt: now });
+    await db
+      .insert(ownerships)
+      .values({ petId: pet.id, ownerUserId, role: "owner", startedAt: now });
 
     const adoptionPayload = validateEventPayload("adoption_finalized", {
       previous_owner_organization_id: orgId,
