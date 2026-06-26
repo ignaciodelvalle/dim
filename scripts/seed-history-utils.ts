@@ -57,3 +57,154 @@ export function dateInYear(year: number, rng: () => number, minMonth = 0, maxMon
 export function pickRegisteredYear<T extends number>(rng: () => number, years: readonly T[]): T {
   return years[Math.floor(rng() * years.length)];
 }
+
+// ---------------------------------------------------------------------------
+// Province trend profiles
+// ---------------------------------------------------------------------------
+
+export type TrendArchetype = "improving" | "worsening" | "uniform";
+export type HistoryYear = 2024 | 2025 | 2026;
+
+type ProvinceProfile = {
+  archetype: TrendArchetype;
+  coverageByYear: Record<HistoryYear, { vacc: number; ster: number }>;
+  zoonosisByYear: Record<HistoryYear, number>;
+};
+
+/** Córdoba: vaccination + sterilisation coverage rises, zoonosis declines. */
+const CORDOBA_COVERAGE: Record<HistoryYear, { vacc: number; ster: number }> = {
+  2024: { vacc: 0.3, ster: 0.25 },
+  2025: { vacc: 0.43, ster: 0.35 },
+  2026: { vacc: 0.55, ster: 0.44 },
+};
+const CORDOBA_ZOONOSIS: Record<HistoryYear, number> = { 2024: 0.6, 2025: 0.3, 2026: 0.1 };
+
+/** Salta: coverage low and declining, zoonosis rises. */
+const SALTA_COVERAGE: Record<HistoryYear, { vacc: number; ster: number }> = {
+  2024: { vacc: 0.28, ster: 0.2 },
+  2025: { vacc: 0.21, ster: 0.16 },
+  2026: { vacc: 0.16, ster: 0.12 },
+};
+const SALTA_ZOONOSIS: Record<HistoryYear, number> = { 2024: 0.5, 2025: 1.1, 2026: 1.8 };
+
+/** All other provinces: mild upward vacc/ster trend, flat-ish zoonosis. */
+const UNIFORM_COVERAGE: Record<HistoryYear, { vacc: number; ster: number }> = {
+  2024: { vacc: 0.32, ster: 0.26 },
+  2025: { vacc: 0.4, ster: 0.32 },
+  2026: { vacc: 0.48, ster: 0.38 },
+};
+const UNIFORM_ZOONOSIS: Record<HistoryYear, number> = { 2024: 0.4, 2025: 0.4, 2026: 0.45 };
+
+// ---------------------------------------------------------------------------
+// Monthly-rate model helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Months elapsed since January 2024 (month is 0-indexed, so 0 = January).
+ * Example: monthIndex(2026, 5) === 29 (June 2026).
+ */
+export function monthIndex(year: number, month: number): number {
+  return (year - 2024) * 12 + month;
+}
+
+/**
+ * Seasonal multiplier for a given 0-indexed month.
+ * Peaks in January (month 0) at ~1.25, troughs in July (month 6) at ~0.75.
+ * Bounded to approximately [0.75, 1.25].
+ */
+export function seasonalFactor(month: number): number {
+  return 1 + 0.25 * Math.cos((2 * Math.PI * month) / 12);
+}
+
+/**
+ * Trend multiplier based on archetype and how many months have elapsed.
+ * - "uniform"   → mild upward drift: 1 + 0.01 * monthIndex
+ * - "improving" → stronger upward drift: 1 + 0.025 * monthIndex
+ * - "worsening" → downward drift, floored at 0.2: max(0.2, 1 − 0.02 * monthIndex)
+ */
+export function trendFactor(archetype: TrendArchetype, mi: number): number {
+  switch (archetype) {
+    case "uniform":
+      return 1 + 0.01 * mi;
+    case "improving":
+      return 1 + 0.025 * mi;
+    case "worsening":
+      return Math.max(0.2, 1 - 0.02 * mi);
+  }
+}
+
+/**
+ * Realise the expected monthly count as a non-negative integer.
+ * Expected = baseRate × trendFactor × seasonalFactor.
+ * Uses one `rng()` draw for the fractional part (stochastic rounding).
+ * When baseRate === 0 the result is always 0 (no rng draw).
+ */
+export function monthlyEventCount(
+  baseRate: number,
+  archetype: TrendArchetype,
+  year: number,
+  month: number,
+  rng: () => number,
+): number {
+  if (baseRate === 0) return 0;
+  const expected =
+    baseRate * trendFactor(archetype, monthIndex(year, month)) * seasonalFactor(month);
+  return Math.floor(expected) + (rng() < expected - Math.floor(expected) ? 1 : 0);
+}
+
+/** Default anchor: the latest date we consider "now" for the seed window. */
+const DEFAULT_ANCHOR = new Date("2026-06-20T00:00:00Z");
+
+/**
+ * Pick a uniformly random day + hour within the given UTC month.
+ * Uses two rng draws (one for day, one for hour).
+ * If the resulting date is after `anchor` (default 2026-06-20T00:00:00Z),
+ * the result is clamped to the anchor.
+ */
+export function pickDateInMonth(
+  year: number,
+  month: number,
+  rng: () => number,
+  anchor: Date = DEFAULT_ANCHOR,
+): Date {
+  const monthStart = Date.UTC(year, month, 1);
+  const monthEndExclusive = Date.UTC(year, month + 1, 1);
+  const daysInMonth = (monthEndExclusive - monthStart) / 86_400_000;
+
+  const day = Math.floor(rng() * daysInMonth); // 0-indexed day within month
+  const hour = Math.floor(rng() * 24);
+
+  const ts = Date.UTC(year, month, 1 + day, hour, 0, 0, 0);
+  const result = new Date(Math.min(ts, anchor.getTime()));
+  return result;
+}
+
+/**
+ * Return the trend archetype and per-year coverage/zoonosis numbers for any
+ * Argentine province name. Pure and deterministic — no rng or Date.now() calls.
+ *
+ * - `"Córdoba"` → improving (coverage rises, zoonosis declines)
+ * - `"Salta"`   → worsening (coverage falls, zoonosis rises)
+ * - any other   → uniform (mild upward vacc/ster, flat-ish zoonosis)
+ */
+export function provinceProfile(provinceName: string): ProvinceProfile {
+  if (provinceName === "Córdoba") {
+    return {
+      archetype: "improving",
+      coverageByYear: CORDOBA_COVERAGE,
+      zoonosisByYear: CORDOBA_ZOONOSIS,
+    };
+  }
+  if (provinceName === "Salta") {
+    return {
+      archetype: "worsening",
+      coverageByYear: SALTA_COVERAGE,
+      zoonosisByYear: SALTA_ZOONOSIS,
+    };
+  }
+  return {
+    archetype: "uniform",
+    coverageByYear: UNIFORM_COVERAGE,
+    zoonosisByYear: UNIFORM_ZOONOSIS,
+  };
+}
