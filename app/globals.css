@@ -96,35 +96,6 @@
   --color-ln-memorial-chip-text: #6a5a3f; /* "En memoria" chip text */
   --color-ln-memorial-note: #b0771a; /* note_added event in memorial timeline (pre-WCAG warn shade) */
 
-  /* Legacy Poncho token names, REPOINTED to the Libreta Nacional palette.
-     The class names (bg-gob-primary, text-gob-text, etc.) are kept so the
-     remaining poncho form primitives (Field/Input/Select/Sheet/Button/...)
-     inherit the LN look without editing every consumer. New code should use
-     ln-* / ln-op-* tokens directly; these aliases exist only to retire gob.ar. */
-  --color-gob-primary: #0e5a99; /* → ln-azul */
-  --color-gob-primary-hover: #0a4576; /* → ln-azul-700 */
-  --color-gob-primary-active: #0a3556; /* → ln-azul-900 */
-  --color-gob-celeste: #4e97d1; /* → ln-celeste */
-  --color-gob-azul-link: #0e5a99; /* → ln-azul */
-  --color-gob-azul-link-hover: #0a4576; /* → ln-azul-700 */
-
-  --color-gob-success: #2e7d4f; /* → ln-ok */
-  --color-gob-success-hover: #225c3a;
-  --color-gob-danger: #a23a2c; /* → ln-seal */
-  --color-gob-danger-hover: #832e23;
-  --color-gob-warning: #e0a93e; /* warm amber bg */
-  --color-gob-warning-text: #96600e; /* → ln-warn (updated to match) */
-  --color-gob-info: #4e97d1; /* → ln-celeste */
-
-  /* Neutros → LN ink/line/paper scale */
-  --color-gob-text: #1b2a33; /* → ln-ink */
-  --color-gob-text-gray: #3c4b55; /* → ln-ink-2 */
-  --color-gob-text-muted: #616e77; /* → ln-mute (darkened for WCAG AA-normal) */
-  --color-gob-border: #e4dfd3; /* → ln-line */
-  --color-gob-border-strong: #cfc8b8; /* → ln-line-strong */
-  --color-gob-surface: #ffffff; /* → ln-card */
-  --color-gob-surface-alt: #f6f4ed; /* → ln-stripe */
-
   /* Generic semantic tokens consumed by the app — repointed to Libreta Nacional. */
   --color-background: #fbfaf5; /* → ln-paper */
   --color-foreground: #1b2a33; /* → ln-ink */
@@ -193,19 +164,19 @@
   --text-2xl: 24px;
 
   /* Leading (line-height) scale — paired with text-* steps */
-  --leading-xs: 1.4;    /* tight for micro labels */
-  --leading-sm: 1.4;    /* tight for secondary labels */
-  --leading-md: 1.45;   /* slightly relaxed for body secondary */
-  --leading-base: 1.5;  /* primary body */
-  --leading-lg: 1.35;   /* heading-ish lead text */
-  --leading-xl: 1.3;    /* section headings */
-  --leading-2xl: 1.2;   /* page headings */
+  --leading-xs: 1.4; /* tight for micro labels */
+  --leading-sm: 1.4; /* tight for secondary labels */
+  --leading-md: 1.45; /* slightly relaxed for body secondary */
+  --leading-base: 1.5; /* primary body */
+  --leading-lg: 1.35; /* heading-ish lead text */
+  --leading-xl: 1.3; /* section headings */
+  --leading-2xl: 1.2; /* page headings */
 
   /* Tracking (letter-spacing) scale */
-  --tracking-tight: -0.01em;   /* headings, KPI values */
-  --tracking-normal: 0em;      /* body text */
-  --tracking-wide: 0.02em;     /* badges, chips, micro labels */
-  --tracking-wider: 0.05em;    /* allcaps labels */
+  --tracking-tight: -0.01em; /* headings, KPI values */
+  --tracking-normal: 0em; /* body text */
+  --tracking-wide: 0.02em; /* badges, chips, micro labels */
+  --tracking-wider: 0.05em; /* allcaps labels */
 
   /* =========================================================================
      Radius scale (extended)
@@ -220,7 +191,7 @@
      ========================================================================= */
   --radius-xs: 2px;
   --radius-sm: 4px;
-  --radius-md: 6px;   /* matches --radius-op-btn */
+  --radius-md: 6px; /* matches --radius-op-btn */
   --radius-lg: 8px;
 
   /* =========================================================================
@@ -230,7 +201,7 @@
      ========================================================================= */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
   --shadow-md: 0 2px 6px 0 rgba(0, 0, 0, 0.09), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 4px 16px 0 rgba(0, 0, 0, 0.10), 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px 0 rgba(0, 0, 0, 0.1), 0 2px 4px 0 rgba(0, 0, 0, 0.06);
 
   /* =========================================================================
      Libreta Nacional · Tier Operador (gob + admin)

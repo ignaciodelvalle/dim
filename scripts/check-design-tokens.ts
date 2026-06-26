@@ -39,8 +39,8 @@
 // (§6.5) because 90% of arbitrary values live there.
 
 import { globSync, readFileSync } from "node:fs";
-import { sep } from "node:path";
 import { createRequire } from "node:module";
+import { sep } from "node:path";
 
 // ---------------------------------------------------------------------------
 // File set — no components/ui/ exclusion (removed per Wave-3 audit §6.5)
@@ -272,11 +272,7 @@ function runChecks(): void {
         "use Tailwind spacing scale or --space-* tokens (e.g. p-3 instead of p-[12px])",
       ],
       ["rounded", "rounded-[Npx]", "use a --radius-* token (e.g. rounded-[var(--radius-sm)])"],
-      [
-        "shadow",
-        "shadow-[...]",
-        "use a --shadow-* token (e.g. shadow-[var(--shadow-md)])",
-      ],
+      ["shadow", "shadow-[...]", "use a --shadow-* token (e.g. shadow-[var(--shadow-md)])"],
       ["hexStyle", "hex in style=", "use a CSS var (e.g. var(--color-ln-ok)) in style props"],
     ];
 
