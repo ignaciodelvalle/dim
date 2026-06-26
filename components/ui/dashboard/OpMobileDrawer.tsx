@@ -56,7 +56,7 @@ export function OpMobileDrawer({
     setOpen(false);
   }, [pathname]);
 
-  const railBg = variant === "org" ? "bg-[#0B3B42]" : "bg-ln-op-navy";
+  const railBg = variant === "org" ? "bg-[var(--color-ln-tl-rail)]" : "bg-ln-op-navy";
 
   // Normalize sections
   const resolved: NavSection[] = sections ?? (nav ? [{ label: "", items: nav }] : []);
@@ -153,7 +153,7 @@ export function OpMobileDrawer({
                     const active = isActive(item, pathname);
                     const activeClasses =
                       variant === "org"
-                        ? "border-l-2 border-[#5FD0B0] bg-[rgba(255,255,255,0.12)] text-white font-semibold"
+                        ? "border-l-2 border-[var(--color-ln-tl-accent)] bg-[rgba(255,255,255,0.12)] text-white font-semibold"
                         : "border-l-2 border-white bg-[rgba(255,255,255,0.12)] text-white font-semibold";
 
                     return (

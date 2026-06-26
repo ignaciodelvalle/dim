@@ -37,7 +37,7 @@ export function OpRail({
   brandSubtitle = "Operador",
   user,
 }: Props) {
-  const railBg = variant === "org" ? "bg-[#0B3B42]" : "bg-ln-op-navy";
+  const railBg = variant === "org" ? "bg-[var(--color-ln-tl-rail)]" : "bg-ln-op-navy";
   const initials = user?.initials ?? (user?.name ? toInitials(user.name) : "");
 
   return (

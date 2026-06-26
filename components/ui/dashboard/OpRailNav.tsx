@@ -56,7 +56,7 @@ function NavLink({
 
   const activeClasses =
     variant === "org"
-      ? "border-l-2 border-[#5FD0B0] bg-[rgba(255,255,255,0.12)] text-white font-semibold"
+      ? "border-l-2 border-[var(--color-ln-tl-accent)] bg-[rgba(255,255,255,0.12)] text-white font-semibold"
       : "border-l-2 border-white bg-[rgba(255,255,255,0.12)] text-white font-semibold";
 
   return (
@@ -69,7 +69,7 @@ function NavLink({
         "-ml-0.5",
         active
           ? activeClasses
-          : "border-l-2 border-transparent text-[#DCE6F1] hover:bg-[rgba(255,255,255,0.05)]",
+          : "border-l-2 border-transparent text-[var(--color-ln-op-rail-text)] hover:bg-[rgba(255,255,255,0.05)]",
       ].join(" ")}
     >
       <span className="flex-1 truncate">{item.label}</span>
@@ -96,7 +96,7 @@ export function OpRailNav({ nav, sections, variant = "gob" }: Props) {
       {resolved.map((section) => (
         <div key={section.label} className="flex flex-col">
           {section.label && (
-            <div className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#7C93AC]">
+            <div className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--color-ln-op-rail-mute)]">
               {section.label}
             </div>
           )}
