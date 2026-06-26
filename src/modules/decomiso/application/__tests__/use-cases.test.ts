@@ -500,7 +500,7 @@ describe("executeDecomiso — registered_pet path", () => {
 describe("acceptDecomisoHandoffInTx — happy path", () => {
   it("closes govt case + ownership flip + new receiver case + audit", async () => {
     // Setup: open a fresh custody_episode case as the govt org (reusing petId).
-    let govtCaseId: string;
+    let govtCaseId!: string;
     let govtCasePublicCode: string;
     let ownershipId: string;
 
@@ -679,7 +679,7 @@ describe("acceptDecomisoHandoffInTx — happy path", () => {
 describe("rejectDecomisoHandoffInTx — happy path", () => {
   it("emits note_added + clears receiverOrg + case stays open + audit", async () => {
     // Setup a fresh case.
-    let govtCaseId: string;
+    let govtCaseId!: string;
     let govtCasePublicCode: string;
 
     await withMutationOverride(async (tx) => {
@@ -776,7 +776,7 @@ describe("rejectDecomisoHandoffInTx — happy path", () => {
 
 describe("reassignDecomisoInTx — happy path", () => {
   it("cancel note + new proposal + receiverOrg updated + audit", async () => {
-    let govtCaseId: string;
+    let govtCaseId!: string;
 
     await withMutationOverride(async (tx) => {
       await tx.execute(sql`
@@ -896,7 +896,7 @@ describe("validateAcceptDecomisoHandoff — guards", () => {
   it("rejects non-sanitary_authority opener", async () => {
     // Open a case where the opener is NOT a sanitary_authority.
     let nonGovtCaseId: string;
-    let nonGovtCasePublicCode: string;
+    let nonGovtCasePublicCode!: string;
 
     await withMutationOverride(async (tx) => {
       await tx.execute(sql`
@@ -953,7 +953,7 @@ describe("validateAcceptDecomisoHandoff — guards", () => {
 
   it("rejects wrong receiver org", async () => {
     let testCaseId: string;
-    let testCasePublicCode: string;
+    let testCasePublicCode!: string;
 
     await withMutationOverride(async (tx) => {
       await tx.execute(sql`
@@ -1009,7 +1009,7 @@ describe("validateAcceptDecomisoHandoff — guards", () => {
 describe("validateRejectDecomisoHandoff — guards", () => {
   it("rejects case with no current receiver (already rejected/cleared)", async () => {
     let testCaseId: string;
-    let testCasePublicCode: string;
+    let testCasePublicCode!: string;
 
     await withMutationOverride(async (tx) => {
       await tx.execute(sql`
