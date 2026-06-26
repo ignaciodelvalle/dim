@@ -48,6 +48,7 @@ import {
   type DashboardActor,
   type DashboardJurisdiction,
   buildProjectionContext,
+  jurisdictionPairClause,
   petEventsScopeClause as metricsPetEventsScopeClause,
   petsScopeClause as metricsPetsScopeClause,
 } from "@/lib/metrics";
@@ -97,17 +98,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // clause). Govt gets a disjunction of `(province=X AND locality=Y)` pairs.
 function outbreakSignalScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
   if (actor.role === "admin") return null;
-  if (jurisdictions.length === 0) {
-    // Govt with no active assignments — match nothing.
-    return sql`false`;
-  }
-  const pairs = jurisdictions.map(
-    (j) => sql`(
-      (${petEvents.payload}->>'pet_jurisdiction_province') = ${j.province}
-      AND (${petEvents.payload}->>'pet_jurisdiction_locality') = ${j.locality}
-    )`,
+  // Govt with no active assignments — match nothing.
+  return (
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`(${petEvents.payload}->>'pet_jurisdiction_province')`,
+      sql`(${petEvents.payload}->>'pet_jurisdiction_locality')`,
+    ) ?? sql`false`
   );
-  return sql.join(pairs, sql` OR `);
 }
 
 export async function fetchSurveillanceSignals(
@@ -250,11 +248,13 @@ export async function fetchLostPets(
   // but visible to admin.
   if (actor.role === "govt") {
     if (jurisdictions.length === 0) return [];
-    const pairs = jurisdictions.map(
-      (j) =>
-        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    const pairs = jurisdictionPairClause(
+      jurisdictions,
+      sql`${pets.jurisdictionProvince}`,
+      sql`${pets.jurisdictionLocality}`,
     );
-    conditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+    // pairs is non-null here because jurisdictions.length > 0 (guarded above).
+    if (pairs) conditions.push(sql`(${pairs})`);
   }
 
   // Push `q` (text search) and `since` (lost-event window) into SQL so the
@@ -482,11 +482,13 @@ export async function fetchPerdidasMetrics(
       // No assignments — return zeros immediately.
       return { activeCount: 0, recoveredMonth: 0, avgDaysActive: 0 };
     }
-    const pairs = jurisdictions.map(
-      (j) =>
-        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    const pairs = jurisdictionPairClause(
+      jurisdictions,
+      sql`${pets.jurisdictionProvince}`,
+      sql`${pets.jurisdictionLocality}`,
     );
-    recoveredConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+    // pairs is non-null because jurisdictions.length > 0 (guarded above).
+    if (pairs) recoveredConditions.push(sql`(${pairs})`);
   }
   // Admin province drill-down: narrow the recovered count to the province.
   // The pets table join is added below for the admin+province path.
@@ -639,12 +641,13 @@ export const PROVINCE_ISO_MAP: Record<string, string> = {
 // Govt: OR of (jurisdictionProvince=X AND jurisdictionLocality=Y) pairs.
 function casesScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
   if (actor.role === "admin") return null;
-  if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) =>
-      sql`(${cases.jurisdictionProvince} = ${j.province} AND ${cases.jurisdictionLocality} = ${j.locality})`,
+  return (
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`${cases.jurisdictionProvince}`,
+      sql`${cases.jurisdictionLocality}`,
+    ) ?? sql`false`
   );
-  return sql.join(pairs, sql` OR `);
 }
 
 // Thin adapters for the two scope helpers now canonical in lib/metrics/.
@@ -1108,12 +1111,13 @@ export function welfareReportsScopeClause(
   jurisdictions: DashboardJurisdiction[],
 ) {
   if (actor.role === "admin") return null;
-  if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) =>
-      sql`(${welfareReports.jurisdictionProvince} = ${j.province} AND ${welfareReports.jurisdictionLocality} = ${j.locality})`,
+  return (
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`${welfareReports.jurisdictionProvince}`,
+      sql`${welfareReports.jurisdictionLocality}`,
+    ) ?? sql`false`
   );
-  return sql.join(pairs, sql` OR `);
 }
 
 const TERMINAL_STATUSES = ["closed", "invalid", "duplicate"] as const;
@@ -1653,11 +1657,13 @@ export async function fetchAnalyticsMetrics(
     gte(petEvents.occurredAt, since12m),
   ];
   if (actor.role === "govt") {
-    const pairs = jurisdictions.map(
-      (j) =>
-        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    // jurisdictions.length > 0 guaranteed by early-return at top of function.
+    const pairs = jurisdictionPairClause(
+      jurisdictions,
+      sql`${pets.jurisdictionProvince}`,
+      sql`${pets.jurisdictionLocality}`,
     );
-    acquisitionConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+    if (pairs) acquisitionConditions.push(sql`(${pairs})`);
   }
   // Admin province drill-down for acquisition events: add province predicate.
   // The innerJoin to pets is added below via needsJoin.
@@ -1681,11 +1687,13 @@ export async function fetchAnalyticsMetrics(
     sql`unaccent(${petEvents.payload}->>'vaccine_name') ILIKE unaccent(${"%rabi%"})`,
   ];
   if (actor.role === "govt") {
-    const pairs = jurisdictions.map(
-      (j) =>
-        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    // jurisdictions.length > 0 guaranteed by early-return at top of function.
+    const pairs = jurisdictionPairClause(
+      jurisdictions,
+      sql`${pets.jurisdictionProvince}`,
+      sql`${pets.jurisdictionLocality}`,
     );
-    rabiesConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+    if (pairs) rabiesConditions.push(sql`(${pairs})`);
   }
   // Admin province drill-down for rabies events: add province predicate.
   if (actor.role === "admin" && adminProvince) {
@@ -1840,11 +1848,13 @@ export async function fetchAcquisitionTrend(
   ];
 
   if (actor.role === "govt") {
-    const pairs = jurisdictions.map(
-      (j) =>
-        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    // jurisdictions.length > 0 guaranteed by early-return above.
+    const pairs = jurisdictionPairClause(
+      jurisdictions,
+      sql`${pets.jurisdictionProvince}`,
+      sql`${pets.jurisdictionLocality}`,
     );
-    conditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+    if (pairs) conditions.push(sql`(${pairs})`);
   }
 
   const baseQuery =
@@ -1923,11 +1933,13 @@ export async function fetchDeathCauses(
   ];
 
   if (actor.role === "govt") {
-    const pairs = jurisdictions.map(
-      (j) =>
-        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    // jurisdictions.length > 0 guaranteed by early-return above.
+    const pairs = jurisdictionPairClause(
+      jurisdictions,
+      sql`${pets.jurisdictionProvince}`,
+      sql`${pets.jurisdictionLocality}`,
     );
-    conditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+    if (pairs) conditions.push(sql`(${pairs})`);
   }
 
   const rows = await (actor.role === "govt"
@@ -2248,11 +2260,13 @@ export async function fetchOrganizationsForExport(
   // jurisdiction_province / locality matches one of their assignments.
   if (actor.role === "govt") {
     if (jurisdictions.length === 0) return [];
-    const pairs = jurisdictions.map(
-      (j) =>
-        sql`(${organizations.jurisdictionProvince} = ${j.province} AND ${organizations.jurisdictionLocality} = ${j.locality})`,
+    const pairs = jurisdictionPairClause(
+      jurisdictions,
+      sql`${organizations.jurisdictionProvince}`,
+      sql`${organizations.jurisdictionLocality}`,
     );
-    conditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+    // pairs is non-null because jurisdictions.length > 0 (guarded above).
+    if (pairs) conditions.push(sql`(${pairs})`);
   }
 
   const rows = await db

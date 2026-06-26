@@ -26,6 +26,7 @@ import {
   type DashboardActor,
   type DashboardJurisdiction,
   buildProjectionContext,
+  jurisdictionPairClause,
   petEventsScopeClause as metricsPetEventsScopeClause,
   petsScopeClause as metricsPetsScopeClause,
   suppressSmallCells,
@@ -128,11 +129,9 @@ function jurisdictionColumnsScope(
     }
     return sql`${provinceCol} = ${adminProvince}`;
   }
-  if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) => sql`(${provinceCol} = ${j.province} AND ${localityCol} = ${j.locality})`,
+  return (
+    jurisdictionPairClause(jurisdictions, sql`${provinceCol}`, sql`${localityCol}`) ?? sql`false`
   );
-  return sql.join(pairs, sql` OR `);
 }
 
 // Normalize a name column the same way lib/ar-localidades.ts normalize() does

@@ -20,7 +20,7 @@ export type { Cell, MetricResult, SuppressedCells } from "./types";
 export type { SuppressOpts } from "./anonymity";
 export { suppressSmallCells, suppressedMetric } from "./anonymity";
 
-export { petsScopeClause, petEventsScopeClause } from "./scope";
+export { petsScopeClause, petEventsScopeClause, jurisdictionPairClause } from "./scope";
 
 export { activePetsCondition, dogsInScopeCondition, petEventsInScopeCondition } from "./population";
 

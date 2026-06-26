@@ -8,11 +8,49 @@
 // Import note: this file uses @/db (Drizzle) — it lives in infrastructure,
 // not domain/. This is Pattern-B territory (aggregate reads, not pure rules).
 
-import { and, eq, sql } from "drizzle-orm";
+import { type SQL, and, eq, sql } from "drizzle-orm";
 
 import { petEvents, pets } from "@/db";
 
+import type { DashboardJurisdiction } from "./context";
 import type { ProjectionContext } from "./context";
+
+/**
+ * Builds the OR-of-(province=X AND locality=Y) disjunction for a list of
+ * jurisdiction assignments. Parameterized by SQL expressions so callers can
+ * pass any table column or JSONB extraction as the province/locality operands.
+ *
+ * Returns `null` when `jurisdictions` is empty — callers that need `sql\`false\``
+ * for the empty case must handle it themselves (see govtJurisdictionClause for
+ * a wrapper that does so automatically).
+ *
+ * IMPORTANT: this function never emits the admin branch. Call it only when
+ * you have already established that the actor is govt (or you need the raw
+ * pairs regardless of role).
+ *
+ * @example
+ * // pets table columns
+ * jurisdictionPairClause(jurisdictions,
+ *   sql`${pets.jurisdictionProvince}`,
+ *   sql`${pets.jurisdictionLocality}`)
+ *
+ * @example
+ * // JSONB payload fields
+ * jurisdictionPairClause(jurisdictions,
+ *   sql`(${petEvents.payload}->>'pet_jurisdiction_province')`,
+ *   sql`(${petEvents.payload}->>'pet_jurisdiction_locality')`)
+ */
+export function jurisdictionPairClause(
+  jurisdictions: DashboardJurisdiction[],
+  provinceExpr: SQL,
+  localityExpr: SQL,
+): SQL | null {
+  if (jurisdictions.length === 0) return null;
+  const pairs = jurisdictions.map(
+    (j) => sql`(${provinceExpr} = ${j.province} AND ${localityExpr} = ${j.locality})`,
+  );
+  return sql.join(pairs, sql` OR `);
+}
 
 /**
  * Returns a Drizzle SQL clause that restricts a `pets`-based query to the
