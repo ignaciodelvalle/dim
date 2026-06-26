@@ -54,6 +54,11 @@ import { describe, expect, it } from "vitest";
 // bite.ts was migrated to src/modules/surveillance/actions.ts in WU-5 of
 // hexagonal-lite-surveillance. The flushNotifications() helper pattern is maintained
 // there (same contract, different surface). app/actions/bite.ts was deleted.
+// return-to-owner.ts was migrated to src/modules/return-to-owner/application/* in the
+// 2026-06-26 strangler pass. The §2.2 post-tx pattern is preserved per use-case
+// (accumulate `pendingNotifications` inside the tx, then `await db.insert(notifications)`
+// after the tx commits, wrapped in try/catch logging "notifications insert failed") —
+// verified across owner/org propose/accept/reject + cancel use-cases.
 const REFACTORED_FILES = [
   "admin-decisions.ts",
   "admin-institutional.ts",
@@ -62,7 +67,6 @@ const REFACTORED_FILES = [
   "chip-match.ts",
   "intake.ts",
   "profile-self-service.ts",
-  "return-to-owner.ts",
 ] as const;
 
 // Files that emit a single notification (no pending array) but must still
