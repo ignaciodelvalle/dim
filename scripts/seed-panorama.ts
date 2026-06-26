@@ -2912,6 +2912,10 @@ async function seedModelProvinceHistory(
                 vet_involved: rng() < 0.6,
                 location_description: `${loc.localityName}, ${provinceName} (seed)`,
                 rabies_vaccine_valid_at_incident: rng() < 0.5,
+                // 'province'/'locality' read by loadMordedurassByUnit / loadUnitHistory('mordeduras').
+                province: provinceName,
+                locality: loc.localityName,
+                // 'pet_jurisdiction_*' read by petEventsScopeClause (metrics scope).
                 pet_jurisdiction_province: provinceName,
                 pet_jurisdiction_locality: loc.localityName,
               },
