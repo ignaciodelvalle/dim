@@ -3123,6 +3123,232 @@ async function seedModelProvinceHistory(
 }
 
 // ---------------------------------------------------------------------------
+// 17. Historical welfare_reports + enforcement cases — 2024-2026 all provinces
+// ---------------------------------------------------------------------------
+// All rows are PANO-tagged so runClean()'s existing patterns remove them:
+//   welfare_reports: description LIKE 'PANO-%'    ← 'PANO-HIST-WEL-*' matches
+//   cases:           public_code LIKE 'PANO-CASE-%' ← 'PANO-CASE-HIST-*' matches
+//
+// Jurisdiction scoped by COLUMN (jurisdictionProvince/jurisdictionLocality),
+// matching jurisdictionColumnsScope() in the panorama repository consumers:
+//   loadDenunciaCentroids, loadDenunciasByUnit, loadUnitHistory('denuncias')
+//   loadDecomisos (custody_episode), fetchAnalyticsMetrics custodyDisputes
+//
+// custody_episode (decomiso) + custody_dispute cases use
+//   primarySubjectKind = 'location'
+// which satisfies the cases_subject_location_consistency biconditional by
+// providing locationLat/Lng.  No registered pet FK required.
+//
+// Welfare-report createdAt is set explicitly to a past date (not defaultNow)
+// so the consumer's gte(welfareReports.createdAt, since) temporal filter
+// correctly returns rows from 2024 and 2025.
+
+async function seedHistoryWelfareAndCases(
+  localitiesByCode: Map<string, LocalityRow[]>,
+): Promise<{ welfare: number; decomisos: number; disputes: number }> {
+  log("STEP", "Seeding multi-year welfare_reports + cases history (all provinces)…");
+
+  const ANCHOR = new Date(ANCHOR_ISO);
+  const WEL_BATCH = 200;
+
+  const SEIZURE_MOTIVES_HIST = [
+    "maltrato",
+    "abandono",
+    "tenencia_ilegal",
+    "orden_judicial",
+  ] as const;
+
+  let welIdx = 0;
+  let decIdx = 0;
+  let disIdx = 0;
+  let totalWelfare = 0;
+  let totalDecomisos = 0;
+  let totalDisputes = 0;
+
+  for (const province of PROVINCES) {
+    const provinceName = province.name;
+    const code = PROVINCE_TO_CODE.get(provinceName);
+    const localities = code ? (localitiesByCode.get(code) ?? []) : [];
+
+    if (localities.length === 0) {
+      log("WARN", `  [HIST-WEL] ${provinceName}: no localities — skipping`);
+      continue;
+    }
+
+    const { archetype } = provinceProfile(provinceName);
+
+    // Per-province monthly base rate: minimum 2, grows with locality count so
+    // provinces with more localities (Buenos Aires ~2000, Córdoba ~532) produce
+    // proportionally more welfare events than smaller provinces.
+    const monthlyBase = HISTORY_SCALE * Math.max(2, Math.round(localities.length / 80));
+
+    // ---- welfare_reports ----
+    const welRows: Array<Record<string, unknown>> = [];
+
+    for (const year of HISTORY_YEARS) {
+      for (let month = 0; month < 12; month++) {
+        const n = monthlyEventCount(monthlyBase, archetype, year, month, rng);
+        for (let w = 0; w < n; w++) {
+          const loc = localities[Math.floor(rng() * localities.length)];
+          const { lat, lng } = jitteredCoord(loc.lat, loc.lng, 0.05);
+          // createdAt must be set explicitly so the consumer's
+          // gte(welfareReports.createdAt, since) filter returns these history rows.
+          const createdAt = pickDateInMonth(year, month, rng, ANCHOR);
+          const kindEntry = pickWeighted(
+            WELFARE_KINDS as unknown as Array<{ kind: string; weight: number }>,
+          );
+          const sevEntry = pickWeighted(
+            WELFARE_SEVERITIES as unknown as Array<{ severity: string; weight: number }>,
+          );
+          // ~60 % open (drives the queue), ~30 % closed, ~10 % in_progress/triaged.
+          const roll = rng();
+          const status =
+            roll < 0.6
+              ? ("open" as const)
+              : roll < 0.9
+                ? ("closed" as const)
+                : roll < 0.95
+                  ? ("triaged" as const)
+                  : ("in_progress" as const);
+
+          welRows.push({
+            referenceCode: generateReferenceCode(),
+            kind: kindEntry.kind,
+            severity: sevEntry.severity,
+            description: `PANO-HIST-WEL-${String(welIdx).padStart(6, "0")} denuncia histórica (seed)`,
+            subjectKind: pick(["unowned_animal", "location", "general", "unowned_animal"] as const),
+            status,
+            flagReasons: [],
+            jurisdictionProvince: provinceName,
+            jurisdictionLocality: loc.localityName,
+            locationLat: lat.toFixed(7),
+            locationLng: lng.toFixed(7),
+            occurredAt: createdAt,
+            createdAt,
+          });
+          welIdx++;
+        }
+      }
+    }
+
+    for (let b = 0; b < welRows.length; b += WEL_BATCH) {
+      const batch = welRows.slice(b, b + WEL_BATCH);
+      await db.insert(welfareReports).values(
+        batch as Parameters<typeof db.insert<typeof welfareReports>>[0] extends {
+          values: (v: infer V) => unknown;
+        }
+          ? V
+          : never,
+      );
+    }
+    totalWelfare += welRows.length;
+
+    // ---- cases: custody_episode (decomiso) + custody_dispute per quarter ----
+    // One location is drawn per quarter-slot so all cases in that slot share a
+    // single locality (realistic — a seizure event clusters geographically).
+    let provDecomisos = 0;
+    let provDisputes = 0;
+
+    for (const year of HISTORY_YEARS) {
+      for (const quarterMonth of [0, 3, 6, 9] as const) {
+        const loc = localities[Math.floor(rng() * localities.length)];
+        const { lat, lng } = jitteredCoord(loc.lat, loc.lng, 0.05);
+        const openedAt = pickDateInMonth(year, quarterMonth, rng, ANCHOR);
+
+        // 1–2 decomisos (custody_episode) per quarter per province.
+        // Panorama's loadDecomisos queries case_kind='custody_episode'.
+        const deciCount = 1 + (rng() < 0.4 ? 1 : 0);
+        for (let d = 0; d < deciCount; d++) {
+          const motive = pick(SEIZURE_MOTIVES_HIST);
+          const isClosed = rng() < 0.45;
+          // cases_closed_consistency: (status IN ('closed','merged')) = (closedAt IS NOT NULL)
+          const closedAt = isClosed
+            ? new Date(
+                Math.min(
+                  openedAt.getTime() + (1 + Math.floor(rng() * 89)) * 86_400_000,
+                  ANCHOR.getTime(),
+                ),
+              )
+            : null;
+          await db.insert(cases).values({
+            publicCode: `PANO-CASE-HIST-DEC-${String(decIdx).padStart(6, "0")}`,
+            caseKind: "custody_episode",
+            status: isClosed ? "closed" : "open",
+            // 'location' subject: satisfies cases_subject_location_consistency by
+            // providing locationLat/Lng; primaryPetId stays null.
+            primarySubjectKind: "location",
+            locationLat: lat.toFixed(7),
+            locationLng: lng.toFixed(7),
+            jurisdictionCountry: "AR",
+            jurisdictionProvince: provinceName,
+            jurisdictionLocality: loc.localityName,
+            openedReason: `auto: decomiso motivo=${motive} (Ley 14.346) seed histórico`,
+            openedAt,
+            ...(isClosed && closedAt ? { closedAt, closedReason: "resolved" as const } : {}),
+          } as Parameters<typeof db.insert<typeof cases>>[0] extends {
+            values: (v: infer V) => unknown;
+          }
+            ? V
+            : never);
+          decIdx++;
+          provDecomisos++;
+        }
+
+        // 1 custody_dispute per quarter (mix open/closed; open ones surface in
+        // fetchAnalyticsMetrics custodyDisputes count).
+        const disIsClosed = rng() < 0.5;
+        const disClosedAt = disIsClosed
+          ? new Date(
+              Math.min(
+                openedAt.getTime() + (1 + Math.floor(rng() * 89)) * 86_400_000,
+                ANCHOR.getTime(),
+              ),
+            )
+          : null;
+        await db.insert(cases).values({
+          publicCode: `PANO-CASE-HIST-DIS-${String(disIdx).padStart(6, "0")}`,
+          caseKind: "custody_dispute",
+          status: disIsClosed ? "closed" : "open",
+          primarySubjectKind: "location",
+          locationLat: lat.toFixed(7),
+          locationLng: lng.toFixed(7),
+          jurisdictionCountry: "AR",
+          jurisdictionProvince: provinceName,
+          jurisdictionLocality: loc.localityName,
+          openedReason: "auto: disputa de custodia entre partes seed histórico",
+          openedAt,
+          ...(disIsClosed && disClosedAt
+            ? { closedAt: disClosedAt, closedReason: "resolved" as const }
+            : {}),
+        } as Parameters<typeof db.insert<typeof cases>>[0] extends {
+          values: (v: infer V) => unknown;
+        }
+          ? V
+          : never);
+        disIdx++;
+        provDisputes++;
+      }
+    }
+
+    totalDecomisos += provDecomisos;
+    totalDisputes += provDisputes;
+
+    log(
+      "INFO",
+      `  [HIST-WEL] ${provinceName} (${archetype}): ${welRows.length} welfare, ` +
+        `${provDecomisos} decomisos, ${provDisputes} disputes`,
+    );
+  }
+
+  log(
+    "INFO",
+    `  History welfare+cases: ${totalWelfare} welfare_reports, ` +
+      `${totalDecomisos} decomisos, ${totalDisputes} disputes`,
+  );
+  return { welfare: totalWelfare, decomisos: totalDecomisos, disputes: totalDisputes };
+}
+
+// ---------------------------------------------------------------------------
 // 16. Main entry point
 // ---------------------------------------------------------------------------
 
@@ -3214,6 +3440,11 @@ async function main(): Promise<void> {
     eventCounts[k] = (eventCounts[k] ?? 0) + v;
   }
 
+  // Seed multi-year welfare_reports + enforcement cases (denuncias + decomisos
+  // + custody disputes) history across 2024-2026 for ALL provinces.
+  // Runs after seedModelProvinceHistory to preserve RNG sequence for pet events.
+  const historyWelfCases = await seedHistoryWelfareAndCases(localitiesByCode);
+
   // Final summary
   const totalEvents = Object.values(eventCounts).reduce((s, v) => s + v, 0);
 
@@ -3242,6 +3473,9 @@ async function main(): Promise<void> {
     `History pets (all prov) : ${history.pets} ` +
       `(${Object.keys(history.localitiesCovered).length} provinces covered)`,
   );
+  log("INFO", `Hist welfare reports    : ${historyWelfCases.welfare}`);
+  log("INFO", `Hist decomisos (cases)  : ${historyWelfCases.decomisos}`);
+  log("INFO", `Hist disputes (cases)   : ${historyWelfCases.disputes}`);
   log("INFO", "Event breakdown:");
   for (const [k, v] of Object.entries(eventCounts).sort((a, b) => b[1] - a[1])) {
     log("INFO", `  ${k.padEnd(35)}: ${v}`);
