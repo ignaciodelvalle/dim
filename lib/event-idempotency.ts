@@ -23,6 +23,8 @@
 
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { and, eq, sql } from "drizzle-orm";
 
 import { db, petEvents } from "@/db";
@@ -130,4 +132,28 @@ export async function insertEventIdempotent(
   }
 
   return { event: existing, wasNoop: true };
+}
+
+// ─── deriveBulkIdempotencyKey ─────────────────────────────────────────────────
+
+/**
+ * Derives a deterministic UUID v4-shaped idempotency key from (bulkActionId, petId).
+ *
+ * Algorithm: SHA-256(`${bulkActionId}:${petId}`), first 32 hex chars with
+ * version=4 and variant bits applied per RFC 4122. The result is a valid UUID v4.
+ *
+ * Reused by all bulk pet-event use-cases so that re-submitting the same bulkActionId
+ * for the same pet produces the same key — the DB-level unique constraint on
+ * clientIdempotencyKey makes the second insert a no-op (see insertEventIdempotent).
+ */
+export function deriveBulkIdempotencyKey(bulkActionId: string, petId: string): string {
+  const hash = createHash("sha256").update(`${bulkActionId}:${petId}`).digest("hex");
+  const variantNibble = (Number.parseInt(hash.charAt(16), 16) & 0x3) | 0x8;
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    `4${hash.slice(13, 16)}`, // version 4
+    `${variantNibble.toString(16)}${hash.slice(17, 20)}`, // variant bits per RFC 4122
+    hash.slice(20, 32),
+  ].join("-");
 }

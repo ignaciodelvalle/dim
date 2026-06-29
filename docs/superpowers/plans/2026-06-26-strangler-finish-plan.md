@@ -78,9 +78,9 @@ drift. Small files at the end are quick wins that clean up the tail.
   - Domain: `organizations` / new `services` sub-module TBD
   - Target: `src/modules/organizations/application/service-offerings/`
 
-- [ ] **`bulk-pet-events.ts`** — 752 lines
-  - Domain: `events` (bulk path)
-  - Target: `src/modules/events/application/bulk/`
+- [x] **`bulk-pet-events.ts`** — 752 lines → 191-line shim (strangler 6/61, 2026-06-29)
+  - Domain: `events` (bulk vaccination) + `adoption` (bulk eligibility + bulk listing)
+  - Target: `src/modules/events/application/bulk/` + `src/modules/adoption/application/`
 
 - [ ] **`custody-disputes.ts`** — 729 lines
   - Domain: `cases` / `welfare`

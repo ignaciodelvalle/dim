@@ -4,7 +4,7 @@
 // Returns domain types or lightweight shapes (not raw Drizzle row types).
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import {
   attachments,
@@ -19,6 +19,7 @@ import {
 } from "@/db";
 import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { dniLast4, hashDni } from "@/lib/dni-hash";
+import { insertEventIdempotent } from "@/lib/event-idempotency";
 import { validateEventPayload } from "@/lib/event-schemas";
 
 // ---------------------------------------------------------------------------
@@ -47,6 +48,35 @@ type SetListingStatusArgs = {
   action: "publish" | "pause" | "unpause" | "unpublish";
   currentListedAt: Date | null;
   now: Date;
+};
+
+type SetBulkEligibilityIdempotentArgs = {
+  petId: string;
+  eligible: boolean;
+  ineligibleReason: string | null;
+  ineligibleReasonNotes: string | null;
+  ineligibleUntil: Date | null;
+  now: Date;
+  userId: string;
+  orgId: string;
+  orgVerified: boolean;
+  /** Deterministic UUID derived from (bulkActionId + ":" + petId). */
+  clientIdempotencyKey: string;
+};
+
+type BatchShelterPetForEligibility = {
+  petId: string;
+  publicToken: string;
+};
+
+type BatchShelterPetForListing = {
+  petId: string;
+  publicToken: string;
+  adoptionListedAt: Date | null;
+  status: string;
+  adoptionEligible: boolean | null;
+  inCustodyDispute: boolean | null;
+  rabiesObservationStatus: string | null;
 };
 
 type UpdateListingContentArgs = {
@@ -288,6 +318,131 @@ export const AdoptionRepository = {
         .set({ adoptionListingPausedAt: null, updatedAt: args.now })
         .where(eq(pets.id, args.petId));
     }
+  },
+
+  // ---------------------------------------------------------------------------
+  // Bulk operations
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Batch ownership query for bulk eligibility writes.
+   *
+   * Returns only pets under active shelter_custody of the given org that are
+   * NOT deceased — matches the single-pet requireAlivePetAccess scope.
+   */
+  async findBatchShelterPetsForEligibility(
+    tokens: string[],
+    orgId: string,
+  ): Promise<BatchShelterPetForEligibility[]> {
+    if (tokens.length === 0) return [];
+    return db
+      .select({ petId: pets.id, publicToken: pets.publicToken })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          inArray(pets.publicToken, tokens),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+          ne(pets.status, "deceased"),
+        ),
+      );
+  },
+
+  /**
+   * Batch ownership query for bulk listing publish/unpublish.
+   *
+   * Fetches the extra columns needed to evaluate publish guards (D18–D21)
+   * per pet in the loop. Same scope as findBatchShelterPetsForEligibility.
+   */
+  async findBatchShelterPetsForListing(
+    tokens: string[],
+    orgId: string,
+  ): Promise<BatchShelterPetForListing[]> {
+    if (tokens.length === 0) return [];
+    return db
+      .select({
+        petId: pets.id,
+        publicToken: pets.publicToken,
+        adoptionListedAt: pets.adoptionListedAt,
+        status: pets.status,
+        adoptionEligible: pets.adoptionEligible,
+        inCustodyDispute: pets.inCustodyDispute,
+        rabiesObservationStatus: pets.rabiesObservationStatus,
+      })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          inArray(pets.publicToken, tokens),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+          ne(pets.status, "deceased"),
+        ),
+      );
+  },
+
+  /**
+   * Atomically updates pet eligibility columns and inserts an
+   * adoption_eligibility_set event using insertEventIdempotent.
+   *
+   * Differs from setEligibility: uses idempotency-key deduplication so
+   * re-submitting the same bulkActionId is a safe no-op (wasNoop=true).
+   * The previous_state is null for the bulk path (performance: no pre-load).
+   *
+   * Must be called inside a db.transaction().
+   */
+  async setBulkEligibilityIdempotent(
+    args: SetBulkEligibilityIdempotentArgs,
+    tx: Tx,
+  ): Promise<{ wasNoop: boolean }> {
+    // UPDATE pets eligibility columns (last-write-wins — idempotent on retry).
+    await tx
+      .update(pets)
+      .set({
+        adoptionEligible: args.eligible,
+        adoptionIneligibleReason: args.eligible ? null : (args.ineligibleReason ?? null),
+        adoptionIneligibleReasonNotes: args.eligible ? null : (args.ineligibleReasonNotes ?? null),
+        adoptionIneligibleUntil: args.eligible ? null : args.ineligibleUntil,
+        adoptionEligibilitySetAt: args.now,
+        adoptionEligibilitySetByUserId: args.userId,
+        updatedAt: args.now,
+      })
+      .where(eq(pets.id, args.petId));
+
+    const payload = validateEventPayload("adoption_eligibility_set", {
+      eligible: args.eligible,
+      ineligible_reason: args.eligible ? null : (args.ineligibleReason ?? null),
+      ineligible_reason_notes: args.eligible ? null : (args.ineligibleReasonNotes ?? null),
+      ineligible_until: args.eligible
+        ? null
+        : args.ineligibleUntil
+          ? args.ineligibleUntil.toISOString()
+          : null,
+      // Bulk path: previous_state is null for performance (no per-pet pre-load).
+      previous_state: null,
+    });
+
+    const { wasNoop } = await insertEventIdempotent(
+      {
+        petId: args.petId,
+        eventType: "adoption_eligibility_set",
+        occurredAt: args.now,
+        recordedAt: args.now,
+        recordedByUserId: args.userId,
+        authorRole: "shelter",
+        authorOrganizationId: args.orgId,
+        authorVerified: args.orgVerified,
+        payload,
+        notes: null,
+        clientIdempotencyKey: args.clientIdempotencyKey,
+      },
+      tx as Parameters<typeof insertEventIdempotent>[1],
+    );
+
+    return { wasNoop };
   },
 
   /**

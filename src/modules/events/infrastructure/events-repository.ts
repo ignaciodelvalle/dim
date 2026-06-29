@@ -14,7 +14,7 @@
 
 import "server-only";
 
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, ne } from "drizzle-orm";
 
 import {
   attachments,
@@ -345,6 +345,38 @@ export class EventsRepository {
   // ===========================================================================
   // Pet reads
   // ===========================================================================
+
+  // ===========================================================================
+  // Bulk reads
+  // ===========================================================================
+
+  /**
+   * Batch ownership query for bulk event writes.
+   *
+   * Returns only the pets that are currently under active shelter_custody of
+   * the given org and are NOT deceased (mirrors requireAlivePetAccess scope
+   * used in the single-pet path). Tokens absent from the result are ineligible.
+   */
+  async findBatchShelterPets(
+    tokens: string[],
+    orgId: string,
+  ): Promise<Array<{ petId: string; publicToken: string; petName: string }>> {
+    if (tokens.length === 0) return [];
+    const rows = await db
+      .select({ petId: pets.id, publicToken: pets.publicToken, petName: pets.name })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          inArray(pets.publicToken, tokens),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+          ne(pets.status, "deceased"),
+        ),
+      );
+    return rows;
+  }
 
   /**
    * Return the minimal alive-state snapshot for a pet.

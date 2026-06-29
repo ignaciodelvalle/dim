@@ -40,6 +40,12 @@ export type CreateVaccinationInput = {
   uploadedMimeType: string | null;
   uploadedSize: number | null;
   clientIdempotencyKey: string | null;
+  /**
+   * Optional reminder description override. When provided (e.g. bulk path),
+   * replaces the default "Próxima dosis programada." Used so the bulk path
+   * can include the pet name without duplicating the vaccination logic.
+   */
+  reminderDescription?: string | null;
 };
 
 type Deps = {
@@ -74,6 +80,7 @@ export async function createVaccination(
     uploadedMimeType,
     uploadedSize,
     clientIdempotencyKey,
+    reminderDescription,
   } = input;
   const { repo, transaction } = deps;
 
@@ -137,7 +144,7 @@ export async function createVaccination(
             reminderType: "vaccine",
             dueAt: nextDueAt,
             title: `Refuerzo: ${vaccineName}`,
-            description: "Próxima dosis programada.",
+            description: reminderDescription ?? "Próxima dosis programada.",
             sourceEventId: event.id,
           },
         ],
