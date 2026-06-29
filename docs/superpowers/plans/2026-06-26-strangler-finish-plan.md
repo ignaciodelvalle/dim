@@ -70,9 +70,9 @@ drift. Small files at the end are quick wins that clean up the tail.
 
 ### Tier 2 — Large institutional/admin flows
 
-- [ ] **`admin-institutional.ts`** — 915 lines
+- [x] **`admin-institutional.ts`** — 915 lines → 143-line shim (strangler 5/61, 2026-06-29)
   - Domain: `organizations`
-  - Target: `src/modules/organizations/application/`
+  - Target: `src/modules/organizations/application/admin-institutional/`
 
 - [ ] **`service-offerings.ts`** — 782 lines
   - Domain: `organizations` / new `services` sub-module TBD

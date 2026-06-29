@@ -59,9 +59,19 @@ import { describe, expect, it } from "vitest";
 // (accumulate `pendingNotifications` inside the tx, then `await db.insert(notifications)`
 // after the tx commits, wrapped in try/catch logging "notifications insert failed") —
 // verified across owner/org propose/accept/reject + cancel use-cases.
+// admin-institutional.ts was migrated to
+// src/modules/organizations/application/admin-institutional/* in the 2026-06-29
+// strangler pass (5/61). The §2.2 post-tx pattern is preserved in each use-case:
+//   - create-institutional-account.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+//   - deactivate-admin.ts: same pattern (pendingNotificationsAdmin[]).
+//   - deactivate-govt.ts: same pattern (pendingNotificationsGovt[]).
+// The ARCH-P single-insert hardening is preserved in:
+//   - reset-institutional-credentials.ts: try/catch wrapping db.insert(notifications).
+//   - assign-govt-locality.ts: try/catch wrapping db.insert(notifications).
+// app/actions/admin-institutional.ts is now a thin shim — it delegates everything.
 const REFACTORED_FILES = [
   "admin-decisions.ts",
-  "admin-institutional.ts",
   "admin-proposals.ts",
   "admin-revocations.ts",
   "chip-match.ts",
@@ -73,7 +83,9 @@ const REFACTORED_FILES = [
 // wrap the insert in try/catch so a failure does not propagate to the caller.
 // Added in ARCH-P (2026-06-11) to close the gap the §2.2 review identified.
 const SINGLE_INSERT_HARDENED_FILES = [
-  "admin-institutional.ts", // resetInstitutionalCredentialsForAuthority + assignGovtLocalityForAuthority
+  // admin-institutional.ts migrated to src/modules/organizations/application/admin-institutional/*
+  // (strangler 5/61, 2026-06-29). reset-institutional-credentials.ts and assign-govt-locality.ts
+  // preserve the try/catch hardening. app/actions/admin-institutional.ts is now a thin shim.
   "profile-self-service.ts", // vetSelfResignForUser
   "public.ts", // notifyOwnerOfFoundPetAction
   "pet-sighting.ts", // reportPetSightingAction
