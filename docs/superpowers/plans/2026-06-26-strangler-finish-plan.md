@@ -86,7 +86,7 @@ drift. Small files at the end are quick wins that clean up the tail.
   - Domain: `cases` / `welfare`
   - Target: `src/modules/welfare/application/custody-disputes/`
 
-- [ ] **`upgrade.ts`** — 667 lines
+- [x] **`upgrade.ts`** — 667 lines → 178-line shim (strangler 7/61, 2026-06-29)
   - Domain: `organizations` (tier upgrade flows)
   - Target: `src/modules/organizations/application/upgrade/`
 
