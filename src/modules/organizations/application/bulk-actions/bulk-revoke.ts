@@ -1,0 +1,90 @@
+// bulk-revoke use-case (strangler 35/61).
+// Whole-body verbatim move from app/actions/bulk-actions.ts — the motivo /
+// attachment pre-validation runs BEFORE the auth guard (and the validation
+// fast-fail paths skip revalidatePath), exactly as in the original. Writers are
+// imported directly from their modules (not the action shims).
+
+import { randomUUID } from "node:crypto";
+
+import { revalidatePath } from "next/cache";
+
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { revokeGovtLocalityForAuthority } from "@/src/modules/organizations/application/revocations/revoke-govt-locality";
+import { revokeOrgVerificationForAuthority } from "@/src/modules/organizations/application/revocations/revoke-org-verification";
+import { revokeVetRoleForAuthority } from "@/src/modules/organizations/application/revocations/revoke-vet-role";
+
+import type { BulkResult, BulkRevokeInput } from "./types";
+
+export async function bulkRevoke(input: BulkRevokeInput): Promise<BulkResult> {
+  const bulkActionId = randomUUID();
+  const motivo = input.motivo.trim();
+  // The single-writer validates len ≥ 30 and at least 1 attachment; we
+  // pre-check here so the entire batch fails fast with one clean error
+  // instead of N copies.
+  if (motivo.length < 30) {
+    return {
+      bulkActionId,
+      succeeded: [],
+      failed: input.targetIds.map((id) => ({
+        id,
+        reason: "El motivo de la revocación debe tener al menos 30 caracteres.",
+      })),
+    };
+  }
+  if (input.attachmentIds.length === 0) {
+    return {
+      bulkActionId,
+      succeeded: [],
+      failed: input.targetIds.map((id) => ({
+        id,
+        reason: "La revocación requiere al menos un adjunto de evidencia.",
+      })),
+    };
+  }
+
+  const session = await requireAdminOrGovtOrRedirect();
+  const succeeded: string[] = [];
+  const failed: { id: string; reason: string }[] = [];
+
+  for (const id of input.targetIds) {
+    try {
+      let result: { ok: true; noOp?: boolean } | { error: string };
+      if (input.targetKind === "vet") {
+        result = await revokeVetRoleForAuthority(session.user.id, {
+          targetUserId: id,
+          motivo,
+          attachmentIds: input.attachmentIds,
+          bulkActionId,
+        });
+      } else if (input.targetKind === "org") {
+        result = await revokeOrgVerificationForAuthority(session.user.id, {
+          organizationId: id,
+          motivo,
+          attachmentIds: input.attachmentIds,
+          bulkActionId,
+        });
+      } else {
+        result = await revokeGovtLocalityForAuthority(session.user.id, {
+          govtAssignmentId: id,
+          motivo,
+          attachmentIds: input.attachmentIds,
+          bulkActionId,
+        });
+      }
+      if ("error" in result) {
+        failed.push({ id, reason: result.error });
+      } else {
+        succeeded.push(id);
+      }
+    } catch (err) {
+      failed.push({ id, reason: err instanceof Error ? err.message : "unknown_error" });
+    }
+  }
+
+  revalidatePath("/admin/usuarios");
+  revalidatePath("/gob/usuarios");
+  revalidatePath("/admin/organizaciones");
+  revalidatePath("/gob/organizaciones");
+  revalidatePath("/admin/govts");
+  return { bulkActionId, succeeded, failed };
+}

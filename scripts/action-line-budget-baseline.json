@@ -14,7 +14,7 @@
   "attendance.ts": 187,
   "auth.ts": 18,
   "booking.ts": 87,
-  "bulk-actions.ts": 191,
+  "bulk-actions.ts": 58,
   "bulk-adoption-actions.ts": 121,
   "bulk-pet-events.ts": 191,
   "bulk-vaccinate-types.ts": 66,
