@@ -13,7 +13,7 @@
   "approval-requests.ts": 90,
   "attendance.ts": 187,
   "auth.ts": 266,
-  "booking.ts": 301,
+  "booking.ts": 87,
   "bulk-actions.ts": 191,
   "bulk-adoption-actions.ts": 121,
   "bulk-pet-events.ts": 191,
