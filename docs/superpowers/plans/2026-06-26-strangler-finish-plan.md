@@ -120,7 +120,7 @@ drift. Small files at the end are quick wins that clean up the tail.
   - Domain: `pets` / `organizations`
   - Target: `src/modules/pets/application/service-dog/`
 
-- [ ] **`business-rules.ts`** — 431 lines
+- [x] **`business-rules.ts`** — 431 lines → 190-line shim (strangler 15/61, 2026-06-30)
   - Domain: `organizations` (PPP business rules)
   - Target: `src/modules/organizations/application/business-rules/`
 
