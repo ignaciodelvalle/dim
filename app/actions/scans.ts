@@ -1,59 +1,18 @@
 "use server";
 
-// Record a credential_scanned event whenever the public credential page is
-// viewed. Called from a tiny client component on the page (via useEffect) so
-// the page render itself stays a pure read.
+// scans.ts — thin shim (strangler migration 58/61, 2026-06-30).
+//
+// Business logic moved to:
+//   src/modules/pets/application/scans/
+//
+// This file re-exports all originally-exported symbols with identical
+// signatures so all callers keep working unchanged.
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function.
 
-import { db, ownerships, petEvents, pets } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
-import { createClient } from "@/lib/supabase/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { logScan as _logScan } from "@/src/modules/pets/application/scans/log-scan";
 
 export async function logScanAction(publicToken: string): Promise<void> {
-  if (!publicToken) return;
-
-  const [pet] = await db
-    .select({ id: pets.id })
-    .from(pets)
-    .where(eq(pets.publicToken, publicToken))
-    .limit(1);
-  if (!pet) return;
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // Is the viewer the pet's current owner? Used to flag self-scans so the UI
-  // can hide them from the default timeline.
-  let isSelfScan = false;
-  if (user) {
-    const [ownership] = await db
-      .select({ id: ownerships.id })
-      .from(ownerships)
-      .where(
-        and(
-          eq(ownerships.petId, pet.id),
-          eq(ownerships.ownerUserId, user.id),
-          isNull(ownerships.endedAt),
-        ),
-      )
-      .limit(1);
-    isSelfScan = !!ownership;
-  }
-
-  const now = new Date();
-  const eventPayload = validateEventPayload("credential_scanned", {
-    is_self_scan: isSelfScan,
-    viewer_authenticated: !!user,
-  });
-  await db.insert(petEvents).values({
-    petId: pet.id,
-    eventType: "credential_scanned",
-    occurredAt: now,
-    recordedAt: now,
-    recordedByUserId: user?.id ?? null,
-    authorRole: isSelfScan ? "owner" : "scanner",
-    payload: eventPayload,
-  });
+  return _logScan(publicToken);
 }
