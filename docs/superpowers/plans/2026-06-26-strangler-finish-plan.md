@@ -171,7 +171,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `scans.ts` — 59 lines → 18-line shim (strangler 58/61, 2026-06-30)
 - [x] `notifications.ts` — 50 lines → 30-line shim (strangler 59/61, 2026-06-30)
 - [x] `performed-by.ts` — 49 lines → 39-line shim (strangler 60/61, 2026-06-30)
-- [ ] `lost-mode.ts` — 37 lines
+- [x] `lost-mode.ts` — 37 lines → 20-line shim (strangler 61/61, 2026-06-30)
 - [ ] `rule-impact-preview.ts` — 24 lines _(already thin — low priority)_
 
 > Test files (`*.test.ts`) in `app/actions/` are excluded from the migration — move
