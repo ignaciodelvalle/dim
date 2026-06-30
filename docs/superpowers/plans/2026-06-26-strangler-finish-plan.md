@@ -140,7 +140,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `amendment.ts` — 265 lines → 58-line shim (strangler 27/61, 2026-06-30)
 - [x] `slot-materialization.ts` — 263 lines → 77-line shim (strangler 28/61, 2026-06-30)
 - [x] `pet-sighting.ts` — 254 lines → 35-line shim (strangler 29/61, 2026-06-30)
-- [ ] `claim.ts` — 251 lines
+- [x] `claim.ts` — 251 lines → 24-line shim (strangler 30/61, 2026-06-30)
 - [ ] `alert-subscriptions.ts` — 228 lines
 - [ ] `libreta-share.ts` — 218 lines
 - [ ] `checkin.ts` — 218 lines
