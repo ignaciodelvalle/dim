@@ -166,7 +166,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `physical-tag-interest.ts` — 67 lines → 28-line shim (strangler 53/61, 2026-06-30)
 - [x] `bulk-vaccinate-types.ts` — 65 lines → 19-line re-export shim (strangler 54/61, 2026-06-30)
 - [x] `revocation-evidence.ts` — 63 lines → 16-line shim (strangler 55/61, 2026-06-30)
-- [ ] `quick-capture.ts` — 63 lines
+- [x] `quick-capture.ts` — 63 lines → 24-line shim (strangler 56/61, 2026-06-30)
 - [ ] `subject-rights.ts` — 59 lines
 - [ ] `scans.ts` — 59 lines
 - [ ] `notifications.ts` — 50 lines
