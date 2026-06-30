@@ -15,7 +15,7 @@
   "auth.ts": 18,
   "booking.ts": 87,
   "bulk-actions.ts": 58,
-  "bulk-adoption-actions.ts": 121,
+  "bulk-adoption-actions.ts": 43,
   "bulk-pet-events.ts": 191,
   "bulk-vaccinate-types.ts": 66,
   "business-rules-parse-registries.test.ts": 141,

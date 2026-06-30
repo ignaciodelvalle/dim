@@ -1,120 +1,42 @@
 "use server";
 
-// Bulk approve / reject for adoption applications.
+// bulk-adoption-actions.ts — thin shim (strangler migration 41/61, 2026-06-30).
 //
-// Mirrors the admin bulk-actions.ts pattern: one bulkActionId per batch,
-// per-item capability re-check via the canonical single-item actions,
-// partial-failure semantics (failures do NOT abort remaining items).
+// Business logic moved to:
+//   src/modules/adoption/application/bulk-adoption-actions/
 //
-// Authorization is enforced per-item because each approveAdoptionApplicationAction
-// / rejectAdoptionApplicationAction call internally runs requireCapability("adoption.review")
-// and validates that the application belongs to the caller's org. Passing orgToken
-// through to those helpers gives an extra org-token cross-check identical to the
-// single-item flow.
+// The auth guard, validation order, and revalidatePath calls live INSIDE
+// the use-cases (auth BEFORE validation for both actions — preserving the
+// original control flow exactly), so these wrappers are pure delegations.
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
 
-import { randomUUID } from "node:crypto";
-import { revalidatePath } from "next/cache";
+import { bulkApproveAdoptionApplications } from "@/src/modules/adoption/application/bulk-adoption-actions/bulk-approve-adoption-applications";
+import { bulkRejectAdoptionApplications } from "@/src/modules/adoption/application/bulk-adoption-actions/bulk-reject-adoption-applications";
+import type {
+  BulkAdoptionApproveInput,
+  BulkAdoptionRejectInput,
+} from "@/src/modules/adoption/application/bulk-adoption-actions/types";
 
-import type { BulkResult } from "@/app/actions/bulk-actions";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import {
-  approveAdoptionApplicationAction,
-  rejectAdoptionApplicationAction,
-} from "@/src/modules/adoption/actions";
+// ---------------------------------------------------------------------------
+// Type re-exports (erased at runtime — allowed in "use server" files)
+// ---------------------------------------------------------------------------
 
-export type BulkAdoptionApproveInput = {
-  orgToken: string;
-  applicationEventIds: string[];
-  notes?: string | null;
-};
+export type { BulkAdoptionApproveInput, BulkAdoptionRejectInput } from "@/src/modules/adoption/application/bulk-adoption-actions/types";
+
+// ---------------------------------------------------------------------------
+// Action wrappers — pure delegations (control flow preserved in the use-cases)
+// ---------------------------------------------------------------------------
 
 export async function bulkApproveAdoptionApplicationsAction(
   input: BulkAdoptionApproveInput,
-): Promise<BulkResult> {
-  // Defense-in-depth: confirm the caller is a member of this org before looping.
-  // Per-item authorization ("adoption.review" capability + org ownership of the
-  // application) is still enforced inside approveAdoptionApplicationAction.
-  await requireOrgAccessByToken(input.orgToken);
-
-  const bulkActionId = randomUUID();
-  const succeeded: string[] = [];
-  const failed: { id: string; reason: string }[] = [];
-
-  for (const applicationEventId of input.applicationEventIds) {
-    try {
-      const result = await approveAdoptionApplicationAction(input.orgToken, {
-        applicationEventId,
-        notes: input.notes?.trim() || null,
-      });
-      if ("error" in result) {
-        failed.push({ id: applicationEventId, reason: result.error });
-      } else {
-        succeeded.push(applicationEventId);
-      }
-    } catch (err) {
-      failed.push({
-        id: applicationEventId,
-        reason: err instanceof Error ? err.message : "unknown_error",
-      });
-    }
-  }
-
-  revalidatePath(`/org/${input.orgToken}/adopciones`);
-  return { bulkActionId, succeeded, failed };
+) {
+  return bulkApproveAdoptionApplications(input);
 }
-
-export type BulkAdoptionRejectInput = {
-  orgToken: string;
-  applicationEventIds: string[];
-  reason: string;
-};
 
 export async function bulkRejectAdoptionApplicationsAction(
   input: BulkAdoptionRejectInput,
-): Promise<BulkResult> {
-  // Defense-in-depth: confirm the caller is a member of this org before looping.
-  // Per-item authorization ("adoption.review" capability + org ownership of the
-  // application) is still enforced inside rejectAdoptionApplicationAction.
-  await requireOrgAccessByToken(input.orgToken);
-
-  const bulkActionId = randomUUID();
-  const reason = input.reason.trim();
-
-  // Validate reason before touching any item — fail-fast so the org reviewer
-  // sees one clear error rather than N copies of the same validation message.
-  if (reason.length < 5) {
-    return {
-      bulkActionId,
-      succeeded: [],
-      failed: input.applicationEventIds.map((id) => ({
-        id,
-        reason: "El motivo del rechazo debe tener al menos 5 caracteres.",
-      })),
-    };
-  }
-
-  const succeeded: string[] = [];
-  const failed: { id: string; reason: string }[] = [];
-
-  for (const applicationEventId of input.applicationEventIds) {
-    try {
-      const result = await rejectAdoptionApplicationAction(input.orgToken, {
-        applicationEventId,
-        notes: reason,
-      });
-      if ("error" in result) {
-        failed.push({ id: applicationEventId, reason: result.error });
-      } else {
-        succeeded.push(applicationEventId);
-      }
-    } catch (err) {
-      failed.push({
-        id: applicationEventId,
-        reason: err instanceof Error ? err.message : "unknown_error",
-      });
-    }
-  }
-
-  revalidatePath(`/org/${input.orgToken}/adopciones`);
-  return { bulkActionId, succeeded, failed };
+) {
+  return bulkRejectAdoptionApplications(input);
 }
