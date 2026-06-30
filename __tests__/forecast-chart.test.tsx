@@ -159,6 +159,13 @@ describe("ForecastChart — insufficient data", () => {
 });
 
 // B1 — Forecast no longer renders an empty SVG.
+//
+// SSR note: recharts' ResponsiveContainer emits no <svg> in renderToStaticMarkup
+// (it renders a 0×0 div placeholder). We use two reliable proxies instead:
+//   - happy path  → "recharts-responsive-container" class: recharts IS mounted
+//   - insufficient → its absence: recharts is NOT mounted (no empty SVG possible)
+// The "min-height" style on the sized wrapper ensures ResponsiveContainer can't
+// collapse to 0 on first browser paint (the actual B1 fix).
 describe("ForecastChart — B1: never an empty chart box", () => {
   it("gives the chart a concrete-height container so ResponsiveContainer can't collapse to 0", () => {
     const result = projectSeries(RISING, { horizon: 3 });
@@ -169,6 +176,9 @@ describe("ForecastChart — B1: never an empty chart box", () => {
     expect(html).toContain('data-forecast-chart="true"');
     expect(html).toContain("min-height:300px");
     expect(html).toContain('data-forecast-insufficient="false"');
+    // recharts IS mounted in the happy path (the container that would produce
+    // a non-empty SVG in the browser is present).
+    expect(html).toContain("recharts-responsive-container");
   });
 
   it("falls back to the honest insufficient state when there are < 2 actuals (no empty SVG)", () => {
@@ -186,5 +196,24 @@ describe("ForecastChart — B1: never an empty chart box", () => {
     expect(html).toContain('data-forecast-insufficient="true"');
     expect(html).toContain("Datos insuficientes para proyectar");
     expect(html).not.toContain('data-forecast-chart="true"');
+    // recharts is NOT mounted in the insufficient branch — no empty SVG possible.
+    expect(html).not.toContain("recharts-responsive-container");
+  });
+
+  it("also falls back when there are zero actual points", () => {
+    // Covers the n=0 edge: a synthetic result with no points at all should
+    // also show the insufficient state, not mount an empty recharts chart.
+    const noPoints: ForecastResult = {
+      points: [],
+      method: "linear",
+      slopePerBucket: 0,
+      insufficient: false, // upstream didn't flag it — our guard must still catch it
+    };
+    const html = renderToStaticMarkup(
+      <ForecastChart result={noPoints} seriesLabel="Antirrábica" />,
+    );
+    expect(html).toContain('data-forecast-insufficient="true"');
+    expect(html).toContain("Datos insuficientes para proyectar");
+    expect(html).not.toContain("recharts-responsive-container");
   });
 });
