@@ -52,6 +52,43 @@ export default async function AdminPanoramaPage({
       ? await localityByName(provinceObj.code as ProvinceCode, sp.locality)
       : null;
 
+  // Map autozoom (B3): the SituationalMap fits `initialBounds` on mount. Without
+  // it, the map only fits to the active layer's feature bbox — so a selected
+  // province whose default ("perdidas") layer is sparse never zooms in and reads
+  // as a blank national frame. Derive the province bounding box from its locality
+  // centroids ([lng,lat]); when a single locality is picked, tighten to a small
+  // box around its centroid. Undefined at the national level (fit to features).
+  const initialBounds: [[number, number], [number, number]] | undefined = (() => {
+    if (!provinceObj) return undefined;
+    const centroidValues = Object.values(localityCentroids);
+    if (localityRow) {
+      const c = localityCentroids[localityRow.localitySlug];
+      if (c) {
+        const [lng, lat] = c;
+        const d = 0.2; // ~22km halo so the locality isn't a hairline point
+        return [
+          [lng - d, lat - d],
+          [lng + d, lat + d],
+        ];
+      }
+    }
+    if (centroidValues.length === 0) return undefined;
+    let minLng = Number.POSITIVE_INFINITY;
+    let minLat = Number.POSITIVE_INFINITY;
+    let maxLng = Number.NEGATIVE_INFINITY;
+    let maxLat = Number.NEGATIVE_INFINITY;
+    for (const [lng, lat] of centroidValues) {
+      if (lng < minLng) minLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lng > maxLng) maxLng = lng;
+      if (lat > maxLat) maxLat = lat;
+    }
+    return [
+      [minLng, minLat],
+      [maxLng, maxLat],
+    ];
+  })();
+
   // Admin: [] means universal scope; the scope clauses short-circuit on admin.
   // A selected province/locality narrows the rollups (admin can drill anywhere).
   let scoped: DashboardJurisdiction[] = jurisdictions;
@@ -100,6 +137,7 @@ export default async function AdminPanoramaPage({
       allowedProvinces={GOB_ALL_PROVINCES}
       localities={localities}
       localityCentroids={localityCentroids}
+      initialBounds={initialBounds}
       kpis={kpis}
       // /admin shows the global DemoModeBanner (admin layout); suppress
       // Panorama's own notice so the page never stacks two disclosures (D3).
