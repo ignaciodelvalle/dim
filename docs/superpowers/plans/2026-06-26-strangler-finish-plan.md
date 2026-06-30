@@ -155,7 +155,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `reminders.ts` — 119 lines → 47-line shim (strangler 42/61, 2026-06-30)
 - [x] `sign-timeline-attachments.ts` — 111 lines → 47-line shim (strangler 43/61, 2026-06-30)
 - [x] `public.ts` — 109 lines → 35-line shim (strangler 44/61, 2026-06-30)
-- [ ] `pet-lookup-public.ts` — 105 lines
+- [x] `pet-lookup-public.ts` — 105 lines → 21-line shim (strangler 45/61, 2026-06-30)
 - [ ] `localities.ts` — 105 lines
 - [ ] `geocoding.ts` — 105 lines
 - [ ] `password-reset.ts` — 94 lines
