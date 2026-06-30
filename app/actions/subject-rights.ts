@@ -9,8 +9,25 @@
 // with identical signatures so all callers keep working unchanged.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
-// function. Types are re-exported with `export type` (erased at runtime).
+// function — bare `export { x } from "..."` re-exports are rejected by the
+// Next.js compiler. Types are re-exported with `export type` (erased at runtime).
 
-export type { ExportSubjectDataResult, EraseSubjectDataResult } from "@/src/modules/auth/application/subject-rights/types";
-export { exportMySubjectDataAction } from "@/src/modules/auth/application/subject-rights/export-subject-data";
-export { eraseMySubjectDataAction } from "@/src/modules/auth/application/subject-rights/erase-subject-data";
+import { eraseMySubjectDataAction as _eraseMySubjectDataAction } from "@/src/modules/auth/application/subject-rights/erase-subject-data";
+import { exportMySubjectDataAction as _exportMySubjectDataAction } from "@/src/modules/auth/application/subject-rights/export-subject-data";
+
+export type {
+  ExportSubjectDataResult,
+  EraseSubjectDataResult,
+} from "@/src/modules/auth/application/subject-rights/types";
+
+export async function exportMySubjectDataAction(
+  ...args: Parameters<typeof _exportMySubjectDataAction>
+) {
+  return _exportMySubjectDataAction(...args);
+}
+
+export async function eraseMySubjectDataAction(
+  ...args: Parameters<typeof _eraseMySubjectDataAction>
+) {
+  return _eraseMySubjectDataAction(...args);
+}

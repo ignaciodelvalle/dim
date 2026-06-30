@@ -17,9 +17,9 @@ import { revalidatePath } from "next/cache";
 
 import { type AlertDirection, type AlertMetricKey, db, profiles } from "@/db";
 import { createClient } from "@/lib/supabase/server";
-import { createAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/create-alert-subscription";
-import { deleteAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/delete-alert-subscription";
-import { toggleAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/toggle-alert-subscription";
+import { createAlertSubscriptionForUser as _createAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/create-alert-subscription";
+import { deleteAlertSubscriptionForUser as _deleteAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/delete-alert-subscription";
+import { toggleAlertSubscriptionForUser as _toggleAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/toggle-alert-subscription";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
@@ -31,9 +31,23 @@ export type { CreateAlertSubscriptionInput } from "@/src/modules/alerts/applicat
 // Writer re-exports — used by form components + tests
 // ---------------------------------------------------------------------------
 
-export { createAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/create-alert-subscription";
-export { deleteAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/delete-alert-subscription";
-export { toggleAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/toggle-alert-subscription";
+export async function createAlertSubscriptionForUser(
+  ...args: Parameters<typeof _createAlertSubscriptionForUser>
+) {
+  return _createAlertSubscriptionForUser(...args);
+}
+
+export async function deleteAlertSubscriptionForUser(
+  ...args: Parameters<typeof _deleteAlertSubscriptionForUser>
+) {
+  return _deleteAlertSubscriptionForUser(...args);
+}
+
+export async function toggleAlertSubscriptionForUser(
+  ...args: Parameters<typeof _toggleAlertSubscriptionForUser>
+) {
+  return _toggleAlertSubscriptionForUser(...args);
+}
 
 // ---------------------------------------------------------------------------
 // Auth helper (admin-only) — stays in the shim, never in use-cases
@@ -81,7 +95,7 @@ export async function createAlertSubscriptionAction(
     label: (formData.get("label") as string) || null,
   };
 
-  const result = await createAlertSubscriptionForUser(auth.userId, input);
+  const result = await _createAlertSubscriptionForUser(auth.userId, input);
   if ("error" in result) return result;
 
   revalidatePath("/admin/programa");
@@ -95,7 +109,7 @@ export async function deleteAlertSubscriptionAction(formData: FormData): Promise
   const id = formData.get("id") as string;
   if (!id) return;
 
-  await deleteAlertSubscriptionForUser(auth.userId, id);
+  await _deleteAlertSubscriptionForUser(auth.userId, id);
   revalidatePath("/admin/programa");
 }
 
@@ -107,6 +121,6 @@ export async function toggleAlertSubscriptionAction(formData: FormData): Promise
   if (!id) return;
   const isActive = formData.get("isActive") === "true";
 
-  await toggleAlertSubscriptionForUser(auth.userId, id, isActive);
+  await _toggleAlertSubscriptionForUser(auth.userId, id, isActive);
   revalidatePath("/admin/programa");
 }
