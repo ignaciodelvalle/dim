@@ -20,7 +20,7 @@
   "bulk-vaccinate-types.ts": 66,
   "business-rules-parse-registries.test.ts": 141,
   "business-rules.ts": 190,
-  "checkin.ts": 218,
+  "checkin.ts": 42,
   "chip-match.ts": 86,
   "claim.ts": 24,
   "custody-disputes.ts": 149,

@@ -143,7 +143,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `claim.ts` — 251 lines → 24-line shim (strangler 30/61, 2026-06-30)
 - [x] `alert-subscriptions.ts` — 228 lines → 112-line shim (strangler 31/61, 2026-06-30)
 - [x] `libreta-share.ts` — 218 lines → 118-line shim (strangler 32/61, 2026-06-30)
-- [ ] `checkin.ts` — 218 lines
+- [x] `checkin.ts` — 218 lines → 42-line shim (strangler 33/61, 2026-06-30)
 - [ ] `tattoo.ts` — 199 lines
 - [ ] `bulk-actions.ts` — 191 lines
 - [ ] `ppp-export-caba.ts` — 187 lines
