@@ -1,78 +1,41 @@
 "use server";
 
-// pet-tab-data — server actions that load panel data for the in-page
-// PetDetailTabs. Called client-side on first tab activation (deferred fetch).
+// pet-tab-data.ts — thin shim (strangler migration 25/61).
 //
-// Auth: requirePetAccess (owner or org path). Each action validates access
-// before running any DB query.
+// Business logic moved to:
+//   src/modules/pets/application/tab-data/
+//
+// This file re-exports all exported types and provides thin loader wrappers
+// that add the auth guard (requirePetAccess owner or org).
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
 
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-
-import {
-  type LibretaShareToken,
-  attachments,
-  db,
-  libretaShareTokens,
-  petEvents,
-  profiles,
-} from "@/db";
-import { excludeSelfScansClause } from "@/lib/events";
-import {
-  type LibretaHealthStatus,
-  type VaccinationSummary,
-  computeLibretaHealthStatus,
-  computeVaccinationSummary,
-} from "@/lib/libreta-health-status";
-import {
-  type LibretaGroupKey,
-  groupLibretaEvents,
-  libretaSanitariaClause,
-} from "@/lib/libreta-sanitaria";
-import { fetchActiveRemindersForPet, fetchVaccinationHistory } from "@/lib/owner-dashboard";
+import type {
+  HistorialTabData,
+  LibretaTabData,
+  VacunasTabData,
+} from "@/src/modules/pets/application/tab-data/types";
 import { requirePetAccess } from "@/lib/pet-access";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/storage";
-import { createClient } from "@/lib/supabase/server";
+import { getHistorialTabData as _getHistorialTabData } from "@/src/modules/pets/application/tab-data/get-historial-tab-data";
+import { getLibretaTabData as _getLibretaTabData } from "@/src/modules/pets/application/tab-data/get-libreta-tab-data";
+import { getVacunasTabData as _getVacunasTabData } from "@/src/modules/pets/application/tab-data/get-vacunas-tab-data";
+
+// ---------------------------------------------------------------------------
+// Type re-exports (erased at runtime — allowed in "use server" files)
+// ---------------------------------------------------------------------------
+
+export type {
+  HistorialEventRow,
+  HistorialTabData,
+  LibretaEventRow,
+  LibretaTabData,
+  VacunasTabData,
+} from "@/src/modules/pets/application/tab-data/types";
 
 // ---------------------------------------------------------------------------
 // Libreta panel
 // ---------------------------------------------------------------------------
-
-// Row type for grouped libreta events (full petEvent row shape).
-export type LibretaEventRow = {
-  id: string;
-  eventType: string;
-  payload: unknown;
-  occurredAt: Date;
-  notes: string | null;
-  authorRole: string;
-  authorVerified: boolean;
-  authorOrganizationId: string | null;
-  tipoEventoCode?: string | null;
-};
-
-export type LibretaTabData = {
-  pet: {
-    name: string;
-    species: string;
-    breed: string | null;
-    sex: string;
-    microchipId: string | null;
-    tattooCode: string | null;
-    tattooLocation: string | null;
-    publicToken: string;
-  };
-  photoUrl: string | null;
-  ownerFirstName: string | null;
-  groupedEvents: Record<LibretaGroupKey, LibretaEventRow[]>;
-  activeShares: LibretaShareToken[];
-  accessPath: "owner" | "org";
-  organizationDisplayName: string | null;
-  /** Precomputed health-status snapshot for the "Estado médico actual" dashboard. */
-  healthStatus: LibretaHealthStatus;
-  /** Count of active reminders for the Pendientes card. */
-  activeRemindersCount: number;
-};
 
 export async function getLibretaTabData(
   publicToken: string,
@@ -81,155 +44,26 @@ export async function getLibretaTabData(
   if (!access.ok) return { ok: false, error: "Acceso denegado" };
   // Libreta is owner-only — matches old /libreta route (requireOwnedPetByToken).
   if (access.accessPath !== "owner") return { ok: false, error: "Acceso denegado" };
-
   const { user, pet, accessPath, organization } = access;
-
-  const [profileRow] = await db
-    .select({ displayName: profiles.displayName })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  const ownerFirstName = profileRow?.displayName?.split(" ")[0] ?? null;
-
-  let photoUrl: string | null = null;
-  if (pet.primaryPhotoId) {
-    const [row] = await db
-      .select()
-      .from(attachments)
-      .where(eq(attachments.id, pet.primaryPhotoId))
-      .limit(1);
-    photoUrl = petPhotoUrl(row?.storagePath);
-  }
-
-  const [events, activeShares, activeReminders, identifications] = await Promise.all([
-    db
-      .select()
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause(), libretaSanitariaClause()))
-      .orderBy(desc(petEvents.occurredAt)),
-    db
-      .select()
-      .from(libretaShareTokens)
-      .where(and(eq(libretaShareTokens.petId, pet.id), isNull(libretaShareTokens.revokedAt))),
-    fetchActiveRemindersForPet(user.id, pet.id),
-    fetchActiveIdentifications(pet.id),
-  ]);
-
-  const grouped = groupLibretaEvents(events) as Record<LibretaGroupKey, LibretaEventRow[]>;
-  const healthStatus = computeLibretaHealthStatus(
-    {
-      species: pet.species,
-      permanentConditions: pet.permanentConditions ?? null,
-      permanentConditionsOther: pet.permanentConditionsOther ?? null,
-    },
-    events,
-  );
-
-  return {
-    ok: true,
-    data: {
-      pet: {
-        name: pet.name,
-        species: pet.species,
-        breed: pet.breed,
-        sex: pet.sex,
-        microchipId: identifications.microchip?.code ?? null,
-        tattooCode: identifications.tattoo?.code ?? null,
-        tattooLocation: identifications.tattoo?.tattooLocation ?? null,
-        publicToken: pet.publicToken,
-      },
-      photoUrl,
-      ownerFirstName,
-      groupedEvents: grouped,
-      activeShares,
-      accessPath,
-      organizationDisplayName: organization?.displayName ?? null,
-      healthStatus,
-      activeRemindersCount: activeReminders.length,
-    },
-  };
+  return _getLibretaTabData({ user, pet, accessPath, organization });
 }
 
 // ---------------------------------------------------------------------------
 // Vacunas panel
 // ---------------------------------------------------------------------------
 
-export type VacunasTabData = {
-  petName: string;
-  petToken: string;
-  petSpecies: string;
-  upcomingReminders: Awaited<ReturnType<typeof fetchActiveRemindersForPet>>;
-  history: Awaited<ReturnType<typeof fetchVaccinationHistory>>;
-  /** Precomputed vaccination summary for the Estado de vacunación badge block. */
-  vaccinationSummary: VaccinationSummary;
-  accessPath: "owner" | "org";
-  organizationDisplayName: string | null;
-};
-
 export async function getVacunasTabData(
   publicToken: string,
 ): Promise<{ ok: true; data: VacunasTabData } | { ok: false; error: string }> {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) return { ok: false, error: "Acceso denegado" };
-
   const { user, pet, accessPath, organization } = access;
-
-  const [upcomingReminders, history] = await Promise.all([
-    accessPath === "owner" ? fetchActiveRemindersForPet(user.id, pet.id) : Promise.resolve([]),
-    fetchVaccinationHistory(pet.id),
-  ]);
-
-  // Derive the vaccination summary from history rows. We map recordedAt as
-  // occurredAt because the libreta-health-status helper only needs a Date to
-  // compute nextDueAt from intervalMonths — the date of the last dose is the
-  // same field regardless of label.
-  const historyAsEvents = history.map((r) => ({
-    eventType: "vaccination_administered" as const,
-    occurredAt: r.recordedAt,
-    payload: {
-      vaccine_name: r.vaccineName,
-      next_due_at: r.nextDueAt ?? null,
-    },
-  }));
-  const vaccinationSummary = computeVaccinationSummary(historyAsEvents, pet.species);
-
-  return {
-    ok: true,
-    data: {
-      petName: pet.name,
-      petToken: pet.publicToken,
-      petSpecies: pet.species,
-      upcomingReminders,
-      history,
-      vaccinationSummary,
-      accessPath,
-      organizationDisplayName: organization?.displayName ?? null,
-    },
-  };
+  return _getVacunasTabData({ user, pet, accessPath, organization });
 }
 
 // ---------------------------------------------------------------------------
 // Historial panel
 // ---------------------------------------------------------------------------
-
-export type HistorialEventRow = {
-  id: string;
-  petId: string;
-  eventType: string;
-  payload: unknown;
-  occurredAt: Date;
-  notes: string | null;
-  authorRole: string;
-  authorVerified: boolean;
-  authorOrganizationId: string | null;
-  attachmentUrl: string | null;
-};
-
-export type HistorialTabData = {
-  petName: string;
-  petToken: string;
-  events: HistorialEventRow[];
-};
 
 export async function getHistorialTabData(
   publicToken: string,
@@ -238,40 +72,5 @@ export async function getHistorialTabData(
   if (!access.ok) return { ok: false, error: "Acceso denegado" };
   // Historial is owner-only — matches old /historial route (requireOwnedPetByToken).
   if (access.accessPath !== "owner") return { ok: false, error: "Acceso denegado" };
-
-  const { pet } = access;
-
-  const events = await db
-    .select()
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause()))
-    .orderBy(desc(petEvents.occurredAt));
-
-  const eventIds = events.map((e) => e.id);
-  const eventAttachmentRows =
-    eventIds.length > 0
-      ? await db.select().from(attachments).where(inArray(attachments.eventId, eventIds))
-      : [];
-
-  const supabase = await createClient();
-  const urlMap = new Map<string, string>();
-  await Promise.all(
-    eventAttachmentRows.map(async (a) => {
-      if (!a.eventId) return;
-      const url = await eventAttachmentSignedUrl(supabase, a.storagePath);
-      if (url) urlMap.set(a.eventId, url);
-    }),
-  );
-
-  return {
-    ok: true,
-    data: {
-      petName: pet.name,
-      petToken: pet.publicToken,
-      events: events.map((e) => ({
-        ...e,
-        attachmentUrl: urlMap.get(e.id) ?? null,
-      })),
-    },
-  };
+  return _getHistorialTabData(access.pet);
 }

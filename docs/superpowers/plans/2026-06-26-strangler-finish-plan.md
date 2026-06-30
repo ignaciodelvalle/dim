@@ -135,7 +135,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `admin-org-verification.ts` — 328 lines → 72-line shim (strangler 22/61, 2026-06-30)
 - [x] `booking.ts` — 301 lines → 87-line shim (strangler 23/61, 2026-06-30)
 - [x] `schedule-rules.ts` — 289 lines → 180-line shim (strangler 24/61, 2026-06-30)
-- [ ] `pet-tab-data.ts` — 278 lines
+- [x] `pet-tab-data.ts` — 278 lines → 76-line shim (strangler 25/61, 2026-06-30)
 - [ ] `auth.ts` — 266 lines
 - [ ] `amendment.ts` — 265 lines
 - [ ] `slot-materialization.ts` — 263 lines
