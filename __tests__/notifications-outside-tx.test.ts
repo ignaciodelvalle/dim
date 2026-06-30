@@ -128,7 +128,9 @@ const SINGLE_INSERT_HARDENED_FILES = [
   // pet-sighting.ts migrated to src/modules/pets/application/sighting/*
   // (strangler 29/61, 2026-06-30). report-pet-sighting.ts preserves the try/catch hardening.
   // app/actions/pet-sighting.ts is now a thin shim — it delegates everything.
-  "public.ts", // notifyOwnerOfFoundPetAction
+  // public.ts migrated to src/modules/pets/application/public/*
+  // (strangler 44/61, 2026-06-30). notify-owner-of-found-pet.ts preserves the try/catch hardening.
+  // app/actions/public.ts is now a thin shim — it delegates everything.
 ] as const;
 
 describe("Phase 2.2 — notifications outside transactions (§2.2)", () => {
@@ -177,6 +179,18 @@ describe("Phase 2.2 — notifications outside transactions (§2.2)", () => {
 });
 
 describe("ARCH-P — single-insert notification hardening", () => {
+  // Every action file that once carried the ARCH-P single-insert hardening
+  // has now been migrated to a src/modules/<domain>/application/* use-case
+  // (the try/catch is preserved there — see the header comments above).
+  // No app/actions/ shim should still carry a bare db.insert(notifications).
+  // This placeholder keeps the suite valid when the list is empty; the per-file
+  // loop below re-engages automatically if a new pre-migration file is added.
+  if (SINGLE_INSERT_HARDENED_FILES.length === 0) {
+    it("all ARCH-P single-insert files migrated to module use-cases", () => {
+      expect(SINGLE_INSERT_HARDENED_FILES).toHaveLength(0);
+    });
+  }
+
   for (const file of SINGLE_INSERT_HARDENED_FILES) {
     it(`${file} wraps every db.insert(notifications) in try/catch with error logging`, () => {
       const src = readFileSync(join(process.cwd(), "app", "actions", file), "utf8");
