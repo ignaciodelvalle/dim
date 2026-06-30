@@ -150,7 +150,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `return-to-owner-form.ts` — 166 lines → 21-line shim (strangler 37/61, 2026-06-30)
 - [x] `dni-verification.ts` — 151 lines → 56-line shim (strangler 38/61, 2026-06-30)
 - [x] `apply-intent.ts` — 141 lines → 36-line shim (strangler 39/61, 2026-06-30)
-- [ ] `decomiso-pet-lookup.ts` — 123 lines
+- [x] `decomiso-pet-lookup.ts` — 123 lines → 21-line shim (strangler 40/61, 2026-06-30)
 - [ ] `bulk-adoption-actions.ts` — 120 lines
 - [ ] `reminders.ts` — 119 lines
 - [ ] `sign-timeline-attachments.ts` — 111 lines
