@@ -112,7 +112,7 @@ drift. Small files at the end are quick wins that clean up the tail.
   - Domain: `events` / `pets`
   - Target: `src/modules/events/application/attendance/`
 
-- [ ] **`microchip.ts`** — 460 lines
+- [x] **`microchip.ts`** — 460 lines → 50-line shim (strangler 13/61, 2026-06-30)
   - Domain: `pets`
   - Target: `src/modules/pets/application/microchip/`
 
