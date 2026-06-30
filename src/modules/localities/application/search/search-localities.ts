@@ -2,10 +2,12 @@
 // (strangler 46/61). Rate-limit state, both search functions, and
 // __resetRateLimitForTests are co-located so the reset helper resets the same
 // state the searches use.
+//
+// Auth guard (requireUserOrRedirect) for searchLocalitiesAction is enforced by
+// the caller (shim). This function receives the already-resolved userId.
 
 import { type LocalitySearchResult, searchLocalities } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 
 import { type SearchLocalitiesResult } from "./types";
 
@@ -31,13 +33,14 @@ export async function __resetRateLimitForTests(): Promise<void> {
   rateLimitMap.clear();
 }
 
-export async function searchLocalitiesAction(input: {
-  provinceCode?: string;
-  query: string;
-}): Promise<SearchLocalitiesResult> {
-  const { user } = await requireUserOrRedirect();
-
-  if (!checkRateLimit(user.id)) {
+export async function searchLocalitiesAction(
+  userId: string,
+  input: {
+    provinceCode?: string;
+    query: string;
+  },
+): Promise<SearchLocalitiesResult> {
+  if (!checkRateLimit(userId)) {
     return { error: "rate_limited" };
   }
 

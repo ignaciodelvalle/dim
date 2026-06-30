@@ -6,7 +6,6 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import type { BulkResult } from "@/src/modules/organizations/application/bulk-actions/types";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import {
   approveAdoptionApplicationAction,
 } from "@/src/modules/adoption/actions";
@@ -16,11 +15,9 @@ import type { BulkAdoptionApproveInput } from "./types";
 export async function bulkApproveAdoptionApplications(
   input: BulkAdoptionApproveInput,
 ): Promise<BulkResult> {
-  // Defense-in-depth: confirm the caller is a member of this org before looping.
-  // Per-item authorization ("adoption.review" capability + org ownership of the
-  // application) is still enforced inside approveAdoptionApplicationAction.
-  await requireOrgAccessByToken(input.orgToken);
-
+  // Auth guard (requireOrgAccessByToken) is now called by the shim wrapper
+  // before delegating here. Per-item authorization ("adoption.review" capability
+  // + org ownership) is still enforced inside approveAdoptionApplicationAction.
   const bulkActionId = randomUUID();
   const succeeded: string[] = [];
   const failed: { id: string; reason: string }[] = [];

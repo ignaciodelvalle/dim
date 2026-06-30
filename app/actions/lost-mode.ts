@@ -8,6 +8,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async function.
 
 import type { DisclosurePrefs } from "@/components/pet-profile/LostDisclosureCard";
+import { requirePetAccess } from "@/lib/pet-access";
 import { setPetDisclosurePrefs } from "@/src/modules/pets/application/lost-mode/set-pet-disclosure-prefs";
 
 export async function setPetDisclosurePrefsAction(
@@ -15,5 +16,7 @@ export async function setPetDisclosurePrefsAction(
   key: keyof DisclosurePrefs,
   next: boolean,
 ): Promise<void> {
-  return setPetDisclosurePrefs(publicToken, key, next);
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) throw new Error(access.error);
+  return setPetDisclosurePrefs(access.pet.id, publicToken, key, next);
 }

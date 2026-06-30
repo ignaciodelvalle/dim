@@ -51,6 +51,7 @@ export async function amendEventAction(input: AmendEventInput): Promise<AmendEve
 // Pure query re-export — passthrough wrapper (used by libreta + historial)
 // ---------------------------------------------------------------------------
 
+// @no-auth-required: pure projection query; caller must scope to pet.id from an already-authenticated context.
 export async function fetchLatestAmendmentsForEvents(
   ...args: Parameters<typeof _fetchLatestAmendmentsForEvents>
 ): Promise<Awaited<ReturnType<typeof _fetchLatestAmendmentsForEvents>>> {

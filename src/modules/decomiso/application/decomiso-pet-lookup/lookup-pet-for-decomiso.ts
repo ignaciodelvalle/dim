@@ -7,25 +7,24 @@
 // decomiso. Returns full name, species, sex, status, and whether the pet
 // has an active owner (to trigger the DC2 double-confirm modal).
 //
-// Auth: requireDecomisoPrincipal — only govt / admin can reach this.
+// Auth: requireDecomisoPrincipal is enforced by the caller (shim). This
+// use-case receives the already-resolved session so it never re-fetches.
 // Returns owner display name (not just initials) because the operator
 // needs to know whose custody they're about to revoke.
-//
-// NOTE: requireDecomisoPrincipal is called as the FIRST statement (before any
-// validation) — do not reorder. This mirrors the original action exactly.
 
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, ownerships, pets, profiles } from "@/db";
-import { requireDecomisoPrincipal } from "@/lib/auth-guards";
+import type { DecomisoPrincipalSession } from "@/lib/auth-guards";
 
 import type { GovtPetLookupResult } from "./types";
 
 const TOKEN_PATTERN = /^DIM-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
 
-export async function lookupPetForDecomiso(query: string): Promise<GovtPetLookupResult> {
-  const session = await requireDecomisoPrincipal();
-
+export async function lookupPetForDecomiso(
+  session: DecomisoPrincipalSession,
+  query: string,
+): Promise<GovtPetLookupResult> {
   const trimmed = query.trim().toUpperCase();
   if (!trimmed) return { found: false, error: "Ingresá un token de mascota." };
   if (!TOKEN_PATTERN.test(trimmed)) {

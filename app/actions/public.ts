@@ -26,6 +26,7 @@ export type { PublicActionState };
 // Action wrapper — thin controller for UI components
 // ---------------------------------------------------------------------------
 
+// @no-auth-required: anonymous "found pet" notification — anyone scanning a QR can invoke it
 export async function notifyOwnerOfFoundPetAction(
   publicToken: string,
   _previous: PublicActionState,

@@ -20,10 +20,15 @@ import { dismissApplyIntentAction as _dismissApplyIntentAction } from "@/src/mod
 
 export type { StartApplyIntentResult };
 
+// @no-auth-required: auth enforced inside the delegated use-case (auth.getUser() runs after the
+// pet-listability check that must precede it — lifting would reorder)
 export async function startApplyIntentAction(petToken: string): Promise<StartApplyIntentResult> {
   return _startApplyIntentAction(petToken);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case (delegates to
+// startApplyIntentAction where auth.getUser() runs after the pet-listability check that must
+// precede it — lifting would reorder)
 export async function startApplyIntentFormAction(
   _prevState: StartApplyIntentResult | null,
   formData: FormData,
@@ -31,6 +36,8 @@ export async function startApplyIntentFormAction(
   return _startApplyIntentFormAction(_prevState, formData);
 }
 
+// @no-auth-required: cookie clear — no auth needed to dismiss a banner; the action only deletes
+// two short-lived cookies from the caller's own browser session
 export async function dismissApplyIntentAction(): Promise<void> {
   return _dismissApplyIntentAction();
 }

@@ -13,6 +13,8 @@
 
 import { logScan as _logScan } from "@/src/modules/pets/application/scans/log-scan";
 
+// @no-auth-required: auth is optional and handled inside the delegated use-case after
+// pet-existence check — anonymous scans are valid; auth.getUser() is used only to flag self-scans
 export async function logScanAction(publicToken: string): Promise<void> {
   return _logScan(publicToken);
 }

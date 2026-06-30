@@ -5,16 +5,17 @@
 // Business logic moved to:
 //   src/modules/pets/application/reminders/
 //
-// This file re-exports ReminderFormState and SnoozeReminderResult types and
-// provides thin delegating wrappers for the three actions (used by 4 UI
-// importers) so all existing import paths keep working unchanged.
+// Auth guards are resolved here and the authenticated context is forwarded to
+// the use-cases so they don't need their own session calls.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { createVaccineReminderAction as _create } from "@/src/modules/pets/application/reminders/create-vaccine-reminder";
-import { deleteVaccineReminderAction as _delete } from "@/src/modules/pets/application/reminders/delete-vaccine-reminder";
-import { snoozeReminderAction as _snooze } from "@/src/modules/pets/application/reminders/snooze-reminder";
+import { requireOwnedPetByToken } from "@/lib/pets";
+import { createClient } from "@/lib/supabase/server";
+import { createVaccineReminder as _create } from "@/src/modules/pets/application/reminders/create-vaccine-reminder";
+import { deleteVaccineReminder as _delete } from "@/src/modules/pets/application/reminders/delete-vaccine-reminder";
+import { snoozeReminder as _snooze } from "@/src/modules/pets/application/reminders/snooze-reminder";
 import type {
   ReminderFormState,
   SnoozeReminderResult,
@@ -27,7 +28,7 @@ import type {
 export type { ReminderFormState, SnoozeReminderResult };
 
 // ---------------------------------------------------------------------------
-// Action wrappers — thin delegating shims for UI importers
+// Action wrappers — auth guard here, use-cases receive authenticated context
 // ---------------------------------------------------------------------------
 
 export async function createVaccineReminderAction(
@@ -35,13 +36,24 @@ export async function createVaccineReminderAction(
   _previous: ReminderFormState,
   formData: FormData,
 ): Promise<ReminderFormState> {
-  return _create(publicToken, _previous, formData);
+  const session = await requireOwnedPetByToken(publicToken);
+  if (!session) return { error: "Sesión expirada." };
+  return _create(session.user.id, session.pet.id, publicToken, _previous, formData);
 }
 
 export async function deleteVaccineReminderAction(publicToken: string, reminderId: string) {
-  return _delete(publicToken, reminderId);
+  const session = await requireOwnedPetByToken(publicToken);
+  if (!session) {
+    throw new Error("No autorizado.");
+  }
+  return _delete(session.pet.id, publicToken, reminderId);
 }
 
 export async function snoozeReminderAction(reminderId: string): Promise<SnoozeReminderResult> {
-  return _snooze(reminderId);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesión expirada." };
+  return _snooze(reminderId, user.id);
 }

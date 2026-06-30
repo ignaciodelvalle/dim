@@ -1,18 +1,13 @@
 // Use-case: revokeTier2Public — strangler migration 50/61.
 //
-// Verbatim body of the former revokeTier2PublicAction.
-// The outer shim (app/actions/tier2-public.ts) delegates here.
+// Auth guard (requirePetAccess) is enforced by the caller (shim). This
+// use-case receives the already-resolved pet object so it never re-fetches.
 
-import { db, pets } from "@/db";
-import { requirePetAccess } from "@/lib/pet-access";
+import { type Pet, db, pets } from "@/db";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-export async function revokeTier2Public(publicToken: string): Promise<void> {
-  const access = await requirePetAccess(publicToken);
-  if (!access.ok) throw new Error(access.error);
-  const { pet } = access;
-
+export async function revokeTier2Public(pet: Pet, publicToken: string): Promise<void> {
   await db
     .update(pets)
     .set({ tier2PublicPermanent: false, tier2PublicEnabledUntil: null, updatedAt: new Date() })

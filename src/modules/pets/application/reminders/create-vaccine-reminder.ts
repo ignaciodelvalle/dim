@@ -1,25 +1,22 @@
-// Use-case: createVaccineReminderAction — create a vaccine reminder for a pet
+// Use-case: createVaccineReminder — create a vaccine reminder for a pet
 // (strangler migration 42/61).
 //
-// Auth guard (requireOwnedPetByToken) is included verbatim so the use-case
-// enforces ownership from the module layer.
+// Auth guard (requireOwnedPetByToken) is enforced by the caller (shim). This
+// use-case receives the already-resolved userId, petId, and publicToken.
 
 import { db, reminders } from "@/db";
 import { parseDateInput } from "@/lib/format";
-import { requireOwnedPetByToken } from "@/lib/pets";
 import { redirect } from "next/navigation";
 
 import type { ReminderFormState } from "./types";
 
-export async function createVaccineReminderAction(
+export async function createVaccineReminder(
+  userId: string,
+  petId: string,
   publicToken: string,
   _previous: ReminderFormState,
   formData: FormData,
 ): Promise<ReminderFormState> {
-  const session = await requireOwnedPetByToken(publicToken);
-  if (!session) return { error: "Sesión expirada." };
-  const { user, pet } = session;
-
   const vaccineName = String(formData.get("vaccineName") ?? "").trim();
   const dueAtRaw = String(formData.get("dueAt") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim() || null;
@@ -32,8 +29,8 @@ export async function createVaccineReminderAction(
 
   try {
     await db.insert(reminders).values({
-      petId: pet.id,
-      userId: user.id,
+      petId,
+      userId,
       reminderType: "vaccine",
       dueAt,
       title: vaccineName,

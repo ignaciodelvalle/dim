@@ -18,6 +18,7 @@ import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { lookupForClaimForUser as _lookupForClaim } from "@/src/modules/pets/application/claim/lookup-for-claim";
 import { submitClaimDisputeForUser as _submitClaimDispute } from "@/src/modules/pets/application/claim/submit-claim-dispute";
 import { submitFreeClaimForUser as _submitFreeClaim } from "@/src/modules/pets/application/claim/submit-free-claim";
+import type { ClaimDisputeInput } from "@/src/modules/pets/application/claim/types";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
@@ -66,7 +67,7 @@ export async function lookupForClaimAction(input: {
 }
 
 export async function submitClaimDisputeAction(
-  input: { petToken: string; reason: string },
+  input: ClaimDisputeInput,
   files: File[],
 ) {
   const { user } = await requireUserOrRedirect();

@@ -16,6 +16,7 @@ import { lookupPetForDenuncia } from "@/src/modules/pets/application/public-look
 
 export type { PublicLookupResult };
 
+// @no-auth-required: anonymous pet lookup — public search for denuncia filing requires no account
 export async function lookupPetForDenunciaAction(query: string): Promise<PublicLookupResult> {
   return lookupPetForDenuncia(query);
 }

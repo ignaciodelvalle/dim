@@ -1,21 +1,14 @@
-// Use-case: deleteVaccineReminderAction — delete a vaccine reminder (strangler migration 42/61).
+// Use-case: deleteVaccineReminder — delete a vaccine reminder (strangler migration 42/61).
 //
-// Auth guard (requireOwnedPetByToken) is included verbatim so the use-case
-// enforces ownership from the module layer.
+// Auth guard (requireOwnedPetByToken) is enforced by the caller (shim). This
+// use-case receives the already-resolved petId and publicToken.
 
 import { db, reminders } from "@/db";
-import { requireOwnedPetByToken } from "@/lib/pets";
 import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
-export async function deleteVaccineReminderAction(publicToken: string, reminderId: string) {
-  const session = await requireOwnedPetByToken(publicToken);
-  if (!session) {
-    throw new Error("No autorizado.");
-  }
-  const { pet } = session;
-
-  await db.delete(reminders).where(and(eq(reminders.id, reminderId), eq(reminders.petId, pet.id)));
+export async function deleteVaccineReminder(petId: string, publicToken: string, reminderId: string) {
+  await db.delete(reminders).where(and(eq(reminders.id, reminderId), eq(reminders.petId, petId)));
 
   redirect(`/mis-mascotas/${publicToken}`);
 }

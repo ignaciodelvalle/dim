@@ -1,10 +1,9 @@
 // Use-case: enableTier2Public — strangler migration 50/61.
 //
-// Verbatim body of the former enableTier2PublicAction.
-// The outer shim (app/actions/tier2-public.ts) delegates here.
+// Auth guard (requirePetAccess) is enforced by the caller (shim). This
+// use-case receives the already-resolved pet object so it never re-fetches.
 
-import { db, pets } from "@/db";
-import { requirePetAccess } from "@/lib/pet-access";
+import { type Pet, db, pets } from "@/db";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -17,13 +16,10 @@ const DURATION_MS: Record<string, number> = {
 };
 
 export async function enableTier2Public(
+  pet: Pet,
   publicToken: string,
   formData?: FormData,
 ): Promise<void> {
-  const access = await requirePetAccess(publicToken);
-  if (!access.ok) throw new Error(access.error);
-  const { pet } = access;
-
   if (pet.status === "deceased") {
     // The public credential of a deceased pet is the in-memoriam page;
     // surfacing medical detail there has no purpose.

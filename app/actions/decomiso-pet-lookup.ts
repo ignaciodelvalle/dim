@@ -11,11 +11,13 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
+import { requireDecomisoPrincipal } from "@/lib/auth-guards";
 import type { GovtPetLookupResult } from "@/src/modules/decomiso/application/decomiso-pet-lookup/types";
 import { lookupPetForDecomiso } from "@/src/modules/decomiso/application/decomiso-pet-lookup/lookup-pet-for-decomiso";
 
 export type { GovtPetLookupResult };
 
 export async function lookupPetForDecomisoAction(query: string): Promise<GovtPetLookupResult> {
-  return lookupPetForDecomiso(query);
+  const session = await requireDecomisoPrincipal();
+  return lookupPetForDecomiso(session, query);
 }

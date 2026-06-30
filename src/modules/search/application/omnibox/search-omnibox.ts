@@ -1,10 +1,9 @@
 // searchOmnibox use-case (strangler 52/61, 2026-06-30).
-// Whole-body verbatim move from app/actions/omnibox-search.ts.
-// Auth guard and logPiiQueryForAuthority call preserved in original position/order.
-// logPiiQueryForAuthority imported directly from module (not action shim).
+// Auth guard lifted to the shim wrapper; this function receives the
+// pre-authenticated session and no longer calls requireAdminOrGovtOrRedirect.
 
+import type { AdminOrGovtSession } from "@/lib/auth-guards";
 import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { type OmniboxResults, searchOmnibox as runSearch } from "@/lib/omnibox-search";
 
 // Minimum query length before we touch the DB or log a PII read. A single
@@ -13,8 +12,8 @@ const MIN_QUERY_LENGTH = 2;
 
 const EMPTY: OmniboxResults = { pets: [], persons: [], cases: [], total: 0 };
 
-export async function searchOmnibox(query: string): Promise<OmniboxResults> {
-  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+export async function searchOmnibox(session: AdminOrGovtSession, query: string): Promise<OmniboxResults> {
+  const { user, profile, jurisdictions } = session;
 
   const trimmed = query.trim();
   if (trimmed.length < MIN_QUERY_LENGTH) return EMPTY;

@@ -12,6 +12,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { bulkApproveRequests } from "@/src/modules/organizations/application/bulk-actions/bulk-approve-requests";
 import { bulkRejectRequests } from "@/src/modules/organizations/application/bulk-actions/bulk-reject-requests";
 import { bulkRevoke } from "@/src/modules/organizations/application/bulk-actions/bulk-revoke";
@@ -35,17 +36,24 @@ export type {
 } from "@/src/modules/organizations/application/bulk-actions/types";
 
 // ---------------------------------------------------------------------------
-// Action wrappers — pure delegations (control flow preserved in the use-cases)
+// Action wrappers
 // ---------------------------------------------------------------------------
 
 export async function bulkApproveRequestsAction(input: BulkApproveInput): Promise<BulkResult> {
-  return bulkApproveRequests(input);
+  const { user } = await requireAdminOrGovtOrRedirect();
+  return bulkApproveRequests(user.id, input);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case
+// (requireAdminOrGovtOrRedirect runs after reason-length validation that must
+// precede it — lifting would reorder the validation-before-auth control flow).
 export async function bulkRejectRequestsAction(input: BulkRejectInput): Promise<BulkResult> {
   return bulkRejectRequests(input);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case
+// (requireAdminOrGovtOrRedirect runs after motivo + attachments validation that
+// must precede it — lifting would reorder the validation-before-auth control flow).
 export async function bulkRevokeAction(input: BulkRevokeInput): Promise<BulkResult> {
   return bulkRevoke(input);
 }

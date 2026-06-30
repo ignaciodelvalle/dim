@@ -16,6 +16,8 @@ import { claimStubProfile } from "@/src/modules/pets/application/stub-claim/clai
 
 export type { ClaimFormState };
 
+// @no-auth-required: auth enforced inside the delegated use-case (auth.getUser() runs after the
+// security-gate check that must precede it — lifting would reorder)
 export async function claimStubProfileAction(
   _previous: ClaimFormState,
   formData: FormData,

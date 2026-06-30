@@ -3,10 +3,10 @@
 // anonymous callers.
 //
 // Two pairs of actions:
-//   - geocodeAddressAction / reverseGeocodeAction       — auth-gated. Used by
-//     logged-in flows.
-//   - geocodeAddressPublicAction / reverseGeocodePublicAction — NO auth, IP
-//     rate-limited. Used by anonymous public flows (PetSightingForm,
+//   - geocodeAddressAction / reverseGeocodeAction       — auth check is
+//     enforced by the caller (shim). These run the Nominatim fetch only.
+//   - geocodeAddressPublicAction / reverseGeocodePublicAction — NO auth,
+//     IP rate-limited. Used by anonymous public flows (PetSightingForm,
 //     DenunciaWizard) where the user has no session by definition. The
 //     critique-direcciones-2026-05-27 marks this as the pre-requisite for the
 //     unified-location refactor: anonymous typing must not redirect to /login.
@@ -16,7 +16,6 @@
 
 import { headers } from "next/headers";
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 import {
   type GeocodeBias,
   type GeocodeResult,
@@ -27,14 +26,13 @@ import {
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
-// Authed variants
+// Authed variants — auth guard enforced by the calling shim
 // ---------------------------------------------------------------------------
 
 export async function geocodeAddressAction(
   query: string,
   bias?: GeocodeBias,
 ): Promise<GeocodeResult[]> {
-  await requireUserOrRedirect();
   return geocodeAddress(query, bias);
 }
 
@@ -42,7 +40,6 @@ export async function reverseGeocodeAction(
   lat: number,
   lng: number,
 ): Promise<ReverseGeocodeResult | null> {
-  await requireUserOrRedirect();
   return reverseGeocode(lat, lng);
 }
 

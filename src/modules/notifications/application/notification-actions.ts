@@ -1,50 +1,44 @@
 // Use-case: notification-actions — mark read, archive, mark all read (strangler migration 59/61).
 //
-// Business logic moved verbatim from app/actions/notifications.ts.
-// Each action verifies ownership against the authenticated user's id — a
-// notification belongs to exactly one user, and nobody else can read or mutate it.
+// Auth moved to the shim wrapper (app/actions/notifications.ts). Each function
+// now receives the already-authenticated userId directly so authentication is
+// not duplicated and the use-case stays pure.
+//
+// Each function enforces ownership: a notification belongs to exactly one user,
+// and the WHERE clause always scopes updates to that user's rows.
 
 import { db, notifications } from "@/db";
-import { createClient } from "@/lib/supabase/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Sesión expirada");
-  return user;
-}
-
-export async function markNotificationRead(notificationId: string): Promise<void> {
-  const user = await requireUser();
+export async function markNotificationRead(userId: string, notificationId: string): Promise<void> {
   await db
     .update(notifications)
     .set({ readAt: new Date() })
-    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, user.id)));
+    .where(
+      and(eq(notifications.id, notificationId), eq(notifications.userId, userId)),
+    );
   revalidatePath("/notificaciones");
   revalidatePath("/mis-mascotas");
 }
 
-export async function archiveNotification(notificationId: string): Promise<void> {
-  const user = await requireUser();
+export async function archiveNotification(userId: string, notificationId: string): Promise<void> {
   const now = new Date();
   await db
     .update(notifications)
     .set({ archivedAt: now, readAt: now })
-    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, user.id)));
+    .where(
+      and(eq(notifications.id, notificationId), eq(notifications.userId, userId)),
+    );
   revalidatePath("/notificaciones");
   revalidatePath("/mis-mascotas");
 }
 
-export async function markAllNotificationsRead(): Promise<void> {
-  const user = await requireUser();
+export async function markAllNotificationsRead(userId: string): Promise<void> {
   await db
     .update(notifications)
     .set({ readAt: new Date() })
-    .where(and(eq(notifications.userId, user.id), isNull(notifications.readAt)));
+    .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
   revalidatePath("/notificaciones");
   revalidatePath("/mis-mascotas");
 }

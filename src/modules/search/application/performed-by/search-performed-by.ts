@@ -2,8 +2,10 @@
 // (strangler 60/61). Rate-limit state, searchVetsAndClinicsAction, and
 // __resetPerformedByRateLimitForTests are co-located so the reset helper resets the same
 // state the search uses.
+//
+// Auth guard (requireUserOrRedirect) is enforced by the caller (shim). This
+// function receives the already-resolved userId.
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 import {
   type SearchJurisdiction,
   searchVetsAndClinics,
@@ -32,12 +34,14 @@ export async function __resetPerformedByRateLimitForTests(): Promise<void> {
   rateLimitMap.clear();
 }
 
-export async function searchVetsAndClinicsAction(input: {
-  query: string;
-  jurisdiction?: SearchJurisdiction;
-}): Promise<SearchPerformedByResult> {
-  const { user } = await requireUserOrRedirect();
-  if (!checkRateLimit(user.id)) return { error: "rate_limited" };
+export async function searchVetsAndClinicsAction(
+  userId: string,
+  input: {
+    query: string;
+    jurisdiction?: SearchJurisdiction;
+  },
+): Promise<SearchPerformedByResult> {
+  if (!checkRateLimit(userId)) return { error: "rate_limited" };
   const results = await searchVetsAndClinics(input.query, input.jurisdiction);
   return { results };
 }

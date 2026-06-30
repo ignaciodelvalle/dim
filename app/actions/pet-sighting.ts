@@ -26,6 +26,7 @@ export type { SightingActionState };
 // Action wrapper — thin controller for UI components
 // ---------------------------------------------------------------------------
 
+// @no-auth-required: anonymous sighting report — no account needed to report a found pet
 export async function reportPetSightingAction(
   publicToken: string,
   _previous: SightingActionState,

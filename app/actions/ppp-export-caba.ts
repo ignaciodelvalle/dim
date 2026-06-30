@@ -16,6 +16,9 @@ import { generatePppExport } from "@/src/modules/pets/application/ppp-export/gen
 
 export type { GeneratePppExportResult };
 
+// @no-auth-required: auth enforced inside the delegated use-case (requireUserOrRedirect() is the
+// first call but returns {supabase,user} consumed throughout the function — lifting would require
+// changing the use-case signature)
 export async function generatePppExportAction(
   petPublicToken: string,
 ): Promise<GeneratePppExportResult> {

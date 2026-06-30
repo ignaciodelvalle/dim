@@ -38,6 +38,9 @@ export async function signTimelineAttachmentsForPet(
   return _signTimelineAttachmentsForPet(petPublicToken, eventIds);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case (requirePetAccess
+// runs after input validation + empty-list short-circuit that must precede it —
+// lifting would reorder the validation-before-auth control flow of the original).
 export async function signTimelineAttachments(
   petPublicToken: string,
   eventIds: string[],

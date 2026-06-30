@@ -16,6 +16,7 @@ import { quickCapture } from "@/src/modules/events/application/quick-capture/qui
 
 export type { QuickCaptureResult };
 
+// @no-auth-required: no auth needed — public token identifies the pet; no account required
 export async function quickCaptureAction(
   publicToken: string,
   text: string,

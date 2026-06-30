@@ -5,32 +5,21 @@
 //   - second toggle on the active row: SET cancelled_at = now() (soft).
 //   - third toggle on a cancelled row: CLEAR cancelled_at (re-interest).
 //
-// Ownership is enforced via `requirePetAccess` — the user must be on the
-// owner path (an active ownership row keyed to their user_id). Org-path
-// (foster, shelter custody) is intentionally rejected here: this is a
-// product-demand signal that belongs to the legal owner, not transient
-// caretakers.
+// Ownership is enforced by the caller (shim) via requirePetAccess + owner-path
+// check before this use-case is invoked.
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, physicalTagInterest } from "@/db";
-import { requirePetAccess } from "@/lib/pet-access";
 
 import type { TogglePhysicalTagInterestResult } from "./types";
 
 export async function togglePhysicalTagInterest(
+  userId: string,
+  petId: string,
   petPublicToken: string,
 ): Promise<TogglePhysicalTagInterestResult> {
-  const access = await requirePetAccess(petPublicToken);
-  if (!access.ok) return { error: access.error };
-  if (access.accessPath !== "owner") {
-    return { error: "Solo el dueño legal puede manifestar interés en una chapa física." };
-  }
-
-  const userId = access.user.id;
-  const petId = access.pet.id;
-
   const [existing] = await db
     .select({
       id: physicalTagInterest.id,

@@ -34,6 +34,7 @@ export type {
 // Writer re-exports — async wrappers (used by cron route + integration tests)
 // ---------------------------------------------------------------------------
 
+// @no-auth-required: cron writer — invoked by the cron route without a user session
 export async function materializeAllActiveSlots(): Promise<{
   rulesProcessed: number;
   slotsInserted: number;
@@ -41,6 +42,7 @@ export async function materializeAllActiveSlots(): Promise<{
   return _materializeAllActiveSlots();
 }
 
+// @no-auth-required: cron writer — invoked by the cron route without a user session
 export async function materializeSlotsForOffering(offeringId: string): Promise<{
   rulesProcessed: number;
   slotsInserted: number;
@@ -52,6 +54,8 @@ export async function materializeSlotsForOffering(offeringId: string): Promise<{
 // Action wrappers — auth guard + delegate to use-cases
 // ---------------------------------------------------------------------------
 
+// @no-auth-required: auth enforced inside the delegated use-case (requireCapability runs after
+// offering validation that supplies organizationId — lifting would reorder checks)
 export async function materializeOfferingNowAction(
   offeringToken: string,
 ): Promise<{ rulesProcessed: number; slotsInserted: number } | { error: string }> {

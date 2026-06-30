@@ -1,10 +1,10 @@
 // searchOmniboxOrg use-case (strangler 52/61, 2026-06-30).
-// Whole-body verbatim move from app/actions/omnibox-search.ts.
-// Auth guard and logPiiQueryForAuthority call preserved in original position/order.
-// logPiiQueryForAuthority imported directly from module (not action shim).
+// Auth guard lifted to the shim wrapper; this function receives the
+// pre-authenticated session and no longer calls requireOrgAccessByToken.
+// orgToken is read from session.organization.publicToken.
 
+import type { OrgAccessSession } from "@/lib/auth-guards";
 import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { type OmniboxResults, searchOmnibox } from "@/lib/omnibox-search";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
@@ -15,10 +15,10 @@ const MIN_QUERY_LENGTH = 2;
 const EMPTY: OmniboxResults = { pets: [], persons: [], cases: [], total: 0 };
 
 export async function searchOmniboxOrg(
-  orgToken: string,
+  session: OrgAccessSession,
   query: string,
 ): Promise<OmniboxResults> {
-  const { user, organization, membership } = await requireOrgAccessByToken(orgToken);
+  const { user, organization, membership } = session;
 
   const trimmed = query.trim();
   if (trimmed.length < MIN_QUERY_LENGTH) return EMPTY;
@@ -30,7 +30,7 @@ export async function searchOmniboxOrg(
   const results = await searchOmnibox(trimmed, {
     role: "org",
     organizationId: organization.id,
-    orgToken,
+    orgToken: organization.publicToken,
   });
 
   await logPiiQueryForAuthority(user.id, trimmed, results.total, "omnibox");

@@ -7,13 +7,11 @@ import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { approveRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/approve-request";
 
 import type { BulkApproveInput, BulkResult } from "./types";
 
-export async function bulkApproveRequests(input: BulkApproveInput): Promise<BulkResult> {
-  const session = await requireAdminOrGovtOrRedirect();
+export async function bulkApproveRequests(actorUserId: string, input: BulkApproveInput): Promise<BulkResult> {
   const bulkActionId = randomUUID();
   const succeeded: string[] = [];
   const failed: { id: string; reason: string }[] = [];
@@ -21,7 +19,7 @@ export async function bulkApproveRequests(input: BulkApproveInput): Promise<Bulk
   for (const token of input.requestPublicTokens) {
     try {
       const result = await approveRequestForAuthority(
-        session.user.id,
+        actorUserId,
         token,
         input.decisionNotes?.trim() || null,
         bulkActionId,

@@ -5,13 +5,14 @@
 // Business logic moved to:
 //   src/modules/adoption/application/bulk-adoption-actions/
 //
-// The auth guard, validation order, and revalidatePath calls live INSIDE
-// the use-cases (auth BEFORE validation for both actions — preserving the
-// original control flow exactly), so these wrappers are pure delegations.
+// The auth guard (requireOrgAccessByToken) is lifted into these wrappers so
+// the shim satisfies the authz-coverage convention. The use-cases handle
+// validation + per-item loops.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { bulkApproveAdoptionApplications } from "@/src/modules/adoption/application/bulk-adoption-actions/bulk-approve-adoption-applications";
 import { bulkRejectAdoptionApplications } from "@/src/modules/adoption/application/bulk-adoption-actions/bulk-reject-adoption-applications";
 import type {
@@ -26,17 +27,19 @@ import type {
 export type { BulkAdoptionApproveInput, BulkAdoptionRejectInput } from "@/src/modules/adoption/application/bulk-adoption-actions/types";
 
 // ---------------------------------------------------------------------------
-// Action wrappers — pure delegations (control flow preserved in the use-cases)
+// Action wrappers — auth lifted from use-cases into the shim wrappers
 // ---------------------------------------------------------------------------
 
 export async function bulkApproveAdoptionApplicationsAction(
   input: BulkAdoptionApproveInput,
 ) {
+  await requireOrgAccessByToken(input.orgToken);
   return bulkApproveAdoptionApplications(input);
 }
 
 export async function bulkRejectAdoptionApplicationsAction(
   input: BulkAdoptionRejectInput,
 ) {
+  await requireOrgAccessByToken(input.orgToken);
   return bulkRejectAdoptionApplications(input);
 }

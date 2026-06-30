@@ -45,6 +45,10 @@ export async function logPiiQueryForAuthority(
   return _logPiiQueryForAuthority(actorUserId, query, resultCount, surface);
 }
 
+// @no-auth-required: thin wrapper over logPiiQueryForAuthority (an inner writer).
+// Only callers are /gob list pages already gated by the /gob layout guard, which
+// supplies the authenticated actorUserId; this function adds no new capability
+// beyond that inner writer.
 export async function logPiiReadSafely(
   actorUserId: string,
   query: string,

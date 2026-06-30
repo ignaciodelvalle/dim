@@ -50,6 +50,12 @@ export const ALLOWED_EDGES = new Set<string>([
   "events:surveillance",
   "events:pets",
   "pets:adoption", // grandfathered — see note above
+  // Edges surfaced by the strangler migration (2026-06-30) — real dependencies
+  // that previously lived in app/actions/ (un-checked) and became visible when
+  // the logic moved into src/modules/. All intentional:
+  "alerts:surveillance", // alert-firings triage opens an outbreak investigation (openOutbreakInvestigationAction)
+  "pets:custody", // pet-claim dispute flow opens a custody dispute (openDisputeFromEvent)
+  "search:organizations", // omnibox logs a PII read (logPiiQueryForAuthority) + checks org capabilities (getGrantedCapabilities)
 ]);
 
 // All module names (directory names under src/modules/).
