@@ -104,7 +104,7 @@ drift. Small files at the end are quick wins that clean up the tail.
   - Domain: `pets` / `cases`
   - Target: `src/modules/pets/application/claim/`
 
-- [ ] **`intake.ts`** — 483 lines
+- [x] **`intake.ts`** — 483 lines → 37-line shim (strangler 11/61, 2026-06-30)
   - Domain: `pets` / `organizations`
   - Target: `src/modules/pets/application/intake/`
 
