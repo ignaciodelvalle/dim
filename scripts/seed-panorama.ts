@@ -3675,6 +3675,15 @@ async function main(): Promise<void> {
   // is fully populated when appointments FK into pets.
   const historyCampaigns = await seedHistoryCampaigns(ownerUserId, shelterOrgs);
 
+  // Demo compliance coverage (demo-blocker B2): the microchip-penetration metric
+  // reads pet_identifications (not events) and the rabies metric scopes by the
+  // payload's pet_jurisdiction_province/locality keys — both were empty, so they
+  // read 0% across every jurisdiction. Backfill microchip identifications +
+  // province-keyed rabies events (varied per province) so no panel shows a
+  // universal-0 outlier. Idempotent.
+  const { seedDemoComplianceCoverage } = await import("./seed-demo-compliance-coverage");
+  const demoCoverage = await seedDemoComplianceCoverage(db);
+
   // Final summary
   const totalEvents = Object.values(eventCounts).reduce((s, v) => s + v, 0);
 
@@ -3709,6 +3718,11 @@ async function main(): Promise<void> {
   log("INFO", `Hist campaign offerings : ${historyCampaigns.offerings}`);
   log("INFO", `Hist campaign slots     : ${historyCampaigns.slots}`);
   log("INFO", `Hist campaign appts     : ${historyCampaigns.appointments}`);
+  log(
+    "INFO",
+    `Demo coverage           : ${demoCoverage.chipsInserted} microchip ids + ` +
+      `${demoCoverage.rabiesBackfilled} rabies events`,
+  );
   log("INFO", "Event breakdown:");
   for (const [k, v] of Object.entries(eventCounts).sort((a, b) => b[1] - a[1])) {
     log("INFO", `  ${k.padEnd(35)}: ${v}`);
