@@ -159,7 +159,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `localities.ts` — 105 lines → 46-line shim (strangler 46/61, 2026-06-30)
 - [x] `geocoding.ts` — 105 lines → 53-line shim (strangler 47/61, 2026-06-30)
 - [x] `password-reset.ts` — 94 lines → 16-line shim (strangler 48/61, 2026-06-30)
-- [ ] `approval-requests.ts` — 89 lines
+- [x] `approval-requests.ts` — 89 lines → 51-line shim (strangler 49/61, 2026-06-30)
 - [ ] `tier2-public.ts` — 82 lines
 - [ ] `achievement-views.ts` — 72 lines
 - [ ] `omnibox-search.ts` — 69 lines
