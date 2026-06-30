@@ -9,3 +9,7 @@ export type GovtSelfDeactivateResult =
   | { ok: true; noOp?: boolean };
 
 export type UpdatePrivacyPrefResult = { error: string } | { ok: true };
+
+export type UpdateProfileResult = { error: string } | { ok: true };
+
+export type UploadAvatarResult = { error: string } | { ok: true; avatarUrl: string };

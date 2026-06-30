@@ -1,237 +1,47 @@
 "use server";
 
-// User self-service profile actions (Slice 3a).
+// profile.ts — thin shim (strangler migration 19/61).
 //
-// Writer/wrapper pattern (matches admin-institutional.ts):
-//   - Inner writers (updateProfileForUser, uploadAvatarForUser) are exported
-//     for tests — no Next.js runtime dependency.
-//   - Public wrappers (updateProfileAction, uploadAvatarAction) gate via
-//     requireUserOrRedirect and call revalidatePath.
+// Business logic moved to:
+//   src/modules/pets/application/profile/
 //
-// Storage bucket: "avatars" (private).
-//   - If bucket is missing, uploadAvatarForUser fails gracefully and logs
-//     'profile_avatar_upload_failed' to audit_log.
-//   - A _storageStub escape hatch lets tests inject a fake upload function.
+// This file re-exports updateProfileForUser and uploadAvatarForUser (used by
+// integration tests and UI importers) and provides thin Action wrappers that
+// add the auth guard + revalidatePath.
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
 
-import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { z } from "zod/v4";
 
-import { auditLog, db, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { updateProfileForUser as _updateProfileForUser } from "@/src/modules/pets/application/profile/update-profile";
+import { uploadAvatarForUser as _uploadAvatarForUser } from "@/src/modules/pets/application/profile/upload-avatar";
 
 // ---------------------------------------------------------------------------
-// Exported result types
+// Type re-exports (erased at runtime — allowed in "use server" files)
 // ---------------------------------------------------------------------------
 
-export type UpdateProfileResult = { error: string } | { ok: true };
-
-export type UploadAvatarResult = { error: string } | { ok: true; avatarUrl: string };
+export type { UpdateProfileResult, UploadAvatarResult } from "@/src/modules/pets/application/profile/types";
 
 // ---------------------------------------------------------------------------
-// Zod schemas
-// ---------------------------------------------------------------------------
-
-// Emergency / vet contact fields share the same nullable-string semantics
-// as the main phone field. Names are free-form (1-80 chars) and clear
-// to null when sent as empty string.
-// Phone fields no longer enforce AR format server-side — the client form
-// surfaces a soft warning via `lib/ar-phone.ts` instead. Older landlines,
-// satellite phones, and foreign numbers all save without error.
-const emergencyTextField = z.string().max(80, "Máximo 80 caracteres").optional();
-const phoneField = z.string().max(40, "Máximo 40 caracteres").optional();
-
-const updateProfileSchema = z.object({
-  displayName: z
-    .string()
-    .min(2, "El nombre debe tener al menos 2 caracteres")
-    .max(80, "El nombre no puede superar 80 caracteres")
-    .trim(),
-  // phone semantics:
-  //   undefined  → caller did not include phone in the update; leave DB value unchanged
-  //   ""         → caller explicitly cleared phone; set to null in DB
-  //   string     → store as-is (format hint shown client-side as warning, not error)
-  phone: phoneField,
-  // Emergency contact + preferred vet — surfaced on <PetEmergencyCard>. Same
-  // undefined / "" / string semantics as `phone`. Added by migration 0042.
-  preferredVetName: emergencyTextField,
-  preferredVetPhone: phoneField,
-  emergencyContactName: emergencyTextField,
-  emergencyContactPhone: phoneField,
-});
-
-const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
-const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
-
-const uploadAvatarSchema = z.object({
-  mimeType: z.enum(ALLOWED_MIME_TYPES, {
-    error: "Solo se aceptan imágenes JPEG, PNG o WebP",
-  }),
-  fileSize: z.number().max(MAX_FILE_SIZE_BYTES, "La imagen no puede superar 2 MB"),
-  fileName: z.string().min(1),
-});
-
-// ---------------------------------------------------------------------------
-// Storage upload helper type (injectable for tests)
-// ---------------------------------------------------------------------------
-
-type StorageUploadResult = { storagePath: string; publicUrl: string };
-type StorageUploadFn = (opts: {
-  userId: string;
-  fileName: string;
-  fileBlob: Blob;
-  mimeType: string;
-}) => Promise<StorageUploadResult>;
-
-async function defaultStorageUpload({
-  userId,
-  fileName,
-  fileBlob,
-  mimeType,
-}: {
-  userId: string;
-  fileName: string;
-  fileBlob: Blob;
-  mimeType: string;
-}): Promise<StorageUploadResult> {
-  const supabase = createAdminClient();
-  const ext = fileName.split(".").pop() ?? "jpg";
-  const storagePath = `${userId}/${Date.now()}.${ext}`;
-
-  const arrayBuffer = await fileBlob.arrayBuffer();
-  const { error } = await supabase.storage.from("avatars").upload(storagePath, arrayBuffer, {
-    contentType: mimeType,
-    upsert: true,
-  });
-
-  if (error) throw new Error(error.message);
-
-  // Store the storage path; a signed URL can be generated at render time.
-  // This avoids baking a 1-year expiry into the DB row and makes the avatarUrl
-  // bucket-relative — easy to regenerate if the signed URL expires.
-  const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/sign/avatars/${storagePath}`;
-  return { storagePath, publicUrl };
-}
-
-// ---------------------------------------------------------------------------
-// Inner writer: updateProfileForUser
+// Writer re-exports — async wrappers (used by integration tests)
 // ---------------------------------------------------------------------------
 
 export async function updateProfileForUser(
-  userId: string,
-  input: {
-    displayName: string;
-    phone?: string;
-    preferredVetName?: string;
-    preferredVetPhone?: string;
-    emergencyContactName?: string;
-    emergencyContactPhone?: string;
-  },
-): Promise<UpdateProfileResult> {
-  // 1. Validate
-  const parsed = updateProfileSchema.safeParse(input);
-  if (!parsed.success) {
-    const firstError = parsed.error.issues[0];
-    return { error: `VALIDATION_ERROR: ${firstError.message}` };
-  }
-  const {
-    displayName,
-    phone,
-    preferredVetName,
-    preferredVetPhone,
-    emergencyContactName,
-    emergencyContactPhone,
-  } = parsed.data;
+  ...args: Parameters<typeof _updateProfileForUser>
+) {
+  return _updateProfileForUser(...args);
+}
 
-  // 2. Load current profile for before-values + existence check
-  const [current] = await db
-    .select({
-      displayName: profiles.displayName,
-      phone: profiles.phone,
-      preferredVetName: profiles.preferredVetName,
-      preferredVetPhone: profiles.preferredVetPhone,
-      emergencyContactName: profiles.emergencyContactName,
-      emergencyContactPhone: profiles.emergencyContactPhone,
-    })
-    .from(profiles)
-    .where(eq(profiles.id, userId))
-    .limit(1);
-
-  if (!current) return { error: "NOT_FOUND" };
-
-  // 3. Build changed_fields + before_values for the audit payload
-  const changedFields: string[] = [];
-  const beforeValues: Record<string, unknown> = {};
-
-  if (displayName !== current.displayName) {
-    changedFields.push("displayName");
-    beforeValues.displayName = current.displayName;
-  }
-
-  // phone: undefined → don't touch DB value.
-  //        ""        → clear (set to null).
-  //        string    → validate passed, store as-is.
-  const phoneIsProvided = phone !== undefined;
-  const newPhone = phoneIsProvided ? (phone === "" ? null : phone) : current.phone;
-  if (newPhone !== current.phone) {
-    changedFields.push("phone");
-    beforeValues.phone = current.phone;
-  }
-
-  // Same semantics for the 4 emergency / vet fields.
-  type EmergencyKey =
-    | "preferredVetName"
-    | "preferredVetPhone"
-    | "emergencyContactName"
-    | "emergencyContactPhone";
-  const emergencyInputs: Record<EmergencyKey, string | undefined> = {
-    preferredVetName,
-    preferredVetPhone,
-    emergencyContactName,
-    emergencyContactPhone,
-  };
-  const emergencyUpdates: Partial<Record<EmergencyKey, string | null>> = {};
-  for (const [key, value] of Object.entries(emergencyInputs) as Array<
-    [EmergencyKey, string | undefined]
-  >) {
-    if (value === undefined) continue;
-    const next = value === "" ? null : value;
-    if (next !== current[key]) {
-      changedFields.push(key);
-      beforeValues[key] = current[key];
-      emergencyUpdates[key] = next;
-    }
-  }
-
-  // 4. Update profiles
-  const updateSet: Record<string, unknown> = {
-    displayName,
-    updatedAt: new Date(),
-  };
-  if (phoneIsProvided) {
-    updateSet.phone = phone === "" ? null : phone;
-  }
-  Object.assign(updateSet, emergencyUpdates);
-
-  await db.update(profiles).set(updateSet).where(eq(profiles.id, userId));
-
-  // 5. Insert audit_log
-  await db.insert(auditLog).values({
-    actorUserId: userId,
-    action: "profile_self_updated",
-    targetUserId: userId,
-    payload: {
-      changed_fields: changedFields,
-      before_values: beforeValues,
-    },
-  });
-
-  return { ok: true };
+export async function uploadAvatarForUser(
+  ...args: Parameters<typeof _uploadAvatarForUser>
+) {
+  return _uploadAvatarForUser(...args);
 }
 
 // ---------------------------------------------------------------------------
-// Public wrapper: updateProfileAction
+// Action wrappers — thin controllers for UI components
 // ---------------------------------------------------------------------------
 
 export async function updateProfileAction(input: {
@@ -241,111 +51,23 @@ export async function updateProfileAction(input: {
   preferredVetPhone?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
-}): Promise<UpdateProfileResult> {
+}) {
   const { user } = await requireUserOrRedirect();
-  const result = await updateProfileForUser(user.id, input);
+  const result = await _updateProfileForUser(user.id, input);
   if ("ok" in result) {
     revalidatePath("/cuenta");
   }
   return result;
 }
 
-// ---------------------------------------------------------------------------
-// Inner writer: uploadAvatarForUser
-// ---------------------------------------------------------------------------
-
-export async function uploadAvatarForUser(
-  userId: string,
-  input: {
-    fileBlob: Blob;
-    fileName: string;
-    mimeType: string;
-    fileSize: number;
-    // Escape hatch for tests — bypasses Supabase storage
-    _storageStub?: StorageUploadFn;
-  },
-): Promise<UploadAvatarResult> {
-  // 1. Validate mime + size
-  const parsed = uploadAvatarSchema.safeParse({
-    mimeType: input.mimeType,
-    fileSize: input.fileSize,
-    fileName: input.fileName,
-  });
-  if (!parsed.success) {
-    const firstError = parsed.error.issues[0];
-    return { error: `VALIDATION_ERROR: ${firstError.message}` };
-  }
-
-  // 2. Existence check
-  const [current] = await db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(eq(profiles.id, userId))
-    .limit(1);
-
-  if (!current) return { error: "NOT_FOUND" };
-
-  // 3. Upload
-  const uploadFn = input._storageStub ?? defaultStorageUpload;
-
-  let uploadResult: StorageUploadResult;
-  try {
-    uploadResult = await uploadFn({
-      userId,
-      fileName: input.fileName,
-      fileBlob: input.fileBlob,
-      mimeType: input.mimeType,
-    });
-  } catch (err) {
-    // Graceful failure: log to audit_log and return error
-    try {
-      await db.insert(auditLog).values({
-        actorUserId: userId,
-        action: "profile_avatar_upload_failed",
-        targetUserId: userId,
-        payload: {
-          error: err instanceof Error ? err.message : String(err),
-          mime_type: input.mimeType,
-          file_size: input.fileSize,
-        },
-      });
-    } catch {
-      // Swallow audit failure — don't mask original error
-    }
-    return { error: `STORAGE_FAILED: ${err instanceof Error ? err.message : "unknown error"}` };
-  }
-
-  // 4. Update profile
-  await db
-    .update(profiles)
-    .set({ avatarUrl: uploadResult.publicUrl, updatedAt: new Date() })
-    .where(eq(profiles.id, userId));
-
-  // 5. Audit log
-  await db.insert(auditLog).values({
-    actorUserId: userId,
-    action: "profile_avatar_updated",
-    targetUserId: userId,
-    payload: {
-      storage_path: uploadResult.storagePath,
-    },
-  });
-
-  return { ok: true, avatarUrl: uploadResult.publicUrl };
-}
-
-// ---------------------------------------------------------------------------
-// Public wrapper: uploadAvatarAction
-// ---------------------------------------------------------------------------
-
 export async function uploadAvatarAction(input: {
   fileBlob: Blob;
   fileName: string;
   mimeType: string;
   fileSize: number;
-}): Promise<UploadAvatarResult> {
+}) {
   const { user } = await requireUserOrRedirect();
-  const result = await uploadAvatarForUser(user.id, input);
+  const result = await _uploadAvatarForUser(user.id, input);
   if ("ok" in result) {
     revalidatePath("/cuenta");
   }
