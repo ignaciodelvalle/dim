@@ -125,8 +125,10 @@ const SINGLE_INSERT_HARDENED_FILES = [
   // profile-self-service.ts migrated to src/modules/pets/application/profile/*
   // (strangler 9/61, 2026-06-30). vet-self-resign.ts preserves the try/catch hardening.
   // app/actions/profile-self-service.ts is now a thin shim — it delegates everything.
+  // pet-sighting.ts migrated to src/modules/pets/application/sighting/*
+  // (strangler 29/61, 2026-06-30). report-pet-sighting.ts preserves the try/catch hardening.
+  // app/actions/pet-sighting.ts is now a thin shim — it delegates everything.
   "public.ts", // notifyOwnerOfFoundPetAction
-  "pet-sighting.ts", // reportPetSightingAction
 ] as const;
 
 describe("Phase 2.2 — notifications outside transactions (§2.2)", () => {
