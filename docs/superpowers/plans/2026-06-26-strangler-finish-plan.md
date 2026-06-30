@@ -55,14 +55,14 @@ drift. Small files at the end are quick wins that clean up the tail.
 
 ### Tier 1 — Critical flows (highest blast-radius, manual QA required)
 
-- [ ] **`return-to-owner.ts`** — 1,929 lines
+- [x] **`return-to-owner.ts`** — 1,929 lines → 382-line shim (strangler 2/61, commit 6923c612)
   - Domain: `pets` / `transfers` / `cases` (multi-domain orchestration)
   - Risk: ownership transfer, cross-org auth boundaries, audit trail, idempotency
   - Extra: parity tests must cover the full ownership-change state machine; browser QA
     of the return-to-owner form end-to-end before merging
   - Target: `src/modules/transfers/application/return-to-owner.ts`
 
-- [ ] **`decomiso.ts`** — 1,574 lines
+- [x] **`decomiso.ts`** — 1,574 lines → 581-line shim/controllers (strangler 1/61, commit 1761f055)
   - Domain: `cases` / `welfare` / `pets`
   - Risk: legal seizure flow, custody transitions, audit trail, notification cascade
   - Extra: same parity + browser QA requirements as above
@@ -74,7 +74,7 @@ drift. Small files at the end are quick wins that clean up the tail.
   - Domain: `organizations`
   - Target: `src/modules/organizations/application/admin-institutional/`
 
-- [ ] **`service-offerings.ts`** — 782 lines
+- [x] **`service-offerings.ts`** — 782 lines → 338-line shim (strangler 3/61, commit 1c73b899)
   - Domain: `organizations` / new `services` sub-module TBD
   - Target: `src/modules/organizations/application/service-offerings/`
 
@@ -82,7 +82,7 @@ drift. Small files at the end are quick wins that clean up the tail.
   - Domain: `events` (bulk vaccination) + `adoption` (bulk eligibility + bulk listing)
   - Target: `src/modules/events/application/bulk/` + `src/modules/adoption/application/`
 
-- [ ] **`custody-disputes.ts`** — 729 lines
+- [x] **`custody-disputes.ts`** — 729 lines → 149-line shim (strangler 4/61, commit fcd6fe94)
   - Domain: `cases` / `welfare`
   - Target: `src/modules/welfare/application/custody-disputes/`
 
