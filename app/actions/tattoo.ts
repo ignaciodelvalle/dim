@@ -1,128 +1,59 @@
 "use server";
 
+// tattoo.ts — thin shim (strangler migration 34/61).
+//
+// Business logic moved to:
+//   src/modules/pets/application/tattoo/
+//
+// This file re-exports createTattooForUser (used by integration tests
+// and 2 UI importers) and provides createTattooAction
+// (outer auth-guarded server action used by UI components).
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
+
 import { redirect } from "next/navigation";
 
-import { attachments, db, petEvents, petIdentifications } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import {
   type PetEventAuthorship,
   type SupabaseServerClient,
   requireAlivePetAccess,
 } from "@/lib/pet-access";
-import { normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
+import {
+  VALID_LOCATIONS,
+  createTattooForUser as _createTattooForUser,
+} from "@/src/modules/pets/application/tattoo/create-tattoo";
+import type {
+  CreateTattooResult,
+  EventFormState,
+  TattooInput,
+  TattooLocation,
+} from "@/src/modules/pets/application/tattoo/types";
 
-export type EventFormState = { error: string | null };
+// ---------------------------------------------------------------------------
+// Type re-exports (erased at runtime — allowed in "use server" files)
+// ---------------------------------------------------------------------------
 
-export type TattooLocation =
-  | "inner_ear_left"
-  | "inner_ear_right"
-  | "inner_thigh"
-  | "belly"
-  | "other";
+export type { CreateTattooResult, EventFormState, TattooInput, TattooLocation } from "@/src/modules/pets/application/tattoo/types";
 
-const VALID_LOCATIONS: readonly TattooLocation[] = [
-  "inner_ear_left",
-  "inner_ear_right",
-  "inner_thigh",
-  "belly",
-  "other",
-];
+// ---------------------------------------------------------------------------
+// Writer re-export — async wrapper (used by integration tests and route actions)
+// ---------------------------------------------------------------------------
 
-export type TattooInput = {
-  code: string;
-  location: TattooLocation | null;
-  description: string | null;
-  recordedAt: Date | null;
-  recordedBy: string | null;
-  uploadedAttachment: { path: string; mimeType: string; size: number };
-};
-
-export type CreateTattooResult = { ok: true; eventId: string } | { error: string };
-
-// Inner writer — testable without Next.js request context. The outer action
-// resolves access + uploads the photo + delegates here. Photo upload happens
-// outside the transaction so a failed insert doesn't leak orphan bytes; the
-// outer action cleans up on failure.
 export async function createTattooForUser(
   petId: string,
   userId: string,
   eventAuthorship: PetEventAuthorship,
   input: TattooInput,
 ): Promise<CreateTattooResult> {
-  const normalizedCode = normalizeTattooCode(input.code);
-  if (!normalizedCode) return { error: "Falta el código del tatuaje." };
-
-  if (input.location !== null && !VALID_LOCATIONS.includes(input.location)) {
-    return { error: "Ubicación del tatuaje inválida." };
-  }
-
-  const now = new Date();
-  const recordedAtIso = input.recordedAt ? input.recordedAt.toISOString().slice(0, 10) : null;
-
-  try {
-    const result = await db.transaction(async (tx) => {
-      const eventPayload = validateEventPayload("tattoo_recorded", {
-        tattoo_code: normalizedCode,
-        location_on_body: input.location,
-        description: input.description,
-        recorded_by: input.recordedBy,
-        recorded_at: recordedAtIso,
-        tattoo_date_known: input.recordedAt !== null,
-      });
-
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
-          petId,
-          eventType: "tattoo_recorded",
-          occurredAt: input.recordedAt ?? now,
-          recordedAt: now,
-          recordedByUserId: userId,
-          ...eventAuthorship,
-          payload: eventPayload,
-        })
-        .returning();
-
-      const [attachment] = await tx
-        .insert(attachments)
-        .values({
-          petId,
-          eventId: event.id,
-          uploadedByUserId: userId,
-          storagePath: input.uploadedAttachment.path,
-          mimeType: input.uploadedAttachment.mimeType,
-          fileSize: input.uploadedAttachment.size,
-        })
-        .returning();
-
-      // Canonical write to pet_identifications (legacy pets.* tattoo columns
-      // removed — ARCH-R. Migration 0084 drops the columns next PR).
-      await tx.insert(petIdentifications).values({
-        petId,
-        kind: "tattoo",
-        code: normalizedCode,
-        recordedAt: recordedAtIso ?? now.toISOString().slice(0, 10),
-        recordedByUserId: userId,
-        recordedByLabel: input.recordedBy,
-        photoId: attachment.id,
-        tattooLocation: input.location,
-        tattooDescription: input.description,
-      });
-
-      return { ok: true as const, eventId: event.id };
-    });
-
-    return result;
-  } catch (err) {
-    return {
-      error: `No se pudo registrar el tatuaje: ${
-        err instanceof Error ? err.message : "error desconocido"
-      }`,
-    };
-  }
+  return _createTattooForUser(petId, userId, eventAuthorship, input);
 }
+
+// ---------------------------------------------------------------------------
+// Private helper — cleanup on failed insert (stays in shim: uses SupabaseServerClient).
+// ---------------------------------------------------------------------------
 
 async function cleanupAttachment(
   supabase: SupabaseServerClient,
@@ -135,6 +66,10 @@ async function cleanupAttachment(
     // Orphan file at worst — the row was never inserted.
   }
 }
+
+// ---------------------------------------------------------------------------
+// Outer server action — gates via requireAlivePetAccess, then delegates to writer.
+// ---------------------------------------------------------------------------
 
 export async function createTattooAction(
   publicToken: string,
@@ -176,7 +111,7 @@ export async function createTattooAction(
     return { error: "No se pudo subir la foto del tatuaje." };
   }
 
-  const result = await createTattooForUser(pet.id, user.id, eventAuthorship, {
+  const result = await _createTattooForUser(pet.id, user.id, eventAuthorship, {
     code,
     location,
     description,
