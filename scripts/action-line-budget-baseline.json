@@ -34,7 +34,7 @@
   "lost-mode.ts": 38,
   "microchip.ts": 50,
   "notifications.ts": 51,
-  "omnibox-search.ts": 70,
+  "omnibox-search.ts": 23,
   "password-reset.ts": 17,
   "performed-by.ts": 50,
   "pet-claim.ts": 91,
