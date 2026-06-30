@@ -146,7 +146,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `checkin.ts` — 218 lines → 42-line shim (strangler 33/61, 2026-06-30)
 - [x] `tattoo.ts` — 199 lines → 133-line shim (strangler 34/61, 2026-06-30)
 - [x] `bulk-actions.ts` — 191 lines → 58-line shim (strangler 35/61, 2026-06-30)
-- [ ] `ppp-export-caba.ts` — 187 lines
+- [x] `ppp-export-caba.ts` — 187 lines → 23-line shim (strangler 36/61, 2026-06-30)
 - [ ] `return-to-owner-form.ts` — 166 lines
 - [ ] `dni-verification.ts` — 151 lines
 - [ ] `apply-intent.ts` — 141 lines
