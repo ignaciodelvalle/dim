@@ -1,105 +1,53 @@
 "use server";
 
-// Server action wrappers around lib/geocoding.ts.
+// geocoding.ts — thin shim (strangler migration 47/61).
 //
-// Two pairs of actions:
-//   - geocodeAddressAction / reverseGeocodeAction       — auth-gated. Used by
-//     logged-in flows.
-//   - geocodeAddressPublicAction / reverseGeocodePublicAction — NO auth, IP
-//     rate-limited. Used by anonymous public flows (PetSightingForm,
-//     DenunciaWizard) where the user has no session by definition. The
-//     critique-direcciones-2026-05-27 marks this as the pre-requisite for the
-//     unified-location refactor: anonymous typing must not redirect to /login.
+// Business logic moved to:
+//   src/modules/localities/application/geocoding/
 //
-// Pure logic (Nominatim fetch + parser + per-instance token bucket) lives in
-// lib/geocoding.ts.
+// This file re-exports the types and provides thin Action wrappers so all
+// existing UI importers keep working unchanged.
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
 
-import { headers } from "next/headers";
-
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 import {
-  type GeocodeBias,
-  type GeocodeResult,
-  type ReverseGeocodeResult,
-  geocodeAddress,
-  reverseGeocode,
-} from "@/lib/geocoding";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
-
-export type { GeocodeBias, GeocodeResult, ReverseGeocodeResult };
+  geocodeAddressAction as _geocodeAddressAction,
+  geocodeAddressPublicAction as _geocodeAddressPublicAction,
+  reverseGeocodeAction as _reverseGeocodeAction,
+  reverseGeocodePublicAction as _reverseGeocodePublicAction,
+} from "@/src/modules/localities/application/geocoding/geocoding";
 
 // ---------------------------------------------------------------------------
-// Authed variants
+// Type re-exports (erased at runtime — allowed in "use server" files)
+// ---------------------------------------------------------------------------
+
+export type { GeocodeBias, GeocodeResult, ReverseGeocodeResult } from "@/lib/geocoding";
+
+// ---------------------------------------------------------------------------
+// Action wrappers — thin delegating async functions
 // ---------------------------------------------------------------------------
 
 export async function geocodeAddressAction(
-  query: string,
-  bias?: GeocodeBias,
-): Promise<GeocodeResult[]> {
-  await requireUserOrRedirect();
-  return geocodeAddress(query, bias);
+  ...args: Parameters<typeof _geocodeAddressAction>
+): Promise<Awaited<ReturnType<typeof _geocodeAddressAction>>> {
+  return _geocodeAddressAction(...args);
 }
 
 export async function reverseGeocodeAction(
-  lat: number,
-  lng: number,
-): Promise<ReverseGeocodeResult | null> {
-  await requireUserOrRedirect();
-  return reverseGeocode(lat, lng);
+  ...args: Parameters<typeof _reverseGeocodeAction>
+): Promise<Awaited<ReturnType<typeof _reverseGeocodeAction>>> {
+  return _reverseGeocodeAction(...args);
 }
 
-// ---------------------------------------------------------------------------
-// Anonymous variants — IP rate-limited
-// ---------------------------------------------------------------------------
-//
-// Limits picked to comfortably support real interactive use (autocomplete is
-// 600ms-debounced client-side; a typical sighting flow does <10 lookups) while
-// rejecting abuse:
-//
-//   60 requests per minute per IP — covers bursty typing
-//   400 requests per hour per IP  — caps sustained automated abuse
-//
-// Both the persistent bucket AND the per-instance token bucket in
-// lib/geocoding.ts protect Nominatim quota: the token bucket caps RPS across
-// every caller in the worker, the persistent bucket caps each IP across all
-// workers / cold starts.
-
-const PUBLIC_GEOCODING_LIMIT = { maxPerMinute: 60, maxPerHour: 400 } as const;
-
-async function callerIpAddress(): Promise<string> {
-  const reqHeaders = await headers();
-  return callerIp(reqHeaders);
-}
-
-// @no-auth-required: anonymous geocoding autocomplete on public surfaces
-// (PetSightingForm, DenunciaWizard). IP rate-limited via enforceRateLimit;
-// the pure helper at lib/geocoding.ts never logs the query string (spec D10).
 export async function geocodeAddressPublicAction(
-  query: string,
-  bias?: GeocodeBias,
-): Promise<GeocodeResult[]> {
-  const ip = await callerIpAddress();
-  try {
-    await enforceRateLimit("geocode_public", ip, PUBLIC_GEOCODING_LIMIT);
-  } catch (err) {
-    if (err instanceof RateLimitError) return [];
-    throw err;
-  }
-  return geocodeAddress(query, bias);
+  ...args: Parameters<typeof _geocodeAddressPublicAction>
+): Promise<Awaited<ReturnType<typeof _geocodeAddressPublicAction>>> {
+  return _geocodeAddressPublicAction(...args);
 }
 
-// @no-auth-required: anonymous reverse-geocoding on public surfaces. Returns
-// null on rate-limit so the caller falls back to plain lat/lng without errors.
 export async function reverseGeocodePublicAction(
-  lat: number,
-  lng: number,
-): Promise<ReverseGeocodeResult | null> {
-  const ip = await callerIpAddress();
-  try {
-    await enforceRateLimit("geocode_public", ip, PUBLIC_GEOCODING_LIMIT);
-  } catch (err) {
-    if (err instanceof RateLimitError) return null;
-    throw err;
-  }
-  return reverseGeocode(lat, lng);
+  ...args: Parameters<typeof _reverseGeocodePublicAction>
+): Promise<Awaited<ReturnType<typeof _reverseGeocodePublicAction>>> {
+  return _reverseGeocodePublicAction(...args);
 }
