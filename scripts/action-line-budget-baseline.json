@@ -35,7 +35,7 @@
   "microchip.ts": 50,
   "notifications.ts": 51,
   "omnibox-search.ts": 70,
-  "password-reset.ts": 95,
+  "password-reset.ts": 17,
   "performed-by.ts": 50,
   "pet-claim.ts": 91,
   "pet-lookup-public.ts": 21,
