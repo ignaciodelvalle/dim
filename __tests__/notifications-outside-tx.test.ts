@@ -106,9 +106,14 @@ import { describe, expect, it } from "vitest";
 //     flushed post-tx with try/catch logging "notifications insert failed".
 //   - propose-org-verification.ts: same pattern.
 // app/actions/admin-proposals.ts is now a thin shim — it delegates everything.
-const REFACTORED_FILES = [
-  "chip-match.ts",
-] as const;
+// chip-match.ts was migrated to
+// src/modules/pets/application/chip-match/* in the 2026-06-30
+// strangler pass (21/61). The §2.2 post-tx pattern is preserved in each use-case:
+//   - confirm-chip-match-refugio.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+//   - confirm-chip-match-vecino.ts: same pattern.
+// app/actions/chip-match.ts is now a thin shim — it delegates everything.
+const REFACTORED_FILES = [] as const;
 
 // Files that emit a single notification (no pending array) but must still
 // wrap the insert in try/catch so a failure does not propagate to the caller.
@@ -125,6 +130,18 @@ const SINGLE_INSERT_HARDENED_FILES = [
 ] as const;
 
 describe("Phase 2.2 — notifications outside transactions (§2.2)", () => {
+  // Every action file that once carried the §2.2 post-tx pendingNotifications
+  // pattern has now been migrated to a src/modules/<domain>/application/* use-case
+  // (the pattern is preserved there per use-case — see the header comments above).
+  // No app/actions/ shim should still carry it, so REFACTORED_FILES is empty.
+  // This placeholder keeps the suite valid when the list is empty; the per-file
+  // loop below re-engages automatically if a new pre-migration file is added.
+  if (REFACTORED_FILES.length === 0) {
+    it("all §2.2 action files have been migrated to module use-cases", () => {
+      expect(REFACTORED_FILES).toHaveLength(0);
+    });
+  }
+
   for (const file of REFACTORED_FILES) {
     it(`${file} accumulates pendingNotifications and inserts post-tx with try/catch`, () => {
       const src = readFileSync(join(process.cwd(), "app", "actions", file), "utf8");
