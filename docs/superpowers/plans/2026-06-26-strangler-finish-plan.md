@@ -116,7 +116,7 @@ drift. Small files at the end are quick wins that clean up the tail.
   - Domain: `pets`
   - Target: `src/modules/pets/application/microchip/`
 
-- [ ] **`service-dog.ts`** — 445 lines
+- [x] **`service-dog.ts`** — 445 lines → 79-line shim (strangler 14/61, 2026-06-30)
   - Domain: `pets` / `organizations`
   - Target: `src/modules/pets/application/service-dog/`
 
