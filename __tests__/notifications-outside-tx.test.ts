@@ -99,8 +99,14 @@ import { describe, expect, it } from "vitest";
 //     flushed post-tx with try/catch logging "notifications insert failed".
 //   - reject-request.ts: same pattern.
 // app/actions/admin-decisions.ts is now a thin shim — it delegates everything.
+// admin-proposals.ts was migrated to
+// src/modules/organizations/application/admin-proposals/* in the 2026-06-30
+// strangler pass (20/61). The §2.2 post-tx pattern is preserved in each use-case:
+//   - propose-vet-upgrade.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+//   - propose-org-verification.ts: same pattern.
+// app/actions/admin-proposals.ts is now a thin shim — it delegates everything.
 const REFACTORED_FILES = [
-  "admin-proposals.ts",
   "chip-match.ts",
 ] as const;
 
