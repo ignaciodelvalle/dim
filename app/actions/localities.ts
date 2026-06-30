@@ -1,105 +1,46 @@
 "use server";
 
-// Server-action wrapper around lib/ar-localidades. Pure search reads — no
-// writes. Same writer/wrapper split as bookSlotWriter / bookSlotAction.
+// localities.ts — thin shim (strangler migration 46/61).
 //
-// Auth gating: requireUserOrRedirect. Anonymous traffic cannot hit the
-// catalog (the search is fundamentally a per-session UX affordance).
+// Business logic moved to:
+//   src/modules/localities/application/search/
 //
-// Rate limit: 60 req/min per session, in-memory token bucket. Below the
-// debounced typeahead's call rate by ~3x; if a user hits the limit, the UI
-// surfaces a non-fatal "demasiadas búsquedas, esperá un segundo" hint and
-// the next call (a tick later) succeeds.
+// This file re-exports the type and provides thin Action wrappers so all
+// existing UI importers and the parity test keep working unchanged.
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
 
-import { type LocalitySearchResult, searchLocalities } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import {
+  __resetRateLimitForTests as _reset,
+  searchLocalitiesAction as _searchLocalitiesAction,
+  searchLocalitiesPublicAction as _searchLocalitiesPublicAction,
+} from "@/src/modules/localities/application/search/search-localities";
 
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 60;
-const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+// ---------------------------------------------------------------------------
+// Type re-export (erased at runtime — allowed in "use server" files)
+// ---------------------------------------------------------------------------
 
-function checkRateLimit(sessionKey: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(sessionKey);
-  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-    rateLimitMap.set(sessionKey, { count: 1, windowStart: now });
-    return true;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return false;
-  entry.count += 1;
-  return true;
+export type { SearchLocalitiesResult } from "@/src/modules/localities/application/search/types";
+
+// ---------------------------------------------------------------------------
+// Action wrappers — thin delegating async functions
+// ---------------------------------------------------------------------------
+
+export async function searchLocalitiesAction(
+  ...args: Parameters<typeof _searchLocalitiesAction>
+): Promise<Awaited<ReturnType<typeof _searchLocalitiesAction>>> {
+  return _searchLocalitiesAction(...args);
 }
 
-// @no-auth-required: test-only utility, prefixed with `__` to mark non-public surface.
-// Exposed so a test can reset between cases. Not part of the public surface.
+export async function searchLocalitiesPublicAction(
+  ...args: Parameters<typeof _searchLocalitiesPublicAction>
+): Promise<Awaited<ReturnType<typeof _searchLocalitiesPublicAction>>> {
+  return _searchLocalitiesPublicAction(...args);
+}
+
+// @no-auth-required: test-only reset helper — delegates to the module that
+// owns the rate-limit state so the reset resets the live state.
 export async function __resetRateLimitForTests(): Promise<void> {
-  rateLimitMap.clear();
-}
-
-export type SearchLocalitiesResult =
-  | { results: LocalitySearchResult[] }
-  | { error: "rate_limited" | "invalid_province" };
-
-export async function searchLocalitiesAction(input: {
-  provinceCode?: string;
-  query: string;
-}): Promise<SearchLocalitiesResult> {
-  const { user } = await requireUserOrRedirect();
-
-  if (!checkRateLimit(user.id)) {
-    return { error: "rate_limited" };
-  }
-
-  if (input.query.length < 2) return { results: [] };
-
-  let provinceCode: ProvinceCode | undefined;
-  if (input.provinceCode) {
-    const province = provinceByCode(input.provinceCode);
-    if (!province) return { error: "invalid_province" };
-    provinceCode = province.code as ProvinceCode;
-  }
-
-  const results = await searchLocalities({
-    provinceCode,
-    query: input.query,
-    limit: 20,
-  });
-
-  return { results };
-}
-
-// Public variant — identical logic but no auth guard. Safe because ar_localities
-// is INDEC reference data (locality names only, no PII). Rate-limited by a
-// dedicated bucket keyed on a fixed sentinel so anonymous callers share one
-// window (generous enough for real typeahead use, tight enough against scraping).
-const PUBLIC_RATE_LIMIT_SENTINEL = "__public__";
-
-// @no-auth-required: ar_localities is public INDEC reference data (locality
-// names only, no PII). Rate-limited via the shared __public__ bucket. Powers the
-// public filter typeaheads (perdidas / adoptar) where there is no session.
-export async function searchLocalitiesPublicAction(input: {
-  provinceCode?: string;
-  query: string;
-}): Promise<SearchLocalitiesResult> {
-  if (!checkRateLimit(PUBLIC_RATE_LIMIT_SENTINEL)) {
-    return { error: "rate_limited" };
-  }
-
-  if (input.query.length < 2) return { results: [] };
-
-  let provinceCode: ProvinceCode | undefined;
-  if (input.provinceCode) {
-    const province = provinceByCode(input.provinceCode);
-    if (!province) return { error: "invalid_province" };
-    provinceCode = province.code as ProvinceCode;
-  }
-
-  const results = await searchLocalities({
-    provinceCode,
-    query: input.query,
-    limit: 20,
-  });
-
-  return { results };
+  return _reset();
 }
