@@ -7,7 +7,7 @@
   "admin-proposals.ts": 114,
   "admin-revocations.ts": 130,
   "alert-firings.ts": 135,
-  "alert-subscriptions.ts": 228,
+  "alert-subscriptions.ts": 112,
   "amendment.ts": 58,
   "apply-intent.ts": 141,
   "approval-requests.ts": 90,
