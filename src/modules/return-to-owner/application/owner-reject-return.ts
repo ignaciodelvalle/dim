@@ -101,6 +101,8 @@ export async function ownerRejectReturnUseCase({
       const notifyUserId = fromUserId;
       if (notifyUserId) {
         pendingNotifications.push({
+          // no-cta: informational status update — the recipient only needs to know the
+          // proposal was rejected; there is no action for them to take.
           userId: notifyUserId,
           notificationType: "custody_transfer_auto_cancelled",
           severity: "info",
@@ -112,6 +114,8 @@ export async function ownerRejectReturnUseCase({
         const proposalAuthorId = latestProposal.recordedByUserId;
         if (proposalAuthorId) {
           pendingNotifications.push({
+            // no-cta: informational status update — the recipient only needs to know the
+            // proposal was rejected; there is no action for them to take.
             userId: proposalAuthorId,
             notificationType: "custody_transfer_auto_cancelled",
             severity: "info",

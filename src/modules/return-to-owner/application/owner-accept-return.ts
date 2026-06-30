@@ -150,6 +150,8 @@ export async function ownerAcceptReturnUseCase({
         const notifyUserId = fromUserId;
         if (notifyUserId) {
           cancelPendingNotifications.push({
+            // no-cta: informational status update — the recipient only needs to know the
+            // pending proposal was auto-cancelled; there is no action for them to take.
             userId: notifyUserId,
             notificationType: "custody_transfer_auto_cancelled",
             severity: "info",
@@ -266,6 +268,8 @@ export async function ownerAcceptReturnUseCase({
       const notifyUserId = fromUserId;
       if (notifyUserId) {
         pendingNotifications.push({
+          // no-cta: informational status update — confirms the return completed and custody
+          // was closed; the recipient takes no further action.
           userId: notifyUserId,
           notificationType: "custody_transfer_accepted_owner_side",
           severity: "info",
@@ -278,6 +282,8 @@ export async function ownerAcceptReturnUseCase({
         const proposalAuthorId = latestProposal.recordedByUserId;
         if (proposalAuthorId) {
           pendingNotifications.push({
+            // no-cta: informational status update — confirms the return completed and custody
+            // was closed; the recipient takes no further action.
             userId: proposalAuthorId,
             notificationType: "custody_transfer_accepted_owner_side",
             severity: "info",
