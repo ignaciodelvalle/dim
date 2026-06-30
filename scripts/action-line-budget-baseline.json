@@ -33,7 +33,7 @@
   "localities.ts": 46,
   "lost-mode.ts": 38,
   "microchip.ts": 50,
-  "notifications.ts": 51,
+  "notifications.ts": 30,
   "omnibox-search.ts": 23,
   "password-reset.ts": 17,
   "performed-by.ts": 50,

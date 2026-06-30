@@ -1,50 +1,30 @@
 "use server";
 
-// Notification server actions. Each one verifies ownership against the
-// authenticated user's id — a notification belongs to exactly one user, and
-// nobody else can read or mutate it.
+// notifications.ts — thin shim (strangler migration 59/61, 2026-06-30).
+//
+// Business logic moved to:
+//   src/modules/notifications/application/notification-actions.ts
+//
+// This file re-exports all originally-exported symbols with identical
+// signatures so all callers keep working unchanged.
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function.
 
-import { db, notifications } from "@/db";
-import { createClient } from "@/lib/supabase/server";
-import { and, eq, isNull } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Sesión expirada");
-  return user;
-}
+import {
+  archiveNotification as _archiveNotification,
+  markAllNotificationsRead as _markAllNotificationsRead,
+  markNotificationRead as _markNotificationRead,
+} from "@/src/modules/notifications/application/notification-actions";
 
 export async function markNotificationReadAction(notificationId: string): Promise<void> {
-  const user = await requireUser();
-  await db
-    .update(notifications)
-    .set({ readAt: new Date() })
-    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, user.id)));
-  revalidatePath("/notificaciones");
-  revalidatePath("/mis-mascotas");
+  return _markNotificationRead(notificationId);
 }
 
 export async function archiveNotificationAction(notificationId: string): Promise<void> {
-  const user = await requireUser();
-  const now = new Date();
-  await db
-    .update(notifications)
-    .set({ archivedAt: now, readAt: now })
-    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, user.id)));
-  revalidatePath("/notificaciones");
-  revalidatePath("/mis-mascotas");
+  return _archiveNotification(notificationId);
 }
 
 export async function markAllNotificationsReadAction(): Promise<void> {
-  const user = await requireUser();
-  await db
-    .update(notifications)
-    .set({ readAt: new Date() })
-    .where(and(eq(notifications.userId, user.id), isNull(notifications.readAt)));
-  revalidatePath("/notificaciones");
-  revalidatePath("/mis-mascotas");
+  return _markAllNotificationsRead();
 }

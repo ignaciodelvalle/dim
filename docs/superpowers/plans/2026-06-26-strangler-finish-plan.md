@@ -169,7 +169,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `quick-capture.ts` — 63 lines → 24-line shim (strangler 56/61, 2026-06-30)
 - [x] `subject-rights.ts` — 59 lines → 16-line shim (strangler 57/61, 2026-06-30)
 - [x] `scans.ts` — 59 lines → 18-line shim (strangler 58/61, 2026-06-30)
-- [ ] `notifications.ts` — 50 lines
+- [x] `notifications.ts` — 50 lines → 30-line shim (strangler 59/61, 2026-06-30)
 - [ ] `performed-by.ts` — 49 lines
 - [ ] `lost-mode.ts` — 37 lines
 - [ ] `rule-impact-preview.ts` — 24 lines _(already thin — low priority)_
