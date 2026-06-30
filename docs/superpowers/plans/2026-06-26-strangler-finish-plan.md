@@ -90,8 +90,8 @@ drift. Small files at the end are quick wins that clean up the tail.
   - Domain: `organizations` (tier upgrade flows)
   - Target: `src/modules/organizations/application/upgrade/`
 
-- [ ] **`admin-revocations.ts`** — 606 lines
-  - Domain: `organizations` / `cases`
+- [x] **`admin-revocations.ts`** — 606 lines → 130-line shim (strangler 8/61, 2026-06-29)
+  - Domain: `organizations`
   - Target: `src/modules/organizations/application/revocations/`
 
 ### Tier 3 — Medium-sized domain flows

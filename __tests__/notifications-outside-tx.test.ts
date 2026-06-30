@@ -70,10 +70,17 @@ import { describe, expect, it } from "vitest";
 //   - reset-institutional-credentials.ts: try/catch wrapping db.insert(notifications).
 //   - assign-govt-locality.ts: try/catch wrapping db.insert(notifications).
 // app/actions/admin-institutional.ts is now a thin shim — it delegates everything.
+// admin-revocations.ts was migrated to
+// src/modules/organizations/application/revocations/* in the 2026-06-29
+// strangler pass (8/61). The §2.2 post-tx pattern is preserved in each use-case:
+//   - revoke-vet-role.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+//   - revoke-org-verification.ts: same pattern.
+//   - revoke-govt-locality.ts: same pattern.
+// app/actions/admin-revocations.ts is now a thin shim — it delegates everything.
 const REFACTORED_FILES = [
   "admin-decisions.ts",
   "admin-proposals.ts",
-  "admin-revocations.ts",
   "chip-match.ts",
   "intake.ts",
   "profile-self-service.ts",
