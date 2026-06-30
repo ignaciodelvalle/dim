@@ -96,7 +96,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 
 ### Tier 3 — Medium-sized domain flows
 
-- [ ] **`profile-self-service.ts`** — 510 lines
+- [x] **`profile-self-service.ts`** — 510 lines → 106-line shim (strangler 9/61, 2026-06-30)
   - Domain: `pets` / `organizations`
   - Target: `src/modules/pets/application/profile/`
 

@@ -78,12 +78,19 @@ import { describe, expect, it } from "vitest";
 //   - revoke-org-verification.ts: same pattern.
 //   - revoke-govt-locality.ts: same pattern.
 // app/actions/admin-revocations.ts is now a thin shim — it delegates everything.
+// profile-self-service.ts was migrated to
+// src/modules/pets/application/profile/* in the 2026-06-30
+// strangler pass (9/61). The §2.2 post-tx pattern is preserved in:
+//   - govt-self-deactivate.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+// The ARCH-P single-insert hardening is preserved in:
+//   - vet-self-resign.ts: try/catch wrapping db.insert(notifications).
+// app/actions/profile-self-service.ts is now a thin shim — it delegates everything.
 const REFACTORED_FILES = [
   "admin-decisions.ts",
   "admin-proposals.ts",
   "chip-match.ts",
   "intake.ts",
-  "profile-self-service.ts",
 ] as const;
 
 // Files that emit a single notification (no pending array) but must still
@@ -93,7 +100,9 @@ const SINGLE_INSERT_HARDENED_FILES = [
   // admin-institutional.ts migrated to src/modules/organizations/application/admin-institutional/*
   // (strangler 5/61, 2026-06-29). reset-institutional-credentials.ts and assign-govt-locality.ts
   // preserve the try/catch hardening. app/actions/admin-institutional.ts is now a thin shim.
-  "profile-self-service.ts", // vetSelfResignForUser
+  // profile-self-service.ts migrated to src/modules/pets/application/profile/*
+  // (strangler 9/61, 2026-06-30). vet-self-resign.ts preserves the try/catch hardening.
+  // app/actions/profile-self-service.ts is now a thin shim — it delegates everything.
   "public.ts", // notifyOwnerOfFoundPetAction
   "pet-sighting.ts", // reportPetSightingAction
 ] as const;
