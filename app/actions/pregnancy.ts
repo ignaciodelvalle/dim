@@ -1,294 +1,56 @@
 "use server";
 
-// Pregnancy lifecycle actions — spec 2026-05-19-pregnancy-tracking-design.
+// pregnancy.ts — thin shim (strangler migration 18/61).
 //
-// Two paired actions:
-//   - recordPregnancyStartedAction → opens a pregnancy (sub_kind='pregnancy',
-//     pregnancy_phase='started'), flips pets.pregnancy_status='in_progress',
-//     and generates biweekly checkup reminders until the expected birth date.
-//   - recordPregnancyEndedAction → closes the open pregnancy with an outcome,
-//     flips pets.pregnancy_status='completed_{outcome}', cancels pending
-//     reminders tied to the started event.
+// Business logic moved to:
+//   src/modules/pets/application/pregnancy/
 //
-// Each action delegates to a `*Writer` core function — the writer is exported
-// for integration tests so they bypass the Next.js request context (same
-// pattern as createSymptomObservedWriter / recordDiseaseDiagnosisWriter).
+// This file re-exports the 2 pregnancy writers (used by integration tests)
+// and provides the 2 auth-guarded action wrappers for UI components.
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
 
-import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
-import { type Pet, db, notifications, petEvents, pets, reminders } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
 import { parseDateInput } from "@/lib/format";
-import { type PetEventAuthorship, requireAlivePetAccess } from "@/lib/pet-access";
-
-export type PregnancyFormState = { error: string | null };
-
-// Species-specific gestation window. Spec PR6 + §9 reminders.
-const PREGNANCY_DURATION_WEEKS: Record<string, number> = {
-  dog: 9,
-  cat: 9,
-  other: 9,
-};
-
-const PREGNANCY_OUTCOMES = [
-  "live_birth",
-  "stillbirth",
-  "miscarriage",
-  "termination",
-  "unknown",
-] as const;
-type PregnancyOutcome = (typeof PREGNANCY_OUTCOMES)[number];
-
-function statusFromOutcome(outcome: PregnancyOutcome): string {
-  return `completed_${outcome}`;
-}
+import { requireAlivePetAccess } from "@/lib/pet-access";
+import { recordPregnancyEndedWriter as _recordPregnancyEndedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-ended";
+import { recordPregnancyStartedWriter as _recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
+import { PREGNANCY_OUTCOMES } from "@/src/modules/pets/application/pregnancy/types";
+import type {
+  PregnancyFormState,
+  PregnancyOutcome,
+  RecordPregnancyEndedParams,
+  RecordPregnancyResult,
+  RecordPregnancyStartedParams,
+} from "@/src/modules/pets/application/pregnancy/types";
 
 // ---------------------------------------------------------------------------
-// Writer — recordPregnancyStartedWriter
+// Type re-exports (erased at runtime — allowed in "use server" files)
 // ---------------------------------------------------------------------------
 
-export type RecordPregnancyStartedParams = {
-  pet: Pick<Pet, "id" | "sex" | "species" | "pregnancyStatus" | "publicToken">;
-  recordedByUserId: string;
-  eventAuthorship: PetEventAuthorship;
-  occurredAt: Date;
-  weeksAtDiagnosis: number | null;
-  vetConsulted: string | null;
-  notes: string | null;
-  now?: Date;
-};
+export type {
+  PregnancyFormState,
+  RecordPregnancyEndedParams,
+  RecordPregnancyResult,
+  RecordPregnancyStartedParams,
+} from "@/src/modules/pets/application/pregnancy/types";
 
-export type RecordPregnancyResult =
-  | { ok: true; eventId: string; reminderCount: number }
-  | { ok: false; error: string };
+// ---------------------------------------------------------------------------
+// Writer re-exports — async wrappers (used by integration tests)
+// ---------------------------------------------------------------------------
 
 export async function recordPregnancyStartedWriter(
   params: RecordPregnancyStartedParams,
 ): Promise<RecordPregnancyResult> {
-  if (params.pet.sex !== "female") {
-    return { ok: false, error: "Solo se pueden registrar embarazos en hembras." };
-  }
-  if (!Object.hasOwn(PREGNANCY_DURATION_WEEKS, params.pet.species)) {
-    return { ok: false, error: "Especie no soportada para embarazos." };
-  }
-  if (params.pet.pregnancyStatus === "in_progress") {
-    return {
-      ok: false,
-      error:
-        "Esta mascota ya tiene un embarazo en seguimiento. Cerralo primero antes de registrar uno nuevo.",
-    };
-  }
-
-  const now = params.now ?? new Date();
-  const speciesWeeks = PREGNANCY_DURATION_WEEKS[params.pet.species];
-  const weeksRemaining =
-    params.weeksAtDiagnosis !== null
-      ? Math.max(speciesWeeks - params.weeksAtDiagnosis, 0)
-      : speciesWeeks;
-  const expectedBirthAt = new Date(params.occurredAt.getTime() + weeksRemaining * 7 * 86400000);
-
-  let eventId = "";
-  let reminderCount = 0;
-  try {
-    await db.transaction(async (tx) => {
-      const payload = validateEventPayload("clinical_info_logged", {
-        sub_kind: "pregnancy",
-        pregnancy_phase: "started",
-        title: "Embarazo en seguimiento",
-        details: null,
-        performed_by: params.vetConsulted,
-        weeks_at_diagnosis: params.weeksAtDiagnosis,
-        vet_consulted: params.vetConsulted,
-      });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
-          petId: params.pet.id,
-          eventType: "clinical_info_logged",
-          occurredAt: params.occurredAt,
-          recordedAt: now,
-          recordedByUserId: params.recordedByUserId,
-          ...params.eventAuthorship,
-          payload,
-          notes: params.notes,
-        })
-        .returning();
-      eventId = event.id;
-
-      await tx
-        .update(pets)
-        .set({ pregnancyStatus: "in_progress" })
-        .where(eq(pets.id, params.pet.id));
-
-      // Biweekly checkup reminders until expected birth date.
-      const reminderRows: (typeof reminders.$inferInsert)[] = [];
-      const TWO_WEEKS_MS = 14 * 86400000;
-      let cursor = new Date(params.occurredAt.getTime() + TWO_WEEKS_MS);
-      while (cursor < expectedBirthAt) {
-        reminderRows.push({
-          petId: params.pet.id,
-          userId: params.recordedByUserId,
-          reminderType: "custom",
-          dueAt: cursor,
-          title: "Control veterinario de embarazo",
-          description: "Recordatorio quincenal sugerido durante la gestación.",
-          sourceEventId: event.id,
-        });
-        cursor = new Date(cursor.getTime() + TWO_WEEKS_MS);
-      }
-      if (reminderRows.length > 0) {
-        await tx.insert(reminders).values(reminderRows);
-        reminderCount = reminderRows.length;
-      }
-
-      await tx.insert(notifications).values({
-        userId: params.recordedByUserId,
-        notificationType: "pregnancy_started_owner",
-        severity: "info",
-        title: "Embarazo en seguimiento",
-        body: "Te recomendamos llevar a tu mascota a controles veterinarios regulares durante la gestación.",
-        relatedPetId: params.pet.id,
-        relatedEventId: event.id,
-        ctaLabel: "Ver mascota",
-        ctaUrl: `/mis-mascotas/${params.pet.publicToken}`,
-      });
-    });
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "error desconocido" };
-  }
-
-  return { ok: true, eventId, reminderCount };
+  return _recordPregnancyStartedWriter(params);
 }
-
-// ---------------------------------------------------------------------------
-// Writer — recordPregnancyEndedWriter
-// ---------------------------------------------------------------------------
-
-export type RecordPregnancyEndedParams = {
-  pet: Pick<Pet, "id" | "pregnancyStatus" | "publicToken" | "name">;
-  recordedByUserId: string;
-  eventAuthorship: PetEventAuthorship;
-  occurredAt: Date;
-  outcome: PregnancyOutcome;
-  liveBirthsCount: number | null;
-  vetConsulted: string | null;
-  notes: string | null;
-  now?: Date;
-};
 
 export async function recordPregnancyEndedWriter(
   params: RecordPregnancyEndedParams,
 ): Promise<RecordPregnancyResult> {
-  if (params.pet.pregnancyStatus !== "in_progress") {
-    return {
-      ok: false,
-      error: "Esta mascota no tiene un embarazo activo para cerrar.",
-    };
-  }
-  if (params.outcome !== "live_birth" && params.liveBirthsCount !== null) {
-    return {
-      ok: false,
-      error: "live_births_count solo es válido si el resultado es parto exitoso.",
-    };
-  }
-  if (params.outcome === "live_birth" && (params.liveBirthsCount ?? 0) < 1) {
-    return { ok: false, error: "Indicá la cantidad de crías nacidas vivas (mínimo 1)." };
-  }
-
-  const now = params.now ?? new Date();
-  let eventId = "";
-  try {
-    await db.transaction(async (tx) => {
-      const payload = validateEventPayload("clinical_info_logged", {
-        sub_kind: "pregnancy",
-        pregnancy_phase: "ended",
-        title: "Fin del embarazo",
-        details: null,
-        performed_by: params.vetConsulted,
-        outcome: params.outcome,
-        live_births_count: params.outcome === "live_birth" ? params.liveBirthsCount : null,
-        vet_consulted: params.vetConsulted,
-      });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
-          petId: params.pet.id,
-          eventType: "clinical_info_logged",
-          occurredAt: params.occurredAt,
-          recordedAt: now,
-          recordedByUserId: params.recordedByUserId,
-          ...params.eventAuthorship,
-          payload,
-          notes: params.notes,
-        })
-        .returning();
-      eventId = event.id;
-
-      await tx
-        .update(pets)
-        .set({ pregnancyStatus: statusFromOutcome(params.outcome) })
-        .where(eq(pets.id, params.pet.id));
-
-      // Cancel future pregnancy checkup reminders tied to the open
-      // pregnancy_started event(s) of this pet. Filter on payload.sub_kind
-      // so unrelated clinical_info_logged rows don't get touched.
-      const startedEvents = await tx
-        .select({ id: petEvents.id })
-        .from(petEvents)
-        .where(
-          and(
-            eq(petEvents.petId, params.pet.id),
-            eq(petEvents.eventType, "clinical_info_logged"),
-            sql`${petEvents.payload}->>'sub_kind' = 'pregnancy'`,
-            sql`${petEvents.payload}->>'pregnancy_phase' = 'started'`,
-          ),
-        );
-      const startedIds = startedEvents.map((r) => r.id);
-      if (startedIds.length > 0) {
-        await tx
-          .update(reminders)
-          .set({ completedAt: now })
-          .where(
-            and(
-              inArray(reminders.sourceEventId, startedIds),
-              isNull(reminders.completedAt),
-              gt(reminders.dueAt, now),
-            ),
-          );
-      }
-
-      // Owner notification — copy varies by outcome (spec §5.2 step 5-6).
-      const owner = params.recordedByUserId;
-      let title = "";
-      let body = "";
-      if (params.outcome === "live_birth") {
-        title = `¡Felicitaciones! Quedó registrado el parto de ${params.pet.name}`;
-        body = "Acabás de desbloquear el logro 'Tuve crías' en el perfil de tu mascota.";
-      } else if (params.outcome === "stillbirth" || params.outcome === "miscarriage") {
-        title = `Cierre del embarazo de ${params.pet.name}`;
-        body =
-          "Lamentamos la pérdida. Te recomendamos un seguimiento veterinario en los próximos días.";
-      } else {
-        title = `Cierre del embarazo de ${params.pet.name}`;
-        body = "Quedó registrado en la libreta.";
-      }
-      await tx.insert(notifications).values({
-        userId: owner,
-        notificationType: "pregnancy_ended_owner",
-        severity: params.outcome === "live_birth" ? "success" : "info",
-        title,
-        body,
-        relatedPetId: params.pet.id,
-        relatedEventId: event.id,
-        ctaLabel: "Ver mascota",
-        ctaUrl: `/mis-mascotas/${params.pet.publicToken}`,
-      });
-    });
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "error desconocido" };
-  }
-  return { ok: true, eventId, reminderCount: 0 };
+  return _recordPregnancyEndedWriter(params);
 }
 
 // ---------------------------------------------------------------------------
@@ -322,7 +84,7 @@ export async function recordPregnancyStartedAction(
     weeksAtDiagnosis = parsed;
   }
 
-  const result = await recordPregnancyStartedWriter({
+  const result = await _recordPregnancyStartedWriter({
     pet,
     recordedByUserId: user.id,
     eventAuthorship,
@@ -367,7 +129,7 @@ export async function recordPregnancyEndedAction(
     liveBirthsCount = parsed;
   }
 
-  const result = await recordPregnancyEndedWriter({
+  const result = await _recordPregnancyEndedWriter({
     pet,
     recordedByUserId: user.id,
     eventAuthorship,
