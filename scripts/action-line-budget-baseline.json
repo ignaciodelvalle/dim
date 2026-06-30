@@ -12,7 +12,7 @@
   "apply-intent.ts": 141,
   "approval-requests.ts": 90,
   "attendance.ts": 187,
-  "auth.ts": 266,
+  "auth.ts": 18,
   "booking.ts": 87,
   "bulk-actions.ts": 191,
   "bulk-adoption-actions.ts": 121,
