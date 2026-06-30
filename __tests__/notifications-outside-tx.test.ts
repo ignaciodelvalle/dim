@@ -92,8 +92,14 @@ import { describe, expect, it } from "vitest";
 //   - create-intake.ts: pendingNotifications[] accumulated inside the tx,
 //     flushed post-tx with try/catch logging "notifications insert failed".
 // app/actions/intake.ts is now a thin shim — it delegates everything.
+// admin-decisions.ts was migrated to
+// src/modules/organizations/application/admin-decisions/* in the 2026-06-30
+// strangler pass (17/61). The §2.2 post-tx pattern is preserved in each use-case:
+//   - approve-request.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+//   - reject-request.ts: same pattern.
+// app/actions/admin-decisions.ts is now a thin shim — it delegates everything.
 const REFACTORED_FILES = [
-  "admin-decisions.ts",
   "admin-proposals.ts",
   "chip-match.ts",
 ] as const;

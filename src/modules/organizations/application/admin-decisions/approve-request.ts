@@ -1,0 +1,207 @@
+// Use-case: approveRequestForAuthority
+//
+// Validates actor authority, checks jurisdiction scope, then inside a
+// db.transaction: applies the polymorphic mutation (role/org/service-dog),
+// updates the approval_request status, inserts an audit_log entry, and
+// collects the applicant notification.
+//
+// Post-tx: flushes pendingNotifications (§2.2 — NOT inside the tx).
+//
+// Returns { ok: true } on success or { error: string } on any failure.
+
+import { eq } from "drizzle-orm";
+
+import {
+  type ApprovalRequest,
+  approvalRequests,
+  auditLog,
+  db,
+  notifications,
+  organizations,
+  petServiceDog,
+  profiles,
+} from "@/db";
+import { canDecideRequest } from "@/lib/approval-scope";
+
+import { ctaForApplicant, loadActorAuthority } from "./helpers";
+import type { DecisionResult } from "./types";
+
+export async function approveRequestForAuthority(
+  actorUserId: string,
+  publicToken: string,
+  notes: string | null,
+  bulkActionId: string | null = null,
+): Promise<DecisionResult> {
+  const [request] = await db
+    .select()
+    .from(approvalRequests)
+    .where(eq(approvalRequests.publicToken, publicToken))
+    .limit(1);
+  if (!request) return { error: "Solicitud no encontrada." };
+  if (request.status !== "pending") {
+    return { error: `La solicitud ya está en estado "${request.status}".` };
+  }
+
+  const auth = await loadActorAuthority(actorUserId);
+  if (!auth.ok) return { error: auth.error };
+  if (!canDecideRequest(auth.profile, request, auth.jurisdictions)) {
+    return { error: "No tenés permiso para decidir esta solicitud (fuera de tu jurisdicción)." };
+  }
+
+  type PendingNotification = typeof notifications.$inferInsert;
+  const pendingNotifications: PendingNotification[] = [];
+
+  try {
+    await db.transaction(async (tx) => {
+      const mutationSummary = await applyApprovalMutation(tx, request, actorUserId);
+
+      await tx
+        .update(approvalRequests)
+        .set({
+          status: "approved",
+          decidedAt: new Date(),
+          decidedByUserId: actorUserId,
+          decisionNotes: notes?.trim() || null,
+          updatedAt: new Date(),
+        })
+        .where(eq(approvalRequests.id, request.id));
+
+      await tx.insert(auditLog).values({
+        actorUserId,
+        action: "request_approved",
+        approvalRequestId: request.id,
+        targetUserId: request.targetUserId,
+        targetOrganizationId: request.targetOrganizationId,
+        payload: {
+          mutations_applied: mutationSummary,
+          notes: notes ?? null,
+          ...(bulkActionId ? { bulk_action_id: bulkActionId } : {}),
+        },
+      });
+
+      pendingNotifications.push({
+        userId: request.applicantUserId,
+        notificationType: "approval_request_approved",
+        title: titleForApproval(request.type),
+        body: bodyForApproval(request.type, notes),
+        severity: "success",
+        ctaLabel: "Ver detalle",
+        ctaUrl: ctaForApplicant(request),
+      });
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo aprobar: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (action did succeed)", e);
+    }
+  }
+
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Private helpers (only used by approveRequestForAuthority)
+// ---------------------------------------------------------------------------
+
+// Polymorphic mutation. Returns a summary object for the audit_log payload.
+// Each branch is the spec §7.4 "Aplicar mutación al target" step for its type.
+async function applyApprovalMutation(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  request: ApprovalRequest,
+  actorUserId: string,
+): Promise<Record<string, unknown>> {
+  switch (request.type) {
+    case "role_upgrade_vet": {
+      if (!request.targetUserId) throw new Error("role_upgrade_vet requires target_user_id.");
+      await tx
+        .update(profiles)
+        .set({
+          role: "vet",
+          matriculaVerified: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(profiles.id, request.targetUserId));
+      return { kind: "role_upgrade_vet", target_user_id: request.targetUserId };
+    }
+
+    case "organization_verification": {
+      if (!request.targetOrganizationId) {
+        throw new Error("organization_verification requires target_organization_id.");
+      }
+      await tx
+        .update(organizations)
+        .set({
+          verified: true,
+          verifiedAt: new Date(),
+          verifiedByUserId: actorUserId,
+          updatedAt: new Date(),
+        })
+        .where(eq(organizations.id, request.targetOrganizationId));
+      return {
+        kind: "organization_verification",
+        target_organization_id: request.targetOrganizationId,
+      };
+    }
+
+    case "service_dog_credential_verification": {
+      // The pet is identified by request.payload.pet_id (stored at submit
+      // time). We anchor on pet_id rather than reading it back from the
+      // owner profile so the approval survives an ownership change before
+      // verification lands.
+      const payload = (request.payload ?? {}) as { pet_id?: string };
+      if (!payload.pet_id) {
+        throw new Error("service_dog_credential_verification requires payload.pet_id");
+      }
+      const now = new Date();
+      const updated = await tx
+        .update(petServiceDog)
+        .set({
+          credentialStatus: "vigente",
+          verifiedAt: now,
+          verifiedByUserId: actorUserId,
+          updatedAt: now,
+        })
+        .where(eq(petServiceDog.petId, payload.pet_id))
+        .returning({ id: petServiceDog.id });
+      if (updated.length === 0) {
+        throw new Error(
+          "service_dog row not found for pet — owner may have withdrawn it before approval landed",
+        );
+      }
+      return {
+        kind: "service_dog_credential_verification",
+        pet_id: payload.pet_id,
+      };
+    }
+  }
+}
+
+function titleForApproval(type: ApprovalRequest["type"]): string {
+  switch (type) {
+    case "role_upgrade_vet":
+      return "Matrícula aprobada";
+    case "organization_verification":
+      return "Tu organización fue verificada";
+    case "service_dog_credential_verification":
+      return "Credencial de perro de asistencia verificada";
+  }
+}
+
+function bodyForApproval(type: ApprovalRequest["type"], notes: string | null): string {
+  const trail = notes ? ` Notas: ${notes}` : "";
+  switch (type) {
+    case "role_upgrade_vet":
+      return `Verificamos tu matrícula. Ya figurás como veterinario/a en MiMAR.${trail}`;
+    case "organization_verification":
+      return `Tu organización ahora figura como verificada. Los eventos que registres aparecen con el sello de verificación.${trail}`;
+    case "service_dog_credential_verification":
+      return `Tu credencial RUPGA fue verificada. Ya podés activar el banner público de acceso (Ley 26.858).${trail}`;
+  }
+}

@@ -127,7 +127,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 ### Remaining files (ordered by size — execute after Tier 3)
 
 - [x] `alert-firings.ts` — 430 lines → 135-line shim (strangler 16/61, 2026-06-30)
-- [ ] `admin-decisions.ts` — 401 lines
+- [x] `admin-decisions.ts` — 401 lines → 91-line shim (strangler 17/61, 2026-06-30)
 - [ ] `pregnancy.ts` — 383 lines
 - [ ] `profile.ts` — 354 lines
 - [ ] `admin-proposals.ts` — 353 lines
