@@ -152,7 +152,7 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `apply-intent.ts` — 141 lines → 36-line shim (strangler 39/61, 2026-06-30)
 - [x] `decomiso-pet-lookup.ts` — 123 lines → 21-line shim (strangler 40/61, 2026-06-30)
 - [x] `bulk-adoption-actions.ts` — 120 lines → 42-line shim (strangler 41/61, 2026-06-30)
-- [ ] `reminders.ts` — 119 lines
+- [x] `reminders.ts` — 119 lines → 47-line shim (strangler 42/61, 2026-06-30)
 - [ ] `sign-timeline-attachments.ts` — 111 lines
 - [ ] `public.ts` — 109 lines
 - [ ] `pet-lookup-public.ts` — 105 lines
