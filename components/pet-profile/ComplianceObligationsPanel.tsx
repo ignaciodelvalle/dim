@@ -4,24 +4,29 @@
 //
 // Leads the pet profile's Resumen tab: the owner's legal obligations (rabies,
 // sterilization, microchip, and — where the jurisdiction requires it — PPP
-// attestation) rendered as status badges derived from the pet's events.
+// attestation) as credential-style cards derived from the pet's events.
 //
-// Server component (no client JS). WS-2 adds a "Programar turno" action on the
-// antirrábica card when it is por vencer / vencida — a plain Link into the
-// URL-driven intent-fork sheet (?sheet=turno-antirrabica), so the panel stays
-// server-only. Reuses LnBadge; no new color tokens (token ratchet).
+// Server component (no client JS). The antirrábica card grows a "Programar
+// turno" action (por vencer / vencida) — a plain Link into the URL-driven
+// intent-fork sheet — so the panel stays server-only. H1: a "Declarada · sin
+// verificar" card carries a verify hint. H4: rendered as a responsive grid of
+// bordered cards with a leading icon. No new color tokens (token ratchet).
 // ---------------------------------------------------------------------------
 
+import Link from "next/link";
+
+import { Icon } from "@/components/Icon";
 import { LnBadge, type LnBadgeProps } from "@/components/ui/Badge";
+import { LnVstamp } from "@/components/ui/StatusFlag";
 import type {
   ComplianceState,
   ComplianceTone,
   ObligationCard,
+  ObligationKey,
 } from "@/lib/projections/pet-compliance";
-import Link from "next/link";
 
 // Map the semantic compliance tone onto an LnBadge variant. `reserved` (a booked
-// turno, WS-2) reads as informational; `neutral` is "sin registro".
+// turno) reads as informational; `neutral` is "sin registro / declarada".
 const TONE_TO_BADGE: Record<ComplianceTone, NonNullable<LnBadgeProps["variant"]>> = {
   ok: "success",
   due: "warning",
@@ -30,39 +35,66 @@ const TONE_TO_BADGE: Record<ComplianceTone, NonNullable<LnBadgeProps["variant"]>
   neutral: "neutral",
 };
 
-function ObligationRow({
+// Leading credential icon per obligation (existing Icon.tsx names).
+const ICON_FOR: Record<ObligationKey, string> = {
+  rabies: "vacuna",
+  sterilization: "esterilizacion",
+  microchip: "microchip",
+  ppp: "shield",
+};
+
+// Rabies uses the credential-style vaccine stamp where the tone maps cleanly;
+// reserved / neutral fall back to LnBadge (the stamp has no such variants).
+const VSTAMP_TONES = new Set<ComplianceTone>(["ok", "due", "over"]);
+
+function StatusBadge({ card }: { card: ObligationCard }) {
+  if (card.key === "rabies" && VSTAMP_TONES.has(card.tone)) {
+    return <LnVstamp variant={card.tone as "ok" | "due" | "over"} className="flex-shrink-0" />;
+  }
+  return (
+    <LnBadge variant={TONE_TO_BADGE[card.tone]} className="flex-shrink-0">
+      {card.state}
+    </LnBadge>
+  );
+}
+
+function ObligationCardView({
   card,
   petPublicToken,
 }: {
   card: ObligationCard;
   petPublicToken: string;
 }) {
-  // WS-2: the antirrábica card grows a primary action when the obligation is
-  // por vencer / vencida, and a reassuring microcopy once a turno is reserved.
   const showTurnoAction = card.key === "rabies" && (card.tone === "due" || card.tone === "over");
   const isReserved = card.key === "rabies" && card.tone === "reserved";
 
   return (
-    <li
+    <div
       data-section="compliance-card"
       data-obligation={card.key}
-      className="flex flex-col gap-1 border-t border-[var(--color-ln-line)] py-3 first:border-t-0 first:pt-0"
+      className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-[var(--color-ln-line)] p-4"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-[var(--font-ln-sans)] text-sm font-semibold text-[var(--color-ln-ink)]">
+        <div className="flex min-w-0 items-center gap-2">
+          <Icon
+            name={ICON_FOR[card.key]}
+            size="md"
+            decorative
+            className="flex-shrink-0 text-[var(--color-ln-azul)]"
+          />
+          <p className="font-[var(--font-ln-sans)] text-md font-semibold text-[var(--color-ln-ink)]">
             {card.label}
           </p>
-          {card.detail && (
-            <p className="mt-0.5 font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
-              {card.detail}
-            </p>
-          )}
         </div>
-        <LnBadge variant={TONE_TO_BADGE[card.tone]} className="flex-shrink-0">
-          {card.state}
-        </LnBadge>
+        <StatusBadge card={card} />
       </div>
+
+      {card.detail && (
+        <p className="font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
+          {card.detail}
+        </p>
+      )}
+
       <p className="font-[var(--font-ln-sans)] text-xs text-[var(--color-ln-faint)]">
         {card.legalFootnote}
       </p>
@@ -81,7 +113,13 @@ function ObligationRow({
           Cuando el veterinario la aplique, se registra como evento y el estado pasa a Al día solo.
         </p>
       )}
-    </li>
+
+      {card.hint && (
+        <p className="mt-1 font-[var(--font-ln-sans)] text-xs text-[var(--color-ln-mute)]">
+          {card.hint}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -113,11 +151,11 @@ export function ComplianceObligationsPanel({
         </LnBadge>
       </div>
 
-      <ul className="flex flex-col">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {state.cards.map((card) => (
-          <ObligationRow key={card.key} card={card} petPublicToken={petPublicToken} />
+          <ObligationCardView key={card.key} card={card} petPublicToken={petPublicToken} />
         ))}
-      </ul>
+      </div>
     </section>
   );
 }
