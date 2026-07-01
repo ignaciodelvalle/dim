@@ -1,7 +1,6 @@
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { LnCheckbox } from "@/components/ui/Field";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
@@ -13,6 +12,7 @@ import {
   fetchSurveillanceSignals,
 } from "@/lib/govt-dashboards";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
+import { VerifiedFilterCheckbox } from "../_components/VerifiedFilterCheckbox";
 
 // All provinces in the GeoJSON placeholder (same list as the parent page).
 const ALL_PROVINCES: Array<{ code: string; name: string }> = [
@@ -140,17 +140,7 @@ export default async function GobVigilanciaBrotesPage({
           {/* Preserve existing params */}
           {sp.period && <input type="hidden" name="period" value={sp.period} />}
           {sp.signalId && <input type="hidden" name="signalId" value={sp.signalId} />}
-          <LnCheckbox
-            name="soloVerificados"
-            value="1"
-            defaultChecked={soloVerificados}
-            onChange={(e) => {
-              // Progressive enhancement: submit form on change
-              e.currentTarget.form?.submit();
-            }}
-          >
-            Solo verificados institucionalmente
-          </LnCheckbox>
+          <VerifiedFilterCheckbox defaultChecked={soloVerificados} />
           {soloVerificados && (
             <a
               href={`/gob/vigilancia/brotes${sp.period ? `?period=${sp.period}` : ""}`}
