@@ -8,6 +8,11 @@ import {
 
 const NOW = new Date("2026-07-01T12:00:00Z");
 
+// Provenance presets (H1): only professional/institutional events clear an
+// obligation. VET → professional_verified; SELF (owner) → self_reported.
+const VET = { authorRole: "vet", authorVerified: true, authorOrganizationId: null };
+const SELF = { authorRole: "owner", authorVerified: false, authorOrganizationId: null };
+
 function baseInput(overrides: Partial<ComplianceInput> = {}): ComplianceInput {
   return {
     now: NOW,
@@ -20,11 +25,16 @@ function baseInput(overrides: Partial<ComplianceInput> = {}): ComplianceInput {
   };
 }
 
-function vaccination(vaccineName: string, nextDueAt: string | null): ComplianceEvent {
+function vaccination(
+  vaccineName: string,
+  nextDueAt: string | null,
+  prov: Partial<ComplianceEvent> = SELF,
+): ComplianceEvent {
   return {
     eventType: "vaccination_administered",
     occurredAt: "2026-01-01T00:00:00Z",
     payload: { vaccine_name: vaccineName, next_due_at: nextDueAt },
+    ...prov,
   };
 }
 
@@ -47,6 +57,8 @@ describe("deriveComplianceState — card set + PPP gate", () => {
 
 describe("deriveComplianceState — rabies state machine", () => {
   const dueAt = new Date("2026-08-01T00:00:00Z");
+  // A verified rabies dose so the "Vigente" (ok) branch is backed (H1).
+  const verifiedDose = vaccination("Antirrábica", "2026-08-01T00:00:00Z", VET);
 
   it("reserved turno wins over everything else", () => {
     const state = deriveComplianceState(
@@ -72,7 +84,7 @@ describe("deriveComplianceState — rabies state machine", () => {
     expect(rabies?.detail).not.toContain("·");
   });
 
-  it("maps reminder variants to Vigente / Por vencer / Vencida", () => {
+  it("maps reminder variants to Vigente / Por vencer / Vencida (dose verified)", () => {
     const cases: Array<[ComplianceInput["rabiesReminder"], string, string]> = [
       [{ variant: "upcoming", dueAt }, "Vigente", "ok"],
       [{ variant: "success", dueAt }, "Vigente", "ok"],
@@ -81,7 +93,9 @@ describe("deriveComplianceState — rabies state machine", () => {
       [{ variant: "overdue_critical", dueAt }, "Vencida", "over"],
     ];
     for (const [reminder, expectedState, expectedTone] of cases) {
-      const state = deriveComplianceState(baseInput({ rabiesReminder: reminder }));
+      const state = deriveComplianceState(
+        baseInput({ rabiesReminder: reminder, events: [verifiedDose] }),
+      );
       const rabies = state.cards.find((c) => c.key === "rabies");
       expect(rabies?.state, `variant ${reminder?.variant}`).toBe(expectedState);
       expect(rabies?.tone, `variant ${reminder?.variant}`).toBe(expectedTone);
@@ -89,20 +103,22 @@ describe("deriveComplianceState — rabies state machine", () => {
   });
 
   it("falls back to the latest rabies vaccination event when there is no reminder", () => {
+    // Overdue (past next_due) is not gated by provenance — it already signals "not met".
     const past = deriveComplianceState(
-      baseInput({ events: [vaccination("Antirrábica", "2026-01-01T00:00:00Z")] }),
+      baseInput({ events: [vaccination("Antirrábica", "2026-01-01T00:00:00Z", VET)] }),
     );
     expect(past.cards.find((c) => c.key === "rabies")?.tone).toBe("over");
 
+    // Future next_due with a verified dose → Vigente.
     const future = deriveComplianceState(
-      baseInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z")] }),
+      baseInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", VET)] }),
     );
     expect(future.cards.find((c) => c.key === "rabies")?.tone).toBe("ok");
   });
 
   it("ignores non-rabies vaccines in the events fallback", () => {
     const state = deriveComplianceState(
-      baseInput({ events: [vaccination("Quíntuple", "2026-01-01T00:00:00Z")] }),
+      baseInput({ events: [vaccination("Quíntuple", "2026-01-01T00:00:00Z", VET)] }),
     );
     expect(state.cards.find((c) => c.key === "rabies")?.state).toBe("Sin registro");
   });
@@ -115,24 +131,97 @@ describe("deriveComplianceState — rabies state machine", () => {
   });
 });
 
+// H1 — provenance gates compliance: only professional/institutional events clear.
+describe("deriveComplianceState — H1 provenance gate", () => {
+  it("self-reported sterilization → 'Declarada · sin verificar', not counted", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...SELF }],
+      }),
+    );
+    const card = state.cards.find((c) => c.key === "sterilization");
+    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.tone).toBe("neutral");
+    expect(card?.hint).toBeTruthy();
+    expect(state.summary.ok).toBe(0);
+  });
+
+  it("vet-verified sterilization → 'Registrada' (ok), counted", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...VET }],
+      }),
+    );
+    const card = state.cards.find((c) => c.key === "sterilization");
+    expect(card?.state).toBe("Registrada");
+    expect(card?.tone).toBe("ok");
+    expect(state.summary.ok).toBe(1);
+  });
+
+  it("rabies currency from a self-reported dose → 'Declarada · sin verificar' (not Vigente)", () => {
+    const state = deriveComplianceState(
+      baseInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", SELF)] }),
+    );
+    const card = state.cards.find((c) => c.key === "rabies");
+    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.tone).toBe("neutral");
+    // Keeps the due-date detail even when downgraded.
+    expect(card?.detail).toBeTruthy();
+  });
+
+  it("rabies currency from a professional_verified dose → 'Vigente' (ok)", () => {
+    const state = deriveComplianceState(
+      baseInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", VET)] }),
+    );
+    const card = state.cards.find((c) => c.key === "rabies");
+    expect(card?.state).toBe("Vigente");
+    expect(card?.tone).toBe("ok");
+  });
+
+  it("microchip code present but implant self-reported → 'Declarada · sin verificar'", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        microchipCode: "982000123456789",
+        events: [{ eventType: "microchip_implanted", occurredAt: NOW, payload: {}, ...SELF }],
+      }),
+    );
+    const card = state.cards.find((c) => c.key === "microchip");
+    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.tone).toBe("neutral");
+    expect(card?.detail).toBe("982000123456789");
+  });
+});
+
 describe("deriveComplianceState — sterilization, microchip, PPP", () => {
-  it("sterilization reflects the presence of a sterilization_performed event", () => {
+  it("sterilization: verified event → ok, none → neutral", () => {
     const without = deriveComplianceState(baseInput());
     expect(without.cards.find((c) => c.key === "sterilization")?.tone).toBe("neutral");
 
     const withEvent = deriveComplianceState(
       baseInput({
-        events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {} }],
+        events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...VET }],
       }),
     );
     expect(withEvent.cards.find((c) => c.key === "sterilization")?.tone).toBe("ok");
   });
 
-  it("microchip shows the code when present", () => {
-    const state = deriveComplianceState(baseInput({ microchipCode: "982000123456789" }));
+  it("microchip: verified implant → ok with the code detail", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        microchipCode: "982000123456789",
+        events: [{ eventType: "microchip_implanted", occurredAt: NOW, payload: {}, ...VET }],
+      }),
+    );
     const chip = state.cards.find((c) => c.key === "microchip");
     expect(chip?.tone).toBe("ok");
     expect(chip?.detail).toBe("982000123456789");
+  });
+
+  it("microchip: code alone with no implant event → declared, not verified", () => {
+    const state = deriveComplianceState(baseInput({ microchipCode: "982000123456789" }));
+    const chip = state.cards.find((c) => c.key === "microchip");
+    expect(chip?.tone).toBe("neutral");
+    expect(chip?.state).toBe("Declarada · sin verificar");
   });
 
   it("PPP is 'Atestación requerida' (due) until a dangerous_breed_attested event exists", () => {
@@ -154,8 +243,8 @@ describe("deriveComplianceState — ordering + summary", () => {
     const state = deriveComplianceState(
       baseInput({
         rabiesReminder: { variant: "overdue", dueAt: new Date("2026-06-01T00:00:00Z") },
-        microchipCode: "982000123456789", // ok
-        events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {} }], // ok
+        microchipCode: "982000123456789",
+        events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...VET }],
       }),
     );
     // Rabies (over) must be first.
@@ -163,12 +252,16 @@ describe("deriveComplianceState — ordering + summary", () => {
     expect(state.cards[0].tone).toBe("over");
   });
 
-  it("summarizes how many obligations are al día", () => {
+  it("summarizes how many obligations are al día (verified only)", () => {
     const state = deriveComplianceState(
       baseInput({
-        rabiesReminder: { variant: "upcoming", dueAt: new Date("2026-08-01T00:00:00Z") }, // ok
-        microchipCode: "982000123456789", // ok
-        // sterilization missing -> neutral
+        rabiesReminder: { variant: "upcoming", dueAt: new Date("2026-08-01T00:00:00Z") },
+        events: [
+          vaccination("Antirrábica", "2026-08-01T00:00:00Z", VET), // backs Vigente → ok
+          { eventType: "microchip_implanted", occurredAt: NOW, payload: {}, ...VET }, // ok
+        ],
+        microchipCode: "982000123456789",
+        // sterilization missing → neutral
       }),
     );
     expect(state.summary).toEqual({ total: 3, ok: 2, label: "2 de 3 al día" });

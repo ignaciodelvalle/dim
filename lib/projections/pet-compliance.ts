@@ -16,13 +16,19 @@
 // No new color tokens, no schema migration, no new event types (token ratchet).
 // ---------------------------------------------------------------------------
 
+import { computeConfidence } from "@/lib/event-confidence";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 
 // Minimal event shape — decoupled from ProjectionEvent so tests stay trivial.
+// Carries provenance (the ConfidenceInput fields) so an obligation is only
+// cleared by a professional/institutional-verified event (H1, 2026-07-01).
 export type ComplianceEvent = {
   eventType: string;
   payload: unknown;
   occurredAt: Date | string;
+  authorRole?: string;
+  authorVerified?: boolean;
+  authorOrganizationId?: string | null;
 };
 
 // The already-filtered rabies reminder, if the pet has one. The caller isolates
@@ -54,6 +60,7 @@ export type ObligationCard = {
   tone: ComplianceTone;
   detail: string | null; // es-AR secondary line (date, provider, chip number)
   legalFootnote: string; // es-AR muted legal citation
+  hint?: string | null; // es-AR nudge to get a self-reported event verified (H1)
 };
 
 export type ComplianceState = {
@@ -89,8 +96,52 @@ const TONE_SEVERITY: Record<ComplianceTone, number> = {
   ok: 4,
 };
 
+// es-AR nudges shown on a "Declarada · sin verificar" card (H1).
+const HINT = {
+  sterilization: "Pedile a tu veterinario que la registre para que cuente.",
+  microchip: "Pedile a quien lo implantó que lo registre para que cuente.",
+  rabies: "La cargaste vos; pedí que un veterinario la registre para que cuente como al día.",
+} as const;
+
+const DECLARADA_STATE = "Declarada · sin verificar";
+
 function hasEvent(events: ComplianceEvent[], eventType: string): boolean {
   return events.some((e) => e.eventType === eventType);
+}
+
+// H1: an obligation is only met when the satisfying event was authored by a
+// professional or institution. A self-reported / corroborated / unverified
+// event is "declared, not verified" and does not count toward "al día".
+function clearsObligation(e: ComplianceEvent): boolean {
+  const tier = computeConfidence({
+    authorRole: e.authorRole ?? "",
+    authorVerified: e.authorVerified ?? false,
+    authorOrganizationId: e.authorOrganizationId ?? null,
+    payload: (e.payload ?? {}) as Record<string, unknown>,
+  });
+  return tier === "professional_verified" || tier === "institutional_verified";
+}
+
+function declaradaCard(
+  key: ObligationKey,
+  label: string,
+  legalFootnote: string,
+  hint: string,
+  detail: string | null = null,
+): ObligationCard {
+  return { key, label, state: DECLARADA_STATE, tone: "neutral", detail, legalFootnote, hint };
+}
+
+// The latest rabies vaccination event (by occurredAt), if any.
+function latestRabiesDose(events: ComplianceEvent[]): ComplianceEvent | undefined {
+  return events
+    .filter((e) => {
+      if (e.eventType !== "vaccination_administered") return false;
+      const p = (e.payload ?? {}) as Record<string, unknown>;
+      const name = typeof p.vaccine_name === "string" ? p.vaccine_name.toLowerCase() : "";
+      return /antirr[aá]b|rabi/.test(name);
+    })
+    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())[0];
 }
 
 function formatDate(date: Date): string {
@@ -147,62 +198,103 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
     };
   }
 
+  const dose = latestRabiesDose(input.events);
+
+  // Base state: reminder variant, else the latest dose's next_due_at, else none.
+  let base: ObligationCard;
   if (input.rabiesReminder) {
-    return rabiesFromVariant(input.rabiesReminder.variant, input.rabiesReminder.dueAt);
-  }
-
-  // Fallback: derive from the latest rabies vaccination event's next_due_at.
-  const doses = input.events
-    .filter((e) => {
-      if (e.eventType !== "vaccination_administered") return false;
-      const p = (e.payload ?? {}) as Record<string, unknown>;
-      const name = typeof p.vaccine_name === "string" ? p.vaccine_name.toLowerCase() : "";
-      return /antirr[aá]b|rabi/.test(name);
-    })
-    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
-
-  const latest = doses[0];
-  if (latest) {
-    const p = (latest.payload ?? {}) as Record<string, unknown>;
+    base = rabiesFromVariant(input.rabiesReminder.variant, input.rabiesReminder.dueAt);
+  } else if (dose) {
+    const p = (dose.payload ?? {}) as Record<string, unknown>;
     const nextDueRaw = typeof p.next_due_at === "string" ? p.next_due_at : null;
     const nextDue = nextDueRaw ? new Date(nextDueRaw) : null;
-    if (nextDue && Number.isFinite(nextDue.getTime())) {
-      return nextDue <= input.now
-        ? rabiesFromVariant("overdue", nextDue)
-        : rabiesFromVariant("upcoming", nextDue);
-    }
+    base =
+      nextDue && Number.isFinite(nextDue.getTime())
+        ? nextDue <= input.now
+          ? rabiesFromVariant("overdue", nextDue)
+          : rabiesFromVariant("upcoming", nextDue)
+        : {
+            key: "rabies",
+            label: "Vacuna antirrábica",
+            state: "Sin registro",
+            tone: "neutral",
+            detail: null,
+            legalFootnote: FOOTNOTE.rabies,
+          };
+  } else {
+    base = {
+      key: "rabies",
+      label: "Vacuna antirrábica",
+      state: "Sin registro",
+      tone: "neutral",
+      detail: null,
+      legalFootnote: FOOTNOTE.rabies,
+    };
   }
 
-  return {
-    key: "rabies",
-    label: "Vacuna antirrábica",
-    state: "Sin registro",
-    tone: "neutral",
-    detail: null,
-    legalFootnote: FOOTNOTE.rabies,
-  };
+  // H1: a "Vigente" (al día) claim must be backed by a professional/institutional
+  // dose. If currency rests only on a self-reported dose (or none), downgrade to
+  // "Declarada · sin verificar" while keeping the due-date detail.
+  if (base.tone === "ok" && !(dose && clearsObligation(dose))) {
+    return declaradaCard("rabies", "Vacuna antirrábica", FOOTNOTE.rabies, HINT.rabies, base.detail);
+  }
+  return base;
 }
 
 function deriveSterilization(input: ComplianceInput): ObligationCard {
-  const done = hasEvent(input.events, "sterilization_performed");
-  return {
-    key: "sterilization",
-    label: "Esterilización",
-    state: done ? "Registrada" : "Sin registro",
-    tone: done ? "ok" : "neutral",
-    detail: null,
-    legalFootnote: FOOTNOTE.sterilization,
-  };
+  const event = input.events.find((e) => e.eventType === "sterilization_performed");
+  if (!event) {
+    return {
+      key: "sterilization",
+      label: "Esterilización",
+      state: "Sin registro",
+      tone: "neutral",
+      detail: null,
+      legalFootnote: FOOTNOTE.sterilization,
+    };
+  }
+  if (clearsObligation(event)) {
+    return {
+      key: "sterilization",
+      label: "Esterilización",
+      state: "Registrada",
+      tone: "ok",
+      detail: null,
+      legalFootnote: FOOTNOTE.sterilization,
+    };
+  }
+  return declaradaCard(
+    "sterilization",
+    "Esterilización",
+    FOOTNOTE.sterilization,
+    HINT.sterilization,
+  );
 }
 
 function deriveMicrochip(input: ComplianceInput): ObligationCard {
   const code = input.microchipCode;
+  const implant = input.events.find((e) => e.eventType === "microchip_implanted");
+  if (implant && clearsObligation(implant)) {
+    return {
+      key: "microchip",
+      label: "Microchip",
+      state: "Sí",
+      tone: "ok",
+      detail: code,
+      legalFootnote: FOOTNOTE.microchip,
+    };
+  }
+  // Code known (from identifications) or a self-reported implant event, but not
+  // backed by a professional/institutional record → declared, not verified.
+  if (code || implant) {
+    return declaradaCard("microchip", "Microchip", FOOTNOTE.microchip, HINT.microchip, code);
+  }
   return {
     key: "microchip",
     label: "Microchip",
-    state: code ? "Sí" : "Sin registro",
-    tone: code ? "ok" : "neutral",
-    detail: code,
+    state: "Sin registro",
+    tone: "neutral",
+    detail: null,
     legalFootnote: FOOTNOTE.microchip,
   };
 }
