@@ -1167,16 +1167,16 @@ Operator surfaces (`/gob/*`, `/admin/*`) get from an aggregate to a single recor
   - **Selection state machine** is pure in `lib/bulk-select.ts` (`toggleSelection`, `toggleSelectPage`, `isPageFullySelected`, `isReasonValid`, `selectionSummary`) — keep selection logic there, not inlined in components.
   - **Destructive actions require a reason whose minimum matches the actual server action** (`bulkRejectRequestsAction` ≥ 5; `bulkRevokeAction` ≥ 30 chars + ≥1 evidence attachment). The revoke flow keeps its evidence-upload modal — a reason-only `ConfirmDialog` cannot collect attachments. Never weaken these minimums in the UI.
   - The header checkbox selects the **page**, not the whole query, for irreversible/notifying actions.
-### 5. Pet profile order: identity → alerts → actions → tabs
+### 5. Pet profile order: identity/credential → alerts → capture → faces
 
-Added by the pet-profile v2.1 reorder (2026-06-18, Item 6 of the metrics-IA handoff; spec `docs/superpowers/specs/archive/2026-06-18-pet-profile-v21-reorder-and-action-consolidation-design.md`). The owner profile at `/mis-mascotas/[publicToken]` MUST present blocks in this order:
+Updated by the pet-profile "two-face" redesign (2026-07-01; spec docs/design/handoffs/2026-07-01-pet-profile-two-face-lean-handoff.md). The owner profile at /mis-mascotas/[publicToken] is TWO FACES OF ONE DOCUMENT and MUST present blocks in this order:
 
-1. **Identity first, always** — the hero (photo, name, species·breed, chip, jurisdiction, tags) is the first content block in every non-terminal state. No conditional banner precedes it.
-2. **Avisos in one prioritized strip** — conditional alerts (rabies, transit/custody, open cases, pregnancy) collapse into a single `<PetAlertStrip>` BELOW the hero, ordered by urgency (`urgent` → `warning` → `info`). The strip renders nothing when there are no alerts.
-3. **Actions, then tabs** — quick actions, then the tabbed timeline (Resumen · Libreta · Vacunas · Historial). Tabs are the timeline model; `/libreta`, `/historial`, `/vacunas` are permanent redirects to `?tab=…`.
-4. **Credentials and achievements live inside Resumen** — permanent credentials (PPP, perro de servicio) are credential cards in Resumen (section 03), not full-width banners. Achievements render last in Resumen, only when present.
+1. **Credencial first (Face 1)** — one credential object (LnHero identity + compliance stamp row + mono IDs + printed QR + seal) is the first content block in every non-terminal state. No conditional banner precedes it. Provenance gates the stamps (H1): a stamp reads "al día" only for professional/institutional-verified events.
+2. **Avisos in one prioritized strip** — conditional alerts (rabies, transit/custody, open cases, pregnancy) collapse into a single <PetAlertStrip> BELOW the credential, ordered urgent → warning → info. Empty → renders nothing.
+3. **Capture, then the two faces** — the Anotar primary CTA (sticky on mobile) and a three-item action row (Compartir · Marcar perdida · ⋯ Más), then the two-face tabs: **Credencial · Libreta**. Libreta is ONE timeline (future pinned on top → "— hoy —" → past) with three lenses (Todo · Vacunas · Oficial); lenses filter, faces are tabs — no third navigation model. /libreta, /historial, /vacunas are permanent redirects to ?tab=…; ?tab=resumen→credencial, ?tab=vacunas→libreta+vacunas, ?tab=historial→libreta+todo, ?tab=libreta→libreta+oficial.
+4. **Everything else lives behind "⋯ Más"** — permanent credentials (PPP, perro de servicio) render as compact rows on the credential; editar/transferir/buscar-hogar/devolución/viaje/ficha/contactos live in the ⋯ Más sheet. No section chrome on the document.
 
-There is **one** way to annotate from the profile: `/anotar` is the single canonical capture hub (quick-capture box + the full category-grouped catalog). `/eventos/nuevo` is a permanent redirect to `/anotar`; do not add a second event catalog or a second "anotar" entry point. The `/eventos/nuevo/*` form sub-routes remain the URL-addressable form targets (see captura rápida below) — only the catalog index redirects.
+There is one way to annotate: /anotar is the single canonical capture hub. /eventos/nuevo is a permanent redirect to /anotar; the /eventos/nuevo/* form sub-routes remain the URL-addressable form targets.
 ### 5. `AppShell` is the single role-variant application chrome (Item 7 — complete)
 
 `components/layout/AppShell.tsx` is the **only** application chrome. The historical three chrome systems (`LnOwnerNav`, `AppHeader`, `OpShell`) have been deleted (Item 7, Phase D — PRs #630–#634). Do not reintroduce per-surface chrome wrappers.
