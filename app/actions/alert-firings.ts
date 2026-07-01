@@ -18,6 +18,10 @@ import { revalidatePath } from "next/cache";
 import { db, profiles } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 import {
+  evaluateAndRecordFiringsForAllAdmins as _evaluateAndRecordFiringsForAllAdmins,
+  recordFiringsForUser as _recordFiringsForUser,
+} from "@/src/modules/alerts/application/firings/record-firings";
+import {
   acknowledgeFiring,
   contactAuthorityFiring,
   dismissFiring,
@@ -37,10 +41,15 @@ export type { RecordFiringsResult } from "@/src/modules/alerts/application/firin
 // Writer re-exports — used by cron route + tests
 // ---------------------------------------------------------------------------
 
-export {
-  evaluateAndRecordFiringsForAllAdmins,
-  recordFiringsForUser,
-} from "@/src/modules/alerts/application/firings/record-firings";
+export async function evaluateAndRecordFiringsForAllAdmins(
+  ...args: Parameters<typeof _evaluateAndRecordFiringsForAllAdmins>
+) {
+  return _evaluateAndRecordFiringsForAllAdmins(...args);
+}
+
+export async function recordFiringsForUser(...args: Parameters<typeof _recordFiringsForUser>) {
+  return _recordFiringsForUser(...args);
+}
 
 // ---------------------------------------------------------------------------
 // Auth helper (admin-only) — stays in the shim, never in use-cases
