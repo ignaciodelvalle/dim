@@ -12,6 +12,14 @@ type OutbreakSignalRowProps = {
 /** Format a Date as a human-readable "time ago" string in es-AR. */
 function timeAgo(date: Date): string {
   const diffMs = Date.now() - date.getTime();
+  // Future-dated (never say "hace -N") or older than a year → absolute date.
+  // Guards against synthetic/demo events whose occurredAt sits ahead of "now"
+  // or far in the past, which otherwise render as "hace -264468 min" / "hace 900d".
+  const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+  if (Number.isNaN(diffMs)) return "—";
+  if (diffMs < 0 || diffMs > ONE_YEAR_MS) {
+    return date.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
   const diffMin = Math.floor(diffMs / 60_000);
   if (diffMin < 60) return `hace ${diffMin} min`;
   const diffH = Math.floor(diffMin / 60);
