@@ -345,11 +345,22 @@ export default async function PublicCredentialPage({
   } | null = null;
 
   if (isLost) {
-    // Owner identity row and the last lost-event row are independent reads —
-    // batch them so the lost branch costs one round-trip instead of two.
+    // S4 defense-in-depth: only FETCH what the owner opted to disclose. Location
+    // (free-text + lat/lng) and phone are pulled from Postgres only when their
+    // disclosure flag is set — not fetched-then-redacted. Mirrors the query-level
+    // split in lost-listing-read.ts. lost_description (animal identity) and
+    // lostSince are always shown, so they are always fetched.
+    const showLocation = pet.discloseLastLocationWhenLost;
+    const showPhone = pet.disclosePhoneWhenLost;
+
     const [ownerRows, latestLostEventRows] = await Promise.all([
       db
-        .select({ profile: profiles, ownerUserId: ownerships.ownerUserId })
+        .select({
+          displayName: profiles.displayName,
+          // phone never leaves the DB unless the owner disclosed it.
+          phone: showPhone ? profiles.phone : sql<string | null>`null`,
+          ownerUserId: ownerships.ownerUserId,
+        })
         .from(ownerships)
         .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
         .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
@@ -357,11 +368,18 @@ export default async function PublicCredentialPage({
       // Last-known location from the most recent status_changed → lost event.
       // Filtering on payload->>'to_status' = 'lost' so a later "found" event
       // (to_status='active') does not eclipse the actual lost-event payload.
+      // Location keys/columns are projected as SQL NULL when not disclosed, so
+      // the raw payload and coordinates never enter server memory.
       db
         .select({
-          payload: petEvents.payload,
-          locationLat: petEvents.locationLat,
-          locationLng: petEvents.locationLng,
+          lostDescriptionJson: sql`${petEvents.payload}->'lost_description'`,
+          locationText: showLocation
+            ? sql<
+                string | null
+              >`coalesce(${petEvents.payload}->>'location_description', ${petEvents.payload}->>'last_known_location')`
+            : sql<string | null>`null`,
+          locationLat: showLocation ? petEvents.locationLat : sql<number | null>`null`,
+          locationLng: showLocation ? petEvents.locationLng : sql<number | null>`null`,
           occurredAt: petEvents.occurredAt,
         })
         .from(petEvents)
@@ -378,16 +396,11 @@ export default async function PublicCredentialPage({
     const [ownerRow] = ownerRows;
     const [latestLostEvent] = latestLostEventRows;
 
-    const payload = (latestLostEvent?.payload ?? {}) as Record<string, unknown>;
-    // Prefer the canonical `location_description` key; fall back to the legacy
-    // `last_known_location` for events written before the key rename.
     const textLocation =
-      typeof payload.location_description === "string" && payload.location_description.length > 0
-        ? payload.location_description
-        : typeof payload.last_known_location === "string" && payload.last_known_location.length > 0
-          ? payload.last_known_location
-          : null;
-    // Fallback: precise lat/lng captured on the event row itself.
+      typeof latestLostEvent?.locationText === "string" && latestLostEvent.locationText.length > 0
+        ? latestLostEvent.locationText
+        : null;
+    // Fallback: precise lat/lng captured on the event row itself (null unless disclosed).
     const eventPoint = latestLostEvent ? readPoint(latestLostEvent) : null;
     const geoLocation =
       !textLocation && eventPoint
@@ -398,8 +411,8 @@ export default async function PublicCredentialPage({
     // never expose the full legal name on a public credential.
     // Guard at resolution: only derive when the owner opted in.
     const firstName =
-      pet.discloseFirstNameWhenLost && ownerRow?.profile.displayName
-        ? ownerRow.profile.displayName.trim().split(/\s+/)[0]
+      pet.discloseFirstNameWhenLost && ownerRow?.displayName
+        ? ownerRow.displayName.trim().split(/\s+/)[0]
         : null;
 
     // Email is stored in auth.users (not profiles). Only fetch it when the
@@ -418,10 +431,9 @@ export default async function PublicCredentialPage({
       }
     }
 
-    // Extract lost_description from the event payload (spec §8.4).
-    // These are animal-identity details — always shown if present, no
-    // disclosure pref gates them.
-    const lostDesc = payload.lost_description as
+    // lost_description (spec §8.4) — animal-identity details, always shown if
+    // present, no disclosure pref gates them.
+    const lostDesc = latestLostEvent?.lostDescriptionJson as
       | {
           accessories_when_lost?: string | null;
           behavior_notes?: string | null;
@@ -442,8 +454,7 @@ export default async function PublicCredentialPage({
 
     lostContext = {
       ownerFirstName: firstName ?? null,
-      // Guard at resolution: only load phone into memory when the owner opted in.
-      phone: pet.disclosePhoneWhenLost ? (ownerRow?.profile.phone ?? null) : null,
+      phone: ownerRow?.phone ?? null,
       email: ownerEmail,
       locationText: textLocation ?? geoLocation,
       lostLat: eventPoint?.lat ?? null,
