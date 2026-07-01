@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dashboard/CaseDetailShell";
 import { CaseStatusBadge } from "@/components/ui/dashboard/CaseStatusBadge";
 import type { CaseStatus } from "@/db/schema";
-import type { LawReference } from "@/lib/case-normatives";
+import type { LawReference } from "@/lib/domain/case-normatives";
 
 // ---------------------------------------------------------------------------
 // CaseStatusBadge

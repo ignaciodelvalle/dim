@@ -10,7 +10,7 @@ import {
   APPLY_INTENT_COOKIE_NAME,
   APPLY_INTENT_PET_TOKEN_COOKIE_NAME,
   validateApplyIntentToken,
-} from "@/lib/apply-intent";
+} from "@/lib/domain/apply-intent";
 import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 

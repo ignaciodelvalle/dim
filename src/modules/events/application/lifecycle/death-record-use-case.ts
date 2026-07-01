@@ -22,8 +22,8 @@
 import "server-only";
 
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { signalAuthorityReport } from "@/lib/authority";
 import { closeCase } from "@/lib/case-helpers";
+import { signalAuthorityReport } from "@/lib/domain/authority";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 type CaseExecutor = Parameters<typeof closeCase>[1];

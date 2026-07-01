@@ -13,7 +13,7 @@ import {
   type DispositionMethod,
   bucketOf,
   isTraceable,
-} from "./disposition";
+} from "@/lib/domain/disposition";
 
 describe("bucketOf", () => {
   const cases: Array<[DispositionMethod | null, DispositionBucket]> = [

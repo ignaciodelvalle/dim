@@ -23,7 +23,7 @@ import { useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
-import { isReasonValid, selectionSummary } from "@/lib/bulk-select";
+import { isReasonValid, selectionSummary } from "@/lib/domain/bulk-select";
 
 export type OpBulkAction = {
   /** Stable key for React + the action button id. */

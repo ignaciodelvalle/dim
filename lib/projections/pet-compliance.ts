@@ -16,8 +16,8 @@
 // No new color tokens, no schema migration, no new event types (token ratchet).
 // ---------------------------------------------------------------------------
 
+import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { computeConfidence } from "@/lib/events/event-confidence";
-import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 
 // Minimal event shape — decoupled from ProjectionEvent so tests stay trivial.
 // Carries provenance (the ConfidenceInput fields) so an obligation is only

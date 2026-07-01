@@ -25,12 +25,12 @@ import {
   fetchUpcomingAppointments,
 } from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { fetchPetHealthNudges } from "@/lib/owner-nudges";
 import { getProfileCached } from "@/lib/request-cache";
 import { petPhotoUrl } from "@/lib/storage";
 import { BRANDING } from "@/lib/ui/branding";
 import { capCount, speciesLabel } from "@/lib/utils/format";
-import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
 import { PetHealthStatusStrip } from "./_components/PetHealthStatusStrip";
 import { RemindersSection } from "./_components/RemindersSection";

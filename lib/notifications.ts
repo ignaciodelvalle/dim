@@ -14,7 +14,7 @@ import {
   pets,
   reminders,
 } from "@/db";
-import { getReminderVariant, isVaccineReportable } from "@/lib/vaccine-reminder-state";
+import { getReminderVariant, isVaccineReportable } from "@/lib/domain/vaccine-reminder-state";
 import { and, eq, gte, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 
 type DB = typeof defaultDb;

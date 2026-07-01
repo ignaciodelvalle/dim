@@ -1,4 +1,4 @@
-import { validateMicrochipId } from "@/lib/microchip-validation";
+import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { describe, expect, it } from "vitest";
 
 describe("validateMicrochipId", () => {

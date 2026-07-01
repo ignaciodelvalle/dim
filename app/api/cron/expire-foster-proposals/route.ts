@@ -9,7 +9,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { expireFosterProposalsAction as expireFosterProposals } from "@/src/modules/foster/actions";
 
 export const dynamic = "force-dynamic";

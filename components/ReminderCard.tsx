@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { LnBadge } from "@/components/ui/Badge";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
+import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 
 /**
  * Tarjeta de recordatorio de vacuna. Cinco variantes según el estado del vencimiento.

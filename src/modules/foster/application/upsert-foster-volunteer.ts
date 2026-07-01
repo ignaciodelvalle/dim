@@ -17,7 +17,7 @@
 //   The repo.upsertVolunteer method preserves this quirk — we just pass the
 //   canonicalProvince as a separate arg (used by INSERT branch only).
 
-import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
+import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import type { UpsertFosterVolunteerInput } from "../domain/types";
 import {
   computeNewSlots,

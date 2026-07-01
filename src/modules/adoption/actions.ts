@@ -246,7 +246,7 @@ export async function submitAdoptionApplicationAction(
   // Wrapped because tests invoke the action outside a request scope.
   try {
     const { APPLY_INTENT_COOKIE_NAME, APPLY_INTENT_PET_TOKEN_COOKIE_NAME } = await import(
-      "@/lib/apply-intent"
+      "@/lib/domain/apply-intent"
     );
     const cookieStore = await cookies();
     cookieStore.delete(APPLY_INTENT_COOKIE_NAME);

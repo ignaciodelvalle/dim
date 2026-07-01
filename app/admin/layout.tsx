@@ -10,7 +10,7 @@ import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { shouldShowDemoBanner } from "@/lib/demo-mode";
+import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
 import { countOutboxBreaches } from "@/lib/outbox-queries";
 import { getProfileCached } from "@/lib/request-cache";

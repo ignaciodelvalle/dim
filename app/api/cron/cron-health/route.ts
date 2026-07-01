@@ -26,7 +26,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 
 import { cronRuns, db } from "@/db";
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 
 export const dynamic = "force-dynamic";
 

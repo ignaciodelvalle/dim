@@ -1,5 +1,5 @@
+import { parseLocationFromFormData, parseLocationFromObject } from "@/lib/domain/location-value";
 import { describe, expect, it } from "vitest";
-import { parseLocationFromFormData, parseLocationFromObject } from "../lib/location-value";
 
 // ---------------------------------------------------------------------------
 // Helpers

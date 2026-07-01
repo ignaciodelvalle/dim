@@ -12,7 +12,7 @@ import {
   computeLibretaHealthStatus,
   computeMedicationsActive,
   computeVaccinationSummary,
-} from "@/lib/libreta-health-status";
+} from "@/lib/domain/libreta-health-status";
 
 // Helper: shape a vaccination event the way the libreta page returns it.
 function vaxEvent(opts: {

@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
-import { canSubmitModeration } from "@/lib/destructive-confirmation";
+import { canSubmitModeration } from "@/lib/domain/destructive-confirmation";
 import {
   confirmWelfareAsSpamAction,
   passWelfareToTriageAction,

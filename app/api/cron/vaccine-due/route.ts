@@ -8,7 +8,7 @@
 // On success we return JSON describing the run. On failure we return 500
 // with the message so the Vercel cron dashboard surfaces it.
 
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { runVaccineDueScan } from "@/lib/notifications";
 import { type NextRequest, NextResponse } from "next/server";
 

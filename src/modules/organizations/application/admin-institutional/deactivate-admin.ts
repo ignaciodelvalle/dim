@@ -13,8 +13,8 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { auditLog, db, notifications, profiles } from "@/db";
-import { canCreateInstitutional } from "@/lib/institutional-scope";
-import { validateMotivoAndAttachments } from "@/lib/revocation-validation";
+import { canCreateInstitutional } from "@/lib/domain/institutional-scope";
+import { validateMotivoAndAttachments } from "@/lib/domain/revocation-validation";
 import { claimAttachmentsForAudit } from "@/src/modules/organizations/application/revocations/helpers";
 
 import { loadActorProfile } from "./helpers";

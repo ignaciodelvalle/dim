@@ -15,7 +15,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { sanitizeNext } from "@/lib/dni-next";
+import { sanitizeNext } from "@/lib/domain/dni-next";
 import type {
   DniVerifyFormState,
   DniVerifyResult,

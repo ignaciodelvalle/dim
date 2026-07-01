@@ -1,4 +1,4 @@
-import { getIntentCopy } from "@/lib/auth-intent-copy";
+import { getIntentCopy } from "@/lib/domain/auth-intent-copy";
 import { safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";

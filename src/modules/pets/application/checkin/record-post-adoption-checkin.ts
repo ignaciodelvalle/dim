@@ -18,10 +18,10 @@ import {
   petEvents,
   reminders,
 } from "@/db";
+import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
-import { parseLocationFromFormData } from "@/lib/location-value";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";

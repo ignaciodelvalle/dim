@@ -12,7 +12,7 @@ import {
   selectionSummary,
   toggleSelectPage,
   toggleSelection,
-} from "@/lib/bulk-select";
+} from "@/lib/domain/bulk-select";
 
 describe("toggleSelection", () => {
   it("adds an id not currently selected", () => {

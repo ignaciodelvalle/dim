@@ -14,7 +14,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { db, govtBusinessRules } from "@/db";
 import { reEvaluatePppBreedListChange } from "@/lib/business-rules-reeval";
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";

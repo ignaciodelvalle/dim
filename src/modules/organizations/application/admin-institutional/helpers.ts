@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 
 import { db, profiles } from "@/db";
-import type { ActorProfile } from "@/lib/institutional-scope";
+import type { ActorProfile } from "@/lib/domain/institutional-scope";
 
 export async function loadActorProfile(actorUserId: string): Promise<ActorProfile | null> {
   const [row] = await db

@@ -8,7 +8,7 @@ import {
   POSITIVE_RABIES_OUTCOME,
   RABIES_CONFIRMATION_WORD,
   canSubmitObservationClose,
-} from "@/lib/destructive-confirmation";
+} from "@/lib/domain/destructive-confirmation";
 import type { ProfessionalCloseResult } from "@/src/modules/surveillance/actions";
 
 type FormAction = (formData: FormData) => Promise<ProfessionalCloseResult>;

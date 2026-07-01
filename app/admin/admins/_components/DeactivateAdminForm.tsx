@@ -22,8 +22,8 @@ import { deactivateAdminAction } from "@/app/actions/admin-institutional";
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
-import { canDeactivateAdmin } from "@/lib/institutional-scope";
-import type { ActorProfile } from "@/lib/institutional-scope";
+import { canDeactivateAdmin } from "@/lib/domain/institutional-scope";
+import type { ActorProfile } from "@/lib/domain/institutional-scope";
 import { useEvidenceUpload } from "@/lib/ui/use-evidence-upload";
 
 type Target = {

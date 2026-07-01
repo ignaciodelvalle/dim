@@ -23,9 +23,9 @@ import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
+import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
-import { parseLocationFromFormData } from "@/lib/location-value";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";

@@ -44,15 +44,15 @@ import {
   requireAdminOrRedirect,
   requireUserOrRedirect,
 } from "@/lib/auth-guards";
-import { signalWelfareReport } from "@/lib/authority";
 import { closeCase, openCase } from "@/lib/case-helpers";
-import { writePoint } from "@/lib/location";
+import { signalWelfareReport } from "@/lib/domain/authority";
+import { writePoint } from "@/lib/domain/location";
 import {
   CoordError,
   JurisdictionValidationError,
   normalizeLocationForWrite,
-} from "@/lib/location-normalize";
-import { parseLocationFromFormData } from "@/lib/location-value";
+} from "@/lib/domain/location-normalize";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";

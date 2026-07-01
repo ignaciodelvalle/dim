@@ -9,7 +9,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { closeEligibleRabiesObservations } from "@/lib/rabies-observation-closer";
 
 export const dynamic = "force-dynamic";

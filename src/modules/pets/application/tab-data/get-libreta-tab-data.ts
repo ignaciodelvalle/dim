@@ -13,8 +13,8 @@ import {
   profiles,
 } from "@/db";
 import { fetchActiveRemindersForPet } from "@/lib/analytics/owner-dashboard";
+import { computeLibretaHealthStatus } from "@/lib/domain/libreta-health-status";
 import { excludeSelfScansClause } from "@/lib/events/events";
-import { computeLibretaHealthStatus } from "@/lib/libreta-health-status";
 import {
   type LibretaGroupKey,
   groupLibretaEvents,

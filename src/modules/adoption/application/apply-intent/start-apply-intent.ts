@@ -25,7 +25,7 @@ import {
   APPLY_INTENT_PET_TOKEN_COOKIE_NAME,
   APPLY_INTENT_TTL_MS,
   generateApplyIntentToken,
-} from "@/lib/apply-intent";
+} from "@/lib/domain/apply-intent";
 import { createClient } from "@/lib/supabase/server";
 
 import type { StartApplyIntentResult } from "./types";

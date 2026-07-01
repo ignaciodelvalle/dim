@@ -17,7 +17,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db, organizations } from "@/db";
-import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
+import { canonicalProvinceNameForStorage } from "@/lib/domain/jurisdiction-canonical";
 import { createClient } from "@/lib/supabase/server";
 import { createOrganizationForUser as _createOrg } from "@/src/modules/organizations/application/upgrade/create-organization";
 import { requestVetUpgradeForUser as _requestVetUpgrade } from "@/src/modules/organizations/application/upgrade/request-vet-upgrade";

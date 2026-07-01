@@ -2,8 +2,8 @@
 // Zero external imports — no @/db, drizzle-orm, or next imports allowed.
 // Extracted from app/actions/pets.ts parsePetForm + helpers.
 
-import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
-import { parseLocationFromFormData } from "@/lib/location-value";
+import { canonicalProvinceNameForStorage } from "@/lib/domain/jurisdiction-canonical";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import {
   type PermanentCondition,
   sanitizeConditionCodes,

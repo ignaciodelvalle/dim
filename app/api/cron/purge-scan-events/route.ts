@@ -22,7 +22,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 
 import { cronRuns, db } from "@/db";
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { purgeExpiredScanEvents } from "@/lib/scan-retention";
 
 export const dynamic = "force-dynamic";

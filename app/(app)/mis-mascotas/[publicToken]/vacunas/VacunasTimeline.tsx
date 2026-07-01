@@ -10,8 +10,8 @@ import { ReminderCard } from "@/components/ReminderCard";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { ActiveReminderRow, VaccinationHistoryRow } from "@/lib/analytics/owner-dashboard";
+import type { VaccinationSummary } from "@/lib/domain/libreta-health-status";
 import { computeConfidence } from "@/lib/events/event-confidence";
-import type { VaccinationSummary } from "@/lib/libreta-health-status";
 import { VacunaTimelineDot } from "./VacunaTimelineDot";
 
 // ---------------------------------------------------------------------------

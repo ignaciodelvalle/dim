@@ -12,7 +12,7 @@
 // shouldShowDemoBanner is defined in the server-safe lib/demo-mode module so the
 // server admin layout can import it too. Re-exported here for backward compat
 // with existing consumers/tests that import it from this component.
-export { shouldShowDemoBanner } from "@/lib/demo-mode";
+export { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 
 interface DemoModeBannerProps {
   /** Pass process.env.NEXT_PUBLIC_DEMO_MODE === "true" from the layout. */

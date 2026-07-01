@@ -104,10 +104,10 @@ export async function createSymptomObservedWriter(
   } = params;
 
   // Run matcher (defensive — failure must never block the insert).
-  let alertableDiseases: import("@/lib/symptom-matcher").DiseaseMatch[] = [];
+  let alertableDiseases: import("@/lib/domain/symptom-matcher").DiseaseMatch[] = [];
   let matchedSymptomCodes: string[] = [];
   try {
-    const { matchSymptoms, aggregateDiseaseMatches } = await import("@/lib/symptom-matcher");
+    const { matchSymptoms, aggregateDiseaseMatches } = await import("@/lib/domain/symptom-matcher");
     const matched = matchSymptoms(freeText, petSpecies);
     matchedSymptomCodes = matched.map((m) => m.symptom_code);
     const aggregated = aggregateDiseaseMatches(matched);

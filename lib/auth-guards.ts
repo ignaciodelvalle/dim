@@ -10,7 +10,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import type { Organization, OrganizationMembership } from "@/db";
-import type { ActorProfile } from "@/lib/institutional-scope";
+import type { ActorProfile } from "@/lib/domain/institutional-scope";
 import {
   getJurisdictionsCached,
   getOrgMembershipCached,

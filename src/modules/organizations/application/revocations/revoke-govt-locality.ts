@@ -20,9 +20,9 @@
 import { and, count, eq, isNull } from "drizzle-orm";
 
 import { auditLog, db, govtAssignments, notifications } from "@/db";
-import { canRevoke } from "@/lib/revocation-scope";
-import type { RevocationTarget } from "@/lib/revocation-scope";
-import { validateMotivoAndAttachments } from "@/lib/revocation-validation";
+import { canRevoke } from "@/lib/domain/revocation-scope";
+import type { RevocationTarget } from "@/lib/domain/revocation-scope";
+import { validateMotivoAndAttachments } from "@/lib/domain/revocation-validation";
 
 import { claimAttachmentsForAudit, loadActorAuthority } from "./helpers";
 import type { RevocationResult } from "./types";

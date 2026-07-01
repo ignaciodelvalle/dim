@@ -15,12 +15,12 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
-import { canAssignGovtLocality } from "@/lib/institutional-scope";
+import { canAssignGovtLocality } from "@/lib/domain/institutional-scope";
 import {
   CoordError,
   JurisdictionValidationError,
   normalizeLocationForWrite,
-} from "@/lib/location-normalize";
+} from "@/lib/domain/location-normalize";
 
 import { loadActorProfile } from "./helpers";
 import type { AssignGovtLocalityResult } from "./types";

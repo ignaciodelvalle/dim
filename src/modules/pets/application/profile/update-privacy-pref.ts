@@ -12,7 +12,7 @@
 import { eq } from "drizzle-orm";
 
 import { db, profiles } from "@/db";
-import { PRIVACY_PREF_KEYS, type PrivacyPrefKey } from "@/lib/privacy-prefs";
+import { PRIVACY_PREF_KEYS, type PrivacyPrefKey } from "@/lib/domain/privacy-prefs";
 
 import type { UpdatePrivacyPrefResult } from "./types";
 

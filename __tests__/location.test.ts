@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { coarsenPoint, readPoint, writePoint } from "@/lib/location";
+import { coarsenPoint, readPoint, writePoint } from "@/lib/domain/location";
 
 describe("readPoint", () => {
   it("returns null for both-null rows", () => {

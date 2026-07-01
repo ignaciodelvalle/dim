@@ -22,7 +22,7 @@ import {
   CoordError,
   JurisdictionValidationError,
   normalizeLocationForWrite,
-} from "@/lib/location-normalize";
+} from "@/lib/domain/location-normalize";
 import { generateApprovalRequestToken } from "@/lib/publicToken";
 import { generateUniqueToken } from "@/lib/unique-token";
 

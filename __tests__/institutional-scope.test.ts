@@ -18,8 +18,8 @@ import {
   canDeactivateAdmin,
   canDeactivateGovt,
   canResetCredentials,
-} from "@/lib/institutional-scope";
-import type { ActorProfile } from "@/lib/institutional-scope";
+} from "@/lib/domain/institutional-scope";
+import type { ActorProfile } from "@/lib/domain/institutional-scope";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // ============================================================================

@@ -11,8 +11,8 @@ import { sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { db, govtBusinessRules, profiles } from "@/db";
-import { BUSINESS_RULES_DEFAULTS } from "@/lib/business-rules-defaults";
 import { validateRulePayload } from "@/lib/business-rules-validators";
+import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
 import { resolvePhysicalCredentialChannels } from "@/lib/physical-credential-channels";
 
 // Stable test actor referenced by FK on created_by_user_id.

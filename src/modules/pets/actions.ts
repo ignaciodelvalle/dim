@@ -22,9 +22,12 @@
 import { db, notifications } from "@/db";
 import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
 import { lookupByChip } from "@/lib/chip-lookup";
-import { JurisdictionValidationError, normalizeLocationForWrite } from "@/lib/location-normalize";
+import {
+  JurisdictionValidationError,
+  normalizeLocationForWrite,
+} from "@/lib/domain/location-normalize";
+import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
-import { validateMicrochipId } from "@/lib/microchip-validation";
 import { requirePetAccess } from "@/lib/pet-access";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { createClient } from "@/lib/supabase/server";

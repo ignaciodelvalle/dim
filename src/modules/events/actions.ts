@@ -33,8 +33,8 @@ import {
 import { db, profiles } from "@/db";
 import { pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
-import { parseLocationFromFormData } from "@/lib/location-value";
+import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
 import type { SupabaseServerClient } from "@/lib/pet-access";
 import { findDisease } from "@/lib/reference/diseases";

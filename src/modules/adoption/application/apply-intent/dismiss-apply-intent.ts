@@ -5,7 +5,10 @@
 
 import { cookies } from "next/headers";
 
-import { APPLY_INTENT_COOKIE_NAME, APPLY_INTENT_PET_TOKEN_COOKIE_NAME } from "@/lib/apply-intent";
+import {
+  APPLY_INTENT_COOKIE_NAME,
+  APPLY_INTENT_PET_TOKEN_COOKIE_NAME,
+} from "@/lib/domain/apply-intent";
 
 export async function dismissApplyIntentAction(): Promise<void> {
   const cookieStore = await cookies();

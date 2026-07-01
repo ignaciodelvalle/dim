@@ -12,8 +12,8 @@ import { RuleImpactBanner, type RuleImpactResult } from "@/components/admin/Rule
 import { LnCheckbox } from "@/components/ui/Field";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { canSaveWithImpactGate, requiresImpactConfirmation } from "@/lib/domain/rule-impact-gate";
 import { DOG_BREEDS, POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/reference/breeds";
-import { canSaveWithImpactGate, requiresImpactConfirmation } from "@/lib/rule-impact-gate";
 
 const initialState: BusinessRuleFormState = { error: null };
 

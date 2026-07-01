@@ -18,7 +18,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { and, eq, lte } from "drizzle-orm";
 
 import { cronRuns, db, eventNotificationOutbox } from "@/db";
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { MAX_ATTEMPTS, computeNextRetryAt, deliverOutboxRow } from "@/lib/outbox-drainer";
 
 export const dynamic = "force-dynamic";

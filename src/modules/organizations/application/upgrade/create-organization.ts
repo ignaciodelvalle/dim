@@ -32,7 +32,7 @@ import {
   CoordError,
   JurisdictionValidationError,
   normalizeLocationForWrite,
-} from "@/lib/location-normalize";
+} from "@/lib/domain/location-normalize";
 import { generateApprovalRequestToken, generatePublicToken } from "@/lib/publicToken";
 import { generateUniqueToken } from "@/lib/unique-token";
 import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";

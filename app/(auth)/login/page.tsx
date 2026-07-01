@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { db, organizationMemberships, profiles } from "@/db";
-import { getIntentCopy } from "@/lib/auth-intent-copy";
+import { getIntentCopy } from "@/lib/domain/auth-intent-copy";
 import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/role-landing";
 import { createClient } from "@/lib/supabase/server";
 

@@ -17,7 +17,7 @@
 import { useCallback, useState } from "react";
 
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
-import { buildRevocationEvidencePath } from "@/lib/revocation-evidence-path";
+import { buildRevocationEvidencePath } from "@/lib/domain/revocation-evidence-path";
 import { createClient } from "@/lib/supabase/client";
 
 export type SelectedFile = {

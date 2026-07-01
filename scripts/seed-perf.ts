@@ -207,7 +207,7 @@ const {
   custodyDisputes,
   govtAssignments,
 } = await import("../db");
-const { writePoint } = await import("../lib/location");
+const { writePoint } = await import("@/lib/domain/location");
 const { EVENT_TYPES } = await import("../db/schema");
 
 // ---------------------------------------------------------------------------

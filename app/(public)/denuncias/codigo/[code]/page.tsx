@@ -1,5 +1,5 @@
 import { db, welfareReportAttachments, welfareReports } from "@/db";
-import { coarsenPoint, readPoint } from "@/lib/location";
+import { coarsenPoint, readPoint } from "@/lib/domain/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/utils/format";

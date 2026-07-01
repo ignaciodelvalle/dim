@@ -5,7 +5,7 @@ import type {
   fetchActiveRemindersForPet,
   fetchVaccinationHistory,
 } from "@/lib/analytics/owner-dashboard";
-import type { LibretaHealthStatus, VaccinationSummary } from "@/lib/libreta-health-status";
+import type { LibretaHealthStatus, VaccinationSummary } from "@/lib/domain/libreta-health-status";
 import type { LibretaGroupKey } from "@/lib/libreta-sanitaria";
 
 // ---------------------------------------------------------------------------

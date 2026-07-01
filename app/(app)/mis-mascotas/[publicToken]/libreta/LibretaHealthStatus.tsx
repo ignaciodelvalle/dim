@@ -12,7 +12,7 @@
 
 import Link from "next/link";
 
-import type { LibretaHealthStatus } from "@/lib/libreta-health-status";
+import type { LibretaHealthStatus } from "@/lib/domain/libreta-health-status";
 import {
   PERMANENT_CONDITIONS,
   type PermanentCondition,

@@ -21,9 +21,9 @@
 import "server-only";
 
 import { openCase } from "@/lib/case-helpers";
+import { writePoint } from "@/lib/domain/location";
+import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { writePoint } from "@/lib/location";
-import { validateMicrochipId } from "@/lib/microchip-validation";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { normalizeTattooCode } from "@/lib/tattoo-lookup";
 

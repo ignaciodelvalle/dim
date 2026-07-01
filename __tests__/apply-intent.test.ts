@@ -4,7 +4,7 @@ import {
   APPLY_INTENT_TTL_MS,
   generateApplyIntentToken,
   validateApplyIntentToken,
-} from "@/lib/apply-intent";
+} from "@/lib/domain/apply-intent";
 
 describe("apply-intent: generate / validate", () => {
   it("validates a freshly-generated token for the same petToken", () => {

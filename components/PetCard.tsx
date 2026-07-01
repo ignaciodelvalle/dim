@@ -3,9 +3,9 @@ import Link from "next/link";
 import { LnBadge } from "@/components/ui/Badge";
 import { LnPhoto } from "@/components/ui/Photo";
 import type { Pet } from "@/db";
+import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { petStatusToPhotoStatus } from "@/lib/poncho-status";
 import { speciesLabel } from "@/lib/utils/format";
-import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 import { type PriorityBadge, getPriorityBadge } from "./PetCard.helpers";
 
 // Shared pet card. Used by /mis-mascotas (full grid), /inicio (top 6

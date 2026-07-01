@@ -15,7 +15,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import type { PrivacyPrefKey } from "@/lib/privacy-prefs";
+import type { PrivacyPrefKey } from "@/lib/domain/privacy-prefs";
 import { govtSelfDeactivateForUser as _govtSelfDeactivate } from "@/src/modules/pets/application/profile/govt-self-deactivate";
 import { selfDeactivatePersonalAccountForUser as _selfDeactivatePersonal } from "@/src/modules/pets/application/profile/self-deactivate-personal-account";
 import { updatePrivacyPrefForUser as _updatePrivacyPref } from "@/src/modules/pets/application/profile/update-privacy-pref";

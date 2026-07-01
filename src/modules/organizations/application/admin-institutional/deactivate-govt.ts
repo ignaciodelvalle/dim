@@ -12,8 +12,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
-import { canDeactivateGovt } from "@/lib/institutional-scope";
-import { validateMotivoAndAttachments } from "@/lib/revocation-validation";
+import { canDeactivateGovt } from "@/lib/domain/institutional-scope";
+import { validateMotivoAndAttachments } from "@/lib/domain/revocation-validation";
 import { claimAttachmentsForAudit } from "@/src/modules/organizations/application/revocations/helpers";
 
 import { loadActorProfile } from "./helpers";

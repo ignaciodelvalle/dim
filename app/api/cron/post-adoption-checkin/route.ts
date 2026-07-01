@@ -9,7 +9,7 @@
 // CRON_SECRET is set in the project env; we reject anything else so the URL
 // is not a public endpoint.
 
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { runPostAdoptionCheckinScan } from "@/lib/notifications";
 import { type NextRequest, NextResponse } from "next/server";
 

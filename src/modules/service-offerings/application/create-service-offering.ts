@@ -18,7 +18,7 @@
 
 import { db, notifications, profiles, serviceOfferings } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
+import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { generateOfferingToken } from "@/lib/publicToken";
 import { CreateServiceOfferingInput } from "@/lib/reference/scheduling-schemas";
 import { findServiceKind } from "@/lib/reference/service-kinds";

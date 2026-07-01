@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getIntentCopy } from "./auth-intent-copy";
+import { getIntentCopy } from "@/lib/domain/auth-intent-copy";
 
 describe("getIntentCopy", () => {
   it("returns null for null intent", () => {

@@ -21,8 +21,8 @@ import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
-import { canRevoke } from "@/lib/revocation-scope";
-import type { AdminOrGovtJurisdiction } from "@/lib/revocation-scope";
+import { canRevoke } from "@/lib/domain/revocation-scope";
+import type { AdminOrGovtJurisdiction } from "@/lib/domain/revocation-scope";
 import { createClient } from "@/lib/supabase/client";
 
 type Org = {

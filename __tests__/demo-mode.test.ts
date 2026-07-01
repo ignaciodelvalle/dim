@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { shouldShowDemoBanner } from "@/lib/demo-mode";
+import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 
 describe("shouldShowDemoBanner()", () => {
   it('returns true only when the env value is exactly "true"', () => {

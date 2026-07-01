@@ -11,7 +11,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { auditLog, db, notifications, ownerships, petServiceDog, pets } from "@/db";
-import { canRevoke } from "@/lib/revocation-scope";
+import { canRevoke } from "@/lib/domain/revocation-scope";
 
 import type { RevokeServiceDogInput } from "./types";
 

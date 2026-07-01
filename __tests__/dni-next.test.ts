@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { sanitizeNext } from "@/lib/dni-next";
+import { sanitizeNext } from "@/lib/domain/dni-next";
 
 describe("sanitizeNext — open-redirect guard (§2.4)", () => {
   describe("falls back to /cuenta", () => {

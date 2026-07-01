@@ -10,7 +10,7 @@
 // surfacing a chip on the card.
 
 import type { Pet } from "@/db";
-import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
+import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 
 export type PriorityBadge =
   | { kind: "lost" }

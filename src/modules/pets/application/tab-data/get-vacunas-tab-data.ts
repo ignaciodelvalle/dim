@@ -6,7 +6,7 @@ import {
   fetchActiveRemindersForPet,
   fetchVaccinationHistory,
 } from "@/lib/analytics/owner-dashboard";
-import { computeVaccinationSummary } from "@/lib/libreta-health-status";
+import { computeVaccinationSummary } from "@/lib/domain/libreta-health-status";
 import type { VacunasTabData } from "./types";
 
 export async function getVacunasTabData(context: {

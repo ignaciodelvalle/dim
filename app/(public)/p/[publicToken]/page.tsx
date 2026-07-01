@@ -27,8 +27,8 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { readPoint } from "@/lib/domain/location";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
-import { readPoint } from "@/lib/location";
 import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/origin-org";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";

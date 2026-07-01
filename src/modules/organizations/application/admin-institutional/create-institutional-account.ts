@@ -18,12 +18,12 @@ import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
-import { canCreateInstitutional } from "@/lib/institutional-scope";
+import { canCreateInstitutional } from "@/lib/domain/institutional-scope";
 import {
   CoordError,
   JurisdictionValidationError,
   normalizeLocationForWrite,
-} from "@/lib/location-normalize";
+} from "@/lib/domain/location-normalize";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { loadActorProfile } from "./helpers";

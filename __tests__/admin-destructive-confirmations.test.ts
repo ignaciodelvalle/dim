@@ -20,7 +20,7 @@ import {
   RABIES_CONFIRMATION_WORD,
   canSubmitModeration,
   canSubmitObservationClose,
-} from "@/lib/destructive-confirmation";
+} from "@/lib/domain/destructive-confirmation";
 
 // ============================================================================
 // C5 — bulk approval breakdown

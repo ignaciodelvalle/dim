@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRevocationEvidencePath } from "./revocation-evidence-path";
+import { buildRevocationEvidencePath } from "@/lib/domain/revocation-evidence-path";
 
 describe("buildRevocationEvidencePath (C23 — target-namespaced evidence)", () => {
   const fixedNow = () => 1_700_000_000_000;

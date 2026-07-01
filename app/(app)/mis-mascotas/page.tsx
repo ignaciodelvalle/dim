@@ -21,11 +21,11 @@ import {
   fetchActiveReminders,
 } from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { PET_CARD_PHOTO_SELECT, PET_CARD_SELECT } from "@/lib/pet-projections";
 import { getProfileCached } from "@/lib/request-cache";
 import { resolveVetLanding } from "@/lib/role-landing";
 import { petPhotoUrl } from "@/lib/storage";
-import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 import { and, count, eq, isNull } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";

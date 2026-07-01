@@ -14,8 +14,8 @@
 import { eq } from "drizzle-orm";
 
 import { auditLog, db, notifications, profiles } from "@/db";
-import { canResetCredentials } from "@/lib/institutional-scope";
-import { MOTIVO_MIN } from "@/lib/revocation-validation";
+import { canResetCredentials } from "@/lib/domain/institutional-scope";
+import { MOTIVO_MIN } from "@/lib/domain/revocation-validation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { loadActorProfile } from "./helpers";

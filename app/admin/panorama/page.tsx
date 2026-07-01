@@ -7,7 +7,7 @@ import {
   localityByName,
 } from "@/lib/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { shouldShowDemoBanner } from "@/lib/demo-mode";
+import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode } from "@/lib/reference/ar-provincias";

@@ -50,7 +50,7 @@ import {
   type ReminderVariant,
   getReminderVariant,
   isVaccineReportable,
-} from "@/lib/vaccine-reminder-state";
+} from "@/lib/domain/vaccine-reminder-state";
 
 // ---------------------------------------------------------------------------
 // Pets

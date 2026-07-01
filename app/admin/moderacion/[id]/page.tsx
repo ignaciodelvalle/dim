@@ -38,7 +38,7 @@ const ADMIN_WELFARE_MODERATION_SELECT = {
   moderationResolvedAt: welfareReports.moderationResolvedAt,
 } as const;
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { readPoint } from "@/lib/location";
+import { readPoint } from "@/lib/domain/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/utils/format";

@@ -17,7 +17,7 @@ import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { searchLocalitiesAction } from "@/app/actions/localities";
 import type { LocalitySearchResult } from "@/lib/ar-localidades";
-import { buildJurisdictionRulesHref } from "@/lib/jurisdiction-rules-href";
+import { buildJurisdictionRulesHref } from "@/lib/domain/jurisdiction-rules-href";
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;

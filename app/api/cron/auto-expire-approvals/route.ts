@@ -12,7 +12,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { and, eq, isNull, lt } from "drizzle-orm";
 
 import { approvalRequests, auditLog, cronRuns, db, notifications, profiles } from "@/db";
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 
 export const dynamic = "force-dynamic";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canSaveWithImpactGate, requiresImpactConfirmation } from "./rule-impact-gate";
+import { canSaveWithImpactGate, requiresImpactConfirmation } from "@/lib/domain/rule-impact-gate";
 
 describe("requiresImpactConfirmation (C9 — PPP impact gate)", () => {
   it("requires confirmation while the preview is loading (operator must not outrun the estimate)", () => {

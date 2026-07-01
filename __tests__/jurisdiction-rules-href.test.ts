@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildJurisdictionRulesHref } from "@/lib/jurisdiction-rules-href";
+import { buildJurisdictionRulesHref } from "@/lib/domain/jurisdiction-rules-href";
 
 describe("buildJurisdictionRulesHref", () => {
   it("country-only → both province and locality segments are the '_' sentinel", () => {

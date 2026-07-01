@@ -28,7 +28,7 @@
 import { and, count, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "@/db";
-import { type DispositionBucket, bucketOf } from "@/lib/disposition";
+import { type DispositionBucket, bucketOf } from "@/lib/domain/disposition";
 import { type ProjectionContext, suppressSmallCells } from "@/lib/metrics";
 import { petsScopeClause } from "@/lib/metrics/scope";
 import type { Cell, SuppressedCells } from "@/lib/metrics/types";

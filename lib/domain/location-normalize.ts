@@ -20,13 +20,13 @@
 // SAFETY NET: every option combination maps to what the caller already did.
 // No new hard rejections are introduced unless the caller passes requireCoords.
 
-import { canonicalProvinceNameForStorage } from "./jurisdiction-canonical";
+import { canonicalProvinceNameForStorage } from "@/lib/domain/jurisdiction-canonical";
+import type { LocationValue } from "@/lib/domain/location-value";
 import {
   JurisdictionValidationError,
   resolveCanonicalJurisdiction,
   tryResolveCanonicalJurisdiction,
-} from "./jurisdiction-validation";
-import type { LocationValue } from "./location-value";
+} from "@/lib/jurisdiction-validation";
 
 export type LocalityValidation = "strict" | "soft" | "none";
 

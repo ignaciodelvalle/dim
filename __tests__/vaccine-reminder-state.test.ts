@@ -6,7 +6,7 @@ import {
   getReminderVariant,
   getReportableVaccines,
   isVaccineReportable,
-} from "@/lib/vaccine-reminder-state";
+} from "@/lib/domain/vaccine-reminder-state";
 
 // ---------------------------------------------------------------------------
 // getReminderVariant

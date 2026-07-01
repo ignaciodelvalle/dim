@@ -6,7 +6,7 @@
 // paint without any client-side state.
 
 import { updatePrivacyPrefAction } from "@/app/actions/profile-self-service";
-import type { PrivacyPrefKey } from "@/lib/privacy-prefs";
+import type { PrivacyPrefKey } from "@/lib/domain/privacy-prefs";
 
 type PrivacyPrefs = Record<PrivacyPrefKey, boolean>;
 

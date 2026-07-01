@@ -28,7 +28,7 @@ import { LnCheckbox } from "@/components/ui/Field";
 import type { OpBulkAction } from "@/components/ui/dashboard/OpBulkBar";
 import { OpBulkBar } from "@/components/ui/dashboard/OpBulkBar";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
-import { toggleSelection } from "@/lib/bulk-select";
+import { toggleSelection } from "@/lib/domain/bulk-select";
 
 // ---------------------------------------------------------------------------
 // SLA constant

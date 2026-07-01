@@ -29,15 +29,15 @@ import { db, notifications, ownerships, petEvents, petIdentifications, pets } fr
 import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
 import { openCase } from "@/lib/case-helpers";
 import { lookupByChip } from "@/lib/chip-lookup";
-import { validateEventPayload } from "@/lib/events/event-schemas";
 import {
   CoordError,
   JurisdictionValidationError,
   normalizeLocationForWrite,
-} from "@/lib/location-normalize";
-import { parseLocationFromFormData } from "@/lib/location-value";
+} from "@/lib/domain/location-normalize";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import { validateMicrochipId } from "@/lib/domain/microchip-validation";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
-import { validateMicrochipId } from "@/lib/microchip-validation";
 import { generatePublicToken } from "@/lib/publicToken";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { generateTattooAckToken, validateTattooAckToken } from "@/lib/tattoo-ack-token";

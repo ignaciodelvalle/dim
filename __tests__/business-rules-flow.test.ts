@@ -146,8 +146,8 @@ describe("createBusinessRuleWriter", () => {
   });
 
   it("no-ops when payload matches the hardcoded default", async () => {
-    const defaultBreeds = (await import("@/lib/business-rules-defaults")).BUSINESS_RULES_DEFAULTS
-      .ppp_breed_list;
+    const defaultBreeds = (await import("@/lib/domain/business-rules-defaults"))
+      .BUSINESS_RULES_DEFAULTS.ppp_breed_list;
     const result = await createBusinessRuleWriter({
       actorUserId: adminUserId,
       ruleType: "ppp_breed_list",

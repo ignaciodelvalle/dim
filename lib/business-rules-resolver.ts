@@ -13,7 +13,7 @@ import {
   BUSINESS_RULES_DEFAULTS,
   type BusinessRulePayload,
   type BusinessRulePayloadByType,
-} from "./business-rules-defaults";
+} from "@/lib/domain/business-rules-defaults";
 
 export interface Jurisdiction {
   country?: string;

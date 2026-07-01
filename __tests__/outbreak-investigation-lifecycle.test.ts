@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getNormativesForCase } from "@/lib/case-normatives";
+import { getNormativesForCase } from "@/lib/domain/case-normatives";
 import { getLifecycle } from "@/src/modules/cases/domain/lifecycles";
 
 describe("outbreak_investigation lifecycle — declaration", () => {

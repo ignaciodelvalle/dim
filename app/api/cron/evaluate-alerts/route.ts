@@ -13,7 +13,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { evaluateAndRecordFiringsForAllAdmins } from "@/app/actions/alert-firings";
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 
 export const dynamic = "force-dynamic";
 

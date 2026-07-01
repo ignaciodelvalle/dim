@@ -59,8 +59,8 @@ import {
   CoordError,
   JurisdictionValidationError,
   normalizeLocationForWrite,
-} from "@/lib/location-normalize";
-import type { LocationValue } from "@/lib/location-value";
+} from "@/lib/domain/location-normalize";
+import type { LocationValue } from "@/lib/domain/location-value";
 
 // ---------------------------------------------------------------------------
 // Helpers

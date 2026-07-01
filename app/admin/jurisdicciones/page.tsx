@@ -11,7 +11,7 @@ import Link from "next/link";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { db, govtBusinessRules } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { buildJurisdictionRulesHref } from "@/lib/jurisdiction-rules-href";
+import { buildJurisdictionRulesHref } from "@/lib/domain/jurisdiction-rules-href";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 import { LocalityRuleDrilldown } from "./LocalityRuleDrilldown";

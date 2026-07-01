@@ -5,7 +5,7 @@ import {
   detectAlertableDiseases,
   matchSymptoms,
   normalize,
-} from "@/lib/symptom-matcher";
+} from "@/lib/domain/symptom-matcher";
 
 describe("normalize", () => {
   it("removes diacritics", () => {

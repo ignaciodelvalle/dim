@@ -7,7 +7,7 @@
 // Intentionally minimal: no attestation block, no requirements list, no CTAs.
 // Those are owner-context concerns shown only on the owner profile (PpPCard).
 
-import { buildPppDisclaimerLine, buildPppHeadline } from "@/lib/ppp-public-badge";
+import { buildPppDisclaimerLine, buildPppHeadline } from "@/lib/domain/ppp-public-badge";
 
 interface Props {
   petName: string;

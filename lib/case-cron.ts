@@ -11,7 +11,7 @@
 import { eq } from "drizzle-orm";
 
 import { cronRuns, db } from "@/db";
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 
 export interface RunCaseCronInput<TCandidate> {
   /** Stable name for this cron — used as the `cron_runs.cron_name` value. */

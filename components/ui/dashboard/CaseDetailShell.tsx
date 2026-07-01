@@ -25,7 +25,7 @@ import type { ReactNode } from "react";
 import { CaseStatusBadge } from "@/components/ui/dashboard/CaseStatusBadge";
 import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
 import type { CaseStatus } from "@/db/schema";
-import { type LawReference, getNormativesForCase } from "@/lib/case-normatives";
+import { type LawReference, getNormativesForCase } from "@/lib/domain/case-normatives";
 import { formatDateTime } from "@/lib/utils/format";
 import { type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 

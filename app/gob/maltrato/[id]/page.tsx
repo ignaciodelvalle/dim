@@ -49,8 +49,8 @@ const GOB_WELFARE_DETAIL_SELECT = {
 } as const;
 import { fetchWelfareTimeline } from "@/lib/analytics/govt-dashboards";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { getNormativesForCase } from "@/lib/case-normatives";
-import { readPoint } from "@/lib/location";
+import { getNormativesForCase } from "@/lib/domain/case-normatives";
+import { readPoint } from "@/lib/domain/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/utils/format";
