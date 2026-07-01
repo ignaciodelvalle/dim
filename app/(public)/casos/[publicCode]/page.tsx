@@ -28,10 +28,10 @@ import { canReadCase } from "@/lib/case-access";
 import { getNormativesForCase } from "@/lib/case-normatives";
 import { type CaseDetail, getCaseDetailByPublicCode } from "@/lib/case-queries";
 import { eventPayloadSummary } from "@/lib/events/events";
-import { eventTypeLabel, formatDateTime, sexLabel, speciesLabel } from "@/lib/format";
 import { getJurisdictionsCached, getProfileCached } from "@/lib/request-cache";
 import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { eventTypeLabel, formatDateTime, sexLabel, speciesLabel } from "@/lib/utils/format";
 
 // Reads auth cookies (viewer-dependent PII gating) — never statically cache.
 export const dynamic = "force-dynamic";

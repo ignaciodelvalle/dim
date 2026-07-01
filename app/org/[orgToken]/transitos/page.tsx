@@ -9,7 +9,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { db, fosterProposals, organizationMemberships, ownerships, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/utils/format";
 
 import { EndFosterButton } from "./EndFosterButton";
 

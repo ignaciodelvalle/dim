@@ -4,9 +4,9 @@ import { AmendedBadge } from "@/components/ui/AmendedBadge";
 import { LnBadge } from "@/components/ui/Badge";
 import type { EventType } from "@/db/schema";
 import { eventPayloadDetails, eventPayloadSummary } from "@/lib/events/events";
-import { eventTypeLabel, formatDateTime } from "@/lib/format";
 import { libretaConfidenceTier } from "@/lib/libreta-sanitaria";
 import { ownerConfidenceDisplay } from "@/lib/projections/owner-confidence-display";
+import { eventTypeLabel, formatDateTime } from "@/lib/utils/format";
 import Link from "next/link";
 import { useState } from "react";
 

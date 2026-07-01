@@ -18,7 +18,7 @@ import {
 } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { BUSINESS_RULES_DEFAULTS } from "@/lib/business-rules-defaults";
-import { formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/utils/format";
 
 import { DeleteRuleButton } from "./DeleteRuleButton";
 

@@ -14,7 +14,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { dniLast4, hashDni } from "@/lib/dni-hash";
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),

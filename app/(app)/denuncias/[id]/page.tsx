@@ -9,10 +9,10 @@ import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout, LnSectionHead } from "@/components/ui/DocElements";
 import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
 import { caseEvents, cases } from "@/db/schema";
-import { formatDate, formatDateTime } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { formatDate, formatDateTime } from "@/lib/utils/format";
 import { addReporterCommentAction } from "@/src/modules/welfare/actions";
 import {
   welfareReportKindLabel,

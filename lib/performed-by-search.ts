@@ -17,7 +17,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { db, organizations, profiles } from "@/db";
-import { likeContains } from "@/lib/like-helpers";
+import { likeContains } from "@/lib/utils/like-helpers";
 
 export type PerformedBySuggestion =
   | {

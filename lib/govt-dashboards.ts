@@ -41,7 +41,6 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
-import { likeContains } from "@/lib/like-helpers";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
@@ -53,6 +52,7 @@ import {
 import { windows } from "@/lib/metrics/period";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { findDisease } from "@/lib/reference/diseases";
+import { likeContains } from "@/lib/utils/like-helpers";
 
 // Re-export so existing callers that import from this module don't need to change.
 export type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";

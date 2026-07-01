@@ -5,7 +5,7 @@
 // use-case receives the already-resolved userId, petId, and publicToken.
 
 import { db, reminders } from "@/db";
-import { parseDateInput } from "@/lib/format";
+import { parseDateInput } from "@/lib/utils/format";
 import { redirect } from "next/navigation";
 
 import type { ReminderFormState } from "./types";

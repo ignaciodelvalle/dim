@@ -5,7 +5,7 @@ import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { auditActionLabel } from "@/lib/audit-action-labels";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
+import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 const ADMIN_HISTORIAL_PAGE_LIMIT = 100;
 

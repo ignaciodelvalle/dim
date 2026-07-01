@@ -74,11 +74,11 @@ function log(level: LogLevel, msg: string): void {
 // 3. Imports (DB-touching modules load AFTER env bootstrap)
 // ---------------------------------------------------------------------------
 
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 import { createClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import * as schemas from "../db/schema";
-import { dniLast4, hashDni } from "../lib/dni-hash";
 import { generateApprovalRequestToken, generatePublicToken } from "../lib/publicToken";
 import { generateReferenceCode } from "../src/modules/welfare/domain/reference-code";
 

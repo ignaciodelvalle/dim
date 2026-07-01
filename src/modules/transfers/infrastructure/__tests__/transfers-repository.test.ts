@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { hashDni } from "@/lib/dni-hash";
+import { hashDni } from "@/lib/utils/dni-hash";
 
 import {
   db,

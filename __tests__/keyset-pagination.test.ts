@@ -19,7 +19,7 @@ import {
   keysetWhere,
   newerHref,
   olderHref,
-} from "@/lib/keyset-pagination";
+} from "@/lib/utils/keyset-pagination";
 
 // ---------------------------------------------------------------------------
 // encodeCursor / decodeCursor roundtrip

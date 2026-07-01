@@ -8,9 +8,9 @@ import { OpButton } from "@/components/ui/dashboard";
 import { OpSelect } from "@/components/ui/dashboard/OpField";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listCasesForAdmin } from "@/lib/case-queries";
-import { formatDate } from "@/lib/format";
-import { newerHref, olderHref } from "@/lib/keyset-pagination";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { formatDate } from "@/lib/utils/format";
+import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 const ADMIN_CASOS_PAGE_LIMIT = 500;

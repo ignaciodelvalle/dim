@@ -14,11 +14,11 @@ import { eq, sql } from "drizzle-orm";
 
 import { db, profiles } from "@/db";
 import { pgError } from "@/lib/db-errors";
-import { dniLast4, hashDni } from "@/lib/dni-hash";
 import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { LEGAL_VERSION } from "@/lib/reference/legal-version";
 import { createClient } from "@/lib/supabase/server";
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 import { redirect } from "next/navigation";
 
 import type { IdentityFormState } from "./types";

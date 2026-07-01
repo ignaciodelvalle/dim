@@ -5,8 +5,8 @@
 // replay deep-link. Pure — no DB, no React — so it is unit-testable and shared
 // by both the server page and the client row component.
 
-import { eventTypeLabel } from "@/lib/format";
 import type { EventLedgerRow } from "@/lib/metrics/event-ledger";
+import { eventTypeLabel } from "@/lib/utils/format";
 
 /**
  * es-AR labels for author_role. Mirrors the AuthorChip map used in the event

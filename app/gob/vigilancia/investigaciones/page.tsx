@@ -4,7 +4,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listOutbreakInvestigationsForGovt } from "@/lib/case-queries";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/utils/format";
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Abierta",

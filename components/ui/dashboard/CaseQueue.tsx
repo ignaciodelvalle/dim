@@ -28,7 +28,7 @@ import { type OpBulkAction, OpBulkBar } from "@/components/ui/dashboard/OpBulkBa
 import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
 import type { CaseStatus } from "@/db/schema";
-import { formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/utils/format";
 import { type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 // ---------------------------------------------------------------------------

@@ -20,8 +20,8 @@
 
 import { db, notifications, ownerships, petEvents, profiles, reminders } from "@/db";
 import { matchesDbError } from "@/lib/db-errors";
-import { dniLast4, hashDni } from "@/lib/dni-hash";
 import { createClient } from "@/lib/supabase/server";
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 

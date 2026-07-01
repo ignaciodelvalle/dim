@@ -10,8 +10,8 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listCasesForGovt } from "@/lib/case-queries";
-import { formatDate } from "@/lib/format";
-import { newerHref, olderHref } from "@/lib/keyset-pagination";
+import { formatDate } from "@/lib/utils/format";
+import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 const GOVT_CASOS_PAGE_LIMIT = 300;
 

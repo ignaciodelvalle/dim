@@ -15,7 +15,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { cases, db, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/utils/format";
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Esperando respuesta",

@@ -13,7 +13,7 @@
 import Link from "next/link";
 
 import type { PetEvent } from "@/db";
-import { formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/utils/format";
 
 const REGISTRY_LABELS: Record<string, string> = {
   caba_4078: "Registro CABA — Ley 4078",

@@ -13,8 +13,8 @@
 import Link from "next/link";
 
 import type { PetServiceDog } from "@/db";
-import { formatDate } from "@/lib/format";
 import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/service-dog-labels";
+import { formatDate } from "@/lib/utils/format";
 
 interface Props {
   petPublicToken: string;

@@ -10,7 +10,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { type ApprovalRequestType, approvalRequests, db } from "@/db";
-import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/keyset-pagination";
+import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/utils/keyset-pagination";
 
 export const ADMIN_QUEUE_PAGE_LIMIT = 50;
 

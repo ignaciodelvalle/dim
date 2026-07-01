@@ -19,7 +19,7 @@
 //   - BulkResult shape: { bulkActionId, succeeded[], failed[{id, reason}] }
 
 import { deriveBulkIdempotencyKey } from "@/lib/events/event-idempotency";
-import { parseDateInput } from "@/lib/format";
+import { parseDateInput } from "@/lib/utils/format";
 
 import type { BulkResult } from "@/app/actions/bulk-actions";
 import type { BulkVaccinateInput } from "@/app/actions/bulk-vaccinate-types";

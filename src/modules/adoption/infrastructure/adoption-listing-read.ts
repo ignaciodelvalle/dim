@@ -11,7 +11,7 @@
 import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 
 import { attachments, db, organizations, ownerships, pets } from "@/db";
-import { likeContains } from "@/lib/like-helpers";
+import { likeContains } from "@/lib/utils/like-helpers";
 
 import type {
   AdoptionListingCursor,

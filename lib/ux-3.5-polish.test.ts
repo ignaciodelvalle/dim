@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { capCount } from "@/lib/format";
+import { capCount } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Item 6 — capCount: caps large aggregate counts for display

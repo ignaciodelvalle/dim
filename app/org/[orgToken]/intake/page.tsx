@@ -12,7 +12,7 @@ import Link from "next/link";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
 import { db, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { IntakeForm } from "./IntakeForm";

@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { fetchPendingApprovalsPage } from "@/lib/admin-approval-queue";
-import { encodeCursor } from "@/lib/keyset-pagination";
+import { encodeCursor } from "@/lib/utils/keyset-pagination";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

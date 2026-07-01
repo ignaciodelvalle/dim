@@ -3,8 +3,8 @@ import Link from "next/link";
 import { LnBadge } from "@/components/ui/Badge";
 import { LnPhoto } from "@/components/ui/Photo";
 import type { Pet } from "@/db";
-import { speciesLabel } from "@/lib/format";
 import { petStatusToPhotoStatus } from "@/lib/poncho-status";
+import { speciesLabel } from "@/lib/utils/format";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 import { type PriorityBadge, getPriorityBadge } from "./PetCard.helpers";
 

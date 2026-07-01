@@ -39,7 +39,6 @@ import {
 } from "@/lib/auth-guards";
 import { signalWelfareReport } from "@/lib/authority";
 import { closeCase, openCase } from "@/lib/case-helpers";
-import { parseDateInput } from "@/lib/format";
 import { writePoint } from "@/lib/location";
 import {
   CoordError,
@@ -50,6 +49,7 @@ import { parseLocationFromFormData } from "@/lib/location-value";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { parseDateInput } from "@/lib/utils/format";
 import {
   MPF_EXPORT_SCHEMA_VERSION,
   createSignedExportUrl,

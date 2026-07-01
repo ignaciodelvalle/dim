@@ -14,13 +14,13 @@
 
 import { redirect } from "next/navigation";
 
-import { parseDateInput } from "@/lib/format";
 import {
   type PetEventAuthorship,
   type SupabaseServerClient,
   requireAlivePetAccess,
 } from "@/lib/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
+import { parseDateInput } from "@/lib/utils/format";
 import {
   VALID_LOCATIONS,
   createTattooForUser as _createTattooForUser,

@@ -49,11 +49,11 @@ const GOB_WELFARE_DETAIL_SELECT = {
 } as const;
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { getNormativesForCase } from "@/lib/case-normatives";
-import { formatDate, formatDateTime } from "@/lib/format";
 import { fetchWelfareTimeline } from "@/lib/govt-dashboards";
 import { readPoint } from "@/lib/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { formatDate, formatDateTime } from "@/lib/utils/format";
 import { logWelfareLocationViewed } from "@/lib/welfare-location-audit";
 import {
   welfareReportKindLabel,

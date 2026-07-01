@@ -11,7 +11,6 @@ import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import { fetchRegionRanking } from "@/lib/analytics-ranking";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { deathCauseLabel } from "@/lib/format";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
@@ -30,6 +29,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import { deathCauseLabel } from "@/lib/utils/format";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
 import { RegionRankingTable } from "./_components/RegionRankingTable";

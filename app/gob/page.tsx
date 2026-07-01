@@ -23,7 +23,6 @@ import { listLocalitiesByProvince } from "@/lib/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listOpenCasesForAdminPreview, listOpenCasesForGovtPreview } from "@/lib/case-queries";
 import { fetchDangerousBreedCompliance, fetchMicrochipPenetration } from "@/lib/compliance-metrics";
-import { formatDate } from "@/lib/format";
 import {
   fetchActiveZoonosis,
   fetchBitesPer10k,
@@ -42,6 +41,7 @@ import {
 import { windows } from "@/lib/metrics/period";
 import { fetchMortalityDisposition } from "@/lib/mortality-metrics";
 import { PROVINCES, type ProvinceCode } from "@/lib/reference/ar-provincias";
+import { formatDate } from "@/lib/utils/format";
 
 const ACTION_LABELS: Record<string, string> = {
   request_viewed: "Vio una solicitud",

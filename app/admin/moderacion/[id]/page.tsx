@@ -38,10 +38,10 @@ const ADMIN_WELFARE_MODERATION_SELECT = {
   moderationResolvedAt: welfareReports.moderationResolvedAt,
 } as const;
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { formatDate, formatDateTime } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { formatDate, formatDateTime } from "@/lib/utils/format";
 import { logWelfareLocationViewed } from "@/lib/welfare-location-audit";
 import { type FlagReason, reasonLabel } from "@/lib/welfare-moderation";
 import {

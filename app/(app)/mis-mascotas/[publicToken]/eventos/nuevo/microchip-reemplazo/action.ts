@@ -1,9 +1,9 @@
 "use server";
 
 import { replaceMicrochipForUser } from "@/app/actions/microchip";
-import { parseDateInput } from "@/lib/format";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { requireOwnedPetByToken } from "@/lib/pets";
+import { parseDateInput } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { redirect } from "next/navigation";
 

@@ -13,8 +13,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { deathCauseLabel, dispositionMethodLabel, notificationTypeLabel } from "@/lib/format";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { deathCauseLabel, dispositionMethodLabel, notificationTypeLabel } from "@/lib/utils/format";
 import { DEATH_CAUSES, DISPOSITION_METHODS } from "@/src/modules/events/domain/death-rules";
 
 // ---------------------------------------------------------------------------

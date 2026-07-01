@@ -19,9 +19,9 @@ import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFre
 import { cases, db, organizations, pets } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/auth-guards";
 import { fetchSeizures } from "@/lib/compliance-metrics";
-import { formatDate } from "@/lib/format";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { formatDate } from "@/lib/utils/format";
 
 import { ReasignarButton } from "./_components/ReasignarButton";
 

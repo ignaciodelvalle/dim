@@ -6,7 +6,7 @@ import { type AuditLogAction, auditLog, db, profiles } from "@/db";
 import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/audit-action-labels";
 import { buildTargetLinkInfo } from "@/lib/audit-target-link";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
+import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 const AUDITORIA_PAGE_LIMIT = 200;
 

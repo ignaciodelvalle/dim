@@ -5,7 +5,7 @@ import { OpBreach, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/u
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { getNormativesForCase } from "@/lib/case-normatives";
 import { getOutbreakInvestigationDetail } from "@/lib/case-queries";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/utils/format";
 
 import { InvestigationActions } from "./InvestigationActions";
 

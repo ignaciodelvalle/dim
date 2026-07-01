@@ -34,7 +34,6 @@ import { db, profiles } from "@/db";
 import { pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { checkboxOn } from "@/lib/form-checkbox";
-import { parseDateInput } from "@/lib/format";
 import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
@@ -43,6 +42,7 @@ import { findDisease } from "@/lib/reference/diseases";
 import { findDrugByLabel } from "@/lib/reference/drugs";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
+import { parseDateInput } from "@/lib/utils/format";
 import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 

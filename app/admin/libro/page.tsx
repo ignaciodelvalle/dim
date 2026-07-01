@@ -18,7 +18,6 @@ import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashbo
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import type { EventType } from "@/db/schema";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { eventTypeLabel } from "@/lib/format";
 import { buildProjectionContext } from "@/lib/metrics";
 import {
   type AuthorRole,
@@ -28,6 +27,7 @@ import {
   logEventLedgerView,
 } from "@/lib/metrics/event-ledger";
 import { windows } from "@/lib/metrics/period";
+import { eventTypeLabel } from "@/lib/utils/format";
 
 import { toLedgerRowView } from "./view";
 

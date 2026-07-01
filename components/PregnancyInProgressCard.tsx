@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 
-import { formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/utils/format";
 
 export function PregnancyInProgressCard({
   petPublicToken,

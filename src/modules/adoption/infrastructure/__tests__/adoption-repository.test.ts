@@ -8,7 +8,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { dniLast4, hashDni } from "@/lib/dni-hash";
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 
 import {
   attachments,

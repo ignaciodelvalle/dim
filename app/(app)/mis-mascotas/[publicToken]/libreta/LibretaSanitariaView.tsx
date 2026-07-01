@@ -11,7 +11,6 @@ import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnVaccineLedger, type LnVaccineRow } from "@/components/ui/Ledger";
 import { eventPayloadSummary } from "@/lib/events/events";
-import { formatDate } from "@/lib/format";
 import {
   LIBRETA_GROUPS,
   LIBRETA_GROUP_LABELS,
@@ -19,6 +18,7 @@ import {
   libretaConfidenceTier,
 } from "@/lib/libreta-sanitaria";
 import { notificableEno, tipoEventoLabel, tipoEventoNorma } from "@/lib/reference/sanitary-vocab";
+import { formatDate } from "@/lib/utils/format";
 
 type Event = {
   id: string;

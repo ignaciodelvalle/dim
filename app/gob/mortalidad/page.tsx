@@ -31,7 +31,6 @@ import {
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { deathCauseLabel } from "@/lib/format";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
@@ -47,6 +46,7 @@ import {
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchMortalityDisposition } from "@/lib/mortality-metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import { deathCauseLabel } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 

@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { normalizePhoneForTel } from "@/lib/format";
+import { normalizePhoneForTel } from "@/lib/utils/format";
 
 describe("normalizePhoneForTel", () => {
   it("returns null for empty/nullish", () => {

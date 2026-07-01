@@ -18,7 +18,7 @@ import {
   govtAssignments,
 } from "@/db";
 import type { AdminOrGovtJurisdiction } from "@/lib/auth-guards";
-import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/keyset-pagination";
+import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/utils/keyset-pagination";
 
 // Types that ONLY admin can decide. Spec §5.
 // Note: role_upgrade_govt, role_upgrade_admin, govt_assignment_grant were

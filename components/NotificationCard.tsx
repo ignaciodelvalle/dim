@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { archiveNotificationAction, markNotificationReadAction } from "@/app/actions/notifications";
 import type { Notification, Pet } from "@/db";
-import { notificationSeverityLabel, notificationTypeLabel, relativeTime } from "@/lib/format";
+import { notificationSeverityLabel, notificationTypeLabel, relativeTime } from "@/lib/utils/format";
 
 // Shared notification card. Used by /notificaciones (full list) and
 // /inicio (dashboard widget, top 5 unread). Server component because

@@ -28,7 +28,6 @@ import {
   profiles,
 } from "@/db";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
-import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/origin-org";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
@@ -40,6 +39,7 @@ import {
 } from "@/lib/reference/permanent-conditions";
 import { petPhotoUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";

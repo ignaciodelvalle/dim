@@ -6,7 +6,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { dniLast4, hashDni } from "@/lib/dni-hash";
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 
 import { generatePppExportAction } from "@/app/actions/ppp-export-caba";
 import { auditLog, db, ownerships, pets, profiles } from "@/db";

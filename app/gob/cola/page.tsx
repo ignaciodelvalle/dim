@@ -1,4 +1,4 @@
-import { newerHref, olderHref } from "@/lib/keyset-pagination";
+import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { and, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 

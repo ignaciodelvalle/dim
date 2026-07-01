@@ -12,7 +12,7 @@
 import { useState } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
-import { MAGIC_LINK_TTL_SECONDS, formatTtl } from "@/lib/magic-link-ttl";
+import { MAGIC_LINK_TTL_SECONDS, formatTtl } from "@/lib/utils/magic-link-ttl";
 
 // ––– variant copies ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 

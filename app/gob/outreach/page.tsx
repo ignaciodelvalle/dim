@@ -20,7 +20,6 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { relativeDaysShort } from "@/lib/format";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import {
@@ -29,6 +28,7 @@ import {
   fetchStrayDensityAreas,
   logOutreachPiiQuery,
 } from "@/lib/outreach-pipelines";
+import { relativeDaysShort } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 

@@ -7,8 +7,8 @@ import { LnButton } from "@/components/ui/Button";
 import { LnCallout, LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, welfareReports } from "@/db";
-import { formatDateTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { formatDateTime } from "@/lib/utils/format";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,

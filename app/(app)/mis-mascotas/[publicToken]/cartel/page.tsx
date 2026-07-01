@@ -9,10 +9,10 @@ import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 
 import { attachments, db, ownerships, profiles } from "@/db";
-import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/format";
 import { fetchLostEpisodeForPet } from "@/lib/lost-mode";
 import { requirePetAccess } from "@/lib/pet-access";
 import { petPhotoUrl } from "@/lib/storage";
+import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/utils/format";
 
 import "./cartel-print.css";
 import { PosterPreview } from "./PosterPreview";

@@ -30,7 +30,6 @@ import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server"
 import { openCase } from "@/lib/case-helpers";
 import { lookupByChip } from "@/lib/chip-lookup";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { parseDateInput } from "@/lib/format";
 import {
   CoordError,
   JurisdictionValidationError,
@@ -44,6 +43,7 @@ import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { generateTattooAckToken, validateTattooAckToken } from "@/lib/tattoo-ack-token";
 import { lookupByTattoo, normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { generateUniqueToken } from "@/lib/unique-token";
+import { parseDateInput } from "@/lib/utils/format";
 import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 import { redirect } from "next/navigation";
 

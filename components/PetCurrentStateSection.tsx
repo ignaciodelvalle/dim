@@ -7,7 +7,7 @@
 // Each field is suppressed when null / empty. When ALL fields are absent,
 // a signposted empty state is shown with entry points to the relevant flows.
 
-import { formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/utils/format";
 import Link from "next/link";
 import {
   type CanonicalIdentificationSnapshot,

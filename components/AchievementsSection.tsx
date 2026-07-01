@@ -11,7 +11,7 @@
 // on pet flags so this component stays purely presentational.
 
 import type { EarnedAchievement } from "@/lib/achievements/types";
-import { formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/utils/format";
 import {
   type CredentialChip,
   shouldPulse,

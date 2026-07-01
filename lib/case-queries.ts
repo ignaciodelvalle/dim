@@ -7,7 +7,7 @@
 // requireAdminOrGovtOrRedirect). Once Fase F lands per-kind RLS, these
 // helpers stay correct — they query the same rows the policies expose.
 
-import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/keyset-pagination";
+import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/utils/keyset-pagination";
 import { and, desc, eq, exists, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import {

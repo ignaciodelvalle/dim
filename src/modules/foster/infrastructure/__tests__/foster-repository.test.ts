@@ -11,7 +11,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { hashDni } from "@/lib/dni-hash";
+import { hashDni } from "@/lib/utils/dni-hash";
 
 import {
   db,

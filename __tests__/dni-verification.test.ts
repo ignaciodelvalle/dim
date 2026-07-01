@@ -95,7 +95,7 @@ describe("verifyDniForUser", () => {
       .limit(1);
     expect(profile.dniVerified).toBe(true);
     // Wave 5 Item 25a: hash matches, plaintext is never stored.
-    const { hashDni, dniLast4 } = await import("@/lib/dni-hash");
+    const { hashDni, dniLast4 } = await import("@/lib/utils/dni-hash");
     expect(profile.dniHash).toBe(hashDni(dni));
     expect(profile.dniLast4).toBe(dniLast4(dni));
 

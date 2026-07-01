@@ -12,7 +12,7 @@ import {
   lostBannerHeadline,
   lostFirstPersonLine,
   lostThirdPersonPhrase,
-} from "@/lib/format";
+} from "@/lib/utils/format";
 
 describe("lostBannerHeadline", () => {
   it("genders by sex", () => {

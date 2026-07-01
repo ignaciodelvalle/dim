@@ -22,7 +22,7 @@ import {
   provinceDivergentColorExpr,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
-import { escapeHtml } from "@/lib/escape-html";
+import { escapeHtml } from "@/lib/utils/escape-html";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED, RAMP_BLUE } from "@/lib/viz-scales";
 
 // ---------------------------------------------------------------------------

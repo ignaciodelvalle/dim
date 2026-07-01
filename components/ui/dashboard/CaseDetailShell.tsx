@@ -26,7 +26,7 @@ import { CaseStatusBadge } from "@/components/ui/dashboard/CaseStatusBadge";
 import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
 import type { CaseStatus } from "@/db/schema";
 import { type LawReference, getNormativesForCase } from "@/lib/case-normatives";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/utils/format";
 import { type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 // ---------------------------------------------------------------------------

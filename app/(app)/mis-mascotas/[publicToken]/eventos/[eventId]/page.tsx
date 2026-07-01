@@ -12,11 +12,11 @@ import { attachments, db, petEvents } from "@/db";
 import type { EventType } from "@/db/schema";
 import { upcastPayload } from "@/lib/events/event-upcasters";
 import { eventPayloadSummary } from "@/lib/events/events";
-import { eventTypeLabel, formatDateTime } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import { requireOwnedPetByToken } from "@/lib/pets";
 import { eventAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { eventTypeLabel, formatDateTime } from "@/lib/utils/format";
 import { and, eq } from "drizzle-orm";
 import { AmendEventButton } from "./AmendEventButton";
 

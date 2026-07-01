@@ -8,9 +8,9 @@ import { eq } from "drizzle-orm";
 
 import { attachments, type db, ownerships, petEvents, petIdentifications, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { parseDateInput } from "@/lib/format";
 import { generatePublicToken } from "@/lib/publicToken";
 import { generateUniqueToken } from "@/lib/unique-token";
+import { parseDateInput } from "@/lib/utils/format";
 import type { DiffEntry } from "@/src/modules/pets/domain/pet-diff";
 import {
   chipImplantSiteFromLocation,

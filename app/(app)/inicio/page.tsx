@@ -19,7 +19,6 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { BRANDING } from "@/lib/branding";
-import { capCount, speciesLabel } from "@/lib/format";
 import type { DashboardPet } from "@/lib/owner-dashboard";
 import {
   fetchActiveReminders,
@@ -30,6 +29,7 @@ import {
 import { fetchPetHealthNudges } from "@/lib/owner-nudges";
 import { getProfileCached } from "@/lib/request-cache";
 import { petPhotoUrl } from "@/lib/storage";
+import { capCount, speciesLabel } from "@/lib/utils/format";
 import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
 import { PetHealthStatusStrip } from "./_components/PetHealthStatusStrip";

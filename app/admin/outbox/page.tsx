@@ -6,7 +6,7 @@
 // matching rows beyond position 200 (P1-12).
 // Filter form uses <form method="get"> — no JS required.
 
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
+import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
