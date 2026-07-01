@@ -89,7 +89,11 @@ export function LibretaFace({ data, petPublicToken, initialLens, isOwner }: Prop
             </div>
           )}
 
-          <EventTimelineList events={past} publicToken={petPublicToken} />
+          <EventTimelineList
+            events={past}
+            publicToken={petPublicToken}
+            weightSamples={data.weightSamples}
+          />
         </>
       )}
 

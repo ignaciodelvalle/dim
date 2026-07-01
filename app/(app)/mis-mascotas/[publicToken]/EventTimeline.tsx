@@ -1,5 +1,6 @@
 "use client";
 
+import { type WeightSample, WeightSparkline } from "@/components/pet-profile/WeightSparkline";
 import { AmendedBadge } from "@/components/ui/AmendedBadge";
 import { LnBadge } from "@/components/ui/Badge";
 import type { EventType } from "@/db/schema";
@@ -72,9 +73,13 @@ type Props = {
 export function EventTimelineList({
   events,
   publicToken,
+  weightSamples,
 }: {
   events: EventTimelineEvent[];
   publicToken?: string;
+  /** Full weight history — rendered as an inline sparkline inside each
+   * `weight_recorded` row's detail (design ADR-8; no standalone chart). */
+  weightSamples?: WeightSample[];
 }) {
   if (events.length === 0) {
     return <p className="text-sm text-[var(--color-ln-mute)]">Sin eventos todavía.</p>;
@@ -100,6 +105,10 @@ export function EventTimelineList({
                 }),
               )
             : null;
+        // Weight rows show the full trend as an inline sparkline inside "Ver
+        // detalle" instead of a standalone chart section (design ADR-8).
+        const showWeightSparkline =
+          eventType === "weight_recorded" && (weightSamples?.length ?? 0) > 0;
         return (
           <li
             key={event.id}
@@ -163,21 +172,28 @@ export function EventTimelineList({
                 />
               </a>
             )}
-            {details.length > 0 && (
+            {(details.length > 0 || showWeightSparkline) && (
               <details className="text-xs text-[var(--color-ln-mute)]">
                 <summary className="cursor-pointer select-none hover:text-[var(--color-ln-ink-2)]">
                   Ver detalle
                 </summary>
-                <dl className="mt-2 flex flex-col gap-1">
-                  {details.map((row) => (
-                    <div key={row.label} className="flex gap-2">
-                      <dt className="min-w-24 font-medium text-[var(--color-ln-ink-2)]">
-                        {row.label}
-                      </dt>
-                      <dd className="text-[var(--color-ln-ink)]">{row.value}</dd>
-                    </div>
-                  ))}
-                </dl>
+                {details.length > 0 && (
+                  <dl className="mt-2 flex flex-col gap-1">
+                    {details.map((row) => (
+                      <div key={row.label} className="flex gap-2">
+                        <dt className="min-w-24 font-medium text-[var(--color-ln-ink-2)]">
+                          {row.label}
+                        </dt>
+                        <dd className="text-[var(--color-ln-ink)]">{row.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {showWeightSparkline && (
+                  <div className="mt-2">
+                    <WeightSparkline samples={weightSamples ?? []} height={56} />
+                  </div>
+                )}
               </details>
             )}
           </li>
