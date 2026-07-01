@@ -1,8 +1,1 @@
-{
-  "govt-dashboards-confidence.test.ts": true,
-  "owner-dashboard-confidence.test.ts": true,
-  "public-credential-confidence.test.ts": true,
-  "shell-nav-phase-b.test.ts": true,
-  "shell-nav-phase-c.test.ts": true,
-  "ux-3.5-polish.test.ts": true
-}
+{}

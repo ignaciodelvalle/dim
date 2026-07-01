@@ -27,7 +27,7 @@
 // Regex-based, not a full AST analyzer — mirrors the sibling linters
 // (check-dependency-direction.ts, check-action-line-budget.ts, etc.).
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { globSync } from "node:fs";
 
 // ---------------------------------------------------------------------------
@@ -112,8 +112,17 @@ function runScan(): void {
   // Discover root-level lib files (max-depth 1 via glob pattern lib/*.ts).
   const paths = globSync(LIB_ROOT_GLOB).sort();
   if (paths.length === 0) {
-    console.error("✗ check-lib-root-files: no files found under lib/ — is the cwd correct?");
-    process.exit(1);
+    // Bucketize complete: no .ts remain at lib/ root — every module lives in a
+    // subdir. Sanity-check we're in the repo (lib/ exists) so this isn't a
+    // wrong-cwd false positive.
+    if (!existsSync("lib")) {
+      console.error("✗ check-lib-root-files: no lib/ directory — is the cwd correct?");
+      process.exit(1);
+    }
+    console.log(
+      "✓ lib/ root clean — 0 root files (bucketize complete; all lib code lives in subdirs).",
+    );
+    return;
   }
 
   const violations = checkLibRootFiles(baseline, paths);
