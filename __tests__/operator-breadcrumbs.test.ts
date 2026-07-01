@@ -1,4 +1,4 @@
-import { deriveOperatorCrumbs } from "@/lib/operator-breadcrumbs";
+import { deriveOperatorCrumbs } from "@/lib/ui/operator-breadcrumbs";
 import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------

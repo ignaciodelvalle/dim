@@ -12,8 +12,8 @@ import {
   LnSheetHeader,
   LnSubCard,
 } from "@/components/ui/Sheet";
-import { useFormErrorFocus } from "@/lib/use-form-error-focus";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { BiteFormState } from "@/src/modules/surveillance/actions";
 
 const initialState: BiteFormState = { error: null };

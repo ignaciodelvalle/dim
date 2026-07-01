@@ -1,11 +1,11 @@
 "use client";
 
-import { getDrawerWidth } from "@/lib/sheet-helpers";
+import { getDrawerWidth } from "@/lib/ui/sheet-helpers";
 import type { ReactNode, RefObject } from "react";
 import { useEffect } from "react";
 import { Drawer } from "vaul";
 
-export type { SheetSize } from "@/lib/sheet-helpers";
+export type { SheetSize } from "@/lib/ui/sheet-helpers";
 
 export type SheetSide = "bottom" | "right";
 
@@ -33,7 +33,7 @@ export type SheetProps = {
   open: boolean;
   onClose: () => void;
   side?: SheetSide;
-  size?: import("@/lib/sheet-helpers").SheetSize;
+  size?: import("@/lib/ui/sheet-helpers").SheetSize;
   /**
    * B-9: Ref to the element that triggered the sheet.
    * When provided, focus returns to it after the sheet closes.

@@ -20,7 +20,7 @@ import { LnCheckbox, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpField } from "@/components/ui/dashboard/OpField";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import {
   type ReportBiteFromOrgFormState,
   reportBiteFromOrgAction,

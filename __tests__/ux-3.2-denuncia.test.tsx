@@ -163,7 +163,7 @@ describe("Step1Kind — explicit Continuar button (UX 3.2 item 3)", () => {
 // Item 3 — Autosave helpers: saveDraft / restoreDraft / clearDraft / hasDraft
 // ---------------------------------------------------------------------------
 
-import { clearDraft, hasDraft, restoreDraft, saveDraft } from "@/lib/denuncia-autosave";
+import { clearDraft, hasDraft, restoreDraft, saveDraft } from "@/lib/ui/denuncia-autosave";
 
 // Minimal in-memory localStorage shim for Node (no jsdom)
 function makeLocalStorageShim() {

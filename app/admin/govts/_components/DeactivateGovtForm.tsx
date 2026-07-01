@@ -22,7 +22,7 @@ import { deactivateGovtAction } from "@/app/actions/admin-institutional";
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
-import { useEvidenceUpload } from "@/lib/use-evidence-upload";
+import { useEvidenceUpload } from "@/lib/ui/use-evidence-upload";
 
 type Target = {
   id: string;

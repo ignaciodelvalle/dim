@@ -8,8 +8,8 @@ import {
   getProfileCached,
   getUnreadCountCached,
 } from "@/lib/request-cache";
-import { type ShellRole, isTokenLandingPath, resolveShellNav } from "@/lib/shell-nav";
 import { createClient } from "@/lib/supabase/server";
+import { type ShellRole, isTokenLandingPath, resolveShellNav } from "@/lib/ui/shell-nav";
 
 /**
  * Layout for public and institutional pages — migrated to the unified AppShell

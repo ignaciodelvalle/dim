@@ -31,10 +31,10 @@ import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { notifyOutbreakInvestigationOpened } from "@/lib/authority";
 import { closeCase, escalateCase, openCase } from "@/lib/case-helpers";
-import { checkboxOn } from "@/lib/form-checkbox";
 import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { requireAlivePetAccess } from "@/lib/pet-access";
+import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import {

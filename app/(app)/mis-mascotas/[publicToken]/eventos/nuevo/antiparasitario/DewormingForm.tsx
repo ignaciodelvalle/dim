@@ -5,8 +5,8 @@ import { useActionState, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { useFormErrorFocus } from "@/lib/use-form-error-focus";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { AttachmentField } from "../AttachmentField";
 

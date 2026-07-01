@@ -15,8 +15,8 @@
 // `pets`. The component itself never decides what to show — the page
 // passes only what's actually disclosable.
 
-import { BRANDING } from "@/lib/branding";
 import { tattooLocationLabel } from "@/lib/reference/lookups";
+import { BRANDING } from "@/lib/ui/branding";
 import { lostBannerHeadline, lostFirstPersonLine, normalizePhoneForTel } from "@/lib/utils/format";
 import dynamic from "next/dynamic";
 import Image from "next/image";

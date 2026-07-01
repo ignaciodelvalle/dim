@@ -3,7 +3,7 @@
 // Owner-side cancellation trigger for /mis-turnos/[appointmentToken].
 // Uses URL state (?sheet=cancelar-turno) instead of browser confirm().
 
-import { buildSheetUrl } from "@/lib/sheet-helpers";
+import { buildSheetUrl } from "@/lib/ui/sheet-helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 export function CancelButton() {

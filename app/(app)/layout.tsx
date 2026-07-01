@@ -23,7 +23,7 @@ import {
   getProfileCached,
   getUnreadCountCached,
 } from "@/lib/request-cache";
-import { type ShellRole, resolveShellNav } from "@/lib/shell-nav";
+import { type ShellRole, resolveShellNav } from "@/lib/ui/shell-nav";
 
 export default async function AuthenticatedLayout({
   children,

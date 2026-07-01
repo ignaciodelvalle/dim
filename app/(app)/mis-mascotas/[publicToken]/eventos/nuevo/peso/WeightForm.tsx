@@ -8,7 +8,7 @@
 import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRow, LnSuffixWrap, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";

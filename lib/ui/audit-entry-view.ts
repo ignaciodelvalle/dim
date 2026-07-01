@@ -7,7 +7,7 @@
 //
 // RSC pages import this; unit tests cover every case without a DB.
 
-import { auditActionLabel } from "@/lib/audit-action-labels";
+import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 
 export interface AuditEntryView {
   /** Human-readable es-AR action label */

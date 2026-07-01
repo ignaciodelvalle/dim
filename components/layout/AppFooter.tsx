@@ -1,4 +1,4 @@
-import { BRANDING } from "@/lib/branding";
+import { BRANDING } from "@/lib/ui/branding";
 import Link from "next/link";
 import { GobStripe } from "./GobStripe";
 

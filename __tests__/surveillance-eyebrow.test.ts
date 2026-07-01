@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { surveillanceEyebrow } from "@/lib/surveillance-eyebrow";
+import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
 
 describe("surveillanceEyebrow", () => {
   it("returns Admin label for admin role", () => {

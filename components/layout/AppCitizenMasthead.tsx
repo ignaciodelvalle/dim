@@ -27,8 +27,8 @@ import { useEffect, useState } from "react";
 import { Drawer } from "vaul";
 
 import type { NavItem } from "@/components/layout/HeaderNav";
-import { BRANDING } from "@/lib/branding";
-import type { SwitcherTarget } from "@/lib/shell-nav";
+import { BRANDING } from "@/lib/ui/branding";
+import type { SwitcherTarget } from "@/lib/ui/shell-nav";
 
 type CitizenUser = {
   /** First name (or email prefix) shown next to the avatar. */

@@ -7,7 +7,7 @@
 
 import { usePathname } from "next/navigation";
 
-import { type OperatorPortal, deriveOperatorCrumbs } from "@/lib/operator-breadcrumbs";
+import { type OperatorPortal, deriveOperatorCrumbs } from "@/lib/ui/operator-breadcrumbs";
 import { OpCrumbs } from "./OpCrumbs";
 
 type Props = {

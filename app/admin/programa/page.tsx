@@ -30,7 +30,6 @@ import { fetchCronRuns, fetchQueueHealth } from "@/lib/admin-metrics";
 import { adminProvinceHref } from "@/lib/admin-province-link";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics-load";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics-period";
-import { auditActionLabel } from "@/lib/audit-action-labels";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { fetchMicrochipPenetration } from "@/lib/compliance-metrics";
 import {
@@ -49,6 +48,7 @@ import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { createClient } from "@/lib/supabase/server";
 import { fetchEnoSla } from "@/lib/surveillance-metrics";
+import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 
 export const dynamic = "force-dynamic";
 

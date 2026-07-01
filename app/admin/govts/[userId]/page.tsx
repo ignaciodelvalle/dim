@@ -9,9 +9,9 @@ import { DeactivateGovtActions } from "@/app/admin/govts/_components/DeactivateG
 import { RevokeLocalityRowActions } from "@/app/admin/govts/_components/RevokeLocalityRowActions";
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { auditLog, db, govtAssignments, profiles } from "@/db";
-import { describeAuditEntry } from "@/lib/audit-entry-view";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
 
 // Scaling note: auth.admin.getUserById() called once per page load.
 // Safe at v1 institutional volume. See ADR-8.

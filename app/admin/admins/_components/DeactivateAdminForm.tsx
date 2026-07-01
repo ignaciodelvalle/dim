@@ -24,7 +24,7 @@ import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import { canDeactivateAdmin } from "@/lib/institutional-scope";
 import type { ActorProfile } from "@/lib/institutional-scope";
-import { useEvidenceUpload } from "@/lib/use-evidence-upload";
+import { useEvidenceUpload } from "@/lib/ui/use-evidence-upload";
 
 type Target = {
   id: string;

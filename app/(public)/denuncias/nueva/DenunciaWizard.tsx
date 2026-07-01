@@ -39,12 +39,12 @@
 //     The draft is cleared on successful submit.
 //   - beforeunload warning fires when there is unsaved progress.
 
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { useEffect, useRef, useState } from "react";
 
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
-import { clearDraft, restoreDraft, saveDraft } from "@/lib/denuncia-autosave";
+import { clearDraft, restoreDraft, saveDraft } from "@/lib/ui/denuncia-autosave";
 import { createWelfareReportAction } from "@/src/modules/welfare/actions";
 import type { WelfareReportKind } from "@/src/modules/welfare/domain/types";
 

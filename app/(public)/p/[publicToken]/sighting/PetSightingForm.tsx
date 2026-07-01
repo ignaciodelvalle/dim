@@ -13,7 +13,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 
 import { type SightingActionState, reportPetSightingAction } from "@/app/actions/pet-sighting";
 

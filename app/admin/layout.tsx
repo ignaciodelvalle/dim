@@ -14,7 +14,7 @@ import { shouldShowDemoBanner } from "@/lib/demo-mode";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
 import { countOutboxBreaches } from "@/lib/outbox-queries";
 import { getProfileCached } from "@/lib/request-cache";
-import type { ShellSession } from "@/lib/shell-nav";
+import type { ShellSession } from "@/lib/ui/shell-nav";
 
 // Gate the /admin/* segment. Admin-only — govt and everyone else gets sent
 // to / (root). Uses the strict requireAdminOrRedirect guard which also rejects

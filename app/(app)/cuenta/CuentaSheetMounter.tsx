@@ -17,7 +17,7 @@
  */
 
 import { Sheet } from "@/components/ui/VaulSheet";
-import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
+import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 

@@ -7,7 +7,7 @@ import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { useFormErrorFocus } from "@/lib/use-form-error-focus";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 
 const initialState: PregnancyFormState = { error: null };
 type FormAction = (prev: PregnancyFormState, formData: FormData) => Promise<PregnancyFormState>;

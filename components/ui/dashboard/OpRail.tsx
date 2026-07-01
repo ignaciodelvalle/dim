@@ -1,5 +1,5 @@
 import type { NavItem } from "@/components/layout/HeaderNav";
-import { BRANDING } from "@/lib/branding";
+import { BRANDING } from "@/lib/ui/branding";
 import { type NavSection, OpRailNav } from "./OpRailNav";
 
 type Props = {

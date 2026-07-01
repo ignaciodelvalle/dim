@@ -59,7 +59,7 @@ describe("buildAdminCaseFilterClauses (C29)", () => {
 // C30 — AUDIT_ACTION_LABELS: keys ↔ labels consistency
 // ---------------------------------------------------------------------------
 
-import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/audit-action-labels";
+import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/ui/audit-action-labels";
 
 describe("AUDIT_ACTION_LABELS (C30)", () => {
   it("exports a non-empty record", () => {

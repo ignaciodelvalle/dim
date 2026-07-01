@@ -9,7 +9,7 @@ import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { getProfileCached } from "@/lib/request-cache";
-import type { ShellSession } from "@/lib/shell-nav";
+import type { ShellSession } from "@/lib/ui/shell-nav";
 
 // Gate the /gob/* segment. Both admin and govt can access this surface.
 // Admin has universal scope; govt is scoped to their assigned localities.

@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { deriveOperatorCrumbs } from "@/lib/operator-breadcrumbs";
+import { deriveOperatorCrumbs } from "@/lib/ui/operator-breadcrumbs";
 
 const labels = (pathname: string, portal: "gob" | "admin") =>
   deriveOperatorCrumbs(pathname, portal).map((c) => c.label);

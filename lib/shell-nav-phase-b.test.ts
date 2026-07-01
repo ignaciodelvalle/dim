@@ -14,8 +14,8 @@ import {
   buildOrgNav,
   buildOrgNavFlat,
 } from "@/components/layout/nav-presets";
+import { buildSwitcher } from "@/lib/ui/shell-nav";
 import { describe, expect, it } from "vitest";
-import { buildSwitcher } from "./shell-nav";
 
 // ---------------------------------------------------------------------------
 // Frozen href snapshots — exactly matching nav-presets.test.ts snapshots.

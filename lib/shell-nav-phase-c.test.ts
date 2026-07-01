@@ -10,8 +10,8 @@
 // Pure module, no React, no DB.
 
 import { OWNER_NAV, PUBLIC_NAV } from "@/components/layout/nav-presets";
+import { type ShellNavResult, type ShellSession, resolveShellNav } from "@/lib/ui/shell-nav";
 import { describe, expect, it } from "vitest";
-import { type ShellNavResult, type ShellSession, resolveShellNav } from "./shell-nav";
 
 const OWNER: ShellSession = { role: "owner", displayName: "Ana Pérez" };
 

@@ -5,8 +5,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { describeAuditEntry } from "@/lib/audit-entry-view";
-import { buildTargetLinkInfo, deriveTargetHref } from "@/lib/audit-target-link";
+import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
+import { buildTargetLinkInfo, deriveTargetHref } from "@/lib/ui/audit-target-link";
 
 // ============================================================================
 // describeAuditEntry

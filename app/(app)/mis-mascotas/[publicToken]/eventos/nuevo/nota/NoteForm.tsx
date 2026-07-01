@@ -5,7 +5,7 @@ import { useActionState, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { AttachmentField } from "../AttachmentField";
 

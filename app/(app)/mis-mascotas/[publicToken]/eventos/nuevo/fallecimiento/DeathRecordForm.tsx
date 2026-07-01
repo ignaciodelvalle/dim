@@ -11,8 +11,8 @@ import {
   LnSubCard,
 } from "@/components/ui/Sheet";
 import { diseasesForSpecies, findDisease } from "@/lib/reference/diseases";
-import { useFormErrorFocus } from "@/lib/use-form-error-focus";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";

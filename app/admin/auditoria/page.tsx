@@ -3,9 +3,9 @@ import Link from "next/link";
 
 import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { type AuditLogAction, auditLog, db, profiles } from "@/db";
-import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/audit-action-labels";
-import { buildTargetLinkInfo } from "@/lib/audit-target-link";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { buildTargetLinkInfo } from "@/lib/ui/audit-target-link";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 const AUDITORIA_PAGE_LIMIT = 200;

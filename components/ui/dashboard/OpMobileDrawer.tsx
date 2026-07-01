@@ -1,7 +1,7 @@
 "use client";
 
 import type { NavItem } from "@/components/layout/HeaderNav";
-import { BRANDING } from "@/lib/branding";
+import { BRANDING } from "@/lib/ui/branding";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";

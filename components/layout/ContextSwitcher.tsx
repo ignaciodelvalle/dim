@@ -15,8 +15,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import type { ShellSession, SwitcherTarget } from "@/lib/shell-nav";
-import { buildSwitcher } from "@/lib/shell-nav";
+import type { ShellSession, SwitcherTarget } from "@/lib/ui/shell-nav";
+import { buildSwitcher } from "@/lib/ui/shell-nav";
 
 type Props = {
   session: ShellSession | null;

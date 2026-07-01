@@ -10,7 +10,7 @@
 //
 // TODO(M-followup): build a dedicated org-side wizard and retire this form.
 
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 

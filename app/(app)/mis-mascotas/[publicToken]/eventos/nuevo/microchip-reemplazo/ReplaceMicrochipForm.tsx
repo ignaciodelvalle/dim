@@ -3,7 +3,7 @@
 import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
-import { useFormErrorFocus } from "@/lib/use-form-error-focus";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 

@@ -14,8 +14,8 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { getProfileCached } from "@/lib/request-cache";
-import { resolveShellNav } from "@/lib/shell-nav";
 import { createClient } from "@/lib/supabase/server";
+import { resolveShellNav } from "@/lib/ui/shell-nav";
 
 export default async function InviteLandingLayout({
   children,

@@ -8,7 +8,7 @@ import {
 } from "next/font/google";
 
 import { Toaster } from "@/components/Toaster";
-import { BRANDING } from "@/lib/branding";
+import { BRANDING } from "@/lib/ui/branding";
 
 import "./globals.css";
 
