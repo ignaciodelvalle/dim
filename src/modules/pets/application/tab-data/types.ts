@@ -1,72 +1,20 @@
 // Use-case types for pet tab-data loaders (strangler migration 25/61).
+//
+// The former Libreta/Vacunas/Historial panel types (LibretaTabData,
+// VacunasTabData, HistorialTabData, LibretaEventRow) were removed with their
+// use-cases in the two-face redesign (2026-07-01, Phase 4) — superseded by
+// LibretaFaceData below. `LibretaHealthStatus`/`VaccinationSummary` stay
+// imported from lib/domain because computeVaccinationSummary is still used
+// here; `computeLibretaHealthStatus` has no remaining caller after this
+// cleanup but lives in a shared file with computeVaccinationSummary so it was
+// not deleted (out of scope for this batch — see apply-progress risk notes).
 
 import type { FutureLedgerItem } from "@/components/pet-profile/libreta-future.helpers";
 import type { LibretaShareToken } from "@/db";
-import type {
-  fetchActiveRemindersForPet,
-  fetchVaccinationHistory,
-} from "@/lib/analytics/owner-dashboard";
-import type { LibretaHealthStatus, VaccinationSummary } from "@/lib/domain/libreta-health-status";
-import type { LibretaGroupKey } from "@/lib/infra/libreta-sanitaria";
+import type { VaccinationSummary } from "@/lib/domain/libreta-health-status";
 
 // ---------------------------------------------------------------------------
-// Libreta panel
-// ---------------------------------------------------------------------------
-
-// Row type for grouped libreta events (full petEvent row shape).
-export type LibretaEventRow = {
-  id: string;
-  eventType: string;
-  payload: unknown;
-  occurredAt: Date;
-  notes: string | null;
-  authorRole: string;
-  authorVerified: boolean;
-  authorOrganizationId: string | null;
-  tipoEventoCode?: string | null;
-};
-
-export type LibretaTabData = {
-  pet: {
-    name: string;
-    species: string;
-    breed: string | null;
-    sex: string;
-    microchipId: string | null;
-    tattooCode: string | null;
-    tattooLocation: string | null;
-    publicToken: string;
-  };
-  photoUrl: string | null;
-  ownerFirstName: string | null;
-  groupedEvents: Record<LibretaGroupKey, LibretaEventRow[]>;
-  activeShares: LibretaShareToken[];
-  accessPath: "owner" | "org";
-  organizationDisplayName: string | null;
-  /** Precomputed health-status snapshot for the "Estado médico actual" dashboard. */
-  healthStatus: LibretaHealthStatus;
-  /** Count of active reminders for the Pendientes card. */
-  activeRemindersCount: number;
-};
-
-// ---------------------------------------------------------------------------
-// Vacunas panel
-// ---------------------------------------------------------------------------
-
-export type VacunasTabData = {
-  petName: string;
-  petToken: string;
-  petSpecies: string;
-  upcomingReminders: Awaited<ReturnType<typeof fetchActiveRemindersForPet>>;
-  history: Awaited<ReturnType<typeof fetchVaccinationHistory>>;
-  /** Precomputed vaccination summary for the Estado de vacunación badge block. */
-  vaccinationSummary: VaccinationSummary;
-  accessPath: "owner" | "org";
-  organizationDisplayName: string | null;
-};
-
-// ---------------------------------------------------------------------------
-// Historial panel
+// Past event row (used by the Libreta face's `past` list below)
 // ---------------------------------------------------------------------------
 
 export type HistorialEventRow = {
@@ -83,12 +31,6 @@ export type HistorialEventRow = {
   // Set when a later `event_amended` event corrects this one — drives the
   // "Corregido · ver original" affordance (WS-3). Enriched in the tab-data shim.
   amendedAt?: Date | null;
-};
-
-export type HistorialTabData = {
-  petName: string;
-  petToken: string;
-  events: HistorialEventRow[];
 };
 
 // ---------------------------------------------------------------------------
