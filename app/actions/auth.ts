@@ -22,22 +22,27 @@ import { signupAction as _signupAction } from "@/src/modules/auth/application/si
 
 export type { AuthFormState, IdentityFormState } from "@/src/modules/auth/application/types";
 
+// @no-auth-required: pre-authentication entrypoint — signup by definition requires no existing session
 export async function signupAction(...args: Parameters<typeof _signupAction>) {
   return _signupAction(...args);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case (supabase.auth.getUser() gates the write; session established by step-1 signupAction)
 export async function completeIdentityAction(...args: Parameters<typeof _completeIdentityAction>) {
   return _completeIdentityAction(...args);
 }
 
+// @no-auth-required: pre-authentication entrypoint — login by definition requires no existing session
 export async function loginAction(...args: Parameters<typeof _loginAction>) {
   return _loginAction(...args);
 }
 
+// @no-auth-required: logout invalidates whatever session exists (or none) — no identity required to sign out
 export async function logoutAction(...args: Parameters<typeof _logoutAction>) {
   return _logoutAction(...args);
 }
 
+// @no-auth-required: logout invalidates whatever session exists (or none) — no identity required to sign out
 export async function logoutAndReturnAction(...args: Parameters<typeof _logoutAndReturnAction>) {
   return _logoutAndReturnAction(...args);
 }

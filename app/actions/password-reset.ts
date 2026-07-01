@@ -20,12 +20,14 @@ export type {
   UpdatePasswordState,
 } from "@/src/modules/auth/application/password-reset/types";
 
+// @no-auth-required: anonymous password-reset request — user is locked out and requesting a recovery email
 export async function requestPasswordResetAction(
   ...args: Parameters<typeof _requestPasswordResetAction>
 ) {
   return _requestPasswordResetAction(...args);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case (supabase.auth.getUser() validates the recovery session before updating the password)
 export async function updatePasswordAction(...args: Parameters<typeof _updatePasswordAction>) {
   return _updatePasswordAction(...args);
 }

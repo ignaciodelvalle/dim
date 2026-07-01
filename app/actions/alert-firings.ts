@@ -41,6 +41,7 @@ export type { RecordFiringsResult } from "@/src/modules/alerts/application/firin
 // Writer re-exports — used by cron route + tests
 // ---------------------------------------------------------------------------
 
+// @no-auth-required: cron/internal writer — invoked by the CRON_SECRET-gated /api/cron/evaluate-alerts route (not a user-facing action)
 export async function evaluateAndRecordFiringsForAllAdmins(
   ...args: Parameters<typeof _evaluateAndRecordFiringsForAllAdmins>
 ) {

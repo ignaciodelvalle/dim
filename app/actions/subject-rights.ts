@@ -20,12 +20,14 @@ export type {
   EraseSubjectDataResult,
 } from "@/src/modules/auth/application/subject-rights/types";
 
+// @no-auth-required: auth enforced inside the delegated use-case (requireUserOrRedirect() gates the export)
 export async function exportMySubjectDataAction(
   ...args: Parameters<typeof _exportMySubjectDataAction>
 ) {
   return _exportMySubjectDataAction(...args);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case (requireUserOrRedirect() gates the erase)
 export async function eraseMySubjectDataAction(
   ...args: Parameters<typeof _eraseMySubjectDataAction>
 ) {

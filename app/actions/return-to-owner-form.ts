@@ -23,30 +23,35 @@ export type {
   RejectReturnFormState,
 } from "@/src/modules/return-to-owner/application/forms/types";
 
+// @no-auth-required: auth enforced inside the delegated use-case (actorCancelProposalAction calls requireUserOrRedirect)
 export async function actorCancelProposalFormAction(
   ...args: Parameters<typeof _actorCancelProposalFormAction>
 ) {
   return _actorCancelProposalFormAction(...args);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case (ownerAcceptReturnAction calls requireUserOrRedirect)
 export async function ownerAcceptReturnFormAction(
   ...args: Parameters<typeof _ownerAcceptReturnFormAction>
 ) {
   return _ownerAcceptReturnFormAction(...args);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case (ownerProposeReturnToOrgAction calls requireUserOrRedirect)
 export async function ownerProposeReturnToOrgFormAction(
   ...args: Parameters<typeof _ownerProposeReturnToOrgFormAction>
 ) {
   return _ownerProposeReturnToOrgFormAction(...args);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case (ownerRejectReturnAction calls requireUserOrRedirect)
 export async function ownerRejectReturnFormAction(
   ...args: Parameters<typeof _ownerRejectReturnFormAction>
 ) {
   return _ownerRejectReturnFormAction(...args);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case (proposeReturnToOwnerAction calls requireOrgAccessByToken or requireUserOrRedirect depending on actorMode)
 export async function proposeReturnToOwnerFormAction(
   ...args: Parameters<typeof _proposeReturnToOwnerFormAction>
 ) {
