@@ -20,6 +20,7 @@ import { queryOrgPublicProfile } from "@/lib/infra/org-public-profile";
 import { orgLogoUrl } from "@/lib/infra/storage";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { createClient } from "@/lib/supabase/server";
+import { serializeJsonLd } from "@/lib/utils/json-ld";
 import { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
@@ -139,8 +140,8 @@ export default async function RefugioPage({
       : (provinceLabel ?? org.jurisdictionLocality ?? null);
 
   // JSON-LD Organization schema for rich-result eligibility on search
-  // engines + LinkedIn. Generated server-side and injected as a literal
-  // script tag — Next handles the dangerouslySetInnerHTML escape.
+  // engines + LinkedIn. Generated server-side and injected via serializeJsonLd()
+  // (Next/React do NOT escape dangerouslySetInnerHTML — the helper does).
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": org.orgType === "shelter" ? "AnimalShelter" : "NGO",
@@ -180,8 +181,8 @@ export default async function RefugioPage({
               so crawlers can index the structured data. */}
           <script
             type="application/ld+json"
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: safe-by-construction JSON
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: serializeJsonLd() neutralises <, >, & and U+2028/U+2029 so user-supplied org fields (displayName, description, legalName) cannot break out of the script.
+            dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
           />
 
           <Link
