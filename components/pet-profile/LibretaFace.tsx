@@ -36,7 +36,12 @@ type Props = {
 };
 
 export function LibretaFace({ data, petPublicToken, initialLens, isOwner }: Props) {
-  const [lens, setLens] = useState<LibretaLens>(initialLens);
+  // Defensive clamp — resolvePetFace already clamps org viewers server-side,
+  // but this guards direct callers/future callers from ever mounting an org
+  // viewer on the `todo` lens.
+  const [lens, setLens] = useState<LibretaLens>(() =>
+    !isOwner && initialLens === "todo" ? "vacunas" : initialLens,
+  );
 
   const visibleLenses = isOwner ? LENSES : LENSES.filter((l) => l !== "todo");
 

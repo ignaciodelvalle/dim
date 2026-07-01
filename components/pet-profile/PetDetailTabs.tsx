@@ -2,24 +2,27 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
-export type TabKey = "resumen" | "libreta" | "vacunas" | "historial";
+// Two-face redesign (2026-07-01, design ADR-6): the tab shell collapsed from
+// 4 tabs (resumen/libreta/vacunas/historial) to 2 faces. `resolvePetFace`
+// (lib/domain/pet-face-nav.ts) maps every legacy ?tab= value onto one of
+// these two + a lens; the URL keeps writing "resumen"→"credencial" and
+// vacunas/historial/libreta collapse into "libreta" + an explicit `lente`.
+export type TabKey = "credencial" | "libreta";
 
 type Props = {
   petPublicToken: string;
-  /** Pass the total event count to show a badge on the Historial tab. Omit to hide count. */
-  historialCount?: number;
-  /** The currently active tab. */
+  /** The currently active face. */
   activeTab: TabKey;
   /**
-   * Whether the current viewer is the pet owner. When false (org-path),
-   * Libreta and Historial tabs are not rendered — matching old route gating.
+   * Whether the current viewer is the pet owner. Org-path viewers still see
+   * both faces — Libreta is lens-clamped (vacunas/oficial only), not hidden
+   * (design ADR-6 widens the old owner-only Libreta gate).
    */
   isOwner?: boolean;
 };
 
 export function PetDetailTabs({
   petPublicToken: _petPublicToken,
-  historialCount,
   activeTab,
   isOwner = true,
 }: Props) {
@@ -28,30 +31,23 @@ export function PetDetailTabs({
 
   function switchTab(tab: TabKey) {
     const params = new URLSearchParams(searchParams.toString());
-    if (tab === "resumen") {
+    if (tab === "credencial") {
       params.delete("tab");
+      params.delete("lente");
     } else {
-      params.set("tab", tab);
+      // In-app nav always writes an explicit `lente` (design ADR-5) — this
+      // avoids the legacy `?tab=libreta` (no lente) collision, which resolves
+      // to the "oficial" grouped view instead of the default "todo" lens.
+      params.set("tab", "libreta");
+      params.set("lente", isOwner ? "todo" : "vacunas");
     }
     const qs = params.toString();
     router.replace(qs ? `?${qs}` : "?", { scroll: false });
   }
 
   const tabs: Array<{ key: TabKey; label: string }> = [
-    // WS-1 (owner-compliance-first handoff): key stays "resumen" for URL
-    // stability; the visible label is compliance-first.
-    { key: "resumen", label: "Cumplimiento" },
-    // Libreta and Historial are owner-only — org-path viewers see only Resumen + Vacunas.
-    ...(isOwner ? [{ key: "libreta" as TabKey, label: "Libreta" }] : []),
-    { key: "vacunas", label: "Vacunas" },
-    ...(isOwner
-      ? [
-          {
-            key: "historial" as TabKey,
-            label: historialCount !== undefined ? `Historial ${historialCount}` : "Historial",
-          },
-        ]
-      : []),
+    { key: "credencial", label: "Credencial" },
+    { key: "libreta", label: "Libreta" },
   ];
 
   return (

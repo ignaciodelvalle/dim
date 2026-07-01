@@ -5,6 +5,11 @@
 // which now allows both owner and org-path callers — this use-case itself
 // never returns activeShares for org-path callers, so SharesManager stays
 // owner-gated regardless of the widened read guard.
+//
+// H3/WS-3 amendment enrichment (amendedAt) is deliberately NOT done here —
+// it stays in the shim (app layer), same as the old getHistorialTabData
+// shim, so the pets module does not take a new dependency on the events
+// module (see scripts/check-dependency-direction.ts ALLOWED_EDGES).
 
 import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 
@@ -27,7 +32,6 @@ import { excludeSelfScansClause } from "@/lib/events/events";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { eventAttachmentSignedUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
-import { fetchLatestAmendmentsForEvents } from "@/src/modules/events/application/amendment/fetch-latest-amendments";
 import type { HistorialEventRow, LibretaFaceData } from "./types";
 
 export async function getLibretaFaceData(context: {
@@ -108,15 +112,12 @@ export async function getLibretaFaceData(context: {
     }),
   );
 
-  // H3/WS-3: enrich each row with amendedAt so the timeline can show
-  // "Corregido · ver original" — identical to the old shim behavior.
-  const amendments =
-    eventIds.length > 0 ? await fetchLatestAmendmentsForEvents(pet.id, eventIds) : new Map();
-
+  // H3/WS-3 amendedAt enrichment happens in the shim (app/actions/pet-tab-data.ts)
+  // after this use-case returns — see the module-boundary note above.
   const past: HistorialEventRow[] = pastEvents.map((e) => ({
     ...e,
     attachmentUrl: urlByEventId.get(e.id) ?? null,
-    amendedAt: amendments.get(e.id)?.occurredAt ?? null,
+    amendedAt: null,
   }));
 
   const summary = computeVaccinationSummary(pastEvents, pet.species);

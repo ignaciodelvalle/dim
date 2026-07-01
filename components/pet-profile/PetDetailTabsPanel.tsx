@@ -1,44 +1,29 @@
 "use client";
 
-// PetDetailTabsPanel — client component that drives the in-page tab system.
+// PetDetailTabsPanel — client component driving the two-face tab system
+// (two-face redesign, 2026-07-01, design ADR-1/ADR-6).
 //
-// - Reads the active tab from ?tab= searchParam (default: resumen).
-// - Syncs hash fragments: if the URL has #libreta, #vacunas, or #historial
-//   on mount, the corresponding tab is activated and the page scrolls into
-//   view (deep-link via anchor).
-// - Deferred loading: libreta and vacunas panels are fetched via server
-//   actions on first activation and memoised (fetched once per mount).
-//   Historial is always deferred (heaviest query: O(N) events + signing).
-// - Resumen panel receives its pre-rendered content as a React node from
-//   the server page (eager, zero client cost).
-// - Print: libreta-print.css is imported here so it's only applied when
-//   this component (and thus the Libreta tab) is rendered. The tab nav
-//   carries print:hidden so it's absent from printed output.
+// - Reads the active face from ?tab= (default: credencial).
+// - Syncs hash fragments: legacy anchors (#libreta, #vacunas, #historial,
+//   #resumen) still activate the right face on mount.
+// - Deferred loading: the Libreta face's data is fetched once via a server
+//   action on first activation and memoised.
+// - Credencial content is pre-rendered server-side and passed as a node
+//   (eager, zero client cost) — Face 1 stays the only SSR-eager content.
+// - Print: libreta-print.css is imported here so it's only applied when this
+//   component (and thus the Libreta face) is rendered.
 
+import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
-import { EventTimeline } from "@/app/(app)/mis-mascotas/[publicToken]/EventTimeline";
-import { LibretaHealthStatusSection } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaHealthStatus";
-import { LibretaIdentityHeader } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaIdentityHeader";
-import { LibretaSanitariaView } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaSanitariaView";
-import { SharesManager } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/SharesManager";
-import { VacunasTimeline } from "@/app/(app)/mis-mascotas/[publicToken]/vacunas/VacunasTimeline";
-import {
-  type HistorialTabData,
-  type LibretaTabData,
-  type VacunasTabData,
-  getHistorialTabData,
-  getLibretaTabData,
-  getVacunasTabData,
-} from "@/app/actions/pet-tab-data";
-import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/infra/libreta-sanitaria";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ExportLibretaButton } from "./ExportLibretaButton";
+import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-data";
+import { LibretaFace } from "@/components/pet-profile/LibretaFace";
+import type { PetLens } from "@/lib/domain/pet-face-nav";
 import { PetDetailTabs, type TabKey } from "./PetDetailTabs";
 
 // ---------------------------------------------------------------------------
-// Loading skeleton
+// Loading skeleton / error state
 // ---------------------------------------------------------------------------
 
 function TabLoadingSkeleton() {
@@ -56,10 +41,6 @@ function TabLoadingSkeleton() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Error state
-// ---------------------------------------------------------------------------
-
 function TabErrorState({ message }: { message: string }) {
   return (
     <div
@@ -73,208 +54,15 @@ function TabErrorState({ message }: { message: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Libreta panel (rendered from fetched data)
-// ---------------------------------------------------------------------------
-
-function LibretaPanel({
-  data,
-  petPublicToken,
-  vista,
-  onVistaChange,
-}: {
-  data: LibretaTabData;
-  petPublicToken: string;
-  vista: "agrupada" | "cronologica";
-  onVistaChange: (v: "agrupada" | "cronologica") => void;
-}) {
-  return (
-    <div className="space-y-[24px] py-[20px]">
-      {/* View toggle — Por sección / Cronológica */}
-      <div className="flex items-center justify-end gap-[6px] print:hidden">
-        <button
-          type="button"
-          onClick={() => onVistaChange("agrupada")}
-          className={[
-            "rounded-[3px] border px-[10px] py-[5px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] transition-colors",
-            vista === "agrupada"
-              ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] text-white"
-              : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)]",
-          ].join(" ")}
-        >
-          Por sección
-        </button>
-        <button
-          type="button"
-          onClick={() => onVistaChange("cronologica")}
-          className={[
-            "rounded-[3px] border px-[10px] py-[5px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] transition-colors",
-            vista === "cronologica"
-              ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] text-white"
-              : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)]",
-          ].join(" ")}
-        >
-          Cronológica
-        </button>
-      </div>
-
-      <LibretaIdentityHeader
-        pet={data.pet}
-        photoUrl={data.photoUrl}
-        ownerFirstName={data.ownerFirstName}
-      />
-
-      <LibretaHealthStatusSection
-        status={data.healthStatus}
-        activeRemindersCount={data.activeRemindersCount}
-        petPublicToken={petPublicToken}
-      />
-
-      <LibretaSanitariaView
-        groupedEvents={data.groupedEvents}
-        publicToken={petPublicToken}
-        vista={vista}
-      />
-
-      {data.accessPath === "owner" && (
-        <SharesManager petPublicToken={petPublicToken} shares={data.activeShares} />
-      )}
-
-      {/* LN Libreta footer */}
-      <footer className="mt-[8px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)] print:block">
-        <span>Asientos firmados digitalmente · inmutables</span>
-        {/* 14.3: server-side on-the-fly PDF export (replaces window.print). */}
-        <ExportLibretaButton petPublicToken={petPublicToken} />
-        <span className="hidden print:block text-[var(--color-ln-mute)]">
-          Generada por MiMAR · {new Date().toLocaleString("es-AR")}
-        </span>
-      </footer>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Vacunas panel
-// ---------------------------------------------------------------------------
-
-function VacunasPanel({ data }: { data: VacunasTabData }) {
-  return (
-    <div className="space-y-[20px] py-[20px]">
-      <div>
-        <h2
-          className="m-0 font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em]"
-          style={{ color: "var(--color-ln-ink)" }}
-        >
-          Libreta de vacunas — {data.petName}
-        </h2>
-        <p
-          className="mt-[3px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em]"
-          style={{ color: "var(--color-ln-mute)" }}
-        >
-          Historial completo y próximos vencimientos
-        </p>
-      </div>
-
-      {data.accessPath === "org" && data.organizationDisplayName && (
-        <div
-          className="rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[14px] py-[10px] text-[13px]"
-          style={{ color: "var(--color-ln-ink-2)" }}
-        >
-          Estás viendo la libreta de {data.petName} como miembro de{" "}
-          <strong>{data.organizationDisplayName}</strong>. Vista de solo lectura.
-        </div>
-      )}
-
-      <VacunasTimeline
-        petName={data.petName}
-        petToken={data.petToken}
-        upcomingReminders={data.upcomingReminders}
-        history={data.history}
-        vaccinationSummary={data.vaccinationSummary}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Historial panel
-// ---------------------------------------------------------------------------
-
-// Two-lens toggle (WS-3): "Todo" (default, D4) vs "Libreta sanitaria" (the
-// official medical subset). Client-side filter over the already-fetched events
-// — no new query, no URL param, matching the cheap-redesign guarantee.
-function HistorialPanel({ data }: { data: HistorialTabData }) {
-  const [lens, setLens] = useState<"todo" | "libreta">("todo");
-
-  const events =
-    lens === "libreta"
-      ? data.events.filter((e) => isLibretaSanitariaEvent(e.eventType))
-      : data.events;
-
-  const lensButtonClass = (selected: boolean) =>
-    selected
-      ? "px-3 py-1 rounded-full text-xs font-medium transition-colors bg-[var(--color-ln-azul)] text-white"
-      : "px-3 py-1 rounded-full text-xs font-medium transition-colors border border-[var(--color-ln-line)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)]";
-
-  return (
-    <div className="space-y-[20px] py-[20px]">
-      <div>
-        <h2
-          className="m-0 font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em]"
-          style={{ color: "var(--color-ln-ink)" }}
-        >
-          {data.petName}
-        </h2>
-        <p
-          className="mt-[3px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em]"
-          style={{ color: "var(--color-ln-mute)" }}
-        >
-          Historial completo · orden cronológico
-        </p>
-      </div>
-
-      {/* Immutability, in plain es-AR (append-only ledger). */}
-      <p className="text-xs text-[var(--color-ln-mute)]">
-        Los eventos no se editan ni se borran. Una corrección es un evento nuevo.
-      </p>
-
-      {/* Lens toggle — Todo / Libreta sanitaria. */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setLens("todo")}
-          aria-pressed={lens === "todo"}
-          className={lensButtonClass(lens === "todo")}
-        >
-          Todo
-        </button>
-        <button
-          type="button"
-          onClick={() => setLens("libreta")}
-          aria-pressed={lens === "libreta"}
-          className={lensButtonClass(lens === "libreta")}
-        >
-          Libreta sanitaria
-        </button>
-      </div>
-
-      <EventTimeline
-        events={events}
-        publicToken={data.petToken}
-        chips={lens === "libreta" ? LIBRETA_FILTER_CHIPS : undefined}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Hash → tab mapping (for deep-link via anchor)
+// Hash → face mapping (legacy anchor deep-links)
 // ---------------------------------------------------------------------------
 
 const HASH_TO_TAB: Record<string, TabKey> = {
   libreta: "libreta",
-  vacunas: "vacunas",
-  historial: "historial",
-  resumen: "resumen",
+  vacunas: "libreta",
+  historial: "libreta",
+  resumen: "credencial",
+  credencial: "credencial",
 };
 
 // ---------------------------------------------------------------------------
@@ -283,15 +71,16 @@ const HASH_TO_TAB: Record<string, TabKey> = {
 
 type Props = {
   petPublicToken: string;
-  historialCount: number;
-  /** Resumen panel content — rendered server-side and passed as a node. */
-  resumenContent: ReactNode;
-  /** Active tab resolved from searchParams on the server. */
-  initialTab: TabKey;
+  /** Face 1 content — rendered server-side and passed as a node. */
+  credencialContent: ReactNode;
+  /** Active face resolved from searchParams on the server (resolvePetFace). */
+  initialFace: TabKey;
+  /** Lens resolved from searchParams on the server (resolvePetFace). */
+  initialLens: PetLens;
   /**
-   * Whether the current viewer is the pet owner. When false (org-path),
-   * Libreta and Historial tabs are hidden and deep-links to them fall back
-   * to Resumen — matching old route gating (requireOwnedPetByToken).
+   * Whether the current viewer is the pet owner. Org-path viewers still see
+   * the Libreta face, lens-clamped to vacunas/oficial (design ADR-6) — no
+   * face is hidden anymore, unlike the old owner-only Libreta/Historial gate.
    */
   isOwner: boolean;
 };
@@ -302,196 +91,95 @@ type Props = {
 
 export function PetDetailTabsPanel({
   petPublicToken,
-  historialCount,
-  resumenContent,
-  initialTab,
+  credencialContent,
+  initialFace,
+  initialLens,
   isOwner,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Clamp the initial tab: org-path users cannot access libreta/historial.
-  const clampTab = useCallback(
-    (tab: TabKey): TabKey => {
-      if (!isOwner && (tab === "libreta" || tab === "historial")) return "resumen";
-      return tab;
-    },
-    [isOwner],
-  );
+  const [activeFace, setActiveFace] = useState<TabKey>(initialFace);
 
-  const [activeTab, setActiveTab] = useState<TabKey>(() => clampTab(initialTab));
-
-  // Vista toggle for the Libreta panel: synced to ?vista= searchParam.
-  const vistaParam = searchParams.get("vista");
-  const [vista, setVista] = useState<"agrupada" | "cronologica">(
-    vistaParam === "cronologica" ? "cronologica" : "agrupada",
-  );
-
-  // Deferred data stores — null = not yet fetched, "loading" = in-flight.
-  const [libretaData, setLibretaData] = useState<LibretaTabData | null>(null);
+  const [libretaData, setLibretaData] = useState<LibretaFaceData | null>(null);
   const [libretaError, setLibretaError] = useState<string | null>(null);
-  const [vacunasData, setVacunasData] = useState<VacunasTabData | null>(null);
-  const [vacunasError, setVacunasError] = useState<string | null>(null);
-  const [historialData, setHistorialData] = useState<HistorialTabData | null>(null);
-  const [historialError, setHistorialError] = useState<string | null>(null);
+  const [loadingLibreta, setLoadingLibreta] = useState(false);
+  const fetchedRef = useRef(false);
 
-  const [loadingTab, setLoadingTab] = useState<TabKey | null>(null);
-
-  // Refs to prevent duplicate fetches.
-  const fetchedRef = useRef<Set<TabKey>>(new Set());
-
-  // Sync tab from searchParam changes (back/forward nav).
-  // Also sync ?vista= for the libreta toggle.
+  // Sync face from searchParam changes (back/forward nav).
   useEffect(() => {
-    const tabParam = searchParams.get("tab") as TabKey | null;
-    const resolved: TabKey =
-      tabParam && ["resumen", "libreta", "vacunas", "historial"].includes(tabParam)
-        ? tabParam
-        : "resumen";
-    setActiveTab(clampTab(resolved));
-    const vp = searchParams.get("vista");
-    setVista(vp === "cronologica" ? "cronologica" : "agrupada");
-  }, [searchParams, clampTab]);
+    const tabParam = searchParams.get("tab");
+    setActiveFace(tabParam === "libreta" ? "libreta" : "credencial");
+  }, [searchParams]);
 
-  // Handle ?vista= toggle from the LibretaPanel buttons.
-  // Updates URL searchParam and local state.
-  const handleVistaChange = useCallback(
-    (v: "agrupada" | "cronologica") => {
-      setVista(v);
-      const params = new URLSearchParams(searchParams.toString());
-      if (v === "agrupada") {
-        params.delete("vista");
-      } else {
-        params.set("vista", v);
-      }
-      router.replace(`?${params.toString()}`, { scroll: false });
-    },
-    [router, searchParams],
-  );
+  const fetchLibreta = useCallback(async () => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    setLoadingLibreta(true);
+    const result = await getLibretaFaceData(petPublicToken);
+    setLoadingLibreta(false);
+    if (result.ok) {
+      setLibretaData(result.data);
+    } else {
+      setLibretaError(result.error);
+    }
+  }, [petPublicToken]);
 
-  // On mount: check for hash fragment and activate that tab.
-  // Runs once — router and searchParams are stable across the mount lifecycle.
+  // Trigger fetch when the Libreta face activates (skip credencial — eager).
+  useEffect(() => {
+    if (activeFace === "libreta") fetchLibreta();
+  }, [activeFace, fetchLibreta]);
+
+  // Also fetch on first mount if Libreta is already the initial face.
+  useEffect(() => {
+    if (initialFace === "libreta") fetchLibreta();
+  }, [initialFace, fetchLibreta]);
+
+  // On mount: check for a legacy hash fragment and activate that face.
   const hashHandledRef = useRef(false);
   useEffect(() => {
     if (hashHandledRef.current) return;
     hashHandledRef.current = true;
     const hash = window.location.hash.slice(1);
-    const tabFromHash = HASH_TO_TAB[hash];
-    if (tabFromHash && tabFromHash !== "resumen") {
-      const clamped = clampTab(tabFromHash);
-      if (clamped === tabFromHash) {
-        // Update URL to use ?tab= and scroll the tab bar into view.
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("tab", clamped);
-        router.replace(`?${params.toString()}`, { scroll: false });
-        // Scroll the tab-bar section into view after a short tick.
-        requestAnimationFrame(() => {
-          document
-            .querySelector("[data-section='pet-detail-tabs']")
-            ?.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
+    const faceFromHash = HASH_TO_TAB[hash];
+    if (faceFromHash && faceFromHash !== initialFace) {
+      const params = new URLSearchParams(searchParams.toString());
+      if (faceFromHash === "libreta") {
+        params.set("tab", "libreta");
+        if (!params.get("lente")) params.set("lente", isOwner ? "todo" : "vacunas");
+      } else {
+        params.delete("tab");
+        params.delete("lente");
       }
+      router.replace(`?${params.toString()}`, { scroll: false });
+      requestAnimationFrame(() => {
+        document
+          .querySelector("[data-section='pet-detail-tabs']")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     }
-  }, [router, searchParams, clampTab]);
-
-  // Fetch deferred data on tab activation.
-  const fetchTabData = useCallback(
-    async (tab: TabKey) => {
-      if (fetchedRef.current.has(tab)) return;
-      fetchedRef.current.add(tab);
-      setLoadingTab(tab);
-
-      if (tab === "libreta") {
-        const result = await getLibretaTabData(petPublicToken);
-        setLoadingTab(null);
-        if (result.ok) {
-          setLibretaData(result.data);
-        } else {
-          setLibretaError(result.error);
-        }
-      } else if (tab === "vacunas") {
-        const result = await getVacunasTabData(petPublicToken);
-        setLoadingTab(null);
-        if (result.ok) {
-          setVacunasData(result.data);
-        } else {
-          setVacunasError(result.error);
-        }
-      } else if (tab === "historial") {
-        const result = await getHistorialTabData(petPublicToken);
-        setLoadingTab(null);
-        if (result.ok) {
-          setHistorialData(result.data);
-        } else {
-          setHistorialError(result.error);
-        }
-      }
-    },
-    [petPublicToken],
-  );
-
-  // Trigger fetch when active tab changes (skip resumen — it's eager).
-  useEffect(() => {
-    if (activeTab !== "resumen") {
-      fetchTabData(activeTab);
-    }
-  }, [activeTab, fetchTabData]);
-
-  // Also fetch the initial tab on first mount if it's non-default.
-  // initialTab is a stable server-resolved value; fetchTabData is memoized.
-  useEffect(() => {
-    if (initialTab !== "resumen") {
-      fetchTabData(initialTab);
-    }
-  }, [initialTab, fetchTabData]);
+  }, [router, searchParams, initialFace, isOwner]);
 
   function renderPanel() {
-    switch (activeTab) {
-      case "resumen":
-        return resumenContent;
+    if (activeFace === "credencial") return credencialContent;
 
-      case "libreta": {
-        if (loadingTab === "libreta") return <TabLoadingSkeleton />;
-        if (libretaError) return <TabErrorState message={libretaError} />;
-        if (!libretaData) return <TabLoadingSkeleton />;
-        return (
-          <LibretaPanel
-            data={libretaData}
-            petPublicToken={petPublicToken}
-            vista={vista}
-            onVistaChange={handleVistaChange}
-          />
-        );
-      }
-
-      case "vacunas": {
-        if (loadingTab === "vacunas") return <TabLoadingSkeleton />;
-        if (vacunasError) return <TabErrorState message={vacunasError} />;
-        if (!vacunasData) return <TabLoadingSkeleton />;
-        return <VacunasPanel data={vacunasData} />;
-      }
-
-      case "historial": {
-        if (loadingTab === "historial") return <TabLoadingSkeleton />;
-        if (historialError) return <TabErrorState message={historialError} />;
-        if (!historialData) return <TabLoadingSkeleton />;
-        return <HistorialPanel data={historialData} />;
-      }
-
-      default:
-        return resumenContent;
-    }
+    if (loadingLibreta) return <TabLoadingSkeleton />;
+    if (libretaError) return <TabErrorState message={libretaError} />;
+    if (!libretaData) return <TabLoadingSkeleton />;
+    return (
+      <LibretaFace
+        data={libretaData}
+        petPublicToken={petPublicToken}
+        initialLens={initialLens}
+        isOwner={isOwner}
+      />
+    );
   }
 
   return (
     <div>
       <div className="print:hidden">
-        <PetDetailTabs
-          petPublicToken={petPublicToken}
-          historialCount={historialCount}
-          activeTab={activeTab}
-          isOwner={isOwner}
-        />
+        <PetDetailTabs petPublicToken={petPublicToken} activeTab={activeFace} isOwner={isOwner} />
       </div>
       <div id="tab-panel" role="tabpanel">
         {renderPanel()}

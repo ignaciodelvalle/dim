@@ -1,90 +1,48 @@
 // ---------------------------------------------------------------------------
-// PET PROFILE v2.1 — reorder + action-hub consolidation (Item 6, 2026-06-18)
-// Spec: docs/superpowers/specs/2026-06-18-pet-profile-v21-reorder-and-action-consolidation-design.md
+// PET PROFILE — "two-face" redesign (Credencial | Libreta), 2026-07-01
+// Spec: docs/design/handoffs/2026-07-01-pet-profile-two-face-lean-handoff.md
+// AGENTS.md "Design rules" #5 documents the shipped block order.
 //
-// Screen order (normal/active state, spec §3.1):
-//   back-link → HERO (identity, ALWAYS first — D2) → <PetAlertStrip>
-//   (single prioritized aviso strip BELOW the hero — D3) → vitals →
-//   PetQuickActions → Tabs (Resumen · Libreta · Vacunas · Historial).
+// This RSC is now a thin data-fetch + assembly shell. The two faces
+// themselves (and everything they render) live in dedicated components:
+//   - CredentialFace (Face 1, server, eager)   — components/pet-profile/CredentialFace.tsx
+//   - LibretaFace     (Face 2, client, deferred) — components/pet-profile/LibretaFace.tsx
+//   - PetDetailTabsPanel — owns the tab switcher + Face 2's deferred fetch.
 //
-// Inside Resumen (left column): 01 Estado de salud → 02 Cuidados próximos →
-//   03 Credenciales (PPP + service-dog cards, only if applicable — D4) → the
-//   functional widgets → Logros LAST, only when present (D5).
+// Screen order (normal/active state, AGENTS.md rule 5):
+//   back-link → org notice (org-path only) → PetDetailTabsPanel, whose
+//   `credencialContent` (Face 1, eager) is: CredentialFace (identity +
+//   compliance stamps + QR + mono IDs + seal + compact ppp/service-dog rows)
+//   → <PetAlertStrip> (avisos, urgency-ordered) → Anotar CTA + a 3-item
+//   action row (Compartir · Marcar perdida · ⋯ Más). The Libreta face
+//   (deferred) is one future+past timeline with 3 lenses — see LibretaFace.
 //
-// Avisos (rabies / transit / open-cases / pregnancy) no longer render as
-// separate full-width banners above the hero. They are grouped into
-// <PetAlertStrip> ordered by urgency (rabies urgent → transit warning →
-// open-cases warning → pregnancy info). PPP + perro de servicio are permanent
-// CREDENTIALS, not avisos, so they live as cards in Resumen section 03 — not
-// in the strip.
+// resolvePetFace (lib/domain/pet-face-nav.ts) is the single pure mapper for
+// every legacy `?tab=` deep link (resumen/vacunas/historial/libreta) onto
+// {face, lens}; the H1 compliance wiring at deriveComplianceState below is
+// unchanged by the redesign.
 //
-// Action hubs collapsed (D7): /anotar is the single canonical capture surface.
-// /eventos/nuevo (the duplicate catalog index) 308-redirects to /anotar; the
-// profile has ONE annotate entry ("Registrar evento" in PetActionsMenu →
-// /anotar). The /eventos/nuevo/* form SUB-routes are untouched.
+// Preserved verbatim:
+//   - <PetOpenCasesSection>, <PregnancyInProgressCard> — inside PetAlertStrip.
+//   - <RabiesObservationBanner>, <TransitBanner> — page-local, inside PetAlertStrip.
+//   - <DeceasedView> — early return for deceased pets.
+//   - <LostCockpit>  — early return for lost pets (D9: "ver perfil completo"
+//                       bypasses this via ?fromLost=1 or any ?tab= param).
 //
-// Preserved sections:
-//   - <PetReminders>         (C3) — vaccine reminders with Registrar/Eliminar
-//                                   actions; THE canonical reminder surface. The
-//                                   old duplicate <PetVaccineReminders> (no
-//                                   server-action wiring) was deleted in v2.1 (D6).
-//   - <UpcomingAppointments> (C3) — confirmed vet appointments for this pet.
-//   - <MedicationDosesSection> — pending medication doses with "Marcar dada" action.
-//   - <PetOpenCasesSection>  (E) — open cases (now surfaced inside PetAlertStrip).
-//   - <PregnancyInProgressCard> — conditional (now inside PetAlertStrip, info tone).
-//   - <PpPCard>              — conditional PPP credential card (Resumen §03).
-//   - <ServiceDogCredentialCard> — conditional service-dog card (Ley 26.858, Resumen §03).
-//   - <AchievementsSection>  — pet achievements panel (rendered LAST in Resumen).
-//   - <RabiesObservationBanner> — alert while rabies observation is active (strip, urgent).
-//   - <TransitBanner>        — shelter_custody / transit notice (strip, warning).
-//   - <DeceasedView>         — early return for deceased pets.
-//   - <LostCockpit>          — early return for lost pets (keeps a "ver perfil
-//                               completo" link back to this profile — D9).
-//
-// Emergency contacts: <PetEmergencyCard> reads from profiles.preferred_vet_*
-//   and profiles.emergency_contact_* (migration 0042). Edited at /cuenta/editar
-//   under "Contactos para emergencias". One set of contacts per owner, shared
-//   across all their pets (consistent with how an owner thinks about it).
-//
-// TODO(spec-later): Travel docs — see docs/superpowers/plans/2026-05-27-spec-later-tracker.md#travel-docs.
-//   The `pet_attachments` table / attachment kind decision is open; <PetTravelDocs>
-//   renders an empty state until it lands.
-//
+// Note: PPP/service-dog attestation state is read from `typedEvents`
+// (PROFILE_V2_TYPED_EVENT_TYPES), which does NOT include
+// `dangerous_breed_attested` — this is a pre-existing gap shared with
+// deriveComplianceState's `derivePpp`, not introduced by this redesign.
 // ---------------------------------------------------------------------------
 
-import { markAchievementSeenAction } from "@/app/actions/achievement-views";
 import { fetchPendingReturnProposalForOwner } from "@/app/actions/return-to-owner";
-import { signTimelineAttachmentsForPet } from "@/app/actions/sign-timeline-attachments";
-import { AchievementsSection } from "@/components/AchievementsSection";
-import type { CredentialChip } from "@/components/AchievementsSection";
 import type { PetState } from "@/components/EventCatcher";
-import { PetActionsMenu } from "@/components/PetActionsMenu";
-import { PetCurrentStateSection } from "@/components/PetCurrentStateSection";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
-import { PetUpcomingCareSection } from "@/components/PetUpcomingCareSection";
-import { PpPCard } from "@/components/PpPCard";
-import { PppExportCabaButton } from "@/components/PppExportCabaButton";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
-import { ServiceDogCredentialCard } from "@/components/ServiceDogCredentialCard";
-import { ComplianceObligationsPanel } from "@/components/pet-profile/ComplianceObligationsPanel";
+import { CredentialFace } from "@/components/pet-profile/CredentialFace";
 import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertStrip";
-import { PetCredentialCard } from "@/components/pet-profile/PetCredentialCard";
-import type { TabKey } from "@/components/pet-profile/PetDetailTabs";
+import { PetAnotarFooterCta } from "@/components/pet-profile/PetAnotarFooterCta";
 import { PetDetailTabsPanel } from "@/components/pet-profile/PetDetailTabsPanel";
-import { PetEmergencyCard } from "@/components/pet-profile/PetEmergencyCard";
-import { PetHealthTimeline } from "@/components/pet-profile/PetHealthTimeline";
-import { PetMarkLostFooterCta } from "@/components/pet-profile/PetMarkLostFooterCta";
-import { type PetHeroPet, PetProfileHero } from "@/components/pet-profile/PetProfileHero";
-import { PetQuickActions } from "@/components/pet-profile/PetQuickActions";
-import { PetTrackingPlaceholder } from "@/components/pet-profile/PetTrackingPlaceholder";
-import { PetTravelDocs } from "@/components/pet-profile/PetTravelDocs";
-import { PetWeightChart } from "@/components/pet-profile/PetWeightChart";
-import { PhysicalTagInterestCard } from "@/components/pet-profile/PhysicalTagInterestCard";
-import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import { LnSeal, LnSectionHead } from "@/components/ui/DocElements";
-import { LnHero } from "@/components/ui/Hero";
-import { LnMemorialChip } from "@/components/ui/StatusFlag";
-import { LnVitals } from "@/components/ui/Vitals";
 import {
   appointments,
   attachments,
@@ -92,43 +50,32 @@ import {
   db,
   organizations,
   ownerships,
-  petAchievementViews,
   petEvents,
   petServiceDog,
-  pets,
   profiles,
-  reminders,
   serviceOfferings,
   timeSlots,
 } from "@/db";
-import type { Pet, Reminder } from "@/db";
-import { getEarnedAchievements } from "@/lib/achievements/catalog";
+import type { Pet } from "@/db";
 import {
   fetchActiveRemindersForPet,
   fetchPetEventsForProfileV2,
-  fetchPetWeightHistory,
 } from "@/lib/analytics/owner-dashboard";
+import { resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { excludeSelfScansClause } from "@/lib/events/events";
-import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/infra/libreta-sanitaria";
+import { isLibretaSanitariaEvent } from "@/lib/infra/libreta-sanitaria";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
-import { getPhysicalTagInterest } from "@/lib/infra/physical-tag-interest";
+import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/infra/service-dog-labels";
 import {
   eventAttachmentSignedUrl,
   eventAttachmentSignedUrls,
   petPhotoUrl,
 } from "@/lib/infra/storage";
 import { deriveComplianceState } from "@/lib/projections/pet-compliance";
-import {
-  ageFromDateOfBirth,
-  formatDate,
-  sexLabel,
-  speciesLabel,
-  statusLabel,
-} from "@/lib/utils/format";
-import { markMedicationDoseTakenAction } from "@/src/modules/events/actions";
-import { and, asc, count, desc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel } from "@/lib/utils/format";
+import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -138,7 +85,6 @@ import { LostCockpit } from "./LostCockpit";
 import { PostCreateModal } from "./PostCreateModal";
 import { SheetMounter } from "./SheetMounter";
 import { ConvertFosterButton } from "./_components/ConvertFosterButton";
-import { PetReminders } from "./_components/PetReminders";
 
 // NOTE: eventsWithAttachments is fetched only when pet.status === 'deceased'
 // (needed by DeceasedView). For active pets, fetchPetEventsForProfileV2 is
@@ -162,68 +108,6 @@ function derivePetStateLabel(pet: Pet): string | null {
   if (pet.rabiesObservationStatus === "in_progress") return "Obs. antirrábica";
   if (pet.pregnancyStatus === "in_progress") return "Gestación";
   return null;
-}
-
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
-
-// Returns a human-readable proximity hint for an upcoming medication dose.
-// Examples: "Atrasada por 2h", "En 30 min", "Mañana 08:00", "Hoy 14:30".
-function formatDoseProximity(dueAt: Date | string): string {
-  const due = dueAt instanceof Date ? dueAt : new Date(dueAt);
-  const now = new Date();
-  const diffMs = due.getTime() - now.getTime();
-  const diffMin = Math.round(diffMs / (1000 * 60));
-  const diffHours = diffMs / (1000 * 60 * 60);
-
-  if (diffMin < 0) {
-    const absMins = Math.abs(diffMin);
-    if (absMins < 60) return `Atrasada por ${absMins} min`;
-    const absHours = Math.round(absMins / 60);
-    if (absHours < 24) return `Atrasada por ${absHours}h`;
-    const absDays = Math.floor(absHours / 24);
-    return `Atrasada ${absDays} día${absDays === 1 ? "" : "s"}`;
-  }
-  if (diffMin === 0) return "Ahora";
-  if (diffMin < 60) return `En ${diffMin} min`;
-  if (diffHours < 24) {
-    const timeStr = due.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-    return `Hoy ${timeStr}`;
-  }
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  if (
-    due.getDate() === tomorrow.getDate() &&
-    due.getMonth() === tomorrow.getMonth() &&
-    due.getFullYear() === tomorrow.getFullYear()
-  ) {
-    const timeStr = due.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-    return `Mañana ${timeStr}`;
-  }
-  return due.toLocaleString("es-AR", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function trainingLevelLabel(level: string): string {
-  switch (level) {
-    case "none":
-      return "Ninguno";
-    case "basic":
-      return "Básico";
-    case "intermediate":
-      return "Intermedio";
-    case "advanced":
-      return "Avanzado";
-    case "professional":
-      return "Profesional";
-    default:
-      return level;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -593,6 +477,7 @@ export default async function PetDetailPage({
   const { publicToken } = await params;
   const sp = await searchParams;
   const tabParam = typeof sp.tab === "string" ? sp.tab : undefined;
+  const lenteParam = typeof sp.lente === "string" ? sp.lente : undefined;
   const recienCreado = sp.recienCreado === "true";
   // D9: when lost, the cockpit is shown by default, but it is not a dead end —
   // the owner can open the normal profile via "ver perfil completo"
@@ -607,13 +492,15 @@ export default async function PetDetailPage({
 
   const isOwner = accessPath === "owner";
 
-  // Clamp tab: org-path viewers can only see resumen/vacunas.
-  const activeTab: TabKey = (() => {
-    if (tabParam === "vacunas") return "vacunas";
-    if (tabParam === "libreta") return isOwner ? "libreta" : "resumen";
-    if (tabParam === "historial") return isOwner ? "historial" : "resumen";
-    return "resumen";
-  })();
+  // Two-face redesign (2026-07-01): resolvePetFace is the single pure mapper
+  // for every legacy ?tab= deep link (see lib/domain/pet-face-nav.ts). Org
+  // viewers get the same clamp behavior as before, now expressed as a lens
+  // clamp (Libreta is reachable, `todo` is not) instead of hiding the face.
+  const { face: activeFace, lens: activeLens } = resolvePetFace({
+    tab: tabParam,
+    lente: lenteParam,
+    isOwner,
+  });
 
   // Stage 1: photo + ownership role + service-dog + cases (all independent).
   // Photo query runs once; both photoUrl and editPhotoUrl are derived from it.
@@ -662,7 +549,6 @@ export default async function PetDetailPage({
 
   // Stage 2: queries that depend on ownershipRole or are owner-only.
   // hasPendingReturnProposal depends on ownershipRole (must be "owner").
-  // viewerContacts and physicalTagInterest are owner-only but independent of each other.
   let hasPendingReturnProposal = false;
   let viewerContacts: {
     preferredVetName: string | null;
@@ -671,7 +557,6 @@ export default async function PetDetailPage({
     emergencyContactPhone: string | null;
     displayName: string;
   } | null = null;
-  let physicalTagInterest: Awaited<ReturnType<typeof getPhysicalTagInterest>> | null = null;
 
   if (accessPath === "owner") {
     // "Confirmar devolución": only the legal owner, only when a pending return
@@ -681,7 +566,9 @@ export default async function PetDetailPage({
         ? fetchPendingReturnProposalForOwner(pet.id, user.id)
         : Promise.resolve(false);
 
-    // Emergency / vet contacts from the viewer's profile — J-followup columns (migration 0042).
+    // Emergency / vet contacts from the viewer's profile — J-followup columns
+    // (migration 0042). Only displayName feeds Face 1 (titular); the rest is
+    // fetched for parity with the pre-redesign query shape.
     const contactsQuery = db
       .select({
         preferredVetName: profiles.preferredVetName,
@@ -694,18 +581,13 @@ export default async function PetDetailPage({
       .where(eq(profiles.id, user.id))
       .limit(1);
 
-    // §4.20 physical-tag-interest — legal owner path only.
-    const tagInterestQuery = getPhysicalTagInterest(pet.id, user.id);
-
-    const [returnProposalResult, [profileRow], tagInterest] = await Promise.all([
+    const [returnProposalResult, [profileRow]] = await Promise.all([
       returnProposalQuery,
       contactsQuery,
-      tagInterestQuery,
     ]);
 
     hasPendingReturnProposal = returnProposalResult;
     viewerContacts = profileRow ?? null;
-    physicalTagInterest = tagInterest;
   }
 
   // EARLY RETURN for deceased: need full event list + signed attachments for
@@ -810,7 +692,7 @@ export default async function PetDetailPage({
   }
 
   // v2 targeted queries — replaces the old O(N) events + attachment signing.
-  const { typedEvents, recentFive } = await fetchPetEventsForProfileV2(pet.id);
+  const { typedEvents } = await fetchPetEventsForProfileV2(pet.id);
 
   // Pregnancy card data — derived from typedEvents (clinical_info_logged events
   // are in the whitelist so they're available here).
@@ -850,75 +732,15 @@ export default async function PetDetailPage({
     }
   }
 
-  // Parallel data fetching: achievement views + all remaining queries run together.
-  // viewsMap is independent of typedEvents result — it only needs pet.id + user.id.
-  const [
-    achievementViewRows,
-    petActiveReminders,
-    pendingMedicationReminders,
-    upcomingAppointments,
-    weightHistory,
-    historialCount,
-    canonicalIds,
-    reservedRabiesTurnoRows,
-  ] = await Promise.all([
-    // Achievement views — pulse_until rows for the owner; empty for org-path viewers.
-    accessPath === "owner"
-      ? db
-          .select({
-            achievementId: petAchievementViews.achievementId,
-            pulseUntil: petAchievementViews.pulseUntil,
-          })
-          .from(petAchievementViews)
-          .where(
-            and(eq(petAchievementViews.userId, user.id), eq(petAchievementViews.petId, pet.id)),
-          )
-      : Promise.resolve([] as { achievementId: string; pulseUntil: Date | null }[]),
+  // Remaining parallel queries feeding the compliance projection + hero tags.
+  // Achievements, medication doses, upcoming appointments, and weight history
+  // moved out of Face 1 entirely (design.md deletion list) — Face 2 re-queries
+  // its own future/weight sources inside getLibretaFaceData when it activates.
+  const [petActiveReminders, canonicalIds, reservedRabiesTurnoRows] = await Promise.all([
     // Vaccine reminders for owner path only.
     accessPath === "owner"
       ? fetchActiveRemindersForPet(user.id, pet.id)
       : Promise.resolve([] as Awaited<ReturnType<typeof fetchActiveRemindersForPet>>),
-    // Pending medication dose reminders, soonest first.
-    db
-      .select()
-      .from(reminders)
-      .where(
-        and(
-          eq(reminders.petId, pet.id),
-          eq(reminders.reminderType, "medication"),
-          isNull(reminders.completedAt),
-        ),
-      )
-      .orderBy(asc(reminders.dueAt)),
-    // Upcoming confirmed appointments for this pet, soonest first (max 10).
-    db
-      .select({
-        publicToken: appointments.publicToken,
-        status: appointments.status,
-        offeringDisplayName: serviceOfferings.displayName,
-        slotStartsAt: timeSlots.startsAt,
-      })
-      .from(appointments)
-      .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
-      .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
-      .where(
-        and(
-          eq(appointments.petId, pet.id),
-          eq(appointments.status, "confirmed"),
-          gt(timeSlots.startsAt, new Date()),
-        ),
-      )
-      .orderBy(asc(timeSlots.startsAt))
-      .limit(10),
-    // Weight history for PetWeightChart.
-    fetchPetWeightHistory(pet.id),
-    // Historial event count — used by PetDetailTabs badge. Uses excludeSelfScansClause
-    // for consistency with the historial page's own query.
-    db
-      .select({ value: count() })
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause()))
-      .then((rows) => rows[0]?.value ?? 0),
     // Canonical chip/tattoo identifiers (ARCH-Q).
     fetchActiveIdentifications(pet.id),
     // WS-2: the pet's next confirmed rabies appointment (service_kind =
@@ -947,70 +769,7 @@ export default async function PetDetailPage({
       .limit(1),
   ]);
 
-  // Build viewsMap from the co-fetched achievement view rows.
-  const viewsMap: Map<string, Date | null> | undefined =
-    accessPath === "owner"
-      ? new Map(achievementViewRows.map((r) => [r.achievementId, r.pulseUntil]))
-      : undefined;
-
-  // Achievements — typedEvents ordered ASC from the helper.
-  // Pass viewsMap so pulse_until is populated (or defaulted to +7d for new achievements).
-  const earnedAchievements = getEarnedAchievements(
-    {
-      pet,
-      events: typedEvents,
-      serviceDog: serviceDogRow ?? null,
-      cases: allCases,
-    },
-    viewsMap,
-  );
-
-  // Fire markAchievementSeenAction for each newly-earned achievement that has
-  // no view row yet (viewsMap missing the key). Swallow errors — this is a
-  // best-effort UX pulse, not load-bearing.
-  if (accessPath === "owner" && viewsMap !== undefined) {
-    const unseenIds = earnedAchievements.map((a) => a.id).filter((id) => !viewsMap?.has(id));
-    // Fire-and-forget in background — page render must not block on this.
-    void Promise.all(
-      unseenIds.map((id) =>
-        markAchievementSeenAction(pet.publicToken, id).catch((err) =>
-          console.warn("[markAchievementSeenAction]", err),
-        ),
-      ),
-    );
-  }
-
-  // Credential chips — rendered leftmost in AchievementsSection.
-  const credentialChips: CredentialChip[] = [];
-  if (pet.potentiallyDangerousBreed) {
-    credentialChips.push({ kind: "ppp", label: "PPP", icon: "⚠️" });
-  }
-  if (serviceDogRow && serviceDogRow.credentialStatus === "vigente" && serviceDogRow.inService) {
-    credentialChips.push({ kind: "service_dog", label: "Perro de servicio", icon: "🦮" });
-  }
-
   const age = ageFromDateOfBirth(pet.dateOfBirth);
-
-  // Build v2 hero data.
-  const heroData: PetHeroPet = {
-    name: pet.name,
-    publicToken: pet.publicToken,
-    photoUrl,
-    species: speciesLabel(pet.species),
-    breed: pet.breed,
-    ageLabel: age ?? "—",
-    weightLabel: pet.estimatedWeightKg ? `${pet.estimatedWeightKg} kg` : null,
-    state: derivePetState(pet),
-    stateLabel: derivePetStateLabel(pet),
-    lostMode: false,
-  };
-
-  // Medication doses for MedicationDosesSection.
-  // The section needs medication_started payloads to group by drug name.
-  // We source them from typedEvents (medication_started is in the whitelist).
-  const medicationSourceEvents = typedEvents
-    .filter((e) => e.eventType === "medication_started")
-    .map((e) => ({ ...e, attachmentUrl: null }));
 
   // Build LnHero data from pet fields.
   // pet.status is "active" here, EXCEPT when the owner opened the full profile
@@ -1032,29 +791,7 @@ export default async function PetDetailPage({
     .filter(Boolean)
     .join(" · ");
 
-  // Vitals: weight delta from weightHistory[0] vs weightHistory[1]
-  const latestWeight = weightHistory[weightHistory.length - 1];
-  const prevWeight = weightHistory[weightHistory.length - 2];
-  const weightDelta = latestWeight && prevWeight ? latestWeight.kg - prevWeight.kg : null;
-
-  // Last visit: find latest vet_visit_logged or vaccination event from typedEvents
-  const lastVisitEvent = typedEvents
-    .filter((e) => e.eventType === "vet_visit_logged" || e.eventType === "vaccination_administered")
-    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())[0];
-  const lastVisitDate = lastVisitEvent
-    ? new Date(lastVisitEvent.occurredAt).toLocaleDateString("es-AR", {
-        day: "numeric",
-        month: "short",
-      })
-    : "—";
-
-  // Vaccine count from petActiveReminders
-  const vaccineTotal = petActiveReminders.length;
-  const vaccineUpToDate = petActiveReminders.filter(
-    (r) => r.variant === "due_soon" || r.variant === "upcoming" || r.variant === "success",
-  ).length;
-
-  // Compliance projection (comply-first slice §2) — leads the Resumen tab.
+  // Compliance projection (comply-first slice §2) — leads Face 1's stamp row.
   // Pure derivation over data already loaded above: no extra query. The rabies
   // obligation reads the antirrábica reminder's precomputed variant when present.
   const rabiesReminderRow = petActiveReminders.find((r) => /antirr[aá]b|rabi/i.test(r.title));
@@ -1102,366 +839,164 @@ export default async function PetDetailPage({
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* LN Hero — identity ALWAYS first (v2.1, spec §3.1 / D2). No          */}
-      {/* conditional banner precedes it.                                     */}
-      {/* ------------------------------------------------------------------ */}
-      <div data-section="hero">
-        <LnHero
-          name={pet.name}
-          status={lnPetStatus}
-          breed={breedLine}
-          photoSrc={photoUrl ?? undefined}
-          tags={heroTags}
-        />
-      </div>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* PetAlertStrip — single prioritized aviso strip BELOW the hero       */}
-      {/* (v2.1, spec §3.2 / D3). Rabies(urgent) → transit(warning) →         */}
-      {/* open-cases(warning) → pregnancy(info). Empty → renders nothing.     */}
-      {/* PPP + service-dog are NOT here — they are permanent credentials and */}
-      {/* live inside Resumen (section 03).                                   */}
-      {/* ------------------------------------------------------------------ */}
-      <PetAlertStrip
-        alerts={(() => {
-          const alerts: PetAlert[] = [];
-          if (pet.rabiesObservationStatus === "in_progress") {
-            alerts.push({
-              id: "rabies",
-              tone: "urgent",
-              node: <RabiesObservationBanner pet={pet} events={typedEvents} />,
-            });
-          }
-          if (isTransit) {
-            alerts.push({
-              id: "transit",
-              tone: "warning",
-              node: <TransitBanner petName={pet.name} petPublicToken={pet.publicToken} />,
-            });
-          }
-          // Only add the open-cases alert when the pet actually has open/escalated
-          // cases, so the strip can be genuinely empty (D3). PetOpenCasesSection
-          // self-hides when empty, but gating here keeps the strip from rendering
-          // an empty wrapper. allCases is already fetched above (capped 50).
-          if (allCases.some((c) => c.status === "open" || c.status === "escalated")) {
-            alerts.push({
-              id: "open-cases",
-              tone: "warning",
-              node: (
-                <div data-section="cases">
-                  <PetOpenCasesSection petId={pet.id} />
-                </div>
-              ),
-            });
-          }
-          if (pregnancyCardData) {
-            alerts.push({
-              id: "pregnancy",
-              tone: "info",
-              node: (
-                <PregnancyInProgressCard
-                  petPublicToken={pet.publicToken}
-                  pregnancyStartedAt={pregnancyCardData.startedAt}
-                  weeksAtDiagnosis={pregnancyCardData.weeksAtDiagnosis}
-                  expectedBirthAt={pregnancyCardData.expectedBirthAt}
-                  lastClinicalAt={pregnancyCardData.lastClinicalAt}
-                />
-              ),
-            });
-          }
-          return alerts;
-        })()}
-      />
-
-      {/* ------------------------------------------------------------------ */}
-      {/* LN Vitals strip                                                     */}
-      {/* ------------------------------------------------------------------ */}
-      <LnVitals
-        className="mb-[20px]"
-        cells={[
-          {
-            label: "Peso actual",
-            value: latestWeight ? latestWeight.kg : "—",
-            unit: latestWeight ? "kg" : undefined,
-            meta:
-              weightDelta !== null
-                ? `${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)} vs anterior`
-                : undefined,
-          },
-          {
-            label: "Última visita",
-            value: lastVisitDate,
-          },
-          {
-            label: "Vacunas",
-            value: vaccineTotal > 0 ? `${vaccineUpToDate}` : "—",
-            unit: vaccineTotal > 0 ? `/ ${vaccineTotal} al día` : undefined,
-          },
-          {
-            label: "Edad",
-            value: age ?? "—",
-          },
-        ]}
-      />
-
-      {/* Quick-action buttons */}
-      <PetQuickActions
-        petPublicToken={pet.publicToken}
-        petStatus={pet.status as "active" | "lost" | "deceased"}
-        preferredVetPhone={viewerContacts?.preferredVetPhone ?? null}
-      />
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Tabs + body                                                         */}
+      {/* Two-face tabs: Credencial (eager) · Libreta (deferred). Face 1     */}
+      {/* owns identity/credential + avisos + capture, per the new AGENTS.md */}
+      {/* rule 5 block order (design.md ADR-1/ADR-6).                        */}
       {/* ------------------------------------------------------------------ */}
       <Suspense
         fallback={<div className="h-12 rounded-[4px] bg-[var(--color-ln-stripe)] animate-pulse" />}
       >
         <PetDetailTabsPanel
           petPublicToken={pet.publicToken}
-          historialCount={historialCount}
-          initialTab={activeTab}
+          initialFace={activeFace}
+          initialLens={activeLens}
           isOwner={isOwner}
-          resumenContent={
-            <div className="grid gap-[24px] py-[20px] lg:grid-cols-[1fr_280px]">
-              {/* LEFT: health status + note + functional widgets.
-                    v2.1 order (spec §3.1): 01 Estado de salud → 02 Cuidados
-                    próximos → 03 Credenciales (only if applicable) → … →
-                    Logros (last, only when present). Achievements moved to the
-                    end (D5); PPP/service-dog credentials moved here as cards
-                    (D4) instead of full-width banners above the hero. */}
-              <div className="flex flex-col gap-[20px]">
-                {/* Compliance panel — LEADS the Resumen tab (comply-first slice
-                      §2 / WS-1). The owner's legal obligations, each a projection
-                      over events, above the health detail below. */}
-                <div data-section="compliance-panel">
-                  <ComplianceObligationsPanel
-                    state={complianceState}
-                    petPublicToken={pet.publicToken}
-                  />
-                </div>
-
-                {/* Estado actual */}
-                <LnSectionHead num="01" title="Estado de salud" />
-                <div data-section="current-state">
-                  <PetCurrentStateSection
-                    pet={pet}
-                    typedEvents={typedEvents}
-                    petToken={pet.publicToken}
-                    canonicalIds={{
-                      microchip: canonicalIds.microchip
-                        ? {
-                            code: canonicalIds.microchip.code,
-                            recordedAt: canonicalIds.microchip.recordedAt ?? null,
-                          }
-                        : null,
-                      tattoo: canonicalIds.tattoo
-                        ? {
-                            code: canonicalIds.tattoo.code ?? "",
-                            tattooLocation: canonicalIds.tattoo.tattooLocation ?? null,
-                          }
-                        : null,
-                    }}
-                  />
-                </div>
-
-                {/* Cuidados próximos */}
-                <div data-section="upcoming-care">
-                  <PetUpcomingCareSection
-                    reminders={petActiveReminders}
-                    appointments={upcomingAppointments}
-                    medicationDoses={pendingMedicationReminders.map((r) => ({
-                      reminderId: r.id,
-                      drugName: r.title,
-                      dueAt: r.dueAt,
-                    }))}
-                    petToken={pet.publicToken}
-                  />
-                </div>
-
-                {/* 03 Credenciales — PPP + perro de servicio as credential
-                      cards (v2.1, spec §3.1 sec 03 / D4). Only rendered when at
-                      least one applies. These used to be full-width banners
-                      above the hero; they are permanent credentials, not
-                      avisos, so they live here, not in the PetAlertStrip. */}
-                {(pet.potentiallyDangerousBreed ||
-                  (serviceDogRow?.credentialStatus === "vigente" && serviceDogRow.inService)) && (
-                  <div data-section="credentials" className="flex flex-col gap-[14px]">
-                    <LnSectionHead num="03" title="Credenciales" />
-                    {pet.potentiallyDangerousBreed && (
-                      <div data-section="ppp-card">
-                        <PpPCard
-                          petPublicToken={pet.publicToken}
-                          breed={pet.breed}
-                          events={typedEvents.map((e) => ({ ...e, attachmentUrl: null }))}
-                          isTransit={isTransit}
-                        />
-                        {accessPath === "owner" &&
-                          pet.jurisdictionProvince === "Ciudad Autónoma de Buenos Aires" && (
-                            <PppExportCabaButton petPublicToken={pet.publicToken} />
-                          )}
-                      </div>
-                    )}
-                    {serviceDogRow &&
-                      serviceDogRow.credentialStatus === "vigente" &&
-                      serviceDogRow.inService && (
-                        <div data-section="service-dog-card">
-                          <ServiceDogCredentialCard
-                            petPublicToken={pet.publicToken}
-                            petName={pet.name}
-                            microchipId={canonicalIds.microchip?.code ?? null}
-                            serviceDog={serviceDogRow}
-                            photoUrl={photoUrl}
-                          />
-                        </div>
-                      )}
-                  </div>
-                )}
-
-                {/* Health timeline */}
-                <div data-section="health-timeline">
-                  <PetHealthTimeline
-                    recentFive={recentFive}
-                    fullHistoryHref={`/mis-mascotas/${pet.publicToken}?tab=historial`}
-                    signAttachments={signTimelineAttachmentsForPet.bind(null, pet.publicToken)}
-                  />
-                </div>
-
-                {/* Actions menu */}
-                <div data-section="actions-menu">
-                  <PetActionsMenu
-                    pet={{ species: pet.species, status: pet.status, publicToken: pet.publicToken }}
-                    accessPath={accessPath === "org" ? "org" : "owner"}
-                    ownershipRole={ownershipRole}
-                    hasPendingReturnProposal={hasPendingReturnProposal}
-                  />
-                </div>
-
-                {/* Emergency card */}
-                <PetEmergencyCard
-                  editHref="/cuenta/editar"
-                  vet={
-                    viewerContacts?.preferredVetName && viewerContacts.preferredVetPhone
-                      ? {
-                          name: viewerContacts.preferredVetName,
-                          role: "Vet de cabecera",
-                          phone: viewerContacts.preferredVetPhone,
-                        }
-                      : null
-                  }
-                  emergencyContact={
-                    viewerContacts?.emergencyContactName && viewerContacts.emergencyContactPhone
-                      ? {
-                          name: viewerContacts.emergencyContactName,
-                          role: "Contacto emergencia",
-                          phone: viewerContacts.emergencyContactPhone,
-                        }
-                      : null
-                  }
-                  alerts={[]}
-                />
-
-                {/* Medication doses */}
-                <MedicationDosesSection
-                  pet={pet}
-                  reminders={pendingMedicationReminders}
-                  sourceEvents={medicationSourceEvents}
-                />
-
-                {/* Weight sparkline */}
-                <PetWeightChart samples={weightHistory} />
-
-                {/* Link to libreta tab */}
-                <Link
-                  href={`/mis-mascotas/${pet.publicToken}?tab=libreta`}
-                  className="block w-full rounded-[3px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] py-[11px] text-center font-[var(--font-ln-mono)] text-[11.5px] font-semibold uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline transition-colors hover:bg-[var(--color-ln-line-2)]"
-                >
-                  Ver libreta completa →
-                </Link>
-
-                {/* Credential card */}
-                <PetCredentialCard
-                  publicToken={pet.publicToken}
+          credencialContent={
+            <div className="flex flex-col gap-4 py-5">
+              {/* 1. Credencial first — identity ALWAYS first. No conditional
+                    banner precedes it. H1 provenance gates the stamp row. */}
+              <div data-section="hero">
+                <CredentialFace
+                  heroProps={{
+                    name: pet.name,
+                    status: lnPetStatus,
+                    breed: breedLine,
+                    photoSrc: photoUrl ?? undefined,
+                    tags: heroTags,
+                  }}
+                  complianceState={complianceState}
+                  identity={{
+                    microchip: canonicalIds.microchip?.code ?? null,
+                    libretaId: `LIB-AR-${pet.publicToken.toUpperCase()}`,
+                    titular: viewerContacts?.displayName ?? null,
+                  }}
                   qrUrl={`/p/${pet.publicToken}.png`}
                   publicHref={`/p/${pet.publicToken}`}
-                  shareHref={`/mis-mascotas/${pet.publicToken}?sheet=compartir-libreta`}
-                  medicalViewHref={`/mis-mascotas/${pet.publicToken}?sheet=mostrar-tier2`}
+                  ppp={
+                    pet.potentiallyDangerousBreed
+                      ? {
+                          attested: typedEvents.some(
+                            (e) => e.eventType === "dangerous_breed_attested",
+                          ),
+                          registerHref: `/mis-mascotas/${pet.publicToken}/eventos/atestar-raza-peligrosa`,
+                        }
+                      : null
+                  }
+                  serviceDog={
+                    serviceDogRow &&
+                    serviceDogRow.credentialStatus === "vigente" &&
+                    serviceDogRow.inService
+                      ? {
+                          serviceTypeLabel:
+                            SERVICE_TYPE_LABELS[serviceDogRow.serviceType] ??
+                            serviceDogRow.serviceType,
+                          manageHref: `/mis-mascotas/${pet.publicToken}/asistencia`,
+                          presentHref: buildPresentarHref(pet.publicToken),
+                        }
+                      : null
+                  }
+                  petPublicToken={pet.publicToken}
                 />
-
-                {/* Physical tag interest */}
-                {physicalTagInterest ? (
-                  <PhysicalTagInterestCard
-                    petPublicToken={pet.publicToken}
-                    petName={pet.name}
-                    initialInterested={physicalTagInterest.interested}
-                    initialRequestedAt={physicalTagInterest.requestedAt}
-                  />
-                ) : null}
-
-                {/* Tracking placeholder — display-only until the pairing flow ships. */}
-                <PetTrackingPlaceholder />
-
-                {/* Travel docs */}
-                <PetTravelDocs
-                  uploadHref={`/mis-mascotas/${pet.publicToken}/editar?section=docs`}
-                  docs={[]}
-                />
-
-                {/* Logros — LAST in Resumen, only when there is something to
-                      show (v2.1, spec §3.1 / D5). Restores the original v2 plan
-                      order; it used to render FIRST, above health status. */}
-                {(earnedAchievements.length > 0 || credentialChips.length > 0) && (
-                  <div data-section="achievements">
-                    <AchievementsSection
-                      earned={earnedAchievements}
-                      credentials={credentialChips}
-                    />
-                  </div>
-                )}
               </div>
 
-              {/* RIGHT: Identificación + Sello card */}
-              <div className="flex flex-col gap-[16px]">
-                <LnCard>
-                  <LnCardHead title="Identificación" />
-                  <LnCardBody>
-                    <div className="space-y-[10px] font-[var(--font-ln-mono)] text-sm leading-[1.9]">
-                      {canonicalIds.microchip && (
-                        <>
-                          <p className="text-[var(--color-ln-mute)]">MICROCHIP</p>
-                          <p className="mb-[6px] text-[var(--color-ln-ink)]">
-                            {canonicalIds.microchip.code}
-                          </p>
-                        </>
-                      )}
-                      <p className="text-[var(--color-ln-mute)]">LIBRETA</p>
-                      <p className="mb-[6px] text-[var(--color-ln-ink)]">
-                        LIB-AR-{pet.publicToken.toUpperCase()}
-                      </p>
-                      {viewerContacts?.displayName && (
-                        <>
-                          <p className="text-[var(--color-ln-mute)]">TITULAR</p>
-                          <p className="text-[var(--color-ln-ink)]">{viewerContacts.displayName}</p>
-                        </>
-                      )}
-                    </div>
-                  </LnCardBody>
-                </LnCard>
+              {/* 2. Avisos — single prioritized strip BELOW the credential.
+                    Rabies(urgent) → transit(warning) → open-cases(warning) →
+                    pregnancy(info). Empty → renders nothing. */}
+              <PetAlertStrip
+                alerts={(() => {
+                  const alerts: PetAlert[] = [];
+                  if (pet.rabiesObservationStatus === "in_progress") {
+                    alerts.push({
+                      id: "rabies",
+                      tone: "urgent",
+                      node: <RabiesObservationBanner pet={pet} events={typedEvents} />,
+                    });
+                  }
+                  if (isTransit) {
+                    alerts.push({
+                      id: "transit",
+                      tone: "warning",
+                      node: <TransitBanner petName={pet.name} petPublicToken={pet.publicToken} />,
+                    });
+                  }
+                  // Only add the open-cases alert when the pet actually has
+                  // open/escalated cases, so the strip can be genuinely empty.
+                  // allCases is already fetched above (capped 50).
+                  if (allCases.some((c) => c.status === "open" || c.status === "escalated")) {
+                    alerts.push({
+                      id: "open-cases",
+                      tone: "warning",
+                      node: (
+                        <div data-section="cases">
+                          <PetOpenCasesSection petId={pet.id} />
+                        </div>
+                      ),
+                    });
+                  }
+                  if (pregnancyCardData) {
+                    alerts.push({
+                      id: "pregnancy",
+                      tone: "info",
+                      node: (
+                        <PregnancyInProgressCard
+                          petPublicToken={pet.publicToken}
+                          pregnancyStartedAt={pregnancyCardData.startedAt}
+                          weeksAtDiagnosis={pregnancyCardData.weeksAtDiagnosis}
+                          expectedBirthAt={pregnancyCardData.expectedBirthAt}
+                          lastClinicalAt={pregnancyCardData.lastClinicalAt}
+                        />
+                      ),
+                    });
+                  }
+                  return alerts;
+                })()}
+              />
 
-                {/* Sello "Inscripción válida" */}
-                <LnCard>
-                  <div className="flex items-center gap-[14px] px-[16px] py-[14px]">
-                    <LnSeal line1="Registro" line2="Nacional" size={52} />
-                    <div>
-                      <p className="font-[var(--font-ln-serif)] text-[13px] font-semibold text-[var(--color-ln-ink)]">
-                        Inscripción válida
-                      </p>
-                      <p className="mt-[2px] text-[11.5px] text-[var(--color-ln-mute)]">
-                        MiMAR · Registro Nacional de Mascotas
-                      </p>
-                    </div>
-                  </div>
-                </LnCard>
+              {/* 3. Capture, then the two faces — Anotar (owner-only; org
+                    viewers get no capture control anywhere on the page) plus
+                    a row of quiet actions. Mark-lost stays always visible
+                    here (T2), never buried in ⋯ Más. */}
+              <div data-section="action-row" className="flex flex-col gap-2.5">
+                {isOwner && (
+                  <Link
+                    href={`/mis-mascotas/${pet.publicToken}/anotar`}
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-4 text-sm font-semibold text-white no-underline transition-colors hover:bg-ln-azul-700 md:w-fit"
+                  >
+                    Anotar
+                  </Link>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/mis-mascotas/${pet.publicToken}?sheet=compartir`}
+                    className="inline-flex min-h-11 items-center justify-center rounded-full border-[3px] border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 text-sm font-semibold text-[var(--color-ln-azul)] no-underline transition-colors hover:border-[var(--color-ln-line-strong)]"
+                  >
+                    Compartir
+                  </Link>
+                  {pet.status === "active" && (
+                    <Link
+                      href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-perdida`}
+                      className="inline-flex min-h-11 items-center justify-center rounded-full border-[3px] border-ln-err bg-transparent px-4 text-sm font-semibold text-ln-err no-underline transition-colors hover:bg-ln-err hover:text-white"
+                    >
+                      Marcar como perdida
+                    </Link>
+                  )}
+                  {pet.status === "lost" && (
+                    <Link
+                      href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-encontrada`}
+                      className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-ok px-4 text-sm font-semibold text-white no-underline transition-colors hover:opacity-90"
+                    >
+                      Marcar encontrada
+                    </Link>
+                  )}
+                  {isOwner && (
+                    <Link
+                      href={`/mis-mascotas/${pet.publicToken}?sheet=mas`}
+                      className="inline-flex min-h-11 items-center justify-center rounded-full border-[3px] border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 text-sm font-semibold text-[var(--color-ln-azul)] no-underline transition-colors hover:border-[var(--color-ln-line-strong)]"
+                    >
+                      ⋯ Más
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           }
@@ -1476,6 +1011,9 @@ export default async function PetDetailPage({
         petName={pet.name}
         species={pet.species}
         petStatus={pet.status as "active" | "lost" | "deceased"}
+        accessPath={accessPath === "org" ? "org" : "owner"}
+        ownershipRole={ownershipRole}
+        hasPendingReturnProposal={hasPendingReturnProposal}
         tier2PublicEnabledUntil={
           pet.tier2PublicEnabledUntil ? new Date(pet.tier2PublicEnabledUntil).toISOString() : null
         }
@@ -1500,128 +1038,20 @@ export default async function PetDetailPage({
         editPetData={{ existingPet: pet, existingPhotoUrl: editPhotoUrl }}
       />
 
-      {/* Mobile-only sticky footer CTA — surfaces "Marcar como perdida" without
-            making the owner dig into the Acciones panel. Hidden on desktop and
-            for non-active pets. See components/pet-profile/PetMarkLostFooterCta.tsx. */}
-      {accessPath === "owner" ? (
-        <PetMarkLostFooterCta petPublicToken={pet.publicToken} petStatus={pet.status} />
-      ) : null}
+      {/* Sticky Anotar (mobile) — repurposed from the old mark-lost slot
+            (design ADR-9); mark-lost is now always visible in the action row
+            above. See components/pet-profile/PetAnotarFooterCta.tsx. */}
+      <PetAnotarFooterCta
+        petPublicToken={pet.publicToken}
+        petStatus={pet.status}
+        isOwner={isOwner}
+      />
 
       {/* Post-create modal — shown once after a successful new-pet create.
             Only rendered for the owner on an active pet; deceased + lost paths
             have early returns above and will never reach this point. */}
       {recienCreado && accessPath === "owner" && <PostCreateModal publicToken={pet.publicToken} />}
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// MedicationDosesSection — PRESERVED (no v2 equivalent)
-// ---------------------------------------------------------------------------
-
-type SourceEvent = {
-  id: string;
-  eventType: string;
-  payload: unknown;
-  occurredAt: Date | string;
-  notes: string | null;
-  attachmentUrl: string | null;
-};
-
-function MedicationDosesSection({
-  pet,
-  reminders: allReminders,
-  sourceEvents,
-}: {
-  pet: Pet;
-  reminders: Reminder[];
-  sourceEvents: SourceEvent[];
-}) {
-  const drugNameBySourceId = new Map<string, string>();
-  for (const ev of sourceEvents) {
-    if (ev.eventType === "medication_started") {
-      const p = (ev.payload ?? {}) as Record<string, unknown>;
-      const name = typeof p.drug_name === "string" ? p.drug_name : null;
-      if (name) drugNameBySourceId.set(ev.id, name);
-    }
-  }
-
-  const groups = new Map<string, { drugName: string; reminders: Reminder[] }>();
-  const ungroupedKey = "__ungrouped__";
-  for (const reminder of allReminders) {
-    const key = reminder.sourceEventId ?? ungroupedKey;
-    if (!groups.has(key)) {
-      const drugName = reminder.sourceEventId
-        ? (drugNameBySourceId.get(reminder.sourceEventId) ?? reminder.title)
-        : reminder.title;
-      groups.set(key, { drugName, reminders: [] });
-    }
-    (groups.get(key) as { drugName: string; reminders: Reminder[] }).reminders.push(reminder);
-  }
-
-  const boundAction = markMedicationDoseTakenAction;
-
-  return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
-          Próximas dosis
-        </h2>
-        <Link
-          href={`/mis-mascotas/${pet.publicToken}?sheet=medicacion`}
-          className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
-        >
-          + Nueva medicación
-        </Link>
-      </div>
-      {allReminders.length === 0 ? (
-        <p className="text-[13px] text-[var(--color-ln-mute)]">Sin dosis pendientes.</p>
-      ) : (
-        <div className="space-y-4">
-          {[...groups.entries()].map(([key, group]) => (
-            <div key={key} className="space-y-2">
-              <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
-                {group.drugName}
-              </p>
-              <ul className="space-y-2">
-                {group.reminders.map((reminder) => {
-                  const proximity = formatDoseProximity(reminder.dueAt);
-                  const isOverdue = new Date(reminder.dueAt) < new Date();
-                  return (
-                    <li
-                      key={reminder.id}
-                      className="flex items-center justify-between gap-3 rounded-[4px] border border-[var(--color-ln-line)] px-[14px] py-[12px]"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-[13px] text-[var(--color-ln-ink-2)]">
-                          {reminder.description ?? reminder.title}
-                        </p>
-                        <p
-                          className={`mt-[2px] font-[var(--font-ln-mono)] text-[11px] ${
-                            isOverdue ? "text-[var(--color-ln-err)]" : "text-[var(--color-ln-mute)]"
-                          }`}
-                        >
-                          {proximity}
-                        </p>
-                      </div>
-                      <form action={boundAction}>
-                        <input type="hidden" name="reminderId" value={reminder.id} />
-                        <button
-                          type="submit"
-                          className="flex-shrink-0 rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[10px] py-[5px] font-[var(--font-ln-sans)] text-sm font-medium text-[var(--color-ln-azul)] transition-opacity hover:opacity-80"
-                        >
-                          Marcar dada
-                        </button>
-                      </form>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -1713,88 +1143,5 @@ function TransitBanner({
         </Link>
       </div>
     </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Upcoming appointments — PRESERVED (C3)
-// ---------------------------------------------------------------------------
-
-type UpcomingAppointmentRow = {
-  publicToken: string;
-  status: string;
-  offeringDisplayName: string;
-  slotStartsAt: Date;
-};
-
-function UpcomingAppointments({
-  pet,
-  upcomingAppointments,
-}: {
-  pet: Pet;
-  upcomingAppointments: UpcomingAppointmentRow[];
-}) {
-  const sorted = [...upcomingAppointments].sort(
-    (a, b) => new Date(a.slotStartsAt).getTime() - new Date(b.slotStartsAt).getTime(),
-  );
-
-  return (
-    <section className="space-y-3">
-      <h2 className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
-        Próximos turnos
-      </h2>
-      {sorted.length === 0 ? (
-        <p className="text-[13px] text-[var(--color-ln-mute)]">
-          No hay turnos próximos para {pet.name}.
-        </p>
-      ) : (
-        <ul className="space-y-3">
-          {sorted.map((apt) => (
-            <li
-              key={`apt-${apt.publicToken}`}
-              className="rounded-[4px] border border-[var(--color-ln-line)] px-[14px] py-[12px] space-y-[6px]"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]">
-                    {apt.offeringDisplayName}
-                  </p>
-                  <p className="mt-[2px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
-                    {new Date(apt.slotStartsAt).toLocaleString("es-AR", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </p>
-                </div>
-                <span className="flex-shrink-0 inline-flex items-center rounded-[2px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
-                  turno
-                </span>
-              </div>
-              <Link
-                href={`/mis-turnos/${apt.publicToken}`}
-                className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
-              >
-                Ver detalle →
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Detail — shared label/value cell
-// ---------------------------------------------------------------------------
-
-function Detail({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <div>
-      <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
-        {label}
-      </dt>
-      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{value || "—"}</dd>
-    </div>
   );
 }

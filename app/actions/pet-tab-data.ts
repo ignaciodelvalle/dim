@@ -1,15 +1,9 @@
 "use server";
 
-// pet-tab-data.ts — thin shim (strangler migration 25/61).
-//
-// Business logic moved to:
-//   src/modules/pets/application/tab-data/
-//
-// This file re-exports all exported types and provides thin loader wrappers
-// that add the auth guard (requirePetAccess owner or org).
-//
-// CRITICAL: Every runtime export in a "use server" file must be an async
-// function. Types are re-exported with `export type` (erased at runtime).
+// pet-tab-data.ts — thin shim (strangler migration 25/61). Business logic
+// lives in src/modules/pets/application/tab-data/; this file adds the auth
+// guard (requirePetAccess owner or org) and re-exports types.
+// CRITICAL: every runtime export here must be async; types use `export type`.
 
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { fetchLatestAmendmentsForEvents } from "@/src/modules/events/application/amendment/fetch-latest-amendments";
@@ -24,10 +18,6 @@ import type {
   VacunasTabData,
 } from "@/src/modules/pets/application/tab-data/types";
 
-// ---------------------------------------------------------------------------
-// Type re-exports (erased at runtime — allowed in "use server" files)
-// ---------------------------------------------------------------------------
-
 export type {
   HistorialEventRow,
   HistorialTabData,
@@ -37,25 +27,31 @@ export type {
   VacunasTabData,
 } from "@/src/modules/pets/application/tab-data/types";
 
-// ---------------------------------------------------------------------------
-// Libreta panel
-// ---------------------------------------------------------------------------
+// WS-3 amendment enrichment ("Corregido · ver original") stays in the shim so
+// the pets module doesn't take a new dependency on events (see
+// scripts/check-dependency-direction.ts). Shared by the two functions below.
+async function enrichWithAmendments<T extends { id: string }>(
+  petId: string,
+  rows: T[],
+): Promise<(T & { amendedAt: Date | null })[]> {
+  const eventIds = rows.map((r) => r.id);
+  const amendments =
+    eventIds.length > 0 ? await fetchLatestAmendmentsForEvents(petId, eventIds) : new Map();
+  return rows.map((r) => ({ ...r, amendedAt: amendments.get(r.id)?.occurredAt ?? null }));
+}
 
+// Libreta panel (owner-only — matches old /libreta route).
 export async function getLibretaTabData(
   publicToken: string,
 ): Promise<{ ok: true; data: LibretaTabData } | { ok: false; error: string }> {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) return { ok: false, error: "Acceso denegado" };
-  // Libreta is owner-only — matches old /libreta route (requireOwnedPetByToken).
   if (access.accessPath !== "owner") return { ok: false, error: "Acceso denegado" };
   const { user, pet, accessPath, organization } = access;
   return _getLibretaTabData({ user, pet, accessPath, organization });
 }
 
-// ---------------------------------------------------------------------------
-// Vacunas panel
-// ---------------------------------------------------------------------------
-
+// Vacunas panel.
 export async function getVacunasTabData(
   publicToken: string,
 ): Promise<{ ok: true; data: VacunasTabData } | { ok: false; error: string }> {
@@ -65,53 +61,34 @@ export async function getVacunasTabData(
   return _getVacunasTabData({ user, pet, accessPath, organization });
 }
 
-// ---------------------------------------------------------------------------
-// Libreta face (Face 2 — two-face redesign, 2026-07-01)
-//
-// Unlike getLibretaTabData (owner-only, matching the old /libreta route),
-// this guard is WIDENED to also allow accessPath === "org" — org viewers get
-// a lens-clamped, read-only Libreta face (design ADR-6). The use-case itself
-// (get-libreta-face-data.ts) never populates activeShares for org callers, so
-// SharesManager stays owner-gated despite the wider read guard.
-// ---------------------------------------------------------------------------
-
+// Libreta face (Face 2, two-face redesign 2026-07-01). Unlike getLibretaTabData,
+// this guard allows accessPath === "org" too — org viewers get a lens-clamped
+// read-only face (design ADR-6); activeShares stays owner-gated in the use-case.
 export async function getLibretaFaceData(
   publicToken: string,
 ): Promise<{ ok: true; data: LibretaFaceData } | { ok: false; error: string }> {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) return { ok: false, error: "Acceso denegado" };
   const { user, pet, accessPath, organization } = access;
-  return _getLibretaFaceData({ user, pet, accessPath, organization });
+  const result = await _getLibretaFaceData({ user, pet, accessPath, organization });
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: { ...result.data, past: await enrichWithAmendments(pet.id, result.data.past) },
+  };
 }
 
-// ---------------------------------------------------------------------------
-// Historial panel
-// ---------------------------------------------------------------------------
-
+// Historial panel (owner-only — matches old /historial route).
 export async function getHistorialTabData(
   publicToken: string,
 ): Promise<{ ok: true; data: HistorialTabData } | { ok: false; error: string }> {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) return { ok: false, error: "Acceso denegado" };
-  // Historial is owner-only — matches old /historial route (requireOwnedPetByToken).
   if (access.accessPath !== "owner") return { ok: false, error: "Acceso denegado" };
   const result = await _getHistorialTabData(access.pet);
   if (!result.ok) return result;
-
-  // WS-3: enrich each row with amendedAt so the timeline can show
-  // "Corregido · ver original". Kept in the shim (app layer) so the pets
-  // module does not take a new dependency on the events module.
-  const eventIds = result.data.events.map((e) => e.id);
-  const amendments =
-    eventIds.length > 0 ? await fetchLatestAmendmentsForEvents(access.pet.id, eventIds) : new Map();
   return {
     ok: true,
-    data: {
-      ...result.data,
-      events: result.data.events.map((e) => ({
-        ...e,
-        amendedAt: amendments.get(e.id)?.occurredAt ?? null,
-      })),
-    },
+    data: { ...result.data, events: await enrichWithAmendments(access.pet.id, result.data.events) },
   };
 }
