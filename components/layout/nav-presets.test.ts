@@ -197,24 +197,31 @@ describe("buildOrgNavFlat", () => {
 });
 
 describe("OWNER_NAV", () => {
-  it("has exactly 7 items", () => {
-    expect(OWNER_NAV).toHaveLength(7);
+  // Re-ranked 2026-07-01 (four-actor lean IA critique §2): "two duties + identity
+  // + a bell". The nav array holds only the two civic duties; identity (Cuenta)
+  // is the account pill and notifications are the bell — both in AppCitizenMasthead.
+  it("has exactly 2 items — the two civic duties", () => {
+    expect(OWNER_NAV).toHaveLength(2);
   });
 
-  it("contains /mis-mascotas", () => {
-    expect(OWNER_NAV.map((i) => i.href)).toContain("/mis-mascotas");
+  it("leads with Cumplir → /inicio (the compliance-register home)", () => {
+    const cumplir = OWNER_NAV.find((i) => i.label === "Cumplir");
+    expect(cumplir).toBeDefined();
+    expect(cumplir?.href).toBe("/inicio");
   });
 
-  it("contains Denuncias tab pointing to /denuncias/mias", () => {
-    const denuncias = OWNER_NAV.find((i) => i.label === "Denuncias");
-    expect(denuncias).toBeDefined();
-    expect(denuncias?.href).toBe("/denuncias/mias");
+  it("contains Denunciar tab pointing to /denuncias/mias", () => {
+    const denunciar = OWNER_NAV.find((i) => i.label === "Denunciar");
+    expect(denunciar).toBeDefined();
+    expect(denunciar?.href).toBe("/denuncias/mias");
   });
 
-  it("contains Adopciones tab pointing to /adoptar", () => {
-    const adopciones = OWNER_NAV.find((i) => i.label === "Adopciones");
-    expect(adopciones).toBeDefined();
-    expect(adopciones?.href).toBe("/adoptar");
+  it("no longer surfaces Notificaciones, Adopciones, Turnos or Mis Mascotas as nav peers", () => {
+    const hrefs = OWNER_NAV.map((i) => i.href);
+    expect(hrefs).not.toContain("/notificaciones"); // now the bell
+    expect(hrefs).not.toContain("/adoptar");
+    expect(hrefs).not.toContain("/mis-turnos");
+    expect(hrefs).not.toContain("/mis-mascotas"); // reachable in-context from /inicio
   });
 });
 

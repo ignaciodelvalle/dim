@@ -97,7 +97,6 @@ export function AppCitizenMasthead({
       <CitizenMobileDrawer
         nav={nav}
         switcher={switcher}
-        unreadCount={unreadCount}
         showReturn={showReturn}
         returnHref={returnHref}
       />
@@ -295,13 +294,11 @@ function CitizenSwitcher({ switcher }: { switcher: SwitcherTarget[] }) {
 function CitizenMobileDrawer({
   nav,
   switcher,
-  unreadCount,
   showReturn,
   returnHref,
 }: {
   nav: NavItem[];
   switcher: SwitcherTarget[];
-  unreadCount: number;
   showReturn: boolean;
   returnHref?: string;
 }) {
@@ -361,8 +358,6 @@ function CitizenMobileDrawer({
           >
             {nav.map((item) => {
               const active = isActive(item, pathname);
-              const badge =
-                item.matchPrefix === "/notificaciones" && unreadCount > 0 ? unreadCount : undefined;
               return (
                 <Link
                   key={item.href}
@@ -377,11 +372,6 @@ function CitizenMobileDrawer({
                   ].join(" ")}
                 >
                   <span className="flex-1 truncate">{item.label}</span>
-                  {badge != null && badge > 0 && (
-                    <span className="inline-flex items-center justify-center rounded-full bg-[var(--color-ln-celeste)] px-1.5 py-0.5 font-[var(--font-ln-mono)] text-xs font-bold leading-none text-[var(--color-ln-azul-900)]">
-                      {badge > 9 ? "9+" : badge}
-                    </span>
-                  )}
                 </Link>
               );
             })}

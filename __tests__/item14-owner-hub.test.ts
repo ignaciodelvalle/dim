@@ -133,11 +133,14 @@ describe("libreta-export HTML helper (htmlEscape and formatEventLabel)", () => {
 // ---------------------------------------------------------------------------
 
 describe("OWNER_NAV exclusion contract for /cuenta", () => {
-  it("OWNER_NAV contains Notificaciones and Denuncias (should NOT appear in cuenta groups)", async () => {
+  it("Denuncias lives in OWNER_NAV and Notificaciones in the bell (neither belongs in cuenta groups)", async () => {
     const { OWNER_NAV } = await import("@/components/layout/nav-presets");
     const navHrefs = OWNER_NAV.map((i) => i.href);
-    expect(navHrefs).toContain("/notificaciones");
+    // Denunciar is a nav duty.
     expect(navHrefs.some((h) => h.includes("/denuncias"))).toBe(true);
+    // Notificaciones is no longer a nav peer (2026-07-01 re-rank) — it is the
+    // masthead bell affordance, so it must not reappear in the cuenta groups either.
+    expect(navHrefs).not.toContain("/notificaciones");
   });
 
   it("cuenta page groups exclude nav-duplicated destinations", () => {

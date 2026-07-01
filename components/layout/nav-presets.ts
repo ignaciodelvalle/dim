@@ -22,14 +22,16 @@ export const PUBLIC_NAV: NavItem[] = [
 // Owner portal
 // ---------------------------------------------------------------------------
 
+// Owner nav — re-ranked to "two duties + identity + a bell" (four-actor lean IA
+// critique §2, 2026-07-01). A citizen has two civic duties: keep their own
+// record in order (Cumplir → the compliance-register home /inicio) and report
+// what they witness (Denunciar → /denuncias/mias). Identity lives in the account
+// pill and notifications in the bell (both in AppCitizenMasthead), so neither is
+// a nav peer. Turnos / Adopciones / Refugios / Perdidas are no longer top-level
+// destinations — they surface in context (home widgets, footer, pet pages).
 export const OWNER_NAV: NavItem[] = [
-  { href: "/inicio", label: "Inicio", matchPrefix: "/inicio" },
-  { href: "/mis-mascotas", label: "Mis Mascotas", matchPrefix: "/mis-mascotas" },
-  { href: "/mis-turnos", label: "Turnos", matchPrefix: "/mis-turnos" },
-  { href: "/notificaciones", label: "Notificaciones", matchPrefix: "/notificaciones" },
-  { href: "/adoptar", label: "Adopciones", matchPrefix: "/adoptar" },
-  { href: "/denuncias/mias", label: "Denuncias", matchPrefix: "/denuncias" },
-  { href: "/cuenta", label: "Tu cuenta", matchPrefix: "/cuenta" },
+  { href: "/inicio", label: "Cumplir", matchPrefix: "/inicio" },
+  { href: "/denuncias/mias", label: "Denunciar", matchPrefix: "/denuncias" },
 ];
 
 // ---------------------------------------------------------------------------
