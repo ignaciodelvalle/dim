@@ -3,7 +3,7 @@
 import { AmendedBadge } from "@/components/ui/AmendedBadge";
 import { LnBadge } from "@/components/ui/Badge";
 import type { EventType } from "@/db/schema";
-import { eventPayloadSummary } from "@/lib/events";
+import { eventPayloadDetails, eventPayloadSummary } from "@/lib/events";
 import { eventTypeLabel, formatDateTime } from "@/lib/format";
 import { libretaConfidenceTier } from "@/lib/libreta-sanitaria";
 import { ownerConfidenceDisplay } from "@/lib/projections/owner-confidence-display";
@@ -129,6 +129,8 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
           {filteredEvents.map((event) => {
             const eventType = event.eventType as EventType;
             const summary = eventPayloadSummary(event.eventType, event.payload);
+            // H3: curated es-AR detail rows (whitelist) instead of raw JSON.
+            const details = eventPayloadDetails(event.eventType, event.payload);
             // Provenance badge (WS-3): collapse the event's confidence tier into
             // one owner-facing badge. Only when author metadata is present.
             const provenance =
@@ -207,14 +209,23 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
                     />
                   </a>
                 )}
-                <details className="text-xs text-[var(--color-ln-mute)]">
-                  <summary className="cursor-pointer select-none hover:text-[var(--color-ln-ink-2)]">
-                    Ver detalle técnico
-                  </summary>
-                  <pre className="mt-2 p-3 rounded-[4px] bg-[var(--color-ln-stripe)] overflow-x-auto text-[11px] leading-relaxed">
-                    {JSON.stringify(event.payload, null, 2)}
-                  </pre>
-                </details>
+                {details.length > 0 && (
+                  <details className="text-xs text-[var(--color-ln-mute)]">
+                    <summary className="cursor-pointer select-none hover:text-[var(--color-ln-ink-2)]">
+                      Ver detalle
+                    </summary>
+                    <dl className="mt-2 flex flex-col gap-1">
+                      {details.map((row) => (
+                        <div key={row.label} className="flex gap-2">
+                          <dt className="min-w-24 font-medium text-[var(--color-ln-ink-2)]">
+                            {row.label}
+                          </dt>
+                          <dd className="text-[var(--color-ln-ink)]">{row.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </details>
+                )}
               </li>
             );
           })}

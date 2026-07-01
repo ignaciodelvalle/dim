@@ -26,6 +26,95 @@ export type EventPayloadSummary = {
   secondary: string | null;
 };
 
+// Curated, whitelisted es-AR key→value view of an event payload for the owner
+// timeline (H3, 2026-07-01). Replaces a raw JSON dump on a citizen surface: only
+// safe, human fields are emitted — never internal identifiers (*_id), hashes
+// (firma_hash, evidence_hash), matched_chip_number, or raw enum codes. Unknown
+// event types return [] (no detail section renders).
+export function eventPayloadDetails(
+  eventType: string,
+  payload: unknown,
+): Array<{ label: string; value: string }> {
+  const upcasted = upcastPayload(eventType as EventType, payload);
+  const p = (upcasted ?? {}) as Record<string, unknown>;
+  const rows: Array<{ label: string; value: string }> = [];
+  const push = (label: string, key: string, transform?: (v: string) => string) => {
+    const v = p[key];
+    if (typeof v === "string" && v.length > 0) {
+      rows.push({ label, value: transform ? transform(v) : v });
+    } else if (typeof v === "number") {
+      rows.push({ label, value: String(v) });
+    }
+  };
+  const pushDate = (label: string, key: string) => {
+    const v = p[key];
+    if (typeof v === "string" && v.length > 0) {
+      const d = new Date(v);
+      if (Number.isFinite(d.getTime())) rows.push({ label, value: d.toLocaleDateString("es-AR") });
+    }
+  };
+
+  switch (eventType) {
+    case "vaccination_administered":
+      push("Vacuna", "vaccine_name");
+      push("Marca", "brand");
+      push("Lote", "batch");
+      push("Aplicada por", "administered_by");
+      pushDate("Próxima dosis", "next_due_at");
+      break;
+    case "deworming_administered":
+      push("Producto", "product");
+      push("Tipo", "type", (v) =>
+        v === "internal"
+          ? "interno"
+          : v === "external"
+            ? "externo"
+            : v === "both"
+              ? "interno + externo"
+              : v,
+      );
+      break;
+    case "sterilization_performed":
+      push("Procedimiento", "procedure", (v) =>
+        v === "castration" ? "castración" : v === "spay" ? "ovariectomía" : v,
+      );
+      push("Realizada por", "performed_by");
+      push("Clínica", "clinic");
+      break;
+    case "microchip_implanted":
+      push("Número", "chip_number");
+      push("Implantado por", "implanted_by");
+      push("Ubicación", "location_on_body");
+      break;
+    case "weight_recorded":
+      push("Peso", "kg", (v) => `${v} kg`);
+      break;
+    case "vet_visit_logged":
+      push("Motivo", "reason");
+      push("Veterinario", "vet_name");
+      push("Clínica", "clinic");
+      push("Diagnóstico", "diagnosis");
+      break;
+    case "note_added":
+      push("Nota", "text");
+      break;
+    case "dangerous_breed_attested":
+      push("Registro", "registry", (v) =>
+        v === "caba_4078"
+          ? "CABA · Ley 4078"
+          : v === "prov_14107"
+            ? "Prov. Bs. As. · Ley 14.107"
+            : v === "other"
+              ? "Otro registro"
+              : v,
+      );
+      break;
+    default:
+      return [];
+  }
+  return rows;
+}
+
 export function eventPayloadSummary(eventType: string, payload: unknown): EventPayloadSummary {
   // Bring every historical payload up to its latest schema version before any
   // field is read. This is the primary read-path hook for the upcaster registry
