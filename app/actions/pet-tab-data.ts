@@ -14,10 +14,12 @@
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { fetchLatestAmendmentsForEvents } from "@/src/modules/events/application/amendment/fetch-latest-amendments";
 import { getHistorialTabData as _getHistorialTabData } from "@/src/modules/pets/application/tab-data/get-historial-tab-data";
+import { getLibretaFaceData as _getLibretaFaceData } from "@/src/modules/pets/application/tab-data/get-libreta-face-data";
 import { getLibretaTabData as _getLibretaTabData } from "@/src/modules/pets/application/tab-data/get-libreta-tab-data";
 import { getVacunasTabData as _getVacunasTabData } from "@/src/modules/pets/application/tab-data/get-vacunas-tab-data";
 import type {
   HistorialTabData,
+  LibretaFaceData,
   LibretaTabData,
   VacunasTabData,
 } from "@/src/modules/pets/application/tab-data/types";
@@ -30,6 +32,7 @@ export type {
   HistorialEventRow,
   HistorialTabData,
   LibretaEventRow,
+  LibretaFaceData,
   LibretaTabData,
   VacunasTabData,
 } from "@/src/modules/pets/application/tab-data/types";
@@ -60,6 +63,25 @@ export async function getVacunasTabData(
   if (!access.ok) return { ok: false, error: "Acceso denegado" };
   const { user, pet, accessPath, organization } = access;
   return _getVacunasTabData({ user, pet, accessPath, organization });
+}
+
+// ---------------------------------------------------------------------------
+// Libreta face (Face 2 — two-face redesign, 2026-07-01)
+//
+// Unlike getLibretaTabData (owner-only, matching the old /libreta route),
+// this guard is WIDENED to also allow accessPath === "org" — org viewers get
+// a lens-clamped, read-only Libreta face (design ADR-6). The use-case itself
+// (get-libreta-face-data.ts) never populates activeShares for org callers, so
+// SharesManager stays owner-gated despite the wider read guard.
+// ---------------------------------------------------------------------------
+
+export async function getLibretaFaceData(
+  publicToken: string,
+): Promise<{ ok: true; data: LibretaFaceData } | { ok: false; error: string }> {
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { ok: false, error: "Acceso denegado" };
+  const { user, pet, accessPath, organization } = access;
+  return _getLibretaFaceData({ user, pet, accessPath, organization });
 }
 
 // ---------------------------------------------------------------------------
