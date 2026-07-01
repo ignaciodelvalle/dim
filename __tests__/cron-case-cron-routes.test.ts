@@ -54,13 +54,13 @@ describe("GET /api/cron/close-followup-expired-adoptions", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/case-cron");
+    vi.doUnmock("@/lib/infra/case-cron");
     vi.doUnmock("@/lib/case-closers/close-followup-expired-adoptions");
   });
 
   async function callRoute(authResult: ReturnType<typeof makeAuthFail> | null) {
     const runCaseCronMock = vi.fn().mockResolvedValue(makeRunResult({ itemsProcessed: 2 }));
-    vi.doMock("@/lib/case-cron", () => ({
+    vi.doMock("@/lib/infra/case-cron", () => ({
       checkCronSecret: vi.fn().mockReturnValue(authResult),
       runCaseCron: runCaseCronMock,
     }));
@@ -99,7 +99,7 @@ describe("GET /api/cron/close-followup-expired-adoptions", () => {
     const runCaseCronMock = vi
       .fn()
       .mockResolvedValue(makeRunResult({ status: "failed", itemsProcessed: 0 }));
-    vi.doMock("@/lib/case-cron", () => ({
+    vi.doMock("@/lib/infra/case-cron", () => ({
       checkCronSecret: vi.fn().mockReturnValue(null),
       runCaseCron: runCaseCronMock,
     }));
@@ -131,13 +131,13 @@ describe("GET /api/cron/close-stale-lost-episodes", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/case-cron");
+    vi.doUnmock("@/lib/infra/case-cron");
     vi.doUnmock("@/lib/case-closers/close-stale-lost-episodes");
   });
 
   async function callRoute(authResult: ReturnType<typeof makeAuthFail> | null) {
     const runCaseCronMock = vi.fn().mockResolvedValue(makeRunResult({ itemsProcessed: 1 }));
-    vi.doMock("@/lib/case-cron", () => ({
+    vi.doMock("@/lib/infra/case-cron", () => ({
       checkCronSecret: vi.fn().mockReturnValue(authResult),
       runCaseCron: runCaseCronMock,
     }));
@@ -186,13 +186,13 @@ describe("GET /api/cron/escalate-stale-disputes", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/case-cron");
+    vi.doUnmock("@/lib/infra/case-cron");
     vi.doUnmock("@/lib/case-closers/escalate-stale-disputes");
   });
 
   async function callRoute(authResult: ReturnType<typeof makeAuthFail> | null) {
     const runCaseCronMock = vi.fn().mockResolvedValue(makeRunResult({ itemsProcessed: 3 }));
-    vi.doMock("@/lib/case-cron", () => ({
+    vi.doMock("@/lib/infra/case-cron", () => ({
       checkCronSecret: vi.fn().mockReturnValue(authResult),
       runCaseCron: runCaseCronMock,
     }));
@@ -239,13 +239,13 @@ describe("GET /api/cron/escalate-stale-welfare-cases", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/case-cron");
+    vi.doUnmock("@/lib/infra/case-cron");
     vi.doUnmock("@/lib/case-closers/escalate-stale-welfare-cases");
   });
 
   async function callRoute(authResult: ReturnType<typeof makeAuthFail> | null) {
     const runCaseCronMock = vi.fn().mockResolvedValue(makeRunResult({ itemsProcessed: 0 }));
-    vi.doMock("@/lib/case-cron", () => ({
+    vi.doMock("@/lib/infra/case-cron", () => ({
       checkCronSecret: vi.fn().mockReturnValue(authResult),
       runCaseCron: runCaseCronMock,
     }));
@@ -288,13 +288,13 @@ describe("GET /api/cron/expire-cross-org-transfers", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/case-cron");
+    vi.doUnmock("@/lib/infra/case-cron");
     vi.doUnmock("@/src/modules/transfers/infrastructure/transfers-repository");
   });
 
   async function callRoute(authResult: ReturnType<typeof makeAuthFail> | null) {
     const runCaseCronMock = vi.fn().mockResolvedValue(makeRunResult({ itemsProcessed: 5 }));
-    vi.doMock("@/lib/case-cron", () => ({
+    vi.doMock("@/lib/infra/case-cron", () => ({
       checkCronSecret: vi.fn().mockReturnValue(authResult),
       runCaseCron: runCaseCronMock,
     }));

@@ -220,7 +220,7 @@ const appFooterHrefs = extractQuotedHrefs(fs.readFileSync(APP_FOOTER_PATH, "utf8
 // Only entries whose route starts with "/" are full-page routes.
 // Routes starting with "?" are SheetMounter sheets — no dedicated page.tsx.
 
-const EVENT_REGISTRY_PATH = path.join(REPO_ROOT, "lib/event-capture-registry.ts");
+const EVENT_REGISTRY_PATH = path.join(REPO_ROOT, "lib/events/event-capture-registry.ts");
 const eventRegistrySource = fs.readFileSync(EVENT_REGISTRY_PATH, "utf8");
 
 // Routes starting with "/" are full-page routes; prefix with /mis-mascotas/*

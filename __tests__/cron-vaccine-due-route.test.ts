@@ -15,7 +15,7 @@ describe("GET /api/cron/vaccine-due", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/notifications");
+    vi.doUnmock("@/lib/infra/notifications");
   });
 
   async function callRoute(headers: Record<string, string>) {
@@ -25,7 +25,7 @@ describe("GET /api/cron/vaccine-due", () => {
   }
 
   it("returns 401 when no auth header is provided", async () => {
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runVaccineDueScan: vi.fn(),
       runPostAdoptionCheckinScan: vi.fn(),
     }));
@@ -36,7 +36,7 @@ describe("GET /api/cron/vaccine-due", () => {
   });
 
   it("returns 401 when x-cron-secret does not match", async () => {
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runVaccineDueScan: vi.fn(),
       runPostAdoptionCheckinScan: vi.fn(),
     }));
@@ -45,7 +45,7 @@ describe("GET /api/cron/vaccine-due", () => {
   });
 
   it("returns 401 when Authorization: Bearer does not match", async () => {
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runVaccineDueScan: vi.fn(),
       runPostAdoptionCheckinScan: vi.fn(),
     }));
@@ -60,7 +60,7 @@ describe("GET /api/cron/vaccine-due", () => {
       insertedCount: 5,
       insertedNotificationIds: ["n1", "n2", "n3", "n4", "n5"],
     });
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runVaccineDueScan: scanMock,
       runPostAdoptionCheckinScan: vi.fn(),
     }));
@@ -78,7 +78,7 @@ describe("GET /api/cron/vaccine-due", () => {
 
   it("returns 200 when the secret matches via Authorization: Bearer", async () => {
     const scannedAt = new Date();
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runVaccineDueScan: vi.fn().mockResolvedValue({
         scannedAt,
         insertedCount: 0,
@@ -94,7 +94,7 @@ describe("GET /api/cron/vaccine-due", () => {
   });
 
   it("returns 500 with the error message when the helper throws", async () => {
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runVaccineDueScan: vi.fn().mockRejectedValue(new Error("vaccine scan failed")),
       runPostAdoptionCheckinScan: vi.fn(),
     }));

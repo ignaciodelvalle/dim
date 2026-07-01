@@ -18,7 +18,7 @@ describe("GET /api/cron/close-rabies-observations", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/rabies-observation-closer");
+    vi.doUnmock("@/lib/infra/rabies-observation-closer");
   });
 
   async function callRoute(headers: Record<string, string>) {
@@ -28,7 +28,7 @@ describe("GET /api/cron/close-rabies-observations", () => {
   }
 
   it("returns 401 when the x-cron-secret header is missing", async () => {
-    vi.doMock("@/lib/rabies-observation-closer", () => ({
+    vi.doMock("@/lib/infra/rabies-observation-closer", () => ({
       closeEligibleRabiesObservations: vi.fn(),
     }));
     const res = await callRoute({});
@@ -38,7 +38,7 @@ describe("GET /api/cron/close-rabies-observations", () => {
   });
 
   it("returns 401 when the x-cron-secret header does not match", async () => {
-    vi.doMock("@/lib/rabies-observation-closer", () => ({
+    vi.doMock("@/lib/infra/rabies-observation-closer", () => ({
       closeEligibleRabiesObservations: vi.fn(),
     }));
     const res = await callRoute({ "x-cron-secret": "wrong-value" });
@@ -46,7 +46,7 @@ describe("GET /api/cron/close-rabies-observations", () => {
   });
 
   it("returns 401 when the Authorization: Bearer header does not match", async () => {
-    vi.doMock("@/lib/rabies-observation-closer", () => ({
+    vi.doMock("@/lib/infra/rabies-observation-closer", () => ({
       closeEligibleRabiesObservations: vi.fn(),
     }));
     const res = await callRoute({ authorization: "Bearer wrong-secret" });
@@ -55,7 +55,7 @@ describe("GET /api/cron/close-rabies-observations", () => {
 
   it("returns 200 with helper stats when the secret matches via x-cron-secret", async () => {
     const closeMock = vi.fn().mockResolvedValue({ closed: 3, skipped: 1, errors: 0 });
-    vi.doMock("@/lib/rabies-observation-closer", () => ({
+    vi.doMock("@/lib/infra/rabies-observation-closer", () => ({
       closeEligibleRabiesObservations: closeMock,
     }));
     const res = await callRoute({ "x-cron-secret": "test-secret" });
@@ -68,7 +68,7 @@ describe("GET /api/cron/close-rabies-observations", () => {
 
   it("returns 200 when the secret matches via Authorization: Bearer", async () => {
     const closeMock = vi.fn().mockResolvedValue({ closed: 0, skipped: 0, errors: 0 });
-    vi.doMock("@/lib/rabies-observation-closer", () => ({
+    vi.doMock("@/lib/infra/rabies-observation-closer", () => ({
       closeEligibleRabiesObservations: closeMock,
     }));
     const res = await callRoute({ authorization: "Bearer test-secret" });
@@ -78,7 +78,7 @@ describe("GET /api/cron/close-rabies-observations", () => {
   });
 
   it("returns 500 with the error message when the helper throws", async () => {
-    vi.doMock("@/lib/rabies-observation-closer", () => ({
+    vi.doMock("@/lib/infra/rabies-observation-closer", () => ({
       closeEligibleRabiesObservations: vi.fn().mockRejectedValue(new Error("db connection lost")),
     }));
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});

@@ -23,7 +23,7 @@ describe("GET /api/cron/purge-scan-events", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/scan-retention");
+    vi.doUnmock("@/lib/infra/scan-retention");
     vi.doUnmock("@/db");
   });
 
@@ -47,7 +47,7 @@ describe("GET /api/cron/purge-scan-events", () => {
       cronRuns: {},
     }));
 
-    vi.doMock("@/lib/scan-retention", () => ({
+    vi.doMock("@/lib/infra/scan-retention", () => ({
       purgeExpiredScanEvents: vi.fn().mockImplementation(purgeImpl),
     }));
 

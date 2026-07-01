@@ -15,7 +15,7 @@ describe("GET /api/cron/post-adoption-checkin", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/notifications");
+    vi.doUnmock("@/lib/infra/notifications");
   });
 
   async function callRoute(headers: Record<string, string>) {
@@ -25,7 +25,7 @@ describe("GET /api/cron/post-adoption-checkin", () => {
   }
 
   it("returns 401 when no auth header is provided", async () => {
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runPostAdoptionCheckinScan: vi.fn(),
       runVaccineDueScan: vi.fn(),
     }));
@@ -36,7 +36,7 @@ describe("GET /api/cron/post-adoption-checkin", () => {
   });
 
   it("returns 401 when x-cron-secret does not match", async () => {
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runPostAdoptionCheckinScan: vi.fn(),
       runVaccineDueScan: vi.fn(),
     }));
@@ -45,7 +45,7 @@ describe("GET /api/cron/post-adoption-checkin", () => {
   });
 
   it("returns 401 when Authorization: Bearer does not match", async () => {
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runPostAdoptionCheckinScan: vi.fn(),
       runVaccineDueScan: vi.fn(),
     }));
@@ -60,7 +60,7 @@ describe("GET /api/cron/post-adoption-checkin", () => {
       proactiveInsertedIds: ["p1", "p2"],
       missedInsertedIds: ["m1"],
     });
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runPostAdoptionCheckinScan: scanMock,
       runVaccineDueScan: vi.fn(),
     }));
@@ -80,7 +80,7 @@ describe("GET /api/cron/post-adoption-checkin", () => {
 
   it("returns 200 when the secret matches via Authorization: Bearer", async () => {
     const scannedAt = new Date();
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runPostAdoptionCheckinScan: vi.fn().mockResolvedValue({
         scannedAt,
         proactiveInsertedIds: [],
@@ -97,7 +97,7 @@ describe("GET /api/cron/post-adoption-checkin", () => {
   });
 
   it("returns 500 when the helper throws", async () => {
-    vi.doMock("@/lib/notifications", () => ({
+    vi.doMock("@/lib/infra/notifications", () => ({
       runPostAdoptionCheckinScan: vi.fn().mockRejectedValue(new Error("checkin scan failed")),
       runVaccineDueScan: vi.fn(),
     }));

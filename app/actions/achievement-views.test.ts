@@ -25,7 +25,7 @@ vi.mock("@/db", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/pet-access", () => ({
+vi.mock("@/lib/infra/pet-access", () => ({
   requirePetAccess: mockRequirePetAccess,
 }));
 
