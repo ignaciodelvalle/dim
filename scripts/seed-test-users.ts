@@ -117,6 +117,9 @@ const SHARED_PASSWORD = "Test1234!";
 const EMAILS = {
   admin: "admin@dim.test",
   owner: "owner@dim.test",
+  // Owner B — a second, separate tenant used as the cross-tenant isolation
+  // target (e2e/cross-tenant-isolation.spec.ts). Owns its own pets.
+  ownerB: "owner2@dim.test",
   vet: "vet@dim.test",
   orgAdmin: "orgadmin@dim.test",
   govt: "govt@dim.test",
@@ -126,6 +129,7 @@ const EMAILS = {
 const DISPLAY = {
   admin: "Admin DIM",
   owner: "Lucía Tester",
+  ownerB: "Bruno Segundo",
   vet: "Dr. Juan Veterinario",
   orgAdmin: "Refugio Admin",
   govt: "Operador/a Gobierno (remoto)",
@@ -910,12 +914,75 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
 // Main
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Owner B — cross-tenant isolation target (owner2@dim.test).
+// Minimal owner: auth user (role via metadata trigger) + DNI-verified + pets.
+// Idempotent, like every other step.
+// ---------------------------------------------------------------------------
+
+async function ensureOwnerB(): Promise<string> {
+  log("STEP", "2b/9 — owner B (owner2@dim.test, cross-tenant target)");
+  const { id, created } = await ensureAuthUser(EMAILS.ownerB, DISPLAY.ownerB, "owner");
+  log(created ? "OK" : "SKIP", `auth.users ${EMAILS.ownerB} (owner)`);
+  await setPassword(id, SHARED_PASSWORD);
+  await syncDniVerified(id);
+  return id;
+}
+
+// Owner B's pet — a minimal real pet (no microchip, so no unique-chip clash
+// with Owner A's seeded identifications) giving the cross-tenant e2e a real
+// pet_id + pet_registered event to probe. Idempotent.
+async function seedOwnerBPet(ownerBId: string): Promise<void> {
+  log("STEP", "8b/9 — owner B mascota (cross-tenant target)");
+  const [hasPet] = await db
+    .select({ id: ownerships.id })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.ownerUserId, ownerBId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+      ),
+    )
+    .limit(1);
+  if (hasPet) {
+    log("SKIP", "owner B already has a pet");
+    return;
+  }
+  const [pet] = await db
+    .insert(pets)
+    .values({
+      publicToken: generatePublicToken(),
+      species: "dog",
+      breed: "Mestizo",
+      name: "Rocco",
+      sex: "male",
+      color: "marrón",
+      status: "active",
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "CABA",
+      acquisitionMethod: "adopted",
+    })
+    .returning({ id: pets.id, publicToken: pets.publicToken });
+  await db.insert(ownerships).values({ petId: pet.id, ownerUserId: ownerBId, role: "owner" });
+  await db.insert(petEvents).values({
+    petId: pet.id,
+    eventType: "pet_registered",
+    occurredAt: new Date(),
+    recordedByUserId: ownerBId,
+    authorRole: "owner",
+    payload: { source: "seed-script" },
+  });
+  log("OK", `owner B pet Rocco (${pet.publicToken})`);
+}
+
 async function main() {
   log("INFO", `Seeding against ${SUPABASE_URL}`);
   log("INFO", `Shared password: ${SHARED_PASSWORD}`);
 
   const adminId = await bootstrapAdmin();
   const ownerId = await signupOwner();
+  const ownerBId = await ensureOwnerB();
   const vetId = await provisionVet(adminId);
   const { orgAdminUserId, orgId, orgToken } = await provisionOrg(adminId);
   await seedOrgCoverage(orgId);
@@ -933,6 +1000,7 @@ async function main() {
   });
   await attachVetToOrg(orgId, vetId);
   await seedOwnerPets(ownerId);
+  await seedOwnerBPet(ownerBId);
   await seedShelterPets(orgId, orgAdminUserId);
 
   log("DONE", "seed complete");

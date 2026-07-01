@@ -16,10 +16,13 @@
  *
  * WHY THESE ACCOUNTS
  * ------------------
- * The test seed creates two owner accounts:
- *   owner@dim.test      — Owner A: has 3 pets ("Bobby", etc.)
- *   owner2@dim.test     — Owner B: created by this spec's beforeAll if absent
- *                         (idempotent via supabase admin API).
+ * The test seed (seed-test-users.ts) creates two owner accounts:
+ *   owner@dim.test      — Owner A: has 3 pets.
+ *   owner2@dim.test     — Owner B: a separate tenant owning "Rocco". This spec
+ *                         signs in as B to resolve B's REAL pet/user ids and
+ *                         probes them as A. Real-Owner-B tests self-skip if the
+ *                         owner2 fixture is absent (fabricated-UUID probes and
+ *                         anon probes still run).
  *
  * AUTHZ MODEL NOTE (Item 26 + Item 31)
  * ------------------------------------
@@ -34,8 +37,8 @@
  * --------------------
  * Depends on `pnpm db:bootstrap` → `pnpm seed:test` having run.
  * Owner A (owner@dim.test) must own at least one pet.
- * Owner B (owner2@dim.test) is created here if missing; a pet is also seeded
- * for Owner B via direct Drizzle inserts (BYPASSRLS) so we have a real target.
+ * Owner B (owner2@dim.test) + its pet are created by seed-test-users.ts
+ * (ensureOwnerB + seedOwnerBPet). If absent, real-Owner-B tests self-skip.
  *
  * The test uses Playwright's request API (not a browser tab) to probe the
  * JSON response of the /api/ routes and the page HTML of owner-scoped routes,
@@ -51,6 +54,10 @@ import { createClient } from "@supabase/supabase-js";
 
 const OWNER_A_EMAIL = "owner@dim.test";
 const OWNER_A_PASSWORD = "Test1234!";
+
+// Owner B — a real second tenant seeded by seed-test-users.ts (owns "Rocco").
+const OWNER_B_EMAIL = "owner2@dim.test";
+const OWNER_B_PASSWORD = "Test1234!";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -85,6 +92,31 @@ async function getOwnerAPetToken(accessToken: string): Promise<string | null> {
   return data && data.length > 0 ? (data[0].public_token as string) : null;
 }
 
+/** Sign in as Owner B (the real cross-tenant target). Returns null on failure. */
+async function signInOwnerB(): Promise<{ userId: string; accessToken: string } | null> {
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await client.auth.signInWithPassword({
+    email: OWNER_B_EMAIL,
+    password: OWNER_B_PASSWORD,
+  });
+  if (error || !data.user || !data.session) return null;
+  return { userId: data.user.id, accessToken: data.session.access_token };
+}
+
+/** Resolve Owner B's own pet token + id, read AS Owner B (positive-control read). */
+async function getOwnerBPet(accessToken: string): Promise<{ token: string; id: string } | null> {
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  await client.auth.setSession({ access_token: accessToken, refresh_token: "" });
+  const { data } = await client.from("pets").select("id, public_token").limit(1);
+  return data && data.length > 0
+    ? { token: data[0].public_token as string, id: data[0].id as string }
+    : null;
+}
+
 /** Navigate to a page and log in as Owner A. Returns the authenticated page. */
 async function loginAsOwnerA(page: Page): Promise<void> {
   await page.goto("/login");
@@ -100,6 +132,11 @@ async function loginAsOwnerA(page: Page): Promise<void> {
 
 let ownerAPetToken: string | null = null;
 let ownerAUserId: string | null = null;
+// Owner B's REAL identifiers (resolved by reading as Owner B). null when the
+// owner2 fixture isn't seeded — real-Owner-B tests self-skip in that case.
+let ownerBUserId: string | null = null;
+let ownerBPetToken: string | null = null;
+let ownerBPetId: string | null = null;
 let setupSkip: string | null = null;
 
 test.beforeAll(async () => {
@@ -119,6 +156,18 @@ test.beforeAll(async () => {
     }
   } catch (err) {
     setupSkip = `Cross-tenant spec setup failed: ${String(err)}. Run pnpm seed:test first.`;
+  }
+
+  // Owner B is optional: if the owner2 fixture is absent, real-Owner-B tests
+  // self-skip while the fabricated-UUID probes still run.
+  const ownerB = await signInOwnerB();
+  if (ownerB) {
+    ownerBUserId = ownerB.userId;
+    const bPet = await getOwnerBPet(ownerB.accessToken);
+    if (bPet) {
+      ownerBPetToken = bPet.token;
+      ownerBPetId = bPet.id;
+    }
   }
 });
 
@@ -188,6 +237,56 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
 
     // Must be 404 (not 500, not 200 with another user's data).
     expect(response?.status()).toBe(404);
+  });
+
+  // -------------------------------------------------------------------------
+  // 3-REAL. The strongest full-stack cross-tenant assertion: Owner A opening
+  // Owner B's REAL pet URL (owner2's "Rocco") must 404 — the action edge scopes
+  // the pet query to the session owner. Self-skips if owner2 isn't seeded.
+  // -------------------------------------------------------------------------
+  test("Owner A gets 404 on Owner B's REAL pet URL (action-edge scoping)", async ({ page }) => {
+    if (setupSkip || !ownerBPetToken) return;
+    await loginAsOwnerA(page);
+
+    const response = await page.goto(`/mis-mascotas/${ownerBPetToken}`);
+
+    // B's real token exists, but A must not be able to open it.
+    expect(response?.status(), "cross-tenant leak: Owner A opened Owner B's real pet page").toBe(
+      404,
+    );
+    await expect(page.getByText(/application error/i)).not.toBeVisible();
+  });
+
+  // -------------------------------------------------------------------------
+  // 4-REAL. PostgREST/RLS with a REAL target: Owner A cannot read Owner B's
+  // real ownerships row (by B's real user id) nor B's real pet_events.
+  // -------------------------------------------------------------------------
+  test("PostgREST: Owner A cannot read Owner B's REAL ownerships / pet_events", async () => {
+    if (setupSkip || !ownerBUserId) return;
+
+    const { accessToken } = await signInOwnerA();
+    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await client.auth.setSession({ access_token: accessToken, refresh_token: "" });
+
+    const { data: ownershipRows } = await client
+      .from("ownerships")
+      .select("id")
+      .eq("owner_user_id", ownerBUserId)
+      .limit(1);
+    expect((ownershipRows ?? []).length, "RLS leak: Owner A read Owner B's real ownerships").toBe(
+      0,
+    );
+
+    if (ownerBPetId) {
+      const { data: eventRows } = await client
+        .from("pet_events")
+        .select("id")
+        .eq("pet_id", ownerBPetId)
+        .limit(1);
+      expect((eventRows ?? []).length, "RLS leak: Owner A read Owner B's real pet_events").toBe(0);
+    }
   });
 
   // -------------------------------------------------------------------------
