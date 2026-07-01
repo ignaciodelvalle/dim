@@ -22,7 +22,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Mock auth-guards — vi.mock is hoisted, so we use a factory
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireAdminOrGovtOrRedirect: vi.fn(),
   requireAdminOrRedirect: vi.fn(),
 }));

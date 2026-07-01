@@ -30,7 +30,7 @@ const MockJurisdictionValidationError = vi.hoisted(
     },
 );
 
-vi.mock("@/lib/jurisdiction-validation", () => ({
+vi.mock("@/lib/infra/jurisdiction-validation", () => ({
   resolveCanonicalJurisdiction: mockResolveCanonicalJurisdiction,
   tryResolveCanonicalJurisdiction: mockTryResolveCanonicalJurisdiction,
   JurisdictionValidationError: MockJurisdictionValidationError,
@@ -40,7 +40,7 @@ vi.mock("@/lib/jurisdiction-validation", () => ({
 // Mock: jurisdiction-canonical
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/jurisdiction-canonical", () => ({
+vi.mock("@/lib/domain/jurisdiction-canonical", () => ({
   canonicalProvinceNameForStorage: vi.fn((input: string | null | undefined) => {
     if (!input) return null;
     // Minimal simulation: ISO AR-B → "Buenos Aires", display name passthrough.

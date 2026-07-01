@@ -19,24 +19,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const mockValidateEventPayload = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/event-schemas", () => ({
+vi.mock("@/lib/events/event-schemas", () => ({
   validateEventPayload: mockValidateEventPayload,
 }));
 
 const mockCloseCase = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/case-helpers", () => ({
+vi.mock("@/lib/infra/case-helpers", () => ({
   closeCase: mockCloseCase,
   openCase: vi.fn(),
   findOpenCaseForPetAndKind: vi.fn(),
 }));
 
 const mockSignalAuthorityReport = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/authority", () => ({
+vi.mock("@/lib/domain/authority", () => ({
   signalAuthorityReport: mockSignalAuthorityReport,
 }));
 
 const mockFindAuthoritiesForJurisdiction = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/approval-routing", () => ({
+vi.mock("@/lib/infra/approval-routing", () => ({
   findAuthoritiesForJurisdiction: mockFindAuthoritiesForJurisdiction,
 }));
 

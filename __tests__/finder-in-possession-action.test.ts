@@ -61,7 +61,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 // ---------------------------------------------------------------------------
 
 const mockUpload = vi.fn();
-vi.mock("@/lib/uploads", () => ({
+vi.mock("@/lib/infra/uploads", () => ({
   uploadAttachmentIfPresent: (supabase: unknown, file: unknown, bucket: unknown) =>
     mockUpload(supabase, file, bucket),
 }));
@@ -91,7 +91,7 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/rate-limit", async (importOriginal) => {
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,

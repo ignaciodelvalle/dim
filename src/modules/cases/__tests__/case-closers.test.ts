@@ -76,12 +76,12 @@ vi.mock("@/db", () => ({
   welfareReports: Symbol("welfareReports"),
 }));
 
-vi.mock("@/lib/event-schemas", () => ({
+vi.mock("@/lib/events/event-schemas", () => ({
   validateEventPayload: (_type: string, payload: unknown) => payload,
 }));
 
 const mockFindAuthorities = vi.fn().mockResolvedValue([] as string[]);
-vi.mock("@/lib/approval-routing", () => ({
+vi.mock("@/lib/infra/approval-routing", () => ({
   findAuthoritiesForJurisdiction: (args: unknown) => mockFindAuthorities(args),
 }));
 

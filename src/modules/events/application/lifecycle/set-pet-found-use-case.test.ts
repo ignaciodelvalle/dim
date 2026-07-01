@@ -18,14 +18,14 @@ vi.mock("server-only", () => ({}));
 const mockOpenCase = vi.hoisted(() => vi.fn());
 const mockCloseCase = vi.hoisted(() => vi.fn());
 const mockFindOpenCaseForPetAndKind = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/case-helpers", () => ({
+vi.mock("@/lib/infra/case-helpers", () => ({
   openCase: mockOpenCase,
   closeCase: mockCloseCase,
   findOpenCaseForPetAndKind: mockFindOpenCaseForPetAndKind,
 }));
 
 const mockValidateEventPayload = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/event-schemas", () => ({
+vi.mock("@/lib/events/event-schemas", () => ({
   validateEventPayload: mockValidateEventPayload,
 }));
 

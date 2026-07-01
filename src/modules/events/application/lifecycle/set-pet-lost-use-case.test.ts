@@ -24,41 +24,41 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const mockValidateMicrochipId = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/microchip-validation", () => ({
+vi.mock("@/lib/domain/microchip-validation", () => ({
   validateMicrochipId: mockValidateMicrochipId,
 }));
 
 const mockNormalizeTattooCode = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/tattoo-lookup", () => ({
+vi.mock("@/lib/infra/tattoo-lookup", () => ({
   normalizeTattooCode: mockNormalizeTattooCode,
 }));
 
 const mockWritePoint = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/location", () => ({
+vi.mock("@/lib/domain/location", () => ({
   writePoint: mockWritePoint,
 }));
 
 const mockOpenCase = vi.hoisted(() => vi.fn());
 const mockCloseCase = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/case-helpers", () => ({
+vi.mock("@/lib/infra/case-helpers", () => ({
   openCase: mockOpenCase,
   closeCase: mockCloseCase,
   findOpenCaseForPetAndKind: vi.fn(),
 }));
 
 const mockBroadcastLostPet = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/lost-pet-broadcast", () => ({
+vi.mock("@/lib/infra/lost-pet-broadcast", () => ({
   broadcastLostPet: mockBroadcastLostPet,
 }));
 
 const mockValidateEventPayload = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/event-schemas", () => ({
+vi.mock("@/lib/events/event-schemas", () => ({
   validateEventPayload: mockValidateEventPayload,
 }));
 
 // ARCH-S: fetchActiveIdentifications replaces legacy petMicrochipId / petTattooCode params.
 const mockFetchActiveIdentifications = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/pet-identifiers", () => ({
+vi.mock("@/lib/infra/pet-identifiers", () => ({
   fetchActiveIdentifications: mockFetchActiveIdentifications,
 }));
 

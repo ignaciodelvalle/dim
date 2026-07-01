@@ -42,7 +42,7 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
   return { MockRateLimitError, mockEnforceRateLimit: vi.fn().mockResolvedValue(undefined) };
 });
 
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/infra/rate-limit", () => ({
   enforceRateLimit: (endpoint: string, id: string, cfg: unknown) =>
     mockEnforceRateLimit(endpoint, id, cfg),
   RateLimitError: MockRateLimitError,

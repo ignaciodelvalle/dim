@@ -37,7 +37,7 @@ vi.mock("@/app/actions/microchip", () => ({
 // Mock: owner-path session
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/pets", () => ({
+vi.mock("@/lib/infra/pets", () => ({
   requireOwnedPetByToken: vi.fn(async () => ({
     user: { id: OWNER_USER_ID },
     pet: { id: PET_ID, publicToken: PET_TOKEN, microchipId: CHIP },
@@ -50,7 +50,7 @@ vi.mock("@/lib/pets", () => ({
 // Mock: org + admin auth guards + capabilities
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireOrgAccessByToken: vi.fn(async () => ({
     user: { id: VET_USER_ID },
     organization: { id: ORG_ID, displayName: "Clinica Test" },
@@ -121,7 +121,7 @@ vi.mock("@/db", () => {
 
 // ARCH-S: form actions now call fetchActiveIdentifications to get the current chip.
 // Mock it to return a pre-existing chip so the "accepts" tests reach replaceMicrochipForUser.
-vi.mock("@/lib/pet-identifiers", () => ({
+vi.mock("@/lib/infra/pet-identifiers", () => ({
   fetchActiveIdentifications: vi.fn(async () => ({
     microchip: {
       code: CHIP,
@@ -138,7 +138,7 @@ vi.mock("@/lib/pet-identifiers", () => ({
 // Mock: format helpers + navigation
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/format", () => ({
+vi.mock("@/lib/utils/format", () => ({
   parseDateInput: vi.fn((s: string) => (s ? new Date(s) : null)),
 }));
 

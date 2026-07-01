@@ -37,7 +37,7 @@ vi.mock("next/navigation", () => ({
 // Mock: @/lib/pet-access — grant access to a fake active pet.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/pet-access", () => ({
+vi.mock("@/lib/infra/pet-access", () => ({
   requirePetAccess: vi.fn(async () => ({
     ok: true,
     pet: { publicToken: TOKEN, name: "Roma", status: "active", species: "dog", sex: "female" },

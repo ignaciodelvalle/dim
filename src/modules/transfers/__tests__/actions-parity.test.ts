@@ -22,7 +22,7 @@ vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
   requireCapability: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: vi.fn(),
 }));
 
