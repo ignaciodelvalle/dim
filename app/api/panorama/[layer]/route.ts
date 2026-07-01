@@ -72,26 +72,44 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
   // value can only choose between the two safe levels — never widen scope.
   const level = url.searchParams.get("level") === "province" ? "province" : "locality";
 
+  // Resolve the selected province/locality once — shared by govt scope-narrowing
+  // and admin drill-down below.
+  const provinceObj = provinceIso ? provinceByCode(provinceIso) : null;
+  const localityRow =
+    provinceObj && localitySlug
+      ? await localityByName(provinceObj.code as ProvinceCode, localitySlug)
+      : null;
+
   // 4. Intersect scope with the viewer's assignments (never widens for govt).
   let scoped = jurisdictions;
-  if (provinceIso && profile.role !== "admin") {
-    const provinceObj = provinceByCode(provinceIso);
-    if (provinceObj) {
-      const provinceName = provinceObj.name;
-      const localityRow = localitySlug
-        ? await localityByName(provinceObj.code as ProvinceCode, localitySlug)
-        : null;
-      scoped = localityRow
-        ? jurisdictions.filter(
-            (j) => j.province === provinceName && j.locality === localityRow.localityName,
-          )
-        : jurisdictions.filter((j) => j.province === provinceName);
-    }
+  if (provinceObj && profile.role !== "admin") {
+    scoped = localityRow
+      ? jurisdictions.filter(
+          (j) => j.province === provinceObj.name && j.locality === localityRow.localityName,
+        )
+      : jurisdictions.filter((j) => j.province === provinceObj.name);
   }
+
+  // Admin drill-down: mirror app/admin/panorama/page.tsx so toggled layers scope
+  // to the selected province/locality exactly like the server-rendered default
+  // layer + KPIs. Without this the API ignored the filter for admins and every
+  // toggled layer returned national data while the default layer showed the
+  // selected province. Only passed for admin — govt scope lives in `scoped`.
+  const adminProvince = profile.role === "admin" ? (provinceObj?.name ?? undefined) : undefined;
+  const adminLocality =
+    profile.role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
 
   // 5. Delegate to the use-case (cap + k-anon enforced inside). The level only
   // affects the two choropleth layers; point layers ignore it.
-  const result = await getLayerFeatures(layer, actor, scoped, { since, asOf }, level);
+  const result = await getLayerFeatures(
+    layer,
+    actor,
+    scoped,
+    { since, asOf },
+    level,
+    adminProvince,
+    adminLocality,
+  );
 
   return NextResponse.json(
     {

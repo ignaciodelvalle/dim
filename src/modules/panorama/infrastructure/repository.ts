@@ -1027,7 +1027,7 @@ export async function loadPerdidasByUnit(
         province: sql<string>`(${petEvents.payload}->>'province')`,
         centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
         centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
-        n: count(),
+        n: countDistinct(petEvents.id),
       })
       .from(petEvents)
       .leftJoin(
@@ -1061,7 +1061,7 @@ export async function loadPerdidasByUnit(
       locality: sql<string>`(${petEvents.payload}->>'locality')`,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
-      n: count(),
+      n: countDistinct(petEvents.id),
     })
     .from(petEvents)
     .leftJoin(
@@ -1122,7 +1122,7 @@ export async function loadMordedurassByUnit(
         province: sql<string>`(${petEvents.payload}->>'province')`,
         centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
         centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
-        n: count(),
+        n: countDistinct(petEvents.id),
       })
       .from(petEvents)
       .leftJoin(
@@ -1155,7 +1155,7 @@ export async function loadMordedurassByUnit(
       locality: sql<string>`(${petEvents.payload}->>'locality')`,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
-      n: count(),
+      n: countDistinct(petEvents.id),
     })
     .from(petEvents)
     .leftJoin(
@@ -1224,7 +1224,9 @@ export async function loadDenunciasByUnit(
         province: welfareReports.jurisdictionProvince,
         centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
         centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
-        n: count(),
+        // countDistinct: the arLocalities LEFT JOIN fans out (one report ×
+        // matching localities), so a plain count() multiplies by the join.
+        n: countDistinct(welfareReports.id),
       })
       .from(welfareReports)
       .leftJoin(
@@ -1257,7 +1259,9 @@ export async function loadDenunciasByUnit(
       locality: welfareReports.jurisdictionLocality,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
-      n: count(),
+      // countDistinct: homonymous localities (same normalized name within a
+      // province) make the arLocalities join fan out, so count() over-counts.
+      n: countDistinct(welfareReports.id),
     })
     .from(welfareReports)
     .leftJoin(
@@ -1317,7 +1321,7 @@ export async function loadZoonosisByUnit(
         province: sql<string>`(${petEvents.payload}->>'province')`,
         centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
         centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
-        n: count(),
+        n: countDistinct(petEvents.id),
       })
       .from(petEvents)
       .leftJoin(
@@ -1350,7 +1354,7 @@ export async function loadZoonosisByUnit(
       locality: sql<string>`(${petEvents.payload}->>'locality')`,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
-      n: count(),
+      n: countDistinct(petEvents.id),
     })
     .from(petEvents)
     .leftJoin(

@@ -46,7 +46,7 @@ export default async function AdminPanoramaPage({
         listLocalitiesByProvince(provinceObj.code as ProvinceCode),
         listLocalityCentroids(provinceObj.code as ProvinceCode),
       ])
-    : [[], {}];
+    : [[], {} as Record<string, [number, number]>];
   const localityRow =
     provinceObj && sp.locality
       ? await localityByName(provinceObj.code as ProvinceCode, sp.locality)

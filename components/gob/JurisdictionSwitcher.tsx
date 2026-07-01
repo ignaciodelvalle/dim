@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useId } from "react";
+import { useId, useMemo } from "react";
 
 /**
  * Selector de jurisdicción: provincia → localidad.
@@ -100,6 +100,14 @@ export function JurisdictionSwitcher({
 
   const localityDisabled = !selectedProvince || localities.length === 0;
 
+  // Homonymous localities within a province collapse to the same slug (e.g. two
+  // "San Pedro" in Córdoba). They resolve to the same query, so a duplicate
+  // <option> adds no value and produces duplicate React keys. Dedupe by slug.
+  const uniqueLocalities = useMemo(
+    () => Array.from(new Map(localities.map((l) => [l.slug, l])).values()),
+    [localities],
+  );
+
   return (
     <div className={`flex flex-col sm:flex-row gap-4 sm:items-end ${className}`.trim()}>
       {/* Provincia */}
@@ -135,7 +143,7 @@ export function JurisdictionSwitcher({
           className={selectClasses}
         >
           <option value="">Todas</option>
-          {localities.map((l) => (
+          {uniqueLocalities.map((l) => (
             <option key={l.slug} value={l.slug}>
               {l.name}
             </option>
