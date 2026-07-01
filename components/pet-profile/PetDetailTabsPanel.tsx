@@ -19,7 +19,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-data";
 import { LibretaFace } from "@/components/pet-profile/LibretaFace";
-import type { PetLens } from "@/lib/domain/pet-face-nav";
+import { type PetLens, resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { PetDetailTabs, type TabKey } from "./PetDetailTabs";
 
 // ---------------------------------------------------------------------------
@@ -106,11 +106,19 @@ export function PetDetailTabsPanel({
   const [loadingLibreta, setLoadingLibreta] = useState(false);
   const fetchedRef = useRef(false);
 
-  // Sync face from searchParam changes (back/forward nav).
+  // Sync face from searchParam changes (back/forward nav). Must reuse the
+  // SAME legacy-mapping table the server used to resolve `initialFace`
+  // (resolvePetFace) — a naive `tab === "libreta"` check here would silently
+  // override the correctly SSR-resolved face for every OTHER legacy value
+  // (`?tab=vacunas`, `?tab=historial`, the `/historial`+`/vacunas` redirect
+  // stubs) back to "credencial" on mount, since this effect always runs once
+  // after the initial render (bug found in batch-2 e2e verification).
   useEffect(() => {
-    const tabParam = searchParams.get("tab");
-    setActiveFace(tabParam === "libreta" ? "libreta" : "credencial");
-  }, [searchParams]);
+    const tabParam = searchParams.get("tab") ?? undefined;
+    const lenteParam = searchParams.get("lente") ?? undefined;
+    const { face } = resolvePetFace({ tab: tabParam, lente: lenteParam, isOwner });
+    setActiveFace(face);
+  }, [searchParams, isOwner]);
 
   const fetchLibreta = useCallback(async () => {
     if (fetchedRef.current) return;
