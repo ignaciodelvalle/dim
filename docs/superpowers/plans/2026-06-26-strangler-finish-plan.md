@@ -172,7 +172,9 @@ drift. Small files at the end are quick wins that clean up the tail.
 - [x] `notifications.ts` — 50 lines → 30-line shim (strangler 59/61, 2026-06-30)
 - [x] `performed-by.ts` — 49 lines → 39-line shim (strangler 60/61, 2026-06-30)
 - [x] `lost-mode.ts` — 37 lines → 20-line shim (strangler 61/61, 2026-06-30)
-- [ ] `rule-impact-preview.ts` — 24 lines _(already thin — low priority)_
+- [x] `rule-impact-preview.ts` — 24 lines. Verified 2026-07-01: already a thin
+  "use server" shim (auth guard + delegate to `lib/rule-impact.ts` /
+  `countDogsAffectedByRule`); no logic to migrate. Strangler complete (61/61).
 
 > Test files (`*.test.ts`) in `app/actions/` are excluded from the migration — move
 > them alongside their target module when the corresponding action is migrated.
