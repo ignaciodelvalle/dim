@@ -45,6 +45,7 @@ import {
   fetchAvailableForAdoption,
   fetchIntakesLastWeek,
   fetchRequiresAction,
+  fetchTodayAgenda,
 } from "@/lib/org-dashboard";
 import { deriveSetupSteps, isSetupComplete } from "@/lib/org-setup-checklist";
 import { getProfileCached } from "@/lib/request-cache";
@@ -52,6 +53,7 @@ import { CAPABILITY_CATALOG } from "@/src/modules/organizations/domain/capabilit
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { RequestCapabilityForm } from "./RequestCapabilityForm";
+import { SoloVetAgendaLanding } from "./SoloVetAgendaLanding";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador/a",
@@ -212,6 +214,28 @@ export default async function OrgDashboardPage({
           .where(eq(serviceOfferings.organizationId, organization.id))
       : Promise.resolve([{ n: 0 }]),
   ]);
+
+  // Solo-clinic agenda-first landing (four-actor lean IA critique §3): a
+  // one-person clinic with scheduling lands on today's agenda — the issuer's
+  // daily loop — instead of the shelter-oriented ops dashboard below. Detected
+  // by org SHAPE (clinic + single member), not by membership role: vet_individual
+  // is a staff role usable inside multi-member clinics, while a real solo
+  // practitioner is the sole admin of their own clinic (and thus holds every
+  // capability). The org nav rail still exposes every other section.
+  if (
+    organization.orgType === "clinic" &&
+    (memberCountRow[0]?.n ?? 0) === 1 &&
+    granted.has("appointment.manage")
+  ) {
+    const todayAgenda = await fetchTodayAgenda(organization.id);
+    return (
+      <SoloVetAgendaLanding
+        orgToken={orgToken}
+        orgName={organization.displayName}
+        appointments={todayAgenda}
+      />
+    );
+  }
 
   const setupSteps = deriveSetupSteps({
     orgType: organization.orgType,

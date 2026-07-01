@@ -11,9 +11,18 @@
 //
 // Import computeOccupancyBreakdown from lib/org-census.ts for the Ocupación KPI.
 
-import { and, count, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, count, eq, gt, gte, isNull, lt, sql } from "drizzle-orm";
 
-import { db, ownerships, petEvents, pets } from "@/db";
+import {
+  appointments,
+  db,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+  serviceOfferings,
+  timeSlots,
+} from "@/db";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -23,6 +32,58 @@ import { db, ownerships, petEvents, pets } from "@/db";
 export const LONG_STAY_DAYS = 60;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// ---------------------------------------------------------------------------
+// Today's agenda — powers the solo-clinic agenda-first landing (four-actor lean
+// IA critique §3). Same Argentina-TZ midnight-to-midnight window as the full
+// agenda page (app/org/[orgToken]/agenda/page.tsx).
+// ---------------------------------------------------------------------------
+
+/** One appointment on the org's day view, shaped for the agenda-first landing. */
+export type TodayAgendaItem = {
+  appointmentToken: string;
+  status: string;
+  startsAt: Date;
+  offeringTitle: string;
+  serviceKind: string;
+  petName: string;
+  petPublicToken: string;
+  ownerName: string | null;
+};
+
+/** Today's appointments for an org (Argentina time), soonest first. */
+export async function fetchTodayAgenda(organizationId: string): Promise<TodayAgendaItem[]> {
+  const todayStr = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+  });
+  const localMidnight = new Date(`${todayStr}T00:00:00.000-03:00`);
+  const localNextMidnight = new Date(localMidnight.getTime() + MS_PER_DAY);
+
+  return db
+    .select({
+      appointmentToken: appointments.publicToken,
+      status: appointments.status,
+      startsAt: timeSlots.startsAt,
+      offeringTitle: serviceOfferings.displayName,
+      serviceKind: serviceOfferings.serviceKind,
+      petName: pets.name,
+      petPublicToken: pets.publicToken,
+      ownerName: profiles.displayName,
+    })
+    .from(appointments)
+    .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
+    .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
+    .innerJoin(pets, eq(pets.id, appointments.petId))
+    .leftJoin(profiles, eq(profiles.id, appointments.ownerUserId))
+    .where(
+      and(
+        eq(appointments.organizationId, organizationId),
+        gte(timeSlots.startsAt, localMidnight),
+        lt(timeSlots.startsAt, localNextMidnight),
+      ),
+    )
+    .orderBy(timeSlots.startsAt);
+}
 
 // ---------------------------------------------------------------------------
 // Types
