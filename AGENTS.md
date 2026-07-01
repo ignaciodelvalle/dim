@@ -1047,7 +1047,7 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Members + capability grants | `/org/[orgToken]/miembros` |
 | 🟢 | Surface unificado de mascotas en tránsito (member + voluntary pool + vecino) | `/org/[orgToken]/transitos` (parte del plan foster pool) |
 | 🟢 | Listado de pets no aptas para adopción (con razón estructurada) | `/org/[orgToken]/pets/no-aptas` (parte del plan foster pool) |
-| ⚪ | Bulk operations para refugios high-capacity (200+ animales) | — |
+| ✅ | Bulk operations para refugios high-capacity (200+ animales) | `/org/[orgToken]/mascotas` — multi-select: vacunación, elegibilidad-adopción, publicar/despublicar listado (Sprint 8, #399-401) |
 
 ### Surveillance & health
 
