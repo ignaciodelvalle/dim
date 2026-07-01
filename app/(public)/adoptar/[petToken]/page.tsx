@@ -14,6 +14,7 @@ import {
 } from "@/lib/reference/permanent-conditions";
 import { createClient } from "@/lib/supabase/server";
 import { sexLabel, speciesLabel } from "@/lib/utils/format";
+import { serializeJsonLd } from "@/lib/utils/json-ld";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { AdoptionShareRow } from "./AdoptionShareRow";
@@ -217,8 +218,8 @@ export default async function AdoptarFichaPage({
       <Script
         id="adoptar-jsonld"
         type="application/ld+json"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: SEO JSON-LD needs raw <script> content. The input is JSON.stringify of a controlled object, not user data.
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: SEO JSON-LD needs raw <script> content; serializeJsonLd() neutralises <, >, & and U+2028/U+2029 so user-supplied pet fields (name, adoptionStory) cannot break out of the script.
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
 
       {/* Guilloché accent bar */}
