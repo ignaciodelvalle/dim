@@ -2221,7 +2221,9 @@ const CAMPAIGN_TEMPLATES: ReadonlyArray<{
   readonly species: readonly string[];
 }> = [
   {
-    kind: "vaccination",
+    // Kinds must be catalog codes from lib/reference/service-kinds.ts —
+    // /turnos/buscar filters by exact code, so invented kinds are unsearchable.
+    kind: "vaccination_rabies",
     label: "Campaña de vacunación antirrábica",
     durationMinutes: 15,
     slotCapacity: 8,
@@ -2235,7 +2237,7 @@ const CAMPAIGN_TEMPLATES: ReadonlyArray<{
     species: ["dog", "cat"],
   },
   {
-    kind: "sterilization",
+    kind: "sterilization_dog_female",
     label: "Campaña de esterilización gratuita",
     durationMinutes: 45,
     slotCapacity: 4,

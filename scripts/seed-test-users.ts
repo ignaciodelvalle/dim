@@ -687,7 +687,9 @@ async function seedOwnerPets(ownerUserId: string): Promise<void> {
         // pet_identifications below.
         status: "active",
         jurisdictionProvince: "CABA",
-        jurisdictionLocality: "CABA",
+        // Real barrio — "CABA" is a province, not a locality; /turnos/buscar
+        // prefills the locality filter from the owner's first pet.
+        jurisdictionLocality: "Palermo",
         acquisitionMethod: "adopted",
       })
       .returning({ id: pets.id, publicToken: pets.publicToken });
@@ -960,7 +962,7 @@ async function seedOwnerBPet(ownerBId: string): Promise<void> {
       color: "marrón",
       status: "active",
       jurisdictionProvince: "CABA",
-      jurisdictionLocality: "CABA",
+      jurisdictionLocality: "Palermo", // real barrio — "CABA" is not a locality
       acquisitionMethod: "adopted",
     })
     .returning({ id: pets.id, publicToken: pets.publicToken });

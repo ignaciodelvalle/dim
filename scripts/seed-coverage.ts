@@ -517,7 +517,7 @@ async function runSeed(): Promise<void> {
           jurisdictionCountry: "AR",
           jurisdictionProvince: "CABA",
           jurisdictionLocality: "Palermo",
-          serviceKind: "castration",
+          serviceKind: "sterilization_dog_male", // catalog code (lib/reference/service-kinds.ts)
           displayName: `${COV_TAG} — Campaña de castración gratuita`,
           description: "Servicio de cobertura de prueba para testing",
           durationMinutes: 60,
