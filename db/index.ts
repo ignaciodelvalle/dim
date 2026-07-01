@@ -34,15 +34,31 @@ if (!process.env.DATABASE_URL) {
 // front anyway.
 const isTest = process.env.VITEST === "true" || process.env.NODE_ENV === "test";
 
-const client = postgres(process.env.DATABASE_URL, {
-  prepare: false,
-  ...(isTest && {
-    max: 3,
-    idle_timeout: 20, // seconds — return idle connections quickly between files
-    connect_timeout: 10, // seconds — fail fast when the local stack isn't running
-    max_lifetime: 60, // seconds — recycle to avoid stale-state accumulation
-  }),
-});
+// Dev-only HMR guard: Next.js re-evaluates this module on every hot reload. Without
+// caching the client, each recompile spins up a NEW postgres-js pool (default max 10)
+// without closing the previous one — leaked pools accumulate until Postgres runs out
+// of connection slots, at which point auth's profile lookup fails and the user is
+// bounced to /login (looks like a 1-2 min "session expiry" on heavy operator pages).
+// Caching on globalThis reuses one pool across reloads. NOT applied in test (vitest
+// runs files serially in one process and relies on per-file pool recycling) or in
+// production (no HMR; Supavisor/pgBouncer sits in front).
+const globalForDb = globalThis as unknown as {
+  __dimPgClient?: ReturnType<typeof postgres>;
+};
+
+const client =
+  globalForDb.__dimPgClient ??
+  postgres(process.env.DATABASE_URL, {
+    prepare: false,
+    ...(isTest && {
+      max: 3,
+      idle_timeout: 20, // seconds — return idle connections quickly between files
+      connect_timeout: 10, // seconds — fail fast when the local stack isn't running
+      max_lifetime: 60, // seconds — recycle to avoid stale-state accumulation
+    }),
+  });
+
+if (process.env.NODE_ENV === "development") globalForDb.__dimPgClient = client;
 
 export const db = drizzle(client, { schema });
 
