@@ -19,7 +19,7 @@
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 
 import { db, organizations, ownerships, pets, profiles } from "@/db";
-import type { AdminOrGovtJurisdiction } from "@/lib/auth-guards";
+import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 import { likeContains } from "@/lib/utils/like-helpers";
 
 export type UserSearchResult = {

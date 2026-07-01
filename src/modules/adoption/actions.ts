@@ -15,8 +15,8 @@
 
 import { randomUUID } from "node:crypto";
 import { db, notifications } from "@/db";
+import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createClient } from "@/lib/supabase/server";
-import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";

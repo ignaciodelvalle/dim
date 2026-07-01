@@ -41,8 +41,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { openCase } from "@/lib/infra/case-helpers";
 import { createClient } from "@/lib/supabase/server";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

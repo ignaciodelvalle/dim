@@ -29,8 +29,8 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
-import { pgErrorCode } from "@/lib/db-errors";
-import { generatePublicToken } from "@/lib/publicToken";
+import { pgErrorCode } from "@/lib/infra/db-errors";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { LEGAL_VERSION } from "@/lib/reference/legal-version";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

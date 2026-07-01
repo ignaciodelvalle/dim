@@ -19,7 +19,7 @@
 
 import { expect } from "vitest";
 
-import { matchesDbError, pgError } from "@/lib/db-errors";
+import { matchesDbError, pgError } from "@/lib/infra/db-errors";
 
 export interface ExpectDbErrorOptions {
   /** Exact SQLSTATE to assert (e.g. '23505', '23514', '23503'). */

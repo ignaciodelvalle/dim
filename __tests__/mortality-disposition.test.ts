@@ -17,8 +17,8 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { fetchMortalityDisposition } from "@/lib/analytics/mortality-metrics";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { buildProjectionContext } from "@/lib/metrics";
-import { generatePublicToken } from "@/lib/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

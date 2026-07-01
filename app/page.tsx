@@ -6,7 +6,7 @@ import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
 import { AppShell } from "@/components/layout/AppShell";
 import { PUBLIC_NAV } from "@/components/layout/nav-presets";
 import { db, organizationMemberships, profiles } from "@/db";
-import { pathForRole, resolveVetLanding } from "@/lib/role-landing";
+import { pathForRole, resolveVetLanding } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
 
 // Marketing landing — handoff P4-1.

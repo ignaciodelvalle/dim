@@ -1,6 +1,6 @@
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { db, petEvents } from "@/db";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { formatDate } from "@/lib/utils/format";
 import { createMedicationEndAction } from "@/src/modules/events/actions";
 import { and, eq, inArray } from "drizzle-orm";

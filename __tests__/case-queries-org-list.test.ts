@@ -13,13 +13,13 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, organizations, pets } from "@/db";
-import { closeCase, openCase } from "@/lib/case-helpers";
+import { closeCase, openCase } from "@/lib/infra/case-helpers";
 import {
   listCaseKindDistributionForOrg,
   listCasesForOrg,
   listOpenCasesForAdminPreview,
   listOpenCasesForGovtPreview,
-} from "@/lib/case-queries";
+} from "@/lib/infra/case-queries";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

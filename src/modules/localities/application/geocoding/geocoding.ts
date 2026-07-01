@@ -22,8 +22,8 @@ import {
   type ReverseGeocodeResult,
   geocodeAddress,
   reverseGeocode,
-} from "@/lib/geocoding";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
+} from "@/lib/infra/geocoding";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 
 // ---------------------------------------------------------------------------
 // Authed variants — auth guard enforced by the calling shim

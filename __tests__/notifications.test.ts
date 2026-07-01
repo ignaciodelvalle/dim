@@ -9,7 +9,7 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
-import { runVaccineDueScan } from "@/lib/notifications";
+import { runVaccineDueScan } from "@/lib/infra/notifications";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

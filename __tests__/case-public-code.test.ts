@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { generatePrefixedToken } from "@/lib/publicToken";
+import { generatePrefixedToken } from "@/lib/infra/publicToken";
 
 // Alphabet is "ABCDEFGHJKMNPQRSTUVWXYZ23456789" — excludes I, L, O, 0, 1.
 const CAS_FORMAT =

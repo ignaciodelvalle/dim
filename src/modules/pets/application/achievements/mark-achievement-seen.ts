@@ -15,7 +15,7 @@ import { z } from "zod";
 
 import { db, petAchievementViews } from "@/db";
 import { ACHIEVEMENTS_CATALOG } from "@/lib/achievements/catalog";
-import { requirePetAccess } from "@/lib/pet-access";
+import { requirePetAccess } from "@/lib/infra/pet-access";
 
 // ---------------------------------------------------------------------------
 // Input validation

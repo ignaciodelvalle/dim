@@ -5,8 +5,8 @@ import { notFound } from "next/navigation";
 import { logRequestViewedForAuthority } from "@/app/actions/admin-decisions";
 import { OpCard, OpCardBody, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { approvalRequests, db, organizations, profiles } from "@/db";
-import { canDecideRequest } from "@/lib/approval-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { canDecideRequest } from "@/lib/infra/approval-scope";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 
 import { ReviewActions } from "./ReviewActions";
 

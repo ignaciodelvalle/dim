@@ -18,7 +18,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   logPiiQueryForAuthority as _logPiiQueryForAuthority,
   logPiiReadSafely as _logPiiReadSafely,

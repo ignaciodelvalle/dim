@@ -42,9 +42,9 @@ import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-nor
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { uploadAttachmentIfPresent } from "@/lib/uploads";
 
 import type { SightingActionState } from "./types";
 

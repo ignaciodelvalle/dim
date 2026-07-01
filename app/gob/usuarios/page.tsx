@@ -12,9 +12,9 @@ import {
   OpPill,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { searchUsers } from "@/lib/admin-search";
 import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/analytics/compliance-metrics";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { searchUsers } from "@/lib/infra/admin-search";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 

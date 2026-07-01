@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseRegistriesJson } from "@/lib/parse-registries";
+import { parseRegistriesJson } from "@/lib/infra/parse-registries";
 
 // ---------------------------------------------------------------------------
 // 1. Round-trip

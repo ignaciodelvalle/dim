@@ -13,15 +13,15 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { buildProjectionContext } from "@/lib/metrics";
-import { windows } from "@/lib/metrics/period";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   fetchOverdueRabiesVaccine,
   fetchSterilizationVetRanking,
   fetchStrayDensityAreas,
   logOutreachPiiQuery,
-} from "@/lib/outreach-pipelines";
+} from "@/lib/infra/outreach-pipelines";
+import { buildProjectionContext } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 
 type Pipeline = "overdue_rabies" | "stray_density" | "sterilization_ranking";
 

@@ -12,7 +12,7 @@
 // function. Types are re-exported with `export type` (erased at runtime).
 
 import type { ServiceDogVisibility } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { retireServiceDog } from "@/src/modules/pets/application/service-dog/retire-service-dog";
 import { revokeServiceDogCredential } from "@/src/modules/pets/application/service-dog/revoke-service-dog-credential";
 import { setServiceDogVisibility } from "@/src/modules/pets/application/service-dog/set-service-dog-visibility";

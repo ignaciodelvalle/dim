@@ -6,7 +6,7 @@
 // the lightest working option and produces a PDF on every platform that
 // supports print-to-PDF (all modern browsers + iOS Share sheet).
 
-import { deferPrint } from "@/lib/defer-print";
+import { deferPrint } from "@/lib/infra/defer-print";
 
 export function DescargarComprobante() {
   function handlePrint() {

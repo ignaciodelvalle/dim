@@ -20,7 +20,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, petAchievementViews } from "@/db";
-import { generateUniqueCasePublicCode } from "@/lib/case-helpers";
+import { generateUniqueCasePublicCode } from "@/lib/infra/case-helpers";
 import { RLS_MATRIX, type RlsOperation, type RlsRole } from "./matrix.data";
 
 // ---------------------------------------------------------------------------

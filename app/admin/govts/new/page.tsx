@@ -1,4 +1,4 @@
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 
 import { CreateGovtForm } from "./CreateGovtForm";
 

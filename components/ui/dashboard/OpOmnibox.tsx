@@ -31,7 +31,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { searchOmniboxAction, searchOmniboxOrgAction } from "@/app/actions/omnibox-search";
-import type { OmniboxResult, OmniboxResults } from "@/lib/omnibox-search";
+import type { OmniboxResult, OmniboxResults } from "@/lib/infra/omnibox-search";
 
 const DEBOUNCE_MS = 250;
 const MIN_QUERY_LENGTH = 2;

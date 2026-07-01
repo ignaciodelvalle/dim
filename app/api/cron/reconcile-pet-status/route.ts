@@ -41,7 +41,7 @@ import { asc, eq, gt } from "drizzle-orm";
 
 import { cronRuns, db, pets } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import { driftedColumns, hasDrift, rederivePetCache } from "@/lib/rederive-pet-cache";
+import { driftedColumns, hasDrift, rederivePetCache } from "@/lib/infra/rederive-pet-cache";
 
 export const dynamic = "force-dynamic";
 

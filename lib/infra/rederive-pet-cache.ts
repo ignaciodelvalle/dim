@@ -39,7 +39,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { custodyDisputes, db, petEvents, petIdentifications, pets } from "@/db";
-import { normalizeMicrochipLocation } from "@/lib/pet-identifier-mapping";
+import { normalizeMicrochipLocation } from "@/lib/infra/pet-identifier-mapping";
 import { replayPetAdoptionEligibility } from "@/lib/projections/pet-adoption-eligibility";
 import { replayPetMicrochip } from "@/lib/projections/pet-microchip";
 import { replayPetPregnancy } from "@/lib/projections/pet-pregnancy";

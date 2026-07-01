@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dashboard";
 import { db, organizationCapabilityGrants, organizationMemberships, profiles } from "@/db";
 import { ORGANIZATION_CAPABILITIES } from "@/db/schema";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import {
   CAPABILITY_CATALOG,
   resolveGrantedCaps,

@@ -9,7 +9,7 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { auditLog, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
+import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 
 import type { FreeClaimResult } from "./types";
 

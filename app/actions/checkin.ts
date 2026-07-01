@@ -12,7 +12,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requirePetAccess } from "@/lib/pet-access";
+import { requirePetAccess } from "@/lib/infra/pet-access";
 import { recordPostAdoptionCheckin } from "@/src/modules/pets/application/checkin/record-post-adoption-checkin";
 import type { CheckinFormState } from "@/src/modules/pets/application/checkin/types";
 

@@ -187,8 +187,8 @@ describe("createPetAction", () => {
         from: vi.fn().mockReturnValue({ remove: vi.fn().mockResolvedValue({ error: null }) }),
       },
     });
-    (await import("@/lib/chip-lookup")).lookupByChip = vi.fn().mockResolvedValue(null);
-    (await import("@/lib/jurisdiction-validation")).resolveCanonicalJurisdiction = vi
+    (await import("@/lib/infra/chip-lookup")).lookupByChip = vi.fn().mockResolvedValue(null);
+    (await import("@/lib/infra/jurisdiction-validation")).resolveCanonicalJurisdiction = vi
       .fn()
       .mockResolvedValue({
         province: { name: "Buenos Aires" },
@@ -221,7 +221,7 @@ describe("createPetAction", () => {
 
   describe("chip cross-check (found_stray)", () => {
     it("redirects to match page when chip match status=lost", async () => {
-      const { lookupByChip } = await import("@/lib/chip-lookup");
+      const { lookupByChip } = await import("@/lib/infra/chip-lookup");
       (lookupByChip as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         pet: { status: "lost", publicToken: "DIM-LOST-0001" },
       });
@@ -235,7 +235,7 @@ describe("createPetAction", () => {
     });
 
     it("returns CHIP_MATCH_ACTIVE warning when match status=active and no forceToken", async () => {
-      const { lookupByChip } = await import("@/lib/chip-lookup");
+      const { lookupByChip } = await import("@/lib/infra/chip-lookup");
       (lookupByChip as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         pet: { status: "active", publicToken: "DIM-ACTIVE-0001" },
       });
@@ -251,12 +251,12 @@ describe("createPetAction", () => {
     });
 
     it("falls through to registerPet when match status=active and forceToken is valid", async () => {
-      const { lookupByChip } = await import("@/lib/chip-lookup");
+      const { lookupByChip } = await import("@/lib/infra/chip-lookup");
       (lookupByChip as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         pet: { status: "active", publicToken: "DIM-ACTIVE-0001" },
       });
 
-      const { validateForceToken } = await import("@/lib/microchip-force-token");
+      const { validateForceToken } = await import("@/lib/infra/microchip-force-token");
       (validateForceToken as ReturnType<typeof vi.fn>).mockReturnValueOnce(true);
 
       const { registerPet } = await import("@/src/modules/pets/application/register-pet");
@@ -278,7 +278,7 @@ describe("createPetAction", () => {
     });
 
     it("returns deceased chip error when match status=deceased", async () => {
-      const { lookupByChip } = await import("@/lib/chip-lookup");
+      const { lookupByChip } = await import("@/lib/infra/chip-lookup");
       (lookupByChip as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         pet: { status: "deceased", publicToken: "DIM-DEAD-0001" },
       });
@@ -317,7 +317,7 @@ describe("updatePetAction", () => {
     updatePetAction = mod.updatePetAction;
     vi.clearAllMocks();
 
-    (await import("@/lib/pet-access")).requirePetAccess = vi.fn().mockResolvedValue({
+    (await import("@/lib/infra/pet-access")).requirePetAccess = vi.fn().mockResolvedValue({
       ok: true,
       user: { id: "user-1" },
       supabase: { storage: { from: vi.fn().mockReturnValue({ remove: vi.fn() }) } },
@@ -349,7 +349,7 @@ describe("updatePetAction", () => {
       eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },
       accessPath: "owner",
     });
-    (await import("@/lib/jurisdiction-validation")).resolveCanonicalJurisdiction = vi
+    (await import("@/lib/infra/jurisdiction-validation")).resolveCanonicalJurisdiction = vi
       .fn()
       .mockResolvedValue({
         province: { name: "Buenos Aires" },
@@ -365,7 +365,7 @@ describe("updatePetAction", () => {
 
   describe("auth guard", () => {
     it("returns error when requirePetAccess fails", async () => {
-      const { requirePetAccess } = await import("@/lib/pet-access");
+      const { requirePetAccess } = await import("@/lib/infra/pet-access");
       (requirePetAccess as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: false,
         error: "Acceso denegado.",

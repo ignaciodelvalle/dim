@@ -19,8 +19,8 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { caseEvents, db, organizations } from "@/db";
-import { openCase } from "@/lib/case-helpers";
-import { getCaseDetailByPublicCode } from "@/lib/case-queries";
+import { openCase } from "@/lib/infra/case-helpers";
+import { getCaseDetailByPublicCode } from "@/lib/infra/case-queries";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const ORG_TOKEN = "DIM-PR2-CE-ORG";

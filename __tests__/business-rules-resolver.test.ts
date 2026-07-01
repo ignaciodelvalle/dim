@@ -5,8 +5,8 @@ import { sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db, govtBusinessRules, profiles } from "@/db";
-import { resolveBusinessRule } from "@/lib/business-rules-resolver";
 import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 
 // Stable test actor referenced by FK on created_by_user_id.
 const ACTOR_ID = "11111111-2222-4333-8444-555555555555";

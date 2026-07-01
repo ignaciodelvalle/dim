@@ -11,7 +11,7 @@ import {
   fetchUserMetrics,
 } from "@/lib/analytics/admin-metrics";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 

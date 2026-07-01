@@ -11,7 +11,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   geocodeAddressAction as _geocodeAddressAction,
   geocodeAddressPublicAction as _geocodeAddressPublicAction,
@@ -23,7 +23,7 @@ import {
 // Type re-exports (erased at runtime — allowed in "use server" files)
 // ---------------------------------------------------------------------------
 
-export type { GeocodeBias, GeocodeResult, ReverseGeocodeResult } from "@/lib/geocoding";
+export type { GeocodeBias, GeocodeResult, ReverseGeocodeResult } from "@/lib/infra/geocoding";
 
 // ---------------------------------------------------------------------------
 // Action wrappers — auth-gated variants: guard here, module does the work

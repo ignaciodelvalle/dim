@@ -16,9 +16,9 @@
 import { eq, sql } from "drizzle-orm";
 
 import { appointments, db, timeSlots } from "@/db";
-import { matchesDbError } from "@/lib/db-errors";
-import { generateAppointmentToken } from "@/lib/publicToken";
-import { generateUniqueToken } from "@/lib/unique-token";
+import { matchesDbError } from "@/lib/infra/db-errors";
+import { generateAppointmentToken } from "@/lib/infra/publicToken";
+import { generateUniqueToken } from "@/lib/infra/unique-token";
 
 import type { BookSlotResult } from "./types";
 

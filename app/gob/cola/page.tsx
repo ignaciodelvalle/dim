@@ -10,8 +10,8 @@ import {
   db,
   profiles,
 } from "@/db";
-import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { fetchVisiblePendingRequests } from "@/lib/infra/approval-scope";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 
 const TYPE_LABELS: Record<ApprovalRequestType, string> = {
   role_upgrade_vet: "Matrículas veterinarias",

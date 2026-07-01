@@ -14,7 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { assignGovtLocalityForAuthority as _assignGovtLocality } from "@/src/modules/organizations/application/admin-institutional/assign-govt-locality";
 import { createInstitutionalAccountForAuthority as _createInstitutional } from "@/src/modules/organizations/application/admin-institutional/create-institutional-account";
 import { deactivateAdminForAuthority as _deactivateAdmin } from "@/src/modules/organizations/application/admin-institutional/deactivate-admin";

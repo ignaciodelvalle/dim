@@ -18,7 +18,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,

@@ -26,13 +26,13 @@ import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/compo
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, profiles } from "@/db";
-import { adminProvinceHref } from "@/lib/admin-province-link";
 import { fetchCronRuns, fetchQueueHealth } from "@/lib/analytics/admin-metrics";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
 import { fetchMicrochipPenetration } from "@/lib/analytics/compliance-metrics";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { adminProvinceHref } from "@/lib/infra/admin-province-link";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,

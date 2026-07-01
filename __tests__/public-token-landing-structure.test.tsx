@@ -80,7 +80,7 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/rate-limit", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/rate-limit")>();
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
     enforceRateLimit: (endpoint: string, id: string, cfg: unknown) =>

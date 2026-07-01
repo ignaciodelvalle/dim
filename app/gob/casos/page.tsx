@@ -8,8 +8,8 @@ import { redirect } from "next/navigation";
 import { CaseBadge } from "@/components/CaseBadge";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { listCasesForGovt } from "@/lib/case-queries";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { listCasesForGovt } from "@/lib/infra/case-queries";
 import { formatDate } from "@/lib/utils/format";
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 

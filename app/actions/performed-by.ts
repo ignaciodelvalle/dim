@@ -11,8 +11,8 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import type { SearchJurisdiction } from "@/lib/performed-by-search";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import type { SearchJurisdiction } from "@/lib/infra/performed-by-search";
 import {
   __resetPerformedByRateLimitForTests as _reset,
   searchVetsAndClinicsAction as _searchVetsAndClinicsAction,

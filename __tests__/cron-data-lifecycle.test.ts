@@ -21,7 +21,7 @@ import {
   purgeExpiredRateLimitBuckets,
   purgeOldCronRuns,
   runDataLifecyclePurge,
-} from "@/lib/data-lifecycle";
+} from "@/lib/infra/data-lifecycle";
 
 // ---------------------------------------------------------------------------
 // Test auth bootstrap — we need a real user profile because notifications

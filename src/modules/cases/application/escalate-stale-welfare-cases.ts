@@ -16,7 +16,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { cases, db, notifications, petEvents, welfareReports } from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 
 export interface EscalateStaleWelfareOptions {
   now?: Date;

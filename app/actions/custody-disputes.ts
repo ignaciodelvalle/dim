@@ -14,7 +14,7 @@
 import { revalidatePath } from "next/cache";
 
 import type { DisputePartyRole, Pet } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 
 import { addDisputePartyUseCase } from "@/src/modules/custody-disputes/application/add-dispute-party";
 import { escalateDisputeUseCase } from "@/src/modules/custody-disputes/application/escalate-dispute";

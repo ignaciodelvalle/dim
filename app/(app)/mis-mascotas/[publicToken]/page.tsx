@@ -109,13 +109,17 @@ import {
   fetchPetWeightHistory,
 } from "@/lib/analytics/owner-dashboard";
 import { excludeSelfScansClause } from "@/lib/events/events";
-import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
-import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/lost-mode";
-import { requirePetAccess } from "@/lib/pet-access";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";
+import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/infra/libreta-sanitaria";
+import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
+import { requirePetAccess } from "@/lib/infra/pet-access";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { getPhysicalTagInterest } from "@/lib/infra/physical-tag-interest";
+import {
+  eventAttachmentSignedUrl,
+  eventAttachmentSignedUrls,
+  petPhotoUrl,
+} from "@/lib/infra/storage";
 import { deriveComplianceState } from "@/lib/projections/pet-compliance";
-import { eventAttachmentSignedUrl, eventAttachmentSignedUrls, petPhotoUrl } from "@/lib/storage";
 import {
   ageFromDateOfBirth,
   formatDate,

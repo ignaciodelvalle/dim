@@ -17,7 +17,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db, ownerships } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { bookSlotWriter as _bookSlotWriter } from "@/src/modules/events/application/booking/book-slot";
 import { cancelAppointmentByOwner as _cancelAppointmentByOwner } from "@/src/modules/events/application/booking/cancel-appointment-by-owner";
 

@@ -44,10 +44,10 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { generatePublicToken } from "@/lib/publicToken";
-import { generateUniqueToken } from "@/lib/unique-token";
+import { openCase } from "@/lib/infra/case-helpers";
+import { generatePublicToken } from "@/lib/infra/publicToken";
+import { generateUniqueToken } from "@/lib/infra/unique-token";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

@@ -4,14 +4,14 @@ import { notFound } from "next/navigation";
 import Script from "next/script";
 
 import { attachments, db, organizations, ownerships, petEvents, pets } from "@/db";
-import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/adoption-listing";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/infra/adoption-listing";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import {
   type PermanentCondition,
   isPermanentCondition,
   permanentConditionLabel,
 } from "@/lib/reference/permanent-conditions";
-import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { sexLabel, speciesLabel } from "@/lib/utils/format";
 import { and, desc, eq, isNull } from "drizzle-orm";

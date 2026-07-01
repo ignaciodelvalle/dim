@@ -4,7 +4,7 @@
 import Link from "next/link";
 
 import { createVaccineReminderAction } from "@/app/actions/reminders";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { ScheduleVaccineForm } from "./ScheduleVaccineForm";
 
 export default async function ScheduleVaccinePage({

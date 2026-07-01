@@ -9,7 +9,7 @@
 
 import { redirect } from "next/navigation";
 
-import { requireDecomisoPrincipal } from "@/lib/auth-guards";
+import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 
 interface PageProps {
   params: Promise<{ publicCode: string }>;

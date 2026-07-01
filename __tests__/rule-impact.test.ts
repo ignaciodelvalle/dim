@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, pets } from "@/db";
-import { countDogsAffectedByRule } from "@/lib/rule-impact";
+import { countDogsAffectedByRule } from "@/lib/infra/rule-impact";
 
 const TOKEN = "AFF-RULEIMPACT-TEST-0001";
 const BREED = "RuleImpactTestBreedZZZ"; // unique — won't collide with seed data

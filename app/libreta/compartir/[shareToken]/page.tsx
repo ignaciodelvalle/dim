@@ -7,11 +7,11 @@ import { LibretaSanitariaView } from "@/app/(app)/mis-mascotas/[publicToken]/lib
 import { LnCallout } from "@/components/ui/DocElements";
 import { attachments, db, libretaShareTokens, petEvents, pets, profiles } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events/events";
-import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/libreta-sanitaria";
-import { validateShareToken } from "@/lib/libreta-share-token";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { PET_LIBRETA_SHARE_SELECT } from "@/lib/pet-projections";
-import { petPhotoUrl } from "@/lib/storage";
+import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/infra/libreta-sanitaria";
+import { validateShareToken } from "@/lib/infra/libreta-share-token";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { PET_LIBRETA_SHARE_SELECT } from "@/lib/infra/pet-projections";
+import { petPhotoUrl } from "@/lib/infra/storage";
 
 import { ViewLogger } from "./ViewLogger";
 

@@ -18,7 +18,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { attachments, db, ownerships, pets, profiles } from "@/db";
-import { petPhotoUrl } from "@/lib/storage";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 

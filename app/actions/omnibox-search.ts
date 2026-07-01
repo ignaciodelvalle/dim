@@ -9,12 +9,12 @@
 // authz-coverage convention; the use-cases receive the pre-authenticated
 // session and no longer call the guards themselves.
 
-import { requireAdminOrGovtOrRedirect, requireOrgAccessByToken } from "@/lib/auth-guards";
-import type { OmniboxResults } from "@/lib/omnibox-search";
+import { requireAdminOrGovtOrRedirect, requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import type { OmniboxResults } from "@/lib/infra/omnibox-search";
 import { searchOmnibox } from "@/src/modules/search/application/omnibox/search-omnibox";
 import { searchOmniboxOrg } from "@/src/modules/search/application/omnibox/search-omnibox-org";
 
-export type { OmniboxResults } from "@/lib/omnibox-search";
+export type { OmniboxResults } from "@/lib/infra/omnibox-search";
 
 export async function searchOmniboxAction(query: string): Promise<OmniboxResults> {
   const session = await requireAdminOrGovtOrRedirect();

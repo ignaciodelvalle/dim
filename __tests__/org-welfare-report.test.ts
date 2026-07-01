@@ -16,7 +16,7 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
-import { openCase } from "@/lib/case-helpers";
+import { openCase } from "@/lib/infra/case-helpers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const ORG_TOKEN = "DIM-ORGWLF-1";

@@ -38,13 +38,6 @@ import {
   uploadExportToStorage,
   welfareReportToMpfDto,
 } from "@/lib/analytics/welfare-exports";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import {
-  requireAdminOrGovtOrRedirect,
-  requireAdminOrRedirect,
-  requireUserOrRedirect,
-} from "@/lib/auth-guards";
-import { closeCase, openCase } from "@/lib/case-helpers";
 import { signalWelfareReport } from "@/lib/domain/authority";
 import { writePoint } from "@/lib/domain/location";
 import {
@@ -53,12 +46,19 @@ import {
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
-import { welfareAttachmentSignedUrl } from "@/lib/storage";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import {
+  requireAdminOrGovtOrRedirect,
+  requireAdminOrRedirect,
+  requireUserOrRedirect,
+} from "@/lib/infra/auth-guards";
+import { closeCase, openCase } from "@/lib/infra/case-helpers";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
+import { computeFlagReasons } from "@/lib/infra/welfare-moderation";
+import { uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
 import { createClient } from "@/lib/supabase/server";
 import { parseDateInput } from "@/lib/utils/format";
-import { computeFlagReasons } from "@/lib/welfare-moderation";
-import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
 import { generateReferenceCode } from "@/src/modules/welfare/domain/reference-code";
 import { and, eq, isNull } from "drizzle-orm";
 

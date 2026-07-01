@@ -18,9 +18,9 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { openCase } from "@/lib/infra/case-helpers";
 
 import { replaceMicrochipSchema } from "./types";
 import type { ReplaceMicrochipInput, ReplaceMicrochipResult } from "./types";

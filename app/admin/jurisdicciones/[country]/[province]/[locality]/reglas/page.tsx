@@ -16,8 +16,8 @@ import {
   govtBusinessRules,
   profiles,
 } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { formatDate } from "@/lib/utils/format";
 
 import { DeleteRuleButton } from "./DeleteRuleButton";

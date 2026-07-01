@@ -10,7 +10,7 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { OpKpi } from "@/components/ui/dashboard";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 
 export const dynamic = "force-dynamic";
 

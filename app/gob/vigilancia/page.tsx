@@ -27,8 +27,8 @@ import {
   fetchZoonosisTrend,
 } from "@/lib/analytics/govt-dashboards";
 import { fetchSurveillanceCompliance } from "@/lib/analytics/surveillance-metrics";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext, fetchKpiTrend, windows } from "@/lib/metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { findDisease } from "@/lib/reference/diseases";

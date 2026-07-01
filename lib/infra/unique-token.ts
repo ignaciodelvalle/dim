@@ -25,7 +25,7 @@ import { db } from "@/db";
 // isUniqueViolation now lives in lib/db-errors.ts (single source of truth that
 // walks drizzle 0.45's `.cause` chain). Re-exported here for back-compat with
 // existing importers.
-import { isUniqueViolation } from "@/lib/db-errors";
+import { isUniqueViolation } from "@/lib/infra/db-errors";
 
 export { isUniqueViolation };
 

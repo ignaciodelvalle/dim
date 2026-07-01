@@ -9,7 +9,7 @@
 import { eq } from "drizzle-orm";
 
 import { auditLog, db, notifications, profiles } from "@/db";
-import { pgError } from "@/lib/db-errors";
+import { pgError } from "@/lib/infra/db-errors";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 
 import type { DniVerifyResult } from "./types";

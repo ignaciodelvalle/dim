@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, organizations } from "@/db";
-import { queryOrgPublicProfile } from "@/lib/org-public-profile";
+import { queryOrgPublicProfile } from "@/lib/infra/org-public-profile";
 
 const TOKEN_VERIFIED_SHELTER = "DIM-PUB-VFD1";
 const TOKEN_VERIFIED_RESCUE = "DIM-PUB-VFD2";

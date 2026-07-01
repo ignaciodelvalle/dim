@@ -1,13 +1,13 @@
 // Unit tests for LnPhoto component helpers.
 
-import { describe, expect, it } from "vitest";
 import {
   type PhotoSize,
   type PhotoStatus,
   getSizePx,
   getStatusBadgeProps,
   getStatusRingClass,
-} from "./photo-helpers";
+} from "@/lib/infra/photo-helpers";
+import { describe, expect, it } from "vitest";
 
 const statuses: PhotoStatus[] = ["ok", "lost", "found", "deceased"];
 const sizes: PhotoSize[] = ["sm", "md", "lg", "xl"];

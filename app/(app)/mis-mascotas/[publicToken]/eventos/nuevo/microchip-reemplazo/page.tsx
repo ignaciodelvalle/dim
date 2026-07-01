@@ -1,6 +1,6 @@
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import Link from "next/link";
 import { ReplaceMicrochipForm } from "./ReplaceMicrochipForm";
 import { replaceMicrochipOwnerAction } from "./action";

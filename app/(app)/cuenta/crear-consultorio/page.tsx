@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { db, organizationMemberships, organizations, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 
 import { CrearConsultorioForm } from "./CrearConsultorioForm";
 

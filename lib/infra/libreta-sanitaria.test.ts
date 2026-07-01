@@ -15,7 +15,7 @@ import {
   isLibretaSanitariaEvent,
   libretaConfidenceTier,
   libretaGroupForEvent,
-} from "@/lib/libreta-sanitaria";
+} from "@/lib/infra/libreta-sanitaria";
 
 describe("LIBRETA_SANITARIA_EVENT_TYPES coverage", () => {
   it("every EVENT_TYPES entry is classified exactly once", () => {

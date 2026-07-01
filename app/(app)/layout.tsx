@@ -17,12 +17,12 @@ import { redirect } from "next/navigation";
 
 import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
 import { AppShell } from "@/components/layout/AppShell";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   getOrgMembershipsCached,
   getProfileCached,
   getUnreadCountCached,
-} from "@/lib/request-cache";
+} from "@/lib/infra/request-cache";
 import { type ShellRole, resolveShellNav } from "@/lib/ui/shell-nav";
 
 export default async function AuthenticatedLayout({

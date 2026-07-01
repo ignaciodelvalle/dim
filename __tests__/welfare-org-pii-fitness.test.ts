@@ -35,7 +35,7 @@ import {
   ORG_WELFARE_PET_COLS,
   ORG_WELFARE_PII_DENYLIST,
   ORG_WELFARE_SELECT,
-} from "@/lib/welfare-org-projection";
+} from "@/lib/infra/welfare-org-projection";
 
 // ---------------------------------------------------------------------------
 // 1. Static projection guard

@@ -7,9 +7,9 @@ import {
   lostTimeLabel,
   lostUrgencyFor,
   parseSearchParams,
-} from "@/lib/lost-listing";
+} from "@/lib/infra/lost-listing";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
-import { petPhotoUrl } from "@/lib/storage";
 import {
   countAllLost,
   countLostInWindow,

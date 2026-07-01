@@ -16,8 +16,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { searchLocalitiesAction } from "@/app/actions/localities";
-import type { LocalitySearchResult } from "@/lib/ar-localidades";
 import { buildJurisdictionRulesHref } from "@/lib/domain/jurisdiction-rules-href";
+import type { LocalitySearchResult } from "@/lib/infra/ar-localidades";
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;

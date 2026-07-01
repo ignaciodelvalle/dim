@@ -11,7 +11,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { createClient } from "@/lib/supabase/server";
 import { createVaccineReminder as _create } from "@/src/modules/pets/application/reminders/create-vaccine-reminder";
 import { deleteVaccineReminder as _delete } from "@/src/modules/pets/application/reminders/delete-vaccine-reminder";

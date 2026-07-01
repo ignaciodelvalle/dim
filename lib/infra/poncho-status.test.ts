@@ -1,5 +1,5 @@
+import { petStatusToPhotoStatus } from "@/lib/infra/poncho-status";
 import { describe, expect, it } from "vitest";
-import { petStatusToPhotoStatus } from "./poncho-status";
 
 describe("petStatusToPhotoStatus", () => {
   it("active → ok", () => {

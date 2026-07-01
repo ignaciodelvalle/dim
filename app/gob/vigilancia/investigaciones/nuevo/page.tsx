@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { OpBreach } from "@/components/ui/dashboard";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { ENO_DISEASES_AR } from "@/src/modules/surveillance/domain/eno-catalog";
 
 import { OpenInvestigationForm } from "./OpenInvestigationForm";

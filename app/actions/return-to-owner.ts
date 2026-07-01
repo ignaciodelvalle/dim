@@ -13,7 +13,7 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { type PetEvent, db, ownerships, petEvents, pets } from "@/db";
-import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { actorCancelProposalUseCase } from "@/src/modules/return-to-owner/application/actor-cancel-proposal";

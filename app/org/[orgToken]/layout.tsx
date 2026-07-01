@@ -17,8 +17,8 @@ import { OpOmnibox } from "@/components/ui/dashboard";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { getProfileCached } from "@/lib/request-cache";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { getProfileCached } from "@/lib/infra/request-cache";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 export default async function OrgLayout({

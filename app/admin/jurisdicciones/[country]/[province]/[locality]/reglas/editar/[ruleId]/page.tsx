@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 
 import { OpCrumbs } from "@/components/ui/dashboard";
 import { type GovtBusinessRuleType, db, govtBusinessRules } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 
 import { PppAttestationRegistriesForm } from "../../nueva/PppAttestationRegistriesForm";
 import { PppBreedListForm } from "../../nueva/PppBreedListForm";

@@ -13,7 +13,7 @@ import {
   ADOPTION_SIZE_ESTIMATES,
   type AdoptionListingFilters,
   buildSearchParams,
-} from "@/lib/adoption-listing";
+} from "@/lib/infra/adoption-listing";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 // URL-driven filters bar — every change submits a GET form so the URL

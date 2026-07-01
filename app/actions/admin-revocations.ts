@@ -18,7 +18,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { claimAttachmentsForAudit as _claimAttachments } from "@/src/modules/organizations/application/revocations/helpers";
 import { revokeGovtLocalityForAuthority as _revokeGovtLocality } from "@/src/modules/organizations/application/revocations/revoke-govt-locality";
 import { revokeOrgVerificationForAuthority as _revokeOrgVerification } from "@/src/modules/organizations/application/revocations/revoke-org-verification";

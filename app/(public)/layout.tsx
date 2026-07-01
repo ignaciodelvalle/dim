@@ -7,7 +7,7 @@ import {
   getOrgMembershipsCached,
   getProfileCached,
   getUnreadCountCached,
-} from "@/lib/request-cache";
+} from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { type ShellRole, isTokenLandingPath, resolveShellNav } from "@/lib/ui/shell-nav";
 

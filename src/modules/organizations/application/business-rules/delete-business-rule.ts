@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { auditLog, db, govtBusinessRules } from "@/db";
-import { reEvaluatePppBreedListChange } from "@/lib/business-rules-reeval";
+import { reEvaluatePppBreedListChange } from "@/lib/infra/business-rules-reeval";
 
 import type { DeleteBusinessRuleWriterParams } from "./types";
 

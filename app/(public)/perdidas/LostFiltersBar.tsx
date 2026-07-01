@@ -7,7 +7,7 @@ import Link from "next/link";
 import { searchLocalitiesPublicAction } from "@/app/actions/localities";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnCheckbox } from "@/components/ui/Field";
-import { LOST_TIME_BUCKETS, type LostListingFilters } from "@/lib/lost-listing";
+import { LOST_TIME_BUCKETS, type LostListingFilters } from "@/lib/infra/lost-listing";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 // URL-driven filters bar — every change submits a GET form so the URL

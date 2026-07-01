@@ -14,7 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { updateProfileForUser as _updateProfileForUser } from "@/src/modules/pets/application/profile/update-profile";
 import { uploadAvatarForUser as _uploadAvatarForUser } from "@/src/modules/pets/application/profile/upload-avatar";
 

@@ -10,7 +10,7 @@
 // is not a public endpoint.
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import { runPostAdoptionCheckinScan } from "@/lib/notifications";
+import { runPostAdoptionCheckinScan } from "@/lib/infra/notifications";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";

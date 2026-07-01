@@ -23,7 +23,7 @@ import Link from "next/link";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { cases, db, organizations, petEvents, pets } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { formatDate } from "@/lib/utils/format";
 
 import { DecomisoHandoffActions } from "./DecomisoHandoffActions";

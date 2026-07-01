@@ -20,7 +20,7 @@ import { AdoptionQueueList } from "@/components/AdoptionQueueList";
 import type { AdoptionQueueRow, AdoptionQueueStatus } from "@/components/AdoptionQueueList";
 import { OpCard, OpCardBody } from "@/components/ui/dashboard";
 import { db } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 export const dynamic = "force-dynamic";

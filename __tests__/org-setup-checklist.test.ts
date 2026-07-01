@@ -18,7 +18,7 @@ import {
   deriveSetupSteps,
   firstPendingStep,
   isSetupComplete,
-} from "@/lib/org-setup-checklist";
+} from "@/lib/infra/org-setup-checklist";
 
 // ---------------------------------------------------------------------------
 // Fixtures

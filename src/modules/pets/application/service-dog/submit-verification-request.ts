@@ -12,7 +12,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { approvalRequests, db, petServiceDog } from "@/db";
-import { generatePrefixedToken } from "@/lib/publicToken";
+import { generatePrefixedToken } from "@/lib/infra/publicToken";
 
 import { loadOwnedPetWithServiceDog } from "./helpers";
 import type { SubmitVerificationInput, SubmitVerificationResult } from "./types";

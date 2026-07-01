@@ -15,7 +15,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
-import { generatePublicToken } from "@/lib/publicToken";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { createSymptomObservedWriter } from "@/src/modules/events/application/writers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

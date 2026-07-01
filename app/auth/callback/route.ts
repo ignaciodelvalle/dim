@@ -10,7 +10,7 @@
 //       owner with 0 or >1 orgs → /inicio
 //       vet/govt/admin          → their role home (via resolveUserLanding)
 
-import { resolveUserLanding } from "@/lib/role-landing";
+import { resolveUserLanding } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 

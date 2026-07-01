@@ -12,7 +12,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { bulkApproveRequests } from "@/src/modules/organizations/application/bulk-actions/bulk-approve-requests";
 import { bulkRejectRequests } from "@/src/modules/organizations/application/bulk-actions/bulk-reject-requests";
 import { bulkRevoke } from "@/src/modules/organizations/application/bulk-actions/bulk-revoke";

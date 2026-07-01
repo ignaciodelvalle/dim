@@ -9,11 +9,11 @@ import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
+import { getProfileCached } from "@/lib/infra/request-cache";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
-import { countOutboxBreaches } from "@/lib/outbox-queries";
-import { getProfileCached } from "@/lib/request-cache";
 import type { ShellSession } from "@/lib/ui/shell-nav";
 
 // Gate the /admin/* segment. Admin-only — govt and everyone else gets sent

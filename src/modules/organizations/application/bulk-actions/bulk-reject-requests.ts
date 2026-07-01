@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { rejectRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/reject-request";
 
 import type { BulkRejectInput, BulkResult } from "./types";

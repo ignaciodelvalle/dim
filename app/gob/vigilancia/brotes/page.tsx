@@ -7,9 +7,9 @@ import {
   PROVINCE_ISO_MAP,
   fetchSurveillanceSignals,
 } from "@/lib/analytics/govt-dashboards";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
+import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
 import { VerifiedFilterCheckbox } from "../_components/VerifiedFilterCheckbox";

@@ -16,7 +16,7 @@ import { Suspense } from "react";
 
 import { logoutAction } from "@/app/actions/auth";
 import { db, organizationMemberships, ownerships, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 

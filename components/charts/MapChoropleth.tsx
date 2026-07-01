@@ -16,7 +16,7 @@ import {
   departmentBelongsToProvince,
   isCABA,
   joinChoroplethData,
-} from "@/lib/geo-join";
+} from "@/lib/infra/geo-join";
 import type maplibregl from "maplibre-gl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

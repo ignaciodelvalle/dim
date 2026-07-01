@@ -65,7 +65,7 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
-import { generateOfferingToken, generatePublicToken } from "@/lib/publicToken";
+import { generateOfferingToken, generatePublicToken } from "@/lib/infra/publicToken";
 
 import { approveServiceOfferingForAuthority } from "../approve-service-offering";
 import {

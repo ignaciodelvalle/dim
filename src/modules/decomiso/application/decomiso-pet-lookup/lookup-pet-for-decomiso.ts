@@ -15,7 +15,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, ownerships, pets, profiles } from "@/db";
-import type { DecomisoPrincipalSession } from "@/lib/auth-guards";
+import type { DecomisoPrincipalSession } from "@/lib/infra/auth-guards";
 
 import type { GovtPetLookupResult } from "./types";
 

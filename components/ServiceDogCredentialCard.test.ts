@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SERVICE_DOG_TYPES } from "@/db/schema";
-import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/service-dog-labels";
+import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/infra/service-dog-labels";
 
 describe("SERVICE_TYPE_LABELS exhaustiveness guard", () => {
   it("covers every SERVICE_DOG_TYPES entry", () => {

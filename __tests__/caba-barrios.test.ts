@@ -7,7 +7,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { arLocalities, db } from "@/db";
-import { searchLocalities } from "@/lib/ar-localidades";
+import { searchLocalities } from "@/lib/infra/ar-localidades";
 
 // Guard against DB-state pollution from import-indec-localities.test.ts.
 // That test file inserts fixture indec_cppdyl rows for AR-C (INDEC IDs

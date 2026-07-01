@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { validateRulePayload } from "@/lib/business-rules-validators";
+import { validateRulePayload } from "@/lib/infra/business-rules-validators";
 
 describe("ppp_breed_list", () => {
   it("accepts a breed array", () => {

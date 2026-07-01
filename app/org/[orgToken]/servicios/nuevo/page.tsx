@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { createServiceOfferingAction } from "@/app/actions/service-offerings";
 import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { SERVICE_KINDS } from "@/lib/reference/service-kinds";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 

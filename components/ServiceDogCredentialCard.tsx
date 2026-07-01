@@ -13,7 +13,7 @@
 import Link from "next/link";
 
 import type { PetServiceDog } from "@/db";
-import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/service-dog-labels";
+import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/infra/service-dog-labels";
 import { formatDate } from "@/lib/utils/format";
 
 interface Props {

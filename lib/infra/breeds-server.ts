@@ -6,7 +6,7 @@
 
 import "server-only";
 
-import { resolveBusinessRule } from "@/lib/business-rules-resolver";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 
 /**
  * Jurisdiction-aware variant of `isPotentiallyDangerousBreed` that

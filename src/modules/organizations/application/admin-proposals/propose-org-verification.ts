@@ -12,9 +12,9 @@
 import { and, eq } from "drizzle-orm";
 
 import { approvalRequests, db, notifications, organizations } from "@/db";
-import { validateApprovalPayload } from "@/lib/approval-payloads";
-import { generateApprovalRequestToken } from "@/lib/publicToken";
-import { generateUniqueToken } from "@/lib/unique-token";
+import { validateApprovalPayload } from "@/lib/infra/approval-payloads";
+import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
+import { generateUniqueToken } from "@/lib/infra/unique-token";
 
 import { loadActorAuthority } from "./helpers";
 import type { ProposalResult } from "./types";

@@ -9,8 +9,8 @@
 import { and, count, eq, isNull } from "drizzle-orm";
 
 import { db, libretaShareTokens, ownerships, pets } from "@/db";
-import { generateLibretaShareToken } from "@/lib/publicToken";
-import { generateUniqueToken } from "@/lib/unique-token";
+import { generateLibretaShareToken } from "@/lib/infra/publicToken";
+import { generateUniqueToken } from "@/lib/infra/unique-token";
 
 import type { CreateShareInput, CreateShareResult } from "./types";
 

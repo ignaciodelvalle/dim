@@ -8,8 +8,8 @@
 
 import { attachments, db, petEvents, petIdentifications } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import type { PetEventAuthorship } from "@/lib/pet-access";
-import { normalizeTattooCode } from "@/lib/tattoo-lookup";
+import type { PetEventAuthorship } from "@/lib/infra/pet-access";
+import { normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
 
 import type { CreateTattooResult, TattooInput, TattooLocation } from "./types";
 

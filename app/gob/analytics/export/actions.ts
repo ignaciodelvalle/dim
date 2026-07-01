@@ -23,7 +23,7 @@ import {
   rowsToCsv,
   rowsToJson,
 } from "@/lib/analytics/govt-exports";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 
 export type GenerateExportResult =
   | { ok: true; signedUrl: string; emailSent: boolean }

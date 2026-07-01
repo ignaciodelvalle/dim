@@ -5,8 +5,8 @@
 // channel availability for the pet's jurisdiction. Cascades via the standard
 // business-rules resolver: locality > province > country > hardcoded default.
 
-import { resolveBusinessRule } from "@/lib/business-rules-resolver";
 import type { PhysicalCredentialChannels } from "@/lib/domain/business-rules-defaults";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 
 export type ChannelKey = "printable_qr" | "engraved_plate" | "nfc_tag";
 export type ChannelAvailability = PhysicalCredentialChannels;

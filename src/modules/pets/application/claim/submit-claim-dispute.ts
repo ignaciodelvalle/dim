@@ -7,11 +7,11 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { attachments, auditLog, db, notifications, ownerships, petEvents, pets } from "@/db";
-import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
+import { openCase } from "@/lib/infra/case-helpers";
+import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
 import { createClient } from "@/lib/supabase/server";
-import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
 import { openDisputeFromEvent } from "@/src/modules/custody-disputes/application/open-dispute";
 
 import type { ClaimDisputeInput, ClaimDisputeResult } from "./types";

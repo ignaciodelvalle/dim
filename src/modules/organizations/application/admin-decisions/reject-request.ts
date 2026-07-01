@@ -11,7 +11,7 @@
 import { eq } from "drizzle-orm";
 
 import { type ApprovalRequest, approvalRequests, auditLog, db, notifications } from "@/db";
-import { canDecideRequest } from "@/lib/approval-scope";
+import { canDecideRequest } from "@/lib/infra/approval-scope";
 
 import { ctaForApplicant, loadActorAuthority } from "./helpers";
 import type { DecisionResult } from "./types";

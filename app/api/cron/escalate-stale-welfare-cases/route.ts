@@ -7,7 +7,7 @@ import {
   escalateStaleWelfareCase,
   findStaleWelfareCases,
 } from "@/lib/case-closers/escalate-stale-welfare-cases";
-import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
+import { checkCronSecret, runCaseCron } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
 

@@ -12,7 +12,7 @@ import { useState } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnCheckbox } from "@/components/ui/Field";
-import type { LocalitySearchResult } from "@/lib/ar-localidades";
+import type { LocalitySearchResult } from "@/lib/infra/ar-localidades";
 import { SERVICE_KINDS } from "@/lib/reference/service-kinds";
 
 type Props = {

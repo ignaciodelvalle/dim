@@ -13,7 +13,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { approvalRequests, auditLog, db, profiles } from "@/db";
-import { fetchPendingApprovalsPage } from "@/lib/admin-approval-queue";
+import { fetchPendingApprovalsPage } from "@/lib/infra/admin-approval-queue";
 import { encodeCursor } from "@/lib/utils/keyset-pagination";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

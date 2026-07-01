@@ -12,7 +12,7 @@
 import Link from "next/link";
 
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import type { Nudge, PetHealthStatus } from "@/lib/owner-nudges";
+import type { Nudge, PetHealthStatus } from "@/lib/infra/owner-nudges";
 import { capCount, speciesLabel } from "@/lib/utils/format";
 
 function StatusBadge({ pending }: { pending: number }) {

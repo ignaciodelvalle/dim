@@ -15,8 +15,8 @@
 import { redirect } from "next/navigation";
 
 import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { parseRegistriesJson } from "@/lib/parse-registries";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { parseRegistriesJson } from "@/lib/infra/parse-registries";
 
 import { createBusinessRuleWriter as _createBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/create-business-rule";
 import { deleteBusinessRuleWriter as _deleteBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/delete-business-rule";

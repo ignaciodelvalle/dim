@@ -7,7 +7,7 @@ import {
   closeFollowupExpiredAdoption,
   findFollowupExpiredAdoptions,
 } from "@/lib/case-closers/close-followup-expired-adoptions";
-import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
+import { checkCronSecret, runCaseCron } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
 

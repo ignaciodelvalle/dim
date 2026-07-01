@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { db, ownerships, pets } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { and, eq, isNull } from "drizzle-orm";
 
 const REASON_LABELS: Record<string, string> = {

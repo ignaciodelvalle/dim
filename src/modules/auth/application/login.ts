@@ -5,7 +5,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, organizationMemberships, profiles } from "@/db";
-import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/role-landing";
+import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 

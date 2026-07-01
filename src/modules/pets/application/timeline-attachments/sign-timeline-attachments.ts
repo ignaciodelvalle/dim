@@ -10,7 +10,7 @@ import { and, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { attachments, db } from "@/db";
-import { requirePetAccess } from "@/lib/pet-access";
+import { requirePetAccess } from "@/lib/infra/pet-access";
 import { createClient } from "@/lib/supabase/server";
 
 import type { SignTimelineAttachmentsResult } from "./types";

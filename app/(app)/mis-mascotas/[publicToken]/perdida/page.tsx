@@ -4,8 +4,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { setPetLostAction } from "@/src/modules/events/actions";
 import { MarkLostWizard } from "./MarkLostWizard";
 

@@ -18,8 +18,8 @@ import {
   type PetEventAuthorship,
   type SupabaseServerClient,
   requireAlivePetAccess,
-} from "@/lib/pet-access";
-import { uploadAttachmentIfPresent } from "@/lib/uploads";
+} from "@/lib/infra/pet-access";
+import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { parseDateInput } from "@/lib/utils/format";
 import {
   VALID_LOCATIONS,

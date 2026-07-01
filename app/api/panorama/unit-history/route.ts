@@ -24,8 +24,8 @@
 import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { getJurisdictionsCached, getProfileCached } from "@/lib/infra/request-cache";
 import type { DashboardJurisdiction } from "@/lib/metrics";
-import { getJurisdictionsCached, getProfileCached } from "@/lib/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
 import { clampAsOf, parseAsOf } from "@/src/modules/panorama/domain/time-scrub";

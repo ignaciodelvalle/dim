@@ -14,8 +14,8 @@ import { notFound } from "next/navigation";
 
 import { OpBreach, OpCrumbs } from "@/components/ui/dashboard";
 import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { petPhotoUrl } from "@/lib/storage";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { petPhotoUrl } from "@/lib/infra/storage";
 
 import { MatchConfirmationCard } from "./MatchConfirmationCard";
 

@@ -8,7 +8,7 @@ import { Suspense } from "react";
 
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { custodyDisputes, db, pets } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { desc, eq, ne } from "drizzle-orm";
 
 function parseStatus(raw: string | undefined): "open" | "closed" | null {

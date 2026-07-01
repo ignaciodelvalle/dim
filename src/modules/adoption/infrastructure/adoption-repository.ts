@@ -17,9 +17,9 @@ import {
   profiles,
   reminders,
 } from "@/db";
-import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase, findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 
 // ---------------------------------------------------------------------------

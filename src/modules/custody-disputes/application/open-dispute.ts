@@ -23,7 +23,7 @@ import {
   type db,
   pets,
 } from "@/db";
-import { generatePrefixedToken } from "@/lib/publicToken";
+import { generatePrefixedToken } from "@/lib/infra/publicToken";
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 

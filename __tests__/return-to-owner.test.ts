@@ -35,7 +35,7 @@ import {
   profiles,
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { generatePublicToken } from "@/lib/publicToken";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

@@ -14,7 +14,7 @@
 import { asc, sql } from "drizzle-orm";
 
 import { db, petEvents } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 
 export type AmendmentChainEntry = {
   id: string;

@@ -19,7 +19,7 @@
 // form so users see the explanation before reaching the server action.
 
 import { db, notifications, ownerships, petEvents, profiles, reminders } from "@/db";
-import { matchesDbError } from "@/lib/db-errors";
+import { matchesDbError } from "@/lib/infra/db-errors";
 import { createClient } from "@/lib/supabase/server";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 import { and, eq, isNull, ne, sql } from "drizzle-orm";

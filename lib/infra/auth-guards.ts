@@ -15,7 +15,7 @@ import {
   getJurisdictionsCached,
   getOrgMembershipCached,
   getProfileCached,
-} from "@/lib/request-cache";
+} from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthenticatedSession = {

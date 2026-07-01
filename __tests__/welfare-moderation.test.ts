@@ -5,7 +5,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { db, welfareReports } from "@/db";
-import { computeFlagReasons } from "@/lib/welfare-moderation";
+import { computeFlagReasons } from "@/lib/infra/welfare-moderation";
 import { eq } from "drizzle-orm";
 
 async function insertFixtureReport(opts: {

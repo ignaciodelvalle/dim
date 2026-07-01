@@ -15,7 +15,7 @@
 import { eq } from "drizzle-orm";
 
 import { type AlertFiring, alertFirings, db, notifications } from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import {
   type AlertFiringTransition,
   investigationDiseaseCode,

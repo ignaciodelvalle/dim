@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { OpBreach, OpCrumbs } from "@/components/ui/dashboard";
 import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/reference/breeds";
 
 import { PppAttestationRegistriesForm } from "./PppAttestationRegistriesForm";

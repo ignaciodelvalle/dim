@@ -8,7 +8,7 @@ import { notFound } from "next/navigation";
 
 import { OpCard, OpCardBody, OpCardHead, OpKpiSm, OpPill } from "@/components/ui/dashboard";
 import { appointments, db, organizations, serviceOfferings, timeSlots } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 

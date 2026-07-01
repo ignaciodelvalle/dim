@@ -20,12 +20,12 @@ import {
   countPendingTransfers,
   fetchActiveReminders,
 } from "@/lib/analytics/owner-dashboard";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
-import { PET_CARD_PHOTO_SELECT, PET_CARD_SELECT } from "@/lib/pet-projections";
-import { getProfileCached } from "@/lib/request-cache";
-import { resolveVetLanding } from "@/lib/role-landing";
-import { petPhotoUrl } from "@/lib/storage";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { PET_CARD_PHOTO_SELECT, PET_CARD_SELECT } from "@/lib/infra/pet-projections";
+import { getProfileCached } from "@/lib/infra/request-cache";
+import { resolveVetLanding } from "@/lib/infra/role-landing";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import { and, count, eq, isNull } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";

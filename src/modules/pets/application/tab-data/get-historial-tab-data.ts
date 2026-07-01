@@ -5,7 +5,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { type Pet, attachments, db, petEvents } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events/events";
-import { eventAttachmentSignedUrl } from "@/lib/storage";
+import { eventAttachmentSignedUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
 import type { HistorialTabData } from "./types";
 

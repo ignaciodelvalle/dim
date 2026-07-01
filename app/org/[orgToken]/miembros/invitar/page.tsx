@@ -7,7 +7,7 @@
 
 import { redirect } from "next/navigation";
 
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { type InvitableRole, ROLE_RANK } from "@/src/modules/organizations/domain/role-rules";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 

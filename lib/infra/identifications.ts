@@ -15,7 +15,7 @@ import {
   db,
   petIdentifications,
 } from "@/db";
-import { matchesDbError } from "@/lib/db-errors";
+import { matchesDbError } from "@/lib/infra/db-errors";
 
 // ---------------------------------------------------------------------------
 // Add — creates a new active identifier for a pet.

@@ -18,8 +18,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
 
 // ---------------------------------------------------------------------------
 // Type aliases

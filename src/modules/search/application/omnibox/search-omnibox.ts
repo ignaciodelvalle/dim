@@ -2,8 +2,8 @@
 // Auth guard lifted to the shim wrapper; this function receives the
 // pre-authenticated session and no longer calls requireAdminOrGovtOrRedirect.
 
-import type { AdminOrGovtSession } from "@/lib/auth-guards";
-import { type OmniboxResults, searchOmnibox as runSearch } from "@/lib/omnibox-search";
+import type { AdminOrGovtSession } from "@/lib/infra/auth-guards";
+import { type OmniboxResults, searchOmnibox as runSearch } from "@/lib/infra/omnibox-search";
 import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
 // Minimum query length before we touch the DB or log a PII read. A single

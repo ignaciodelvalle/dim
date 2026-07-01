@@ -12,11 +12,11 @@
 import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
-import { localityByName } from "@/lib/ar-localidades";
+import { localityByName } from "@/lib/infra/ar-localidades";
+import { getJurisdictionsCached, getProfileCached } from "@/lib/infra/request-cache";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
-import { getJurisdictionsCached, getProfileCached } from "@/lib/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { getLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";

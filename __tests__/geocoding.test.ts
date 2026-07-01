@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
-import { __resetRateLimitForTests, geocodeAddress, reverseGeocode } from "@/lib/geocoding";
+import { __resetRateLimitForTests, geocodeAddress, reverseGeocode } from "@/lib/infra/geocoding";
 
 beforeEach(() => {
   fetchMock.mockReset();

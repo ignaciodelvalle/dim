@@ -106,7 +106,7 @@ const {
   profiles,
   reminders,
 } = await import("../db");
-const { generatePublicToken } = await import("../lib/publicToken");
+const { generatePublicToken } = await import("@/lib/infra/publicToken");
 
 // ---------------------------------------------------------------------------
 // Constants

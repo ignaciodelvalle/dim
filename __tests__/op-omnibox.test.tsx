@@ -16,7 +16,7 @@ import type React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import type { OmniboxResults } from "@/lib/omnibox-search";
+import type { OmniboxResults } from "@/lib/infra/omnibox-search";
 
 // Hook stubs. useState is call-order driven via a queue so each test can inject
 // a precise state vector. The order of useState calls in OpOmnibox is:

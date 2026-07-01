@@ -25,13 +25,13 @@ import { headers } from "next/headers";
 
 import { db, notifications } from "@/db";
 import { organizationInvitations } from "@/db";
-import { listLocalitiesByProvince } from "@/lib/ar-localidades";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { generateInvitationToken } from "@/lib/publicToken";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
+import { listLocalitiesByProvince } from "@/lib/infra/ar-localidades";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { generateInvitationToken } from "@/lib/infra/publicToken";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { generateUniqueToken, isUniqueViolation } from "@/lib/infra/unique-token";
 import { PROVINCES, type ProvinceCode, provinceByName } from "@/lib/reference/ar-provincias";
 import { createClient } from "@/lib/supabase/server";
-import { generateUniqueToken, isUniqueViolation } from "@/lib/unique-token";
 import { isManagerRole } from "@/src/modules/organizations/domain/role-rules";
 import {
   getActiveMemberships,

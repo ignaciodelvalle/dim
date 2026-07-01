@@ -18,7 +18,7 @@ import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/d
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { cases, db, organizations, pets } from "@/db";
 import { fetchSeizures } from "@/lib/analytics/compliance-metrics";
-import { requireDecomisoPrincipal } from "@/lib/auth-guards";
+import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { formatDate } from "@/lib/utils/format";

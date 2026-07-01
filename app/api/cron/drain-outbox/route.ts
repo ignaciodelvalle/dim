@@ -19,7 +19,7 @@ import { and, eq, lte } from "drizzle-orm";
 
 import { cronRuns, db, eventNotificationOutbox } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import { MAX_ATTEMPTS, computeNextRetryAt, deliverOutboxRow } from "@/lib/outbox-drainer";
+import { MAX_ATTEMPTS, computeNextRetryAt, deliverOutboxRow } from "@/lib/infra/outbox-drainer";
 
 export const dynamic = "force-dynamic";
 

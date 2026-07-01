@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { Sheet } from "@/components/ui/VaulSheet";
-import type { DonationMethods } from "@/lib/org-public-profile";
+import type { DonationMethods } from "@/lib/infra/org-public-profile";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 

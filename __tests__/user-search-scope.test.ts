@@ -47,7 +47,7 @@ vi.mock("@/db", () => ({
   organizations: {},
 }));
 
-import { searchUsers } from "@/lib/admin-search";
+import { searchUsers } from "@/lib/infra/admin-search";
 
 describe("searchUsers — jurisdiction scope guard", () => {
   it("returns empty array immediately for a govt viewer with zero assignments", async () => {

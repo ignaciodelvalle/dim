@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { revokeGovtLocalityForAuthority } from "@/src/modules/organizations/application/revocations/revoke-govt-locality";
 import { revokeOrgVerificationForAuthority } from "@/src/modules/organizations/application/revocations/revoke-org-verification";
 import { revokeVetRoleForAuthority } from "@/src/modules/organizations/application/revocations/revoke-vet-role";

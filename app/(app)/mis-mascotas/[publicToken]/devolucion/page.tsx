@@ -11,7 +11,7 @@
 import { LnButton } from "@/components/ui/Button";
 import { LnCallout } from "@/components/ui/DocElements";
 import { type Pet, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";

@@ -1,5 +1,5 @@
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { createClinicalInfoAction } from "@/src/modules/events/actions";
 import { ClinicalInfoForm } from "./ClinicalInfoForm";
 

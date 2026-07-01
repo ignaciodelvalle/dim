@@ -12,7 +12,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { blockSlot as _blockSlot } from "@/src/modules/service-offerings/application/slot-materialization/block-slot";
 import { materializeOfferingNow as _materializeOfferingNow } from "@/src/modules/service-offerings/application/slot-materialization/materialize-offering-now";

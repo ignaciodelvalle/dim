@@ -21,7 +21,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets } from "@/db";
-import { SCAN_RETENTION_DAYS, purgeExpiredScanEvents } from "@/lib/scan-retention";
+import { SCAN_RETENTION_DAYS, purgeExpiredScanEvents } from "@/lib/infra/scan-retention";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

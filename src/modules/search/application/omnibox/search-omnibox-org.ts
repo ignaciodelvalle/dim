@@ -3,8 +3,8 @@
 // pre-authenticated session and no longer calls requireOrgAccessByToken.
 // orgToken is read from session.organization.publicToken.
 
-import type { OrgAccessSession } from "@/lib/auth-guards";
-import { type OmniboxResults, searchOmnibox } from "@/lib/omnibox-search";
+import type { OrgAccessSession } from "@/lib/infra/auth-guards";
+import { type OmniboxResults, searchOmnibox } from "@/lib/infra/omnibox-search";
 import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 

@@ -16,7 +16,6 @@
  *     d. Suppressed flag propagates
  */
 
-import { describe, expect, it } from "vitest";
 import {
   departmentBelongsToProvince,
   isCABA,
@@ -25,7 +24,8 @@ import {
   normalizeDepartmentCode,
   normalizeProvinceCode,
   provinceDepartmentPrefix,
-} from "../lib/geo-join";
+} from "@/lib/infra/geo-join";
+import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Province normalizer

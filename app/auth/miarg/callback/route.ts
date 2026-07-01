@@ -23,7 +23,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { isMiArgOidcEnabled } from "@/lib/miarg-oidc";
+import { isMiArgOidcEnabled } from "@/lib/infra/miarg-oidc";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   // Gate: return 404 when OIDC is not configured so the route is invisible

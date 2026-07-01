@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { approvalRequests, db, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { OrgCreateForm } from "./OrgCreateForm";

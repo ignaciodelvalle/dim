@@ -26,11 +26,11 @@ import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFre
 import { db, eventNotificationOutbox } from "@/db";
 import type { OutboxStatus, OutboxTargetKind } from "@/db";
 import { type DashboardJurisdiction, PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { buildBreachCue, buildStatusLabel } from "@/lib/infra/outbox-list";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
-import { buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";

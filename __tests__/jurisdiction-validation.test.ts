@@ -17,7 +17,7 @@ import {
   JurisdictionValidationError,
   resolveCanonicalJurisdiction,
   tryResolveCanonicalJurisdiction,
-} from "@/lib/jurisdiction-validation";
+} from "@/lib/infra/jurisdiction-validation";
 
 let catalogPopulated = false;
 let cabaBarriosPopulated = false;

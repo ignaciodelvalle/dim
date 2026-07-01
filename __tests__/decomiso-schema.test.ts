@@ -219,7 +219,7 @@ describe("AUDIT_LOG_ACTIONS — decomiso entries (spec §4.5)", () => {
 
 describe("requireDecomisoPrincipal — export check", () => {
   it("is exported from lib/auth-guards", async () => {
-    const guards = await import("@/lib/auth-guards");
+    const guards = await import("@/lib/infra/auth-guards");
     expect(typeof guards.requireDecomisoPrincipal).toBe("function");
   });
 });

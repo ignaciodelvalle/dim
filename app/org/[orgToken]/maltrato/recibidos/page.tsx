@@ -11,9 +11,9 @@ import Link from "next/link";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { db, organizationMemberships, pets, welfareReports } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { ORG_WELFARE_PET_COLS, ORG_WELFARE_SELECT } from "@/lib/infra/welfare-org-projection";
 import { formatDate } from "@/lib/utils/format";
-import { ORG_WELFARE_PET_COLS, ORG_WELFARE_SELECT } from "@/lib/welfare-org-projection";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,

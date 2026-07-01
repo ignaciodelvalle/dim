@@ -7,7 +7,7 @@
 //
 // Spec §REQ-5, design §2e.
 
-import type { AdminOrGovtJurisdiction } from "@/lib/auth-guards";
+import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 
 export type { AdminOrGovtJurisdiction };
 

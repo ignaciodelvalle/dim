@@ -21,8 +21,8 @@ import {
   OpPill,
 } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox, petEvents } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { buildBreachCue, buildStatusLabel } from "@/lib/infra/outbox-list";
 
 import { retryOutboxRowAction } from "../actions";
 

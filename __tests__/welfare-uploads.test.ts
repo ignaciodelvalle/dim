@@ -3,7 +3,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
+import { uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
 
 // ---------------------------------------------------------------------------
 // Mock: sharp (dynamic import inside welfare-uploads.ts)

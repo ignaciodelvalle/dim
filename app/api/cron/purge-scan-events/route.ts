@@ -23,7 +23,7 @@ import { eq } from "drizzle-orm";
 
 import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import { purgeExpiredScanEvents } from "@/lib/scan-retention";
+import { purgeExpiredScanEvents } from "@/lib/infra/scan-retention";
 
 export const dynamic = "force-dynamic";
 

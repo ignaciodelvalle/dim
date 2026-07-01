@@ -1,7 +1,7 @@
 import { JurisdictionFilter } from "@/components/JurisdictionFilter";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, ownerships, pets } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { searchFosterVolunteers } from "@/src/modules/foster/actions";
 import { and, eq, isNull } from "drizzle-orm";
 

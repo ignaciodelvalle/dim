@@ -12,9 +12,9 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, petEvents, pets } from "@/db";
-import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/lost-mode";
+import { openCase } from "@/lib/infra/case-helpers";
+import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

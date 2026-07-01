@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 
 import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, profiles } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
 
 export default async function AdminsPage() {

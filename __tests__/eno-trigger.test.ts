@@ -23,8 +23,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { processEnoQueueBatch } from "@/lib/eno-queue-processor";
-import { processEnoEventTrigger } from "@/lib/eno-trigger";
+import { processEnoQueueBatch } from "@/lib/infra/eno-queue-processor";
+import { processEnoEventTrigger } from "@/lib/infra/eno-trigger";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

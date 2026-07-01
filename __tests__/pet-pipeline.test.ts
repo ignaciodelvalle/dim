@@ -16,7 +16,7 @@ import {
   PIPELINE_COLUMNS,
   derivePipelineColumn,
   groupIntoPipelineColumns,
-} from "@/lib/pet-pipeline";
+} from "@/lib/infra/pet-pipeline";
 
 // ---------------------------------------------------------------------------
 // Fixtures

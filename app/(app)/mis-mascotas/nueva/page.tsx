@@ -12,7 +12,7 @@ import { and, count, eq, isNull } from "drizzle-orm";
 
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { db, ownerships } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createPetAction } from "@/src/modules/pets/actions";
 import { MinimalNewPetForm } from "./MinimalNewPetForm";
 

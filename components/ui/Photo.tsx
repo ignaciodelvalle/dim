@@ -1,5 +1,5 @@
-import { getSizePx, getStatusBadgeProps, getStatusRingClass } from "@/lib/photo-helpers";
-import type { PhotoSize, PhotoStatus } from "@/lib/photo-helpers";
+import { getSizePx, getStatusBadgeProps, getStatusRingClass } from "@/lib/infra/photo-helpers";
+import type { PhotoSize, PhotoStatus } from "@/lib/infra/photo-helpers";
 import Image from "next/image";
 
 export type { PhotoSize, PhotoStatus };

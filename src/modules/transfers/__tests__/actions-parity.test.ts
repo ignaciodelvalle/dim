@@ -117,7 +117,7 @@ vi.mock("../infrastructure/transfers-repository", () => ({
 // Lazy imports (AFTER vi.mock calls)
 // ---------------------------------------------------------------------------
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ---------------------------------------------------------------------------

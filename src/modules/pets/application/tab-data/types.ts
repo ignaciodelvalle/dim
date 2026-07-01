@@ -6,7 +6,7 @@ import type {
   fetchVaccinationHistory,
 } from "@/lib/analytics/owner-dashboard";
 import type { LibretaHealthStatus, VaccinationSummary } from "@/lib/domain/libreta-health-status";
-import type { LibretaGroupKey } from "@/lib/libreta-sanitaria";
+import type { LibretaGroupKey } from "@/lib/infra/libreta-sanitaria";
 
 // ---------------------------------------------------------------------------
 // Libreta panel

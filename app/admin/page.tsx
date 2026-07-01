@@ -8,7 +8,7 @@ import {
   fetchQueueHealth,
   fetchUserMetrics,
 } from "@/lib/analytics/admin-metrics";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 

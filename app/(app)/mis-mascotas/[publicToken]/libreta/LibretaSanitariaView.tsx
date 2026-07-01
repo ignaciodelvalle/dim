@@ -16,7 +16,7 @@ import {
   LIBRETA_GROUP_LABELS,
   type LibretaGroupKey,
   libretaConfidenceTier,
-} from "@/lib/libreta-sanitaria";
+} from "@/lib/infra/libreta-sanitaria";
 import { notificableEno, tipoEventoLabel, tipoEventoNorma } from "@/lib/reference/sanitary-vocab";
 import { formatDate } from "@/lib/utils/format";
 

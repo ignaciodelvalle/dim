@@ -3,7 +3,7 @@
 // of the org as the foster.
 
 import { db, organizationMemberships, ownerships, pets, profiles } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import Link from "next/link";

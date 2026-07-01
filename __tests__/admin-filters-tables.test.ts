@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 //   - adds one clause per active filter
 //   - does not mutate for null/undefined inputs
 
-import { buildAdminCaseFilterClauses } from "@/lib/case-queries";
+import { buildAdminCaseFilterClauses } from "@/lib/infra/case-queries";
 
 describe("buildAdminCaseFilterClauses (C29)", () => {
   it("returns empty array when no filters are set", () => {
@@ -95,7 +95,7 @@ describe("AUDIT_ACTION_LABELS (C30)", () => {
 // C31 — adminProvinceHref: pure province → URL helper
 // ---------------------------------------------------------------------------
 
-import { adminProvinceHref } from "@/lib/admin-province-link";
+import { adminProvinceHref } from "@/lib/infra/admin-province-link";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 describe("adminProvinceHref (C31)", () => {

@@ -66,7 +66,7 @@ import {
   requireDecomisoPrincipal,
   requireOrgAccessByToken,
   requireUserOrRedirect,
-} from "@/lib/auth-guards";
+} from "@/lib/infra/auth-guards";
 
 // ---------------------------------------------------------------------------
 // Helpers

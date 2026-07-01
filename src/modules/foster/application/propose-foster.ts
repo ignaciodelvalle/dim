@@ -13,7 +13,7 @@
 //   7. Collect post-tx notification for volunteer
 //   8. Return UseCaseResult with proposalPublicToken + revalidatePath
 
-import { generatePrefixedToken } from "@/lib/publicToken";
+import { generatePrefixedToken } from "@/lib/infra/publicToken";
 import { ageMonthsFromDob, computeMatch } from "@/src/modules/foster/domain/matching-rules";
 import {
   computeProposalExpiresAt,

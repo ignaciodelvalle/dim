@@ -18,7 +18,7 @@
 // that even if overlap did occur, no duplicate legal notifications would be sent.
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import { processEnoQueueBatch } from "@/lib/eno-queue-processor";
+import { processEnoQueueBatch } from "@/lib/infra/eno-queue-processor";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";

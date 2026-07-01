@@ -191,7 +191,7 @@ describe("findRouteGuardViolations", () => {
 
   it("flags an admin route gated by requireUserOrRedirect alone", () => {
     const src = [
-      'import { requireUserOrRedirect } from "@/lib/auth-guards";',
+      'import { requireUserOrRedirect } from "@/lib/infra/auth-guards";',
       "export default async function Page() {",
       "  await requireUserOrRedirect();",
       "  return null;",
@@ -204,7 +204,7 @@ describe("findRouteGuardViolations", () => {
 
   it("passes an admin route gated by requireAdminOrRedirect", () => {
     const src = [
-      'import { requireAdminOrRedirect } from "@/lib/auth-guards";',
+      'import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";',
       "export default async function Page() {",
       "  await requireAdminOrRedirect();",
       "  return null;",
@@ -218,7 +218,7 @@ describe("findRouteGuardViolations", () => {
     // role-adaptive dashboard shared with govt. The institutional guard is
     // present, so the route↔guard rule is satisfied.
     const src = [
-      'import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";',
+      'import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";',
       "export default async function Page() {",
       "  const session = await requireAdminOrGovtOrRedirect();",
       '  if (session.profile.role !== "admin") redirect("/gob/casos");',
@@ -230,7 +230,7 @@ describe("findRouteGuardViolations", () => {
 
   it("ignores a citizen route — the rule is operator-tree-scoped only", () => {
     const src = [
-      'import { requireUserOrRedirect } from "@/lib/auth-guards";',
+      'import { requireUserOrRedirect } from "@/lib/infra/auth-guards";',
       "export default async function Page() {",
       "  await requireUserOrRedirect();",
       "  return null;",

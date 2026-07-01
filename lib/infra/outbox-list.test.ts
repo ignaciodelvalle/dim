@@ -12,7 +12,7 @@ import {
   buildBreachCue,
   buildStatusLabel,
   isSlaBreached,
-} from "./outbox-list";
+} from "@/lib/infra/outbox-list";
 
 // ---------------------------------------------------------------------------
 // isSlaBreached — breach predicate

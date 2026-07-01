@@ -7,8 +7,8 @@
 // The actual query lives in lib/rule-impact.ts (no auth) so it is integration-
 // testable; this action only adds the admin auth guard. Admin fresh-sweep A2.
 
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { type RuleImpactPreviewInput, countDogsAffectedByRule } from "@/lib/rule-impact";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { type RuleImpactPreviewInput, countDogsAffectedByRule } from "@/lib/infra/rule-impact";
 
 export type { RuleImpactPreviewInput };
 

@@ -11,7 +11,10 @@ import { inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, petIdentifications, pets } from "@/db";
-import { batchFetchActiveIdentifications, fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import {
+  batchFetchActiveIdentifications,
+  fetchActiveIdentifications,
+} from "@/lib/infra/pet-identifiers";
 
 const seedPetIds: string[] = [];
 

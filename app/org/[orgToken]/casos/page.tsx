@@ -17,8 +17,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { listCaseKindDistributionForOrg, listCasesForOrg } from "@/lib/case-queries";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { listCaseKindDistributionForOrg, listCasesForOrg } from "@/lib/infra/case-queries";
 import { type CaseKind, caseKindLabel, isCaseKind } from "@/src/modules/cases/domain/case-kinds";
 
 // ---------------------------------------------------------------------------

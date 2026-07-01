@@ -32,16 +32,16 @@ import {
 
 import { db, profiles } from "@/db";
 import { pets } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
-import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
-import type { SupabaseServerClient } from "@/lib/pet-access";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { requireAlivePetAccess, requirePetAccess } from "@/lib/infra/pet-access";
+import type { SupabaseServerClient } from "@/lib/infra/pet-access";
+import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { findDisease } from "@/lib/reference/diseases";
 import { findDrugByLabel } from "@/lib/reference/drugs";
 import { createClient } from "@/lib/supabase/server";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
-import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { parseDateInput } from "@/lib/utils/format";
 import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -637,7 +637,7 @@ export async function createMicrochipAction(
   const repo = new EventsRepository();
 
   // ARCH-S: read canonical chip status (legacy pets.microchipId column dropped).
-  const { fetchActiveIdentifications } = await import("@/lib/pet-identifiers");
+  const { fetchActiveIdentifications } = await import("@/lib/infra/pet-identifiers");
   const existingIds = await fetchActiveIdentifications(pet.id);
 
   try {
@@ -1280,7 +1280,7 @@ export async function setPetLostAction(
 
   const repo = new EventsRepository();
 
-  const { broadcastLostPet } = await import("@/lib/lost-pet-broadcast");
+  const { broadcastLostPet } = await import("@/lib/infra/lost-pet-broadcast");
 
   const result = await setPetLostWriter(
     {
@@ -1475,7 +1475,7 @@ export async function createDeathRecordAction(
   if (upload.error) return { error: upload.error };
 
   // Look up custody_episode BEFORE the tx — stamp caseId on the death event.
-  const { findOpenCaseForPetAndKind } = await import("@/lib/case-helpers");
+  const { findOpenCaseForPetAndKind } = await import("@/lib/infra/case-helpers");
   const custodyEpisodeCaseForDeath = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
 
   const repo = new EventsRepository();

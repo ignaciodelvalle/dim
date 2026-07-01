@@ -12,7 +12,7 @@
  * Idempotent.
  */
 
-import { closeEligibleRabiesObservations } from "@/lib/rabies-observation-closer";
+import { closeEligibleRabiesObservations } from "@/lib/infra/rabies-observation-closer";
 
 async function main() {
   const start = Date.now();

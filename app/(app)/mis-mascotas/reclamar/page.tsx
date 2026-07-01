@@ -4,7 +4,7 @@
 import Link from "next/link";
 
 import { LnCallout } from "@/components/ui/DocElements";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { ClaimWizard } from "./ClaimWizard";
 
 export default async function ClaimPage() {

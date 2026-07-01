@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { reportBiteAction } from "@/src/modules/surveillance/actions";
 
 import { BiteForm } from "./BiteForm";

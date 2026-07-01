@@ -12,7 +12,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import type { SetupStep } from "@/lib/org-setup-checklist";
+import type { SetupStep } from "@/lib/infra/org-setup-checklist";
 
 // Pending indicator: a simple open circle rendered via Tailwind border classes.
 // Using a <span> avoids adding a new icon name to the Icon component for a

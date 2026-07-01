@@ -12,8 +12,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, notifications, organizationMemberships, organizations, pets } from "@/db";
-import { requireDecomisoPrincipal } from "@/lib/auth-guards";
-import { findOpenCaseForPetAndKind } from "@/lib/case-helpers";
+import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
+import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 

@@ -3,8 +3,8 @@ import Link from "next/link";
 import { logPiiReadSafely } from "@/app/actions/admin-proposals";
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { OpButton, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
-import { searchOrganizations } from "@/lib/admin-search";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { searchOrganizations } from "@/lib/infra/admin-search";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 
 import { ProposeOrgActions } from "./ProposeOrgActions";
 import { RevokeOrgActions } from "./RevokeOrgActions";

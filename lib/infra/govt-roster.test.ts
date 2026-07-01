@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isDeadGovt } from "./govt-roster";
+import { isDeadGovt } from "@/lib/infra/govt-roster";
 
 describe("isDeadGovt (C24 — active govt with 0 localities)", () => {
   it("flags an active govt with zero active localities", () => {

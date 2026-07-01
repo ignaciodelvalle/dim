@@ -5,7 +5,7 @@
 
 import { notFound, redirect } from "next/navigation";
 
-import { requirePetAccess } from "@/lib/pet-access";
+import { requirePetAccess } from "@/lib/infra/pet-access";
 
 // Returns the access record on success. On session expiry, redirects to
 // /login; on missing-pet / out-of-scope-pet, calls notFound(). Both throw

@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, ownerships, pets } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
 
 const STATUS_LABELS = {

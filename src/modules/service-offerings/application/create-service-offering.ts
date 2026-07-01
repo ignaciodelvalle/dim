@@ -17,12 +17,12 @@
 // createServiceOfferingForOrg delegates to this writer (Fase 1.5 approval routing).
 
 import { db, notifications, profiles, serviceOfferings } from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
-import { generateOfferingToken } from "@/lib/publicToken";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { generateOfferingToken } from "@/lib/infra/publicToken";
+import { generateUniqueToken } from "@/lib/infra/unique-token";
 import { CreateServiceOfferingInput } from "@/lib/reference/scheduling-schemas";
 import { findServiceKind } from "@/lib/reference/service-kinds";
-import { generateUniqueToken } from "@/lib/unique-token";
 import { eq } from "drizzle-orm";
 
 import type { OrgProvider, ServiceOfferingResult } from "../domain/types";

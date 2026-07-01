@@ -17,7 +17,7 @@ import { EventLedgerTable } from "@/components/admin/EventLedgerTable";
 import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import type { EventType } from "@/db/schema";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import {
   type AuthorRole,

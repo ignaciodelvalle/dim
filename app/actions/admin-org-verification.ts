@@ -14,7 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { unverifyOrgForAuthority as _unverifyOrg } from "@/src/modules/organizations/application/admin-org-verification/unverify-org";
 import { verifyOrgForAuthority as _verifyOrg } from "@/src/modules/organizations/application/admin-org-verification/verify-org";
 

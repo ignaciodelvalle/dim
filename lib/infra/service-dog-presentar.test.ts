@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildPublicVerifyUrl, isCredentialPresentable } from "@/lib/service-dog-presentar";
+import { buildPublicVerifyUrl, isCredentialPresentable } from "@/lib/infra/service-dog-presentar";
 
 describe("isCredentialPresentable", () => {
   it("returns true when credential is vigente and in service", () => {

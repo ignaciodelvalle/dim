@@ -22,7 +22,7 @@ import {
   RUPGA_APPROVAL_WARNING,
   computeApprovalTypeBreakdown,
   selectionHasRupga,
-} from "@/lib/approval-queue-breakdown";
+} from "@/lib/infra/approval-queue-breakdown";
 
 export type QueueItem = {
   publicToken: string;

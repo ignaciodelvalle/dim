@@ -14,7 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { lookupForClaimForUser as _lookupForClaim } from "@/src/modules/pets/application/claim/lookup-for-claim";
 import { submitClaimDisputeForUser as _submitClaimDispute } from "@/src/modules/pets/application/claim/submit-claim-dispute";
 import { submitFreeClaimForUser as _submitFreeClaim } from "@/src/modules/pets/application/claim/submit-free-claim";

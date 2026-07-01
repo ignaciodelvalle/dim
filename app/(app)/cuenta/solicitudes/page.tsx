@@ -8,7 +8,7 @@ import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { approvalRequests, db, organizationInvitations, organizations } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { WithdrawButton } from "./WithdrawButton";
 

@@ -9,8 +9,8 @@ import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge } from "@/components/ui/dashboard";
 import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { resolveBusinessRule } from "@/lib/business-rules-resolver";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 
 export const dynamic = "force-dynamic";
 

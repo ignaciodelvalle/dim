@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { enableTier2PublicAction, revokeTier2PublicAction } from "@/app/actions/tier2-public";
-import { requirePetAccess } from "@/lib/pet-access";
+import { requirePetAccess } from "@/lib/infra/pet-access";
 import { Tier2PublicView } from "../_tier2-public/Tier2PublicView";
 
 export default async function MostrarLibretaPage({

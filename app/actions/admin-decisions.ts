@@ -14,7 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { approveRequestForAuthority as _approveRequest } from "@/src/modules/organizations/application/admin-decisions/approve-request";
 import { logRequestViewedForAuthority as _logRequestViewed } from "@/src/modules/organizations/application/admin-decisions/log-request-viewed";
 import { rejectRequestForAuthority as _rejectRequest } from "@/src/modules/organizations/application/admin-decisions/reject-request";

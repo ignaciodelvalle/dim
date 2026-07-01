@@ -11,7 +11,7 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db } from "@/db";
-import { buildAdminCaseFilterClauses, listCasesForAdmin } from "@/lib/case-queries";
+import { buildAdminCaseFilterClauses, listCasesForAdmin } from "@/lib/infra/case-queries";
 
 // ---------------------------------------------------------------------------
 // P1 — audit_log_performed_at_idx: index presence + validity

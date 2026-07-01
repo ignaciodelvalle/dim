@@ -12,7 +12,7 @@ import {
   localityByIndecId,
   localityByName,
   searchLocalities,
-} from "@/lib/ar-localidades";
+} from "@/lib/infra/ar-localidades";
 
 // INDEC IDs from the import-indec-localities fixture CSV. If a prior test run
 // timed out before afterAll cleanup, these rows may still be present and will

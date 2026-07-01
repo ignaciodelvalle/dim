@@ -9,7 +9,7 @@
 // Opens the AmendEventForm sheet/modal inline.
 
 import type { EventType } from "@/db/schema";
-import { isAmendableEventType } from "@/lib/amendment";
+import { isAmendableEventType } from "@/lib/infra/amendment";
 import { useRef, useState } from "react";
 import { AmendEventForm } from "./AmendEventForm";
 

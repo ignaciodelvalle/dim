@@ -21,7 +21,7 @@
 // already submitted successfully at that point).
 
 import { db, notifications, ownerships, pets } from "@/db";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 

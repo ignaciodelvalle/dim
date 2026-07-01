@@ -19,7 +19,7 @@
 import { and, lt, sql } from "drizzle-orm";
 
 import { cronRuns, db, notifications } from "@/db";
-import { cleanupExpiredBuckets } from "@/lib/rate-limit";
+import { cleanupExpiredBuckets } from "@/lib/infra/rate-limit";
 
 // ---------------------------------------------------------------------------
 // Constants

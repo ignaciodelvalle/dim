@@ -20,18 +20,18 @@
 // NO business logic beyond edge orchestration. NO direct pet row writes.
 
 import { db, notifications } from "@/db";
-import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
-import { lookupByChip } from "@/lib/chip-lookup";
 import {
   JurisdictionValidationError,
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
-import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
-import { requirePetAccess } from "@/lib/pet-access";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/infra/breeds-server";
+import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
+import { requirePetAccess } from "@/lib/infra/pet-access";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createClient } from "@/lib/supabase/server";
-import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { redirect } from "next/navigation";
 
 import type { NewNotification } from "@/src/modules/adoption/application/set-adoption-eligibility";

@@ -4,7 +4,7 @@ import { LnBadge } from "@/components/ui/Badge";
 import { LnPhoto } from "@/components/ui/Photo";
 import type { Pet } from "@/db";
 import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
-import { petStatusToPhotoStatus } from "@/lib/poncho-status";
+import { petStatusToPhotoStatus } from "@/lib/infra/poncho-status";
 import { speciesLabel } from "@/lib/utils/format";
 import { type PriorityBadge, getPriorityBadge } from "./PetCard.helpers";
 

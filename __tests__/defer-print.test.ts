@@ -3,7 +3,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deferPrint } from "@/lib/defer-print";
+import { deferPrint } from "@/lib/infra/defer-print";
 
 describe("deferPrint", () => {
   beforeEach(() => {

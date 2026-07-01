@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
 import { type Pet, db, ownerships, petServiceDog, pets } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, eq, isNull } from "drizzle-orm";
 import { ServiceDogForm } from "./ServiceDogForm";
 

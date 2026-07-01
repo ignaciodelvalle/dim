@@ -20,7 +20,7 @@ import {
   LIBRETA_GROUP_LABELS,
   groupLibretaEvents,
   libretaSanitariaClause,
-} from "@/lib/libreta-sanitaria";
+} from "@/lib/infra/libreta-sanitaria";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";

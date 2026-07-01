@@ -25,16 +25,16 @@ import {
   organizations,
   profiles,
 } from "@/db";
-import { validateApprovalPayload } from "@/lib/approval-payloads";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { pgError } from "@/lib/db-errors";
 import {
   CoordError,
   JurisdictionValidationError,
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
-import { generateApprovalRequestToken, generatePublicToken } from "@/lib/publicToken";
-import { generateUniqueToken } from "@/lib/unique-token";
+import { validateApprovalPayload } from "@/lib/infra/approval-payloads";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { pgError } from "@/lib/infra/db-errors";
+import { generateApprovalRequestToken, generatePublicToken } from "@/lib/infra/publicToken";
+import { generateUniqueToken } from "@/lib/infra/unique-token";
 import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import type { CreateOrganizationInput, UpgradeFormState } from "./types";

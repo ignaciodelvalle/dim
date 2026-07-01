@@ -54,7 +54,7 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
   });
 
   it("stripMetadata:true routes through sharp and uploads a Buffer", async () => {
-    const { uploadAttachmentIfPresent } = await import("@/lib/uploads");
+    const { uploadAttachmentIfPresent } = await import("@/lib/infra/uploads");
     const supabase = makeSupabaseClient();
     const file = makeFile("fake-image-data", "photo.jpg", "image/jpeg");
 
@@ -85,7 +85,7 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
 
   it("stripMetadata:false uploads the original File unchanged (back-compat)", async () => {
     vi.resetModules();
-    const { uploadAttachmentIfPresent } = await import("@/lib/uploads");
+    const { uploadAttachmentIfPresent } = await import("@/lib/infra/uploads");
     const supabase = makeSupabaseClient();
     const file = makeFile("fake-image-data", "photo.jpg", "image/jpeg");
 
@@ -109,7 +109,7 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
 
   it("no options → uploads the original File unchanged (back-compat)", async () => {
     vi.resetModules();
-    const { uploadAttachmentIfPresent } = await import("@/lib/uploads");
+    const { uploadAttachmentIfPresent } = await import("@/lib/infra/uploads");
     const supabase = makeSupabaseClient();
     const file = makeFile("fake-image-data", "photo.jpg", "image/jpeg");
 
@@ -127,7 +127,7 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
 
   it("non-image file → returns validation error regardless of stripMetadata", async () => {
     vi.resetModules();
-    const { uploadAttachmentIfPresent } = await import("@/lib/uploads");
+    const { uploadAttachmentIfPresent } = await import("@/lib/infra/uploads");
     const supabase = makeSupabaseClient();
     const file = makeFile("pdf content", "doc.pdf", "application/pdf");
 
@@ -151,7 +151,7 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
     mockRotate.mockReturnValue({ toBuffer: mockToBuffer });
     mockSharpInstance.mockReturnValue({ rotate: mockRotate });
 
-    const { uploadAttachmentIfPresent } = await import("@/lib/uploads");
+    const { uploadAttachmentIfPresent } = await import("@/lib/infra/uploads");
     const supabase = makeSupabaseClient();
     const file = makeFile("corrupt-image-data", "bad.jpg", "image/jpeg");
 

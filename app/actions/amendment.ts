@@ -13,7 +13,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requireAlivePetAccess } from "@/lib/pet-access";
+import { requireAlivePetAccess } from "@/lib/infra/pet-access";
 
 import { amendEvent as _amendEvent } from "@/src/modules/events/application/amendment/amend-event";
 import { fetchLatestAmendmentsForEvents as _fetchLatestAmendmentsForEvents } from "@/src/modules/events/application/amendment/fetch-latest-amendments";

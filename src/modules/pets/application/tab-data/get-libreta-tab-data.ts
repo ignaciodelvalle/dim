@@ -19,9 +19,9 @@ import {
   type LibretaGroupKey,
   groupLibretaEvents,
   libretaSanitariaClause,
-} from "@/lib/libreta-sanitaria";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { petPhotoUrl } from "@/lib/storage";
+} from "@/lib/infra/libreta-sanitaria";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import type { LibretaEventRow, LibretaTabData } from "./types";
 
 export async function getLibretaTabData(context: {

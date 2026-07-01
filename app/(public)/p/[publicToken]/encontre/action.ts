@@ -26,10 +26,10 @@ import { attachments, cases, db, notifications, ownerships, petEvents, pets } fr
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { uploadAttachmentIfPresent } from "@/lib/uploads";
 
 export type FinderInPossessionState = {
   ok: boolean;

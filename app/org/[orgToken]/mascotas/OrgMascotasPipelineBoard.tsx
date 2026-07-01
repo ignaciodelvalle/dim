@@ -11,7 +11,7 @@
 
 import Link from "next/link";
 
-import { PIPELINE_COLUMNS, groupIntoPipelineColumns } from "@/lib/pet-pipeline";
+import { PIPELINE_COLUMNS, groupIntoPipelineColumns } from "@/lib/infra/pet-pipeline";
 import type { PetCardData } from "./OrgMascotasBulkList";
 
 // ─── Column color palette ─────────────────────────────────────────────────────

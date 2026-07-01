@@ -5,9 +5,12 @@ import {
   listLocalitiesByProvince,
   listLocalityCentroids,
   localityByName,
-} from "@/lib/ar-localidades";
-import { type AdminOrGovtJurisdiction, requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { jurisdictionBounds } from "@/lib/gov-scope";
+} from "@/lib/infra/ar-localidades";
+import {
+  type AdminOrGovtJurisdiction,
+  requireAdminOrGovtOrRedirect,
+} from "@/lib/infra/auth-guards";
+import { jurisdictionBounds } from "@/lib/infra/gov-scope";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode } from "@/lib/reference/ar-provincias";

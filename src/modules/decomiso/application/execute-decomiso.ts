@@ -33,10 +33,10 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { closeCase as libCloseCase, openCase as libOpenCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { generatePublicToken } from "@/lib/publicToken";
-import { generateUniqueToken, isUniqueViolation } from "@/lib/unique-token";
+import { closeCase as libCloseCase, openCase as libOpenCase } from "@/lib/infra/case-helpers";
+import { generatePublicToken } from "@/lib/infra/publicToken";
+import { generateUniqueToken, isUniqueViolation } from "@/lib/infra/unique-token";
 
 import { motiveLabel, straySyntheticName, validateUnownedAnimal } from "../domain/seizure-rules";
 import type { ExecuteDecomisoInput, GovtOrg, NewNotification, ReceiverOrg } from "../domain/types";

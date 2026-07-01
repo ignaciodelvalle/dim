@@ -9,7 +9,7 @@ import Link from "next/link";
 import { OpCard, OpCardBody, OpCodeBadge, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { findServiceKind } from "@/lib/reference/service-kinds";

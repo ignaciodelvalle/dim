@@ -10,7 +10,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { db, organizations } from "@/db";
-import { requireDecomisoPrincipal } from "@/lib/auth-guards";
+import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 
 import { DecomisoForm } from "./_components/DecomisoForm";
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 
 import { EditOrgForm } from "./EditOrgForm";
 

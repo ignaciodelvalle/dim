@@ -17,9 +17,9 @@ import {
   reminders,
   serviceOfferings,
 } from "@/db";
-import { matchesDbError } from "@/lib/db-errors";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { matchesDbError } from "@/lib/infra/db-errors";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 

@@ -26,8 +26,8 @@
 import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
 
 import { cases, db, ownerships, petIdentifications, pets } from "@/db";
-import { searchUsers } from "@/lib/admin-search";
-import type { AdminOrGovtJurisdiction } from "@/lib/auth-guards";
+import { searchUsers } from "@/lib/infra/admin-search";
+import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 import { likeContains } from "@/lib/utils/like-helpers";
 
 // Per-type cap. The dropdown only ever shows a handful of rows per group; a low

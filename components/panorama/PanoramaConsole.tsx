@@ -20,7 +20,7 @@ import type { ActiveLayer, PointRenderMode } from "@/components/panorama/Situati
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
-import type { LocalityCentroids } from "@/lib/ar-localidades";
+import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { checkCompatibility } from "@/src/modules/panorama/domain/compatibility";
 import {

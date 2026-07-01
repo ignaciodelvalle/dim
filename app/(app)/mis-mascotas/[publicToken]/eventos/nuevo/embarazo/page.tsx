@@ -13,7 +13,7 @@ import Link from "next/link";
 
 import { recordPregnancyEndedAction, recordPregnancyStartedAction } from "@/app/actions/pregnancy";
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 
 import { PregnancyEndedForm } from "./PregnancyEndedForm";
 import { PregnancyStartedForm } from "./PregnancyStartedForm";

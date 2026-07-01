@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
-import type { OrgPublicProfile } from "@/lib/org-public-profile";
+import type { OrgPublicProfile } from "@/lib/infra/org-public-profile";
 
 // "Cómo ayudar" panel (handoff P2-7) — Libreta Nacional look.
 //

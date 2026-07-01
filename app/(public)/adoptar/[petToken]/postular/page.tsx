@@ -11,7 +11,7 @@ import {
   APPLY_INTENT_PET_TOKEN_COOKIE_NAME,
   validateApplyIntentToken,
 } from "@/lib/domain/apply-intent";
-import { petPhotoUrl } from "@/lib/storage";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
 
 import { ApplicationForm } from "./ApplicationForm";

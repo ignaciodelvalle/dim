@@ -46,9 +46,9 @@ import {
   fetchRequiresAction,
   fetchTodayAgenda,
 } from "@/lib/analytics/org-dashboard";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { deriveSetupSteps, isSetupComplete } from "@/lib/org-setup-checklist";
-import { getProfileCached } from "@/lib/request-cache";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { deriveSetupSteps, isSetupComplete } from "@/lib/infra/org-setup-checklist";
+import { getProfileCached } from "@/lib/infra/request-cache";
 import { CAPABILITY_CATALOG } from "@/src/modules/organizations/domain/capabilities";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 

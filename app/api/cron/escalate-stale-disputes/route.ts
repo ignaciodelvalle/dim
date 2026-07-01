@@ -7,7 +7,7 @@ import {
   escalateStaleDispute,
   findStaleDisputes,
 } from "@/lib/case-closers/escalate-stale-disputes";
-import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
+import { checkCronSecret, runCaseCron } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
 

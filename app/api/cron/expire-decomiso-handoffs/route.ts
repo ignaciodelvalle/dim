@@ -12,7 +12,7 @@ import {
   escalateStaleDecomiso,
   findStaleDecomisoCandidates,
 } from "@/lib/case-closers/escalate-stale-decomiso-handoffs";
-import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
+import { checkCronSecret, runCaseCron } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
 

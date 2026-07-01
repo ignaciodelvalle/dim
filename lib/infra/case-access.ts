@@ -16,8 +16,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { custodyDisputeParties, db, organizationMemberships, ownerships } from "@/db";
+import type { CaseDetail } from "@/lib/infra/case-queries";
 import type { CaseKind } from "@/src/modules/cases/domain/case-kinds";
-import type { CaseDetail } from "./case-queries";
 
 export interface CaseViewer {
   userId: string;

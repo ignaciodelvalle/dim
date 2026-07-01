@@ -15,10 +15,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { db, organizationMemberships } from "@/db";
-import { queryPublicOfferings } from "@/lib/org-public-offerings";
-import { queryOrgPublicProfile } from "@/lib/org-public-profile";
+import { queryPublicOfferings } from "@/lib/infra/org-public-offerings";
+import { queryOrgPublicProfile } from "@/lib/infra/org-public-profile";
+import { orgLogoUrl } from "@/lib/infra/storage";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
-import { orgLogoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 import { and, eq, inArray, isNull } from "drizzle-orm";

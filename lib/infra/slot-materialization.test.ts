@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ServiceOffering, ServiceScheduleRule } from "@/db/schema";
-import { type RuleWithOffering, materializeSlotsForRule } from "@/lib/slot-materialization";
+import { type RuleWithOffering, materializeSlotsForRule } from "@/lib/infra/slot-materialization";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers

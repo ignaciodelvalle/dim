@@ -10,7 +10,7 @@
 
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 
 export default async function BiteSuccessPage({
   params,

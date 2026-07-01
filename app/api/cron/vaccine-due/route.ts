@@ -9,7 +9,7 @@
 // with the message so the Vercel cron dashboard surfaces it.
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import { runVaccineDueScan } from "@/lib/notifications";
+import { runVaccineDueScan } from "@/lib/infra/notifications";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";

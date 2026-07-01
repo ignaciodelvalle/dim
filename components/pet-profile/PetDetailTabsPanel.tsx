@@ -32,7 +32,7 @@ import {
   getLibretaTabData,
   getVacunasTabData,
 } from "@/app/actions/pet-tab-data";
-import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
+import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/infra/libreta-sanitaria";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ExportLibretaButton } from "./ExportLibretaButton";
 import { PetDetailTabs, type TabKey } from "./PetDetailTabs";

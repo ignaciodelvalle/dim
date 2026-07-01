@@ -21,7 +21,7 @@ import {
   petServiceDog,
   profiles,
 } from "@/db";
-import { canDecideRequest } from "@/lib/approval-scope";
+import { canDecideRequest } from "@/lib/infra/approval-scope";
 
 import { ctaForApplicant, loadActorAuthority } from "./helpers";
 import type { DecisionResult } from "./types";

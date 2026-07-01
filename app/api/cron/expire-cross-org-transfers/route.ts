@@ -3,7 +3,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
+import { checkCronSecret, runCaseCron } from "@/lib/infra/case-cron";
 import { TransfersRepository } from "@/src/modules/transfers/infrastructure/transfers-repository";
 
 export const dynamic = "force-dynamic";

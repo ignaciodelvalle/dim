@@ -29,15 +29,15 @@ import {
 } from "@/db";
 import { readPoint } from "@/lib/domain/location";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
-import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/origin-org";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
+import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/infra/origin-org";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import {
   type PermanentCondition,
   isPermanentCondition,
   permanentConditionShortLabel,
 } from "@/lib/reference/permanent-conditions";
-import { petPhotoUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";

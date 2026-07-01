@@ -14,7 +14,7 @@
 // should prefer `resolveCanonicalJurisdictionById` for a single-query path
 // that skips the name-based fallback.
 
-import { type Locality, localityByIndecId, localityByName } from "@/lib/ar-localidades";
+import { type Locality, localityByIndecId, localityByName } from "@/lib/infra/ar-localidades";
 import { type Province, provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
 
 export type CanonicalJurisdiction = {

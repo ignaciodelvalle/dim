@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, organizations, profiles } from "@/db";
-import { searchVetsAndClinics } from "@/lib/performed-by-search";
+import { searchVetsAndClinics } from "@/lib/infra/performed-by-search";
 
 const SUFFIX = "PB-TEST";
 

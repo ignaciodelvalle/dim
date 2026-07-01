@@ -49,8 +49,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

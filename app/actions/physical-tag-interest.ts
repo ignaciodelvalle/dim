@@ -8,7 +8,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requirePetAccess } from "@/lib/pet-access";
+import { requirePetAccess } from "@/lib/infra/pet-access";
 import { togglePhysicalTagInterest } from "@/src/modules/pets/application/physical-tag-interest/toggle-physical-tag-interest";
 import type { TogglePhysicalTagInterestResult } from "@/src/modules/pets/application/physical-tag-interest/types";
 

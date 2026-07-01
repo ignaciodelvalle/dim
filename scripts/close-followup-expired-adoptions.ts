@@ -9,7 +9,7 @@ import {
   closeFollowupExpiredAdoption,
   findFollowupExpiredAdoptions,
 } from "@/lib/case-closers/close-followup-expired-adoptions";
-import { runCaseCron } from "@/lib/case-cron";
+import { runCaseCron } from "@/lib/infra/case-cron";
 
 async function main() {
   const start = Date.now();

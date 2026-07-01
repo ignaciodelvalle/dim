@@ -12,7 +12,11 @@ import { describe, expect, it } from "vitest";
 
 import type { DashboardJurisdiction } from "@/lib/metrics";
 
-import { computeBounds, jurisdictionBounds, resolveScopedJurisdictions } from "./gov-scope";
+import {
+  computeBounds,
+  jurisdictionBounds,
+  resolveScopedJurisdictions,
+} from "@/lib/infra/gov-scope";
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -135,7 +139,7 @@ describe("computeBounds", () => {
 // The actual DB call is exercised only in integration tests with a live Postgres.
 // ---------------------------------------------------------------------------
 
-import type { DashboardJurisdiction as DJ } from "./gov-scope";
+import type { DashboardJurisdiction as DJ } from "@/lib/infra/gov-scope";
 
 // Compile-time check: jurisdictionBounds returns Promise<[[number,number],[number,number]] | null>
 const _boundsShape: (j: DJ[]) => Promise<[[number, number], [number, number]] | null> =

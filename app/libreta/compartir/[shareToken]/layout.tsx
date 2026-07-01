@@ -17,7 +17,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
-import { getProfileCached } from "@/lib/request-cache";
+import { getProfileCached } from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolveShellNav } from "@/lib/ui/shell-nav";
 

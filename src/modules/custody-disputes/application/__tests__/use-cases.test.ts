@@ -65,9 +65,9 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { generatePublicToken } from "@/lib/publicToken";
+import { openCase } from "@/lib/infra/case-helpers";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
 
 import { addDisputePartyUseCase } from "../add-dispute-party";

@@ -1,7 +1,7 @@
 import { recordPostAdoptionCheckinAction } from "@/app/actions/checkin";
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { db, petEvents, reminders } from "@/db";
-import { requirePetAccess } from "@/lib/pet-access";
+import { requirePetAccess } from "@/lib/infra/pet-access";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";

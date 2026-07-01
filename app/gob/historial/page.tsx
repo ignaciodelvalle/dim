@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { OpCard, OpCardBody } from "@/components/ui/dashboard";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 const ACTION_LABELS: Record<string, string> = {

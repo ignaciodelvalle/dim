@@ -24,11 +24,11 @@ import {
   fetchPetsForOwner,
   fetchUpcomingAppointments,
 } from "@/lib/analytics/owner-dashboard";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
-import { fetchPetHealthNudges } from "@/lib/owner-nudges";
-import { getProfileCached } from "@/lib/request-cache";
-import { petPhotoUrl } from "@/lib/storage";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
+import { getProfileCached } from "@/lib/infra/request-cache";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import { BRANDING } from "@/lib/ui/branding";
 import { capCount, speciesLabel } from "@/lib/utils/format";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";

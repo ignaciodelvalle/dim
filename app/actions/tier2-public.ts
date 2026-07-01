@@ -8,7 +8,7 @@
 // This file re-exports thin delegating wrappers with identical signatures so
 // all UI importers and the parity test keep working unchanged.
 
-import { requirePetAccess } from "@/lib/pet-access";
+import { requirePetAccess } from "@/lib/infra/pet-access";
 import { enableTier2Public } from "@/src/modules/pets/application/tier2-public/enable-tier2-public";
 import { revokeTier2Public } from "@/src/modules/pets/application/tier2-public/revoke-tier2-public";
 

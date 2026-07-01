@@ -16,7 +16,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import { auditLog, caseEvents, cases, db, govtAssignments, profiles } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   addInvestigationNoteAction,
   closeInvestigationAction,

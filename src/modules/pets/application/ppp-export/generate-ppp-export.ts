@@ -25,8 +25,8 @@ import {
   generatePppCabaPdf,
 } from "@/lib/analytics/ppp-exports";
 import { createSignedExportUrl, uploadExportToStorage } from "@/lib/analytics/welfare-exports";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 
 import type { GeneratePppExportResult } from "./types";
 

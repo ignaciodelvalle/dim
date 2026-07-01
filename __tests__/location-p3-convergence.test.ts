@@ -10,7 +10,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db } from "@/db";
-import { getCaseDetailByPublicCode } from "@/lib/case-queries";
+import { getCaseDetailByPublicCode } from "@/lib/infra/case-queries";
 import { CasesRepository } from "@/src/modules/cases/infrastructure/cases-repository";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

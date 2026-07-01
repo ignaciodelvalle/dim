@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LnBadge } from "@/components/ui/Badge";
 import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
-import type { PublicServiceOffering } from "@/lib/org-public-offerings";
+import type { PublicServiceOffering } from "@/lib/infra/org-public-offerings";
 
 // "Servicios" panel (handoff P2-5) — Libreta Nacional look.
 //

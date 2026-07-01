@@ -2,8 +2,8 @@ import Link from "next/link";
 
 import { OpButton, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, welfareReports } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { type FlagReason, reasonLabel } from "@/lib/welfare-moderation";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { type FlagReason, reasonLabel } from "@/lib/infra/welfare-moderation";
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,

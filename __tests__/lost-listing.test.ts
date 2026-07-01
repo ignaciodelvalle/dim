@@ -14,7 +14,7 @@ import {
   lostTimeLabel,
   lostUrgencyFor,
   parseSearchParams,
-} from "@/lib/lost-listing";
+} from "@/lib/infra/lost-listing";
 
 describe("lib/lost-listing — parseSearchParams", () => {
   it("returns empty filters when no params are present", () => {

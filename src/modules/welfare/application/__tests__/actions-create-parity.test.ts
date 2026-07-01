@@ -22,7 +22,7 @@ vi.mock("@/lib/auth-guards", () => ({
 }));
 
 vi.mock("@/lib/rate-limit", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/rate-limit")>();
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
     enforceRateLimit: vi.fn(),
@@ -58,8 +58,8 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
 
-import * as authGuards from "@/lib/auth-guards";
-import * as rateLimit from "@/lib/rate-limit";
+import * as authGuards from "@/lib/infra/auth-guards";
+import * as rateLimit from "@/lib/infra/rate-limit";
 
 // ---------------------------------------------------------------------------
 // Tests — createWelfareReportAction rate-limit (anon path)

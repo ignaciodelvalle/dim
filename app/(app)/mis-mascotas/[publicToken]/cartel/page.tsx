@@ -9,9 +9,9 @@ import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 
 import { attachments, db, ownerships, profiles } from "@/db";
-import { fetchLostEpisodeForPet } from "@/lib/lost-mode";
-import { requirePetAccess } from "@/lib/pet-access";
-import { petPhotoUrl } from "@/lib/storage";
+import { fetchLostEpisodeForPet } from "@/lib/infra/lost-mode";
+import { requirePetAccess } from "@/lib/infra/pet-access";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/utils/format";
 
 import "./cartel-print.css";

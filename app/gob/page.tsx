@@ -30,10 +30,13 @@ import {
   fetchSterilizationMetrics,
 } from "@/lib/analytics/govt-home-kpis";
 import { fetchMortalityDisposition } from "@/lib/analytics/mortality-metrics";
-import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
-import { listLocalitiesByProvince } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { listOpenCasesForAdminPreview, listOpenCasesForGovtPreview } from "@/lib/case-queries";
+import { fetchVisiblePendingRequests } from "@/lib/infra/approval-scope";
+import { listLocalitiesByProvince } from "@/lib/infra/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import {
+  listOpenCasesForAdminPreview,
+  listOpenCasesForGovtPreview,
+} from "@/lib/infra/case-queries";
 import {
   TARGETS,
   buildProjectionContext,

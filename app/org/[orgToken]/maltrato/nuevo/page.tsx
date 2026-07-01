@@ -17,7 +17,7 @@ import Link from "next/link";
 import { WelfareReportForm } from "@/app/(public)/denuncias/nueva/WelfareReportForm";
 import { OpBreach, OpCallout, OpCrumbs } from "@/components/ui/dashboard";
 import { db, organizationMemberships, organizations, profiles } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { createOrgWelfareReportAction } from "@/src/modules/welfare/actions";
 
 const ALLOWED_ROLES = new Set(["admin", "coordinator", "member", "vet_individual"]);

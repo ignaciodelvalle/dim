@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petIdentifications, pets } from "@/db";
-import { lookupByTattoo, normalizeTattooCode } from "@/lib/tattoo-lookup";
+import { lookupByTattoo, normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 let petAId: string;

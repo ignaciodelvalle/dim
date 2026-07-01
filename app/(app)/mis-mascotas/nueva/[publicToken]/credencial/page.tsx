@@ -15,7 +15,7 @@
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 
-import { requirePetAccess } from "@/lib/pet-access";
+import { requirePetAccess } from "@/lib/infra/pet-access";
 import { PetCreatedAha } from "./PetCreatedAha";
 
 export default async function PetCreatedCredentialPage({

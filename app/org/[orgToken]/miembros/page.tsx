@@ -15,7 +15,7 @@ import {
   profiles,
 } from "@/db";
 import type { OrganizationMembership } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ChangeRoleSelect } from "./ChangeRoleSelect";

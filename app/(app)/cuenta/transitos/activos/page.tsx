@@ -6,7 +6,7 @@ import Link from "next/link";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, organizations, ownerships, pets } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { CoFosterToggle } from "./CoFosterToggle";

@@ -1,7 +1,7 @@
 // Pregnancy use-case types (strangler migration 18/61).
 
 import type { Pet } from "@/db";
-import type { PetEventAuthorship } from "@/lib/pet-access";
+import type { PetEventAuthorship } from "@/lib/infra/pet-access";
 
 export type PregnancyFormState = { error: string | null };
 

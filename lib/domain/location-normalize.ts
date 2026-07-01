@@ -26,7 +26,7 @@ import {
   JurisdictionValidationError,
   resolveCanonicalJurisdiction,
   tryResolveCanonicalJurisdiction,
-} from "@/lib/jurisdiction-validation";
+} from "@/lib/infra/jurisdiction-validation";
 
 export type LocalityValidation = "strict" | "soft" | "none";
 

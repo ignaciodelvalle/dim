@@ -1,6 +1,6 @@
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, fosterProposals, organizations, pets, profiles } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { desc, eq } from "drizzle-orm";
 
 import { CancelProposalButton } from "./CancelProposalButton";

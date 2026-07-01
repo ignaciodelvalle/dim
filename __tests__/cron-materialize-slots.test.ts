@@ -18,7 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { materializeAllActiveSlots } from "@/app/actions/slot-materialization";
 import { db, organizations, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
-import { generatePrefixedToken, generatePublicToken } from "@/lib/publicToken";
+import { generatePrefixedToken, generatePublicToken } from "@/lib/infra/publicToken";
 
 // ---------------------------------------------------------------------------
 // Fixture IDs collected during setup so afterAll can clean up.

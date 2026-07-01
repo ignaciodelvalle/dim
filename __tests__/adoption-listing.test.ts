@@ -10,7 +10,7 @@ import {
   type AdoptionListingFilters,
   buildSearchParams,
   parseSearchParams,
-} from "@/lib/adoption-listing";
+} from "@/lib/infra/adoption-listing";
 import { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 
 // Fixtures live under a single org so cleanup is easy.

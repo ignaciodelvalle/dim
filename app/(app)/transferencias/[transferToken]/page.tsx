@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { getTransferForViewerAction as getTransferForViewer } from "@/src/modules/transfers/actions";
 import { AcceptTransferActions } from "./AcceptTransferActions";
 

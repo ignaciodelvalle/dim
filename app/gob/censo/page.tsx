@@ -22,8 +22,8 @@ import {
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
 } from "@/lib/analytics/govt-dashboards";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   DORMANT_MONTHS_DEFAULT,
   TARGETS,

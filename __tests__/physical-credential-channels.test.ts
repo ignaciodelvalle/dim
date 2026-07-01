@@ -11,9 +11,9 @@ import { sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { db, govtBusinessRules, profiles } from "@/db";
-import { validateRulePayload } from "@/lib/business-rules-validators";
 import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
-import { resolvePhysicalCredentialChannels } from "@/lib/physical-credential-channels";
+import { validateRulePayload } from "@/lib/infra/business-rules-validators";
+import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credential-channels";
 
 // Stable test actor referenced by FK on created_by_user_id.
 const ACTOR_ID = "aaaabbbb-cccc-4ddd-8eee-ffffffffffff";
@@ -251,7 +251,7 @@ describe("createBusinessRuleWriter — physical_credential_channels does NOT tri
     async () => {
       // Spy on the reeval module before importing the writer so the spy
       // intercepts calls made during the test.
-      const reevalModule = await import("@/lib/business-rules-reeval");
+      const reevalModule = await import("@/lib/infra/business-rules-reeval");
       const reevalSpy = vi.spyOn(reevalModule, "reEvaluatePppBreedListChange");
 
       const { createBusinessRuleWriter } = await import("@/app/actions/business-rules");

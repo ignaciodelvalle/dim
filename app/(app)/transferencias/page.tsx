@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, petTransfers, pets, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 
 const STATUS_LABELS: Record<string, string> = {

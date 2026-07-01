@@ -39,9 +39,9 @@ import {
   pets,
   profiles,
 } from "@/db";
-import type { AdminOrGovtSession } from "@/lib/auth-guards";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { searchOmnibox } from "@/lib/omnibox-search";
+import type { AdminOrGovtSession } from "@/lib/infra/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { searchOmnibox } from "@/lib/infra/omnibox-search";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

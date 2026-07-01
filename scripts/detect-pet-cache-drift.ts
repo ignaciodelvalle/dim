@@ -37,7 +37,7 @@ import "./_load-env";
 import { asc, eq, gt, sql } from "drizzle-orm";
 
 import { db, pets } from "@/db";
-import { driftedColumns, rederivePetCache } from "@/lib/rederive-pet-cache";
+import { driftedColumns, rederivePetCache } from "@/lib/infra/rederive-pet-cache";
 
 type Args = {
   publicToken: string | null;

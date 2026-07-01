@@ -11,7 +11,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   __resetRateLimitForTests as _reset,
   searchLocalitiesAction as _searchLocalitiesAction,

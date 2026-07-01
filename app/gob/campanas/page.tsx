@@ -23,8 +23,8 @@ import {
   PROVINCE_ISO_MAP,
 } from "@/lib/analytics/govt-dashboards";
 import { RAMP_BLUE, RAMP_GREEN } from "@/lib/analytics/viz-scales";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,

@@ -11,7 +11,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { AddPartyForm } from "./AddPartyForm";

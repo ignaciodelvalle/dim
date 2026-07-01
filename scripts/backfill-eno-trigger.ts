@@ -42,8 +42,8 @@ import "./_load-env";
 import { and, eq, gte, isNull, lt } from "drizzle-orm";
 
 import { auditLog, db, notifications, petEvents, profiles } from "@/db";
-import { parseFlags } from "@/lib/backfill-eno-trigger-helpers";
-import { processEnoEventTrigger } from "@/lib/eno-trigger";
+import { parseFlags } from "@/lib/infra/backfill-eno-trigger-helpers";
+import { processEnoEventTrigger } from "@/lib/infra/eno-trigger";
 import { diseaseCodeToEnoCode, isEnoCode } from "@/src/modules/surveillance/domain/eno-catalog";
 
 // ---------------------------------------------------------------------------

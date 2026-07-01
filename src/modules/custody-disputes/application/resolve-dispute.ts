@@ -33,8 +33,8 @@ import {
   profiles,
 } from "@/db";
 import type { CustodyDispute } from "@/db";
-import { closeCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase } from "@/lib/infra/case-helpers";
 
 import type { ResolveDisputeInput, ResolveDisputeResult } from "../domain/types";
 

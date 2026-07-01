@@ -9,7 +9,7 @@ import {
   countActiveFosterOwnerships,
   countPendingFosterProposals,
 } from "@/lib/analytics/owner-dashboard";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 
 export default async function TransitosHubPage() {
   const { user } = await requireUserOrRedirect();

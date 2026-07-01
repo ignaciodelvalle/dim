@@ -28,7 +28,7 @@ vi.mock("@/lib/auth-guards", () => ({
 }));
 
 // vi.mock is hoisted — imports after this are module-level
-import * as authGuards from "@/lib/auth-guards";
+import * as authGuards from "@/lib/infra/auth-guards";
 
 // We also need to mock next/cache (server action context)
 vi.mock("next/cache", () => ({

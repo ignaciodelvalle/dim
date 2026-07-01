@@ -19,9 +19,9 @@ import {
   fetchRabiesObservationCompliance,
   fetchReportableIncidence,
 } from "@/lib/analytics/surveillance-metrics";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { buildProjectionContext, windows } from "@/lib/metrics";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
-import { generatePublicToken } from "@/lib/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

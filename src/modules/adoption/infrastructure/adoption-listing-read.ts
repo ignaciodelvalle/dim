@@ -17,7 +17,7 @@ import type {
   AdoptionListingCursor,
   AdoptionListingFilters,
   AdoptionListingItem,
-} from "@/lib/adoption-listing";
+} from "@/lib/infra/adoption-listing";
 
 const DEFAULT_PAGE_SIZE = 24;
 

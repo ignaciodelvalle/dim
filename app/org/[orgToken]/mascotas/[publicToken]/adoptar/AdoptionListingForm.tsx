@@ -27,7 +27,7 @@ import {
   ageBucketLabel,
   energyLabel,
   sizeLabel,
-} from "@/lib/adoption-listing";
+} from "@/lib/infra/adoption-listing";
 import {
   setAdoptionListingStatusAction,
   updateAdoptionListingContentAction,

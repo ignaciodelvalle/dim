@@ -10,7 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import type { OrganizationCoverage } from "@/db";
-import type { LocalityOption } from "@/lib/ar-localidades";
+import type { LocalityOption } from "@/lib/infra/ar-localidades";
 import type { Province } from "@/lib/reference/ar-provincias";
 import {
   addCoverageZoneAction,

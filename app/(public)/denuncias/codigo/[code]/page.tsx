@@ -1,6 +1,6 @@
 import { db, welfareReportAttachments, welfareReports } from "@/db";
 import { coarsenPoint, readPoint } from "@/lib/domain/location";
-import { welfareAttachmentSignedUrl } from "@/lib/storage";
+import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/utils/format";
 import { maskEmail, maskPhone } from "@/lib/utils/mask-contact";

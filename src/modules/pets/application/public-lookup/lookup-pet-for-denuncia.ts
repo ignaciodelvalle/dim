@@ -14,8 +14,8 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { db, ownerships, pets, profiles } from "@/db";
-import { lookupByChip } from "@/lib/chip-lookup";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
+import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 
 import type { PublicLookupResult } from "./types";
 

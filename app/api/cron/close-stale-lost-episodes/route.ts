@@ -11,7 +11,7 @@ import {
   closeStaleLostEpisode,
   findStaleLostEpisodes,
 } from "@/lib/case-closers/close-stale-lost-episodes";
-import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
+import { checkCronSecret, runCaseCron } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
 

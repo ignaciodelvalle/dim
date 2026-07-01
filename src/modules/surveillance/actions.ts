@@ -27,13 +27,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db, notifications } from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { closeCase, escalateCase, openCase } from "@/lib/case-helpers";
 import { notifyOutbreakInvestigationOpened } from "@/lib/domain/authority";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
-import { requireAlivePetAccess } from "@/lib/pet-access";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { closeCase, escalateCase, openCase } from "@/lib/infra/case-helpers";
+import { requireAlivePetAccess } from "@/lib/infra/pet-access";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 

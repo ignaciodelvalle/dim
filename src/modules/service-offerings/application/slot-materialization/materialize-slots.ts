@@ -10,7 +10,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { db, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
-import { materializeSlotsForRule } from "@/lib/slot-materialization";
+import { materializeSlotsForRule } from "@/lib/infra/slot-materialization";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers

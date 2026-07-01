@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { validateShareToken } from "@/lib/libreta-share-token";
+import { validateShareToken } from "@/lib/infra/libreta-share-token";
 
 const NOW = new Date("2026-05-27T12:00:00Z");
 const PAST = new Date("2026-05-26T00:00:00Z");

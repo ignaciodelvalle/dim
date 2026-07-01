@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { LOST_SCAN_FEED_CAP } from "@/lib/lost-mode";
+import { LOST_SCAN_FEED_CAP } from "@/lib/infra/lost-mode";
 
 // LostScanFeed — unified feed of QR scans and finder messages for an
 // active lost_pet_episode case.

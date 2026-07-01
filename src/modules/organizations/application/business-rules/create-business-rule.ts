@@ -1,9 +1,9 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { GOVT_BUSINESS_RULE_TYPES, auditLog, db, govtBusinessRules } from "@/db";
-import { reEvaluatePppBreedListChange } from "@/lib/business-rules-reeval";
-import { validateRulePayload } from "@/lib/business-rules-validators";
 import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
+import { reEvaluatePppBreedListChange } from "@/lib/infra/business-rules-reeval";
+import { validateRulePayload } from "@/lib/infra/business-rules-validators";
 
 import type { CreateBusinessRuleResult, CreateBusinessRuleWriterParams } from "./types";
 

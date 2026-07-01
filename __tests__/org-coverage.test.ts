@@ -66,8 +66,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { broadcastLostPet } from "@/lib/lost-pet-broadcast";
-import { generatePublicToken } from "@/lib/publicToken";
+import { broadcastLostPet } from "@/lib/infra/lost-pet-broadcast";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -388,7 +388,7 @@ function mockSession(role: string): any {
 
 describe("addCoverageZoneAction — role gate", () => {
   it("A6: member role → returns { error } and writes nothing to DB", async () => {
-    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    const { requireOrgAccessByToken } = await import("@/lib/infra/auth-guards");
     vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("member"));
 
     const result = await addCoverageZoneAction({
@@ -410,7 +410,7 @@ describe("addCoverageZoneAction — role gate", () => {
   });
 
   it("A7: volunteer role → returns { error } and writes nothing to DB", async () => {
-    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    const { requireOrgAccessByToken } = await import("@/lib/infra/auth-guards");
     vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("volunteer"));
 
     const result = await addCoverageZoneAction({
@@ -520,7 +520,7 @@ describe("removeCoverageZoneAction — cross-org guard", () => {
 
 describe("removeCoverageZoneAction — role gate", () => {
   it("B3: member role → returns { error } and deletes nothing", async () => {
-    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    const { requireOrgAccessByToken } = await import("@/lib/infra/auth-guards");
     vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("member"));
 
     const result = await removeCoverageZoneAction({
@@ -595,7 +595,7 @@ describe("setPrimaryCoverageZoneAction — transaction atomicity", () => {
 
 describe("setPrimaryCoverageZoneAction — role gate", () => {
   it("C3: member role → returns { error } and writes nothing", async () => {
-    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    const { requireOrgAccessByToken } = await import("@/lib/infra/auth-guards");
     vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("member"));
 
     const result = await setPrimaryCoverageZoneAction({

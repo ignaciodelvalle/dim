@@ -13,13 +13,13 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, petEvents, pets, profiles } from "@/db";
-import { buildProjectionContext } from "@/lib/metrics";
 import {
   fetchOverdueRabiesVaccine,
   fetchSterilizationVetRanking,
   fetchStrayDensityAreas,
   logOutreachPiiQuery,
-} from "@/lib/outreach-pipelines";
+} from "@/lib/infra/outreach-pipelines";
+import { buildProjectionContext } from "@/lib/metrics";
 
 // ---------------------------------------------------------------------------
 // Shared test fixtures

@@ -8,7 +8,7 @@ vi.mock("@/lib/auth-guards", () => ({
 }));
 
 import { __resetRateLimitForTests, searchLocalitiesAction } from "@/app/actions/localities";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 
 const mockAs = (userId: string) =>
   vi.mocked(requireUserOrRedirect).mockResolvedValue({

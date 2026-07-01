@@ -16,15 +16,15 @@
 import { and, eq } from "drizzle-orm";
 
 import { approvalRequests, db, notifications, profiles } from "@/db";
-import { validateApprovalPayload } from "@/lib/approval-payloads";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import {
   CoordError,
   JurisdictionValidationError,
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
-import { generateApprovalRequestToken } from "@/lib/publicToken";
-import { generateUniqueToken } from "@/lib/unique-token";
+import { validateApprovalPayload } from "@/lib/infra/approval-payloads";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
+import { generateUniqueToken } from "@/lib/infra/unique-token";
 
 import type { UpgradeFormState, VetUpgradeInput } from "./types";
 

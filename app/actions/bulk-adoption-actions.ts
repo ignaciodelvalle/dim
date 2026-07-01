@@ -12,7 +12,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { bulkApproveAdoptionApplications } from "@/src/modules/adoption/application/bulk-adoption-actions/bulk-approve-adoption-applications";
 import { bulkRejectAdoptionApplications } from "@/src/modules/adoption/application/bulk-adoption-actions/bulk-reject-adoption-applications";
 import type {

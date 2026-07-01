@@ -22,7 +22,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { searchLocalitiesAction } from "@/app/actions/localities";
 import type { SearchLocalitiesResult } from "@/app/actions/localities";
 import { LnInput } from "@/components/ui/Field";
-import type { LocalitySearchResult } from "@/lib/ar-localidades";
+import type { LocalitySearchResult } from "@/lib/infra/ar-localidades";
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;

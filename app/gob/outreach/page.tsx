@@ -19,15 +19,15 @@ import Link from "next/link";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { buildProjectionContext } from "@/lib/metrics";
-import { windows } from "@/lib/metrics/period";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   fetchOverdueRabiesVaccine,
   fetchSterilizationVetRanking,
   fetchStrayDensityAreas,
   logOutreachPiiQuery,
-} from "@/lib/outreach-pipelines";
+} from "@/lib/infra/outreach-pipelines";
+import { buildProjectionContext } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 import { relativeDaysShort } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";

@@ -14,7 +14,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import type { WithdrawApprovalRequestResult } from "@/src/modules/organizations/application/approval-requests/types";
 import { withdrawApprovalRequestForUser as _withdrawApprovalRequestForUser } from "@/src/modules/organizations/application/approval-requests/withdraw-approval-request";
 

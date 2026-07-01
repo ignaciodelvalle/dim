@@ -15,7 +15,7 @@ import Link from "next/link";
 
 import { OpBreach, OpCallout, OpCard, OpCardBody, OpCrumbs } from "@/components/ui/dashboard";
 import { db, organizationMemberships, organizations, ownerships, pets } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 
 import { ProposeTransferForm } from "./ProposeTransferForm";
 

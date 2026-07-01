@@ -6,8 +6,8 @@ import { notFound } from "next/navigation";
 
 import { LnButton } from "@/components/ui/Button";
 import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { petPhotoUrl } from "@/lib/storage";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { MatchConfirmationCardVecino } from "./MatchConfirmationCardVecino";
 

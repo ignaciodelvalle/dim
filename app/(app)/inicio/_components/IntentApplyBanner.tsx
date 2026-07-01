@@ -18,7 +18,7 @@ import Link from "next/link";
 import { dismissApplyIntentAction } from "@/app/actions/apply-intent";
 import { attachments, db, organizations, ownerships, pets } from "@/db";
 import { APPLY_INTENT_PET_TOKEN_COOKIE_NAME } from "@/lib/domain/apply-intent";
-import { petPhotoUrl } from "@/lib/storage";
+import { petPhotoUrl } from "@/lib/infra/storage";
 
 export async function IntentApplyBanner() {
   const cookieStore = await cookies();

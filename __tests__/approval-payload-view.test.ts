@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildPayloadRows } from "@/lib/approval-payload-view";
+import { buildPayloadRows } from "@/lib/infra/approval-payload-view";
 
 describe("buildPayloadRows", () => {
   // ─── Guard: malformed inputs ────────────────────────────────────────────────

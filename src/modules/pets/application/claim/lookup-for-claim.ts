@@ -11,8 +11,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, ownerships, petIdentifications, pets, profiles } from "@/db";
-import { lookupByChip } from "@/lib/chip-lookup";
-import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
+import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 
 import type { ClaimLookupResult } from "./types";
 

@@ -9,8 +9,8 @@ import {
   fetchDiseaseSummary,
   fetchZoonosisTrend,
 } from "@/lib/analytics/govt-dashboards";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { DiseaseSummaryTable } from "../_components/DiseaseSummaryTable";
 

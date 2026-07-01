@@ -32,9 +32,9 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { lookupByChip } from "@/lib/chip-lookup";
-import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
-import { generatePublicToken } from "@/lib/publicToken";
+import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

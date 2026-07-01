@@ -8,7 +8,7 @@
 // docs/superpowers/plans/2026-05-17-code-rename-refugio-to-org.md for context.
 
 import { db, organizationMemberships, organizations } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";

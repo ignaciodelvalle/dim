@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createTattooForUser } from "@/app/actions/tattoo";
 import { attachments, db, ownerships, petEvents, petIdentifications, pets } from "@/db";
-import { normalizeTattooCode } from "@/lib/tattoo-lookup";
+import { normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
 import { withMutationOverride } from "../_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

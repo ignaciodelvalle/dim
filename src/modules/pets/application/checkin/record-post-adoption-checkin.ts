@@ -22,7 +22,7 @@ import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-nor
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { uploadAttachmentIfPresent } from "@/lib/uploads";
+import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 

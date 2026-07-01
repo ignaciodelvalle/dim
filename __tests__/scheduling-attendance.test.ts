@@ -41,7 +41,7 @@ import {
   generateAppointmentToken,
   generateOfferingToken,
   generatePublicToken,
-} from "@/lib/publicToken";
+} from "@/lib/infra/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

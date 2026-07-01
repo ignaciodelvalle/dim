@@ -14,8 +14,8 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, eventNotificationOutbox } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { buildRetryPayload } from "@/lib/outbox-list";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { buildRetryPayload } from "@/lib/infra/outbox-list";
 
 // ---------------------------------------------------------------------------
 // Server action

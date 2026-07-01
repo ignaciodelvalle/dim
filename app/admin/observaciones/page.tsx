@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { OpBreach, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
 import type { RabiesObservationStatus } from "@/src/modules/surveillance/domain/rabies-observation";
 

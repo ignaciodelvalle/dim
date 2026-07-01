@@ -13,7 +13,7 @@
 
 import { redirect } from "next/navigation";
 
-import { requireAlivePetAccess } from "@/lib/pet-access";
+import { requireAlivePetAccess } from "@/lib/infra/pet-access";
 import { parseDateInput } from "@/lib/utils/format";
 import { recordPregnancyEndedWriter as _recordPregnancyEndedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-ended";
 import { recordPregnancyStartedWriter as _recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";

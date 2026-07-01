@@ -2,8 +2,8 @@
 
 import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import { db, pets } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { parseDateInput } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { eq } from "drizzle-orm";

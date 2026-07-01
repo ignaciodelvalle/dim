@@ -21,8 +21,8 @@
 //   - auditLog insert (action concerns)
 //   - revalidatePath
 
-import { matchesDbError } from "@/lib/db-errors";
-import { generatePrefixedToken } from "@/lib/publicToken";
+import { matchesDbError } from "@/lib/infra/db-errors";
+import { generatePrefixedToken } from "@/lib/infra/publicToken";
 import {
   computeTransferExpiresAt,
   isValidTransferEmail,

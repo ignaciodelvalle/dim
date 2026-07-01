@@ -7,11 +7,11 @@ import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 
 import { attachments, db, petServiceDog } from "@/db";
-import { requirePetAccess } from "@/lib/pet-access";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { SERVICE_TYPE_LABELS } from "@/lib/service-dog-labels";
-import { buildPublicVerifyUrl, isCredentialPresentable } from "@/lib/service-dog-presentar";
-import { petPhotoUrl } from "@/lib/storage";
+import { requirePetAccess } from "@/lib/infra/pet-access";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { SERVICE_TYPE_LABELS } from "@/lib/infra/service-dog-labels";
+import { buildPublicVerifyUrl, isCredentialPresentable } from "@/lib/infra/service-dog-presentar";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import { formatDate } from "@/lib/utils/format";
 import { and, eq } from "drizzle-orm";
 

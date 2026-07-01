@@ -10,7 +10,7 @@ import { createScheduleRuleAction, deleteScheduleRuleAction } from "@/app/action
 import { materializeOfferingNowAction } from "@/app/actions/slot-materialization";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 

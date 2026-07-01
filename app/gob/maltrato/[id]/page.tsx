@@ -48,13 +48,13 @@ const GOB_WELFARE_DETAIL_SELECT = {
   reporterContactPhone: welfareReports.reporterContactPhone,
 } as const;
 import { fetchWelfareTimeline } from "@/lib/analytics/govt-dashboards";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
 import { readPoint } from "@/lib/domain/location";
-import { welfareAttachmentSignedUrl } from "@/lib/storage";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
+import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/utils/format";
-import { logWelfareLocationViewed } from "@/lib/welfare-location-audit";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,

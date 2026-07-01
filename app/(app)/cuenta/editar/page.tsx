@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { LnCallout } from "@/components/ui/DocElements";
 import { db, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 
 import { EditProfileForm } from "./EditProfileForm";
 

@@ -10,8 +10,8 @@ import {
   OpCrumbs,
 } from "@/components/ui/dashboard";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { PET_OBSERVATION_SELECT } from "@/lib/pet-projections";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { PET_OBSERVATION_SELECT } from "@/lib/infra/pet-projections";
 import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
 
 import { CloseObservationForm } from "./CloseObservationForm";

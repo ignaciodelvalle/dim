@@ -7,8 +7,8 @@ import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { getProfileCached } from "@/lib/request-cache";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { getProfileCached } from "@/lib/infra/request-cache";
 import type { ShellSession } from "@/lib/ui/shell-nav";
 
 // Gate the /gob/* segment. Both admin and govt can access this surface.

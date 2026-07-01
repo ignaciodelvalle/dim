@@ -16,7 +16,7 @@ import "server-only";
 import { inArray } from "drizzle-orm";
 
 import { type db, type petEvents, type pets, profiles } from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 
 import type { NewNotification } from "../types";
 

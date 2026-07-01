@@ -2,9 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { getOutbreakInvestigationDetail } from "@/lib/case-queries";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { getOutbreakInvestigationDetail } from "@/lib/infra/case-queries";
 import { formatDateTime } from "@/lib/utils/format";
 
 import { InvestigationActions } from "./InvestigationActions";

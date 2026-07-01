@@ -2,7 +2,7 @@
 //
 // @no-auth-required: logout invalidates whatever session exists (or none).
 
-import { safeReturnTo } from "@/lib/role-landing";
+import { safeReturnTo } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 

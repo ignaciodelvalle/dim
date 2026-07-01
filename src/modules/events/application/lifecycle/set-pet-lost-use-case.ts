@@ -20,12 +20,12 @@
 
 import "server-only";
 
-import { openCase } from "@/lib/case-helpers";
 import { writePoint } from "@/lib/domain/location";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { normalizeTattooCode } from "@/lib/tattoo-lookup";
+import { openCase } from "@/lib/infra/case-helpers";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
 
 import type { DisclosurePrefsInput } from "../../domain/disclosure-prefs";
 import { parseDisclosurePrefsSnapshot } from "../../domain/disclosure-prefs";

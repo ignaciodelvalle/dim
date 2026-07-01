@@ -26,9 +26,6 @@
 // and are inserted AFTER the transaction commits (best-effort, logged on failure).
 
 import { db, notifications, ownerships, petEvents, petIdentifications, pets } from "@/db";
-import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
-import { openCase } from "@/lib/case-helpers";
-import { lookupByChip } from "@/lib/chip-lookup";
 import {
   CoordError,
   JurisdictionValidationError,
@@ -37,12 +34,15 @@ import {
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
-import { generatePublicToken } from "@/lib/publicToken";
+import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/infra/breeds-server";
+import { openCase } from "@/lib/infra/case-helpers";
+import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
+import { generatePublicToken } from "@/lib/infra/publicToken";
+import { generateTattooAckToken, validateTattooAckToken } from "@/lib/infra/tattoo-ack-token";
+import { lookupByTattoo, normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
+import { generateUniqueToken } from "@/lib/infra/unique-token";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
-import { generateTattooAckToken, validateTattooAckToken } from "@/lib/tattoo-ack-token";
-import { lookupByTattoo, normalizeTattooCode } from "@/lib/tattoo-lookup";
-import { generateUniqueToken } from "@/lib/unique-token";
 import { parseDateInput } from "@/lib/utils/format";
 import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 import { redirect } from "next/navigation";

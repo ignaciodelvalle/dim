@@ -18,7 +18,7 @@ vi.mock("@/lib/auth-guards", () => ({
 
 import { lookupPetForDecomisoAction } from "@/app/actions/decomiso-pet-lookup";
 import { db, govtAssignments, ownerships, pets, profiles } from "@/db";
-import { requireDecomisoPrincipal } from "@/lib/auth-guards";
+import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

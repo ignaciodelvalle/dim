@@ -29,7 +29,7 @@
 import "server-only";
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { maybeNotifyOwnersOfPublicAlert } from "@/lib/owner-disease-alerts";
+import { maybeNotifyOwnersOfPublicAlert } from "@/lib/infra/owner-disease-alerts";
 import { findDisease, isReportable } from "@/lib/reference/diseases";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";

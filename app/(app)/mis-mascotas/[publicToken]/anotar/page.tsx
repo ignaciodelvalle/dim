@@ -4,7 +4,7 @@
 import Link from "next/link";
 
 import { buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { CaptureBox } from "./CaptureBox";
 import { ALL_CAPTURE_OPTIONS } from "./handoff";
 

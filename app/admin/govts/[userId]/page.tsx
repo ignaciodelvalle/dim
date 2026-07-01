@@ -9,7 +9,7 @@ import { DeactivateGovtActions } from "@/app/admin/govts/_components/DeactivateG
 import { RevokeLocalityRowActions } from "@/app/admin/govts/_components/RevokeLocalityRowActions";
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { auditLog, db, govtAssignments, profiles } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
 

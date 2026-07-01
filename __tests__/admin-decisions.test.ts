@@ -27,7 +27,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { generateApprovalRequestToken } from "@/lib/publicToken";
+import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { expectDbError } from "./_helpers/expect-db-error";
 

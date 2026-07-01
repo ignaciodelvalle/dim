@@ -11,7 +11,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, eventNotificationOutbox, ownerships, petEvents, pets } from "@/db";
-import { countOutboxBreaches } from "@/lib/outbox-queries";
+import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const TOKEN = "C2-OUTBOX-BREACH";

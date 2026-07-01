@@ -14,7 +14,7 @@ import {
   revokeLibretaShareForUser,
 } from "@/app/actions/libreta-share";
 import { db, libretaShareTokens, ownerships, pets, profiles, shareTelemetry } from "@/db";
-import { generateLibretaShareToken } from "@/lib/publicToken";
+import { generateLibretaShareToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

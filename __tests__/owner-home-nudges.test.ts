@@ -22,7 +22,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets, reminders } from "@/db";
-import { fetchPetHealthNudges } from "@/lib/owner-nudges";
+import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

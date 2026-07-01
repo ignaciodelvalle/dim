@@ -1,6 +1,6 @@
 import { db, pets } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 

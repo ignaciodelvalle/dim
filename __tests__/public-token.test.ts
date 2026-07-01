@@ -11,7 +11,7 @@ import {
   generateApprovalRequestToken,
   generateLibretaShareToken,
   generatePublicToken,
-} from "@/lib/publicToken";
+} from "@/lib/infra/publicToken";
 
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 31 chars
 const EXCLUDED = ["0", "1", "I", "O", "L"]; // confusable chars deliberately removed

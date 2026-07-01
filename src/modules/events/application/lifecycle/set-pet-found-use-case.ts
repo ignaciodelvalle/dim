@@ -14,8 +14,8 @@
 
 import "server-only";
 
-import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase, findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 
 type CaseExecutor = Parameters<typeof closeCase>[1];
 

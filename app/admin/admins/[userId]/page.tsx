@@ -7,7 +7,7 @@ import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentials
 import { DeactivateAdminActions } from "@/app/admin/admins/_components/DeactivateAdminForm";
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
 

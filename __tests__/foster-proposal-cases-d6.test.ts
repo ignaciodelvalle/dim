@@ -41,7 +41,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { generatePrefixedToken, generatePublicToken } from "@/lib/publicToken";
+import { generatePrefixedToken, generatePublicToken } from "@/lib/infra/publicToken";
 import { createClient } from "@/lib/supabase/server";
 import {
   acceptFosterProposalAction,
@@ -454,7 +454,7 @@ describe("D6.6: fallback path — pre-migration proposal (caseId=null) still clo
     await cleanPetState();
 
     // Open a case manually (simulating what proposeFosterAction would have done).
-    const { openCase } = await import("@/lib/case-helpers");
+    const { openCase } = await import("@/lib/infra/case-helpers");
     const caseRow = await openCase({
       kind: "foster_proposal",
       primarySubjectKind: "registered_pet",

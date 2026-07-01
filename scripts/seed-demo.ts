@@ -130,7 +130,7 @@ async function loadDbDeps(): Promise<DbDeps> {
   const { createClient: createSdkClient } = await import("@supabase/supabase-js");
   const drizzle = await import("drizzle-orm");
   const db = (await import("../db")) as any;
-  const publicTokenLib = await import("../lib/publicToken");
+  const publicTokenLib = await import("@/lib/infra/publicToken");
 
   const supabase = createSdkClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },

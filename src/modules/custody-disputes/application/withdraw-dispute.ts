@@ -12,7 +12,7 @@
 import { eq } from "drizzle-orm";
 
 import { auditLog, cases, custodyDisputes, db, pets } from "@/db";
-import { closeCase } from "@/lib/case-helpers";
+import { closeCase } from "@/lib/infra/case-helpers";
 
 import type { WithdrawDisputeInput, WithdrawDisputeResult } from "../domain/types";
 

@@ -6,7 +6,7 @@
 // Auth guard (requireUserOrRedirect) for searchLocalitiesAction is enforced by
 // the caller (shim). This function receives the already-resolved userId.
 
-import { type LocalitySearchResult, searchLocalities } from "@/lib/ar-localidades";
+import { type LocalitySearchResult, searchLocalities } from "@/lib/infra/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 
 import type { SearchLocalitiesResult } from "./types";

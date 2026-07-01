@@ -22,8 +22,8 @@ import {
   listIdentificationsForPet,
   markUnreadable,
   replaceIdentification,
-} from "@/lib/identifications";
-import { generatePublicToken } from "@/lib/publicToken";
+} from "@/lib/infra/identifications";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const createdPetIds: string[] = [];

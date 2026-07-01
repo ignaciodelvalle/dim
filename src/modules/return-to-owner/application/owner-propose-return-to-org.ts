@@ -15,8 +15,8 @@ import {
   petEvents,
   pets,
 } from "@/db";
-import { findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 
 import type { OwnerProposeReturnToOrgResult } from "../domain/types";
 import { hasPendingProposal } from "./proposal-queries";

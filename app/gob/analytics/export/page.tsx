@@ -18,8 +18,8 @@ import { Suspense } from "react";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
-import { listLocalitiesByProvince } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { listLocalitiesByProvince } from "@/lib/infra/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { ExportFormClient } from "./ExportFormClient";
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { AdoptionListingCard } from "@/components/AdoptionListingCard";
-import { buildSearchParams, parseSearchParams } from "@/lib/adoption-listing";
+import { buildSearchParams, parseSearchParams } from "@/lib/infra/adoption-listing";
 import { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 
 import { AdoptionFiltersBar } from "./AdoptionFiltersBar";

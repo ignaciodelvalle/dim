@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, organizationMemberships } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { LeaveMembershipButton } from "./LeaveMembershipButton";

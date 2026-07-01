@@ -11,7 +11,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { type Case, type NewCase, cases, db } from "@/db";
-import { generatePrefixedToken } from "@/lib/publicToken";
+import { generatePrefixedToken } from "@/lib/infra/publicToken";
 import type { CaseKind } from "@/src/modules/cases/domain/case-kinds";
 
 // ---------------------------------------------------------------------------

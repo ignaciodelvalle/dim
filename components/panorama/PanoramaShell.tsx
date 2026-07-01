@@ -2,7 +2,7 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { PanoramaConsole } from "@/components/panorama/PanoramaConsole";
 import { PanoramaDemoDisclosure } from "@/components/panorama/PanoramaDemoDisclosure";
-import type { LocalityCentroids } from "@/lib/ar-localidades";
+import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import type { FeatureCollection, PanoramaLayer } from "@/src/modules/panorama/domain/types";
 

@@ -15,7 +15,7 @@
 import { and, eq, lt } from "drizzle-orm";
 
 import { cases, db, notifications, profiles } from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 
 export interface EscalateStaleDisputesOptions {
   now?: Date;

@@ -16,8 +16,8 @@ const findExpiredCrossOrgTransfers =
 const expireCrossOrgTransfer = (
   candidate: Parameters<typeof TransfersRepository.expireOneCrossOrgCase>[0],
 ) => TransfersRepository.expireOneCrossOrgCase(candidate);
-import { closeCase, openCase } from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase, openCase } from "@/lib/infra/case-helpers";
 import { V1_CASE_KINDS } from "@/src/modules/cases/domain/case-kinds";
 import { getLifecycle } from "@/src/modules/cases/domain/lifecycles";
 import { withMutationOverride } from "./_helpers/db-overrides";

@@ -13,9 +13,9 @@ import Link from "next/link";
 import { OpBreach, OpButton, OpCard, OpPill } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import type { OutboxStatus, OutboxTargetKind } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
-import { countOutboxBreaches } from "@/lib/outbox-queries";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { buildBreachCue, buildStatusLabel } from "@/lib/infra/outbox-list";
+import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 // Set of canonical province names for filter validation.

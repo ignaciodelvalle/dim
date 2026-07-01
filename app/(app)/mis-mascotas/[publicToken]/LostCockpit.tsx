@@ -22,7 +22,7 @@ import { type PetHeroPet, PetProfileHero } from "@/components/pet-profile/PetPro
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSeal } from "@/components/ui/DocElements";
 import { LnStatusFlag } from "@/components/ui/StatusFlag";
-import type { LostEpisode } from "@/lib/lost-mode";
+import type { LostEpisode } from "@/lib/infra/lost-mode";
 import { foundParticiple, lostThirdPersonPhrase } from "@/lib/utils/format";
 import { setPetFoundAction } from "@/src/modules/events/actions";
 import Image from "next/image";

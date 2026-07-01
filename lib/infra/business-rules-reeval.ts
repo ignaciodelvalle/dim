@@ -15,7 +15,7 @@ import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { db, notifications, ownerships, pets } from "@/db";
 
-import { resolveBusinessRule } from "./business-rules-resolver";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 
 export interface ReevalCounters {
   scanned: number;

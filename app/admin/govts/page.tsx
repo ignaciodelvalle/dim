@@ -4,8 +4,8 @@ import { count, eq, isNull } from "drizzle-orm";
 
 import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, govtAssignments, profiles } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { isDeadGovt } from "@/lib/govt-roster";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { isDeadGovt } from "@/lib/infra/govt-roster";
 import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
 
 export default async function GovtsPage() {

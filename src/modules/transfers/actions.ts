@@ -22,7 +22,7 @@
 // Reference: src/modules/foster/actions.ts, src/modules/adoption/actions.ts
 
 import { auditLog, db, notifications } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";

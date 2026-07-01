@@ -1,4 +1,4 @@
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createClient } from "@/lib/supabase/server";
 
 import type { ExportSubjectDataResult } from "./types";

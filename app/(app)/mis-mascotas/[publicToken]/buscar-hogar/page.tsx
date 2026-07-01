@@ -15,7 +15,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { RehomeRequestForm } from "./RehomeRequestForm";
 

@@ -27,8 +27,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { broadcastLostPet } from "@/lib/lost-pet-broadcast";
-import { generatePublicToken } from "@/lib/publicToken";
+import { broadcastLostPet } from "@/lib/infra/lost-pet-broadcast";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import type { DisclosurePrefsInput } from "@/src/modules/events/actions";
 import { setPetLostWriter } from "@/src/modules/events/application/writers";
 import { withMutationOverride } from "./_helpers/db-overrides";

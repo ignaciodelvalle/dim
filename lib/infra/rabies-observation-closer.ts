@@ -7,8 +7,8 @@
 // and delegates to the module use-case with the real DB-backed deps injected.
 
 import { db } from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { closeCase } from "@/lib/case-helpers";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { closeCase } from "@/lib/infra/case-helpers";
 import {
   type CloseRabiesObservationsStats,
   closeEligibleObservations,

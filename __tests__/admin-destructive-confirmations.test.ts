@@ -10,17 +10,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  RUPGA_APPROVAL_WARNING,
-  RUPGA_TYPE,
-  computeApprovalTypeBreakdown,
-  selectionHasRupga,
-} from "@/lib/approval-queue-breakdown";
-import {
   POSITIVE_RABIES_OUTCOME,
   RABIES_CONFIRMATION_WORD,
   canSubmitModeration,
   canSubmitObservationClose,
 } from "@/lib/domain/destructive-confirmation";
+import {
+  RUPGA_APPROVAL_WARNING,
+  RUPGA_TYPE,
+  computeApprovalTypeBreakdown,
+  selectionHasRupga,
+} from "@/lib/infra/approval-queue-breakdown";
 
 // ============================================================================
 // C5 — bulk approval breakdown

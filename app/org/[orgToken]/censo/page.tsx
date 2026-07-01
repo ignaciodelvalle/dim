@@ -9,7 +9,7 @@ import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpKpi } from "@/components/ui/dashboard";
 import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/analytics/org-census";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // Shelters and rescue networks are the only org types where occupancy is meaningful.

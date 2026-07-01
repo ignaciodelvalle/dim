@@ -8,7 +8,7 @@ import { sql } from "drizzle-orm";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 
 import { WithdrawApplicationButton } from "./WithdrawApplicationButton";
 

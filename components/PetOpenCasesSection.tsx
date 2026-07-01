@@ -5,7 +5,7 @@
 // each row links to /casos/[publicCode] via CaseBadge.
 
 import { CaseBadge } from "@/components/CaseBadge";
-import { findOpenCasesForPetWithCodes } from "@/lib/case-queries";
+import { findOpenCasesForPetWithCodes } from "@/lib/infra/case-queries";
 
 interface Props {
   petId: string;

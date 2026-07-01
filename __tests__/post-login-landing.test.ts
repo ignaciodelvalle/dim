@@ -22,8 +22,8 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, organizationMemberships, organizations, profiles } from "@/db";
-import { generatePublicToken } from "@/lib/publicToken";
-import { resolveUserLanding } from "@/lib/role-landing";
+import { generatePublicToken } from "@/lib/infra/publicToken";
+import { resolveUserLanding } from "@/lib/infra/role-landing";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

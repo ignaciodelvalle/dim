@@ -55,7 +55,7 @@ import {
   profiles,
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { generatePublicToken } from "@/lib/publicToken";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
 
 import { actorCancelProposalUseCase } from "../actor-cancel-proposal";

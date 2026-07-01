@@ -10,7 +10,11 @@ import { and, desc, eq, ilike, inArray, sql } from "drizzle-orm";
 
 import { attachments, db, petEvents, pets } from "@/db";
 
-import type { LostListingCursor, LostListingFilters, LostListingItem } from "@/lib/lost-listing";
+import type {
+  LostListingCursor,
+  LostListingFilters,
+  LostListingItem,
+} from "@/lib/infra/lost-listing";
 
 const DEFAULT_PAGE_SIZE = 24;
 

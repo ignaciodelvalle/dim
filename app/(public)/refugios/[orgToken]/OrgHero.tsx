@@ -2,8 +2,8 @@ import Link from "next/link";
 
 import { LnBadge } from "@/components/ui/Badge";
 import { LnGuilloche } from "@/components/ui/DocElements";
-import type { OrgPublicProfile } from "@/lib/org-public-profile";
-import { orgLogoUrl } from "@/lib/storage";
+import type { OrgPublicProfile } from "@/lib/infra/org-public-profile";
+import { orgLogoUrl } from "@/lib/infra/storage";
 import { BRANDING } from "@/lib/ui/branding";
 
 // Hero del refugio público — Libreta Nacional institutional band look.

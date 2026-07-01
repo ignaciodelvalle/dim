@@ -21,7 +21,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/origin-org";
+import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/infra/origin-org";
 import { createClient } from "@/lib/supabase/server";
 import { updateOrganizationForUser } from "@/src/modules/organizations/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";

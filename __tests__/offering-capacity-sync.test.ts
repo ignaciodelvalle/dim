@@ -34,7 +34,7 @@ import {
   generateAppointmentToken,
   generateOfferingToken,
   generatePublicToken,
-} from "@/lib/publicToken";
+} from "@/lib/infra/publicToken";
 import { createClient } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------
