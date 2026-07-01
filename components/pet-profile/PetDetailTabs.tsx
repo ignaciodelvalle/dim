@@ -38,7 +38,9 @@ export function PetDetailTabs({
   }
 
   const tabs: Array<{ key: TabKey; label: string }> = [
-    { key: "resumen", label: "Resumen" },
+    // WS-1 (owner-compliance-first handoff): key stays "resumen" for URL
+    // stability; the visible label is compliance-first.
+    { key: "resumen", label: "Cumplimiento" },
     // Libreta and Historial are owner-only — org-path viewers see only Resumen + Vacunas.
     ...(isOwner ? [{ key: "libreta" as TabKey, label: "Libreta" }] : []),
     { key: "vacunas", label: "Vacunas" },
