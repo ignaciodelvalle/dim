@@ -54,8 +54,9 @@ type Props = {
 
 function isActive(item: NavItem, pathname: string | null): boolean {
   if (!pathname) return false;
-  if (item.matchPrefix) {
-    return pathname === item.matchPrefix || pathname.startsWith(`${item.matchPrefix}/`);
+  const prefixes = item.matchPrefixes ?? (item.matchPrefix ? [item.matchPrefix] : []);
+  if (prefixes.length > 0) {
+    return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   }
   return pathname === item.href;
 }

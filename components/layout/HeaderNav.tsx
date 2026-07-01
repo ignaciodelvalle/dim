@@ -10,6 +10,13 @@ export type NavItem = {
   href: string;
   label: string;
   matchPrefix?: string;
+  /**
+   * Additional active-state prefixes. When set, the item is active if the path
+   * equals or is under ANY of these (e.g. "Mis mascotas" → /inicio stays active
+   * while viewing a pet at /mis-mascotas/[token]). Takes precedence over
+   * matchPrefix for the active check.
+   */
+  matchPrefixes?: string[];
   /** Optional numeric badge overlaid on the nav item (e.g. breach count). */
   badge?: number;
   /**
@@ -29,6 +36,9 @@ type Props = {
 
 function isActive(item: NavItem, currentPath: string | null): boolean {
   if (!currentPath) return false;
+  if (item.matchPrefixes?.some((p) => currentPath === p || currentPath.startsWith(`${p}/`))) {
+    return true;
+  }
   if (item.matchPrefix) return currentPath.startsWith(item.matchPrefix);
   return currentPath === item.href;
 }

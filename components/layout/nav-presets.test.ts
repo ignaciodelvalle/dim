@@ -204,10 +204,13 @@ describe("OWNER_NAV", () => {
     expect(OWNER_NAV).toHaveLength(2);
   });
 
-  it("leads with Cumplir → /inicio (the compliance-register home)", () => {
-    const cumplir = OWNER_NAV.find((i) => i.label === "Cumplir");
-    expect(cumplir).toBeDefined();
-    expect(cumplir?.href).toBe("/inicio");
+  it("leads with 'Mis mascotas' → /inicio, active on pet pages via matchPrefixes", () => {
+    const home = OWNER_NAV.find((i) => i.label === "Mis mascotas");
+    expect(home).toBeDefined();
+    expect(home?.href).toBe("/inicio");
+    // Stays highlighted while viewing a pet at /mis-mascotas/[token].
+    expect(home?.matchPrefixes).toContain("/inicio");
+    expect(home?.matchPrefixes).toContain("/mis-mascotas");
   });
 
   it("contains Denunciar tab pointing to /denuncias/mias", () => {
