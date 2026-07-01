@@ -12,13 +12,56 @@ import { expect, test } from "@playwright/test";
  *     that page must be axe-clean.
  *   - /anotar — accessible to any authenticated owner.
  *
- * TODO (follow-up): seed a govt + admin account in `scripts/seed-test-users.ts`
- * and add authenticated axe passes for /gob/*, /admin/*, /org/* here. This is
- * tracked in the PR description as a deferred sub-item.
+ * WS-C (2026-07-01): authenticated axe passes for /admin and /gob added below,
+ * using the seeded admin@dim.test and govt@dim.test accounts. They assert no
+ * critical/serious WCAG 2.1 AA violations (the WS-C acceptance bar). These run
+ * in the Playwright CI job (not `pnpm verify`); if they surface violations, that
+ * is the operator-a11y fix worklist (June U1: table semantics + color-only
+ * status). /org/[orgToken] authenticated coverage still needs org-token
+ * resolution — tracked as a follow-up.
  */
 
 const OWNER_EMAIL = "owner@dim.test";
 const OWNER_PASSWORD = "Test1234!";
+
+// Institutional accounts seeded by scripts/seed-test-users.ts.
+const ADMIN_EMAIL = "admin@dim.test";
+const GOVT_EMAIL = "govt@dim.test";
+const SHARED_PASSWORD = "Test1234!";
+
+// Authenticated operator landings + their login account. axe asserts no
+// critical/serious violations (WS-C bar); color-contrast is validated via tokens.
+const AUTHED_OPERATOR_ROUTES = [
+  { path: "/admin", email: ADMIN_EMAIL, landing: /\/admin/ },
+  { path: "/gob", email: GOVT_EMAIL, landing: /\/gob/ },
+] as const;
+
+test.describe("authenticated operator surfaces — axe-clean (WCAG 2.1 AA, WS-C)", () => {
+  for (const { path, email, landing } of AUTHED_OPERATOR_ROUTES) {
+    test(`a11y(axe) ${path} authenticated — no critical/serious`, async ({ page }) => {
+      await page.goto("/login");
+      await page.getByLabel(/correo electrónico/i).fill(email);
+      await page.getByLabel(/contraseña/i).fill(SHARED_PASSWORD);
+      await page.getByRole("button", { name: /iniciar sesión/i }).click();
+      // Institutional accounts land on their portal (not /inicio).
+      await page.waitForURL(landing, { timeout: 15_000 }).catch(() => {});
+
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+      await expect(page.getByText(/application error/i)).not.toBeVisible();
+
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .disableRules(["color-contrast"])
+        .analyze();
+
+      const blocking = results.violations.filter(
+        (v) => v.impact === "critical" || v.impact === "serious",
+      );
+      expect(blocking, `${path}: ${blocking.map((v) => v.id).join(", ")}`).toEqual([]);
+    });
+  }
+});
 
 // These operator routes redirect non-privileged owners. The redirect destination
 // (/ for admin, /mis-mascotas for gob) must be axe-clean.
