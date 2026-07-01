@@ -9,7 +9,7 @@
 import { type LocalitySearchResult, searchLocalities } from "@/lib/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 
-import { type SearchLocalitiesResult } from "./types";
+import type { SearchLocalitiesResult } from "./types";
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 60;

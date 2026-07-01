@@ -1,7 +1,7 @@
 // Shared types for the localities search application layer.
 // Moved verbatim from app/actions/localities.ts (strangler 46/61).
 
-import { type LocalitySearchResult } from "@/lib/ar-localidades";
+import type { LocalitySearchResult } from "@/lib/ar-localidades";
 
 export type SearchLocalitiesResult =
   | { results: LocalitySearchResult[] }

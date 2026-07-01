@@ -59,10 +59,7 @@ export async function logRequestViewedForAuthority(
 // Action wrappers — thin controllers for UI components
 // ---------------------------------------------------------------------------
 
-export async function approveRequestAction(
-  publicToken: string,
-  notes: string | null,
-) {
+export async function approveRequestAction(publicToken: string, notes: string | null) {
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await _approveRequest(user.id, publicToken, notes);
   if ("ok" in result) {
@@ -74,10 +71,7 @@ export async function approveRequestAction(
   return result;
 }
 
-export async function rejectRequestAction(
-  publicToken: string,
-  reason: string,
-) {
+export async function rejectRequestAction(publicToken: string, reason: string) {
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await _rejectRequest(user.id, publicToken, reason);
   if ("ok" in result) {

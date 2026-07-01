@@ -13,8 +13,8 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import type { SightingActionState } from "@/src/modules/pets/application/sighting/types";
 import { reportPetSighting } from "@/src/modules/pets/application/sighting/report-pet-sighting";
+import type { SightingActionState } from "@/src/modules/pets/application/sighting/types";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)

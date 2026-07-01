@@ -31,7 +31,11 @@ import type {
 // Type re-exports (erased at runtime — allowed in "use server" files)
 // ---------------------------------------------------------------------------
 
-export type { CreateShareInput, CreateShareResult, RevokeShareResult } from "@/src/modules/pets/application/libreta-share/types";
+export type {
+  CreateShareInput,
+  CreateShareResult,
+  RevokeShareResult,
+} from "@/src/modules/pets/application/libreta-share/types";
 
 // ---------------------------------------------------------------------------
 // Writer re-exports — async wrappers (used by integration tests and route actions)

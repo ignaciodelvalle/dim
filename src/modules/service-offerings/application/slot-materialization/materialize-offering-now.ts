@@ -15,9 +15,7 @@ import type { MaterializeNowResult } from "./types";
 /**
  * Server use-case wired to the "Materializar ahora" button on org agenda pages.
  */
-export async function materializeOfferingNow(
-  offeringToken: string,
-): Promise<MaterializeNowResult> {
+export async function materializeOfferingNow(offeringToken: string): Promise<MaterializeNowResult> {
   const [offering] = await db
     .select({
       id: serviceOfferings.id,

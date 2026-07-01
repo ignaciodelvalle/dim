@@ -15,9 +15,7 @@ export async function markNotificationRead(userId: string, notificationId: strin
   await db
     .update(notifications)
     .set({ readAt: new Date() })
-    .where(
-      and(eq(notifications.id, notificationId), eq(notifications.userId, userId)),
-    );
+    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)));
   revalidatePath("/notificaciones");
   revalidatePath("/mis-mascotas");
 }
@@ -27,9 +25,7 @@ export async function archiveNotification(userId: string, notificationId: string
   await db
     .update(notifications)
     .set({ archivedAt: now, readAt: now })
-    .where(
-      and(eq(notifications.id, notificationId), eq(notifications.userId, userId)),
-    );
+    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)));
   revalidatePath("/notificaciones");
   revalidatePath("/mis-mascotas");
 }

@@ -11,8 +11,8 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import type { GeneratePppExportResult } from "@/src/modules/pets/application/ppp-export/types";
 import { generatePppExport } from "@/src/modules/pets/application/ppp-export/generate-ppp-export";
+import type { GeneratePppExportResult } from "@/src/modules/pets/application/ppp-export/types";
 
 export type { GeneratePppExportResult };
 

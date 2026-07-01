@@ -11,7 +11,10 @@ import { approveRequestForAuthority } from "@/src/modules/organizations/applicat
 
 import type { BulkApproveInput, BulkResult } from "./types";
 
-export async function bulkApproveRequests(actorUserId: string, input: BulkApproveInput): Promise<BulkResult> {
+export async function bulkApproveRequests(
+  actorUserId: string,
+  input: BulkApproveInput,
+): Promise<BulkResult> {
   const bulkActionId = randomUUID();
   const succeeded: string[] = [];
   const failed: { id: string; reason: string }[] = [];

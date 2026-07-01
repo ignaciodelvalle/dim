@@ -11,8 +11,8 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import type { ClaimFormState } from "@/src/modules/pets/application/stub-claim/types";
 import { claimStubProfile } from "@/src/modules/pets/application/stub-claim/claim-stub-profile";
+import type { ClaimFormState } from "@/src/modules/pets/application/stub-claim/types";
 
 export type { ClaimFormState };
 

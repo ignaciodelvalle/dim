@@ -13,13 +13,13 @@
 // function. Types are re-exported with `export type` (erased at runtime).
 
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { blockSlot as _blockSlot } from "@/src/modules/service-offerings/application/slot-materialization/block-slot";
 import { materializeOfferingNow as _materializeOfferingNow } from "@/src/modules/service-offerings/application/slot-materialization/materialize-offering-now";
 import {
   materializeAllActiveSlots as _materializeAllActiveSlots,
   materializeSlotsForOffering as _materializeSlotsForOffering,
 } from "@/src/modules/service-offerings/application/slot-materialization/materialize-slots";
-import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)

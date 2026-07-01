@@ -11,12 +11,12 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import type { StartApplyIntentResult } from "@/src/modules/adoption/application/apply-intent/types";
+import { dismissApplyIntentAction as _dismissApplyIntentAction } from "@/src/modules/adoption/application/apply-intent/dismiss-apply-intent";
 import {
   startApplyIntentAction as _startApplyIntentAction,
   startApplyIntentFormAction as _startApplyIntentFormAction,
 } from "@/src/modules/adoption/application/apply-intent/start-apply-intent";
-import { dismissApplyIntentAction as _dismissApplyIntentAction } from "@/src/modules/adoption/application/apply-intent/dismiss-apply-intent";
+import type { StartApplyIntentResult } from "@/src/modules/adoption/application/apply-intent/types";
 
 export type { StartApplyIntentResult };
 

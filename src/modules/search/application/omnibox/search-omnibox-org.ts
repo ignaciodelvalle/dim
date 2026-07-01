@@ -4,8 +4,8 @@
 // orgToken is read from session.organization.publicToken.
 
 import type { OrgAccessSession } from "@/lib/auth-guards";
-import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { type OmniboxResults, searchOmnibox } from "@/lib/omnibox-search";
+import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // Minimum query length before we touch the DB or log a PII read. A single

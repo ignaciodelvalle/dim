@@ -13,8 +13,8 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import type { PublicActionState } from "@/src/modules/pets/application/public/types";
 import { notifyOwnerOfFoundPet } from "@/src/modules/pets/application/public/notify-owner-of-found-pet";
+import type { PublicActionState } from "@/src/modules/pets/application/public/types";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)

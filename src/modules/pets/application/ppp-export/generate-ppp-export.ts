@@ -37,9 +37,7 @@ const EXPORT_URL_TTL_SECONDS = 24 * 60 * 60;
  * "Ciudad Autónoma de Buenos Aires". Prov BA pets receive error "ppp_prov_ba_not_implemented".
  * TODO(F2-prov-ba-v2): extend when Ley 14.107 municipal registry support is added.
  */
-export async function generatePppExport(
-  petPublicToken: string,
-): Promise<GeneratePppExportResult> {
+export async function generatePppExport(petPublicToken: string): Promise<GeneratePppExportResult> {
   const { supabase, user } = await requireUserOrRedirect();
 
   // Ownership check: pet must exist and belong to this user (strict owner-path only).

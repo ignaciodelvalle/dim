@@ -24,22 +24,21 @@ import type {
 // Type re-exports (erased at runtime — allowed in "use server" files)
 // ---------------------------------------------------------------------------
 
-export type { BulkAdoptionApproveInput, BulkAdoptionRejectInput } from "@/src/modules/adoption/application/bulk-adoption-actions/types";
+export type {
+  BulkAdoptionApproveInput,
+  BulkAdoptionRejectInput,
+} from "@/src/modules/adoption/application/bulk-adoption-actions/types";
 
 // ---------------------------------------------------------------------------
 // Action wrappers — auth lifted from use-cases into the shim wrappers
 // ---------------------------------------------------------------------------
 
-export async function bulkApproveAdoptionApplicationsAction(
-  input: BulkAdoptionApproveInput,
-) {
+export async function bulkApproveAdoptionApplicationsAction(input: BulkAdoptionApproveInput) {
   await requireOrgAccessByToken(input.orgToken);
   return bulkApproveAdoptionApplications(input);
 }
 
-export async function bulkRejectAdoptionApplicationsAction(
-  input: BulkAdoptionRejectInput,
-) {
+export async function bulkRejectAdoptionApplicationsAction(input: BulkAdoptionRejectInput) {
   await requireOrgAccessByToken(input.orgToken);
   return bulkRejectAdoptionApplications(input);
 }

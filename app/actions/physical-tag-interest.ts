@@ -9,8 +9,8 @@
 // function. Types are re-exported with `export type` (erased at runtime).
 
 import { requirePetAccess } from "@/lib/pet-access";
-import type { TogglePhysicalTagInterestResult } from "@/src/modules/pets/application/physical-tag-interest/types";
 import { togglePhysicalTagInterest } from "@/src/modules/pets/application/physical-tag-interest/toggle-physical-tag-interest";
+import type { TogglePhysicalTagInterestResult } from "@/src/modules/pets/application/physical-tag-interest/types";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)

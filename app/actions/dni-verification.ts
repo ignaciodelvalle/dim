@@ -16,14 +16,20 @@ import { revalidatePath } from "next/cache";
 
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { sanitizeNext } from "@/lib/dni-next";
-import type { DniVerifyFormState, DniVerifyResult } from "@/src/modules/auth/application/dni-verification/types";
+import type {
+  DniVerifyFormState,
+  DniVerifyResult,
+} from "@/src/modules/auth/application/dni-verification/types";
 import { verifyDniForUser as _verifyDniForUser } from "@/src/modules/auth/application/dni-verification/verify-dni";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
 // ---------------------------------------------------------------------------
 
-export type { DniVerifyFormState, DniVerifyResult } from "@/src/modules/auth/application/dni-verification/types";
+export type {
+  DniVerifyFormState,
+  DniVerifyResult,
+} from "@/src/modules/auth/application/dni-verification/types";
 
 // ---------------------------------------------------------------------------
 // Writer re-export — async wrapper (used by integration tests)

@@ -22,21 +22,20 @@ import { uploadAvatarForUser as _uploadAvatarForUser } from "@/src/modules/pets/
 // Type re-exports (erased at runtime — allowed in "use server" files)
 // ---------------------------------------------------------------------------
 
-export type { UpdateProfileResult, UploadAvatarResult } from "@/src/modules/pets/application/profile/types";
+export type {
+  UpdateProfileResult,
+  UploadAvatarResult,
+} from "@/src/modules/pets/application/profile/types";
 
 // ---------------------------------------------------------------------------
 // Writer re-exports — async wrappers (used by integration tests)
 // ---------------------------------------------------------------------------
 
-export async function updateProfileForUser(
-  ...args: Parameters<typeof _updateProfileForUser>
-) {
+export async function updateProfileForUser(...args: Parameters<typeof _updateProfileForUser>) {
   return _updateProfileForUser(...args);
 }
 
-export async function uploadAvatarForUser(
-  ...args: Parameters<typeof _uploadAvatarForUser>
-) {
+export async function uploadAvatarForUser(...args: Parameters<typeof _uploadAvatarForUser>) {
   return _uploadAvatarForUser(...args);
 }
 

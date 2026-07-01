@@ -28,10 +28,7 @@ import type { QuickCaptureResult } from "./types";
  * @param text         Raw free-text from the EventCatcher textarea.
  */
 // @no-auth-required: pure text→URL transformation; reads no data. publicToken is caller-provided and only used to construct the navigation deeplink path.
-export async function quickCapture(
-  publicToken: string,
-  text: string,
-): Promise<QuickCaptureResult> {
+export async function quickCapture(publicToken: string, text: string): Promise<QuickCaptureResult> {
   const trimmed = text.trim();
   if (!trimmed || trimmed.length < 3) return { url: null };
 

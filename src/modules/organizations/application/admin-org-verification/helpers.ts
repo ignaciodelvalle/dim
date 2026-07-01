@@ -2,7 +2,7 @@
 
 import { and, eq, isNull } from "drizzle-orm";
 
-import { db, organizationMemberships } from "@/db";
+import { type db, organizationMemberships } from "@/db";
 
 // accountType check mirrors requireAdminOrRedirect (defense-in-depth: the
 // role→accountType DB CHECK was dropped, so we enforce it here too).

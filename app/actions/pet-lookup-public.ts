@@ -11,8 +11,8 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import type { PublicLookupResult } from "@/src/modules/pets/application/public-lookup/types";
 import { lookupPetForDenuncia } from "@/src/modules/pets/application/public-lookup/lookup-pet-for-denuncia";
+import type { PublicLookupResult } from "@/src/modules/pets/application/public-lookup/types";
 
 export type { PublicLookupResult };
 

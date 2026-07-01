@@ -6,12 +6,9 @@
 // Auth guard (requireUserOrRedirect) is enforced by the caller (shim). This
 // function receives the already-resolved userId.
 
-import {
-  type SearchJurisdiction,
-  searchVetsAndClinics,
-} from "@/lib/performed-by-search";
+import { type SearchJurisdiction, searchVetsAndClinics } from "@/lib/performed-by-search";
 
-import { type SearchPerformedByResult } from "./types";
+import type { SearchPerformedByResult } from "./types";
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 60;

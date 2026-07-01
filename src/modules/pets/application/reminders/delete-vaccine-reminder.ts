@@ -7,7 +7,11 @@ import { db, reminders } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
-export async function deleteVaccineReminder(petId: string, publicToken: string, reminderId: string) {
+export async function deleteVaccineReminder(
+  petId: string,
+  publicToken: string,
+  reminderId: string,
+) {
   await db.delete(reminders).where(and(eq(reminders.id, reminderId), eq(reminders.petId, petId)));
 
   redirect(`/mis-mascotas/${publicToken}`);

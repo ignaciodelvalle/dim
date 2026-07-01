@@ -10,9 +10,9 @@
 // session and no longer call the guards themselves.
 
 import { requireAdminOrGovtOrRedirect, requireOrgAccessByToken } from "@/lib/auth-guards";
+import type { OmniboxResults } from "@/lib/omnibox-search";
 import { searchOmnibox } from "@/src/modules/search/application/omnibox/search-omnibox";
 import { searchOmniboxOrg } from "@/src/modules/search/application/omnibox/search-omnibox-org";
-import type { OmniboxResults } from "@/lib/omnibox-search";
 
 export type { OmniboxResults } from "@/lib/omnibox-search";
 

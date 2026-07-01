@@ -36,21 +36,15 @@ export type {
 // ForUser re-exports — async wrappers (used by integration tests)
 // ---------------------------------------------------------------------------
 
-export async function lookupForClaimForUser(
-  ...args: Parameters<typeof _lookupForClaim>
-) {
+export async function lookupForClaimForUser(...args: Parameters<typeof _lookupForClaim>) {
   return _lookupForClaim(...args);
 }
 
-export async function submitClaimDisputeForUser(
-  ...args: Parameters<typeof _submitClaimDispute>
-) {
+export async function submitClaimDisputeForUser(...args: Parameters<typeof _submitClaimDispute>) {
   return _submitClaimDispute(...args);
 }
 
-export async function submitFreeClaimForUser(
-  ...args: Parameters<typeof _submitFreeClaim>
-) {
+export async function submitFreeClaimForUser(...args: Parameters<typeof _submitFreeClaim>) {
   return _submitFreeClaim(...args);
 }
 
@@ -66,10 +60,7 @@ export async function lookupForClaimAction(input: {
   return _lookupForClaim(user.id, input);
 }
 
-export async function submitClaimDisputeAction(
-  input: ClaimDisputeInput,
-  files: File[],
-) {
+export async function submitClaimDisputeAction(input: ClaimDisputeInput, files: File[]) {
   const { user } = await requireUserOrRedirect();
   const result = await _submitClaimDispute(user.id, input, files);
   if (!("error" in result)) {

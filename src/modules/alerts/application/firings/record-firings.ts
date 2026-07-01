@@ -5,12 +5,7 @@
 
 import { and, eq, inArray } from "drizzle-orm";
 
-import {
-  ALERT_FIRING_OPEN_STATUSES,
-  alertFirings,
-  alertSubscriptions,
-  db,
-} from "@/db";
+import { ALERT_FIRING_OPEN_STATUSES, alertFirings, alertSubscriptions, db } from "@/db";
 import { evaluateAlertSubscriptions } from "@/lib/metrics/alert-evaluation";
 import { shouldOpenFiring } from "@/lib/metrics/alert-firing";
 

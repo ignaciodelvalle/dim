@@ -5,10 +5,8 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
+import { approveAdoptionApplicationAction } from "@/src/modules/adoption/actions";
 import type { BulkResult } from "@/src/modules/organizations/application/bulk-actions/types";
-import {
-  approveAdoptionApplicationAction,
-} from "@/src/modules/adoption/actions";
 
 import type { BulkAdoptionApproveInput } from "./types";
 

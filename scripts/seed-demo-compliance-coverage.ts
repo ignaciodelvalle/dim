@@ -49,7 +49,9 @@ if (process.env.NODE_ENV === "production") {
   process.exit(2);
 }
 if (!ALLOW_REMOTE && dbHost && !LOCAL_HOSTS.has(dbHost)) {
-  console.error(`ABORT: target is NOT a local Postgres (host: ${dbHost}). Use --allow-remote to override.`);
+  console.error(
+    `ABORT: target is NOT a local Postgres (host: ${dbHost}). Use --allow-remote to override.`,
+  );
   process.exit(2);
 }
 
@@ -137,7 +139,9 @@ export async function seedDemoComplianceCoverage(database: {
 
 async function main() {
   const { db } = await import("../db");
-  console.log("→ seeding demo compliance coverage (microchip identifications + rabies province key)…");
+  console.log(
+    "→ seeding demo compliance coverage (microchip identifications + rabies province key)…",
+  );
   const { chipsInserted, rabiesBackfilled } = await seedDemoComplianceCoverage(db);
   console.log(`  microchip identifications inserted: ${chipsInserted}`);
   console.log(`  rabies events province-backfilled:  ${rabiesBackfilled}`);

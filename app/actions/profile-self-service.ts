@@ -15,11 +15,11 @@
 import { revalidatePath } from "next/cache";
 
 import { requireUserOrRedirect } from "@/lib/auth-guards";
+import type { PrivacyPrefKey } from "@/lib/privacy-prefs";
 import { govtSelfDeactivateForUser as _govtSelfDeactivate } from "@/src/modules/pets/application/profile/govt-self-deactivate";
 import { selfDeactivatePersonalAccountForUser as _selfDeactivatePersonal } from "@/src/modules/pets/application/profile/self-deactivate-personal-account";
 import { updatePrivacyPrefForUser as _updatePrivacyPref } from "@/src/modules/pets/application/profile/update-privacy-pref";
 import { vetSelfResignForUser as _vetSelfResign } from "@/src/modules/pets/application/profile/vet-self-resign";
-import type { PrivacyPrefKey } from "@/lib/privacy-prefs";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
@@ -36,21 +36,15 @@ export type {
 // ForUser re-exports — async wrappers (used by integration tests)
 // ---------------------------------------------------------------------------
 
-export async function vetSelfResignForUser(
-  ...args: Parameters<typeof _vetSelfResign>
-) {
+export async function vetSelfResignForUser(...args: Parameters<typeof _vetSelfResign>) {
   return _vetSelfResign(...args);
 }
 
-export async function govtSelfDeactivateForUser(
-  ...args: Parameters<typeof _govtSelfDeactivate>
-) {
+export async function govtSelfDeactivateForUser(...args: Parameters<typeof _govtSelfDeactivate>) {
   return _govtSelfDeactivate(...args);
 }
 
-export async function updatePrivacyPrefForUser(
-  ...args: Parameters<typeof _updatePrivacyPref>
-) {
+export async function updatePrivacyPrefForUser(...args: Parameters<typeof _updatePrivacyPref>) {
   return _updatePrivacyPref(...args);
 }
 
@@ -86,10 +80,7 @@ export async function govtSelfDeactivateAction(input?: {
   return result;
 }
 
-export async function updatePrivacyPrefAction(
-  key: PrivacyPrefKey,
-  next: boolean,
-) {
+export async function updatePrivacyPrefAction(key: PrivacyPrefKey, next: boolean) {
   const { user } = await requireUserOrRedirect();
   const result = await _updatePrivacyPref(user.id, key, next);
   if ("ok" in result) {
@@ -98,9 +89,7 @@ export async function updatePrivacyPrefAction(
   return result;
 }
 
-export async function selfDeactivatePersonalAccountAction(
-  reason: string,
-) {
+export async function selfDeactivatePersonalAccountAction(reason: string) {
   const { user } = await requireUserOrRedirect();
   return _selfDeactivatePersonal(user.id, reason);
 }

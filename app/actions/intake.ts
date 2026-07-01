@@ -11,9 +11,9 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import type { IntakeFormState } from "@/src/modules/pets/application/intake/types";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { createIntake } from "@/src/modules/pets/application/intake/create-intake";
+import type { IntakeFormState } from "@/src/modules/pets/application/intake/types";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)

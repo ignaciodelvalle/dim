@@ -15,8 +15,8 @@
 import { revalidatePath } from "next/cache";
 
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { withdrawApprovalRequestForUser as _withdrawApprovalRequestForUser } from "@/src/modules/organizations/application/approval-requests/withdraw-approval-request";
 import type { WithdrawApprovalRequestResult } from "@/src/modules/organizations/application/approval-requests/types";
+import { withdrawApprovalRequestForUser as _withdrawApprovalRequestForUser } from "@/src/modules/organizations/application/approval-requests/withdraw-approval-request";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)

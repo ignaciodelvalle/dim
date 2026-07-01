@@ -14,13 +14,19 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { replaceMicrochipForUser as _replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
-import type { ReplaceMicrochipInput, ReplaceMicrochipResult } from "@/src/modules/pets/application/microchip/types";
+import type {
+  ReplaceMicrochipInput,
+  ReplaceMicrochipResult,
+} from "@/src/modules/pets/application/microchip/types";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
 // ---------------------------------------------------------------------------
 
-export type { ReplaceMicrochipInput, ReplaceMicrochipResult } from "@/src/modules/pets/application/microchip/types";
+export type {
+  ReplaceMicrochipInput,
+  ReplaceMicrochipResult,
+} from "@/src/modules/pets/application/microchip/types";
 
 // ---------------------------------------------------------------------------
 // Writer re-export — async wrapper (used by integration tests and route actions)

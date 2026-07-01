@@ -12,8 +12,8 @@
 // function. Types are re-exported with `export type` (erased at runtime).
 
 import { requireDecomisoPrincipal } from "@/lib/auth-guards";
-import type { GovtPetLookupResult } from "@/src/modules/decomiso/application/decomiso-pet-lookup/types";
 import { lookupPetForDecomiso } from "@/src/modules/decomiso/application/decomiso-pet-lookup/lookup-pet-for-decomiso";
+import type { GovtPetLookupResult } from "@/src/modules/decomiso/application/decomiso-pet-lookup/types";
 
 export type { GovtPetLookupResult };
 

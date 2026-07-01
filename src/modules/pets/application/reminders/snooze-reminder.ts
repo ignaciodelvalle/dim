@@ -12,7 +12,10 @@ import { and, eq } from "drizzle-orm";
 
 import type { SnoozeReminderResult } from "./types";
 
-export async function snoozeReminder(reminderId: string, userId: string): Promise<SnoozeReminderResult> {
+export async function snoozeReminder(
+  reminderId: string,
+  userId: string,
+): Promise<SnoozeReminderResult> {
   // Fetch the reminder and verify ownership in one shot.
   const [existing] = await db
     .select({ id: reminders.id, snoozeCount: reminders.snoozeCount })

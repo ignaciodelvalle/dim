@@ -11,8 +11,8 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import type { QuickCaptureResult } from "@/src/modules/events/application/quick-capture/types";
 import { quickCapture } from "@/src/modules/events/application/quick-capture/quick-capture";
+import type { QuickCaptureResult } from "@/src/modules/events/application/quick-capture/types";
 
 export type { QuickCaptureResult };
 

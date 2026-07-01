@@ -4,7 +4,7 @@
 
 import { type AlertSubscription, alertSubscriptions, db } from "@/db";
 
-import { CreateAlertSubscriptionSchema, type CreateAlertSubscriptionInput } from "./types";
+import { type CreateAlertSubscriptionInput, CreateAlertSubscriptionSchema } from "./types";
 
 /**
  * Create an alert subscription for a given actor user.

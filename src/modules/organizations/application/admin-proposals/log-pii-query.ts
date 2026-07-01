@@ -3,7 +3,7 @@
 // logPiiReadSafely delegates to logPiiQueryForAuthority; they are kept in the
 // same file because of that tight coupling.
 
-import { db, auditLog } from "@/db";
+import { auditLog, db } from "@/db";
 
 // Logged on every PII read so it leaves a trail. Callers await this so the
 // audit row (the Ley 25.326 accountability guarantee) is durable before the

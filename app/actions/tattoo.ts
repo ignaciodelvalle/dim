@@ -36,7 +36,12 @@ import type {
 // Type re-exports (erased at runtime — allowed in "use server" files)
 // ---------------------------------------------------------------------------
 
-export type { CreateTattooResult, EventFormState, TattooInput, TattooLocation } from "@/src/modules/pets/application/tattoo/types";
+export type {
+  CreateTattooResult,
+  EventFormState,
+  TattooInput,
+  TattooLocation,
+} from "@/src/modules/pets/application/tattoo/types";
 
 // ---------------------------------------------------------------------------
 // Writer re-export — async wrapper (used by integration tests and route actions)

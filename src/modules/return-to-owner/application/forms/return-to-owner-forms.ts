@@ -4,7 +4,6 @@
 // ownerRejectReturnAction / actorCancelProposalAction to the
 // (staticArg, _prev, formData) signature required by useActionState.
 
-import type { ProposeReturnFormState } from "@/app/org/[orgToken]/mascotas/[publicToken]/devolver-al-dueno/ProposeReturnForm";
 import {
   actorCancelProposalAction,
   ownerAcceptReturnAction,
@@ -12,6 +11,7 @@ import {
   ownerRejectReturnAction,
   proposeReturnToOwnerAction,
 } from "@/app/actions/return-to-owner";
+import type { ProposeReturnFormState } from "@/app/org/[orgToken]/mascotas/[publicToken]/devolver-al-dueno/ProposeReturnForm";
 
 import type {
   AcceptReturnFormState,
