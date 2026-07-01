@@ -31,7 +31,7 @@ export const DEFAULT_FILTER_CHIPS: ReadonlyArray<{ type: string; label: string }
   { type: "symptom_observed", label: "Síntomas" },
 ];
 
-type Event = {
+export type EventTimelineEvent = {
   id: string;
   eventType: string;
   payload: unknown;
@@ -47,6 +47,8 @@ type Event = {
   amendedAt?: Date | string | null;
 };
 
+type Event = EventTimelineEvent;
+
 type Props = {
   events: Event[];
   // Token of the pet that owns these events. Used to build links to the
@@ -58,6 +60,132 @@ type Props = {
   // When absent, DEFAULT_FILTER_CHIPS is used.
   chips?: ReadonlyArray<{ type: string; label: string }>;
 };
+
+// ---------------------------------------------------------------------------
+// EventTimelineList — rows only, no chip bar (two-face redesign, 2026-07-01).
+// Extracted so LibretaFace (Face 2) can render the "— hoy —" past section
+// with the exact row anatomy (H3 curated detail, provenance badge, amendment
+// marker) without the per-type chip filter bar — Face 2's lens chips REPLACE
+// that filter, they don't sit alongside it.
+// ---------------------------------------------------------------------------
+
+export function EventTimelineList({
+  events,
+  publicToken,
+}: {
+  events: EventTimelineEvent[];
+  publicToken?: string;
+}) {
+  if (events.length === 0) {
+    return <p className="text-sm text-[var(--color-ln-mute)]">Sin eventos todavía.</p>;
+  }
+
+  return (
+    <ol className="space-y-3">
+      {events.map((event) => {
+        const eventType = event.eventType as EventType;
+        const summary = eventPayloadSummary(event.eventType, event.payload);
+        // H3: curated es-AR detail rows (whitelist) instead of raw JSON.
+        const details = eventPayloadDetails(event.eventType, event.payload);
+        // Provenance badge (WS-3): collapse the event's confidence tier into
+        // one owner-facing badge. Only when author metadata is present.
+        const provenance =
+          event.authorRole !== undefined
+            ? ownerConfidenceDisplay(
+                libretaConfidenceTier({
+                  authorRole: event.authorRole,
+                  authorVerified: event.authorVerified ?? false,
+                  authorOrganizationId: event.authorOrganizationId ?? null,
+                  payload: (event.payload ?? {}) as Record<string, unknown>,
+                }),
+              )
+            : null;
+        return (
+          <li
+            key={event.id}
+            className="border border-[var(--color-ln-line)] rounded-[4px] p-4 space-y-2"
+          >
+            {publicToken ? (
+              <Link
+                href={`/mis-mascotas/${publicToken}/eventos/${event.id}`}
+                className="flex items-start justify-between gap-3 -mx-1 px-1 py-0.5 rounded-md hover:bg-[var(--color-ln-stripe)] transition-colors"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <p className="font-medium text-[var(--color-ln-ink)]">
+                    {summary.primary ?? eventTypeLabel(eventType)}
+                  </p>
+                  {summary.secondary && (
+                    <p className="text-xs text-[var(--color-ln-mute)]">{summary.secondary}</p>
+                  )}
+                </div>
+                <time className="text-xs text-[var(--color-ln-mute)] shrink-0">
+                  {formatDateTime(event.occurredAt)}
+                </time>
+              </Link>
+            ) : (
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 space-y-0.5">
+                  <p className="font-medium text-[var(--color-ln-ink)]">
+                    {summary.primary ?? eventTypeLabel(eventType)}
+                  </p>
+                  {summary.secondary && (
+                    <p className="text-xs text-[var(--color-ln-mute)]">{summary.secondary}</p>
+                  )}
+                </div>
+                <time className="text-xs text-[var(--color-ln-mute)] shrink-0">
+                  {formatDateTime(event.occurredAt)}
+                </time>
+              </div>
+            )}
+            {(provenance || event.amendedAt) && (
+              <div className="flex flex-wrap items-center gap-2">
+                {provenance && <LnBadge variant={provenance.badge}>{provenance.label}</LnBadge>}
+                {event.amendedAt && publicToken && (
+                  <AmendedBadge
+                    amendedAt={event.amendedAt}
+                    originalHref={`/mis-mascotas/${publicToken}/eventos/${event.id}`}
+                  />
+                )}
+              </div>
+            )}
+            {event.notes && <p className="text-sm text-[var(--color-ln-ink-2)]">{event.notes}</p>}
+            {event.attachmentUrl && (
+              <a
+                href={event.attachmentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <img
+                  src={event.attachmentUrl}
+                  alt="Foto adjunta"
+                  className="max-h-48 w-auto rounded-[4px] border border-[var(--color-ln-line)] object-cover"
+                />
+              </a>
+            )}
+            {details.length > 0 && (
+              <details className="text-xs text-[var(--color-ln-mute)]">
+                <summary className="cursor-pointer select-none hover:text-[var(--color-ln-ink-2)]">
+                  Ver detalle
+                </summary>
+                <dl className="mt-2 flex flex-col gap-1">
+                  {details.map((row) => (
+                    <div key={row.label} className="flex gap-2">
+                      <dt className="min-w-24 font-medium text-[var(--color-ln-ink-2)]">
+                        {row.label}
+                      </dt>
+                      <dd className="text-[var(--color-ln-ink)]">{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export function EventTimeline({ events, publicToken, chips }: Props) {
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
@@ -125,111 +253,7 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
       {filteredEvents.length === 0 ? (
         <p className="text-sm text-[var(--color-ln-mute)]">Sin eventos de este tipo.</p>
       ) : (
-        <ol className="space-y-3">
-          {filteredEvents.map((event) => {
-            const eventType = event.eventType as EventType;
-            const summary = eventPayloadSummary(event.eventType, event.payload);
-            // H3: curated es-AR detail rows (whitelist) instead of raw JSON.
-            const details = eventPayloadDetails(event.eventType, event.payload);
-            // Provenance badge (WS-3): collapse the event's confidence tier into
-            // one owner-facing badge. Only when author metadata is present.
-            const provenance =
-              event.authorRole !== undefined
-                ? ownerConfidenceDisplay(
-                    libretaConfidenceTier({
-                      authorRole: event.authorRole,
-                      authorVerified: event.authorVerified ?? false,
-                      authorOrganizationId: event.authorOrganizationId ?? null,
-                      payload: (event.payload ?? {}) as Record<string, unknown>,
-                    }),
-                  )
-                : null;
-            return (
-              <li
-                key={event.id}
-                className="border border-[var(--color-ln-line)] rounded-[4px] p-4 space-y-2"
-              >
-                {publicToken ? (
-                  <Link
-                    href={`/mis-mascotas/${publicToken}/eventos/${event.id}`}
-                    className="flex items-start justify-between gap-3 -mx-1 px-1 py-0.5 rounded-md hover:bg-[var(--color-ln-stripe)] transition-colors"
-                  >
-                    <div className="min-w-0 space-y-0.5">
-                      <p className="font-medium text-[var(--color-ln-ink)]">
-                        {summary.primary ?? eventTypeLabel(eventType)}
-                      </p>
-                      {summary.secondary && (
-                        <p className="text-xs text-[var(--color-ln-mute)]">{summary.secondary}</p>
-                      )}
-                    </div>
-                    <time className="text-xs text-[var(--color-ln-mute)] shrink-0">
-                      {formatDateTime(event.occurredAt)}
-                    </time>
-                  </Link>
-                ) : (
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-0.5">
-                      <p className="font-medium text-[var(--color-ln-ink)]">
-                        {summary.primary ?? eventTypeLabel(eventType)}
-                      </p>
-                      {summary.secondary && (
-                        <p className="text-xs text-[var(--color-ln-mute)]">{summary.secondary}</p>
-                      )}
-                    </div>
-                    <time className="text-xs text-[var(--color-ln-mute)] shrink-0">
-                      {formatDateTime(event.occurredAt)}
-                    </time>
-                  </div>
-                )}
-                {(provenance || event.amendedAt) && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {provenance && <LnBadge variant={provenance.badge}>{provenance.label}</LnBadge>}
-                    {event.amendedAt && publicToken && (
-                      <AmendedBadge
-                        amendedAt={event.amendedAt}
-                        originalHref={`/mis-mascotas/${publicToken}/eventos/${event.id}`}
-                      />
-                    )}
-                  </div>
-                )}
-                {event.notes && (
-                  <p className="text-sm text-[var(--color-ln-ink-2)]">{event.notes}</p>
-                )}
-                {event.attachmentUrl && (
-                  <a
-                    href={event.attachmentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
-                    <img
-                      src={event.attachmentUrl}
-                      alt="Foto adjunta"
-                      className="max-h-48 w-auto rounded-[4px] border border-[var(--color-ln-line)] object-cover"
-                    />
-                  </a>
-                )}
-                {details.length > 0 && (
-                  <details className="text-xs text-[var(--color-ln-mute)]">
-                    <summary className="cursor-pointer select-none hover:text-[var(--color-ln-ink-2)]">
-                      Ver detalle
-                    </summary>
-                    <dl className="mt-2 flex flex-col gap-1">
-                      {details.map((row) => (
-                        <div key={row.label} className="flex gap-2">
-                          <dt className="min-w-24 font-medium text-[var(--color-ln-ink-2)]">
-                            {row.label}
-                          </dt>
-                          <dd className="text-[var(--color-ln-ink)]">{row.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </details>
-                )}
-              </li>
-            );
-          })}
-        </ol>
+        <EventTimelineList events={filteredEvents} publicToken={publicToken} />
       )}
     </div>
   );

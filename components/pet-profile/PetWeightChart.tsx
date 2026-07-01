@@ -1,8 +1,10 @@
-// PetWeightChart — minimal SVG sparkline of weight over time.
+// PetWeightChart — card wrapper (title + trend header + sparkline + footer)
+// around the weight trend over time.
 //
-// No client JS. Renders an SVG polyline from a list of {date, kg} pairs.
-// Designed to sit at the bottom of the Salud card or inline as its own
-// card on a wider layout.
+// The sparkline itself was extracted to WeightSparkline.tsx (two-face
+// redesign, 2026-07-01, design ADR-8) so Face 2's Libreta can render it
+// inline inside a weight-event row <details>, without this card's chrome.
+// This component is kept for legacy callers.
 //
 // Source data: `petEvents` rows where event_type = 'weight_recorded'.
 // The page should filter the last N months (default 12) and pass the
@@ -10,12 +12,9 @@
 //
 // Annotation: shows current weight + trend % vs the first sample.
 
-export type WeightSample = {
-  /** UTC midnight is fine — only relative position matters. */
-  date: Date;
-  /** Kilograms. Decimal allowed. */
-  kg: number;
-};
+import { type WeightSample, WeightSparkline } from "./WeightSparkline";
+
+export type { WeightSample };
 
 interface Props {
   samples: WeightSample[];
@@ -37,19 +36,6 @@ export function PetWeightChart({ samples, title = "Peso · últimos 12 meses", h
   const sorted = [...samples].sort((a, b) => a.date.getTime() - b.date.getTime());
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
-  const min = Math.min(...sorted.map((s) => s.kg));
-  const max = Math.max(...sorted.map((s) => s.kg));
-  const padY = Math.max((max - min) * 0.15, 0.05);
-  const yMin = Math.max(0, min - padY);
-  const yMax = max + padY;
-  const dx = 300 / (sorted.length - 1);
-  const points = sorted
-    .map((s, i) => {
-      const x = i * dx;
-      const y = ((yMax - s.kg) / (yMax - yMin)) * (height - 20) + 10;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
 
   const trendPct = ((last.kg - first.kg) / first.kg) * 100;
   const trendLabel =
@@ -68,30 +54,7 @@ export function PetWeightChart({ samples, title = "Peso · últimos 12 meses", h
           <span className={`ml-1 font-medium ${trendColor}`}>{trendLabel}</span>
         </span>
       </header>
-      <svg
-        viewBox={`0 0 300 ${height}`}
-        width="100%"
-        height={height}
-        aria-hidden
-        className="block"
-        preserveAspectRatio="none"
-      >
-        <title>Tendencia de peso</title>
-        <polyline
-          points={points}
-          fill="none"
-          stroke="#0F6E56"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <circle
-          cx={(sorted.length - 1) * dx}
-          cy={((yMax - last.kg) / (yMax - yMin)) * (height - 20) + 10}
-          r="3.5"
-          fill="#0F6E56"
-        />
-      </svg>
+      <WeightSparkline samples={sorted} height={height} />
       <footer className="mt-1 flex items-baseline justify-between text-xs text-ln-mute ">
         <span>{first.date.toLocaleDateString("es-AR", { month: "short", year: "2-digit" })}</span>
         <span>{last.date.toLocaleDateString("es-AR", { month: "short", year: "2-digit" })}</span>

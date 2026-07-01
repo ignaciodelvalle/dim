@@ -49,8 +49,8 @@ import {
 } from "@/src/modules/events/actions";
 import { updatePetAction } from "@/src/modules/pets/actions";
 
-import { ShareLibretaSheet } from "./_share-libreta/ShareLibretaSheet";
-import { Tier2PublicView } from "./_tier2-public/Tier2PublicView";
+import { MasSheet } from "./_more/MasSheet";
+import { MergedShareSheet } from "./_share/MergedShareSheet";
 import { TransferSenderForm } from "./_transfer/TransferSenderForm";
 
 type MarkLostData = {
@@ -84,6 +84,10 @@ type Props = {
   };
   /** Pet status — needed to gate the marcar-encontrada sheet. */
   petStatus: "active" | "lost" | "deceased";
+  /** Two-face redesign (2026-07-01) — required by the "⋯ Más" sheet (MasSheet). */
+  accessPath: "owner" | "org";
+  ownershipRole: string | null;
+  hasPendingReturnProposal: boolean;
 };
 
 export function SheetMounter({
@@ -95,6 +99,9 @@ export function SheetMounter({
   markLostData,
   editPetData,
   petStatus,
+  accessPath,
+  ownershipRole,
+  hasPendingReturnProposal,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -191,38 +198,47 @@ export function SheetMounter({
     );
   }
 
-  if (sheet === "mostrar-tier2") {
+  // "compartir" — the merged share sheet (design ADR-7): public QR link +
+  // expiring share link (formerly compartir-libreta) + Tier 2 medical view
+  // toggle (formerly mostrar-tier2), fused into one affordance. The two old
+  // sheet ids are kept below as deep-link ALIASES routing into this same
+  // sheet — see the "Sheets map" table in design.md.
+  if (sheet === "compartir" || sheet === "compartir-libreta" || sheet === "mostrar-tier2") {
     const now = new Date();
     const activeUntilDate = tier2PublicEnabledUntil ? new Date(tier2PublicEnabledUntil) : null;
     const isActive = tier2PublicPermanent || (!!activeUntilDate && activeUntilDate > now);
     const enable = enableTier2PublicAction.bind(null, petToken);
     const revoke = revokeTier2PublicAction.bind(null, petToken);
-    return (
-      <Sheet id="mostrar-tier2" title="Mostrar Libreta" open onClose={close}>
-        <Tier2PublicView
-          petPublicToken={petToken}
-          petName={petName}
-          isActive={isActive}
-          isPermanent={tier2PublicPermanent}
-          activeUntil={isActive && !tier2PublicPermanent ? activeUntilDate : null}
-          enableAction={enable}
-          revokeAction={revoke}
-        />
-      </Sheet>
-    );
-  }
-
-  if (sheet === "compartir-libreta") {
     // Wrap the action so the sheet only supplies expiresInDays + label;
     // petPublicToken is captured from the outer scope.
     const shareAction = (input: { expiresInDays: number | null; label: string | null }) =>
       createLibretaShareAction({ petPublicToken: petToken, ...input });
     return (
-      <Sheet id="compartir-libreta" title="Compartir libreta" open onClose={close}>
-        <ShareLibretaSheet
+      <Sheet id="compartir" title="Compartir" open onClose={close}>
+        <MergedShareSheet
           petPublicToken={petToken}
           petName={petName}
           createShareAction={shareAction}
+          tier2={{
+            isActive,
+            isPermanent: tier2PublicPermanent,
+            activeUntil: isActive && !tier2PublicPermanent ? activeUntilDate : null,
+            enableAction: enable,
+            revokeAction: revoke,
+          }}
+        />
+      </Sheet>
+    );
+  }
+
+  if (sheet === "mas") {
+    return (
+      <Sheet id="mas" title="Más" open onClose={close}>
+        <MasSheet
+          pet={{ species, status: petStatus, publicToken: petToken }}
+          accessPath={accessPath}
+          ownershipRole={ownershipRole}
+          hasPendingReturnProposal={hasPendingReturnProposal}
         />
       </Sheet>
     );

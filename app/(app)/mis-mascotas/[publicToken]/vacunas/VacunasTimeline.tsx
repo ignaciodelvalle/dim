@@ -7,6 +7,7 @@
 import Link from "next/link";
 
 import { ReminderCard } from "@/components/ReminderCard";
+import { VacunasStatusBadges } from "@/components/pet-profile/VacunasStatusBadges";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { ActiveReminderRow, VaccinationHistoryRow } from "@/lib/analytics/owner-dashboard";
@@ -49,86 +50,9 @@ function buildStatusText(daysUntilDue: number): string {
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Estado de vacunación — 3-badge summary block (spec §5.1)
-// ---------------------------------------------------------------------------
-
-function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }) {
-  const badges: Array<{
-    label: string;
-    count: number;
-    bg: string;
-    border: string;
-    text: string;
-  }> = [
-    {
-      label: "Al día",
-      count: summary.active,
-      bg: "var(--color-ln-ok-050)",
-      border: "var(--color-ln-ok-100)",
-      text: "var(--color-ln-ok)",
-    },
-    {
-      label: "Por vencer",
-      count: summary.dueSoon + summary.missing,
-      bg: "var(--color-ln-warn-025)",
-      border: "var(--color-ln-warn-050)",
-      text: "var(--color-ln-warn)",
-    },
-    {
-      label: "Vencida",
-      count: summary.expired,
-      bg: "var(--color-ln-err-050)",
-      border: "var(--color-ln-err-100)",
-      text: "var(--color-ln-seal)",
-    },
-  ];
-
-  return (
-    <section aria-label="Estado de vacunación">
-      <p
-        className="mb-[8px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] font-semibold"
-        style={{ color: "var(--color-ln-mute)" }}
-      >
-        Estado de vacunación
-      </p>
-      <div className="grid grid-cols-3 gap-[8px]">
-        {badges.map((b) => (
-          <div
-            key={b.label}
-            className="rounded-[6px] border px-[12px] py-[10px] text-center"
-            style={{ background: b.bg, borderColor: b.border }}
-          >
-            <p
-              className="text-[22px] font-semibold leading-tight tabular-nums"
-              style={{ color: b.text }}
-            >
-              {b.count}
-            </p>
-            <p
-              className="mt-[2px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.05em]"
-              style={{ color: b.text }}
-            >
-              {b.label}
-            </p>
-          </div>
-        ))}
-      </div>
-      {summary.otherCount > 0 && (
-        <p className="mt-[8px] text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
-          {summary.otherCount === 1
-            ? "1 vacuna registrada fuera del calendario"
-            : `${summary.otherCount} vacunas registradas fuera del calendario`}
-        </p>
-      )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
+//
+// Estado de vacunación — 3-badge summary block (spec §5.1). Now lives in
+// components/pet-profile/VacunasStatusBadges.tsx (extracted for Face 2 reuse).
 
 type Props = {
   petName: string;
