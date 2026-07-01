@@ -15,8 +15,8 @@ import { describe, expect, it } from "vitest";
 
 import { OutbreakHistoryTable } from "@/app/gob/analytics/_components/OutbreakHistoryTable";
 import { DiseaseSummaryTable } from "@/app/gob/vigilancia/_components/DiseaseSummaryTable";
-import type { OutbreakHistoryRow } from "@/lib/govt-dashboards";
-import type { DiseaseSummary } from "@/lib/govt-dashboards";
+import type { OutbreakHistoryRow } from "@/lib/analytics/govt-dashboards";
+import type { DiseaseSummary } from "@/lib/analytics/govt-dashboards";
 
 /** Assert every <th> in rendered HTML has scope="col" or scope="row". */
 function assertThHaveScope(html: string) {

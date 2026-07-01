@@ -15,12 +15,12 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnPetPhoto, LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { LnStatusFlag } from "@/components/ui/StatusFlag";
 import { attachments, db, ownerships, pets } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
 import {
   countPendingApplications,
   countPendingTransfers,
   fetchActiveReminders,
-} from "@/lib/owner-dashboard";
+} from "@/lib/analytics/owner-dashboard";
+import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { PET_CARD_PHOTO_SELECT, PET_CARD_SELECT } from "@/lib/pet-projections";
 import { getProfileCached } from "@/lib/request-cache";
 import { resolveVetLanding } from "@/lib/role-landing";

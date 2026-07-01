@@ -13,7 +13,10 @@ import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db, welfareReports } from "@/db";
-import { type MaltratoListFilters, buildMaltratoListConditions } from "@/lib/govt-dashboards";
+import {
+  type MaltratoListFilters,
+  buildMaltratoListConditions,
+} from "@/lib/analytics/govt-dashboards";
 
 // ============================================================================
 // Unit tests — no DB required

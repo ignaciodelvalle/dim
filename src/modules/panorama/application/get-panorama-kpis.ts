@@ -36,13 +36,13 @@ import {
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { TARGETS } from "@/lib/metrics/targets";
 
-import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/govt-dashboards";
+import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/analytics/govt-dashboards";
 import {
   fetchActiveZoonosis,
   fetchBitesPer10k,
   fetchOpenWelfareReportsCount,
   fetchRabiesCoverage,
-} from "@/lib/govt-home-kpis";
+} from "@/lib/analytics/govt-home-kpis";
 
 /** Tone passthrough to the OpKpi tile (kept loose to avoid a UI import here). */
 export type KpiTone = "neutral" | "danger" | "warn" | "ok" | "blue";

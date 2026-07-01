@@ -10,7 +10,7 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, pets, reminders } from "@/db";
-import { fetchActiveReminders, fetchActiveRemindersForPet } from "@/lib/owner-dashboard";
+import { fetchActiveReminders, fetchActiveRemindersForPet } from "@/lib/analytics/owner-dashboard";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

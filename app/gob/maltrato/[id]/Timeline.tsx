@@ -1,4 +1,4 @@
-import type { TimelineEvent } from "@/lib/govt-dashboards";
+import type { TimelineEvent } from "@/lib/analytics/govt-dashboards";
 import { formatDateTime } from "@/lib/utils/format";
 
 // Dot color per event kind — maps to a Tailwind background class using ln-op-* tokens.

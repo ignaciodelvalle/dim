@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { caseEventTimelineSummary } from "@/lib/govt-dashboards";
+import { caseEventTimelineSummary } from "@/lib/analytics/govt-dashboards";
 
 describe("caseEventTimelineSummary", () => {
   it("renders reporter comments with their text", () => {

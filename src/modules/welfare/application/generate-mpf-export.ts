@@ -23,8 +23,8 @@
 //   7. Insert audit_log (NOT in tx).
 //   8. Return signedUrl + expiresAt.
 
-import { MPF_EXPORT_SCHEMA_VERSION } from "@/lib/welfare-exports";
-import type { WelfareMpfAttachmentInfo, WelfareMpfDto } from "@/lib/welfare-exports";
+import { MPF_EXPORT_SCHEMA_VERSION } from "@/lib/analytics/welfare-exports";
+import type { WelfareMpfAttachmentInfo, WelfareMpfDto } from "@/lib/analytics/welfare-exports";
 import type { WelfareRepository } from "../infrastructure/welfare-repository";
 import type { UseCaseResult } from "./types";
 

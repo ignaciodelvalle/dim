@@ -3,7 +3,7 @@ import Link from "next/link";
 import { NotificationCard } from "@/components/NotificationCard";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { Pet } from "@/db";
-import type { DashboardNotification } from "@/lib/owner-dashboard";
+import type { DashboardNotification } from "@/lib/analytics/owner-dashboard";
 
 // NotificationCard expects a full Pet but only reads publicToken + name.
 // The widget query carries just those two fields; cast through unknown

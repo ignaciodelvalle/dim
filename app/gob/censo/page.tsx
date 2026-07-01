@@ -17,13 +17,13 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   DORMANT_MONTHS_DEFAULT,
   TARGETS,

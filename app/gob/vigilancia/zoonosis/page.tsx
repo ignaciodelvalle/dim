@@ -2,15 +2,15 @@ import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
   fetchDiseaseSummary,
   fetchZoonosisTrend,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { DiseaseSummaryTable } from "../_components/DiseaseSummaryTable";
 

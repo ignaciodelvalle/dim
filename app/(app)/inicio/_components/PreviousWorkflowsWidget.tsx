@@ -1,4 +1,4 @@
-import type { WorkflowItem } from "@/lib/owner-dashboard";
+import type { WorkflowItem } from "@/lib/analytics/owner-dashboard";
 
 import { WorkflowList } from "./WorkflowList";
 

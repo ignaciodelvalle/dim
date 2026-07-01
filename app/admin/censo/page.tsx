@@ -17,8 +17,8 @@ import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { adminProvinceHref } from "@/lib/admin-province-link";
-import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics-load";
-import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics-period";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
+import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import {
   DORMANT_MONTHS_DEFAULT,

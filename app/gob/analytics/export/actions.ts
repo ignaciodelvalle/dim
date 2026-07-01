@@ -9,21 +9,21 @@
 import { Resend } from "resend";
 
 import { auditLog, db } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   type ExportPeriod,
   fetchCasesForExport,
   fetchEventsForExport,
   fetchOrganizationsForExport,
   fetchPetsForExport,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
 import {
   EXPORT_SCHEMA_VERSION,
   type ExportSlice,
   anonymizeRows,
   rowsToCsv,
   rowsToJson,
-} from "@/lib/govt-exports";
+} from "@/lib/analytics/govt-exports";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 
 export type GenerateExportResult =
   | { ok: true; signedUrl: string; emailSent: boolean }

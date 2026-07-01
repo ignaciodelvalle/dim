@@ -19,7 +19,7 @@ import {
   fetchVigilanciaMetrics,
   fetchWelfareMetrics,
   fetchZoonosisTrend,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
 import { generatePublicToken } from "@/lib/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

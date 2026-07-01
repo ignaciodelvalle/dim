@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { OpPill } from "@/components/ui/dashboard";
-import type { LostPetRow as LostPetRowData } from "@/lib/govt-dashboards";
+import type { LostPetRow as LostPetRowData } from "@/lib/analytics/govt-dashboards";
 
 type LostPetRowProps = {
   pet: LostPetRowData;

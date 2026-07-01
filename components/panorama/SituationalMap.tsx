@@ -22,8 +22,8 @@ import {
   provinceDivergentColorExpr,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
+import { COLOR_NO_DATA, COLOR_SUPPRESSED, RAMP_BLUE } from "@/lib/analytics/viz-scales";
 import { escapeHtml } from "@/lib/utils/escape-html";
-import { COLOR_NO_DATA, COLOR_SUPPRESSED, RAMP_BLUE } from "@/lib/viz-scales";
 
 // ---------------------------------------------------------------------------
 // SituationalMap — the Panorama console's geospatial canvas.

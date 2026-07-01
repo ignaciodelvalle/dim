@@ -10,8 +10,8 @@ import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 
 import { generatePppExportAction } from "@/app/actions/ppp-export-caba";
 import { auditLog, db, ownerships, pets, profiles } from "@/db";
+import { CABA_PROVINCE, generatePppCabaPdf } from "@/lib/analytics/ppp-exports";
 import * as authGuards from "@/lib/auth-guards";
-import { CABA_PROVINCE, generatePppCabaPdf } from "@/lib/ppp-exports";
 import * as supabaseServer from "@/lib/supabase/server";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

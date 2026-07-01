@@ -17,7 +17,7 @@ import {
   fetchPreviousWorkflows,
   fetchUnreadNotifications,
   fetchUpcomingAppointments,
-} from "@/lib/owner-dashboard";
+} from "@/lib/analytics/owner-dashboard";
 
 const RANDOM_USER_ID = "00000000-0000-0000-0000-000000000000";
 

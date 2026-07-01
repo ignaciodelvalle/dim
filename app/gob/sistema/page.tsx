@@ -17,19 +17,19 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { fetchQueueHealthScoped } from "@/lib/admin-metrics";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
+import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
-import { fetchEnoSla } from "@/lib/surveillance-metrics";
 
 export const dynamic = "force-dynamic";
 

@@ -1,5 +1,6 @@
 import { PanoramaShell } from "@/components/panorama/PanoramaShell";
-import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics-period";
+import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
 import {
   listLocalitiesByProvince,
   listLocalityCentroids,
@@ -7,7 +8,6 @@ import {
 } from "@/lib/ar-localidades";
 import { type AdminOrGovtJurisdiction, requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { jurisdictionBounds } from "@/lib/gov-scope";
-import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/govt-dashboards";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode } from "@/lib/reference/ar-provincias";

@@ -8,9 +8,7 @@ import { LnInput } from "@/components/ui/Field";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { listLocalitiesByProvince } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { fetchReunificationRate } from "@/lib/compliance-metrics";
+import { fetchReunificationRate } from "@/lib/analytics/compliance-metrics";
 import {
   GOB_ALL_PROVINCES,
   type LostPetRow,
@@ -18,7 +16,9 @@ import {
   type PetStatusFilter,
   fetchLostPets,
   fetchPerdidasMetrics,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
+import { listLocalitiesByProvince } from "@/lib/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";

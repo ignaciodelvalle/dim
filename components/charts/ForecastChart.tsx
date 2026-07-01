@@ -40,8 +40,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { CHART_COLORS } from "@/lib/analytics/viz-scales";
 import type { ForecastResult } from "@/lib/metrics/forecast";
-import { CHART_COLORS } from "@/lib/viz-scales";
 
 export type ForecastChartProps = {
   /** The projection produced by projectSeries(). */

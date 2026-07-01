@@ -19,7 +19,7 @@ import {
   COLOR_NO_DATA,
   RAMP_BLUE,
   divergentStops,
-} from "@/lib/viz-scales";
+} from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 /** A province feature's properties (as emitted by buildProvinceChoroplethFeatures). */

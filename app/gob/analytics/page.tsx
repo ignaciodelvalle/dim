@@ -7,10 +7,8 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
-import { fetchRegionRanking } from "@/lib/analytics-ranking";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { fetchRegionRanking } from "@/lib/analytics/analytics-ranking";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
@@ -20,7 +18,9 @@ import {
   fetchCasesPerCapita,
   fetchDeathCauses,
   fetchOutbreakHistory,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,

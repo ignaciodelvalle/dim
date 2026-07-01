@@ -18,18 +18,22 @@ import { readFilterParams } from "@/components/jurisdiction-filter-params";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { auditLog, db } from "@/db";
-import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
-import { listLocalitiesByProvince } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { listOpenCasesForAdminPreview, listOpenCasesForGovtPreview } from "@/lib/case-queries";
-import { fetchDangerousBreedCompliance, fetchMicrochipPenetration } from "@/lib/compliance-metrics";
+import {
+  fetchDangerousBreedCompliance,
+  fetchMicrochipPenetration,
+} from "@/lib/analytics/compliance-metrics";
 import {
   fetchActiveZoonosis,
   fetchBitesPer10k,
   fetchOpenWelfareReportsCount,
   fetchRabiesCoverage,
   fetchSterilizationMetrics,
-} from "@/lib/govt-home-kpis";
+} from "@/lib/analytics/govt-home-kpis";
+import { fetchMortalityDisposition } from "@/lib/analytics/mortality-metrics";
+import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
+import { listLocalitiesByProvince } from "@/lib/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { listOpenCasesForAdminPreview, listOpenCasesForGovtPreview } from "@/lib/case-queries";
 import {
   TARGETS,
   buildProjectionContext,
@@ -39,7 +43,6 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
-import { fetchMortalityDisposition } from "@/lib/mortality-metrics";
 import { PROVINCES, type ProvinceCode } from "@/lib/reference/ar-provincias";
 import { formatDate } from "@/lib/utils/format";
 

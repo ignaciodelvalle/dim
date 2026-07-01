@@ -23,7 +23,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { fetchMicrochipPenetration } from "@/lib/compliance-metrics";
+import { fetchMicrochipPenetration } from "@/lib/analytics/compliance-metrics";
 import { buildProjectionContext } from "@/lib/metrics";
 import {
   DORMANT_MONTHS_DEFAULT,

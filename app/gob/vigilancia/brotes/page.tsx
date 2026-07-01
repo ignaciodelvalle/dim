@@ -2,14 +2,14 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import {
   type DashboardJurisdiction,
   PROVINCE_ISO_MAP,
   fetchSurveillanceSignals,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
 import { VerifiedFilterCheckbox } from "../_components/VerifiedFilterCheckbox";

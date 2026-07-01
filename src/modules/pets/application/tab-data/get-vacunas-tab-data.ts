@@ -2,8 +2,11 @@
 // Auth guard is handled by the shim (app/actions/pet-tab-data.ts).
 
 import type { Organization, Pet } from "@/db";
+import {
+  fetchActiveRemindersForPet,
+  fetchVaccinationHistory,
+} from "@/lib/analytics/owner-dashboard";
 import { computeVaccinationSummary } from "@/lib/libreta-health-status";
-import { fetchActiveRemindersForPet, fetchVaccinationHistory } from "@/lib/owner-dashboard";
 import type { VacunasTabData } from "./types";
 
 export async function getVacunasTabData(context: {

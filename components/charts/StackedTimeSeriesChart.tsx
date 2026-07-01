@@ -12,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { CHART_COLORS, type ChartColorKey } from "@/lib/viz-scales";
+import { CHART_COLORS, type ChartColorKey } from "@/lib/analytics/viz-scales";
 
 /**
  * Stacked time-series chart — multi-series stacked area over a shared x-axis.

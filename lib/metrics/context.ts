@@ -8,7 +8,7 @@
 //   const ctx = buildProjectionContext(actor, jurisdictions, period);
 //   const kpi  = await fetchRabiesCoverage(ctx);
 
-import type { AnalyticsPeriod } from "@/lib/analytics-period";
+import type { AnalyticsPeriod } from "@/lib/analytics/analytics-period";
 
 /** Who is asking: admin (universal scope) or govt (jurisdiction-scoped). */
 export type DashboardActor = { role: "admin" | "govt" };

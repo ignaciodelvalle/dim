@@ -6,7 +6,7 @@ import Link from "next/link";
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { ReminderCard } from "@/components/ReminderCard";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import type { ActiveReminderRow } from "@/lib/owner-dashboard";
+import type { ActiveReminderRow } from "@/lib/analytics/owner-dashboard";
 
 // ---------------------------------------------------------------------------
 // Date formatting helpers — Spanish, no date-fns dependency.

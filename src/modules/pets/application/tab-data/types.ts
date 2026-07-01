@@ -1,9 +1,12 @@
 // Use-case types for pet tab-data loaders (strangler migration 25/61).
 
 import type { LibretaShareToken } from "@/db";
+import type {
+  fetchActiveRemindersForPet,
+  fetchVaccinationHistory,
+} from "@/lib/analytics/owner-dashboard";
 import type { LibretaHealthStatus, VaccinationSummary } from "@/lib/libreta-health-status";
 import type { LibretaGroupKey } from "@/lib/libreta-sanitaria";
-import type { fetchActiveRemindersForPet, fetchVaccinationHistory } from "@/lib/owner-dashboard";
 
 // ---------------------------------------------------------------------------
 // Libreta panel

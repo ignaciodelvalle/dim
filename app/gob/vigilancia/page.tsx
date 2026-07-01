@@ -14,9 +14,7 @@ import {
   OpKpi,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
@@ -27,11 +25,13 @@ import {
   fetchSurveillanceSignals,
   fetchVigilanciaMetrics,
   fetchZoonosisTrend,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
+import { fetchSurveillanceCompliance } from "@/lib/analytics/surveillance-metrics";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { buildProjectionContext, fetchKpiTrend, windows } from "@/lib/metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { findDisease } from "@/lib/reference/diseases";
-import { fetchSurveillanceCompliance } from "@/lib/surveillance-metrics";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
 

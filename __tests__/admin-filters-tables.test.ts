@@ -144,7 +144,7 @@ describe("adminProvinceHref (C31)", () => {
 // C32 — DEFAULT_DASHBOARD_PRESET: picker default matches server default window
 // ---------------------------------------------------------------------------
 
-import { DEFAULT_DASHBOARD_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics-period";
+import { DEFAULT_DASHBOARD_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { windows } from "@/lib/metrics/period";
 
 describe("DEFAULT_DASHBOARD_PRESET vs server trailing12m (C32)", () => {

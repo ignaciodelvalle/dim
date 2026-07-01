@@ -3,7 +3,7 @@ import Link from "next/link";
 import { PetCard } from "@/components/PetCard";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { Pet } from "@/db";
-import type { DashboardPet } from "@/lib/owner-dashboard";
+import type { DashboardPet } from "@/lib/analytics/owner-dashboard";
 import { petPhotoUrl } from "@/lib/storage";
 
 // PetCard expects a full Pet but only reads name/species/color/publicToken.

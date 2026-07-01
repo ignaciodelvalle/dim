@@ -12,6 +12,7 @@ import {
   petEvents,
   profiles,
 } from "@/db";
+import { fetchActiveRemindersForPet } from "@/lib/analytics/owner-dashboard";
 import { excludeSelfScansClause } from "@/lib/events/events";
 import { computeLibretaHealthStatus } from "@/lib/libreta-health-status";
 import {
@@ -19,7 +20,6 @@ import {
   groupLibretaEvents,
   libretaSanitariaClause,
 } from "@/lib/libreta-sanitaria";
-import { fetchActiveRemindersForPet } from "@/lib/owner-dashboard";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { petPhotoUrl } from "@/lib/storage";
 import type { LibretaEventRow, LibretaTabData } from "./types";

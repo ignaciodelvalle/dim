@@ -30,13 +30,13 @@
 import { and, eq } from "drizzle-orm";
 
 import { type AlertSubscription, alertSubscriptions, db } from "@/db";
-import { fetchQueueHealth } from "@/lib/admin-metrics";
-import { fetchMicrochipPenetration } from "@/lib/compliance-metrics";
-import { fetchActiveZoonosis, fetchOpenWelfareReportsCount } from "@/lib/govt-home-kpis";
+import { fetchQueueHealth } from "@/lib/analytics/admin-metrics";
+import { fetchMicrochipPenetration } from "@/lib/analytics/compliance-metrics";
+import { fetchActiveZoonosis, fetchOpenWelfareReportsCount } from "@/lib/analytics/govt-home-kpis";
+import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { buildProjectionContext, windows } from "@/lib/metrics";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
-import { fetchEnoSla } from "@/lib/surveillance-metrics";
 
 // ---------------------------------------------------------------------------
 // Pure helper

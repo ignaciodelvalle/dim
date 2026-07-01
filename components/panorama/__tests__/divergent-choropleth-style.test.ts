@@ -16,7 +16,7 @@ import {
   COLOR_DIVERGENT_NEUTRAL,
   COLOR_NO_DATA,
   divergentStops,
-} from "@/lib/viz-scales";
+} from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 import { provinceDivergentColorExpr } from "../province-choropleth-style";

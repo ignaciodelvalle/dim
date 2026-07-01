@@ -10,8 +10,8 @@ import { NotificationCard } from "@/components/NotificationCard";
 import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { type Notification, type Pet, db, notifications, pets } from "@/db";
+import { fetchNotificationCategoryCounts } from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { fetchNotificationCategoryCounts } from "@/lib/owner-dashboard";
 import {
   decodeCursor,
   encodeCursor,

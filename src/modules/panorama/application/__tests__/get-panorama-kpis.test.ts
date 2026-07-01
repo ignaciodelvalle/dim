@@ -20,13 +20,13 @@ vi.mock("@/lib/metrics/population-control", () => ({
   fetchSterilizationCoverage: vi.fn(),
 }));
 
-import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/govt-dashboards";
+import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/analytics/govt-dashboards";
 import {
   fetchActiveZoonosis,
   fetchBitesPer10k,
   fetchOpenWelfareReportsCount,
   fetchRabiesCoverage,
-} from "@/lib/govt-home-kpis";
+} from "@/lib/analytics/govt-home-kpis";
 import type { AnalyticsPeriod } from "@/lib/metrics";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 

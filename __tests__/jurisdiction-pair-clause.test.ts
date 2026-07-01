@@ -22,7 +22,7 @@ import { and, count, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, petEvents, pets, welfareReports } from "@/db";
-import { welfareReportsScopeClause } from "@/lib/govt-dashboards";
+import { welfareReportsScopeClause } from "@/lib/analytics/govt-dashboards";
 import { buildProjectionContext, jurisdictionPairClause, petsScopeClause } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "./_helpers/db-overrides";

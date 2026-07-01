@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { AnalyticsPeriod } from "@/lib/analytics-period";
+import type { AnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import {
   type SeriesBucketRow,
   bucketGranularityFor,

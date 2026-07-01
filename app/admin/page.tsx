@@ -3,7 +3,11 @@ import Link from "next/link";
 import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
 import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { fetchDecisionsMetrics, fetchQueueHealth, fetchUserMetrics } from "@/lib/admin-metrics";
+import {
+  fetchDecisionsMetrics,
+  fetchQueueHealth,
+  fetchUserMetrics,
+} from "@/lib/analytics/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";

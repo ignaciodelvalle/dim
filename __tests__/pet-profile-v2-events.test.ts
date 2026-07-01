@@ -30,7 +30,7 @@ import {
   type PetEventMetadata,
   type PetProfileV2Events,
   fetchPetEventsForProfileV2,
-} from "@/lib/owner-dashboard";
+} from "@/lib/analytics/owner-dashboard";
 
 // ---------------------------------------------------------------------------
 // Helpers

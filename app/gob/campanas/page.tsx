@@ -16,14 +16,15 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { fetchCampaignDashboard, formatDelta } from "@/lib/campaign-metrics";
+import { fetchCampaignDashboard, formatDelta } from "@/lib/analytics/campaign-metrics";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
+import { RAMP_BLUE, RAMP_GREEN } from "@/lib/analytics/viz-scales";
+import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,
@@ -33,7 +34,6 @@ import {
 } from "@/lib/metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { findServiceKind } from "@/lib/reference/service-kinds";
-import { RAMP_BLUE, RAMP_GREEN } from "@/lib/viz-scales";
 
 export const dynamic = "force-dynamic";
 

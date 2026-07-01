@@ -29,7 +29,7 @@ import {
   countActiveReminders,
   fetchActiveReminders,
   fetchPetsForOwner,
-} from "@/lib/owner-dashboard";
+} from "@/lib/analytics/owner-dashboard";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

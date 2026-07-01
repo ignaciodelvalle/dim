@@ -1,13 +1,6 @@
 "use client";
 
 import {
-  type GeoLevel,
-  type RawDatum,
-  departmentBelongsToProvince,
-  isCABA,
-  joinChoroplethData,
-} from "@/lib/geo-join";
-import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
   COLOR_DIVERGENT_NEUTRAL,
@@ -16,7 +9,14 @@ import {
   type ColorRamp,
   RAMP_BLUE,
   divergentStops,
-} from "@/lib/viz-scales";
+} from "@/lib/analytics/viz-scales";
+import {
+  type GeoLevel,
+  type RawDatum,
+  departmentBelongsToProvince,
+  isCABA,
+  joinChoroplethData,
+} from "@/lib/geo-join";
 import type maplibregl from "maplibre-gl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

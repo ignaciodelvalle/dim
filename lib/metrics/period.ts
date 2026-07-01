@@ -9,8 +9,8 @@
 // rabies-observation legal period (Ord. CABA 41.831) — are NOT here; they live
 // as domain constants alongside the rules that use them.
 
-export { resolveAnalyticsPeriod } from "@/lib/analytics-period";
-export type { AnalyticsPeriod, PeriodSearchParams } from "@/lib/analytics-period";
+export { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+export type { AnalyticsPeriod, PeriodSearchParams } from "@/lib/analytics/analytics-period";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

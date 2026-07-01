@@ -5,8 +5,11 @@ import Link from "next/link";
 
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
+import {
+  countActiveFosterOwnerships,
+  countPendingFosterProposals,
+} from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { countActiveFosterOwnerships, countPendingFosterProposals } from "@/lib/owner-dashboard";
 
 export default async function TransitosHubPage() {
   const { user } = await requireUserOrRedirect();

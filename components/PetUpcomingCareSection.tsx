@@ -5,7 +5,7 @@
 // heading. Items sorted by dueAt ASC. Shows at most 5 items; a "Ver todos →"
 // link renders when more exist.
 
-import type { ActiveReminderRow } from "@/lib/owner-dashboard";
+import type { ActiveReminderRow } from "@/lib/analytics/owner-dashboard";
 import Link from "next/link";
 import { type UpcomingCareItem, mergeUpcomingItems } from "./PetUpcomingCareSection.helpers";
 

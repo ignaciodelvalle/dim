@@ -21,7 +21,7 @@
 import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
 import { arLocalities, cases, db, organizations, petEvents, pets, welfareReports } from "@/db";
-import { fetchRabiesCoverageByProvince } from "@/lib/govt-home-kpis";
+import { fetchRabiesCoverageByProvince } from "@/lib/analytics/govt-home-kpis";
 import {
   type DashboardActor,
   type DashboardJurisdiction,

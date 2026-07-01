@@ -1,7 +1,7 @@
 // Pure helpers for the refactored PetHealthTimeline.
 // Extracted for unit testing without a JSX / DOM transformer.
 
-import type { PetEventMetadata } from "@/lib/owner-dashboard";
+import type { PetEventMetadata } from "@/lib/analytics/owner-dashboard";
 
 export const MAX_TIMELINE_EVENTS = 5;
 

@@ -2,7 +2,7 @@
 // Shows top/bottom 5 provinces by rabies vaccination coverage.
 // A11y: <caption> + <th scope> per spec.
 
-import type { RegionRankingRow } from "@/lib/analytics-ranking";
+import type { RegionRankingRow } from "@/lib/analytics/analytics-ranking";
 
 type Props = {
   top: RegionRankingRow[];

@@ -2,7 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { type AnalyticsLoad, analyticsRetryHref, loadWithTimeout } from "@/lib/analytics-load";
+import {
+  type AnalyticsLoad,
+  analyticsRetryHref,
+  loadWithTimeout,
+} from "@/lib/analytics/analytics-load";
 
 const tick = (ms: number, value: unknown) =>
   new Promise((resolve) => setTimeout(() => resolve(value), ms));

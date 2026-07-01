@@ -19,8 +19,8 @@ import { and, count, countDistinct, eq, gte, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import { fetchRabiesCoverage } from "@/lib/analytics/govt-home-kpis";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
-import { fetchRabiesCoverage } from "@/lib/govt-home-kpis";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "../_helpers/db-overrides";

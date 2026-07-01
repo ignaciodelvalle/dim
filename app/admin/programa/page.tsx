@@ -26,12 +26,13 @@ import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/compo
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, profiles } from "@/db";
-import { fetchCronRuns, fetchQueueHealth } from "@/lib/admin-metrics";
 import { adminProvinceHref } from "@/lib/admin-province-link";
-import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics-load";
-import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics-period";
+import { fetchCronRuns, fetchQueueHealth } from "@/lib/analytics/admin-metrics";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
+import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
+import { fetchMicrochipPenetration } from "@/lib/analytics/compliance-metrics";
+import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { fetchMicrochipPenetration } from "@/lib/compliance-metrics";
 import {
   TARGETS,
   buildProjectionContext,
@@ -47,7 +48,6 @@ import { DORMANT_MONTHS_DEFAULT, registryCounts } from "@/lib/metrics/census";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { createClient } from "@/lib/supabase/server";
-import { fetchEnoSla } from "@/lib/surveillance-metrics";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 
 export const dynamic = "force-dynamic";

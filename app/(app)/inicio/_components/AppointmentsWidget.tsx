@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { AppointmentCard } from "@/components/AppointmentCard";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import type { UpcomingAppointment } from "@/lib/owner-dashboard";
+import type { UpcomingAppointment } from "@/lib/analytics/owner-dashboard";
 
 export function AppointmentsWidget({ appointments }: { appointments: UpcomingAppointment[] }) {
   return (

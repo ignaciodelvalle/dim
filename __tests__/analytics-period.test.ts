@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
+import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

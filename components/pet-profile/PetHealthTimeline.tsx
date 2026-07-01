@@ -19,7 +19,7 @@
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 
-import type { PetEventMetadata } from "@/lib/owner-dashboard";
+import type { PetEventMetadata } from "@/lib/analytics/owner-dashboard";
 import {
   capRecentFive,
   formatTimelineDate,

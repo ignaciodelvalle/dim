@@ -19,7 +19,7 @@ import {
   fetchCasesForExport,
   fetchEventsForExport,
   fetchPetsForExport,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { fetchTimeInState } from "@/lib/metrics/custody";
 import { windows } from "@/lib/metrics/period";

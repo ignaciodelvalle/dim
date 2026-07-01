@@ -1,6 +1,6 @@
 "use client";
 
-import { CHART_COLORS, type ChartColorKey } from "@/lib/viz-scales";
+import { CHART_COLORS, type ChartColorKey } from "@/lib/analytics/viz-scales";
 import { useCallback, useEffect, useState } from "react";
 import {
   Area,

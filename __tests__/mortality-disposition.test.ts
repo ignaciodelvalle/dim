@@ -16,8 +16,8 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import { fetchMortalityDisposition } from "@/lib/analytics/mortality-metrics";
 import { buildProjectionContext } from "@/lib/metrics";
-import { fetchMortalityDisposition } from "@/lib/mortality-metrics";
 import { generatePublicToken } from "@/lib/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

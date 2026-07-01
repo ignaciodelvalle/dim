@@ -6,7 +6,7 @@
 
 import { ReminderCard } from "@/components/ReminderCard";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import type { ActiveReminderRow } from "@/lib/owner-dashboard";
+import type { ActiveReminderRow } from "@/lib/analytics/owner-dashboard";
 
 import { ReminderActions } from "./ReminderActions";
 

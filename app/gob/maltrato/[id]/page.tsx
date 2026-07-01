@@ -47,9 +47,9 @@ const GOB_WELFARE_DETAIL_SELECT = {
   reporterContactEmail: welfareReports.reporterContactEmail,
   reporterContactPhone: welfareReports.reporterContactPhone,
 } as const;
+import { fetchWelfareTimeline } from "@/lib/analytics/govt-dashboards";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { getNormativesForCase } from "@/lib/case-normatives";
-import { fetchWelfareTimeline } from "@/lib/govt-dashboards";
 import { readPoint } from "@/lib/location";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";

@@ -10,7 +10,7 @@
 // without a live Postgres — mirroring how computeDiseaseSummary is a pure rollup
 // the fetcher delegates to.
 
-import type { AnalyticsPeriod } from "@/lib/analytics-period";
+import type { AnalyticsPeriod } from "@/lib/analytics/analytics-period";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

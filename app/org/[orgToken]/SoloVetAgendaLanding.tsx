@@ -11,7 +11,7 @@
 import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import type { TodayAgendaItem } from "@/lib/org-dashboard";
+import type { TodayAgendaItem } from "@/lib/analytics/org-dashboard";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 
 const STATUS_LABELS: Record<string, string> = {

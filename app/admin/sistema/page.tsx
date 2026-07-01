@@ -9,11 +9,11 @@ import {
   fetchGovtActivity,
   fetchQueueHealth,
   fetchUserMetrics,
-} from "@/lib/admin-metrics";
+} from "@/lib/analytics/admin-metrics";
+import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
-import { fetchEnoSla } from "@/lib/surveillance-metrics";
 
 type CronTone = "ok" | "danger" | "open";
 const STATUS_LABEL: Record<string, string> = {

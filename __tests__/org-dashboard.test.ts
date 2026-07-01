@@ -25,7 +25,7 @@ import {
   fetchIntakesLastWeek,
   fetchOrgDashboardMetrics,
   fetchRequiresAction,
-} from "@/lib/org-dashboard";
+} from "@/lib/analytics/org-dashboard";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

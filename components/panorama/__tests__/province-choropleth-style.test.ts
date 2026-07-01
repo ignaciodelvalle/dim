@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { COLOR_NO_DATA, RAMP_BLUE } from "@/lib/viz-scales";
+import { COLOR_NO_DATA, RAMP_BLUE } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 import { provinceColorExpr, provinceValueBounds } from "../province-choropleth-style";

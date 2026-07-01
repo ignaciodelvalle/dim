@@ -36,8 +36,7 @@ import {
   organizationMemberships,
   serviceOfferings,
 } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/org-census";
+import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/analytics/org-census";
 import {
   actionReasonIcon,
   actionReasonLabel,
@@ -46,7 +45,8 @@ import {
   fetchIntakesLastWeek,
   fetchRequiresAction,
   fetchTodayAgenda,
-} from "@/lib/org-dashboard";
+} from "@/lib/analytics/org-dashboard";
+import { requireOrgAccessByToken } from "@/lib/auth-guards";
 import { deriveSetupSteps, isSetupComplete } from "@/lib/org-setup-checklist";
 import { getProfileCached } from "@/lib/request-cache";
 import { CAPABILITY_CATALOG } from "@/src/modules/organizations/domain/capabilities";

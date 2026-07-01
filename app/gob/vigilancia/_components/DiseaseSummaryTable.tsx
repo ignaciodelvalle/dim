@@ -3,7 +3,7 @@
 // `windowDays` labels the total column (the fetch window); defaults to 30.
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import type { DiseaseSummary } from "@/lib/govt-dashboards";
+import type { DiseaseSummary } from "@/lib/analytics/govt-dashboards";
 
 export function DiseaseSummaryTable({
   summary,

@@ -31,8 +31,8 @@ vi.mock("@/db", async (importOriginal) => {
   };
 });
 
-import type { WorkflowItem } from "@/lib/owner-dashboard";
-import { fetchOpenWorkflows } from "@/lib/owner-dashboard";
+import type { WorkflowItem } from "@/lib/analytics/owner-dashboard";
+import { fetchOpenWorkflows } from "@/lib/analytics/owner-dashboard";
 
 // ---------------------------------------------------------------------------
 // Helper: make a chainable Drizzle-style builder that resolves to `rows`

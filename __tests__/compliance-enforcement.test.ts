@@ -25,7 +25,7 @@ import {
   fetchMicrochipPenetration,
   fetchReunificationRate,
   fetchSeizures,
-} from "@/lib/compliance-metrics";
+} from "@/lib/analytics/compliance-metrics";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { generatePublicToken } from "@/lib/publicToken";

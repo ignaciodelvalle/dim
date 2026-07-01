@@ -17,9 +17,9 @@ import { Suspense } from "react";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
 import { listLocalitiesByProvince } from "@/lib/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { PROVINCE_ISO_MAP } from "@/lib/govt-dashboards";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { ExportFormClient } from "./ExportFormClient";
 

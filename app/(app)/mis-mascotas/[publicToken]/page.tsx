@@ -103,14 +103,14 @@ import {
 } from "@/db";
 import type { Pet, Reminder } from "@/db";
 import { getEarnedAchievements } from "@/lib/achievements/catalog";
-import { excludeSelfScansClause } from "@/lib/events/events";
-import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
-import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/lost-mode";
 import {
   fetchActiveRemindersForPet,
   fetchPetEventsForProfileV2,
   fetchPetWeightHistory,
-} from "@/lib/owner-dashboard";
+} from "@/lib/analytics/owner-dashboard";
+import { excludeSelfScansClause } from "@/lib/events/events";
+import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
+import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/lost-mode";
 import { requirePetAccess } from "@/lib/pet-access";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";

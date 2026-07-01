@@ -17,14 +17,14 @@ import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import type { DashboardPet } from "@/lib/owner-dashboard";
+import type { DashboardPet } from "@/lib/analytics/owner-dashboard";
 import {
   fetchActiveReminders,
   fetchOpenWorkflows,
   fetchPetsForOwner,
   fetchUpcomingAppointments,
-} from "@/lib/owner-dashboard";
+} from "@/lib/analytics/owner-dashboard";
+import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { fetchPetHealthNudges } from "@/lib/owner-nudges";
 import { getProfileCached } from "@/lib/request-cache";
 import { petPhotoUrl } from "@/lib/storage";

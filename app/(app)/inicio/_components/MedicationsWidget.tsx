@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import type { OngoingMedication } from "@/lib/owner-dashboard";
+import type { OngoingMedication } from "@/lib/analytics/owner-dashboard";
 
 function formatDate(d: Date): string {
   return d.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });

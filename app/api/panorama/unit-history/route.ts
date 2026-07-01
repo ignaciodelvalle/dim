@@ -23,7 +23,7 @@
 
 import { NextResponse } from "next/server";
 
-import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
+import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { getJurisdictionsCached, getProfileCached } from "@/lib/request-cache";
 import { createClient } from "@/lib/supabase/server";

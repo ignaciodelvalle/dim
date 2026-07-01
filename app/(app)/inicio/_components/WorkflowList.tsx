@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import type { WorkflowItem } from "@/lib/owner-dashboard";
+import type { WorkflowItem } from "@/lib/analytics/owner-dashboard";
 
 // Shared list-of-workflow-items renderer. Used by both OpenWorkflows
 // and PreviousWorkflows widgets — only the title + empty copy differ.

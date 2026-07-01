@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
-import type { WorkflowItem, WorkflowKind } from "@/lib/owner-dashboard";
+import type { WorkflowItem, WorkflowKind } from "@/lib/analytics/owner-dashboard";
 
 // CasesWidget — the owner's cases list.
 //

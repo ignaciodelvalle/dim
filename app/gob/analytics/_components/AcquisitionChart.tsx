@@ -8,7 +8,7 @@
 // area, replace this with a proper stacked chart per method bucket.
 
 import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
-import type { AcquisitionTrendPoint } from "@/lib/govt-dashboards";
+import type { AcquisitionTrendPoint } from "@/lib/analytics/govt-dashboards";
 
 type Props = {
   data: AcquisitionTrendPoint[];

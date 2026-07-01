@@ -12,7 +12,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { db, organizations, ownerships, pets } from "@/db";
-import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/org-census";
+import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/analytics/org-census";
 
 // ---------------------------------------------------------------------------
 // Test harness

@@ -11,7 +11,7 @@
 
 import { NextResponse } from "next/server";
 
-import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
+import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { localityByName } from "@/lib/ar-localidades";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";

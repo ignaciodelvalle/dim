@@ -19,10 +19,14 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { auditLog, db, ownerships, pets, profiles } from "@/db";
+import {
+  CABA_PROVINCE,
+  PPP_EXPORT_SCHEMA_VERSION,
+  generatePppCabaPdf,
+} from "@/lib/analytics/ppp-exports";
+import { createSignedExportUrl, uploadExportToStorage } from "@/lib/analytics/welfare-exports";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { CABA_PROVINCE, PPP_EXPORT_SCHEMA_VERSION, generatePppCabaPdf } from "@/lib/ppp-exports";
-import { createSignedExportUrl, uploadExportToStorage } from "@/lib/welfare-exports";
 
 import type { GeneratePppExportResult } from "./types";
 

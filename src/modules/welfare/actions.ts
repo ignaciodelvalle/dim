@@ -31,6 +31,13 @@ import {
   organizations,
   welfareReports,
 } from "@/db";
+import {
+  MPF_EXPORT_SCHEMA_VERSION,
+  createSignedExportUrl,
+  generateWelfareMpfPdf,
+  uploadExportToStorage,
+  welfareReportToMpfDto,
+} from "@/lib/analytics/welfare-exports";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import {
   requireAdminOrGovtOrRedirect,
@@ -50,13 +57,6 @@ import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { parseDateInput } from "@/lib/utils/format";
-import {
-  MPF_EXPORT_SCHEMA_VERSION,
-  createSignedExportUrl,
-  generateWelfareMpfPdf,
-  uploadExportToStorage,
-  welfareReportToMpfDto,
-} from "@/lib/welfare-exports";
 import { computeFlagReasons } from "@/lib/welfare-moderation";
 import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
 import { generateReferenceCode } from "@/src/modules/welfare/domain/reference-code";

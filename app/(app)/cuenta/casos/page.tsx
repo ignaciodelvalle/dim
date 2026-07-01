@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { CasesWidget, adaptWorkflow } from "@/components/CasesWidget";
+import { fetchOpenWorkflows, fetchPreviousWorkflows } from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { fetchOpenWorkflows, fetchPreviousWorkflows } from "@/lib/owner-dashboard";
 
 // Full cases history — the destination for the home "Ver historial →" link.
 // Shows the owner's open cases plus the closed/past ones (resolved across all

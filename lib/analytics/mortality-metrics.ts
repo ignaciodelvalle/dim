@@ -28,10 +28,10 @@
 import { and, count, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "@/db";
+import { type DispositionBucket, bucketOf } from "@/lib/disposition";
 import { type ProjectionContext, suppressSmallCells } from "@/lib/metrics";
 import { petsScopeClause } from "@/lib/metrics/scope";
 import type { Cell, SuppressedCells } from "@/lib/metrics/types";
-import { type DispositionBucket, bucketOf } from "./disposition";
 
 const DISPOSITION = sql`(${petEvents.payload}->>'disposition_method')`;
 const FACILITY = sql`(${petEvents.payload}->>'facility')`;

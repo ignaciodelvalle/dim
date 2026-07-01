@@ -2,7 +2,7 @@
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpPill } from "@/components/ui/dashboard";
-import type { OutbreakHistoryRow } from "@/lib/govt-dashboards";
+import type { OutbreakHistoryRow } from "@/lib/analytics/govt-dashboards";
 
 type Props = {
   rows: OutbreakHistoryRow[];

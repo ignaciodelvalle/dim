@@ -10,7 +10,7 @@ import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { OpStatusPill } from "@/components/ui/dashboard/OpStatusPill";
-import { fetchCronHealth } from "@/lib/admin-metrics";
+import { fetchCronHealth } from "@/lib/analytics/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 
 export const dynamic = "force-dynamic";

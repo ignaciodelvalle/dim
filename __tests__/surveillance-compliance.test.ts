@@ -13,15 +13,15 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db, eventNotificationOutbox, ownerships, petEvents, pets } from "@/db";
-import { buildProjectionContext, windows } from "@/lib/metrics";
-import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
-import { generatePublicToken } from "@/lib/publicToken";
 import {
   fetchAmrDensity,
   fetchEnoSla,
   fetchRabiesObservationCompliance,
   fetchReportableIncidence,
-} from "@/lib/surveillance-metrics";
+} from "@/lib/analytics/surveillance-metrics";
+import { buildProjectionContext, windows } from "@/lib/metrics";
+import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
+import { generatePublicToken } from "@/lib/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

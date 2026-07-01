@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import type { DashboardPet } from "@/lib/owner-dashboard";
+import type { DashboardPet } from "@/lib/analytics/owner-dashboard";
 import { petPhotoUrl } from "@/lib/storage";
 
 // Quick capture widget. The user picks the pet first (no real chat box
