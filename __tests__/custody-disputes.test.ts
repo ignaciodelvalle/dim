@@ -42,7 +42,7 @@ import {
   profiles,
 } from "@/db";
 import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { createClient } from "@/lib/supabase/server";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

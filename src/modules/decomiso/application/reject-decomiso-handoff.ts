@@ -20,7 +20,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { auditLog, cases, type db, organizationMemberships, organizations, petEvents } from "@/db";
 import type { Case } from "@/db/schema";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { NewNotification } from "../domain/types";
 

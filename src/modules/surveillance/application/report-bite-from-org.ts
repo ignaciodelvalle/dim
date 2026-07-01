@@ -10,7 +10,7 @@
 //   - noRedirect=1 returns { ok, petToken } instead of triggering redirect.
 //   - AUDIT_LOG: NONE.
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import { orgTypeToReporterRole } from "../domain/bite";
 import { computeObservationUntil, isRabiesVaccineValid } from "../domain/rabies-observation";

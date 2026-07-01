@@ -10,7 +10,7 @@
 //   - Vaccine reminder created when nextDueAt provided.
 //   - No outbox. No audit_log.
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import type { UseCaseResult } from "../types";

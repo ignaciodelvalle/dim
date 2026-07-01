@@ -4,7 +4,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { computeConfidence, isAtLeast } from "@/lib/event-confidence";
+import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import {
   type DashboardJurisdiction,
   PROVINCE_ISO_MAP,

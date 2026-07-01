@@ -32,7 +32,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { CHECKED_COLUMN_NAMES, hasDrift, rederivePetCache } from "@/lib/rederive-pet-cache";
 import { sql } from "drizzle-orm";
 import { withMutationOverride } from "./_helpers/db-overrides";

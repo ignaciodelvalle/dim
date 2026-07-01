@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, custodyDisputes, db, petEvents, pets } from "@/db";
 import { closeCase, openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { expectDbError } from "./_helpers/expect-db-error";
 

@@ -51,7 +51,7 @@ import {
   profiles,
 } from "@/db";
 import { closeCase, openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
 
 import {

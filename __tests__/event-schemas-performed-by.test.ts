@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 const REAL_UUID = "11111111-2222-4333-8444-555555555555";
 

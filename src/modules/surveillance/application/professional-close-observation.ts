@@ -14,7 +14,7 @@
 //
 // AUDIT_LOG: NONE.
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import { PROFESSIONAL_OUTCOMES, outcomeToStatus } from "../domain/rabies-observation";
 import type { RabiesObservationOutcome } from "../domain/rabies-observation";

@@ -7,7 +7,7 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 import { db, notifications, petEvents, pets } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { CancelProposalResult } from "../domain/types";
 import { hasPendingProposal } from "./proposal-queries";

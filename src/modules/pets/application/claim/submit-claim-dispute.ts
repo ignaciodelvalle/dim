@@ -8,7 +8,7 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { attachments, auditLog, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { uploadWelfareEvidence } from "@/lib/welfare-uploads";

@@ -15,7 +15,7 @@
 import { sql } from "drizzle-orm";
 
 import { EVENT_TYPES, type EventType } from "@/db/schema";
-import { type ConfidenceTier, computeConfidence } from "@/lib/event-confidence";
+import { type ConfidenceTier, computeConfidence } from "@/lib/events/event-confidence";
 
 // Event types that are part of the dueño's libreta sanitaria — the medical
 // record the vet writes and the dueño carries. Surfaces: pet profile section,

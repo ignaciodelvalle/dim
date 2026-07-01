@@ -30,7 +30,7 @@
 //   5. signal.
 //   6. Return redirect target.
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { MALTREATMENT_KINDS, derivePrimarySubjectKind } from "../domain/report-classification";
 import type { WelfareRepository } from "../infrastructure/welfare-repository";
 import type { NewNotification } from "./types";

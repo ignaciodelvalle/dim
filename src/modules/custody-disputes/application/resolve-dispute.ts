@@ -34,7 +34,7 @@ import {
 } from "@/db";
 import type { CustodyDispute } from "@/db";
 import { closeCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { ResolveDisputeInput, ResolveDisputeResult } from "../domain/types";
 

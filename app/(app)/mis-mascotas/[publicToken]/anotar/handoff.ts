@@ -4,7 +4,7 @@
 // plugin can't handle).
 
 import type { EventType } from "@/db/schema";
-import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/event-capture-registry";
+import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 
 // Builds the URL EventCatcher uses to hand off typed text + chosen kind to
 // the matcher page. Pure function, lives outside EventCatcher.tsx so the

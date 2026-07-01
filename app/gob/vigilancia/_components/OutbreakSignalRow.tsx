@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { OpCodeBadge } from "@/components/ui/dashboard";
-import { computeConfidence } from "@/lib/event-confidence";
+import { computeConfidence } from "@/lib/events/event-confidence";
 import type { SurveillanceSignal } from "@/lib/govt-dashboards";
 
 type OutbreakSignalRowProps = {

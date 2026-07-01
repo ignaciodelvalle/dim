@@ -24,7 +24,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, notifications, organizations, petEvents, pets } from "@/db";
 import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import {
   escalateStaleDecomiso,
   findStaleDecomisoCandidates,

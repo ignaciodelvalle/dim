@@ -28,8 +28,8 @@ import {
   reminders,
 } from "@/db";
 import type { NewAuditLogRow, NewPetEvent, NewPetIdentification, PetEvent } from "@/db/schema";
-import { insertEventIdempotent } from "@/lib/event-idempotency";
-import { enqueueOutboxForEvent } from "@/lib/event-outbox-enqueue";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
+import { enqueueOutboxForEvent } from "@/lib/events/event-outbox-enqueue";
 
 // ---------------------------------------------------------------------------
 // Type aliases

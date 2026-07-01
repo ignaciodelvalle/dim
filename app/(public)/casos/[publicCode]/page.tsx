@@ -27,7 +27,7 @@ import type { EventType } from "@/db/schema";
 import { canReadCase } from "@/lib/case-access";
 import { getNormativesForCase } from "@/lib/case-normatives";
 import { type CaseDetail, getCaseDetailByPublicCode } from "@/lib/case-queries";
-import { eventPayloadSummary } from "@/lib/events";
+import { eventPayloadSummary } from "@/lib/events/events";
 import { eventTypeLabel, formatDateTime, sexLabel, speciesLabel } from "@/lib/format";
 import { getJurisdictionsCached, getProfileCached } from "@/lib/request-cache";
 import { petPhotoUrl } from "@/lib/storage";

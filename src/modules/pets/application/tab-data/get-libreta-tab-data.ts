@@ -12,7 +12,7 @@ import {
   petEvents,
   profiles,
 } from "@/db";
-import { excludeSelfScansClause } from "@/lib/events";
+import { excludeSelfScansClause } from "@/lib/events/events";
 import { computeLibretaHealthStatus } from "@/lib/libreta-health-status";
 import {
   type LibretaGroupKey,

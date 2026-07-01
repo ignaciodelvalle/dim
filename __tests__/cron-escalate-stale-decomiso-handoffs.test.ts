@@ -28,7 +28,7 @@ import {
   findStaleDecomisoCandidates,
 } from "@/lib/case-closers/escalate-stale-decomiso-handoffs";
 import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

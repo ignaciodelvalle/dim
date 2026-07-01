@@ -6,7 +6,7 @@
 // Restricts to outcome='negative', no escalating symptoms, ≥10 days elapsed.
 // AUDIT_LOG: NONE (bite/rabies actions never wrote audit_log — preserve absence).
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { NewNotification, UseCaseResult } from "./types";

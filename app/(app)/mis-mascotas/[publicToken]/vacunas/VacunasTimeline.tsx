@@ -9,7 +9,7 @@ import Link from "next/link";
 import { ReminderCard } from "@/components/ReminderCard";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { computeConfidence } from "@/lib/event-confidence";
+import { computeConfidence } from "@/lib/events/event-confidence";
 import type { VaccinationSummary } from "@/lib/libreta-health-status";
 import type { ActiveReminderRow, VaccinationHistoryRow } from "@/lib/owner-dashboard";
 import { VacunaTimelineDot } from "./VacunaTimelineDot";

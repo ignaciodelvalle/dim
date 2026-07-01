@@ -10,8 +10,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { upcastPayload } from "@/lib/event-upcasters";
-import { eventPayloadSummary } from "@/lib/events";
+import { upcastPayload } from "@/lib/events/event-upcasters";
+import { eventPayloadSummary } from "@/lib/events/events";
 
 // ---------------------------------------------------------------------------
 // upcastPayload — adoption_application_submitted v1 → v2

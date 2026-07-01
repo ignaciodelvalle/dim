@@ -36,7 +36,7 @@ import type {
   WelfareReportAttachment,
 } from "@/db/schema";
 import { isUniqueViolation } from "@/lib/db-errors";
-import { insertEventIdempotent } from "@/lib/event-idempotency";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 
 // ---------------------------------------------------------------------------
 // Type aliases

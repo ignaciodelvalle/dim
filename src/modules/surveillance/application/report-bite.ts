@@ -10,7 +10,7 @@
 //   - Authority fan-out is post-tx best-effort — callers must handle.
 //   - AUDIT_LOG: NONE (bite actions never wrote audit_log — preserve absence).
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import { computeObservationUntil, isRabiesVaccineValid } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";

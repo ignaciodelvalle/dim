@@ -5,7 +5,7 @@
 // the page render itself stays a pure read.
 
 import { db, ownerships, petEvents, pets } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { createClient } from "@/lib/supabase/server";
 import { and, eq, isNull } from "drizzle-orm";
 

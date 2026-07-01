@@ -7,7 +7,7 @@
 import { eq } from "drizzle-orm";
 
 import { attachments, type db, ownerships, petEvents, petIdentifications, pets } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import { generatePublicToken } from "@/lib/publicToken";
 import { generateUniqueToken } from "@/lib/unique-token";

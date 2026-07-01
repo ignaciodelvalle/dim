@@ -16,7 +16,7 @@
 // straight through. Pure mapping — no new tokens, table-testable.
 // ---------------------------------------------------------------------------
 
-import type { ConfidenceTier } from "@/lib/event-confidence";
+import type { ConfidenceTier } from "@/lib/events/event-confidence";
 
 export type OwnerConfidenceBadge = "success" | "info" | "neutral" | "warning";
 

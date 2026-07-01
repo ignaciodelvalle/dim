@@ -21,7 +21,7 @@
 import "server-only";
 
 import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { writePoint } from "@/lib/location";
 import { validateMicrochipId } from "@/lib/microchip-validation";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";

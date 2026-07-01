@@ -29,7 +29,7 @@ import {
   profiles,
 } from "@/db";
 import type { NewPetEvent, PetEvent } from "@/db/schema";
-import { insertEventIdempotent } from "@/lib/event-idempotency";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 
 // ---------------------------------------------------------------------------
 // Type aliases

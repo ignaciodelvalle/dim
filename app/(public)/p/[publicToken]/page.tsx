@@ -27,7 +27,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { computeConfidence, isAtLeast } from "@/lib/event-confidence";
+import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/origin-org";

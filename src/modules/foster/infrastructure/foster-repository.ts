@@ -19,7 +19,7 @@ import {
   profiles,
 } from "@/db";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 // ---------------------------------------------------------------------------
 // Type aliases

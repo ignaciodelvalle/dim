@@ -29,7 +29,7 @@ import { db, notifications, ownerships, petEvents, petIdentifications, pets } fr
 import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
 import { openCase } from "@/lib/case-helpers";
 import { lookupByChip } from "@/lib/chip-lookup";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { parseDateInput } from "@/lib/format";
 import {
   CoordError,

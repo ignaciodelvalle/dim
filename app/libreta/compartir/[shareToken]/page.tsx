@@ -6,7 +6,7 @@ import { LibretaIdentityHeader } from "@/app/(app)/mis-mascotas/[publicToken]/li
 import { LibretaSanitariaView } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaSanitariaView";
 import { LnCallout } from "@/components/ui/DocElements";
 import { attachments, db, libretaShareTokens, petEvents, pets, profiles } from "@/db";
-import { excludeSelfScansClause } from "@/lib/events";
+import { excludeSelfScansClause } from "@/lib/events/events";
 import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/libreta-sanitaria";
 import { validateShareToken } from "@/lib/libreta-share-token";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";

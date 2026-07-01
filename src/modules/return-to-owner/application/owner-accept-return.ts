@@ -16,7 +16,7 @@ import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 
 import { cases, db, notifications, ownerships, petEvents, pets } from "@/db";
 import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { AcceptReturnResult } from "../domain/types";
 import { autoCancelBody, hasPendingProposal } from "./proposal-queries";

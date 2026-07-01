@@ -5,7 +5,7 @@
 // that the filtering logic is correct using synthetic SurveillanceSignal-like
 // objects with confidence data.
 
-import { type ConfidenceTier, computeConfidence, isAtLeast } from "@/lib/event-confidence";
+import { type ConfidenceTier, computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { describe, expect, it } from "vitest";
 
 // Simplified signal type for filtering tests (mirrors the shape we'll add to SurveillanceSignal)

@@ -16,7 +16,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, organizationMemberships, organizations, pets, profiles } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 // ---------------------------------------------------------------------------
 // Unit tests — Zod schemas only

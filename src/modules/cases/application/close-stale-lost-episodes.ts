@@ -14,7 +14,7 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 
 import { cases, db, petEvents } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 export interface CloseStaleLostEpisodesOptions {
   now?: Date;

@@ -20,7 +20,7 @@ import {
 } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import { replaceMicrochipSchema } from "./types";
 import type { ReplaceMicrochipInput, ReplaceMicrochipResult } from "./types";

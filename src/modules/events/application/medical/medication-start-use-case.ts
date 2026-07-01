@@ -11,7 +11,7 @@
 //   - Dose reminders inserted when schedule is non-empty.
 //   - No outbox. No audit_log.
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import type { FrequencyKind } from "@/lib/reference/medication-schedule";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";

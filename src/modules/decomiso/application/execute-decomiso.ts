@@ -34,7 +34,7 @@ import {
   profiles,
 } from "@/db";
 import { closeCase as libCloseCase, openCase as libOpenCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { generatePublicToken } from "@/lib/publicToken";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/unique-token";
 

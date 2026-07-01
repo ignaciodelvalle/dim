@@ -10,7 +10,7 @@ import { eq } from "drizzle-orm";
 
 import { auditLog, cases, custodyDisputes, db, petEvents } from "@/db";
 import type { CustodyDispute } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { EscalateDisputeInput, EscalateDisputeResult } from "../domain/types";
 

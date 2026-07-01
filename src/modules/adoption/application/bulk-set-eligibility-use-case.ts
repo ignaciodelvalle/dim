@@ -19,7 +19,7 @@
 //   - Same previous_state: null (bulk path, no pre-load for performance)
 //   - BulkResult shape: { bulkActionId, succeeded[], failed[{id, reason}] }
 
-import { deriveBulkIdempotencyKey } from "@/lib/event-idempotency";
+import { deriveBulkIdempotencyKey } from "@/lib/events/event-idempotency";
 
 import type { BulkResult } from "@/app/actions/bulk-actions";
 import type { BulkSetEligibilityInput } from "@/app/actions/bulk-vaccinate-types";

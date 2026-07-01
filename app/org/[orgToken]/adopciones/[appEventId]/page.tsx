@@ -13,7 +13,7 @@ import { notFound } from "next/navigation";
 import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { auditLog, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { upcastPayload } from "@/lib/event-upcasters";
+import { upcastPayload } from "@/lib/events/event-upcasters";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ReviewButtons } from "./ReviewButtons";

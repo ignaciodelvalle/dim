@@ -10,7 +10,7 @@ import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnVaccineLedger, type LnVaccineRow } from "@/components/ui/Ledger";
-import { eventPayloadSummary } from "@/lib/events";
+import { eventPayloadSummary } from "@/lib/events/events";
 import { formatDate } from "@/lib/format";
 import {
   LIBRETA_GROUPS,

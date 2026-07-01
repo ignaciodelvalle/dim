@@ -14,7 +14,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { auditLog, cases, type db, organizationMemberships, petEvents } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { GovtOrg, NewNotification, ReceiverOrg } from "../domain/types";
 

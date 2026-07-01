@@ -4,7 +4,7 @@ import {
   CAPTURE_INPUT_MAX_LENGTH,
   extractDateFromText,
   matchCaptureIntent,
-} from "@/lib/event-capture-matcher";
+} from "@/lib/events/event-capture-matcher";
 
 // Use a fixed reference date so the date tests are stable.
 const NOW = new Date("2026-05-19T12:00:00Z");

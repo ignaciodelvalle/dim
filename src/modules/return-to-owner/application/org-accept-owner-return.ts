@@ -16,7 +16,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { findOpenCaseForPetAndKind } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { OrgAcceptOwnerReturnResult } from "../domain/types";
 import { fetchPendingOwnerReturnProposalForOrg } from "./proposal-queries";

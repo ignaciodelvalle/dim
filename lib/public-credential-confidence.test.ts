@@ -5,7 +5,7 @@
 // corroborated, and unverified are intentionally silent ("no shame on
 // the public credential").
 
-import { type ConfidenceTier, isAtLeast } from "@/lib/event-confidence";
+import { type ConfidenceTier, isAtLeast } from "@/lib/events/event-confidence";
 import { describe, expect, it } from "vitest";
 
 // The gate function used in the public credential page.

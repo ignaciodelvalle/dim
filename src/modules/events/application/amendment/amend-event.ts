@@ -10,7 +10,7 @@
 
 import { auditLog, db, notifications, ownerships, petEvents, profiles } from "@/db";
 import { ADMIN_AMENDMENT_NOTIFICATION_TYPE, isAmendableEventType } from "@/lib/amendment";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import type { PetEventAuthorship } from "@/lib/pet-access";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";

@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 
 import { db, notifications, petEvents, pets, reminders } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { RecordPregnancyResult, RecordPregnancyStartedParams } from "./types";
 

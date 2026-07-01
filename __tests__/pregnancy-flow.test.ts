@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { recordPregnancyEndedWriter, recordPregnancyStartedWriter } from "@/app/actions/pregnancy";
 import { db, notifications, ownerships, petEvents, pets, profiles, reminders } from "@/db";
 import { getEarnedAchievements } from "@/lib/achievements/catalog";
-import { matchCaptureIntent } from "@/lib/event-capture-matcher";
+import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

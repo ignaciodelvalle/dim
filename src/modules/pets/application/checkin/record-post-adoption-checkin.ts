@@ -18,8 +18,8 @@ import {
   petEvents,
   reminders,
 } from "@/db";
-import { insertEventIdempotent } from "@/lib/event-idempotency";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";

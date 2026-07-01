@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ConfidenceTier } from "@/lib/event-confidence";
+import type { ConfidenceTier } from "@/lib/events/event-confidence";
 import { ownerConfidenceDisplay } from "@/lib/projections/owner-confidence-display";
 
 describe("ownerConfidenceDisplay — 5 tiers collapse to 3 owner badges", () => {

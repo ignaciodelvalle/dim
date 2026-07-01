@@ -24,7 +24,7 @@
 // Spec R1 audit_log contract: public create writes NO audit_log row.
 // (Verified against original — no insertAudit call here.)
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import {
   MALTREATMENT_KINDS,
   deriveAuthorRole,

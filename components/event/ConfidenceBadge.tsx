@@ -6,7 +6,7 @@
 //
 // Styling follows Libreta Nacional token set (ln-* CSS custom properties).
 
-import { type ConfidenceTier, confidenceLabel } from "@/lib/event-confidence";
+import { type ConfidenceTier, confidenceLabel } from "@/lib/events/event-confidence";
 
 interface Props {
   tier: ConfidenceTier;

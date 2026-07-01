@@ -7,7 +7,7 @@
 // Tests call createTattooForUser directly with a known userId.
 
 import { attachments, db, petEvents, petIdentifications } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import type { PetEventAuthorship } from "@/lib/pet-access";
 import { normalizeTattooCode } from "@/lib/tattoo-lookup";
 

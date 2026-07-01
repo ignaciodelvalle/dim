@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, petEvents, pets } from "@/db";
 import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/lost-mode";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

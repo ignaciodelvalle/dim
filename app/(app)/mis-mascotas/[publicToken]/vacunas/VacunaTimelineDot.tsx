@@ -7,7 +7,7 @@
 //   [card: date | vaccine name, brand, batch, administered_by, next_due_at]
 
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
-import type { ConfidenceTier } from "@/lib/event-confidence";
+import type { ConfidenceTier } from "@/lib/events/event-confidence";
 
 const MONTH_NAMES_ES = [
   "enero",

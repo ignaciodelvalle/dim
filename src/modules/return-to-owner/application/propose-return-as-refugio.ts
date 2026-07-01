@@ -16,7 +16,7 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 import { cases, db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { ProposeReturnResult } from "../domain/types";
 import { hasPendingProposal } from "./proposal-queries";

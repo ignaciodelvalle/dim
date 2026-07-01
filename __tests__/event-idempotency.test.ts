@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { NewPetEvent, PetEvent } from "@/db/schema";
-import { findExistingByKey, insertEventIdempotent } from "@/lib/event-idempotency";
+import { findExistingByKey, insertEventIdempotent } from "@/lib/events/event-idempotency";
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 

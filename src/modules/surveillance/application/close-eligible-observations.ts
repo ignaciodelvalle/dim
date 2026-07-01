@@ -11,7 +11,7 @@
 //   - Per-pet try/catch isolates failures (one failure doesn't stop the batch).
 //   - AUDIT_LOG: NONE.
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { NewNotification } from "./types";

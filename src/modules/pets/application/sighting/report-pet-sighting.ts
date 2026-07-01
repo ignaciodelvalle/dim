@@ -38,8 +38,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
-import { insertEventIdempotent } from "@/lib/event-idempotency";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";

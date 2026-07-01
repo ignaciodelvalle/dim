@@ -66,7 +66,7 @@ import {
   profiles,
 } from "@/db";
 import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { generatePublicToken } from "@/lib/publicToken";
 import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
 

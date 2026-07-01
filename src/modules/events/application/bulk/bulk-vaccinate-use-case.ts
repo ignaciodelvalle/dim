@@ -18,7 +18,7 @@
 //   - Same reminder description: "Próxima dosis programada para ${petName}."
 //   - BulkResult shape: { bulkActionId, succeeded[], failed[{id, reason}] }
 
-import { deriveBulkIdempotencyKey } from "@/lib/event-idempotency";
+import { deriveBulkIdempotencyKey } from "@/lib/events/event-idempotency";
 import { parseDateInput } from "@/lib/format";
 
 import type { BulkResult } from "@/app/actions/bulk-actions";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { eventPayloadDetails } from "@/lib/events";
+import { eventPayloadDetails } from "@/lib/events/events";
 
 describe("eventPayloadDetails — curated es-AR whitelist (H3)", () => {
   it("returns es-AR labels for a vaccination", () => {

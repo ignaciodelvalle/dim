@@ -21,7 +21,7 @@ import {
   isAmendableEventType,
   latestAmendment,
 } from "@/lib/amendment";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import {
   LIBRETA_SANITARIA_EVENT_TYPES,
   NON_LIBRETA_EVENT_TYPES,

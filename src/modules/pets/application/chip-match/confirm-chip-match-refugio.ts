@@ -12,7 +12,7 @@
 // and are inserted AFTER the transaction commits (best-effort, logged on failure).
 
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { and, eq, isNull } from "drizzle-orm";
 
 import type { ConfirmChipMatchResult } from "./types";

@@ -54,7 +54,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { generatePublicToken } from "@/lib/publicToken";
 import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
 

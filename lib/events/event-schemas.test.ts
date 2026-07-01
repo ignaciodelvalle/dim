@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 describe("symptomObserved payload schema (refactored)", () => {
   it("accepts libreta-source payload with null welfare_report_id", () => {

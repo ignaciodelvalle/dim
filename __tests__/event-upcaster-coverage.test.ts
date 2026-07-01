@@ -24,8 +24,8 @@
 import { describe, expect, it } from "vitest";
 
 import { EVENT_TYPES } from "@/db/schema";
-import { PayloadSchemas } from "@/lib/event-schemas";
-import { registeredUpcasterTypes, upcastPayload } from "@/lib/event-upcasters";
+import { PayloadSchemas } from "@/lib/events/event-schemas";
+import { registeredUpcasterTypes, upcastPayload } from "@/lib/events/event-upcasters";
 
 // ---------------------------------------------------------------------------
 // Helper — extract the latest payload_version from a Zod schema's shape.

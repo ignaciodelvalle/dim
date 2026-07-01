@@ -7,7 +7,7 @@
 // and TIER_STYLES[tier]. The substantive logic lives in event-confidence.ts
 // which is fully covered in event-confidence.test.ts.
 
-import { type ConfidenceTier, confidenceLabel, isAtLeast } from "@/lib/event-confidence";
+import { type ConfidenceTier, confidenceLabel, isAtLeast } from "@/lib/events/event-confidence";
 import { describe, expect, it } from "vitest";
 
 // Mirrors TIER_STYLES in ConfidenceBadge.tsx. If styles drift, this test

@@ -19,8 +19,8 @@ import {
 } from "@/db";
 import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
 import { dniLast4, hashDni } from "@/lib/dni-hash";
-import { insertEventIdempotent } from "@/lib/event-idempotency";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 // ---------------------------------------------------------------------------
 // Type aliases

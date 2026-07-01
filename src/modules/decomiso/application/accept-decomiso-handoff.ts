@@ -32,7 +32,7 @@ import {
 } from "@/db";
 import type { Case } from "@/db/schema";
 import { closeCase as libCloseCase, openCase as libOpenCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { NewNotification } from "../domain/types";
 

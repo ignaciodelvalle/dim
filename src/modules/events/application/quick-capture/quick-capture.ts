@@ -12,8 +12,8 @@
 //   { url: null }    — no match; caller falls back to /anotar?text=... so the
 //                      CaptureBox page can surface the "no reconocemos eso" UI.
 
-import { matchCaptureIntent } from "@/lib/event-capture-matcher";
-import { buildCaptureDeeplink } from "@/lib/event-capture-registry";
+import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
+import { buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 
 import type { QuickCaptureResult } from "./types";
 

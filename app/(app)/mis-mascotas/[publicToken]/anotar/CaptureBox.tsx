@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
 import type { EventType } from "@/db/schema";
-import { matchCaptureIntent } from "@/lib/event-capture-matcher";
-import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/event-capture-registry";
+import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
+import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 import { QUICK_ACTIONS, buildKindDeeplink, findQuickAction, getNoteSlotKey } from "./handoff";
 
 // Re-exports keep existing callers (tests, EventCatcher) working without churn.

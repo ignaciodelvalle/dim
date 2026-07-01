@@ -14,8 +14,8 @@ import {
   IMPLEMENTED_EVENT_TYPES,
   PayloadSchemas,
   validateEventPayload,
-} from "@/lib/event-schemas";
-import { registeredUpcasterTypes } from "@/lib/event-upcasters";
+} from "@/lib/events/event-schemas";
+import { registeredUpcasterTypes } from "@/lib/events/event-upcasters";
 
 // Event types from EVENT_TYPES that have NO writer today but ALSO no schema —
 // they sit in the const ahead of their flow being designed. Every other
