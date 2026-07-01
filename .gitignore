@@ -58,3 +58,6 @@ e2e/.auth/
 # vercel CLI (local project linkage + build cache — never commit)
 .vercel/
 .superpowers/
+
+# Local demo screen recordings — never commit (large binaries)
+*.webm
