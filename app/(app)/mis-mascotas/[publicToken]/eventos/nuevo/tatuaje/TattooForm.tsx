@@ -4,7 +4,7 @@ import type { EventFormState } from "@/app/actions/tattoo";
 import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { TATTOO_LOCATIONS } from "@/lib/lookups";
+import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
 import { useFormErrorFocus } from "@/lib/use-form-error-focus";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";

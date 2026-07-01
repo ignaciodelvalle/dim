@@ -7,7 +7,7 @@ import Link from "next/link";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { SERVICE_KINDS, findServiceKind } from "@/lib/service-kinds";
+import { SERVICE_KINDS, findServiceKind } from "@/lib/reference/service-kinds";
 
 import { SearchFiltersForm } from "./SearchFiltersForm";
 

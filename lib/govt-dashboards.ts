@@ -41,8 +41,6 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
-import { provinceByCode } from "@/lib/ar-provincias";
-import { findDisease } from "@/lib/diseases";
 import { likeContains } from "@/lib/like-helpers";
 import {
   type DashboardActor,
@@ -53,6 +51,8 @@ import {
   petsScopeClause as metricsPetsScopeClause,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { provinceByCode } from "@/lib/reference/ar-provincias";
+import { findDisease } from "@/lib/reference/diseases";
 
 // Re-export so existing callers that import from this module don't need to change.
 export type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";

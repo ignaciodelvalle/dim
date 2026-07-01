@@ -12,7 +12,7 @@ import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
-import { findServiceKind } from "@/lib/service-kinds";
+import { findServiceKind } from "@/lib/reference/service-kinds";
 
 export default async function AdminServiciosPage() {
   await requireAdminOrRedirect();

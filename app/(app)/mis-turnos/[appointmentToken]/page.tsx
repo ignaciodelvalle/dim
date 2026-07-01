@@ -11,7 +11,7 @@ import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { findServiceKind } from "@/lib/reference/service-kinds";
 import { CancelButton } from "./CancelButton";
 import { MisTurnosSheetMounter } from "./MisTurnosSheetMounter";
 

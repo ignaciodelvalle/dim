@@ -9,7 +9,6 @@ import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTab
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { listLocalitiesByProvince } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { fetchReunificationRate } from "@/lib/compliance-metrics";
 import {
@@ -21,6 +20,7 @@ import {
   fetchPerdidasMetrics,
 } from "@/lib/govt-dashboards";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
+import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
 /**

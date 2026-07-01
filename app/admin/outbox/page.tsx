@@ -13,10 +13,10 @@ import Link from "next/link";
 import { OpBreach, OpButton, OpCard, OpPill } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import type { OutboxStatus, OutboxTargetKind } from "@/db";
-import { PROVINCES } from "@/lib/ar-provincias";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import { buildBreachCue, buildStatusLabel } from "@/lib/outbox-list";
 import { countOutboxBreaches } from "@/lib/outbox-queries";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 // Set of canonical province names for filter validation.
 const VALID_PROVINCE_NAMES = new Set<string>(PROVINCES.map((p) => p.name));

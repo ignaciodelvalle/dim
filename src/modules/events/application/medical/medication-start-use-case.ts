@@ -12,7 +12,7 @@
 //   - No outbox. No audit_log.
 
 import { validateEventPayload } from "@/lib/event-schemas";
-import type { FrequencyKind } from "@/lib/medication-schedule";
+import type { FrequencyKind } from "@/lib/reference/medication-schedule";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import type { UseCaseResult } from "../types";

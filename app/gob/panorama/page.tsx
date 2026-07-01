@@ -5,12 +5,12 @@ import {
   listLocalityCentroids,
   localityByName,
 } from "@/lib/ar-localidades";
-import type { ProvinceCode } from "@/lib/ar-provincias";
-import { provinceByCode } from "@/lib/ar-provincias";
 import { type AdminOrGovtJurisdiction, requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { jurisdictionBounds } from "@/lib/gov-scope";
 import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/govt-dashboards";
 import type { DashboardJurisdiction } from "@/lib/metrics";
+import type { ProvinceCode } from "@/lib/reference/ar-provincias";
+import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { getLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
 import { getPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";

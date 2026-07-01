@@ -31,13 +31,13 @@ import { computeConfidence, isAtLeast } from "@/lib/event-confidence";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/format";
 import { readPoint } from "@/lib/location";
 import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/origin-org";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
 import {
   type PermanentCondition,
   isPermanentCondition,
   permanentConditionShortLabel,
-} from "@/lib/permanent-conditions";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
+} from "@/lib/reference/permanent-conditions";
 import { petPhotoUrl } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";

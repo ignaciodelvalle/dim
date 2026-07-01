@@ -8,7 +8,7 @@ import {
   permanentConditionLabel,
   permanentConditionShortLabel,
   sanitizeConditionCodes,
-} from "@/lib/permanent-conditions";
+} from "@/lib/reference/permanent-conditions";
 
 describe("permanent-conditions catalog", () => {
   it("isPermanentCondition recognizes catalog codes", () => {

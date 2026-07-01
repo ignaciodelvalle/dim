@@ -8,8 +8,8 @@
 //
 // See docs/superpowers/specs/2026-05-17-symptom-disease-surveillance-design.md §4.2.
 
-import { findDisease } from "./diseases";
-import { SYMPTOMS } from "./symptoms";
+import { findDisease } from "@/lib/reference/diseases";
+import { SYMPTOMS } from "@/lib/reference/symptoms";
 
 export type MatchedSymptom = {
   symptom_code: string;

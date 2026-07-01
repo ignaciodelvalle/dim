@@ -7,7 +7,7 @@
 // the caller (shim). This function receives the already-resolved userId.
 
 import { type LocalitySearchResult, searchLocalities } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
+import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 
 import type { SearchLocalitiesResult } from "./types";
 

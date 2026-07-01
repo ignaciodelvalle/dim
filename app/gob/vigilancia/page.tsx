@@ -16,9 +16,7 @@ import {
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { findDisease } from "@/lib/diseases";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
@@ -31,6 +29,8 @@ import {
   fetchZoonosisTrend,
 } from "@/lib/govt-dashboards";
 import { buildProjectionContext, fetchKpiTrend, windows } from "@/lib/metrics";
+import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import { findDisease } from "@/lib/reference/diseases";
 import { fetchSurveillanceCompliance } from "@/lib/surveillance-metrics";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";

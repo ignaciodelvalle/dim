@@ -15,9 +15,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { db, organizationMemberships } from "@/db";
-import { PROVINCES } from "@/lib/ar-provincias";
 import { queryPublicOfferings } from "@/lib/org-public-offerings";
 import { queryOrgPublicProfile } from "@/lib/org-public-profile";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { orgLogoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";

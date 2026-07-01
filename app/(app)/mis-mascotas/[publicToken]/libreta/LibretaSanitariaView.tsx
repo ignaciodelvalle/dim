@@ -18,7 +18,7 @@ import {
   type LibretaGroupKey,
   libretaConfidenceTier,
 } from "@/lib/libreta-sanitaria";
-import { notificableEno, tipoEventoLabel, tipoEventoNorma } from "@/lib/sanitary-vocab";
+import { notificableEno, tipoEventoLabel, tipoEventoNorma } from "@/lib/reference/sanitary-vocab";
 
 type Event = {
   id: string;

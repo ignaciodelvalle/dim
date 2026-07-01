@@ -3,8 +3,8 @@ import { eq } from "drizzle-orm";
 import { OpCrumbs } from "@/components/ui/dashboard";
 import { db, organizationCoverage } from "@/db";
 import { listLocalitiesByProvince } from "@/lib/ar-localidades";
-import { PROVINCES, type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { PROVINCES, type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 
 import { CoverageEditor } from "./CoverageEditor";
 

@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { PROVINCES } from "@/lib/ar-provincias";
 import {
   type LostListingFilters,
   type LostListingItem,
@@ -9,6 +8,7 @@ import {
   lostUrgencyFor,
   parseSearchParams,
 } from "@/lib/lost-listing";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { petPhotoUrl } from "@/lib/storage";
 import {
   countAllLost,

@@ -2,7 +2,7 @@
 
 import type { ReminderFormState } from "@/app/actions/reminders";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
-import { vaccinesForSpecies } from "@/lib/lookups";
+import { vaccinesForSpecies } from "@/lib/reference/lookups";
 import { useActionState, useState } from "react";
 
 const initialState: ReminderFormState = { error: null };

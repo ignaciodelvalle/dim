@@ -24,8 +24,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { PROVINCES } from "@/lib/ar-provincias";
 import type { DashboardActor } from "@/lib/metrics";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 import {
   loadChoroplethByLevel,

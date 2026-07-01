@@ -96,7 +96,7 @@ describe("AUDIT_ACTION_LABELS (C30)", () => {
 // ---------------------------------------------------------------------------
 
 import { adminProvinceHref } from "@/lib/admin-province-link";
-import { PROVINCES } from "@/lib/ar-provincias";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 describe("adminProvinceHref (C31)", () => {
   it("returns a URL for a known province name", () => {

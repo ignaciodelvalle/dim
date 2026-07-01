@@ -16,7 +16,7 @@ import {
   type PublicHealthAlert,
   getPublicAlertForDisease,
   renderPublicAlertCopy,
-} from "./disease-public-alert-catalog";
+} from "@/lib/reference/disease-public-alert-catalog";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Executor = Tx | typeof db;

@@ -4,10 +4,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/breeds";
-import { diseasesForSpecies } from "@/lib/diseases";
-import { drugsForSpecies } from "@/lib/drugs";
 import { speciesLabel } from "@/lib/format";
+import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/reference/breeds";
+import { diseasesForSpecies } from "@/lib/reference/diseases";
+import { drugsForSpecies } from "@/lib/reference/drugs";
 
 describe("speciesLabel — companion species", () => {
   it("labels every supported species in es-AR", () => {

@@ -6,12 +6,12 @@ import Script from "next/script";
 import { attachments, db, organizations, ownerships, petEvents, pets } from "@/db";
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/adoption-listing";
 import { sexLabel, speciesLabel } from "@/lib/format";
+import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import {
   type PermanentCondition,
   isPermanentCondition,
   permanentConditionLabel,
-} from "@/lib/permanent-conditions";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+} from "@/lib/reference/permanent-conditions";
 import { petPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { and, desc, eq, isNull } from "drizzle-orm";

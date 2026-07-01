@@ -3,7 +3,6 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { computeConfidence, isAtLeast } from "@/lib/event-confidence";
 import {
@@ -11,6 +10,7 @@ import {
   PROVINCE_ISO_MAP,
   fetchSurveillanceSignals,
 } from "@/lib/govt-dashboards";
+import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
 import { VerifiedFilterCheckbox } from "../_components/VerifiedFilterCheckbox";
 

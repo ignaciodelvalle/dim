@@ -24,7 +24,7 @@ import { useState } from "react";
 
 import type { SearchLocalitiesResult } from "@/app/actions/localities";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { PROVINCES } from "@/lib/ar-provincias";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 type Props = {
   /** GET param name carrying the province NAME. Default "province". */

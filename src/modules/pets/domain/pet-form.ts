@@ -4,7 +4,10 @@
 
 import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
 import { parseLocationFromFormData } from "@/lib/location-value";
-import { type PermanentCondition, sanitizeConditionCodes } from "@/lib/permanent-conditions";
+import {
+  type PermanentCondition,
+  sanitizeConditionCodes,
+} from "@/lib/reference/permanent-conditions";
 import type { ParsedPet } from "./types";
 
 // ---------------------------------------------------------------------------

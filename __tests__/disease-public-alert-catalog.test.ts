@@ -7,8 +7,8 @@ import {
   PUBLIC_ALERT_DISEASES,
   getPublicAlertForDisease,
   renderPublicAlertCopy,
-} from "@/lib/disease-public-alert-catalog";
-import { findDisease } from "@/lib/diseases";
+} from "@/lib/reference/disease-public-alert-catalog";
+import { findDisease } from "@/lib/reference/diseases";
 
 describe("disease-public-alert-catalog", () => {
   it("every alert entry has a code that exists in the disease catalog", () => {

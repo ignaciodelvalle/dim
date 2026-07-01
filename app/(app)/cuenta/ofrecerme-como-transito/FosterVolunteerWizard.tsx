@@ -25,7 +25,7 @@ import { useState, useTransition } from "react";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnCheckbox } from "@/components/ui/Field";
 import { LnWizardShell } from "@/components/ui/WizardShell";
-import { provinceByName } from "@/lib/ar-provincias";
+import { provinceByName } from "@/lib/reference/ar-provincias";
 import {
   upsertFosterVolunteerAction,
   withdrawFosterVolunteerAction,

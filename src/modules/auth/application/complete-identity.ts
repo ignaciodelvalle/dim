@@ -15,9 +15,9 @@ import { eq, sql } from "drizzle-orm";
 import { db, profiles } from "@/db";
 import { pgError } from "@/lib/db-errors";
 import { dniLast4, hashDni } from "@/lib/dni-hash";
-import { LEGAL_VERSION } from "@/lib/legal-version";
 import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
+import { LEGAL_VERSION } from "@/lib/reference/legal-version";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 

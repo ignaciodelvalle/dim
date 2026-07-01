@@ -26,7 +26,6 @@
 // and are inserted AFTER the transaction commits (best-effort, logged on failure).
 
 import { db, notifications, ownerships, petEvents, petIdentifications, pets } from "@/db";
-import { provinceByCode } from "@/lib/ar-provincias";
 import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
 import { openCase } from "@/lib/case-helpers";
 import { lookupByChip } from "@/lib/chip-lookup";
@@ -41,6 +40,7 @@ import { parseLocationFromFormData } from "@/lib/location-value";
 import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
 import { validateMicrochipId } from "@/lib/microchip-validation";
 import { generatePublicToken } from "@/lib/publicToken";
+import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { generateTattooAckToken, validateTattooAckToken } from "@/lib/tattoo-ack-token";
 import { lookupByTattoo, normalizeTattooCode } from "@/lib/tattoo-lookup";
 import { generateUniqueToken } from "@/lib/unique-token";

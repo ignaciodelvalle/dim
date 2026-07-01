@@ -6,11 +6,11 @@ import { redirect } from "next/navigation";
 import { CaseBadge } from "@/components/CaseBadge";
 import { OpButton } from "@/components/ui/dashboard";
 import { OpSelect } from "@/components/ui/dashboard/OpField";
-import { PROVINCES } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listCasesForAdmin } from "@/lib/case-queries";
 import { formatDate } from "@/lib/format";
 import { newerHref, olderHref } from "@/lib/keyset-pagination";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 const ADMIN_CASOS_PAGE_LIMIT = 500;

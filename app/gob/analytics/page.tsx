@@ -10,7 +10,6 @@ import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFre
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import { fetchRegionRanking } from "@/lib/analytics-ranking";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { deathCauseLabel } from "@/lib/format";
 import {
@@ -30,6 +29,7 @@ import {
   fetchOutbreakSignalsTrend,
   toneForTarget,
 } from "@/lib/metrics";
+import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
 import { RegionRankingTable } from "./_components/RegionRankingTable";

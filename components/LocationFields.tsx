@@ -35,7 +35,7 @@ import {
 } from "@/app/actions/geocoding";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnInput } from "@/components/ui/Field";
-import { type Province, provinceByName } from "@/lib/ar-provincias";
+import { type Province, provinceByName } from "@/lib/reference/ar-provincias";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 

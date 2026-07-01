@@ -24,7 +24,6 @@ import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchQueueHealthScoped } from "@/lib/admin-metrics";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { fetchMicrochipPenetration } from "@/lib/compliance-metrics";
 import {
@@ -45,6 +44,7 @@ import { DORMANT_MONTHS_DEFAULT, registryCounts } from "@/lib/metrics/census";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
+import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { createClient } from "@/lib/supabase/server";
 import { fetchEnoSla } from "@/lib/surveillance-metrics";
 

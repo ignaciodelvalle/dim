@@ -15,7 +15,7 @@ import {
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { findServiceKind } from "@/lib/reference/service-kinds";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { AttendanceFormDispatcher } from "./AttendanceFormDispatcher";
 

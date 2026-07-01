@@ -11,7 +11,7 @@ import Link from "next/link";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 
 import { db, organizations } from "@/db";
-import { PROVINCES } from "@/lib/ar-provincias";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 // CI builds run without a database, so ISR prerender is not available.
 // Use force-dynamic (matching every other public page in this repo) so

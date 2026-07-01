@@ -20,8 +20,8 @@ import { db, notifications, profiles, serviceOfferings } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { generateOfferingToken } from "@/lib/publicToken";
-import { CreateServiceOfferingInput } from "@/lib/scheduling-schemas";
-import { findServiceKind } from "@/lib/service-kinds";
+import { CreateServiceOfferingInput } from "@/lib/reference/scheduling-schemas";
+import { findServiceKind } from "@/lib/reference/service-kinds";
 import { generateUniqueToken } from "@/lib/unique-token";
 import { eq } from "drizzle-orm";
 

@@ -28,19 +28,19 @@ import {
   generateDoseSchedule,
   intervalHoursForFrequency,
   parseFrequencyFields,
-} from "@/lib/medication-schedule";
+} from "@/lib/reference/medication-schedule";
 
 import { db, profiles } from "@/db";
 import { pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { findDisease } from "@/lib/diseases";
-import { findDrugByLabel } from "@/lib/drugs";
 import { checkboxOn } from "@/lib/form-checkbox";
 import { parseDateInput } from "@/lib/format";
 import { CoordError, normalizeLocationForWrite } from "@/lib/location-normalize";
 import { parseLocationFromFormData } from "@/lib/location-value";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
 import type { SupabaseServerClient } from "@/lib/pet-access";
+import { findDisease } from "@/lib/reference/diseases";
+import { findDrugByLabel } from "@/lib/reference/drugs";
 import { createClient } from "@/lib/supabase/server";
 import { uploadAttachmentIfPresent } from "@/lib/uploads";
 import { and, eq } from "drizzle-orm";
@@ -445,7 +445,7 @@ export async function createMedicationStartAction(
 
   const { frequency, customHours, durationDays, firstDoseAt } = parsedFreq as {
     error: null;
-    frequency: import("@/lib/drugs").FrequencyKind;
+    frequency: import("@/lib/reference/drugs").FrequencyKind;
     customHours: number | null;
     durationDays: number | null;
     firstDoseAt: Date;
@@ -1467,7 +1467,7 @@ export async function createDeathRecordAction(
   if (diseaseCode && !findDisease(diseaseCode)) {
     return { error: "Enfermedad no reconocida." };
   }
-  const { isReportable } = await import("@/lib/diseases");
+  const { isReportable } = await import("@/lib/reference/diseases");
   const reportable = isReportable(diseaseCode);
 
   const attachmentFile = formData.get("attachment") as File | null;

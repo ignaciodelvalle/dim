@@ -10,7 +10,7 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import { type ArgentineLocality, arLocalities, db } from "@/db";
-import { type ProvinceCode, provinceByCode, provinceByName } from "@/lib/ar-provincias";
+import { type ProvinceCode, provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
 
 export type Locality = {
   indecId: string | null;

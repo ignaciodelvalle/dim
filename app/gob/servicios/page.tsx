@@ -11,7 +11,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { findServiceKind } from "@/lib/reference/service-kinds";
 
 export default async function GobServiciosPage() {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();

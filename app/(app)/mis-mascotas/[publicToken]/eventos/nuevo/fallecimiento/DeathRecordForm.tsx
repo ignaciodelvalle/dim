@@ -10,7 +10,7 @@ import {
   LnSheetHeader,
   LnSubCard,
 } from "@/components/ui/Sheet";
-import { diseasesForSpecies, findDisease } from "@/lib/diseases";
+import { diseasesForSpecies, findDisease } from "@/lib/reference/diseases";
 import { useFormErrorFocus } from "@/lib/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";

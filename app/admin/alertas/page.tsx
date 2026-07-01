@@ -12,13 +12,13 @@
 import { AlertInboxTable } from "@/components/admin/AlertInboxTable";
 import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { ALERT_FIRING_STATUSES, ALERT_METRIC_KEYS, type AlertMetricKey } from "@/db/schema";
-import { PROVINCES } from "@/lib/ar-provincias";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
 import {
   type AlertInboxFilters,
   fetchAlertFirings,
   logAlertInboxView,
 } from "@/lib/metrics/alert-firing-inbox";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 export const dynamic = "force-dynamic";
 

@@ -18,7 +18,7 @@ import { useActionState, useState } from "react";
 import type { ServiceOfferingFormState } from "@/app/actions/service-offerings";
 import { LnCheckbox, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnWizardShell } from "@/components/ui/WizardShell";
-import type { ServiceKindDef } from "@/lib/service-kinds";
+import type { ServiceKindDef } from "@/lib/reference/service-kinds";
 
 const INITIAL_STATE: ServiceOfferingFormState = { error: null };
 

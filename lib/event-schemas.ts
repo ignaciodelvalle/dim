@@ -26,7 +26,7 @@
 import { z } from "zod";
 
 import { EVENT_TYPES, type EventType } from "@/db/schema";
-import { findDisease } from "@/lib/diseases";
+import { findDisease } from "@/lib/reference/diseases";
 
 // Helper: every schema gets the version field baked in.
 const withVersion = <T extends z.ZodRawShape>(shape: T) => ({

@@ -3,7 +3,6 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   type DashboardJurisdiction,
@@ -12,6 +11,7 @@ import {
   fetchDiseaseSummary,
   fetchZoonosisTrend,
 } from "@/lib/govt-dashboards";
+import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { DiseaseSummaryTable } from "../_components/DiseaseSummaryTable";
 
 export const dynamic = "force-dynamic";

@@ -10,7 +10,7 @@
 import { and, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { arLocalities, db } from "@/db";
-import { provinceByName } from "@/lib/ar-provincias";
+import { provinceByName } from "@/lib/reference/ar-provincias";
 
 import type { DashboardJurisdiction } from "@/lib/metrics";
 

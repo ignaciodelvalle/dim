@@ -1,7 +1,7 @@
 // Plain DTOs and value-shapes for the pets domain layer.
 // Zero external imports — this file must not pull in Drizzle, Next.js, or @/db.
 
-import type { PermanentCondition } from "@/lib/permanent-conditions";
+import type { PermanentCondition } from "@/lib/reference/permanent-conditions";
 
 // ---------------------------------------------------------------------------
 // Acquisition method (also used in form parsing)

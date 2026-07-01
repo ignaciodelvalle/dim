@@ -20,7 +20,7 @@ import {
 import { matchesDbError } from "@/lib/db-errors";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { findServiceKind } from "@/lib/service-kinds";
+import { findServiceKind } from "@/lib/reference/service-kinds";
 import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 
 import type { AttendancePayload, AttendanceResult, AuthorDescriptor } from "./types";

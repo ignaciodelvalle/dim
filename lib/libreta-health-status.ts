@@ -12,7 +12,7 @@
 //                            followed by a medication_stopped for the
 //                            same drug name
 
-import { findVaccineByName, vaccinesForSpecies } from "@/lib/lookups";
+import { findVaccineByName, vaccinesForSpecies } from "@/lib/reference/lookups";
 
 export type VaccineSnapshot = {
   /** Catalog display name. */

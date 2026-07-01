@@ -7,7 +7,7 @@
 // Returns null when the province name cannot be resolved (e.g. suppressed or
 // unknown), so callers can fall back to plain text instead of a dead link.
 
-import { PROVINCES, provinceByName } from "@/lib/ar-provincias";
+import { PROVINCES, provinceByName } from "@/lib/reference/ar-provincias";
 
 /**
  * Resolve a province display name to the URL of the admin panorama page

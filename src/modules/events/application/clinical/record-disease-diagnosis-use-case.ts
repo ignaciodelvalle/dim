@@ -28,9 +28,9 @@
 
 import "server-only";
 
-import { findDisease, isReportable } from "@/lib/diseases";
 import { validateEventPayload } from "@/lib/event-schemas";
 import { maybeNotifyOwnersOfPublicAlert } from "@/lib/owner-disease-alerts";
+import { findDisease, isReportable } from "@/lib/reference/diseases";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import type { NewNotification } from "../types";

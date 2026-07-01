@@ -11,7 +11,7 @@ import {
   DRUG_CATALOG,
   isAntimicrobial,
   isClassifiedDrug,
-} from "@/lib/drugs";
+} from "@/lib/reference/drugs";
 
 describe("isAntimicrobial", () => {
   it("classifies known antibiotics as antimicrobial", () => {

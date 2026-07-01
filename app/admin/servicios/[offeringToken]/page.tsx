@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dashboard";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { findServiceKind } from "@/lib/reference/service-kinds";
 
 import { OfferingReviewActions } from "@/app/gob/servicios/[offeringToken]/OfferingReviewActions";
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { findServiceKind } from "@/lib/service-kinds";
+import { findServiceKind } from "@/lib/reference/service-kinds";
 
 // Shared appointment row. Used by /mis-turnos (full list) and /inicio
 // (dashboard widget, upcoming top 5). The shape covers both

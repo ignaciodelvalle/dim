@@ -14,7 +14,7 @@ import {
   type AdoptionListingFilters,
   buildSearchParams,
 } from "@/lib/adoption-listing";
-import { PROVINCES } from "@/lib/ar-provincias";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 // URL-driven filters bar — every change submits a GET form so the URL
 // stays the source of truth (D11). No client state, no hydration mismatch.

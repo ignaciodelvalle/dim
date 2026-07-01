@@ -18,22 +18,22 @@ import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnSelect } from "@/components/ui/Field";
 import { LnToggle } from "@/components/ui/Toggle";
 import type { Pet } from "@/db";
-import { provinceByName } from "@/lib/ar-provincias";
-import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/breeds";
+import { provinceByName } from "@/lib/reference/ar-provincias";
+import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/reference/breeds";
 import {
   COMMON_ALLERGIES,
   COMMON_FOODS,
   INSURANCE_COMPANIES,
   MICROCHIP_LOCATIONS,
   TRAINING_LEVELS,
-} from "@/lib/lookups";
+} from "@/lib/reference/lookups";
 import {
   PERMANENT_CONDITIONS,
   PERMANENT_CONDITION_GROUPS,
   type PermanentCondition,
   permanentConditionGroup,
   permanentConditionLabel,
-} from "@/lib/permanent-conditions";
+} from "@/lib/reference/permanent-conditions";
 import type { NewPetFormState } from "@/src/modules/pets/domain/types";
 import { useActionState, useMemo, useRef, useState } from "react";
 import { LocationFields } from "./LocationFields";

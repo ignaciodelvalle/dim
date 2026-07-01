@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { deathCauseLabel } from "@/lib/format";
 import {
@@ -47,6 +46,7 @@ import {
 } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchMortalityDisposition } from "@/lib/mortality-metrics";
+import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 
 export const dynamic = "force-dynamic";
 

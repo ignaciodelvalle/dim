@@ -159,7 +159,7 @@ const {
   appointments,
 } = await import("../db");
 const { writePoint } = await import("../lib/location");
-const { PROVINCES } = await import("../lib/ar-provincias");
+const { PROVINCES } = await import("@/lib/reference/ar-provincias");
 const { generateReferenceCode } = await import("../src/modules/welfare/domain/reference-code");
 
 // ---------------------------------------------------------------------------

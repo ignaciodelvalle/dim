@@ -20,7 +20,6 @@ import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFre
 import { auditLog, db } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/approval-scope";
 import { listLocalitiesByProvince } from "@/lib/ar-localidades";
-import { PROVINCES, type ProvinceCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { listOpenCasesForAdminPreview, listOpenCasesForGovtPreview } from "@/lib/case-queries";
 import { fetchDangerousBreedCompliance, fetchMicrochipPenetration } from "@/lib/compliance-metrics";
@@ -42,6 +41,7 @@ import {
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { fetchMortalityDisposition } from "@/lib/mortality-metrics";
+import { PROVINCES, type ProvinceCode } from "@/lib/reference/ar-provincias";
 
 const ACTION_LABELS: Record<string, string> = {
   request_viewed: "Vio una solicitud",

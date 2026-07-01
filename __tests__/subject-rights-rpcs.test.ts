@@ -30,8 +30,8 @@ import {
   welfareReports,
 } from "@/db";
 import { pgErrorCode } from "@/lib/db-errors";
-import { LEGAL_VERSION } from "@/lib/legal-version";
 import { generatePublicToken } from "@/lib/publicToken";
+import { LEGAL_VERSION } from "@/lib/reference/legal-version";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // Mock next/navigation redirect so completeIdentityAction doesn't throw NEXT_REDIRECT.

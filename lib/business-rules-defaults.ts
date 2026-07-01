@@ -5,7 +5,7 @@
 // no per-jurisdiction override row exists. Defaults snapshot the pre-POC
 // behavior so the rollout is non-breaking.
 
-import { POTENTIALLY_DANGEROUS_DOG_BREEDS } from "./breeds";
+import { POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/reference/breeds";
 
 export interface PppBreedList {
   /** Canonical breed labels (matches lib/breeds.ts entries). */

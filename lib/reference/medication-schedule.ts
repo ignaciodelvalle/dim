@@ -1,7 +1,7 @@
 // Frequency model and dose schedule generator for medication reminders.
 // No medical-advice calculations — this is scheduling arithmetic only.
 
-import type { FrequencyKind } from "@/lib/drugs";
+import type { FrequencyKind } from "@/lib/reference/drugs";
 
 // Maximum number of auto-generated reminders when no duration is specified.
 // 28 = 14 days × 2 doses/day (the most common twice-daily antibiotics).

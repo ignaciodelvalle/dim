@@ -17,7 +17,6 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
 import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import { fetchCampaignDashboard, formatDelta } from "@/lib/campaign-metrics";
 import {
@@ -32,7 +31,8 @@ import {
   toneForTarget,
   windows,
 } from "@/lib/metrics";
-import { findServiceKind } from "@/lib/service-kinds";
+import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import { findServiceKind } from "@/lib/reference/service-kinds";
 import { RAMP_BLUE, RAMP_GREEN } from "@/lib/viz-scales";
 
 export const dynamic = "force-dynamic";

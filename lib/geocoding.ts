@@ -15,7 +15,7 @@
 // lib/ar-viewboxes.ts). bounded=0 is a soft priority, not a hard filter, so
 // addresses outside the box (cross-jurisdiction incidents) still resolve.
 
-import { provinceViewbox } from "@/lib/ar-viewboxes";
+import { provinceViewbox } from "@/lib/reference/ar-viewboxes";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
 const USER_AGENT = "DIM/1.0 (https://dim.ar; contact: ignaciodelvalle2014@gmail.com)";

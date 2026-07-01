@@ -32,7 +32,6 @@
 import { and, count, eq, gte, lte, sql } from "drizzle-orm";
 
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
-import { DRUG_CATALOG, isAntimicrobial, isClassifiedDrug } from "@/lib/drugs";
 import {
   type ProjectionContext,
   cachedActivePetCount,
@@ -40,6 +39,7 @@ import {
   suppressedMetric,
 } from "@/lib/metrics";
 import type { Cell, MetricResult, SuppressedCells } from "@/lib/metrics";
+import { DRUG_CATALOG, isAntimicrobial, isClassifiedDrug } from "@/lib/reference/drugs";
 
 // Re-export the context type so callers can import everything from one place.
 export type { ProjectionContext } from "@/lib/metrics";

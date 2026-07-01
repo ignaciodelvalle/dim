@@ -427,7 +427,7 @@ describe("addCoverageZoneAction — role gate", () => {
   it("A4: rejects invalid province name", async () => {
     // We can test validation logic in isolation by checking the same PROVINCES
     // set used by the action (widened to string for has() compatibility).
-    const { PROVINCES } = await import("@/lib/ar-provincias");
+    const { PROVINCES } = await import("@/lib/reference/ar-provincias");
     const validNames: ReadonlySet<string> = new Set<string>(PROVINCES.map((p) => p.name));
     expect(validNames.has("NotAProvince")).toBe(false);
     expect(validNames.has("Buenos Aires")).toBe(true);

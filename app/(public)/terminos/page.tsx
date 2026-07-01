@@ -1,4 +1,4 @@
-import { LEGAL_VERSION, LEGAL_VERSION_LABEL } from "@/lib/legal-version";
+import { LEGAL_VERSION, LEGAL_VERSION_LABEL } from "@/lib/reference/legal-version";
 import type { Metadata } from "next";
 import Link from "next/link";
 

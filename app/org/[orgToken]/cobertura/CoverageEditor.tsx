@@ -11,7 +11,7 @@ import { useState, useTransition } from "react";
 
 import type { OrganizationCoverage } from "@/db";
 import type { LocalityOption } from "@/lib/ar-localidades";
-import type { Province } from "@/lib/ar-provincias";
+import type { Province } from "@/lib/reference/ar-provincias";
 import {
   addCoverageZoneAction,
   removeCoverageZoneAction,

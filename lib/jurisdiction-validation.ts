@@ -15,7 +15,7 @@
 // that skips the name-based fallback.
 
 import { type Locality, localityByIndecId, localityByName } from "@/lib/ar-localidades";
-import { type Province, provinceByCode, provinceByName } from "@/lib/ar-provincias";
+import { type Province, provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
 
 export type CanonicalJurisdiction = {
   province: Province;

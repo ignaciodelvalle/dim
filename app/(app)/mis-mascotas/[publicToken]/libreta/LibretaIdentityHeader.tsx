@@ -4,7 +4,7 @@
 import Link from "next/link";
 
 import { sexLabel, speciesLabel } from "@/lib/format";
-import { tattooLocationLabel } from "@/lib/lookups";
+import { tattooLocationLabel } from "@/lib/reference/lookups";
 
 type Props = {
   pet: {

@@ -9,7 +9,7 @@
 import { useRef, useState } from "react";
 
 import { updateProfileAction, uploadAvatarAction } from "@/app/actions/profile";
-import { looksLikeArPhone } from "@/lib/ar-phone";
+import { looksLikeArPhone } from "@/lib/reference/ar-phone";
 
 function PhoneFormatWarning({ value }: { value: string }) {
   if (!value || looksLikeArPhone(value)) return null;

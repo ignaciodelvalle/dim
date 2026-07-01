@@ -13,9 +13,9 @@ import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
 import { localityByName } from "@/lib/ar-localidades";
-import { provinceByCode } from "@/lib/ar-provincias";
-import type { ProvinceCode } from "@/lib/ar-provincias";
 import type { DashboardJurisdiction } from "@/lib/metrics";
+import { provinceByCode } from "@/lib/reference/ar-provincias";
+import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { getJurisdictionsCached, getProfileCached } from "@/lib/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { getLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";

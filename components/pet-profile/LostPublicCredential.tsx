@@ -17,7 +17,7 @@
 
 import { BRANDING } from "@/lib/branding";
 import { lostBannerHeadline, lostFirstPersonLine, normalizePhoneForTel } from "@/lib/format";
-import { tattooLocationLabel } from "@/lib/lookups";
+import { tattooLocationLabel } from "@/lib/reference/lookups";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";

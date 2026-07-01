@@ -17,7 +17,7 @@ import {
   PERMANENT_CONDITIONS,
   type PermanentCondition,
   permanentConditionLabel,
-} from "@/lib/permanent-conditions";
+} from "@/lib/reference/permanent-conditions";
 
 interface Props {
   status: LibretaHealthStatus;

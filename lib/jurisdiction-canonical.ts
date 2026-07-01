@@ -19,7 +19,7 @@
 // Migration 0055 backfills the 11 tables holding this column to display name
 // and adds a CHECK constraint enforcing the 24-value enum.
 
-import { PROVINCES, provinceByCode, provinceByName } from "@/lib/ar-provincias";
+import { PROVINCES, provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
 
 /**
  * Normalize any province input — ISO code, exact display name, alias (e.g.

@@ -4,7 +4,7 @@
 import { eq } from "drizzle-orm";
 
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
-import { CreateScheduleRuleInput } from "@/lib/scheduling-schemas";
+import { CreateScheduleRuleInput } from "@/lib/reference/scheduling-schemas";
 
 import type { ScheduleRuleResult } from "./types";
 

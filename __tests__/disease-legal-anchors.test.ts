@@ -3,8 +3,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DISEASE_LEGAL_ANCHORS, getLegalAnchorsForDisease } from "@/lib/disease-legal-anchors";
-import { DISEASES } from "@/lib/diseases";
+import {
+  DISEASE_LEGAL_ANCHORS,
+  getLegalAnchorsForDisease,
+} from "@/lib/reference/disease-legal-anchors";
+import { DISEASES } from "@/lib/reference/diseases";
 
 describe("disease-legal-anchors — coverage", () => {
   it("every reportable disease has at least one legal anchor", () => {

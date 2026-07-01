@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 
 import type { EventType } from "@/db/schema";
-import { findDisease } from "@/lib/diseases";
 import { upcastPayload } from "@/lib/event-upcasters";
+import { findDisease } from "@/lib/reference/diseases";
 import { welfareReportKindLabel } from "@/src/modules/welfare/domain/types";
 
 /**

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/adoption-listing";
-import { PROVINCES } from "@/lib/ar-provincias";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { petPhotoUrl } from "@/lib/storage";
 import type { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 

@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/Sheet";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnToggle } from "@/components/ui/Toggle";
-import { TATTOO_LOCATIONS } from "@/lib/lookups";
+import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
 import type { DisclosurePrefsInput, EventFormState } from "@/src/modules/events/actions";
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
