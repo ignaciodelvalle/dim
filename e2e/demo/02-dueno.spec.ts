@@ -36,10 +36,14 @@ test("segmento 02 — dueno", async ({ page }) => {
   const token = page.url().match(/\/nueva\/([^/]+)\/credencial/)?.[1];
   expect(token, "pet publicToken parsed from credential URL").toBeTruthy();
 
-  // 3. Pet profile (vacunas tab comes AFTER registering the vaccine, so the
-  // recording shows the result — not an empty tab).
+  // 3. Pet profile — two-face redesign (2026-07-01): Credencial (Face 1) is
+  // the default, then the Libreta face (Face 2) with an explicit lens, per
+  // the in-app nav pattern (design ADR-5: legacy `?tab=` deep links still
+  // resolve, but new navigation always writes an explicit `&lente=`).
+  // The vacunas LENS comes AFTER registering the vaccine below, so the
+  // recording shows the result — not an empty lens.
   await showScreen(page, `/mis-mascotas/${token}`);
-  await showScreen(page, `/mis-mascotas/${token}?tab=libreta`);
+  await showScreen(page, `/mis-mascotas/${token}?tab=libreta&lente=todo`);
 
   // 4. VACUNA — event capture end to end, with attachment photo.
   await showScreen(page, `/mis-mascotas/${token}/anotar`);
@@ -65,8 +69,9 @@ test("segmento 02 — dueno", async ({ page }) => {
   await page.waitForLoadState("networkidle").catch(() => {});
   await fullScroll(page);
 
-  // 5. Proof on camera: vacunas tab + history now show the registered vaccine
-  await showScreen(page, `/mis-mascotas/${token}?tab=vacunas`);
+  // 5. Proof on camera: Libreta face (vacunas lens) + full history now show
+  // the registered vaccine.
+  await showScreen(page, `/mis-mascotas/${token}?tab=libreta&lente=vacunas`);
   await showScreen(page, `/mis-mascotas/${token}/historial`);
 
   // 6. TURNOS — search → offering → slot → confirm booking (fail loud: needs seeded slots).
