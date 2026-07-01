@@ -314,6 +314,45 @@ export default async function OrgDashboardPage({
     ? deriveOccupancyDisplay(occupancyBreakdown.total, occupancyBreakdown.noCapacityDeclared)
     : null;
 
+  // Role-first lead (four-actor lean IA critique §4): land a non-admin member in
+  // their primary job, derived from granted capabilities. Admins keep the full
+  // ops overview below. Priority follows the daily loop; each surface is one the
+  // capability action cards already link to (no new routes).
+  const primaryJob: { href: string; label: string; description: string } | null = (() => {
+    if (isAdmin) return null;
+    if (granted.has("appointment.manage"))
+      return {
+        href: `/org/${orgToken}/agenda`,
+        label: "Agenda de hoy",
+        description: "Tus turnos del día para atender.",
+      };
+    if (canAssignFoster)
+      return {
+        href: `/org/${orgToken}/transitos`,
+        label: "Tránsitos activos",
+        description: "Las mascotas en tránsito que coordinás.",
+      };
+    if (canReviewAdoptions)
+      return {
+        href: `/org/${orgToken}/checkins`,
+        label: "Check-ins post-adopción",
+        description: "El seguimiento de adoptantes que te toca.",
+      };
+    if (canIntake)
+      return {
+        href: `/org/${orgToken}/intake`,
+        label: "Registrar ingreso",
+        description: "Dar de alta animales que entran a custodia.",
+      };
+    if (canReadHeld)
+      return {
+        href: `/org/${orgToken}/mascotas`,
+        label: "Animales en custodia",
+        description: "El listado de animales a tu cargo.",
+      };
+    return null;
+  })();
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -350,6 +389,22 @@ export default async function OrgDashboardPage({
           />
         )}
       </header>
+
+      {/* Role-first lead (critique §4): a non-admin member's primary job, up top. */}
+      {primaryJob && (
+        <OpCard>
+          <OpCardHead title="Tu tarea principal" />
+          <OpCardBody className="p-0">
+            <Link
+              href={primaryJob.href}
+              className="block p-4 no-underline transition-colors hover:bg-ln-op-stripe"
+            >
+              <p className="text-sm font-semibold text-ln-op-ink">{primaryJob.label}</p>
+              <p className="mt-1 text-sm text-ln-op-mute">{primaryJob.description}</p>
+            </Link>
+          </OpCardBody>
+        </OpCard>
+      )}
 
       {/* Setup checklist (Item 19) — shown to admins until all steps complete. */}
       {showChecklist && isAdmin && (
