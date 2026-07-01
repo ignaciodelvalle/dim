@@ -10,37 +10,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-// ---------------------------------------------------------------------------
-// PetQuickActions
-// ---------------------------------------------------------------------------
-
-import { PetQuickActions } from "@/components/pet-profile/PetQuickActions";
-
-describe("PetQuickActions — 44px touch targets (UX 2.1)", () => {
-  it("active-status links use min-h-11 and not min-h-9", () => {
-    const html = renderToStaticMarkup(
-      <PetQuickActions petPublicToken="TK" petStatus="active" preferredVetPhone="123" />,
-    );
-    expect(html).not.toContain("min-h-9");
-    expect(html).toContain("min-h-11");
-  });
-
-  it("lost-status links use min-h-11", () => {
-    const html = renderToStaticMarkup(
-      <PetQuickActions petPublicToken="TK" petStatus="lost" preferredVetPhone={null} />,
-    );
-    expect(html).not.toContain("min-h-9");
-    expect(html).toContain("min-h-11");
-  });
-
-  it("disabled vet phone span uses min-h-11", () => {
-    const html = renderToStaticMarkup(
-      <PetQuickActions petPublicToken="TK" petStatus="active" preferredVetPhone={null} />,
-    );
-    expect(html).not.toContain("min-h-9");
-    expect(html).toContain("min-h-11");
-  });
-});
+// PetQuickActions — 44px touch-target coverage removed with the component
+// itself (two-face redesign, 2026-07-01, Phase 4: PetQuickActions was
+// replaced by the Anotar CTA + action row on the pet-profile Credencial
+// face; no remaining caller — see design deletion list + apply-progress).
 
 // ---------------------------------------------------------------------------
 // LnWizardShell — back button
