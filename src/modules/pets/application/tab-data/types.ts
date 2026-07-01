@@ -76,6 +76,9 @@ export type HistorialEventRow = {
   authorVerified: boolean;
   authorOrganizationId: string | null;
   attachmentUrl: string | null;
+  // Set when a later `event_amended` event corrects this one — drives the
+  // "Corregido · ver original" affordance (WS-3). Enriched in the tab-data shim.
+  amendedAt?: Date | null;
 };
 
 export type HistorialTabData = {

@@ -32,6 +32,7 @@ import {
   getLibretaTabData,
   getVacunasTabData,
 } from "@/app/actions/pet-tab-data";
+import { LIBRETA_FILTER_CHIPS, isLibretaSanitariaEvent } from "@/lib/libreta-sanitaria";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ExportLibretaButton } from "./ExportLibretaButton";
 import { PetDetailTabs, type TabKey } from "./PetDetailTabs";
@@ -198,7 +199,22 @@ function VacunasPanel({ data }: { data: VacunasTabData }) {
 // Historial panel
 // ---------------------------------------------------------------------------
 
+// Two-lens toggle (WS-3): "Todo" (default, D4) vs "Libreta sanitaria" (the
+// official medical subset). Client-side filter over the already-fetched events
+// — no new query, no URL param, matching the cheap-redesign guarantee.
 function HistorialPanel({ data }: { data: HistorialTabData }) {
+  const [lens, setLens] = useState<"todo" | "libreta">("todo");
+
+  const events =
+    lens === "libreta"
+      ? data.events.filter((e) => isLibretaSanitariaEvent(e.eventType))
+      : data.events;
+
+  const lensButtonClass = (selected: boolean) =>
+    selected
+      ? "px-3 py-1 rounded-full text-xs font-medium transition-colors bg-[var(--color-ln-azul)] text-white"
+      : "px-3 py-1 rounded-full text-xs font-medium transition-colors border border-[var(--color-ln-line)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)]";
+
   return (
     <div className="space-y-[20px] py-[20px]">
       <div>
@@ -215,7 +231,37 @@ function HistorialPanel({ data }: { data: HistorialTabData }) {
           Historial completo · orden cronológico
         </p>
       </div>
-      <EventTimeline events={data.events} publicToken={data.petToken} />
+
+      {/* Immutability, in plain es-AR (append-only ledger). */}
+      <p className="text-xs text-[var(--color-ln-mute)]">
+        Los eventos no se editan ni se borran. Una corrección es un evento nuevo.
+      </p>
+
+      {/* Lens toggle — Todo / Libreta sanitaria. */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setLens("todo")}
+          aria-pressed={lens === "todo"}
+          className={lensButtonClass(lens === "todo")}
+        >
+          Todo
+        </button>
+        <button
+          type="button"
+          onClick={() => setLens("libreta")}
+          aria-pressed={lens === "libreta"}
+          className={lensButtonClass(lens === "libreta")}
+        >
+          Libreta sanitaria
+        </button>
+      </div>
+
+      <EventTimeline
+        events={events}
+        publicToken={data.petToken}
+        chips={lens === "libreta" ? LIBRETA_FILTER_CHIPS : undefined}
+      />
     </div>
   );
 }

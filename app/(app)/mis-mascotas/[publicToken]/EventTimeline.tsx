@@ -1,8 +1,12 @@
 "use client";
 
+import { AmendedBadge } from "@/components/ui/AmendedBadge";
+import { LnBadge } from "@/components/ui/Badge";
 import type { EventType } from "@/db/schema";
 import { eventPayloadSummary } from "@/lib/events";
 import { eventTypeLabel, formatDateTime } from "@/lib/format";
+import { libretaConfidenceTier } from "@/lib/libreta-sanitaria";
+import { ownerConfidenceDisplay } from "@/lib/projections/owner-confidence-display";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -34,6 +38,13 @@ type Event = {
   occurredAt: Date | string;
   notes: string | null;
   attachmentUrl: string | null;
+  // Provenance fields (WS-3). Optional so legacy callers (e.g. the memorial
+  // view) keep compiling; when present, the row shows a confidence badge.
+  authorRole?: string;
+  authorVerified?: boolean;
+  authorOrganizationId?: string | null;
+  // Set when a later event_amended corrected this row — shows "Corregido".
+  amendedAt?: Date | string | null;
 };
 
 type Props = {
@@ -118,6 +129,19 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
           {filteredEvents.map((event) => {
             const eventType = event.eventType as EventType;
             const summary = eventPayloadSummary(event.eventType, event.payload);
+            // Provenance badge (WS-3): collapse the event's confidence tier into
+            // one owner-facing badge. Only when author metadata is present.
+            const provenance =
+              event.authorRole !== undefined
+                ? ownerConfidenceDisplay(
+                    libretaConfidenceTier({
+                      authorRole: event.authorRole,
+                      authorVerified: event.authorVerified ?? false,
+                      authorOrganizationId: event.authorOrganizationId ?? null,
+                      payload: (event.payload ?? {}) as Record<string, unknown>,
+                    }),
+                  )
+                : null;
             return (
               <li
                 key={event.id}
@@ -153,6 +177,17 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
                     <time className="text-xs text-[var(--color-ln-mute)] shrink-0">
                       {formatDateTime(event.occurredAt)}
                     </time>
+                  </div>
+                )}
+                {(provenance || event.amendedAt) && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {provenance && <LnBadge variant={provenance.badge}>{provenance.label}</LnBadge>}
+                    {event.amendedAt && publicToken && (
+                      <AmendedBadge
+                        amendedAt={event.amendedAt}
+                        originalHref={`/mis-mascotas/${publicToken}/eventos/${event.id}`}
+                      />
+                    )}
                   </div>
                 )}
                 {event.notes && (

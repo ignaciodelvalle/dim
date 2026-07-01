@@ -20,6 +20,7 @@
  * These are forwarded from buildCaptureDeeplink when the symptom_observed intent fires.
  */
 
+import { TurnoAntirrabicaSheet } from "@/components/pet-profile/TurnoAntirrabicaSheet";
 import { LnButton } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
@@ -178,6 +179,14 @@ export function SheetMounter({
           action={action}
           defaults={{ text: text ?? null, occurredAt: occurredAt ?? null }}
         />
+      </Sheet>
+    );
+  }
+
+  if (sheet === "turno-antirrabica") {
+    return (
+      <Sheet id="turno-antirrabica" title="Programar antirrábica" open onClose={close}>
+        <TurnoAntirrabicaSheet petToken={petToken} />
       </Sheet>
     );
   }

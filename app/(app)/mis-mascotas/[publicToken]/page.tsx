@@ -66,6 +66,7 @@ import { PpPCard } from "@/components/PpPCard";
 import { PppExportCabaButton } from "@/components/PppExportCabaButton";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { ServiceDogCredentialCard } from "@/components/ServiceDogCredentialCard";
+import { ComplianceObligationsPanel } from "@/components/pet-profile/ComplianceObligationsPanel";
 import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertStrip";
 import { PetCredentialCard } from "@/components/pet-profile/PetCredentialCard";
 import type { TabKey } from "@/components/pet-profile/PetDetailTabs";
@@ -89,6 +90,7 @@ import {
   attachments,
   cases,
   db,
+  organizations,
   ownerships,
   petAchievementViews,
   petEvents,
@@ -113,6 +115,7 @@ import {
 import { requirePetAccess } from "@/lib/pet-access";
 import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
 import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";
+import { deriveComplianceState } from "@/lib/projections/pet-compliance";
 import { eventAttachmentSignedUrl, eventAttachmentSignedUrls, petPhotoUrl } from "@/lib/storage";
 import { markMedicationDoseTakenAction } from "@/src/modules/events/actions";
 import { and, asc, count, desc, eq, gt, inArray, isNull } from "drizzle-orm";
@@ -847,6 +850,7 @@ export default async function PetDetailPage({
     weightHistory,
     historialCount,
     canonicalIds,
+    reservedRabiesTurnoRows,
   ] = await Promise.all([
     // Achievement views — pulse_until rows for the owner; empty for org-path viewers.
     accessPath === "owner"
@@ -907,6 +911,30 @@ export default async function PetDetailPage({
       .then((rows) => rows[0]?.value ?? 0),
     // Canonical chip/tattoo identifiers (ARCH-Q).
     fetchActiveIdentifications(pet.id),
+    // WS-2: the pet's next confirmed rabies appointment (service_kind =
+    // vaccination_rabies), if any — drives the "Turno reservado" compliance
+    // state. Left-joins the provider (org or individual vet) for the label.
+    db
+      .select({
+        slotStartsAt: timeSlots.startsAt,
+        orgName: organizations.displayName,
+        vetName: profiles.displayName,
+      })
+      .from(appointments)
+      .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
+      .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
+      .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
+      .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
+      .where(
+        and(
+          eq(appointments.petId, pet.id),
+          eq(appointments.status, "confirmed"),
+          eq(serviceOfferings.serviceKind, "vaccination_rabies"),
+          gt(timeSlots.startsAt, new Date()),
+        ),
+      )
+      .orderBy(asc(timeSlots.startsAt))
+      .limit(1),
   ]);
 
   // Build viewsMap from the co-fetched achievement view rows.
@@ -1015,6 +1043,27 @@ export default async function PetDetailPage({
   const vaccineUpToDate = petActiveReminders.filter(
     (r) => r.variant === "due_soon" || r.variant === "upcoming" || r.variant === "success",
   ).length;
+
+  // Compliance projection (comply-first slice §2) — leads the Resumen tab.
+  // Pure derivation over data already loaded above: no extra query. The rabies
+  // obligation reads the antirrábica reminder's precomputed variant when present.
+  const rabiesReminderRow = petActiveReminders.find((r) => /antirr[aá]b|rabi/i.test(r.title));
+  const reservedTurnoRow = reservedRabiesTurnoRows[0];
+  const complianceState = deriveComplianceState({
+    now: new Date(),
+    events: typedEvents,
+    rabiesReminder: rabiesReminderRow
+      ? { variant: rabiesReminderRow.variant, dueAt: rabiesReminderRow.dueAt }
+      : null,
+    reservedRabiesTurno: reservedTurnoRow
+      ? {
+          date: reservedTurnoRow.slotStartsAt,
+          provider: reservedTurnoRow.orgName ?? reservedTurnoRow.vetName ?? null,
+        }
+      : null,
+    microchipCode: canonicalIds.microchip?.code ?? null,
+    pppApplies: Boolean(pet.potentiallyDangerousBreed),
+  });
 
   return (
     <div
@@ -1172,6 +1221,16 @@ export default async function PetDetailPage({
                     end (D5); PPP/service-dog credentials moved here as cards
                     (D4) instead of full-width banners above the hero. */}
               <div className="flex flex-col gap-[20px]">
+                {/* Compliance panel — LEADS the Resumen tab (comply-first slice
+                      §2 / WS-1). The owner's legal obligations, each a projection
+                      over events, above the health detail below. */}
+                <div data-section="compliance-panel">
+                  <ComplianceObligationsPanel
+                    state={complianceState}
+                    petPublicToken={pet.publicToken}
+                  />
+                </div>
+
                 {/* Estado actual */}
                 <LnSectionHead num="01" title="Estado de salud" />
                 <div data-section="current-state">

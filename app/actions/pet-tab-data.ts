@@ -12,6 +12,7 @@
 // function. Types are re-exported with `export type` (erased at runtime).
 
 import { requirePetAccess } from "@/lib/pet-access";
+import { fetchLatestAmendmentsForEvents } from "@/src/modules/events/application/amendment/fetch-latest-amendments";
 import { getHistorialTabData as _getHistorialTabData } from "@/src/modules/pets/application/tab-data/get-historial-tab-data";
 import { getLibretaTabData as _getLibretaTabData } from "@/src/modules/pets/application/tab-data/get-libreta-tab-data";
 import { getVacunasTabData as _getVacunasTabData } from "@/src/modules/pets/application/tab-data/get-vacunas-tab-data";
@@ -72,5 +73,23 @@ export async function getHistorialTabData(
   if (!access.ok) return { ok: false, error: "Acceso denegado" };
   // Historial is owner-only — matches old /historial route (requireOwnedPetByToken).
   if (access.accessPath !== "owner") return { ok: false, error: "Acceso denegado" };
-  return _getHistorialTabData(access.pet);
+  const result = await _getHistorialTabData(access.pet);
+  if (!result.ok) return result;
+
+  // WS-3: enrich each row with amendedAt so the timeline can show
+  // "Corregido · ver original". Kept in the shim (app layer) so the pets
+  // module does not take a new dependency on the events module.
+  const eventIds = result.data.events.map((e) => e.id);
+  const amendments =
+    eventIds.length > 0 ? await fetchLatestAmendmentsForEvents(access.pet.id, eventIds) : new Map();
+  return {
+    ok: true,
+    data: {
+      ...result.data,
+      events: result.data.events.map((e) => ({
+        ...e,
+        amendedAt: amendments.get(e.id)?.occurredAt ?? null,
+      })),
+    },
+  };
 }
