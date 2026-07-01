@@ -120,8 +120,8 @@ export default async function BuscarTurnosPage({
       .where(
         sql`${timeSlots.serviceOfferingId} = ANY(${sql.raw(`ARRAY[${offeringIds.map((id) => `'${id}'`).join(",")}]::uuid[]`)})
             AND ${timeSlots.status} = 'open'
-            AND ${timeSlots.startsAt} >= ${slotWindowStart}
-            AND ${timeSlots.startsAt} <= ${windowEnd}
+            AND ${timeSlots.startsAt} >= ${slotWindowStart.toISOString()}
+            AND ${timeSlots.startsAt} <= ${windowEnd.toISOString()}
             AND ${timeSlots.bookingsCount} < ${timeSlots.capacity}`,
       )
       .orderBy(timeSlots.startsAt);
