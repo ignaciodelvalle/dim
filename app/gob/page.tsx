@@ -41,6 +41,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { fetchMortalityDisposition } from "@/lib/mortality-metrics";
 
 const ACTION_LABELS: Record<string, string> = {
   request_viewed: "Vio una solicitud",
@@ -147,6 +148,7 @@ export default async function GobiernoDashboardPage({
     sterilizationTrend,
     zoonosisTrend,
     rabiesVaxTrend,
+    mortality,
   ] = await Promise.all([
     // Dashboard preview — not a paginated surface: intentionally passes limit without cursor.
     fetchVisiblePendingRequests(profile, jurisdictions, undefined, { limit: 200 }),
@@ -177,6 +179,9 @@ export default async function GobiernoDashboardPage({
     fetchKpiTrend("sterilization_performed", ctx30d),
     fetchKpiTrend("rabies_observation_started", ctx12m),
     fetchKpiTrend("vaccination_administered", ctx12m),
+    // §5 narrative: mortality & disposition — the third citizen-traceable
+    // projection (death_recorded events + how traceable their disposition is).
+    fetchMortalityDisposition(ctx12m),
   ]);
 
   // Shape the bites trend for TimeSeriesChart (x/y points).
@@ -330,6 +335,44 @@ export default async function GobiernoDashboardPage({
           }}
         />
       </section>
+
+      {/* Mortalidad y disposición (§5 narrative): the third citizen-traceable
+          projection, led high so the ledger→dashboard story reads — death events
+          and how traceable their disposition is. Full view at /gob/mortalidad. */}
+      <OpCard aria-labelledby="panel-mortalidad-titulo">
+        <OpCardHead
+          title={
+            <span id="panel-mortalidad-titulo">
+              Mortalidad y disposición{" "}
+              <span className="text-xs font-normal text-ln-op-mute">últimos 12 meses</span>
+            </span>
+          }
+          actions={
+            <Link
+              href="/gob/mortalidad"
+              className="text-sm text-ln-op-azul hover:underline no-underline"
+            >
+              Ver detalle →
+            </Link>
+          }
+        />
+        <OpCardBody>
+          <div className="flex flex-wrap gap-6">
+            <div>
+              <p className="text-2xl font-semibold tabular-nums text-ln-op-ink">
+                {mortality.total}
+              </p>
+              <p className="text-xs text-ln-op-mute">Fallecimientos registrados</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold tabular-nums text-ln-op-ink">
+                {mortality.traceableRate}%
+              </p>
+              <p className="text-xs text-ln-op-mute">Disposición trazable</p>
+            </div>
+          </div>
+        </OpCardBody>
+      </OpCard>
 
       {/* Compliance KPI strip (Item 4) — the two headline "¿se cumple la ley?"
           numbers: microchip penetration (C1, Ley Prov 14.107) and PPP registry
