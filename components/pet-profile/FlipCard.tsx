@@ -100,7 +100,7 @@ export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
     <div data-section="flip-card" className="relative" style={{ perspective: "2000px" }}>
       <FlipAffordance isLibreta={isLibreta} onFlip={onFlip} />
       <div
-        className="relative w-full transition-transform duration-500 ease-in-out [transform-style:preserve-3d]"
+        className="relative w-full transition-transform duration-500 ease-in-out [-webkit-transform-style:preserve-3d] [transform-style:preserve-3d]"
         style={{
           transform: `rotateY(${isLibreta ? 180 : 0}deg)`,
           height: height !== undefined ? `${height}px` : undefined,
@@ -111,7 +111,7 @@ export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
           ref={frontRef}
           data-section="flip-front"
           aria-hidden={isLibreta}
-          className="absolute inset-x-0 top-0 w-full [backface-visibility:hidden]"
+          className="absolute inset-x-0 top-0 w-full rounded-[var(--radius-card)] bg-[var(--color-ln-card)] [-webkit-backface-visibility:hidden] [backface-visibility:hidden]"
         >
           {front}
         </div>
@@ -119,7 +119,7 @@ export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
           ref={backRef}
           data-section="flip-back"
           aria-hidden={!isLibreta}
-          className="absolute inset-x-0 top-0 w-full [backface-visibility:hidden] [transform:rotateY(180deg)]"
+          className="absolute inset-x-0 top-0 w-full rounded-[var(--radius-card)] bg-[var(--color-ln-card)] [-webkit-backface-visibility:hidden] [backface-visibility:hidden] [transform:rotateY(180deg)]"
         >
           {back}
         </div>
