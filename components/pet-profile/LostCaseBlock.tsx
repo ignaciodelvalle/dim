@@ -57,6 +57,7 @@ import { LostLastSeenCard } from "@/components/pet-profile/LostLastSeenCard";
 import { LostScanFeed, type ScanFeedItem } from "@/components/pet-profile/LostScanFeed";
 import { LostShareCard } from "@/components/pet-profile/LostShareCard";
 import { MarkFoundButton } from "@/components/pet-profile/MarkFoundButton";
+import { LnAlert } from "@/components/ui/Alert";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { LostEpisode } from "@/lib/infra/lost-mode";
 import { foundParticiple, lostThirdPersonPhrase } from "@/lib/utils/format";
@@ -300,38 +301,33 @@ function StaleLostCaseBanner({
   const markFoundAction = setPetFoundAction.bind(null, petPublicToken);
 
   return (
-    <div
-      data-section="lost-case-block"
-      data-lost-case-variant="stale"
-      className="overflow-hidden rounded-md border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5"
-    >
-      <p className="m-0 font-[var(--font-ln-serif)] text-[var(--text-md)] font-semibold text-[var(--color-ln-warn)]">
-        Búsqueda cerrada por inactividad
-      </p>
-      <p className="mt-1 text-[var(--text-sm)] text-[var(--color-ln-warn)]">
-        No hubo actividad en más de un año, así que el caso se cerró automáticamente. La mascota
-        sigue marcada como perdida.
-      </p>
-      {isOwner && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <form action={reactivateAction}>
-            <button
-              type="submit"
-              className="inline-flex min-h-11 items-center justify-center rounded-full border-[3px] border-[var(--color-ln-warn-100)] bg-[var(--color-ln-card)] px-4 text-[var(--text-sm)] font-semibold text-[var(--color-ln-warn)] transition-colors hover:bg-white"
-            >
-              Reactivar búsqueda
-            </button>
-          </form>
-          <form action={markFoundAction}>
-            <button
-              type="submit"
-              className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-ok px-4 text-[var(--text-sm)] font-semibold text-white transition-colors hover:opacity-90"
-            >
-              Apareció · marcar {foundParticiple(petSex)}
-            </button>
-          </form>
-        </div>
-      )}
+    <div data-section="lost-case-block" data-lost-case-variant="stale">
+      <LnAlert variant="warning" title="Búsqueda cerrada por inactividad">
+        <p className="m-0">
+          No hubo actividad en más de un año, así que el caso se cerró automáticamente. La mascota
+          sigue marcada como perdida.
+        </p>
+        {isOwner && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <form action={reactivateAction}>
+              <button
+                type="submit"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border-[3px] border-[var(--color-ln-warn-100)] bg-[var(--color-ln-card)] px-4 text-[var(--text-sm)] font-semibold text-[var(--color-ln-warn)] transition-colors hover:bg-white"
+              >
+                Reactivar búsqueda
+              </button>
+            </form>
+            <form action={markFoundAction}>
+              <button
+                type="submit"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-ok px-4 text-[var(--text-sm)] font-semibold text-white transition-colors hover:opacity-90"
+              >
+                Apareció · marcar {foundParticiple(petSex)}
+              </button>
+            </form>
+          </div>
+        )}
+      </LnAlert>
     </div>
   );
 }

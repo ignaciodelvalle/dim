@@ -17,6 +17,7 @@
 import Link from "next/link";
 
 import { ComplianceObligationsPanel } from "@/components/pet-profile/ComplianceObligationsPanel";
+import { LnAlert } from "@/components/ui/Alert";
 import { LnHero, type LnHeroProps } from "@/components/ui/Hero";
 import type { ComplianceState } from "@/lib/projections/pet-compliance";
 
@@ -116,46 +117,46 @@ export function CredentialFace({
       {(ppp || serviceDog) && (
         <div data-section="credentials" className="flex flex-col gap-2">
           {ppp && (
-            <div
-              data-section="ppp-row"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-3.5 py-2.5 text-sm"
-            >
-              <span className="text-[var(--color-ln-warn)]">
-                ⚠ Animal Potencialmente Peligroso
-                {ppp.attested ? " · Atestada" : " · Atestación pendiente"}
-              </span>
-              {!ppp.attested && (
-                <Link
-                  href={ppp.registerHref}
-                  className="shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-warn)] no-underline hover:underline"
-                >
-                  Registrar →
-                </Link>
-              )}
+            <div data-section="ppp-row">
+              <LnAlert variant="warning">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span>
+                    Animal Potencialmente Peligroso
+                    {ppp.attested ? " · Atestada" : " · Atestación pendiente"}
+                  </span>
+                  {!ppp.attested && (
+                    <Link
+                      href={ppp.registerHref}
+                      className="shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-warn)] no-underline hover:underline"
+                    >
+                      Registrar →
+                    </Link>
+                  )}
+                </div>
+              </LnAlert>
             </div>
           )}
           {serviceDog && (
-            <div
-              data-section="service-dog-row"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-3.5 py-2.5 text-sm"
-            >
-              <span className="text-[var(--color-ln-ok)]">
-                🦮 Perro de asistencia · {serviceDog.serviceTypeLabel}
-              </span>
-              <span className="flex shrink-0 gap-3">
-                <Link
-                  href={serviceDog.manageHref}
-                  className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
-                >
-                  Gestionar →
-                </Link>
-                <Link
-                  href={serviceDog.presentHref}
-                  className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
-                >
-                  Presentar →
-                </Link>
-              </span>
+            <div data-section="service-dog-row">
+              <LnAlert variant="success" icon="paw">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span>Perro de asistencia · {serviceDog.serviceTypeLabel}</span>
+                  <span className="flex shrink-0 gap-3">
+                    <Link
+                      href={serviceDog.manageHref}
+                      className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                    >
+                      Gestionar →
+                    </Link>
+                    <Link
+                      href={serviceDog.presentHref}
+                      className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                    >
+                      Presentar →
+                    </Link>
+                  </span>
+                </div>
+              </LnAlert>
             </div>
           )}
         </div>

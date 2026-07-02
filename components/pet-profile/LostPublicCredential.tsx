@@ -15,6 +15,7 @@
 // `pets`. The component itself never decides what to show — the page
 // passes only what's actually disclosable.
 
+import { Icon } from "@/components/Icon";
 import { tattooLocationLabel } from "@/lib/reference/lookups";
 import { BRANDING } from "@/lib/ui/branding";
 import { lostBannerHeadline, lostFirstPersonLine, normalizePhoneForTel } from "@/lib/utils/format";
@@ -117,7 +118,10 @@ export function LostPublicCredential({
           role="alert"
           data-section="lost-urgent-banner"
         >
-          <p className="text-base font-bold tracking-wide">⚠ {lostBannerHeadline(petSex)}</p>
+          <p className="flex items-center justify-center gap-1.5 text-base font-bold tracking-wide">
+            <Icon name="alert-triangle" size="sm" decorative />
+            {lostBannerHeadline(petSex)}
+          </p>
           <p className="mt-0.5 text-xs opacity-90">{formatLostSince(lostSince)}</p>
         </div>
 
