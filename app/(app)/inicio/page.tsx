@@ -170,11 +170,15 @@ export default async function InicioPage() {
       <RemindersSection reminders={reminders} />
 
       {/* ------------------------------------------------------------------ */}
-      {/* Capture block — EventCatcher restyled as "Asentar un hecho"        */}
+      {/* Capture block — EventCatcher restyled as "Asentar un hecho".       */}
+      {/* wave-3 P5 (PO decision #645 point 4): dropped the rotated "ASIENTO */}
+      {/* {appName}" seal that used to sit top-right of the header — pure    */}
+      {/* decoration, no behavior. Outer wrapper is now the real LnCard      */}
+      {/* component instead of a hand-copied duplicate of its own classes.  */}
       {/* ------------------------------------------------------------------ */}
-      <div className="mb-[24px] overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] border-t-[3px] border-t-[var(--color-ln-azul)] bg-[var(--color-ln-card)] shadow-[0_1px_0_rgba(0,0,0,.02)]">
+      <LnCard className="mb-[24px] border-t-[3px] border-t-[var(--color-ln-azul)]">
         {/* Card header */}
-        <div className="relative flex items-center gap-[12px] px-[18px] pb-[12px] pt-[16px]">
+        <div className="flex items-center gap-[12px] px-[18px] pb-[12px] pt-[16px]">
           <div className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[8px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]">
             {/* pencil/edit glyph */}
             <svg
@@ -200,24 +204,13 @@ export default async function InicioPage() {
               Escribí en lenguaje natural — abrimos el formulario que corresponda.
             </p>
           </div>
-          {/* ASIENTO seal */}
-          <div
-            aria-hidden="true"
-            className="-rotate-9 grid h-[44px] w-[44px] flex-shrink-0 place-items-center rounded-full border-2 border-[var(--color-ln-azul)] font-[var(--font-ln-mono)] text-[6.5px] uppercase leading-[1.2] tracking-[.08em] text-[var(--color-ln-azul)] opacity-70"
-          >
-            <span className="text-center">
-              ASIENTO
-              <br />
-              {BRANDING.appName}
-            </span>
-          </div>
         </div>
 
         {/* EventCatcher body — behavior untouched, only outer container styled above */}
         <div className="border-t border-[var(--color-ln-line-2)] px-[18px] pb-[18px] pt-[14px]">
           <EventCatcher pets={eventCatcherPets} />
         </div>
-      </div>
+      </LnCard>
 
       {/* ------------------------------------------------------------------ */}
       {/* 2-col grid                                                          */}
