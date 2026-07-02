@@ -36,6 +36,11 @@ export function OwnerReturnProposalCard({
     day: "2-digit",
     month: "short",
     year: "numeric",
+    // Fixed timeZone — server (UTC) and client (browser-local) must format
+    // the same calendar day, otherwise dates near local midnight flip
+    // between SSR and hydration (#418). Same pattern as
+    // DashboardFreshnessFooter / OrgMascotasBulkList.tsx (de45cb85).
+    timeZone: "America/Argentina/Buenos_Aires",
   });
 
   function handleAccept() {
