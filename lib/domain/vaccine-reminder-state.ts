@@ -87,8 +87,12 @@ export function getReportableVaccines(species: string, _jurisdiction: string): r
 /**
  * Normaliza un string para comparación: lowercase + elimina diacríticos (NFD decompose + strip marks).
  * Permite que "Antirrábica" matchee "rabia": "antirrabica".includes("rabia") → true.
+ *
+ * Exportada para reuso fuera de este módulo (ej: matching case/accent-insensitive
+ * de títulos de recordatorios de vacuna en vaccination-use-case.ts, ya que no existe
+ * una clave estructural de tipo-de-vacuna en `reminders` — el título es texto libre).
  */
-function normalize(s: string): string {
+export function normalize(s: string): string {
   return s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
 }
 

@@ -167,6 +167,31 @@ export class EventsRepository {
   }
 
   /**
+   * Find open (incomplete) reminders of a given type for a pet.
+   *
+   * Used by callers that need to match against existing reminder titles
+   * (e.g. the vaccine reminder supersede-on-duplicate check in
+   * vaccination-use-case.ts — `reminders.title` is free text, there is no
+   * structural vaccine-kind column, so title matching happens caller-side).
+   */
+  async findOpenReminders(
+    petId: string,
+    reminderType: (typeof reminders.$inferSelect)["reminderType"],
+    executor: DbOrTx = db,
+  ): Promise<{ id: string; title: string }[]> {
+    return executor
+      .select({ id: reminders.id, title: reminders.title })
+      .from(reminders)
+      .where(
+        and(
+          eq(reminders.petId, petId),
+          eq(reminders.reminderType, reminderType),
+          isNull(reminders.completedAt),
+        ),
+      );
+  }
+
+  /**
    * Cancel future incomplete reminders for a source medication event.
    * Past-due reminders are left as-is (they record missed doses).
    */

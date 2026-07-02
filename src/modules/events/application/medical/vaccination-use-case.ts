@@ -10,6 +10,7 @@
 //   - Vaccine reminder created when nextDueAt provided.
 //   - No outbox. No audit_log.
 
+import { normalize } from "@/lib/domain/vaccine-reminder-state";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
@@ -51,7 +52,11 @@ export type CreateVaccinationInput = {
 type Deps = {
   repo: Pick<
     EventsRepository,
-    "insertEventIdempotent" | "insertAttachment" | "completeReminder" | "insertReminders"
+    | "insertEventIdempotent"
+    | "insertAttachment"
+    | "completeReminder"
+    | "insertReminders"
+    | "findOpenReminders"
   >;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
 };
@@ -136,6 +141,30 @@ export async function createVaccination(
     }
 
     if (nextDueAt) {
+      const reminderTitle = `Refuerzo: ${vaccineName}`;
+
+      // Supersede any other open vaccine reminder that resolves to the same
+      // vaccine, case/accent-insensitively (title is free text, so
+      // "Refuerzo: antirrábica" vs "Refuerzo: Antirrábica" must NOT coexist).
+      // sourceReminderId is excluded here — it's already completed above.
+      const openVaccineReminders = await repo.findOpenReminders(
+        pet.id,
+        "vaccine",
+        tx as Parameters<typeof repo.findOpenReminders>[2],
+      );
+      const normalizedNewTitle = normalize(reminderTitle);
+      const duplicates = openVaccineReminders.filter(
+        (r) => r.id !== sourceReminderId && normalize(r.title) === normalizedNewTitle,
+      );
+      for (const duplicate of duplicates) {
+        await repo.completeReminder(
+          duplicate.id,
+          pet.id,
+          now,
+          tx as Parameters<typeof repo.completeReminder>[3],
+        );
+      }
+
       await repo.insertReminders(
         [
           {
@@ -143,7 +172,7 @@ export async function createVaccination(
             userId: user.id,
             reminderType: "vaccine",
             dueAt: nextDueAt,
-            title: `Refuerzo: ${vaccineName}`,
+            title: reminderTitle,
             description: reminderDescription ?? "Próxima dosis programada.",
             sourceEventId: event.id,
           },
