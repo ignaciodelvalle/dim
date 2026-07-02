@@ -15,7 +15,7 @@ describe("GET /api/cron/process-eno-queue", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/eno-queue-processor");
+    vi.doUnmock("@/lib/infra/eno-queue-processor");
   });
 
   async function callRoute(headers: Record<string, string>) {
@@ -25,7 +25,7 @@ describe("GET /api/cron/process-eno-queue", () => {
   }
 
   it("returns 401 when no auth header is provided", async () => {
-    vi.doMock("@/lib/eno-queue-processor", () => ({
+    vi.doMock("@/lib/infra/eno-queue-processor", () => ({
       processEnoQueueBatch: vi.fn(),
     }));
     const res = await callRoute({});
@@ -35,7 +35,7 @@ describe("GET /api/cron/process-eno-queue", () => {
   });
 
   it("returns 401 when x-cron-secret does not match", async () => {
-    vi.doMock("@/lib/eno-queue-processor", () => ({
+    vi.doMock("@/lib/infra/eno-queue-processor", () => ({
       processEnoQueueBatch: vi.fn(),
     }));
     const res = await callRoute({ "x-cron-secret": "wrong-secret" });
@@ -43,7 +43,7 @@ describe("GET /api/cron/process-eno-queue", () => {
   });
 
   it("returns 401 when Authorization: Bearer does not match", async () => {
-    vi.doMock("@/lib/eno-queue-processor", () => ({
+    vi.doMock("@/lib/infra/eno-queue-processor", () => ({
       processEnoQueueBatch: vi.fn(),
     }));
     const res = await callRoute({ authorization: "Bearer bad-token" });
@@ -58,7 +58,7 @@ describe("GET /api/cron/process-eno-queue", () => {
       failed: 1,
       skipped: 2,
     });
-    vi.doMock("@/lib/eno-queue-processor", () => ({
+    vi.doMock("@/lib/infra/eno-queue-processor", () => ({
       processEnoQueueBatch: batchMock,
     }));
     const res = await callRoute({ "x-cron-secret": "test-secret" });
@@ -76,7 +76,7 @@ describe("GET /api/cron/process-eno-queue", () => {
 
   it("returns 200 when the secret matches via Authorization: Bearer", async () => {
     const scannedAt = new Date();
-    vi.doMock("@/lib/eno-queue-processor", () => ({
+    vi.doMock("@/lib/infra/eno-queue-processor", () => ({
       processEnoQueueBatch: vi.fn().mockResolvedValue({
         scannedAt,
         processed: 0,
@@ -92,7 +92,7 @@ describe("GET /api/cron/process-eno-queue", () => {
   });
 
   it("returns 500 when the helper throws", async () => {
-    vi.doMock("@/lib/eno-queue-processor", () => ({
+    vi.doMock("@/lib/infra/eno-queue-processor", () => ({
       processEnoQueueBatch: vi.fn().mockRejectedValue(new Error("eno processor crashed")),
     }));
     const res = await callRoute({ "x-cron-secret": "test-secret" });

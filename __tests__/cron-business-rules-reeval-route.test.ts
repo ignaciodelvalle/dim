@@ -5,7 +5,7 @@
 //   2. Auth success + db query returns rows + reEvaluatePppBreedListChange succeeds → 200
 //   3. Auth success + handler throws → 500
 //
-// Both db (@/db) and reEvaluatePppBreedListChange (@/lib/business-rules-reeval)
+// Both db (@/db) and reEvaluatePppBreedListChange (@/lib/infra/business-rules-reeval)
 // are mocked so the test stays pure (no DB access).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,7 +21,7 @@ describe("GET /api/cron/business-rules-reeval", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/business-rules-reeval");
+    vi.doUnmock("@/lib/infra/business-rules-reeval");
     vi.doUnmock("@/db");
   });
 
@@ -46,7 +46,7 @@ describe("GET /api/cron/business-rules-reeval", () => {
     }));
 
     const reEvalMock = vi.fn().mockResolvedValue(reEvalResult);
-    vi.doMock("@/lib/business-rules-reeval", () => ({
+    vi.doMock("@/lib/infra/business-rules-reeval", () => ({
       reEvaluatePppBreedListChange: reEvalMock,
     }));
 
@@ -136,7 +136,7 @@ describe("GET /api/cron/business-rules-reeval", () => {
       db: { select: selectMock },
       govtBusinessRules: {},
     }));
-    vi.doMock("@/lib/business-rules-reeval", () => ({
+    vi.doMock("@/lib/infra/business-rules-reeval", () => ({
       reEvaluatePppBreedListChange: vi.fn(),
     }));
     const res = await callRoute({ "x-cron-secret": "test-secret" });

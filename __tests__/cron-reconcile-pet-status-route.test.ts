@@ -8,7 +8,7 @@
 //   5. Auth success + rederive throws for one pet → error captured in details, run stays ok
 //   6. Auth success + Authorization: Bearer header variant
 //
-// Mocks: @/db (cronRuns, pets, db) + @/lib/rederive-pet-cache (rederivePetCache, hasDrift, driftedColumns)
+// Mocks: @/db (cronRuns, pets, db) + @/lib/infra/rederive-pet-cache (rederivePetCache, hasDrift, driftedColumns)
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,7 +32,7 @@ describe("GET /api/cron/reconcile-pet-status", () => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
     vi.doUnmock("@/db");
-    vi.doUnmock("@/lib/rederive-pet-cache");
+    vi.doUnmock("@/lib/infra/rederive-pet-cache");
   });
 
   // ---------------------------------------------------------------------------
@@ -98,7 +98,7 @@ describe("GET /api/cron/reconcile-pet-status", () => {
     }));
 
     // No drift for any pet
-    vi.doMock("@/lib/rederive-pet-cache", () => ({
+    vi.doMock("@/lib/infra/rederive-pet-cache", () => ({
       rederivePetCache: vi.fn().mockResolvedValue({
         status: { stored: "active", derived: "active", matches: true },
       }),
@@ -118,7 +118,7 @@ describe("GET /api/cron/reconcile-pet-status", () => {
       pets: {},
     }));
 
-    vi.doMock("@/lib/rederive-pet-cache", () => ({
+    vi.doMock("@/lib/infra/rederive-pet-cache", () => ({
       rederivePetCache: vi.fn().mockImplementation(async (id: string) => {
         if (id === driftedPetId) {
           return {
@@ -152,7 +152,7 @@ describe("GET /api/cron/reconcile-pet-status", () => {
       pets: {},
     }));
 
-    vi.doMock("@/lib/rederive-pet-cache", () => ({
+    vi.doMock("@/lib/infra/rederive-pet-cache", () => ({
       rederivePetCache: vi.fn().mockRejectedValue(new Error("db connection lost")),
       hasDrift: vi.fn().mockReturnValue(false),
       driftedColumns: vi.fn().mockReturnValue({}),

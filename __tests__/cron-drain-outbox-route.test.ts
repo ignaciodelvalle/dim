@@ -7,7 +7,7 @@
 //   4. Auth success + one row fails delivery → processed: 1, retried: 1 (not yet exhausted)
 //   5. Auth success + one row exhausts max attempts → processed: 1, failed: 1
 //
-// Mocks: @/db (cronRuns, eventNotificationOutbox, db) + @/lib/outbox-drainer (deliverOutboxRow, MAX_ATTEMPTS, computeNextRetryAt)
+// Mocks: @/db (cronRuns, eventNotificationOutbox, db) + @/lib/infra/outbox-drainer (deliverOutboxRow, MAX_ATTEMPTS, computeNextRetryAt)
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,7 +24,7 @@ describe("GET /api/cron/drain-outbox", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/outbox-drainer");
+    vi.doUnmock("@/lib/infra/outbox-drainer");
     vi.doUnmock("@/db");
   });
 
@@ -94,7 +94,7 @@ describe("GET /api/cron/drain-outbox", () => {
 
     const computeNextRetryAtMock = vi.fn().mockReturnValue(new Date(Date.now() + 60_000));
 
-    vi.doMock("@/lib/outbox-drainer", () => ({
+    vi.doMock("@/lib/infra/outbox-drainer", () => ({
       MAX_ATTEMPTS: maxAttempts,
       deliverOutboxRow: deliverMock,
       computeNextRetryAt: computeNextRetryAtMock,

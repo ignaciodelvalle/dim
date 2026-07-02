@@ -6,7 +6,7 @@
 //   3. Auth success + purge throws → 200 { ok: false } (error is captured in cron_runs,
 //      the route does NOT re-throw; it returns ok: false with runId)
 //
-// Both @/db (cronRuns, db) and @/lib/scan-retention (purgeExpiredScanEvents) are mocked.
+// Both @/db (cronRuns, db) and @/lib/infra/scan-retention (purgeExpiredScanEvents) are mocked.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,7 +23,7 @@ describe("GET /api/cron/purge-scan-events", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/scan-retention");
+    vi.doUnmock("@/lib/infra/scan-retention");
     vi.doUnmock("@/db");
   });
 
@@ -47,7 +47,7 @@ describe("GET /api/cron/purge-scan-events", () => {
       cronRuns: {},
     }));
 
-    vi.doMock("@/lib/scan-retention", () => ({
+    vi.doMock("@/lib/infra/scan-retention", () => ({
       purgeExpiredScanEvents: vi.fn().mockImplementation(purgeImpl),
     }));
 
