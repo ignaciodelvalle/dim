@@ -4,13 +4,20 @@
 //   1. the public QR link (copy-to-clipboard)
 //   2. ShareLibretaSheet (expiring share link)
 //   3. Tier2PublicView (temporary medical-view toggle)
+//   4. SharesManager — active/revocable share links (ADR-14, owner-only).
+//      LibretaFace lost this + its footer "Compartir libreta" link; it now
+//      self-fetches via getActiveLibretaSharesAction on mount, since this
+//      sheet is a sibling of PetDetailTabsPanel (no shared client state).
 //
 // `compartir-libreta` and `mostrar-tier2` are kept as deep-link aliases that
 // route into this same sheet (SheetMounter wiring) for demo-safety /
 // backward-compat with existing links.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { SharesManager } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/SharesManager";
+import { getActiveLibretaSharesAction } from "@/app/actions/libreta-share";
+import type { LibretaShareToken } from "@/db";
 import { ShareLibretaSheet } from "../_share-libreta/ShareLibretaSheet";
 import { Tier2PublicView } from "../_tier2-public/Tier2PublicView";
 
@@ -31,6 +38,8 @@ type Props = {
     input: Pick<{ expiresInDays: number | null; label: string | null }, "expiresInDays" | "label">,
   ) => Promise<CreateShareResult>;
   tier2: Tier2Props;
+  /** Owner-only: SharesManager never renders for org viewers (ADR-14). */
+  isOwner: boolean;
 };
 
 function SectionHeading({ children }: { children: string }) {
@@ -41,8 +50,27 @@ function SectionHeading({ children }: { children: string }) {
   );
 }
 
-export function MergedShareSheet({ petPublicToken, petName, createShareAction, tier2 }: Props) {
+export function MergedShareSheet({
+  petPublicToken,
+  petName,
+  createShareAction,
+  tier2,
+  isOwner,
+}: Props) {
   const [copied, setCopied] = useState(false);
+  const [shares, setShares] = useState<LibretaShareToken[] | null>(null);
+
+  useEffect(() => {
+    if (!isOwner) return;
+    let cancelled = false;
+    getActiveLibretaSharesAction(petPublicToken).then((result) => {
+      if (cancelled) return;
+      setShares(result.ok ? result.shares : []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [petPublicToken, isOwner]);
 
   function handleCopyPublicLink() {
     const url = `${window.location.origin}/p/${petPublicToken}`;
@@ -93,6 +121,22 @@ export function MergedShareSheet({ petPublicToken, petName, createShareAction, t
           revokeAction={tier2.revokeAction}
         />
       </section>
+
+      {/* ADR-14: SharesManager (active/revocable links) folded in here —
+          LibretaFace lost its own copy + footer "Compartir libreta" link. */}
+      {isOwner && (
+        <>
+          <hr className="border-[var(--color-ln-line)]" />
+          <section className="space-y-2">
+            <SectionHeading>Enlaces activos</SectionHeading>
+            {shares === null ? (
+              <p className="text-xs text-[var(--color-ln-mute)]">Cargando enlaces…</p>
+            ) : (
+              <SharesManager petPublicToken={petPublicToken} shares={shares} />
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

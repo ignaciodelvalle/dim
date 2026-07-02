@@ -76,7 +76,7 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
         </div>
 
         <p className="text-xs text-[var(--color-ln-mute)] text-center">
-          Podés ver y revocar todos tus links compartidos desde la libreta de {petName}.
+          Podés ver y revocar todos tus links compartidos más abajo, en esta misma pantalla.
         </p>
       </div>
     );

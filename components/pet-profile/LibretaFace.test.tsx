@@ -71,9 +71,9 @@ function faceData(overrides: Partial<LibretaFaceData> = {}): LibretaFaceData {
 }
 
 describe("LibretaFace — H3 curated detail (negative case, end-to-end)", () => {
-  it("never renders raw/blacklisted payload keys under the todo lens", () => {
+  it("never renders raw/blacklisted payload keys for the owner audience", () => {
     const html = renderToStaticMarkup(
-      <LibretaFace data={faceData()} petPublicToken="abc" initialLens="todo" isOwner />,
+      <LibretaFace data={faceData()} petPublicToken="abc" isOwner />,
     );
 
     // Whitelisted fields DO render — proves the row isn't just empty.
@@ -87,5 +87,65 @@ describe("LibretaFace — H3 curated detail (negative case, end-to-end)", () => 
     expect(html).not.toContain("firma_hash");
     expect(html).not.toContain("matched_chip_number");
     expect(html).not.toContain("internal_ref_id");
+  });
+});
+
+describe("LibretaFace — ADR-10 consolidation (no lens chips, share removed)", () => {
+  it("owner sees the note_added event too (no chip filtering, single consolidated timeline)", () => {
+    const noteEvent = pastEvent({
+      id: "evt-note",
+      eventType: "note_added",
+      payload: { text: "OWNER-ONLY-NOTE-MARKER" },
+    });
+    const html = renderToStaticMarkup(
+      <LibretaFace data={faceData({ past: [noteEvent] })} petPublicToken="abc" isOwner />,
+    );
+    expect(html).toContain("OWNER-ONLY-NOTE-MARKER");
+  });
+
+  it("org viewer never sees a non-libreta-sanitaria event (note_added filtered out)", () => {
+    const noteEvent = pastEvent({
+      id: "evt-note",
+      eventType: "note_added",
+      payload: { text: "OWNER-ONLY-NOTE-MARKER" },
+    });
+    const html = renderToStaticMarkup(
+      <LibretaFace
+        data={faceData({ past: [noteEvent], accessPath: "org" })}
+        petPublicToken="abc"
+        isOwner={false}
+      />,
+    );
+    expect(html).not.toContain("OWNER-ONLY-NOTE-MARKER");
+  });
+
+  it("renders no lens-chip UI (no 'Todo'/'Vacunas'/'Oficial' toggle buttons)", () => {
+    const html = renderToStaticMarkup(
+      <LibretaFace data={faceData()} petPublicToken="abc" isOwner />,
+    );
+    expect(html).not.toContain('aria-pressed="true"');
+    expect(html).not.toContain('aria-pressed="false"');
+  });
+
+  it("no longer renders SharesManager or the footer 'Compartir libreta' link (ADR-14)", () => {
+    const html = renderToStaticMarkup(
+      <LibretaFace data={faceData()} petPublicToken="abc" isOwner />,
+    );
+    expect(html).not.toContain("Compartir libreta");
+    expect(html).not.toContain("Nuevo enlace");
+  });
+
+  it("still renders ExportLibretaButton in the footer", () => {
+    const html = renderToStaticMarkup(
+      <LibretaFace data={faceData()} petPublicToken="abc" isOwner />,
+    );
+    expect(html).toContain("Exportar libreta (PDF)");
+  });
+
+  it("VacunasStatusBadges renders unconditionally (org viewer too — always-on, ADR-10)", () => {
+    const html = renderToStaticMarkup(
+      <LibretaFace data={faceData({ accessPath: "org" })} petPublicToken="abc" isOwner={false} />,
+    );
+    expect(html).toContain("Estado de vacunación");
   });
 });

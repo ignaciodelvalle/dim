@@ -22,7 +22,7 @@ import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-data";
 import { FlipCard } from "@/components/pet-profile/FlipCard";
 import { LibretaFace } from "@/components/pet-profile/LibretaFace";
-import { type PetLens, resolvePetFace } from "@/lib/domain/pet-face-nav";
+import { resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { PetDetailTabs, type TabKey } from "./PetDetailTabs";
 
 // ---------------------------------------------------------------------------
@@ -78,12 +78,11 @@ type Props = {
   credencialContent: ReactNode;
   /** Active face resolved from searchParams on the server (resolvePetFace). */
   initialFace: TabKey;
-  /** Lens resolved from searchParams on the server (resolvePetFace). */
-  initialLens: PetLens;
   /**
    * Whether the current viewer is the pet owner. Org-path viewers still see
-   * the Libreta face, lens-clamped to vacunas/oficial (design ADR-6) — no
-   * face is hidden anymore, unlike the old owner-only Libreta/Historial gate.
+   * the Libreta face — ADR-10 collapsed it to ONE consolidated timeline
+   * (owner sees everything, org sees the oficial-only subset), no lens
+   * toggle and no face hidden anymore.
    */
   isOwner: boolean;
 };
@@ -96,7 +95,6 @@ export function PetDetailTabsPanel({
   petPublicToken,
   credencialContent,
   initialFace,
-  initialLens,
   isOwner,
 }: Props) {
   const router = useRouter();
@@ -156,7 +154,7 @@ export function PetDetailTabsPanel({
       const params = new URLSearchParams(searchParams.toString());
       if (faceFromHash === "libreta") {
         params.set("tab", "libreta");
-        if (!params.get("lente")) params.set("lente", isOwner ? "todo" : "vacunas");
+        if (!params.get("lente")) params.set("lente", isOwner ? "todo" : "oficial");
       } else {
         params.delete("tab");
         params.delete("lente");
@@ -175,14 +173,7 @@ export function PetDetailTabsPanel({
   function renderBackContent() {
     if (libretaError) return <TabErrorState message={libretaError} />;
     if (!libretaData) return <TabLoadingSkeleton />;
-    return (
-      <LibretaFace
-        data={libretaData}
-        petPublicToken={petPublicToken}
-        initialLens={initialLens}
-        isOwner={isOwner}
-      />
-    );
+    return <LibretaFace data={libretaData} petPublicToken={petPublicToken} isOwner={isOwner} />;
   }
 
   // "Girar" affordance (ADR-11): mirrors PetDetailTabs.switchTab's exact URL
@@ -196,7 +187,7 @@ export function PetDetailTabsPanel({
       params.delete("lente");
     } else {
       params.set("tab", "libreta");
-      params.set("lente", isOwner ? "todo" : "vacunas");
+      params.set("lente", isOwner ? "todo" : "oficial");
     }
     const qs = params.toString();
     router.replace(qs ? `?${qs}` : "?", { scroll: false });

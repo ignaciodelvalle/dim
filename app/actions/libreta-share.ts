@@ -13,10 +13,11 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { db, libretaShareTokens, pets } from "@/db";
+import { type LibretaShareToken, db, libretaShareTokens, pets } from "@/db";
+import { requirePetAccess } from "@/lib/infra/pet-access";
 import { createClient } from "@/lib/supabase/server";
 import { createLibretaShareForUser as _createLibretaShareForUser } from "@/src/modules/pets/application/libreta-share/create-libreta-share";
 import { logLibretaShareViewForToken as _logLibretaShareViewForToken } from "@/src/modules/pets/application/libreta-share/log-libreta-share-view";
@@ -119,4 +120,30 @@ export async function logLibretaShareViewAction(input: {
   userAgent: string | null;
 }): Promise<void> {
   await _logLibretaShareViewForToken(input);
+}
+
+// ---------------------------------------------------------------------------
+// getActiveLibretaSharesAction — narrow read for MergedShareSheet (ADR-14).
+//
+// SharesManager moved out of LibretaFace into the `?sheet=compartir` sheet
+// (SheetMounter is a sibling of PetDetailTabsPanel, so it can't read the
+// Libreta face's deferred client-fetched data). This action reuses the SAME
+// owner-only active-shares query get-libreta-face-data.ts runs, scoped down
+// to just that slice, so MergedShareSheet can self-fetch on mount instead of
+// forking SharesManager's data contract.
+// ---------------------------------------------------------------------------
+
+export async function getActiveLibretaSharesAction(
+  petPublicToken: string,
+): Promise<{ ok: true; shares: LibretaShareToken[] } | { ok: false; error: string }> {
+  const access = await requirePetAccess(petPublicToken);
+  if (!access.ok) return { ok: false, error: "Acceso denegado" };
+  if (access.accessPath !== "owner") return { ok: true, shares: [] };
+
+  const shares = await db
+    .select()
+    .from(libretaShareTokens)
+    .where(and(eq(libretaShareTokens.petId, access.pet.id), isNull(libretaShareTokens.revokedAt)));
+
+  return { ok: true, shares };
 }

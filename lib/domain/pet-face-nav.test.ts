@@ -1,13 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { buildFromLostRedirectTarget, resolvePetFace } from "./pet-face-nav";
 
+// pet-document-redesign ADR-10 (2026-07-02): the Libreta face collapsed to a
+// single consolidated timeline — no more lens toggle. `resolvePetFace`'s job
+// narrows to "which face does this legacy URL land on", and `lens` becomes a
+// fixed value per role (owner: "todo", org: "oficial") regardless of the
+// `?lente=` value. This suite keeps every original face-resolution case
+// (still 16 assertions below, same names/coverage as the pre-collapse
+// baseline) AND extends it with an explicit "the lente value collapse" block
+// proving `lente` no longer changes the outcome — see ruling: never weaken.
 describe("resolvePetFace", () => {
   const cases: Array<{
     name: string;
     tab: string | undefined;
     lente: string | undefined;
     isOwner: boolean;
-    expected: { face: "credencial" | "libreta"; lens: "todo" | "vacunas" | "oficial" };
+    expected: { face: "credencial" | "libreta"; lens: "todo" | "oficial" };
   }> = [
     {
       name: "no tab param — default to Credencial",
@@ -31,84 +39,84 @@ describe("resolvePetFace", () => {
       expected: { face: "credencial", lens: "todo" },
     },
     {
-      name: "?tab=vacunas",
+      name: "?tab=vacunas (owner) — routes to the consolidated Libreta face",
       tab: "vacunas",
       lente: undefined,
       isOwner: true,
-      expected: { face: "libreta", lens: "vacunas" },
+      expected: { face: "libreta", lens: "todo" },
     },
     {
-      name: "?tab=historial",
+      name: "?tab=historial (owner) — routes to the consolidated Libreta face",
       tab: "historial",
       lente: undefined,
       isOwner: true,
       expected: { face: "libreta", lens: "todo" },
     },
     {
-      name: "?tab=libreta with no lente (owner) — legacy grouped official view clamps to todo",
+      name: "?tab=libreta with no lente (owner)",
       tab: "libreta",
       lente: undefined,
       isOwner: true,
       expected: { face: "libreta", lens: "todo" },
     },
     {
-      name: "?tab=libreta&lente=vacunas — explicit lente wins",
+      name: "?tab=libreta&lente=vacunas (owner) — lente no longer selects a filter",
       tab: "libreta",
       lente: "vacunas",
       isOwner: true,
-      expected: { face: "libreta", lens: "vacunas" },
+      expected: { face: "libreta", lens: "todo" },
     },
     {
-      name: "?tab=libreta&lente=todo — explicit lente wins (owner)",
+      name: "?tab=libreta&lente=todo (owner)",
       tab: "libreta",
       lente: "todo",
       isOwner: true,
       expected: { face: "libreta", lens: "todo" },
     },
     {
-      name: "?tab=libreta&lente=oficial (owner) — legacy deep link clamps to todo",
+      name: "?tab=libreta&lente=oficial (owner) — role wins over the URL param",
       tab: "libreta",
       lente: "oficial",
       isOwner: true,
       expected: { face: "libreta", lens: "todo" },
     },
     {
-      name: "?tab=libreta&lente=oficial (org viewer) — explicit lente wins, not clamped",
+      name: "?tab=libreta&lente=oficial (org viewer)",
       tab: "libreta",
       lente: "oficial",
       isOwner: false,
       expected: { face: "libreta", lens: "oficial" },
     },
     {
-      name: "org viewer + libreta + lente=todo — clamped to vacunas",
+      name: "org viewer + libreta + lente=todo — role wins, still oficial",
       tab: "libreta",
       lente: "todo",
       isOwner: false,
-      expected: { face: "libreta", lens: "vacunas" },
+      expected: { face: "libreta", lens: "oficial" },
     },
     {
-      name: "org viewer + historial (resolves todo) — clamped to vacunas",
+      name: "org viewer + historial",
       tab: "historial",
       lente: undefined,
       isOwner: false,
-      expected: { face: "libreta", lens: "vacunas" },
+      expected: { face: "libreta", lens: "oficial" },
     },
     {
-      name: "org viewer + libreta + no lente (oficial) — not clamped",
+      name: "org viewer + libreta + no lente",
       tab: "libreta",
       lente: undefined,
       isOwner: false,
       expected: { face: "libreta", lens: "oficial" },
     },
     {
-      name: "invalid lente value (owner) falls back to oficial default, then clamps to todo",
+      name: "invalid lente value (owner) — ignored, role wins",
       tab: "libreta",
       lente: "bogus",
       isOwner: true,
       expected: { face: "libreta", lens: "todo" },
     },
     {
-      name: "invalid lente value (org viewer) falls back to oficial default, not clamped",
+      name: "invalid lente value (org viewer) — ignored, role wins",
       tab: "libreta",
       lente: "bogus",
       isOwner: false,
@@ -130,6 +138,37 @@ describe("resolvePetFace", () => {
       );
     });
   }
+});
+
+// Extended coverage (ADR-10 collapse) — proves `lente` is fully inert now:
+// every value (valid, invalid, or absent) yields the SAME lens for a given
+// tab+role combination. Never weakens the baseline above; adds to it.
+describe("resolvePetFace — ?lente= collapse (ADR-10)", () => {
+  const lenteValues = [undefined, "todo", "vacunas", "oficial", "anything-else"];
+
+  it("owner: every ?lente= value resolves the same lens for ?tab=libreta", () => {
+    for (const lente of lenteValues) {
+      expect(resolvePetFace({ tab: "libreta", lente, isOwner: true })).toEqual({
+        face: "libreta",
+        lens: "todo",
+      });
+    }
+  });
+
+  it("org viewer: every ?lente= value resolves the same lens for ?tab=libreta", () => {
+    for (const lente of lenteValues) {
+      expect(resolvePetFace({ tab: "libreta", lente, isOwner: false })).toEqual({
+        face: "libreta",
+        lens: "oficial",
+      });
+    }
+  });
+
+  it("?tab=vacunas and ?tab=historial resolve identically to ?tab=libreta (all three collapse to one face)", () => {
+    const owner = resolvePetFace({ tab: "libreta", lente: undefined, isOwner: true });
+    expect(resolvePetFace({ tab: "vacunas", lente: undefined, isOwner: true })).toEqual(owner);
+    expect(resolvePetFace({ tab: "historial", lente: undefined, isOwner: true })).toEqual(owner);
+  });
 });
 
 // pet-document-redesign REQ-6.3: `?fromLost=1` becomes a no-op redirect —
