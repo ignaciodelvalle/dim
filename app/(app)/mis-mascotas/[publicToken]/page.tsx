@@ -12,10 +12,12 @@
 // Screen order (normal/active state, AGENTS.md rule 5):
 //   back-link → org notice (org-path only) → PetDetailTabsPanel, whose
 //   `credencialContent` (Face 1, eager) is: CredentialFace (identity +
-//   compliance stamps + QR + mono IDs + seal + compact ppp/service-dog rows)
-//   → <PetAlertStrip> (avisos, urgency-ordered) → Anotar CTA + a 3-item
-//   action row (Compartir · Marcar perdida · ⋯ Más). The Libreta face
-//   (deferred) is one future+past timeline with 3 lenses — see LibretaFace.
+//   compliance stamps + QR + owner-only Emergencia card + compact
+//   ppp/service-dog rows) → <PetAlertStrip> (avisos, urgency-ordered) → a
+//   single action row led by Anotar (Compartir · Marcar perdida · ⋯ Más).
+//   The Libreta face (deferred) is one future+past timeline with a
+//   role-scoped lens set (owner: Todo/Vacunas; org: Vacunas/Oficial) — see
+//   LibretaFace.
 //
 // resolvePetFace (lib/domain/pet-face-nav.ts) is the single pure mapper for
 // every legacy `?tab=` deep link (resumen/vacunas/historial/libreta) onto
@@ -37,6 +39,7 @@
 
 import { fetchPendingReturnProposalForOwner } from "@/app/actions/return-to-owner";
 import type { PetState } from "@/components/EventCatcher";
+import { Icon } from "@/components/Icon";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { CredentialFace } from "@/components/pet-profile/CredentialFace";
@@ -79,6 +82,7 @@ import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import QRCode from "qrcode";
 import { Suspense } from "react";
 import type { EventTimeline } from "./EventTimeline";
 import { LostCockpit } from "./LostCockpit";
@@ -812,6 +816,17 @@ export default async function PetDetailPage({
     pppApplies: Boolean(pet.potentiallyDangerousBreed),
   });
 
+  // QR for the credential's Face 1 — same absolute-URL + inline-SVG pattern
+  // as /mis-mascotas/nueva/[publicToken]/credencial and /cartel (no separate
+  // image route; the previous `/p/{token}.png` route never existed).
+  const siteBaseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.ar";
+  const credentialQrSvg = await QRCode.toString(`${siteBaseUrl}/p/${pet.publicToken}`, {
+    type: "svg",
+    margin: 1,
+    width: 64,
+    errorCorrectionLevel: "M",
+  });
+
   return (
     <div
       className="mx-auto max-w-4xl pb-[48px] px-[16px] md:px-[32px]"
@@ -865,12 +880,7 @@ export default async function PetDetailPage({
                     tags: heroTags,
                   }}
                   complianceState={complianceState}
-                  identity={{
-                    microchip: canonicalIds.microchip?.code ?? null,
-                    libretaId: `LIB-AR-${pet.publicToken.toUpperCase()}`,
-                    titular: viewerContacts?.displayName ?? null,
-                  }}
-                  qrUrl={`/p/${pet.publicToken}.png`}
+                  qrSvg={credentialQrSvg}
                   publicHref={`/p/${pet.publicToken}`}
                   ppp={
                     pet.potentiallyDangerousBreed
@@ -892,6 +902,15 @@ export default async function PetDetailPage({
                             serviceDogRow.serviceType,
                           manageHref: `/mis-mascotas/${pet.publicToken}/asistencia`,
                           presentHref: buildPresentarHref(pet.publicToken),
+                        }
+                      : null
+                  }
+                  emergencyContacts={
+                    isOwner
+                      ? {
+                          preferredVetPhone: viewerContacts?.preferredVetPhone ?? null,
+                          emergencyContactName: viewerContacts?.emergencyContactName ?? null,
+                          emergencyContactPhone: viewerContacts?.emergencyContactPhone ?? null,
                         }
                       : null
                   }
@@ -952,51 +971,55 @@ export default async function PetDetailPage({
                 })()}
               />
 
-              {/* 3. Capture, then the two faces — Anotar (owner-only; org
-                    viewers get no capture control anywhere on the page) plus
-                    a row of quiet actions. Mark-lost stays always visible
-                    here (T2), never buried in ⋯ Más. */}
-              <div data-section="action-row" className="flex flex-col gap-2.5">
+              {/* 3. Capture, then the two faces — Anotar leads a single row
+                    of quiet actions (owner-only actions render nothing for
+                    org viewers, who get no capture control anywhere on the
+                    page). Mark-lost stays always visible here (T2), never
+                    buried in ⋯ Más. */}
+              <div data-section="action-row" className="flex flex-wrap gap-2">
                 {isOwner && (
                   <Link
                     href={`/mis-mascotas/${pet.publicToken}/anotar`}
-                    className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-4 text-sm font-semibold text-white no-underline transition-colors hover:bg-ln-azul-700 md:w-fit"
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--color-ln-azul)] px-4 text-sm font-semibold text-white no-underline transition-colors hover:bg-ln-azul-700"
                   >
+                    <Icon name="edit" size="sm" decorative />
                     Anotar
                   </Link>
                 )}
-                <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/mis-mascotas/${pet.publicToken}?sheet=compartir`}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border-[3px] border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 text-sm font-semibold text-[var(--color-ln-azul)] no-underline transition-colors hover:border-[var(--color-ln-line-strong)]"
+                >
+                  <Icon name="share" size="sm" decorative />
+                  Compartir
+                </Link>
+                {pet.status === "active" && (
                   <Link
-                    href={`/mis-mascotas/${pet.publicToken}?sheet=compartir`}
-                    className="inline-flex min-h-11 items-center justify-center rounded-full border-[3px] border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 text-sm font-semibold text-[var(--color-ln-azul)] no-underline transition-colors hover:border-[var(--color-ln-line-strong)]"
+                    href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-perdida`}
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border-[3px] border-ln-err bg-transparent px-4 text-sm font-semibold text-ln-err no-underline transition-colors hover:bg-ln-err hover:text-white"
                   >
-                    Compartir
+                    <Icon name="alert-triangle" size="sm" decorative />
+                    Marcar como perdida
                   </Link>
-                  {pet.status === "active" && (
-                    <Link
-                      href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-perdida`}
-                      className="inline-flex min-h-11 items-center justify-center rounded-full border-[3px] border-ln-err bg-transparent px-4 text-sm font-semibold text-ln-err no-underline transition-colors hover:bg-ln-err hover:text-white"
-                    >
-                      Marcar como perdida
-                    </Link>
-                  )}
-                  {pet.status === "lost" && (
-                    <Link
-                      href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-encontrada`}
-                      className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-ok px-4 text-sm font-semibold text-white no-underline transition-colors hover:opacity-90"
-                    >
-                      Marcar encontrada
-                    </Link>
-                  )}
-                  {isOwner && (
-                    <Link
-                      href={`/mis-mascotas/${pet.publicToken}?sheet=mas`}
-                      className="inline-flex min-h-11 items-center justify-center rounded-full border-[3px] border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 text-sm font-semibold text-[var(--color-ln-azul)] no-underline transition-colors hover:border-[var(--color-ln-line-strong)]"
-                    >
-                      ⋯ Más
-                    </Link>
-                  )}
-                </div>
+                )}
+                {pet.status === "lost" && (
+                  <Link
+                    href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-encontrada`}
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-ln-ok px-4 text-sm font-semibold text-white no-underline transition-colors hover:opacity-90"
+                  >
+                    <Icon name="check" size="sm" decorative />
+                    Marcar encontrada
+                  </Link>
+                )}
+                {isOwner && (
+                  <Link
+                    href={`/mis-mascotas/${pet.publicToken}?sheet=mas`}
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border-[3px] border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 text-sm font-semibold text-[var(--color-ln-azul)] no-underline transition-colors hover:border-[var(--color-ln-line-strong)]"
+                  >
+                    <Icon name="ellipsis" size="sm" decorative />
+                    Más
+                  </Link>
+                )}
               </div>
             </div>
           }

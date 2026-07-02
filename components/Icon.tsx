@@ -22,6 +22,7 @@ import {
   BriefcaseMedical,
   Building2,
   Camera,
+  Check,
   CheckCircle,
   ChevronRight,
   Circle,
@@ -44,6 +45,7 @@ import {
   Menu,
   MessageSquare,
   Milk,
+  MoreHorizontal,
   Nfc,
   PawPrint,
   Pencil,
@@ -55,6 +57,7 @@ import {
   Scissors,
   Search,
   Settings,
+  Share2,
   Shield,
   ShieldCheck,
   Siren,
@@ -170,6 +173,9 @@ const ICON_MAP: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
   laptop: Laptop,
   zap: Zap,
+  share: Share2,
+  check: Check,
+  ellipsis: MoreHorizontal,
 };
 
 /** All registered icon names — consumed by the IconSearch browser in /design. */

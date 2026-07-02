@@ -277,7 +277,10 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
 
       {/* Emergency / vet contact group — appears on <PetEmergencyCard>
           of every pet detail. Tap-to-call linkable. */}
-      <fieldset className="space-y-3 rounded-[4px] border border-[var(--color-ln-line)] p-4">
+      <fieldset
+        id="emergencia"
+        className="scroll-mt-6 space-y-3 rounded-[4px] border border-[var(--color-ln-line)] p-4"
+      >
         <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-ln-mute)]">
           Contactos para emergencias
         </legend>

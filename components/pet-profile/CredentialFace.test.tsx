@@ -43,8 +43,7 @@ function sterilization(prov: Partial<ComplianceEvent>): ComplianceEvent {
 
 const baseProps: Omit<CredentialFaceProps, "complianceState"> = {
   heroProps: { name: "Firulais", breed: "Mestizo" },
-  identity: { microchip: "123", libretaId: "LIB-AR-abc", titular: "Ana" },
-  qrUrl: "/p/abc.png",
+  qrSvg: "<svg></svg>",
   publicHref: "/p/abc",
   petPublicToken: "abc",
 };
