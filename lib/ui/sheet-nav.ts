@@ -116,6 +116,32 @@ export function pushTabUrl(url: string): void {
 }
 
 /**
+ * Normalizes the pet profile's active face/tab URL (`?tab=`/`?lente=`)
+ * WITHOUT pushing a new history entry — i.e. `replaceState`, not
+ * `pushState`.
+ *
+ * Use this (not pushTabUrl) for a SILENT, one-time normalization the user
+ * didn't ask for — e.g. PetDetailTabsPanel's legacy `#hash`→`?tab=` mount
+ * migration. That migration fires because the URL is stale/legacy, not
+ * because the user took a new navigation action; pushTabUrl would add a
+ * spurious history entry the back button would have to skip through to get
+ * back to wherever the user actually came from. pushTabUrl remains correct
+ * for an explicit user-driven face switch (the "Girar" affordance / tab
+ * buttons), which DOES want its own undo-able history entry — see
+ * pushTabUrl's docblock.
+ *
+ * `url` must target the SAME route as the current page (only `tab`/`lente`
+ * search params differ) — see isSameRouteUrl. Same router-hot-path
+ * rationale as the rest of this module (module docblock): native History
+ * API instead of router.replace, since Next's App Router patches
+ * window.history.replaceState on mount to support shallow routing.
+ */
+export function replaceTabUrl(url: string): void {
+  if (typeof window === "undefined") return;
+  window.history.replaceState(null, "", url);
+}
+
+/**
  * True when `targetUrl`'s pathname matches `currentPathname` — i.e. the
  * target is a same-route `?sheet=` shorthand reachable via shallow routing
  * (pushSheetUrl). False for a genuinely different route (a full page),

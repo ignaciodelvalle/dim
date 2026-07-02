@@ -17,7 +17,7 @@
 // - Print: libreta-print.css is imported here so it's only applied when this
 //   component (and thus the Libreta face) is rendered.
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
@@ -28,7 +28,7 @@ import {
   type LibretaFaceEmergencyContacts,
 } from "@/components/pet-profile/LibretaFace";
 import { type PetFace, resolvePetFace } from "@/lib/domain/pet-face-nav";
-import { pushTabUrl } from "@/lib/ui/sheet-nav";
+import { pushTabUrl, replaceTabUrl } from "@/lib/ui/sheet-nav";
 
 /** Which face is active. Same shape as `PetFace` — kept as a local alias so
  * every prior call site (props, HASH_TO_TAB, state) can keep the name it
@@ -116,7 +116,6 @@ export function PetDetailTabsPanel({
   isOwner,
   emergencyContacts,
 }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -164,6 +163,16 @@ export function PetDetailTabsPanel({
   }, [fetchLibreta]);
 
   // On mount: check for a legacy hash fragment and activate that face.
+  //
+  // Router-hot-path fix: this is a SILENT one-time normalization (the user
+  // didn't take a new action — we're just migrating a stale/legacy URL on
+  // load), so it uses replaceTabUrl (native History API replaceState), not
+  // router.replace and not pushTabUrl. router.replace reproduced the same
+  // silent-drop symptom as every other router.push/replace call this module
+  // exists to route around (see lib/ui/sheet-nav.ts); pushTabUrl would be
+  // wrong here too even if it worked, since it pushes a history entry — the
+  // back button shouldn't have to skip through a migration the user never
+  // asked for.
   const hashHandledRef = useRef(false);
   useEffect(() => {
     if (hashHandledRef.current) return;
@@ -179,7 +188,7 @@ export function PetDetailTabsPanel({
         params.delete("tab");
         params.delete("lente");
       }
-      router.replace(`?${params.toString()}`, { scroll: false });
+      replaceTabUrl(`?${params.toString()}`);
       requestAnimationFrame(() => {
         document.querySelector("[data-section='flip-card']")?.scrollIntoView({
           behavior: "smooth",
@@ -187,7 +196,7 @@ export function PetDetailTabsPanel({
         });
       });
     }
-  }, [router, searchParams, initialFace, isOwner]);
+  }, [searchParams, initialFace, isOwner]);
 
   // Back face content — skeleton/error scoped here only (never the front,
   // which is the eager SSR credencialContent).

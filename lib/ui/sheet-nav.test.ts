@@ -13,6 +13,7 @@ import {
   closeSheetNavWithFullReload,
   isSameRouteUrl,
   pushSheetUrl,
+  replaceTabUrl,
 } from "./sheet-nav";
 
 describe("pushSheetUrl / closeSheetNav — history-API state machine", () => {
@@ -99,6 +100,34 @@ describe("closeSheetNavWithFullReload — post-mutation stale-server-data close"
   it("is a no-op when window is undefined (SSR safety)", () => {
     vi.stubGlobal("window", undefined);
     expect(() => closeSheetNavWithFullReload("/x")).not.toThrow();
+  });
+});
+
+describe("replaceTabUrl — silent one-time tab/face URL normalization (no pushed history entry)", () => {
+  const pushState = vi.fn();
+  const replaceState = vi.fn();
+
+  beforeEach(() => {
+    pushState.mockClear();
+    replaceState.mockClear();
+    vi.stubGlobal("window", {
+      history: { pushState, replaceState },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("calls history.replaceState with the given URL, never pushState", () => {
+    replaceTabUrl("/mis-mascotas/abc?tab=libreta&lente=todo");
+    expect(replaceState).toHaveBeenCalledWith(null, "", "/mis-mascotas/abc?tab=libreta&lente=todo");
+    expect(pushState).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op when window is undefined (SSR safety)", () => {
+    vi.stubGlobal("window", undefined);
+    expect(() => replaceTabUrl("/x?tab=libreta")).not.toThrow();
   });
 });
 

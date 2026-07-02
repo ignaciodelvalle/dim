@@ -56,12 +56,10 @@ vi.mock("next/navigation", () => ({
     usePseudoRouterSubscription();
     return new URLSearchParams(window.location.search);
   },
-  // Sanity net: if either click path (Girar / tab buttons) falls back to
-  // router.push/replace, these spies make that regression visible. Note
-  // PetDetailTabsPanel's legacy-hash-sync effect (unrelated to this task's
-  // click paths) still legitimately calls router.replace on mount when a
-  // recognized hash is present — tests below don't set a hash, so that
-  // effect is a no-op and these spies stay untouched by it.
+  // Sanity net: if either click path (Girar / tab buttons) — or the
+  // legacy-hash-sync mount effect, ported to replaceTabUrl (native History
+  // API) in the same router-drop cure — ever falls back to
+  // router.push/replace, these spies make that regression visible.
   useRouter: () => ({ push: routerPush, replace: routerReplace }),
 }));
 
@@ -203,5 +201,18 @@ describe("PetDetailTabsPanel — deep-link parity (unaffected by the router-hot-
     renderPanel("libreta");
 
     expect(screen.getByRole("button", { name: "Girar a Credencial" })).toBeInTheDocument();
+  });
+});
+
+describe("PetDetailTabsPanel — legacy #hash mount migration (replaceTabUrl, router-hot-path fix)", () => {
+  it("a legacy #libreta hash on load normalizes the URL via history.replaceState — no router.replace involved", async () => {
+    window.history.replaceState(null, "", "/mis-mascotas/abc123#libreta");
+    renderPanel("credencial");
+
+    await waitFor(() => {
+      expect(window.location.search).toBe("?tab=libreta&lente=todo");
+    });
+    expect(routerReplace).not.toHaveBeenCalled();
+    expect(routerPush).not.toHaveBeenCalled();
   });
 });
