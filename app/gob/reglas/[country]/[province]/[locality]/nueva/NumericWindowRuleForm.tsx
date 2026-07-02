@@ -6,11 +6,13 @@
 // They all share the exact same shape (one bounded integer + notes), so one
 // parameterized component covers all 4 instead of 4 near-identical files.
 //
-// No impact-preview gate wired here (R4.5 target behavior — the impact-
-// preview infra (RuleImpactBanner/countDogsAffectedByRule) is PPP-specific
-// today; generalizing it to arbitrary record counts per promoted type is
-// out of scope for this pass and tracked as a follow-up, same treatment as
-// the config-only rule types).
+// No impact-preview gate wired here — per decision #651 (spec R4.5 amended),
+// the count-based impact-preview gate (RuleImpactBanner + rule-impact-gate)
+// is required only for rule types that mutate/reclassify records
+// (ppp_breed_list, ppp_weight_threshold). These 4 rule types only change
+// notification timing / badge derivation, not record legal status, so they
+// render explicit warning copy instead of a blocking count gate — see the
+// LnAlert below.
 
 import { useActionState, useState } from "react";
 
@@ -19,6 +21,7 @@ import {
   createBusinessRuleAction,
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
+import { LnAlert } from "@/components/ui/Alert";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import type { GovtBusinessRuleType } from "@/db";
@@ -105,6 +108,14 @@ export function NumericWindowRuleForm({
           />
         )}
       </LnField>
+
+      {/* No count-based impact-preview gate for this rule type (decision #651
+          — only record-mutating types like ppp_breed_list/ppp_weight_threshold
+          get that gate). Explicit warning copy instead, no acknowledgement
+          checkbox: this change is not blocking. */}
+      <LnAlert variant="warning">
+        Este cambio aplica inmediatamente a toda la jurisdicción seleccionada.
+      </LnAlert>
 
       {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
       {state.error && (
