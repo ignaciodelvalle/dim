@@ -4,7 +4,8 @@
  * CuentaSheetMounter — deep-link driven sheets for the cuenta dashboard.
  *
  * Opens the appropriate form Sheet based on `?sheet=<id>` URL state.
- * Closing removes the `sheet` param from the URL via router.replace.
+ * Closing removes the `sheet` param from the URL via closeSheetNav (native
+ * History API — router-hot-path fix, see lib/ui/sheet-nav.ts).
  *
  * Supported sheet IDs:
  *   editar-perfil | renunciar-rol | solicitar-upgrade-vet | verificar-dni
@@ -18,7 +19,8 @@
 
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
 import { EditProfileForm } from "./editar/EditProfileForm";
@@ -46,15 +48,14 @@ type Props = {
 };
 
 export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const sheet = searchParams.get("sheet");
 
   const close = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
-    router.replace(buildCloseSheetUrl(pathname, params));
-  }, [router, pathname, searchParams]);
+    closeSheetNav(buildCloseSheetUrl(pathname, params));
+  }, [pathname, searchParams]);
 
   if (sheet === "editar-perfil") {
     return (

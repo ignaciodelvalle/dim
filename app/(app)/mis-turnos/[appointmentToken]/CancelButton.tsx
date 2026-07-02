@@ -2,18 +2,21 @@
 
 // Owner-side cancellation trigger for /mis-turnos/[appointmentToken].
 // Uses URL state (?sheet=cancelar-turno) instead of browser confirm().
+//
+// Opens via pushSheetUrl (native History API) instead of router.push —
+// router-hot-path fix, see lib/ui/sheet-nav.ts.
 
 import { buildSheetUrl } from "@/lib/ui/sheet-helpers";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { pushSheetUrl } from "@/lib/ui/sheet-nav";
+import { usePathname, useSearchParams } from "next/navigation";
 
 export function CancelButton() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   function handleClick() {
     const params = new URLSearchParams(searchParams.toString());
-    router.push(buildSheetUrl(pathname, params, "cancelar-turno"));
+    pushSheetUrl(buildSheetUrl(pathname, params, "cancelar-turno"));
   }
 
   return (
