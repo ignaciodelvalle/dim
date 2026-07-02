@@ -307,6 +307,12 @@ describe("searchOmnibox — case scoping (govt)", () => {
     expect(ids).toContain(mendozaCaseId);
   });
 
+  it("a case result links to its own canonical /casos/[publicCode] detail page, not the /gob/casos list", async () => {
+    const r = await searchOmnibox(`CASO-${TAG}`, ADMIN_SCOPE);
+    const cabaResult = r.cases.find((c) => c.id === cabaCaseId);
+    expect(cabaResult?.href).toBe(`/casos/${CABA_CASE_CODE}`);
+  });
+
   it("govt with zero assignments returns empty", async () => {
     const r = await searchOmnibox(`CASO-${TAG}`, { role: "govt", jurisdictions: [] });
     expect(r.total).toBe(0);

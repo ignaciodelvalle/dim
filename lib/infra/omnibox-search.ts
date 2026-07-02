@@ -210,7 +210,12 @@ async function searchCases(
     publicCode: r.publicCode,
     caseKind: r.caseKind,
     status: r.status,
-    href: "/gob/casos",
+    // Canonical case-detail route (app/casos/[publicCode]) — same one every
+    // other case link in the app resolves to (CaseBadge, CaseQueue, org
+    // casos/transferencias pages, notification ctaUrl builders, etc.). The
+    // /gob/casos list page has no per-case deep link, so a case result must
+    // point here, not at the list.
+    href: `/casos/${r.publicCode}`,
   }));
 }
 
