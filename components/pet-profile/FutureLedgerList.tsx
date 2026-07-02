@@ -48,6 +48,13 @@ function FutureLedgerRowAction({
     return (
       <Link
         href={item.action.href}
+        // prefetch=false: same rationale as EventTimeline.tsx's row link —
+        // this list also lives inside the always-mounted (possibly
+        // off-screen) Libreta face, so eager prefetch of every row's action
+        // link is wasted connection-pool pressure that can starve a real
+        // in-flight navigation (see EventTimeline.tsx for the full
+        // incident writeup).
+        prefetch={false}
         className="shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         Ver turno →
@@ -58,6 +65,7 @@ function FutureLedgerRowAction({
   return (
     <Link
       href={`/mis-mascotas/${petPublicToken}?sheet=turno-antirrabica`}
+      prefetch={false}
       className="shrink-0 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-4 font-[var(--font-ln-sans)] text-sm font-semibold text-white no-underline transition-colors hover:bg-[var(--color-ln-azul-700)]"
     >
       Programar turno

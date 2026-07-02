@@ -117,6 +117,23 @@ export function EventTimelineList({
             {publicToken ? (
               <Link
                 href={`/mis-mascotas/${publicToken}/eventos/${event.id}`}
+                // prefetch=false: this list renders inside FlipCard's Libreta
+                // face, which ADR-11 mounts UNCONDITIONALLY (even while the
+                // Credencial face is the one showing) so height/ResizeObserver
+                // wiring is correct from the first render. Left at the Link
+                // default, EVERY row here starts prefetching the instant the
+                // page loads — regardless of whether the user ever flips to
+                // Libreta — and a timeline can hold many rows. That flood of
+                // concurrent background fetches was starving the browser's
+                // per-origin connection pool and aborting the real, in-flight
+                // navigation fetch for whatever the user actually clicked
+                // first (any `?sheet=` action-row icon), producing
+                // net::ERR_ABORTED with the URL/dialog never committing —
+                // reproduced live and root-caused via Playwright network
+                // instrumentation against the :3000 prod build. These are
+                // deep archival detail rows; prefetching them eagerly was
+                // never load-bearing for UX.
+                prefetch={false}
                 className="flex items-start justify-between gap-3 -mx-1 px-1 py-0.5 rounded-md hover:bg-[var(--color-ln-stripe)] transition-colors"
               >
                 <div className="min-w-0 space-y-0.5">

@@ -32,6 +32,12 @@ export function AmendedBadge({ amendedAt, originalHref }: AmendedBadgeProps) {
       {" · "}
       <Link
         href={originalHref}
+        // prefetch=false: same rationale as EventTimeline.tsx's row link —
+        // this renders inside the always-mounted (possibly off-screen)
+        // Libreta face, so eager prefetch of an archival detail page is
+        // wasted connection-pool pressure that can starve a real in-flight
+        // navigation (see EventTimeline.tsx for the full incident writeup).
+        prefetch={false}
         className="underline hover:text-[var(--color-ln-azul)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-ln-azul)]"
         aria-label="Ver registro original"
       >
