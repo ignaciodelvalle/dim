@@ -2,11 +2,16 @@
 //
 // Branches:
 //   1. Auth failure → 401
-//   2. Auth success + db query returns rows + reEvaluatePppBreedListChange succeeds → 200
+//   2. Auth success + db query returns rows + reEvaluatePppClassificationChange succeeds → 200
 //   3. Auth success + handler throws → 500
 //
-// Both db (@/db) and reEvaluatePppBreedListChange (@/lib/business-rules-reeval)
-// are mocked so the test stays pure (no DB access).
+// Both db (@/db) and reEvaluatePppClassificationChange
+// (@/lib/infra/business-rules-reeval) are mocked so the test stays pure (no
+// DB access). NOTE: the mock path was previously "@/lib/business-rules-
+// reeval" (stale — the module lives at "@/lib/infra/business-rules-reeval"),
+// so vi.doMock never intercepted the real import and this suite silently ran
+// against the REAL (unmocked) implementation. Fixed alongside the
+// admin-rules-console reeval generalization.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,7 +26,7 @@ describe("GET /api/cron/business-rules-reeval", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/business-rules-reeval");
+    vi.doUnmock("@/lib/infra/business-rules-reeval");
     vi.doUnmock("@/db");
   });
 
@@ -46,8 +51,8 @@ describe("GET /api/cron/business-rules-reeval", () => {
     }));
 
     const reEvalMock = vi.fn().mockResolvedValue(reEvalResult);
-    vi.doMock("@/lib/business-rules-reeval", () => ({
-      reEvaluatePppBreedListChange: reEvalMock,
+    vi.doMock("@/lib/infra/business-rules-reeval", () => ({
+      reEvaluatePppClassificationChange: reEvalMock,
     }));
 
     return { reEvalMock };
@@ -136,8 +141,8 @@ describe("GET /api/cron/business-rules-reeval", () => {
       db: { select: selectMock },
       govtBusinessRules: {},
     }));
-    vi.doMock("@/lib/business-rules-reeval", () => ({
-      reEvaluatePppBreedListChange: vi.fn(),
+    vi.doMock("@/lib/infra/business-rules-reeval", () => ({
+      reEvaluatePppClassificationChange: vi.fn(),
     }));
     const res = await callRoute({ "x-cron-secret": "test-secret" });
     expect(res.status).toBe(500);

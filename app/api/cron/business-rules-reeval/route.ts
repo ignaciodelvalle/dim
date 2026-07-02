@@ -1,5 +1,6 @@
-// Cron route — re-evaluate ppp_breed_list rules across all configured
-// jurisdictions. Spec 2026-05-19-govt-business-rules-poc-design §4.5.
+// Cron route — re-evaluate PPP classification (breed list + weight
+// threshold) across all configured jurisdictions.
+// Spec 2026-05-19-govt-business-rules-poc-design §4.5; admin-rules-console ADR-3.
 //
 // GET /api/cron/business-rules-reeval
 //
@@ -14,8 +15,8 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { db, govtBusinessRules } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import { reEvaluatePppBreedListChange } from "@/lib/infra/business-rules-reeval";
-import { eq } from "drizzle-orm";
+import { reEvaluatePppClassificationChange } from "@/lib/infra/business-rules-reeval";
+import { inArray } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const start = Date.now();
   try {
-    // Re-eval every distinct jurisdiction that has a ppp_breed_list row.
-    // Also include a single "default AR scan" so pets in AR without any
-    // override still get re-evaluated against the hardcoded default.
+    // Re-eval every distinct jurisdiction that has a ppp_breed_list OR
+    // ppp_weight_threshold row (either can affect classification via the
+    // composed resolver). Also include a single "default AR scan" so pets
+    // in AR without any override still get re-evaluated against the
+    // hardcoded defaults.
     const rows = await db
       .select({
         country: govtBusinessRules.jurisdictionCountry,
@@ -37,7 +40,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         locality: govtBusinessRules.jurisdictionLocality,
       })
       .from(govtBusinessRules)
-      .where(eq(govtBusinessRules.ruleType, "ppp_breed_list"));
+      .where(inArray(govtBusinessRules.ruleType, ["ppp_breed_list", "ppp_weight_threshold"]));
 
     let totalScanned = 0;
     let totalFlippedToPpp = 0;
@@ -55,7 +58,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ];
 
     for (const scope of scopes) {
-      const result = await reEvaluatePppBreedListChange(scope);
+      const result = await reEvaluatePppClassificationChange(scope);
       totalScanned += result.scanned;
       totalFlippedToPpp += result.flippedToPpp;
       totalFlippedToNonPpp += result.flippedToNonPpp;

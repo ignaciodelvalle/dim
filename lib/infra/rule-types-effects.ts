@@ -15,7 +15,7 @@ import "server-only";
 
 import type { GovtBusinessRuleType } from "@/db";
 import type { JurisdictionScope, ReevalCounters } from "@/lib/infra/business-rules-reeval";
-import { reEvaluatePppBreedListChange } from "@/lib/infra/business-rules-reeval";
+import { reEvaluatePppClassificationChange } from "@/lib/infra/business-rules-reeval";
 import type { RuleImpactPreviewInput } from "@/lib/infra/rule-impact";
 import { countDogsAffectedByRule } from "@/lib/infra/rule-impact";
 
@@ -26,9 +26,18 @@ export interface RuleTypeEffects {
   impactPreview?: (input: RuleImpactPreviewInput) => Promise<number>;
 }
 
+// ppp_breed_list AND ppp_weight_threshold both register the SAME
+// reevalHook (reEvaluatePppClassificationChange) — a pet's classification
+// depends on both rules together via the composed resolver
+// (resolvePppClassificationForJurisdiction), so either rule type changing
+// requires the same full re-evaluation sweep (admin-rules-console ADR-3).
 export const RULE_TYPE_EFFECTS: Partial<Record<GovtBusinessRuleType, RuleTypeEffects>> = {
   ppp_breed_list: {
-    reevalHook: reEvaluatePppBreedListChange,
+    reevalHook: reEvaluatePppClassificationChange,
+    impactPreview: countDogsAffectedByRule,
+  },
+  ppp_weight_threshold: {
+    reevalHook: reEvaluatePppClassificationChange,
     impactPreview: countDogsAffectedByRule,
   },
 };

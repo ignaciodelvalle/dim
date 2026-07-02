@@ -247,12 +247,12 @@ describe("physicalCredentialChannelsSchema — validator", () => {
 
 describe("createBusinessRuleWriter — physical_credential_channels does NOT trigger PPP reeval", () => {
   it.skipIf(!dbConstraintAllowsNewType)(
-    "creating a physical_credential_channels rule does not invoke reEvaluatePppBreedListChange [requires migration 0107]",
+    "creating a physical_credential_channels rule does not invoke reEvaluatePppClassificationChange [requires migration 0107]",
     async () => {
       // Spy on the reeval module before importing the writer so the spy
       // intercepts calls made during the test.
       const reevalModule = await import("@/lib/infra/business-rules-reeval");
-      const reevalSpy = vi.spyOn(reevalModule, "reEvaluatePppBreedListChange");
+      const reevalSpy = vi.spyOn(reevalModule, "reEvaluatePppClassificationChange");
 
       const { createBusinessRuleWriter } = await import("@/app/actions/business-rules");
 

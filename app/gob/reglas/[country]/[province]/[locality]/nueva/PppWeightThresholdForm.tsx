@@ -8,9 +8,10 @@ import {
   updateBusinessRuleAction,
 } from "@/app/actions/business-rules";
 import type { RuleImpactPreviewInput } from "@/app/actions/rule-impact-preview";
-import { RuleImpactBanner } from "@/components/admin/RuleImpactBanner";
+import { RuleImpactBanner, type RuleImpactResult } from "@/components/admin/RuleImpactBanner";
 import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { canSaveWithImpactGate, requiresImpactConfirmation } from "@/lib/domain/rule-impact-gate";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -45,6 +46,11 @@ export function PppWeightThresholdForm({
   const [kgRaw, setKgRaw] = useState<string>(initialKg !== null ? String(initialKg) : "");
   const [appliesIfBreedNotPPP, setAppliesIfBreedNotPPP] = useState(initialAppliesIfBreedNotPPP);
 
+  // C9 impact gate (parity with PppBreedListForm) — thread the banner's
+  // computed count up so the save can gate on acknowledgement.
+  const [impact, setImpact] = useState<RuleImpactResult>({ status: "idle", count: null });
+  const [acknowledged, setAcknowledged] = useState(false);
+
   // Build preview input — recomputed when kg or appliesIfBreedNotPPP changes.
   const previewInput = useMemo<RuleImpactPreviewInput | null>(() => {
     const parsed = kgRaw !== "" ? Number.parseFloat(kgRaw) : null;
@@ -60,6 +66,10 @@ export function PppWeightThresholdForm({
       locality,
     };
   }, [kgRaw, appliesIfBreedNotPPP, country, province, locality]);
+
+  const gateState = { status: impact.status, count: impact.count, acknowledged };
+  const mustConfirm = requiresImpactConfirmation(gateState);
+  const canSave = canSaveWithImpactGate(gateState);
 
   return (
     <form action={formAction} className="space-y-5">
@@ -100,8 +110,29 @@ export function PppWeightThresholdForm({
         threshold solo agrega una segunda condicion a las razas ya consideradas PPP.
       </LnCheckbox>
 
-      {/* Impact preview — shown before submission */}
-      <RuleImpactBanner input={previewInput} />
+      {/* Impact preview — shown before submission. C9: thread the result up
+          so the save can gate on acknowledgement. A new count invalidates
+          any prior acknowledgement so the operator re-confirms. */}
+      <RuleImpactBanner
+        input={previewInput}
+        onResult={(result) => {
+          setImpact(result);
+          setAcknowledged(false);
+        }}
+      />
+
+      {/* C9: confirmation gate — required only when the rule would affect pets. */}
+      {mustConfirm && impact.status === "done" && impact.count !== null && impact.count > 0 && (
+        <LnCheckbox
+          checked={acknowledged}
+          onChange={(e) => setAcknowledged(e.target.checked)}
+          labelClassName="text-xs! text-ln-op-warn!"
+        >
+          Confirmo que entiendo que guardar esta regla reevaluará y notificará a{" "}
+          {impact.count.toLocaleString("es-AR")} {impact.count === 1 ? "dueño" : "dueños"} de las
+          mascotas afectadas.
+        </LnCheckbox>
+      )}
 
       <LnField label="Notas internas">
         {({ id, describedBy, invalid }) => (
@@ -123,7 +154,13 @@ export function PppWeightThresholdForm({
         </p>
       )}
 
-      <OpButton type="submit" disabled={isPending} loading={isPending} variant="primary" block>
+      <OpButton
+        type="submit"
+        disabled={isPending || !canSave}
+        loading={isPending}
+        variant="primary"
+        block
+      >
         {isPending ? "Guardando..." : mode === "create" ? "Crear regla" : "Guardar cambios"}
       </OpButton>
     </form>

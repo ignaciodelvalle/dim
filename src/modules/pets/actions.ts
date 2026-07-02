@@ -25,14 +25,26 @@ import {
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
-import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/infra/breeds-server";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
 import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { resolvePppClassificationForJurisdiction } from "@/lib/infra/ppp-classification";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+
+/**
+ * Parses the domain layer's `estimatedWeightKg: string | null` into the
+ * `number | null` resolvePppClassificationForJurisdiction expects.
+ * NaN-guards a malformed string down to null (treated as "no weight data",
+ * same as omitted — never throws).
+ */
+function parseEstimatedWeightKg(raw: string | null): number | null {
+  if (raw === null || raw.trim() === "") return null;
+  const n = Number.parseFloat(raw);
+  return Number.isNaN(n) ? null : n;
+}
 
 import type { NewNotification } from "@/src/modules/adoption/application/set-adoption-eligibility";
 import { registerPet } from "./application/register-pet";
@@ -156,9 +168,10 @@ export async function createPetAction(
   const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
   if (upload.error) return { error: upload.error };
 
-  const potentiallyDangerousBreed = await isPotentiallyDangerousBreedForJurisdiction(
+  const potentiallyDangerousBreed = await resolvePppClassificationForJurisdiction(
     parsed.species,
     parsed.breed,
+    parseEstimatedWeightKg(parsed.estimatedWeightKg),
     {
       country: "AR",
       province: parsed.jurisdictionProvince,
@@ -260,9 +273,10 @@ export async function updatePetAction(
   const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
   if (upload.error) return { error: upload.error };
 
-  const potentiallyDangerousBreed = await isPotentiallyDangerousBreedForJurisdiction(
+  const potentiallyDangerousBreed = await resolvePppClassificationForJurisdiction(
     parsed.species,
     parsed.breed,
+    parseEstimatedWeightKg(parsed.estimatedWeightKg),
     {
       country: "AR",
       province: parsed.jurisdictionProvince,
