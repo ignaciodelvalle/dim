@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 
 import {
   type BusinessRuleFormState,
@@ -12,6 +12,7 @@ import { RuleImpactBanner, type RuleImpactResult } from "@/components/admin/Rule
 import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import { canSaveWithImpactGate, requiresImpactConfirmation } from "@/lib/domain/rule-impact-gate";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -41,6 +42,12 @@ export function PppWeightThresholdForm({
       ? updateBusinessRuleAction.bind(null, ruleId)
       : createBusinessRuleAction;
   const [state, formAction, isPending] = useActionState(action, initialState);
+
+  // Router-drop workaround (verify-report #650 WARNING-1) — see
+  // lib/ui/full-page-action-nav.ts's module docblock.
+  useEffect(() => {
+    if (state.redirectTo) navigateAfterActionSuccess(state.redirectTo);
+  }, [state.redirectTo]);
 
   // Controlled state for the two fields that drive the impact preview.
   const [kgRaw, setKgRaw] = useState<string>(initialKg !== null ? String(initialKg) : "");

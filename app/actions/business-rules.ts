@@ -11,8 +11,13 @@
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
-
-import { redirect } from "next/navigation";
+//
+// NOTE: on success these actions return `redirectTo` in BusinessRuleFormState
+// instead of calling next/navigation's redirect() — the calling form does a
+// full document navigation (lib/ui/full-page-action-nav.ts) instead of
+// relying on the framework's own post-action transition, which Next 15.5.x
+// can silently drop in production (verify-report #650 WARNING-1, see
+// BusinessRuleFormState's redirectTo doc comment for the full mechanism).
 
 import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
 import { getRuleTypeDef } from "@/lib/domain/rule-types-registry";
@@ -128,9 +133,10 @@ export async function createBusinessRuleAction(
   if (result.noOp) {
     return { error: null, warning: result.reason };
   }
-  redirect(
-    `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
-  );
+  return {
+    error: null,
+    redirectTo: `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
+  };
 }
 
 export async function updateBusinessRuleAction(
@@ -158,20 +164,26 @@ export async function updateBusinessRuleAction(
   if (!result.ok) return { error: result.error };
 
   const { country, province, locality } = normalizeJurisdiction(formData);
-  redirect(
-    `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
-  );
+  return {
+    error: null,
+    redirectTo: `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
+  };
 }
 
-export async function deleteBusinessRuleAction(ruleId: string, formData: FormData): Promise<void> {
+export async function deleteBusinessRuleAction(
+  ruleId: string,
+  _previous: BusinessRuleFormState,
+  formData: FormData,
+): Promise<BusinessRuleFormState> {
   const { user } = await requireAdminOrRedirect();
   const reason = (formData.get("reason") as string | null)?.trim() ?? "";
   const result = await _deleteBusinessRuleWriter({ actorUserId: user.id, ruleId, reason });
-  if (!result.ok) throw new Error(result.error);
+  if (!result.ok) return { error: result.error };
   const country = (formData.get("jurisdictionCountry") as string | null) ?? "AR";
   const province = (formData.get("jurisdictionProvince") as string | null) ?? "_";
   const locality = (formData.get("jurisdictionLocality") as string | null) ?? "_";
-  redirect(
-    `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province || "_")}/${encodeURIComponent(locality || "_")}`,
-  );
+  return {
+    error: null,
+    redirectTo: `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province || "_")}/${encodeURIComponent(locality || "_")}`,
+  };
 }

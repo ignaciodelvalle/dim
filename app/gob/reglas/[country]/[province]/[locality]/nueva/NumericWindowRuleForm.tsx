@@ -14,7 +14,7 @@
 // render explicit warning copy instead of a blocking count gate — see the
 // LnAlert below.
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import {
   type BusinessRuleFormState,
@@ -25,6 +25,7 @@ import { LnAlert } from "@/components/ui/Alert";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import type { GovtBusinessRuleType } from "@/db";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -66,6 +67,14 @@ export function NumericWindowRuleForm({
       : createBusinessRuleAction;
   const [state, formAction, isPending] = useActionState(action, initialState);
   const [value, setValue] = useState(String(initialValue));
+
+  // Router-drop workaround (verify-report #650 WARNING-1) — the action no
+  // longer calls redirect() on success; do a full document navigation here
+  // instead of relying on the framework's own post-action transition (see
+  // lib/ui/full-page-action-nav.ts's module docblock for the full mechanism).
+  useEffect(() => {
+    if (state.redirectTo) navigateAfterActionSuccess(state.redirectTo);
+  }, [state.redirectTo]);
 
   return (
     <form action={formAction} className="space-y-5">

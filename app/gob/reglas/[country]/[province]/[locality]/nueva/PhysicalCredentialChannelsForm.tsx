@@ -8,7 +8,7 @@
 // never triggers a reeval sweep or an impact-preview gate, so unlike
 // PppBreedListForm there is no RuleImpactBanner here.
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import {
   type BusinessRuleFormState,
@@ -17,6 +17,7 @@ import {
 } from "@/app/actions/business-rules";
 import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -101,6 +102,12 @@ export function PhysicalCredentialChannelsForm({
       ? updateBusinessRuleAction.bind(null, ruleId)
       : createBusinessRuleAction;
   const [state, formAction, isPending] = useActionState(action, initialState);
+
+  // Router-drop workaround (verify-report #650 WARNING-1) — see
+  // lib/ui/full-page-action-nav.ts's module docblock.
+  useEffect(() => {
+    if (state.redirectTo) navigateAfterActionSuccess(state.redirectTo);
+  }, [state.redirectTo]);
 
   const [printableQr, setPrintableQr] = useState(initialPrintableQr);
   const [engravedEnabled, setEngravedEnabled] = useState(initialEngravedPlate.enabled);
