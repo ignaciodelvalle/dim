@@ -19,8 +19,9 @@ import { type SupabaseClient, createClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, db, petAchievementViews } from "@/db";
+import { cases, db, ownerships, petAchievementViews, petEvents, pets } from "@/db";
 import { generateUniqueCasePublicCode } from "@/lib/infra/case-helpers";
+import { withMutationOverride } from "../_helpers/db-overrides";
 import { RLS_MATRIX, type RlsOperation, type RlsRole } from "./matrix.data";
 
 // ---------------------------------------------------------------------------
@@ -61,6 +62,18 @@ let ownerPetId: string | null = null;
 let setupError: string | null = null;
 let fixtureCaseId: string | null = null;
 let fixtureAchievementViewId: string | null = null;
+// pet-document-redesign REQ-1.2/1.3 (migration 0115) fixtures. Uses a
+// DEDICATED second pet (not `ownerPetId`) so its case-attached pet_events
+// don't leak into the generic `table: pet_events` probes above, which grant
+// admin an `allow` for ANY case-attached event via the pre-existing
+// `can_read_case` OR-branch (admin has universal case read) — colliding with
+// the generic matrix's `admin.pet_events.select = deny` expectation, which
+// assumes zero case-attached events exist on the shared fixture pet.
+let welfareBridgePetId: string | null = null;
+let welfareBridgeOwnershipId: string | null = null;
+let fixtureWelfareCaseId: string | null = null;
+let fixtureWelfareBridgeEventId: string | null = null;
+let fixtureNormalEventId: string | null = null;
 
 beforeAll(async () => {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -138,6 +151,78 @@ beforeAll(async () => {
       .returning({ id: petAchievementViews.id });
     fixtureAchievementViewId = avRow?.id ?? null;
   }
+
+  // Fixture welfare_denuncia case + bridge pet_event, tied to a DEDICATED
+  // second owner pet — needed so the pet_events welfare-bridge probes
+  // (migration 0115, REQ-1.2/1.3) have something to (de)authorize against
+  // without perturbing the generic `ownerPetId` probes above. Inserted via
+  // Drizzle (service role bypasses RLS/append-only trigger); cleaned up in
+  // afterAll. Also inserts a plain normal event with no case_id as the
+  // regression control (owner must still see their own normal events).
+  const ownerCtxForWelfare = contexts.get("owner");
+  if (ownerCtxForWelfare?.userId) {
+    const [petRow] = await db
+      .insert(pets)
+      .values({
+        publicToken: `DIM-RLSMTX-${Date.now().toString(36).toUpperCase()}`,
+        name: "RLS Matrix Welfare Fixture Pet",
+        species: "dog",
+        sex: "female",
+        potentiallyDangerousBreed: false,
+      })
+      .returning({ id: pets.id });
+    welfareBridgePetId = petRow.id;
+
+    const [ownershipRow] = await db
+      .insert(ownerships)
+      .values({
+        petId: welfareBridgePetId,
+        ownerUserId: ownerCtxForWelfare.userId,
+        role: "owner",
+      })
+      .returning({ id: ownerships.id });
+    welfareBridgeOwnershipId = ownershipRow.id;
+
+    const code = await generateUniqueCasePublicCode();
+    const [welfareRow] = await db
+      .insert(cases)
+      .values({
+        publicCode: code,
+        caseKind: "welfare_denuncia",
+        status: "open",
+        primarySubjectKind: "registered_pet",
+        primaryPetId: welfareBridgePetId,
+        openedReason:
+          "rls-matrix fixture: pet_events welfare-bridge-event hidden-from-subject probe",
+      })
+      .returning({ id: cases.id });
+    fixtureWelfareCaseId = welfareRow.id;
+
+    const [bridgeEventRow] = await db
+      .insert(petEvents)
+      .values({
+        petId: welfareBridgePetId,
+        eventType: "maltreatment_reported",
+        occurredAt: new Date(),
+        caseId: fixtureWelfareCaseId,
+        authorRole: "owner",
+        payload: {},
+      })
+      .returning({ id: petEvents.id });
+    fixtureWelfareBridgeEventId = bridgeEventRow.id;
+
+    const [normalEventRow] = await db
+      .insert(petEvents)
+      .values({
+        petId: welfareBridgePetId,
+        eventType: "note_added",
+        occurredAt: new Date(),
+        authorRole: "owner",
+        payload: { text: "rls-matrix fixture: normal event, no case_id" },
+      })
+      .returning({ id: petEvents.id });
+    fixtureNormalEventId = normalEventRow.id;
+  }
 });
 
 afterAll(async () => {
@@ -154,6 +239,34 @@ afterAll(async () => {
     await db
       .delete(petAchievementViews)
       .where(eq(petAchievementViews.id, fixtureAchievementViewId))
+      .catch(() => {});
+  }
+  if (fixtureWelfareBridgeEventId || fixtureNormalEventId) {
+    await withMutationOverride(async (tx) => {
+      if (fixtureWelfareBridgeEventId) {
+        await tx.delete(petEvents).where(eq(petEvents.id, fixtureWelfareBridgeEventId));
+      }
+      if (fixtureNormalEventId) {
+        await tx.delete(petEvents).where(eq(petEvents.id, fixtureNormalEventId));
+      }
+    }).catch(() => {});
+  }
+  if (fixtureWelfareCaseId) {
+    await db
+      .delete(cases)
+      .where(eq(cases.id, fixtureWelfareCaseId))
+      .catch(() => {});
+  }
+  if (welfareBridgeOwnershipId) {
+    await db
+      .delete(ownerships)
+      .where(eq(ownerships.id, welfareBridgeOwnershipId))
+      .catch(() => {});
+  }
+  if (welfareBridgePetId) {
+    await db
+      .delete(pets)
+      .where(eq(pets.id, welfareBridgePetId))
       .catch(() => {});
   }
 });
@@ -274,4 +387,54 @@ describe("RLS matrix (§4.4 — D7 doctrine)", () => {
       }
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// pet_events welfare-bridge event — hidden from the subject owner
+// (pet-document-redesign REQ-1.2/1.3, migration 0115, design ADR-1).
+//
+// The generic `table: pet_events` block above probes with an unfiltered
+// "any row for the owner's pet" query, which stays `allow` (the owner's
+// normal events are still readable — that's the regression control). This
+// block probes the SPECIFIC welfare-bridge row and the SPECIFIC normal row
+// inserted as fixtures in the top-level beforeAll, which the generic harness
+// can't express (it has no per-row granularity). This is the safety net for
+// the riskiest change in the privacy slice: the rewritten ownership branch
+// must deny the welfare-bridge row while still allowing every other owner
+// read through unchanged.
+// ---------------------------------------------------------------------------
+describe("pet_events welfare-bridge event (migration 0115 — REQ-1.2/1.3)", () => {
+  it("owner SELECT on the welfare-bridge event (maltreatment_reported) = deny", async () => {
+    if (setupError || !fixtureWelfareBridgeEventId) return; // skip when seed/fixture missing
+    const ctx = contexts.get("owner");
+    if (!ctx) throw new Error("No client for role owner");
+
+    const { data } = await ctx.client
+      .from("pet_events")
+      .select("*")
+      .eq("id", fixtureWelfareBridgeEventId)
+      .limit(1);
+
+    expect(
+      data?.length ?? 0,
+      "owner must NOT be able to read a pet_event bridged to a welfare_denuncia case they are the subject of",
+    ).toBe(0);
+  });
+
+  it("owner SELECT on their own normal pet_event (no case_id) = allow (regression)", async () => {
+    if (setupError || !fixtureNormalEventId) return; // skip when seed/fixture missing
+    const ctx = contexts.get("owner");
+    if (!ctx) throw new Error("No client for role owner");
+
+    const { data } = await ctx.client
+      .from("pet_events")
+      .select("*")
+      .eq("id", fixtureNormalEventId)
+      .limit(1);
+
+    expect(
+      data?.length ?? 0,
+      "the rewritten ownership branch must be a no-op for events with no case_id — owner should still read their own normal events",
+    ).toBe(1);
+  });
 });

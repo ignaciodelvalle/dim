@@ -7,8 +7,21 @@
 // requireAdminOrGovtOrRedirect). Once Fase F lands per-kind RLS, these
 // helpers stay correct — they query the same rows the policies expose.
 
+import { HIDDEN_FROM_SUBJECT_CASE_KINDS } from "@/lib/infra/case-access";
 import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/utils/keyset-pagination";
-import { and, desc, eq, exists, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  exists,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import {
   type CaseClosedReason,
@@ -28,6 +41,18 @@ import {
   welfareReports,
 } from "@/db";
 import { type CaseKind, isCaseKind } from "@/src/modules/cases/domain/case-kinds";
+
+// Case kinds excluded from every generic "open cases for pet" projection
+// consumed by owner-facing surfaces (badges, alert strips, /cuenta/casos):
+//   - HIDDEN_FROM_SUBJECT_CASE_KINDS (welfare_denuncia) — privacy fix,
+//     the subject owner must never see it here (REQ-1.1).
+//   - lost_pet_episode — owned exclusively by the dedicated lost-case
+//     block; excluding it here is the single-rendering-path dedup guard
+//     (REQ-1.4 / ADR-8), not a privacy concern.
+export const GENERIC_CASE_LIST_EXCLUDED_KINDS: readonly CaseKind[] = [
+  ...HIDDEN_FROM_SUBJECT_CASE_KINDS,
+  "lost_pet_episode",
+];
 
 // ---------------------------------------------------------------------------
 // Performance projections — perf-only, not security boundaries.
@@ -339,7 +364,13 @@ export async function findOpenCasesForPetWithCodes(petId: string): Promise<PetOp
       openedAt: cases.openedAt,
     })
     .from(cases)
-    .where(and(eq(cases.primaryPetId, petId), inArray(cases.status, ["open", "escalated"])))
+    .where(
+      and(
+        eq(cases.primaryPetId, petId),
+        inArray(cases.status, ["open", "escalated"]),
+        notInArray(cases.caseKind, [...GENERIC_CASE_LIST_EXCLUDED_KINDS]),
+      ),
+    )
     .orderBy(desc(cases.openedAt));
   return rows
     .filter((r) => isCaseKind(r.caseKind))

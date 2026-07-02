@@ -39,6 +39,21 @@ export function isPubliclyVisibleKind(kind: string): boolean {
   return PUBLIC_ANONYMOUS_KINDS.has(kind as CaseKind);
 }
 
+// Case kinds that must NEVER surface to the subject pet's owner — the owner
+// is the subject of the investigation, not a party entitled to see it.
+// Consumed by canReadCase's subject-owner branch AND by every app-layer
+// query that lists/reads cases or case-linked events for a pet's owner
+// (pet-document-redesign privacy fix, REQ-1.1/1.2). Keep this list narrow;
+// today it's a single kind, but the shape is a Set so future additions
+// (if any) don't require touching every call site.
+export const HIDDEN_FROM_SUBJECT_CASE_KINDS: ReadonlySet<CaseKind> = new Set<CaseKind>([
+  "welfare_denuncia",
+]);
+
+export function isHiddenFromSubjectKind(kind: string): boolean {
+  return HIDDEN_FROM_SUBJECT_CASE_KINDS.has(kind as CaseKind);
+}
+
 export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null): Promise<boolean> {
   // Anonymous: allow only if the case kind is in the public allow-list.
   // The page renders a PII-redacted view; see `app/casos/[publicCode]`.
@@ -77,7 +92,7 @@ export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null)
       )
       .limit(1);
     if (ownerRow) {
-      if (detail.caseKind === "welfare_denuncia") return false;
+      if (isHiddenFromSubjectKind(detail.caseKind)) return false;
       return true;
     }
   }
