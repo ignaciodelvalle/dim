@@ -57,7 +57,9 @@ import {
 } from "@/src/modules/events/actions";
 import { updatePetAction } from "@/src/modules/pets/actions";
 
+import type { EmergencyContactValues } from "@/components/pet-profile/EmergencyContactFields";
 import { PhysicalTagInterestSheet } from "./_chapita/PhysicalTagInterestSheet";
+import { EmergencyContactSheet } from "./_emergencia/EmergencyContactSheet";
 import { MasSheet } from "./_more/MasSheet";
 import { MergedShareSheet } from "./_share/MergedShareSheet";
 import { TransferSenderForm } from "./_transfer/TransferSenderForm";
@@ -103,6 +105,12 @@ type Props = {
    * denies those before this is ever read.
    */
   chapitaData: { interested: boolean; requestedAt: Date | null } | null;
+  /**
+   * Current vet/emergency contact values for the `?sheet=emergencia` sheet
+   * (pet-document-redesign ADR-13). Owner-only — null for org viewers, same
+   * gating page.tsx already applies to `viewerContacts`.
+   */
+  emergencyContacts: EmergencyContactValues | null;
 };
 
 export function SheetMounter({
@@ -118,6 +126,7 @@ export function SheetMounter({
   ownershipRole,
   hasPendingReturnProposal,
   chapitaData,
+  emergencyContacts,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -271,6 +280,7 @@ export function SheetMounter({
             enableAction: enable,
             revokeAction: revoke,
           }}
+          isOwner={accessPath === "owner"}
         />
       </Sheet>
     );
@@ -288,6 +298,21 @@ export function SheetMounter({
           petName={petName}
           initialInterested={chapitaData.interested}
           initialRequestedAt={chapitaData.requestedAt}
+        />
+      </Sheet>
+    );
+  }
+
+  if (sheet === "emergencia") {
+    // ADR-13/REQ-9 (Phase 5): owner-only, same shape as the chapita branch's
+    // defense-in-depth guard for a hand-typed URL.
+    if (accessPath !== "owner" || !emergencyContacts) return null;
+    return (
+      <Sheet id="emergencia" title="Contactos de emergencia" open onClose={close}>
+        <EmergencyContactSheet
+          petPublicToken={petToken}
+          initialValues={emergencyContacts}
+          onSaved={close}
         />
       </Sheet>
     );

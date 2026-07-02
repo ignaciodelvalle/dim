@@ -14,10 +14,11 @@
 //   `credencialContent` (Face 1, eager) is: CredentialFace (identity +
 //   compliance stamps + QR + owner-only Emergencia card + compact
 //   ppp/service-dog rows) → <PetAlertStrip> (avisos, urgency-ordered,
-//   LostCaseBlock leads it when the pet is lost) → a single action row led
-//   by Anotar (Compartir · Marcar perdida/encontrada · ⋯ Más). The Libreta
-//   face (deferred) is one future+past timeline with a role-scoped lens set
-//   (owner: Todo/Vacunas; org: Vacunas/Oficial) — see LibretaFace.
+//   LostCaseBlock leads it when the pet is lost) → <EventCatcherSingle>
+//   (owner + active only, ADR-12a) → an icon-only action row
+//   [Anotar][Compartir][Perdida|Encontrada][Chapita][Más] (ADR-12b, ADR-17b).
+//   The Libreta face (deferred) is ONE consolidated timeline, no lens chips
+//   (ADR-10) — see LibretaFace.
 //
 // resolvePetFace (lib/domain/pet-face-nav.ts) is the single pure mapper for
 // every legacy `?tab=` deep link (resumen/vacunas/historial/libreta) onto
@@ -49,13 +50,13 @@
 
 import { fetchPendingReturnProposalForOwner } from "@/app/actions/return-to-owner";
 import type { PetState } from "@/components/EventCatcher";
-import { Icon } from "@/components/Icon";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { CredentialFace } from "@/components/pet-profile/CredentialFace";
+import { EventCatcherSingle } from "@/components/pet-profile/EventCatcherSingle";
 import { LostCaseBlock } from "@/components/pet-profile/LostCaseBlock";
+import { PetActionRow } from "@/components/pet-profile/PetActionRow";
 import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertStrip";
-import { PetAnotarFooterCta } from "@/components/pet-profile/PetAnotarFooterCta";
 import { PetDetailTabsPanel } from "@/components/pet-profile/PetDetailTabsPanel";
 import {
   appointments,
@@ -150,7 +151,7 @@ export default async function PetDetailPage({
   // for every legacy ?tab= deep link (see lib/domain/pet-face-nav.ts). Org
   // viewers get the same clamp behavior as before, now expressed as a lens
   // clamp (Libreta is reachable, `todo` is not) instead of hiding the face.
-  const { face: activeFace, lens: activeLens } = resolvePetFace({
+  const { face: activeFace } = resolvePetFace({
     tab: tabParam,
     lente: lenteParam,
     isOwner,
@@ -490,7 +491,6 @@ export default async function PetDetailPage({
         <PetDetailTabsPanel
           petPublicToken={pet.publicToken}
           initialFace={activeFace}
-          initialLens={activeLens}
           isOwner={isOwner}
           credencialContent={
             <div className="flex flex-col gap-4 py-5">
@@ -618,69 +618,27 @@ export default async function PetDetailPage({
                 })()}
               />
 
-              {/* 3. Capture, then the two faces — Anotar leads a single row
-                    of quiet actions (owner-only actions render nothing for
-                    org viewers, who get no capture control anywhere on the
-                    page). Mark-lost stays always visible here (T2), never
-                    buried in ⋯ Más.
+              {/* 3. Embedded capture, then an icon-only action row (ADR-12a/b).
+                    EventCatcherSingle (owner + active only) sits directly under
+                    the flip card; PetAnotarFooterCta is gone (this replaces it).
+                    Mark-lost stays always visible here (T2), never buried in
+                    ⋯ Más. Every icon carries an aria-label (accessible name,
+                    no visible text) + title tooltip, mirroring FlipCard's
+                    "Girar" affordance pattern.
                     Deceased (ADR-15/REQ-9.3): the bar collapses to
                     [Compartir][Más] only — no Anotar (a closed life record
-                    accepts no new events), no Perdida/Encontrada (moot), no
-                    Chapita (ordering a tag for a deceased pet is nonsensical). */}
-              <div data-section="action-row" className="flex flex-wrap gap-2">
-                {isOwner && !isDeceased && (
-                  <Link
-                    href={`/mis-mascotas/${pet.publicToken}?sheet=anotar`}
-                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--color-ln-azul)] px-4 text-sm font-semibold text-white no-underline transition-colors hover:bg-ln-azul-700"
-                  >
-                    <Icon name="edit" size="sm" decorative />
-                    Anotar
-                  </Link>
-                )}
-                <Link
-                  href={`/mis-mascotas/${pet.publicToken}?sheet=compartir`}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border-[3px] border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 text-sm font-semibold text-[var(--color-ln-azul)] no-underline transition-colors hover:border-[var(--color-ln-line-strong)]"
-                >
-                  <Icon name="share" size="sm" decorative />
-                  Compartir
-                </Link>
-                {pet.status === "active" && (
-                  <Link
-                    href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-perdida`}
-                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border-[3px] border-ln-err bg-transparent px-4 text-sm font-semibold text-ln-err no-underline transition-colors hover:bg-ln-err hover:text-white"
-                  >
-                    <Icon name="alert-triangle" size="sm" decorative />
-                    Marcar como perdida
-                  </Link>
-                )}
-                {pet.status === "lost" && (
-                  <Link
-                    href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-encontrada`}
-                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-ln-ok px-4 text-sm font-semibold text-white no-underline transition-colors hover:opacity-90"
-                  >
-                    <Icon name="check" size="sm" decorative />
-                    Marcar encontrada
-                  </Link>
-                )}
-                {isOwner && !isDeceased && (
-                  <Link
-                    href={`/mis-mascotas/${pet.publicToken}?sheet=chapita`}
-                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border-[3px] border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 text-sm font-semibold text-[var(--color-ln-azul)] no-underline transition-colors hover:border-[var(--color-ln-line-strong)]"
-                  >
-                    <Icon name="tag" size="sm" decorative />
-                    Chapita
-                  </Link>
-                )}
-                {isOwner && (
-                  <Link
-                    href={`/mis-mascotas/${pet.publicToken}?sheet=mas`}
-                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border-[3px] border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 text-sm font-semibold text-[var(--color-ln-azul)] no-underline transition-colors hover:border-[var(--color-ln-line-strong)]"
-                  >
-                    <Icon name="ellipsis" size="sm" decorative />
-                    Más
-                  </Link>
-                )}
-              </div>
+                    accepts no new events, and EventCatcherSingle itself is
+                    hidden), no Perdida/Encontrada (moot), no Chapita
+                    (ordering a tag for a deceased pet is nonsensical). */}
+              {isOwner && !isDeceased && pet.status === "active" && (
+                <EventCatcherSingle petPublicToken={pet.publicToken} petName={pet.name} />
+              )}
+              <PetActionRow
+                petPublicToken={pet.publicToken}
+                isOwner={isOwner}
+                isDeceased={isDeceased}
+                petStatus={pet.status as "active" | "lost" | "deceased"}
+              />
             </div>
           }
         />
@@ -720,15 +678,16 @@ export default async function PetDetailPage({
         }
         editPetData={{ existingPet: pet, existingPhotoUrl: editPhotoUrl }}
         chapitaData={chapitaData}
-      />
-
-      {/* Sticky Anotar (mobile) — repurposed from the old mark-lost slot
-            (design ADR-9); mark-lost is now always visible in the action row
-            above. See components/pet-profile/PetAnotarFooterCta.tsx. */}
-      <PetAnotarFooterCta
-        petPublicToken={pet.publicToken}
-        petStatus={pet.status}
-        isOwner={isOwner}
+        emergencyContacts={
+          isOwner
+            ? {
+                preferredVetName: viewerContacts?.preferredVetName ?? "",
+                preferredVetPhone: viewerContacts?.preferredVetPhone ?? "",
+                emergencyContactName: viewerContacts?.emergencyContactName ?? "",
+                emergencyContactPhone: viewerContacts?.emergencyContactPhone ?? "",
+              }
+            : null
+        }
       />
 
       {/* Post-create modal — shown once after a successful new-pet create.

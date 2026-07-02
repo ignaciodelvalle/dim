@@ -44,6 +44,12 @@ const baseProps = {
   ownershipRole: "owner" as const,
   hasPendingReturnProposal: false,
   chapitaData: { interested: false, requestedAt: null },
+  emergencyContacts: {
+    preferredVetName: "",
+    preferredVetPhone: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+  },
 };
 
 describe("<SheetMounter> — sheet=anotar, owner path", () => {
@@ -89,6 +95,29 @@ describe("<SheetMounter> — sheet=chapita (ADR-17b / REQ-11.2, REQ-9.3)", () =>
     currentSheet = "chapita";
     const html = renderToStaticMarkup(
       <SheetMounter {...baseProps} accessPath="owner" petStatus="deceased" chapitaData={null} />,
+    );
+    expect(html).toBe("");
+  });
+});
+
+describe("<SheetMounter> — sheet=emergencia (ADR-13, Phase 5)", () => {
+  it("owner: reaches the shared Sheet primitive", () => {
+    currentSheet = "emergencia";
+    expect(() =>
+      renderToStaticMarkup(<SheetMounter {...baseProps} accessPath="owner" />),
+    ).not.toThrow();
+  });
+
+  it("org viewer: renders nothing", () => {
+    currentSheet = "emergencia";
+    const html = renderToStaticMarkup(<SheetMounter {...baseProps} accessPath="org" />);
+    expect(html).toBe("");
+  });
+
+  it("owner with emergencyContacts=null (defense-in-depth backstop): renders nothing", () => {
+    currentSheet = "emergencia";
+    const html = renderToStaticMarkup(
+      <SheetMounter {...baseProps} accessPath="owner" emergencyContacts={null} />,
     );
     expect(html).toBe("");
   });
