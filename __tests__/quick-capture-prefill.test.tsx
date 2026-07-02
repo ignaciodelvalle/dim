@@ -25,12 +25,12 @@ import { describe, expect, it, vi } from "vitest";
 // ---------------------------------------------------------------------------
 
 // useIdempotencyKey — returns a stable key for SSR
-vi.mock("@/lib/use-idempotency-key", () => ({
+vi.mock("@/lib/ui/use-idempotency-key", () => ({
   useIdempotencyKey: () => ({ key: "test-idempotency-key" }),
 }));
 
 // useFormErrorFocus — no-op ref in static rendering
-vi.mock("@/lib/use-form-error-focus", () => ({
+vi.mock("@/lib/ui/use-form-error-focus", () => ({
   useFormErrorFocus: () => ({ current: null }),
 }));
 

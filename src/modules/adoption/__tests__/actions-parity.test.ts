@@ -51,7 +51,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-vi.mock("@/lib/uploads", () => ({
+vi.mock("@/lib/infra/uploads", () => ({
   uploadAttachmentIfPresent: vi.fn().mockResolvedValue({
     uploadedPath: null,
     mimeType: null,
@@ -60,7 +60,7 @@ vi.mock("@/lib/uploads", () => ({
   }),
 }));
 
-vi.mock("@/lib/apply-intent", () => ({
+vi.mock("@/lib/domain/apply-intent", () => ({
   APPLY_INTENT_COOKIE_NAME: "apply_intent",
   APPLY_INTENT_PET_TOKEN_COOKIE_NAME: "apply_intent_pet_token",
 }));

@@ -104,7 +104,7 @@ describe("AccesibilidadPage — honest accessibility statement (UX 3.3)", () => 
 
 import { AppFooter } from "@/components/layout/AppFooter";
 
-vi.mock("@/lib/branding", () => ({
+vi.mock("@/lib/ui/branding", () => ({
   BRANDING: {
     appName: "MiMAR",
     appNameLong: "Mi Mascota Argentina",
