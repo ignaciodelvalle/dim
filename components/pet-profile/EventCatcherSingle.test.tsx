@@ -1,4 +1,6 @@
-// Tests for <EventCatcherSingle> — pet-document-redesign ADR-12a (Phase 3).
+// Tests for <EventCatcherSingle> — pet-document-redesign ADR-12a (Phase 3);
+// wave-3 P4 (PO decision #645 point 4) dropped the quick-chip row — the
+// textarea and the Anotar control now sit at the same level, in an LnCard.
 //
 // Pattern: react-dom/server renderToStaticMarkup (repo convention — no
 // jsdom), hooks stubbed for SSR-safety exactly like the home-screen
@@ -19,9 +21,6 @@ const buildAnotarUrlMock = vi.fn(
   (token: string, opts: { text?: string; kind?: string }) =>
     `/mis-mascotas/${token}/anotar${opts.kind ? `?kind=${opts.kind}` : ""}`,
 );
-const buildKindDeeplinkMock = vi.fn(
-  (kind: string, token: string, _text?: string) => `/mis-mascotas/${token}/eventos/${kind}`,
-);
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
@@ -33,18 +32,8 @@ vi.mock("@/app/actions/quick-capture", () => ({
 }));
 
 vi.mock("@/app/(app)/mis-mascotas/[publicToken]/anotar/handoff", () => ({
-  QUICK_ACTIONS: [
-    { eventType: "vaccination_administered", label: "Vacuna" },
-    { eventType: "weight_recorded", label: "Peso" },
-    { eventType: "vet_visit_logged", label: "Visita al vet" },
-    { eventType: "medication_started", label: "Medicación" },
-    { eventType: "note_added", label: "Nota" },
-    { eventType: "deworming_administered", label: "Antiparasit." },
-  ],
   buildAnotarUrl: (...args: [string, { text?: string; kind?: string }]) =>
     buildAnotarUrlMock(...args),
-  buildKindDeeplink: (kind: string, token: string, text?: string) =>
-    buildKindDeeplinkMock(kind, token, text),
 }));
 
 vi.mock("@/components/ui/Button", () => ({
@@ -57,7 +46,6 @@ vi.mock("react", async (importOriginal) => {
   const actual = (await importOriginal()) as typeof React;
   return {
     ...actual,
-    useRef: <T,>(init: T) => ({ current: init }),
     useState: (init: unknown) => [init, vi.fn()],
     useTransition: () => [false, vi.fn()],
   };
@@ -69,7 +57,6 @@ afterEach(() => {
   mockPush.mockClear();
   quickCaptureActionMock.mockClear();
   buildAnotarUrlMock.mockClear();
-  buildKindDeeplinkMock.mockClear();
 });
 
 describe("<EventCatcherSingle> — single-pet capture, no picker (ADR-12a)", () => {
@@ -81,15 +68,13 @@ describe("<EventCatcherSingle> — single-pet capture, no picker (ADR-12a)", () 
     expect(html).not.toContain('role="radiogroup"');
   });
 
-  it("renders exactly the 5 single-pet quick chips (vacuna/peso/vet/medicación/nota)", () => {
+  it("renders no quick chips — the textarea and Anotar sit at the same level (wave-3 P4)", () => {
     const html = renderToStaticMarkup(
       <EventCatcherSingle petPublicToken="TK-0001" petName="Firulais" />,
     );
-    for (const label of ["Vacuna", "Peso", "Visita al vet", "Medicación", "Nota"]) {
-      expect(html).toContain(label);
+    for (const label of ["Vacuna", "Peso", "Visita al vet", "Medicación", "Nota", "Antiparasit."]) {
+      expect(html).not.toContain(label);
     }
-    // Antiparasit. is in the full 8-option grid but NOT the 5-chip single set.
-    expect(html).not.toContain("Antiparasit.");
   });
 
   it("submit button starts disabled (empty text) and reads Anotar", () => {
@@ -105,5 +90,21 @@ describe("<EventCatcherSingle> — single-pet capture, no picker (ADR-12a)", () 
       <EventCatcherSingle petPublicToken="TK-0001" petName="Firulais" />,
     );
     expect(html).toContain('aria-label="Describí el evento de Firulais"');
+  });
+
+  it("textarea and Anotar render in the same row, inside an LnCard (design finding 6)", () => {
+    const html = renderToStaticMarkup(
+      <EventCatcherSingle petPublicToken="TK-0001" petName="Firulais" />,
+    );
+    // LnCard's own border/bg classes (components/ui/Card.tsx) confirm the
+    // migration off the hand-rolled bordered <section>.
+    expect(html).toContain("border-[var(--color-ln-line)]");
+    // One-row layout: textarea and the Anotar button share a flex row.
+    const rowStart = html.indexOf('class="flex items-end gap-3');
+    const textareaPos = html.indexOf("Firulais — ¿qué pasó?");
+    const anotarPos = html.indexOf(">Anotar<");
+    expect(rowStart).toBeGreaterThan(-1);
+    expect(textareaPos).toBeGreaterThan(rowStart);
+    expect(anotarPos).toBeGreaterThan(textareaPos);
   });
 });
