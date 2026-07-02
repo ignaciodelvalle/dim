@@ -100,3 +100,28 @@ describe("LostCaseBlock — Marcar encontrada button uses min-h-11 (44px, UX 2.1
     expect(html).toContain("min-h-11");
   });
 });
+
+// ---------------------------------------------------------------------------
+// PetActionRow — icon-only 5-icon bar at 320px (pet-document-redesign
+// ADR-12b/ADR-17b, Phase 4). Full coverage lives in
+// components/pet-profile/PetActionRow.test.tsx; this asserts the
+// cross-cutting 44px invariant this sweep exists to guard.
+// ---------------------------------------------------------------------------
+
+import { PetActionRow } from "@/components/pet-profile/PetActionRow";
+
+describe("PetActionRow — 5-icon bar clears 44px at 320px (UX 2.1)", () => {
+  it("all 5 icon links (owner, active) carry min-h-11 AND min-w-11", () => {
+    const html = renderToStaticMarkup(
+      <PetActionRow petPublicToken="abc" isOwner isDeceased={false} petStatus="active" />,
+    );
+    const anchors = html.match(/<a [^>]*>/g) ?? [];
+    // 5 × 44px + gap-2 (8px) × 4 = 220 + 32 = 252px, fits inside 320px with
+    // the page's own px-4 (16px) gutters on each side (252 + 32 = 284 ≤ 320).
+    expect(anchors.length).toBe(5);
+    for (const anchor of anchors) {
+      expect(anchor).toContain("min-h-11");
+      expect(anchor).toContain("min-w-11");
+    }
+  });
+});
