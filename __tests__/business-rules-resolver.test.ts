@@ -149,3 +149,74 @@ describe("resolveBusinessRule — cascade", () => {
     expect(r.payload).toEqual(BUSINESS_RULES_DEFAULTS.ppp_weight_threshold);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Promoted rule types (admin-rules-console, migration 0116) — the cascade
+// mechanism itself is rule-type-agnostic (tested exhaustively above with
+// ppp_breed_list); these tests prove the 4 NEW types round-trip end-to-end
+// through the widened CHECK constraint, not just past the TS type checker.
+// ---------------------------------------------------------------------------
+describe("resolveBusinessRule — promoted rule types (migration 0116)", () => {
+  it("rabies_observation_window: default 10 with no override, province override wins over default", async () => {
+    const before = await resolveBusinessRule("rabies_observation_window", { country: "AR" });
+    expect(before.source).toBe("default");
+    expect(before.payload).toEqual(BUSINESS_RULES_DEFAULTS.rabies_observation_window);
+
+    await db.insert(govtBusinessRules).values({
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: null,
+      ruleType: "rabies_observation_window",
+      rulePayload: { days: 14 },
+      createdByUserId: ACTOR_ID,
+      updatedByUserId: ACTOR_ID,
+    });
+    const r = await resolveBusinessRule("rabies_observation_window", {
+      country: "AR",
+      province: "Buenos Aires",
+    });
+    expect(r.source).toBe("province");
+    expect(r.payload).toEqual({ days: 14 });
+  });
+
+  it("due_soon_window / long_stay_days / reminder_windows: default matches the pre-promotion constant", async () => {
+    const dueSoon = await resolveBusinessRule("due_soon_window", { country: "AR" });
+    expect(dueSoon.payload).toEqual({ days: 30 });
+
+    const longStay = await resolveBusinessRule("long_stay_days", { country: "AR" });
+    expect(longStay.payload).toEqual({ days: 60 });
+
+    const reminders = await resolveBusinessRule("reminder_windows", { country: "AR" });
+    expect(reminders.payload).toEqual({ aheadDays: 14, cadences: [] });
+  });
+
+  it("long_stay_days: locality override wins over a province override (full cascade)", async () => {
+    await db.insert(govtBusinessRules).values([
+      {
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: null,
+        ruleType: "long_stay_days",
+        rulePayload: { days: 45 },
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+      {
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+        ruleType: "long_stay_days",
+        rulePayload: { days: 30 },
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+    ]);
+    const r = await resolveBusinessRule("long_stay_days", {
+      country: "AR",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    expect(r.source).toBe("locality");
+    expect(r.payload).toEqual({ days: 30 });
+  });
+});

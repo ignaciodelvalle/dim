@@ -16,6 +16,7 @@ import { and, count, eq, gt, gte, isNull, lt, sql } from "drizzle-orm";
 import {
   appointments,
   db,
+  organizations,
   ownerships,
   petEvents,
   pets,
@@ -23,6 +24,7 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -233,9 +235,28 @@ export async function fetchActiveAdoptions(organizationId: string): Promise<numb
 export async function fetchRequiresAction(organizationId: string): Promise<RequiresActionItem[]> {
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10); // YYYY-MM-DD
+
+  // long_stay_days (admin-rules-console, design ADR-4 item 4) — resolved via
+  // the ORG's own jurisdiction, once per dashboard render.
+  const [org] = await db
+    .select({
+      jurisdictionCountry: organizations.jurisdictionCountry,
+      jurisdictionProvince: organizations.jurisdictionProvince,
+      jurisdictionLocality: organizations.jurisdictionLocality,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  const longStayRule = await resolveBusinessRule("long_stay_days", {
+    country: org?.jurisdictionCountry ?? "AR",
+    province: org?.jurisdictionProvince ?? null,
+    locality: org?.jurisdictionLocality ?? null,
+  });
+  const longStayDays = longStayRule.payload.days;
+
   // Pass timestamps as ISO strings so postgres.js serialises them correctly
   // in raw sql`` templates (Drizzle operators handle Date natively; raw params need explicit ::timestamptz).
-  const longStayCutoffIso = new Date(today.getTime() - LONG_STAY_DAYS * MS_PER_DAY).toISOString();
+  const longStayCutoffIso = new Date(today.getTime() - longStayDays * MS_PER_DAY).toISOString();
 
   // CTE-based query: compute flags in the inner CTE, then filter on the outer
   // WHERE (not HAVING, which requires GROUP BY). The inner SELECT evaluates

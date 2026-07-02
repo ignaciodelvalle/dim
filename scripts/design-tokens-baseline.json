@@ -1931,6 +1931,13 @@
       "shadow": 0,
       "hexStyle": 0
     },
+    "app/gob/reglas/[country]/[province]/[locality]/nueva/NumericWindowRuleForm.tsx": {
+      "text": 3,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "app/gob/reglas/[country]/[province]/[locality]/nueva/PppAttestationRegistriesForm.tsx": {
       "text": 8,
       "space": 0,

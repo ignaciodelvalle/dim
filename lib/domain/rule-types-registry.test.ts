@@ -90,4 +90,67 @@ describe("parseFromForm (zero behavior diff vs pre-registry parseRulePayloadFrom
       nfc_tag: { enabled: false },
     });
   });
+
+  it.each([
+    ["rabies_observation_window", "days"],
+    ["due_soon_window", "days"],
+    ["long_stay_days", "days"],
+  ] as const)("%s: parses the %s field, NaN/empty -> 0", (ruleType, fieldName) => {
+    const fd = new FormData();
+    fd.append(fieldName, "21");
+    expect(getRuleTypeDef(ruleType).parseFromForm(fd)).toEqual({ [fieldName]: 21 });
+
+    const empty = new FormData();
+    expect(getRuleTypeDef(ruleType).parseFromForm(empty)).toEqual({ [fieldName]: 0 });
+  });
+
+  it("reminder_windows: parses aheadDays, cadences always round-trips as []", () => {
+    const fd = new FormData();
+    fd.append("aheadDays", "7");
+    expect(getRuleTypeDef("reminder_windows").parseFromForm(fd)).toEqual({
+      aheadDays: 7,
+      cadences: [],
+    });
+  });
+});
+
+describe("promoted rule types — validator strictness (R4.1)", () => {
+  it("rejects out-of-range days for each promoted day-count type", () => {
+    for (const ruleType of [
+      "rabies_observation_window",
+      "due_soon_window",
+      "long_stay_days",
+    ] as const) {
+      const tooLow = RULE_TYPE_REGISTRY[ruleType].schema.safeParse({ days: 0 });
+      expect(tooLow.success).toBe(false);
+      const ok = RULE_TYPE_REGISTRY[ruleType].schema.safeParse({ days: 15 });
+      expect(ok.success).toBe(true);
+    }
+  });
+
+  it("rejects unknown fields (strict mode) on reminder_windows", () => {
+    const r = RULE_TYPE_REGISTRY.reminder_windows.schema.safeParse({
+      aheadDays: 14,
+      cadences: [],
+      extra: true,
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("validates each reminder_windows cadence entry independently (R4.7)", () => {
+    const badCadence = RULE_TYPE_REGISTRY.reminder_windows.schema.safeParse({
+      aheadDays: 14,
+      cadences: [
+        { vaccineType: "rabia", aheadDays: 10 },
+        { vaccineType: "", aheadDays: 5 },
+      ],
+    });
+    expect(badCadence.success).toBe(false);
+
+    const goodCadence = RULE_TYPE_REGISTRY.reminder_windows.schema.safeParse({
+      aheadDays: 14,
+      cadences: [{ vaccineType: "rabia", aheadDays: 10 }],
+    });
+    expect(goodCadence.success).toBe(true);
+  });
 });

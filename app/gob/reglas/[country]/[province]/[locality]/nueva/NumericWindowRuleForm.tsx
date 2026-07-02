@@ -1,0 +1,194 @@
+"use client";
+
+// NumericWindowRuleForm — generic single-integer-field form shared by the 4
+// "promoted" rule types (design ADR-2/ADR-4, R4.5/R4.6): rabies_observation_
+// window, due_soon_window, reminder_windows (aheadDays), long_stay_days.
+// They all share the exact same shape (one bounded integer + notes), so one
+// parameterized component covers all 4 instead of 4 near-identical files.
+//
+// No impact-preview gate wired here (R4.5 target behavior — the impact-
+// preview infra (RuleImpactBanner/countDogsAffectedByRule) is PPP-specific
+// today; generalizing it to arbitrary record counts per promoted type is
+// out of scope for this pass and tracked as a follow-up, same treatment as
+// the config-only rule types).
+
+import { useActionState, useState } from "react";
+
+import {
+  type BusinessRuleFormState,
+  createBusinessRuleAction,
+  updateBusinessRuleAction,
+} from "@/app/actions/business-rules";
+import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
+import type { GovtBusinessRuleType } from "@/db";
+
+const initialState: BusinessRuleFormState = { error: null };
+
+type Props = {
+  mode: "create" | "edit";
+  ruleId?: string;
+  country: string;
+  province: string | null;
+  locality: string | null;
+  ruleType: GovtBusinessRuleType;
+  /** Form field name — "days" for the 3 day-count types, "aheadDays" for reminder_windows. */
+  fieldName: "days" | "aheadDays";
+  fieldLabel: string;
+  helperText: string;
+  min: number;
+  max: number;
+  initialValue: number;
+  initialNotes: string;
+};
+
+export function NumericWindowRuleForm({
+  mode,
+  ruleId,
+  country,
+  province,
+  locality,
+  ruleType,
+  fieldName,
+  fieldLabel,
+  helperText,
+  min,
+  max,
+  initialValue,
+  initialNotes,
+}: Props) {
+  const action =
+    mode === "edit" && ruleId
+      ? updateBusinessRuleAction.bind(null, ruleId)
+      : createBusinessRuleAction;
+  const [state, formAction, isPending] = useActionState(action, initialState);
+  const [value, setValue] = useState(String(initialValue));
+
+  return (
+    <form action={formAction} className="space-y-5">
+      <input type="hidden" name="ruleType" value={ruleType} />
+      <input type="hidden" name="jurisdictionCountry" value={country} />
+      <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
+      <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
+      {/* reminder_windows carries a cadences[] array in its payload (R4.7) —
+          not editable here yet; the parser (rule-types-registry.ts) always
+          round-trips it as []. No form field needed for it in this pass. */}
+
+      <p className="text-[13px] text-ln-op-ink-2">{helperText}</p>
+
+      <LnField label={fieldLabel}>
+        {({ id, describedBy, invalid }) => (
+          <LnInput
+            id={id}
+            name={fieldName}
+            type="number"
+            min={min}
+            max={max}
+            step={1}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </LnField>
+
+      <LnField label="Notas internas">
+        {({ id, describedBy, invalid }) => (
+          <LnTextarea
+            id={id}
+            name="notes"
+            defaultValue={initialNotes}
+            rows={3}
+            aria-describedby={describedBy}
+            invalid={invalid}
+          />
+        )}
+      </LnField>
+
+      {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
+      {state.error && (
+        <p className="text-[13px] text-ln-op-danger" role="alert">
+          {state.error}
+        </p>
+      )}
+
+      <OpButton type="submit" disabled={isPending} loading={isPending} variant="primary" block>
+        {isPending ? "Guardando..." : mode === "create" ? "Crear regla" : "Guardar cambios"}
+      </OpButton>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Thin per-rule-type wrappers — pre-bind the fixed config (ruleType, field
+// name, labels, bounds) so RULE_FORM_REGISTRY can register a plain
+// ComponentType<RuleFormProps> per type without threading that config
+// through the extra-props builders.
+// ---------------------------------------------------------------------------
+
+type WrapperProps = {
+  mode: "create" | "edit";
+  ruleId?: string;
+  country: string;
+  province: string | null;
+  locality: string | null;
+  initialValue: number;
+  initialNotes: string;
+};
+
+export function RabiesObservationWindowForm(props: WrapperProps) {
+  return (
+    <NumericWindowRuleForm
+      {...props}
+      ruleType="rabies_observation_window"
+      fieldName="days"
+      fieldLabel="Días de observación"
+      helperText="Días de observación clínica exigidos tras una mordedura, antes de descartar rabia (1-60)."
+      min={1}
+      max={60}
+    />
+  );
+}
+
+export function DueSoonWindowForm(props: WrapperProps) {
+  return (
+    <NumericWindowRuleForm
+      {...props}
+      ruleType="due_soon_window"
+      fieldName="days"
+      fieldLabel="Días de anticipación"
+      helperText="Con cuántos días de anticipación una vacuna se marca 'próxima a vencer' (1-365)."
+      min={1}
+      max={365}
+    />
+  );
+}
+
+export function ReminderWindowsForm(props: WrapperProps) {
+  return (
+    <NumericWindowRuleForm
+      {...props}
+      ruleType="reminder_windows"
+      fieldName="aheadDays"
+      fieldLabel="Días de anticipación del recordatorio"
+      helperText="Con cuántos días de anticipación se generan los recordatorios de vacunación (1-90). Sweep global, no jurisdiccional (resuelve a nivel país)."
+      min={1}
+      max={90}
+    />
+  );
+}
+
+export function LongStayDaysForm(props: WrapperProps) {
+  return (
+    <NumericWindowRuleForm
+      {...props}
+      ruleType="long_stay_days"
+      fieldName="days"
+      fieldLabel="Días de estadía"
+      helperText="Días de estadía en refugio a partir de los cuales se marca 'estadía larga' (1-365)."
+      min={1}
+      max={365}
+    />
+  );
+}

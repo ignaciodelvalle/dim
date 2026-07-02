@@ -55,11 +55,42 @@ export const physicalCredentialChannelsSchema = z
   })
   .strict();
 
+// ---------------------------------------------------------------------------
+// Promoted rule types (design ADR-2/ADR-4, R4.1) — see
+// lib/domain/business-rules-defaults.ts for the payload shapes + rationale.
+// ---------------------------------------------------------------------------
+
+export const rabiesObservationWindowSchema = z
+  .object({ days: z.number().int().min(1).max(60) })
+  .strict();
+
+export const dueSoonWindowSchema = z.object({ days: z.number().int().min(1).max(365) }).strict();
+
+const reminderWindowCadenceSchema = z
+  .object({
+    vaccineType: z.string().min(1).max(80),
+    aheadDays: z.number().int().min(1).max(365),
+  })
+  .strict();
+
+export const reminderWindowsSchema = z
+  .object({
+    aheadDays: z.number().int().min(1).max(90),
+    cadences: z.array(reminderWindowCadenceSchema).max(50),
+  })
+  .strict();
+
+export const longStayDaysSchema = z.object({ days: z.number().int().min(1).max(365) }).strict();
+
 export const BUSINESS_RULE_VALIDATORS: Record<GovtBusinessRuleType, z.ZodSchema> = {
   ppp_breed_list: pppBreedListSchema,
   ppp_weight_threshold: pppWeightThresholdSchema,
   ppp_attestation_required_registries: pppAttestationRequiredRegistriesSchema,
   physical_credential_channels: physicalCredentialChannelsSchema,
+  rabies_observation_window: rabiesObservationWindowSchema,
+  due_soon_window: dueSoonWindowSchema,
+  reminder_windows: reminderWindowsSchema,
+  long_stay_days: longStayDaysSchema,
 };
 
 export function validateRulePayload(

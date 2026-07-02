@@ -32,9 +32,12 @@
 import { and, count, eq, gte, lte, sql } from "drizzle-orm";
 
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import {
+  type DashboardJurisdiction,
   type ProjectionContext,
   cachedActivePetCount,
+  jurisdictionPairClause,
   petsScopeClause,
   suppressedMetric,
 } from "@/lib/metrics";
@@ -48,12 +51,16 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Legal rabies-observation window: 10 calendar days (Ord. CABA 41.831 art. 9,
- * Decreto 4669/1973 PBA). This is a CLINICAL window (the rule deadline), NOT a
- * reporting window, so it lives here next to the rule that uses it rather than
- * in lib/metrics/period.ts. Mirrors the comment in lib/metrics/period.ts.
+ * Decreto 4669/1973 PBA) — the DEFAULT tier of the `rabies_observation_window`
+ * business rule (admin-rules-console, promoted from this literal constant).
+ * This is a CLINICAL window (the rule deadline), NOT a reporting window, so
+ * it's documented here next to the metric that uses it, mirroring the
+ * comment in lib/metrics/period.ts. Live resolution goes through
+ * resolveBusinessRule("rabies_observation_window", ...) inside
+ * fetchRabiesObservationCompliance below — this constant is kept only as a
+ * readable anchor for the legal citation.
  */
 export const RABIES_OBSERVATION_WINDOW_DAYS = 10;
-const RABIES_OBSERVATION_WINDOW_MS = RABIES_OBSERVATION_WINDOW_DAYS * DAY_MS;
 
 // ---------------------------------------------------------------------------
 // Shared scope helper — outbox rows carry their own jurisdiction snapshot.
@@ -199,29 +206,24 @@ export type RabiesComplianceMetric = {
  * two events' occurred_at. Observations are pet-scoped and a pet can be
  * observed more than once, so we pair on the explicit start id, not by pet.
  */
-export async function fetchRabiesObservationCompliance(
-  ctx: ProjectionContext,
-): Promise<RabiesComplianceMetric> {
-  if (hasNoScope(ctx)) {
-    return { closed: 0, closedWithinWindow: 0, compliancePct: null, openBreaches: 0 };
-  }
-
-  const scope = petsScopeClause(ctx);
-  const scopeFragment = scope ? sql` AND (${scope})` : sql``;
-  // Bind timestamps as ISO strings with an explicit ::timestamptz cast: the raw
-  // sql`` template path goes through postgres.js, which cannot bind a JS Date
-  // object as a parameter (same fix as fetchLostPets in lib/govt-dashboards.ts).
-  const sinceIso = ctx.period.since.toISOString();
-  const untilIso = ctx.period.until.toISOString();
-
-  // Closed observations in the period: join each ended event to its start via
-  // payload.observation_started_event_id, then compare the elapsed wall-clock
-  // time against the 10-day window.
+/**
+ * Runs the closed/breach rabies queries for a single scope fragment + a
+ * single resolved window-days value. Extracted so the caller can either run
+ * it ONCE (global scope, country-level window) or once PER jurisdiction
+ * (govt scope — each jurisdiction may have its own override, design ADR-4
+ * item 1) and sum the partial results.
+ */
+async function fetchRabiesComplianceForScope(
+  scopeFragment: ReturnType<typeof sql>,
+  sinceIso: string,
+  untilIso: string,
+  windowDays: number,
+): Promise<{ closed: number; closedWithinWindow: number; openBreaches: number }> {
   const closedRows = await db.execute<{ closed: string; within: string }>(sql`
     SELECT
       COUNT(*)::text AS closed,
       COUNT(*) FILTER (
-        WHERE (ended.occurred_at - started.occurred_at) <= INTERVAL '${sql.raw(String(RABIES_OBSERVATION_WINDOW_DAYS))} days'
+        WHERE (ended.occurred_at - started.occurred_at) <= INTERVAL '${sql.raw(String(windowDays))} days'
       )::text AS within
     FROM pet_events ended
     JOIN pet_events started
@@ -234,8 +236,8 @@ export async function fetchRabiesObservationCompliance(
   `);
 
   // A9 live breaches: started observations with NO ending event, started more
-  // than 10 days ago.
-  const breachCutoffIso = new Date(Date.now() - RABIES_OBSERVATION_WINDOW_MS).toISOString();
+  // than `windowDays` days ago.
+  const breachCutoffIso = new Date(Date.now() - windowDays * DAY_MS).toISOString();
   const breachRows = await db.execute<{ n: string }>(sql`
     SELECT COUNT(*)::text AS n
     FROM pet_events started
@@ -250,9 +252,90 @@ export async function fetchRabiesObservationCompliance(
       ${scopeFragment}
   `);
 
-  const closed = Number(closedRows[0]?.closed ?? 0);
-  const closedWithinWindow = Number(closedRows[0]?.within ?? 0);
-  const openBreaches = Number(breachRows[0]?.n ?? 0);
+  return {
+    closed: Number(closedRows[0]?.closed ?? 0),
+    closedWithinWindow: Number(closedRows[0]?.within ?? 0),
+    openBreaches: Number(breachRows[0]?.n ?? 0),
+  };
+}
+
+/**
+ * A8/A9 — reads the existing rabies-observation event pair (D2). "Within
+ * window" means the closing event occurred within the resolved
+ * `rabies_observation_window` (default 10 calendar days) of the start. A9
+ * "breach" = a started observation with no matching ended event whose start
+ * is already past the deadline (a live OpBreach on the page).
+ *
+ * Jurisdiction resolution (design ADR-4 item 1 — jurisdiction-flavored, CABA
+ * vs PBA legal windows differ): a cross-jurisdiction admin aggregate
+ * (scope.kind==='global') cannot honor per-province overrides in one number,
+ * so it resolves the window ONCE at country level (AR default). A govt
+ * scope resolves the window PER assigned jurisdiction and sums the partial
+ * results — each jurisdiction's own override (or fallback) applies to its
+ * own observations.
+ *
+ * Scope: rabies events do not reliably carry jurisdiction in their payload, so
+ * we inner-join pets and scope on pets.jurisdiction* (petsScopeClause /
+ * jurisdictionPairClause).
+ *
+ * Pairing: each rabies_observation_ended row references its start via
+ * payload.observation_started_event_id; the elapsed time is derived from the
+ * two events' occurred_at. Observations are pet-scoped and a pet can be
+ * observed more than once, so we pair on the explicit start id, not by pet.
+ */
+export async function fetchRabiesObservationCompliance(
+  ctx: ProjectionContext,
+): Promise<RabiesComplianceMetric> {
+  if (hasNoScope(ctx)) {
+    return { closed: 0, closedWithinWindow: 0, compliancePct: null, openBreaches: 0 };
+  }
+
+  const sinceIso = ctx.period.since.toISOString();
+  const untilIso = ctx.period.until.toISOString();
+
+  let closed = 0;
+  let closedWithinWindow = 0;
+  let openBreaches = 0;
+
+  if (ctx.scope.kind === "global") {
+    // No single jurisdiction to resolve against — country-level fallback.
+    const rule = await resolveBusinessRule("rabies_observation_window", { country: "AR" });
+    const scope = petsScopeClause(ctx);
+    const scopeFragment = scope ? sql` AND (${scope})` : sql``;
+    const partial = await fetchRabiesComplianceForScope(
+      scopeFragment,
+      sinceIso,
+      untilIso,
+      rule.payload.days,
+    );
+    closed = partial.closed;
+    closedWithinWindow = partial.closedWithinWindow;
+    openBreaches = partial.openBreaches;
+  } else {
+    // Resolve + query per assigned jurisdiction, sum the partials.
+    for (const j of ctx.scope.jurisdictions) {
+      const rule = await resolveBusinessRule("rabies_observation_window", {
+        country: "AR",
+        province: j.province,
+        locality: j.locality,
+      });
+      const pairClause = jurisdictionPairClause(
+        [j],
+        sql`${pets.jurisdictionProvince}`,
+        sql`${pets.jurisdictionLocality}`,
+      );
+      const scopeFragment = pairClause ? sql` AND (${pairClause})` : sql``;
+      const partial = await fetchRabiesComplianceForScope(
+        scopeFragment,
+        sinceIso,
+        untilIso,
+        rule.payload.days,
+      );
+      closed += partial.closed;
+      closedWithinWindow += partial.closedWithinWindow;
+      openBreaches += partial.openBreaches;
+    }
+  }
 
   return {
     closed,

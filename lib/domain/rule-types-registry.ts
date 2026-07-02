@@ -61,6 +61,13 @@ export interface RuleTypeDef<T extends GovtBusinessRuleType = GovtBusinessRuleTy
   resolutionScope: RuleResolutionScope;
 }
 
+/** Parses a single `{ days: number }`-shaped rule type from its form field. */
+function parseDaysField(formData: FormData): { days: number } {
+  const raw = (formData.get("days") as string | null)?.trim();
+  const days = raw && raw !== "" ? Number.parseInt(raw, 10) : Number.NaN;
+  return { days: Number.isNaN(days) ? 0 : days };
+}
+
 function parseProviderChannel(formData: FormData, channel: string) {
   const enabled = formData.get(`enabled_${channel}`) === "on";
   const providerNameRaw = (formData.get(`provider_name_${channel}`) as string | null)?.trim();
@@ -129,6 +136,50 @@ export const RULE_TYPE_REGISTRY: { [K in GovtBusinessRuleType]: RuleTypeDef<K> }
         nfc_tag: parseProviderChannel(formData, "nfc_tag"),
       };
     },
+  },
+  rabies_observation_window: {
+    id: "rabies_observation_window",
+    label: "Ventana de observación antirrábica",
+    description:
+      "Días de observación clínica exigidos tras una mordedura, antes de descartar rabia.",
+    schema: BUSINESS_RULE_VALIDATORS.rabies_observation_window,
+    default: BUSINESS_RULES_DEFAULTS.rabies_observation_window,
+    resolutionScope: "jurisdiction-metric",
+    parseFromForm: parseDaysField,
+  },
+  due_soon_window: {
+    id: "due_soon_window",
+    label: "Ventana 'próximo a vencer'",
+    description: "Días de anticipación con los que una vacuna se marca 'próxima a vencer'.",
+    schema: BUSINESS_RULE_VALIDATORS.due_soon_window,
+    default: BUSINESS_RULES_DEFAULTS.due_soon_window,
+    resolutionScope: "pet",
+    parseFromForm: parseDaysField,
+  },
+  reminder_windows: {
+    id: "reminder_windows",
+    label: "Ventana de recordatorios",
+    description: "Con cuántos días de anticipación se generan los recordatorios de vacunación.",
+    schema: BUSINESS_RULE_VALIDATORS.reminder_windows,
+    default: BUSINESS_RULES_DEFAULTS.reminder_windows,
+    resolutionScope: "global",
+    parseFromForm: (formData) => {
+      const raw = (formData.get("aheadDays") as string | null)?.trim();
+      const aheadDays = raw && raw !== "" ? Number.parseInt(raw, 10) : Number.NaN;
+      // Per-vaccine cadence editing is not exposed in this pass (R4.7 keeps
+      // the shape valid/extensible); the console only edits the global
+      // aheadDays field today. cadences round-trips as [] (matches default).
+      return { aheadDays: Number.isNaN(aheadDays) ? 0 : aheadDays, cadences: [] };
+    },
+  },
+  long_stay_days: {
+    id: "long_stay_days",
+    label: "Umbral de estadía prolongada",
+    description: "Días de estadía en refugio a partir de los cuales se marca 'estadía larga'.",
+    schema: BUSINESS_RULE_VALIDATORS.long_stay_days,
+    default: BUSINESS_RULES_DEFAULTS.long_stay_days,
+    resolutionScope: "org",
+    parseFromForm: parseDaysField,
   },
 };
 

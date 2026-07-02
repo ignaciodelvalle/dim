@@ -30,6 +30,7 @@ import {
 import { fetchActiveRemindersForPet, fetchPetWeightHistory } from "@/lib/analytics/owner-dashboard";
 import { computeVaccinationSummary } from "@/lib/domain/libreta-health-status";
 import { excludeSelfScansClause } from "@/lib/events/events";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { HIDDEN_FROM_SUBJECT_CASE_KINDS } from "@/lib/infra/case-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { eventAttachmentSignedUrl } from "@/lib/infra/storage";
@@ -76,6 +77,7 @@ export async function getLibretaFaceData(context: {
     weightSamples,
     identifications,
     activeShares,
+    dueSoonWindowRule,
   ] = await Promise.all([
     db
       .select()
@@ -128,6 +130,13 @@ export async function getLibretaFaceData(context: {
           .from(libretaShareTokens)
           .where(and(eq(libretaShareTokens.petId, pet.id), isNull(libretaShareTokens.revokedAt)))
       : Promise.resolve([]),
+    // due_soon_window (admin-rules-console, design ADR-4 item 2) — resolved
+    // via the pet's own jurisdiction, pet-scoped resolution.
+    resolveBusinessRule("due_soon_window", {
+      country: "AR",
+      province: pet.jurisdictionProvince,
+      locality: pet.jurisdictionLocality,
+    }),
   ]);
 
   // Signed attachment URLs — one batched Storage round-trip.
@@ -154,7 +163,12 @@ export async function getLibretaFaceData(context: {
     amendedAt: null,
   }));
 
-  const summary = computeVaccinationSummary(pastEvents, pet.species);
+  const summary = computeVaccinationSummary(
+    pastEvents,
+    pet.species,
+    new Date(),
+    dueSoonWindowRule.payload.days,
+  );
 
   const future = mergeFutureLedger(
     activeReminders.map((r) => ({

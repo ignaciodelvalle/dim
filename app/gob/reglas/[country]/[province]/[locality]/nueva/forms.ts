@@ -12,6 +12,12 @@ import type { ComponentType } from "react";
 
 import type { GovtBusinessRuleType } from "@/db";
 
+import {
+  DueSoonWindowForm,
+  LongStayDaysForm,
+  RabiesObservationWindowForm,
+  ReminderWindowsForm,
+} from "./NumericWindowRuleForm";
 import { PhysicalCredentialChannelsForm } from "./PhysicalCredentialChannelsForm";
 import { PppAttestationRegistriesForm } from "./PppAttestationRegistriesForm";
 import { PppBreedListForm } from "./PppBreedListForm";
@@ -40,6 +46,10 @@ export const RULE_FORM_REGISTRY: Partial<
   ppp_weight_threshold: PppWeightThresholdForm as ComponentType<RuleFormProps>,
   ppp_attestation_required_registries: PppAttestationRegistriesForm as ComponentType<RuleFormProps>,
   physical_credential_channels: PhysicalCredentialChannelsForm as ComponentType<RuleFormProps>,
+  rabies_observation_window: RabiesObservationWindowForm as ComponentType<RuleFormProps>,
+  due_soon_window: DueSoonWindowForm as ComponentType<RuleFormProps>,
+  reminder_windows: ReminderWindowsForm as ComponentType<RuleFormProps>,
+  long_stay_days: LongStayDaysForm as ComponentType<RuleFormProps>,
 };
 
 /**
@@ -79,6 +89,18 @@ export function buildCreateFormExtraProps(
         initialNfcTag: payload.nfc_tag ?? { enabled: false },
         initialNotes: "",
       };
+    case "rabies_observation_window":
+    case "due_soon_window":
+    case "long_stay_days":
+      return {
+        initialValue: typeof payload.days === "number" ? payload.days : 0,
+        initialNotes: "",
+      };
+    case "reminder_windows":
+      return {
+        initialValue: typeof payload.aheadDays === "number" ? payload.aheadDays : 0,
+        initialNotes: "",
+      };
     default:
       return { initialNotes: "" };
   }
@@ -108,6 +130,14 @@ export function buildEditFormExtraProps(
         initialPrintableQr: Boolean(payload.printable_qr),
         initialEngravedPlate: payload.engraved_plate ?? { enabled: false },
         initialNfcTag: payload.nfc_tag ?? { enabled: false },
+      };
+    case "rabies_observation_window":
+    case "due_soon_window":
+    case "long_stay_days":
+      return { initialValue: typeof payload.days === "number" ? payload.days : 0 };
+    case "reminder_windows":
+      return {
+        initialValue: typeof payload.aheadDays === "number" ? payload.aheadDays : 0,
       };
     default:
       return {};
