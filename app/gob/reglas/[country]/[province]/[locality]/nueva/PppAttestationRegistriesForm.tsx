@@ -21,6 +21,7 @@ type Props = {
   country: string;
   province: string | null;
   locality: string | null;
+  base: "/admin" | "/gob";
   initialRegistries: Registry[];
   initialNotes: string;
 };
@@ -31,6 +32,7 @@ export function PppAttestationRegistriesForm({
   country,
   province,
   locality,
+  base,
   initialRegistries,
   initialNotes,
 }: Props) {
@@ -75,6 +77,7 @@ export function PppAttestationRegistriesForm({
       <input type="hidden" name="jurisdictionCountry" value={country} />
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
+      <input type="hidden" name="portalBase" value={base} />
 
       <p className="text-[13px] text-ln-op-ink-2">
         Lista de registros oficiales en los que el dueno debe registrar (atestar) a su mascota PPP.

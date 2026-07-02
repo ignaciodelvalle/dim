@@ -13,6 +13,7 @@ import { GOVT_BUSINESS_RULE_TYPES } from "@/db";
 import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { portalBase } from "@/lib/ui/portal-base";
 
 import { AdminReglasLens } from "./AdminReglasLens";
 
@@ -27,9 +28,10 @@ const SOURCE_LABEL: Record<string, string> = {
 
 export default async function ReglasPage() {
   const { jurisdictions, profile } = await requireAdminOrGovtOrRedirect();
+  const base = await portalBase();
 
   if (profile.role === "admin") {
-    return <AdminReglasLens />;
+    return <AdminReglasLens base={base} />;
   }
 
   return <GovtReglasReadOnlyView jurisdictions={jurisdictions} />;

@@ -22,6 +22,7 @@ type Props = {
   country: string;
   province: string | null;
   locality: string | null;
+  base: "/admin" | "/gob";
   initialKg: number | null;
   initialAppliesIfBreedNotPPP: boolean;
   initialNotes: string;
@@ -33,6 +34,7 @@ export function PppWeightThresholdForm({
   country,
   province,
   locality,
+  base,
   initialKg,
   initialAppliesIfBreedNotPPP,
   initialNotes,
@@ -84,6 +86,7 @@ export function PppWeightThresholdForm({
       <input type="hidden" name="jurisdictionCountry" value={country} />
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
+      <input type="hidden" name="portalBase" value={base} />
 
       <p className="text-[13px] text-ln-op-ink-2">
         Define un umbral de peso por sobre el cual el animal se considera PPP por tamano. Deja kg

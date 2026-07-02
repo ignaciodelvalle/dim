@@ -18,6 +18,7 @@ import {
 } from "@/db";
 import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { portalBase } from "@/lib/ui/portal-base";
 import { formatDate } from "@/lib/utils/format";
 
 import { DeleteRuleButton } from "./DeleteRuleButton";
@@ -41,6 +42,7 @@ export default async function JurisdictionReglasPage({
   params: Promise<{ country: string; province: string; locality: string }>;
 }) {
   await requireAdminOrRedirect();
+  const base = await portalBase();
 
   const { country: countryRaw, province: provinceRaw, locality: localityRaw } = await params;
   const country = decodeURIComponent(countryRaw);
@@ -81,7 +83,7 @@ export default async function JurisdictionReglasPage({
       {/* Breadcrumbs */}
       <OpCrumbs
         items={[
-          { label: "Reglas", href: "/gob/reglas" },
+          { label: "Reglas", href: `${base}/reglas` },
           { label: jurisdictionLabel(country, province, locality) },
         ]}
       />
@@ -109,7 +111,7 @@ export default async function JurisdictionReglasPage({
               actions={
                 <div className="flex gap-3">
                   <Link
-                    href={`/gob/reglas/${segCountry}/${segProvince}/${segLocality}/editar/${rule.id}`}
+                    href={`${base}/reglas/${segCountry}/${segProvince}/${segLocality}/editar/${rule.id}`}
                     className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                   >
                     Editar
@@ -119,6 +121,7 @@ export default async function JurisdictionReglasPage({
                     country={country}
                     province={province}
                     locality={locality}
+                    base={base}
                   />
                 </div>
               }
@@ -161,7 +164,7 @@ export default async function JurisdictionReglasPage({
                         </p>
                       </div>
                       <Link
-                        href={`/gob/reglas/${segCountry}/${segProvince}/${segLocality}/nueva?ruleType=${t}`}
+                        href={`${base}/reglas/${segCountry}/${segProvince}/${segLocality}/nueva?ruleType=${t}`}
                         className="shrink-0 text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                       >
                         {"Configurar ->"}

@@ -52,6 +52,7 @@ const BASE_PROPS = {
   country: "AR",
   province: null,
   locality: null,
+  base: "/gob" as const,
   initialValue: 30,
   initialNotes: "",
 };

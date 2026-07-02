@@ -35,6 +35,7 @@ type Props = {
   country: string;
   province: string | null;
   locality: string | null;
+  base: "/admin" | "/gob";
   ruleType: GovtBusinessRuleType;
   /** Form field name — "days" for the 3 day-count types, "aheadDays" for reminder_windows. */
   fieldName: "days" | "aheadDays";
@@ -52,6 +53,7 @@ export function NumericWindowRuleForm({
   country,
   province,
   locality,
+  base,
   ruleType,
   fieldName,
   fieldLabel,
@@ -82,6 +84,7 @@ export function NumericWindowRuleForm({
       <input type="hidden" name="jurisdictionCountry" value={country} />
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
+      <input type="hidden" name="portalBase" value={base} />
       {/* reminder_windows carries a cadences[] array in its payload (R4.7) —
           not editable here yet; the parser (rule-types-registry.ts) always
           round-trips it as []. No form field needed for it in this pass. */}
@@ -153,6 +156,7 @@ type WrapperProps = {
   country: string;
   province: string | null;
   locality: string | null;
+  base: "/admin" | "/gob";
   initialValue: number;
   initialNotes: string;
 };

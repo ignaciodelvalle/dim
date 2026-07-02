@@ -12,11 +12,18 @@ export function DeleteRuleButton({
   country,
   province,
   locality,
+  base,
 }: {
   ruleId: string;
   country: string;
   province: string | null;
   locality: string | null;
+  /**
+   * Portal prefix the post-delete redirect must stay inside
+   * (portal-follows-viewer, 2026-07-02) — round-tripped through the delete
+   * action's `redirectTo` via the hidden `portalBase` field below.
+   */
+  base: "/admin" | "/gob";
 }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("");
@@ -56,6 +63,7 @@ export function DeleteRuleButton({
         <input type="hidden" name="jurisdictionCountry" value={country} />
         <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
         <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
+        <input type="hidden" name="portalBase" value={base} />
         <label htmlFor={`delete-rule-reason-${ruleId}`} className="sr-only">
           Motivo de la eliminación
         </label>

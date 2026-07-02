@@ -29,6 +29,7 @@ type Props = {
   country: string;
   province: string | null;
   locality: string | null;
+  base: "/admin" | "/gob";
   initialPrintableQr: boolean;
   initialEngravedPlate: ProviderChannel;
   initialNfcTag: ProviderChannel;
@@ -92,6 +93,7 @@ export function PhysicalCredentialChannelsForm({
   country,
   province,
   locality,
+  base,
   initialPrintableQr,
   initialEngravedPlate,
   initialNfcTag,
@@ -123,6 +125,7 @@ export function PhysicalCredentialChannelsForm({
       <input type="hidden" name="jurisdictionCountry" value={country} />
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
+      <input type="hidden" name="portalBase" value={base} />
 
       <p className="text-[13px] text-ln-op-ink-2">
         Qué canales de credencial física están disponibles para esta jurisdicción. Consumido por la

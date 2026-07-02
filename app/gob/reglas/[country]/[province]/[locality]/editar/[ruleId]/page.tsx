@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { OpCrumbs } from "@/components/ui/dashboard";
 import { type GovtBusinessRuleType, db, govtBusinessRules } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { portalBase } from "@/lib/ui/portal-base";
 
 import { RULE_FORM_REGISTRY, buildEditFormExtraProps } from "../../nueva/forms";
 
@@ -27,6 +28,7 @@ export default async function EditRulePage({
   }>;
 }) {
   await requireAdminOrRedirect();
+  const base = await portalBase();
 
   const {
     country: countryRaw,
@@ -52,7 +54,7 @@ export default async function EditRulePage({
   const RuleForm = RULE_FORM_REGISTRY[ruleType];
   if (!RuleForm) notFound();
 
-  const backHref = `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`;
+  const backHref = `${base}/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`;
 
   const jurisdictionLabel = `${country} · ${province ?? "(nivel pais)"} · ${locality ?? "(toda la provincia)"}`;
   const extraProps = buildEditFormExtraProps(ruleType, payload);
@@ -61,7 +63,7 @@ export default async function EditRulePage({
     <div className="max-w-2xl space-y-6">
       <OpCrumbs
         items={[
-          { label: "Reglas", href: "/gob/reglas" },
+          { label: "Reglas", href: `${base}/reglas` },
           { label: jurisdictionLabel, href: backHref },
           { label: "Editar regla" },
         ]}
@@ -78,6 +80,7 @@ export default async function EditRulePage({
         country={country}
         province={province}
         locality={locality}
+        base={base}
         initialNotes={initialNotes}
         {...extraProps}
       />

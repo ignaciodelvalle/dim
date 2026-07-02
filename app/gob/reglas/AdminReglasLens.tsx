@@ -18,7 +18,15 @@ import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 import { LocalityRuleDrilldown } from "./LocalityRuleDrilldown";
 
-export async function AdminReglasLens() {
+type Props = {
+  /**
+   * Portal prefix the drill-down links must stay inside (portal-follows-viewer,
+   * 2026-07-02) — this lens renders under both /admin/reglas and /gob/reglas.
+   */
+  base: "/admin" | "/gob";
+};
+
+export async function AdminReglasLens({ base }: Props) {
   // Defense in depth (R1.9): the parent page already branches on
   // profile.role === "admin", but this component re-asserts the stricter
   // admin-only guard independently.
@@ -100,7 +108,7 @@ export async function AdminReglasLens() {
             <li className="flex items-center justify-between border-t border-ln-op-line px-4 py-3">
               <span className="text-[13px] text-ln-op-ink-2">Reglas a nivel país AR</span>
               <Link
-                href={buildJurisdictionRulesHref({ country: "AR" })}
+                href={buildJurisdictionRulesHref({ country: "AR", base })}
                 className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
               >
                 {"Ver reglas ->"}
@@ -138,7 +146,7 @@ export async function AdminReglasLens() {
                       </p>
                     </div>
                     <Link
-                      href={buildJurisdictionRulesHref({ country: "AR", province: p.name })}
+                      href={buildJurisdictionRulesHref({ country: "AR", province: p.name, base })}
                       className="shrink-0 text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                     >
                       {pwCount === 0 ? "Crear regla ->" : "Ver reglas ->"}
@@ -160,6 +168,7 @@ export async function AdminReglasLens() {
                               country: "AR",
                               province: p.name,
                               locality: l.locality,
+                              base,
                             })}
                             className="text-[11px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                           >
@@ -171,7 +180,7 @@ export async function AdminReglasLens() {
                   )}
                   {/* AC4 — reach ANY locality (not just ones with existing
                       rules) so a fresh locality override can be created. */}
-                  <LocalityRuleDrilldown provinceCode={p.code} provinceName={p.name} />
+                  <LocalityRuleDrilldown provinceCode={p.code} provinceName={p.name} base={base} />
                 </li>
               );
             })}

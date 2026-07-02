@@ -26,6 +26,7 @@ type Props = {
   country: string;
   province: string | null;
   locality: string | null;
+  base: "/admin" | "/gob";
   initialBreeds: string[];
   initialNotes: string;
 };
@@ -36,6 +37,7 @@ export function PppBreedListForm({
   country,
   province,
   locality,
+  base,
   initialBreeds,
   initialNotes,
 }: Props) {
@@ -99,6 +101,7 @@ export function PppBreedListForm({
       <input type="hidden" name="jurisdictionCountry" value={country} />
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
+      <input type="hidden" name="portalBase" value={base} />
 
       <p className="text-[13px] rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn">
         Las mascotas con raza marcada se evalúan automáticamente al guardar. Los dueños afectados

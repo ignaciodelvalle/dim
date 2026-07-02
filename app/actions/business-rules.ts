@@ -93,6 +93,17 @@ function parseLegalAnchorIds(formData: FormData): string[] {
     .filter((s) => s.length > 0);
 }
 
+/**
+ * Reads the `portalBase` hidden field the form threads down from
+ * lib/ui/portal-base.ts (portal-follows-viewer, 2026-07-02) so the
+ * post-mutation `redirectTo` stays inside whichever portal the operator is
+ * browsing. Defaults to "/gob" for older/mistrusted form payloads — never
+ * throws on an unexpected value.
+ */
+function resolvePortalBase(formData: FormData): "/admin" | "/gob" {
+  return formData.get("portalBase") === "/admin" ? "/admin" : "/gob";
+}
+
 // ---------------------------------------------------------------------------
 // Form-bound actions (admin-gated)
 // ---------------------------------------------------------------------------
@@ -133,9 +144,10 @@ export async function createBusinessRuleAction(
   if (result.noOp) {
     return { error: null, warning: result.reason };
   }
+  const base = resolvePortalBase(formData);
   return {
     error: null,
-    redirectTo: `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
+    redirectTo: `${base}/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
   };
 }
 
@@ -164,9 +176,10 @@ export async function updateBusinessRuleAction(
   if (!result.ok) return { error: result.error };
 
   const { country, province, locality } = normalizeJurisdiction(formData);
+  const base = resolvePortalBase(formData);
   return {
     error: null,
-    redirectTo: `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
+    redirectTo: `${base}/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
   };
 }
 
@@ -182,8 +195,9 @@ export async function deleteBusinessRuleAction(
   const country = (formData.get("jurisdictionCountry") as string | null) ?? "AR";
   const province = (formData.get("jurisdictionProvince") as string | null) ?? "_";
   const locality = (formData.get("jurisdictionLocality") as string | null) ?? "_";
+  const base = resolvePortalBase(formData);
   return {
     error: null,
-    redirectTo: `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province || "_")}/${encodeURIComponent(locality || "_")}`,
+    redirectTo: `${base}/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province || "_")}/${encodeURIComponent(locality || "_")}`,
   };
 }

@@ -29,6 +29,12 @@ export type RuleFormProps = {
   country: string;
   province: string | null;
   locality: string | null;
+  /**
+   * Portal prefix the post-submit redirect must stay inside
+   * (portal-follows-viewer, 2026-07-02) — round-tripped through the form
+   * action's `redirectTo` via a hidden `portalBase` field.
+   */
+  base: "/admin" | "/gob";
   // biome-ignore lint/suspicious/noExplicitAny: each form has its own initialXxx prop shape (breeds vs kg vs registries); the map is consumed via a per-ruleType switch that narrows props at the call site.
   [key: string]: any;
 };
