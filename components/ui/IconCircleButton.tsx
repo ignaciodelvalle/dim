@@ -1,5 +1,3 @@
-"use client";
-
 // IconCircleButton — shared circular icon-button styling (design-system
 // audit finding 4, wave-3 D5). PetActionRow (pet-profile action bar) and
 // FlipCard's "Girar" affordance used to hand-roll near-identical circular
