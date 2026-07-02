@@ -85,16 +85,13 @@
   --color-ln-rosa-bg: #fbe9f1; /* rosa status flag bg */
   --color-ln-rosa-bd: #f1c8dd; /* rosa status flag border */
 
-  /* Memorial / sepia scale — deceased pet views */
-  --color-ln-memorial-bg: #faf8f3; /* memorial page canvas (near-paper, warm) */
-  --color-ln-memorial-ink: #2a2018; /* deep warm heading text */
-  --color-ln-memorial: #7a6a50; /* memorial body text / death event dot */
-  --color-ln-memorial-faint: #c0b89a; /* separator dots in memorial links */
+  /* Memorial / sepia scale — deceased pet views. wave-3 D14 (design-system
+     audit 2026-07-02) removed 5 orphan tokens (-bg/-ink/bare/-faint/-note,
+     0 usages outside this file) — only the ones actually consumed remain. */
   --color-ln-memorial-sepia: #5d5240; /* warm-brown text (between ink-2 and mute) */
   --color-ln-memorial-chip-bg: #f0ead9; /* "En memoria" chip background */
   --color-ln-memorial-chip-bd: #e0d4b8; /* "En memoria" chip border */
   --color-ln-memorial-chip-text: #6a5a3f; /* "En memoria" chip text */
-  --color-ln-memorial-note: #b0771a; /* note_added event in memorial timeline (pre-WCAG warn shade) */
 
   /* Generic semantic tokens consumed by the app — repointed to Libreta Nacional. */
   --color-background: #fbfaf5; /* → ln-paper */
