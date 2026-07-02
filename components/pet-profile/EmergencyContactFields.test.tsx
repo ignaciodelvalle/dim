@@ -2,6 +2,11 @@
 // (Phase 5). Pattern: react-dom/server renderToStaticMarkup (repo
 // convention — no jsdom); this component has no internal state (fully
 // controlled), so static markup fully covers its render contract.
+//
+// wave-3 D1: field ids are now LnField's own generated ids (useId()), not
+// the fixed "preferredVetName" etc. literals — assertions below check
+// label text + input count instead of hardcoded ids (verified no external
+// code referenced the old literal ids before this migration).
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -15,17 +20,24 @@ const EMPTY_VALUES = {
   emergencyContactPhone: "",
 };
 
+function countOccurrences(html: string, needle: string): number {
+  return html.split(needle).length - 1;
+}
+
 describe("<EmergencyContactFields> — framed (default, EditProfileForm host)", () => {
-  it("renders the fieldset/legend + all 4 labeled inputs", () => {
+  it("renders the fieldset/legend + all 4 labeled LnField inputs", () => {
     const html = renderToStaticMarkup(
       <EmergencyContactFields values={EMPTY_VALUES} onChange={() => {}} />,
     );
     expect(html).toContain("<fieldset");
     expect(html).toContain("Contactos para emergencias");
-    expect(html).toContain('id="preferredVetName"');
-    expect(html).toContain('id="preferredVetPhone"');
-    expect(html).toContain('id="emergencyContactName"');
-    expect(html).toContain('id="emergencyContactPhone"');
+    expect(html).toContain("Veterinario/a de cabecera");
+    expect(html).toContain("Teléfono del vet");
+    expect(html).toContain("Contacto de emergencia");
+    expect(html).toContain("Teléfono del contacto");
+    // 4 LnField-wrapped inputs, each with a matching htmlFor/id pair.
+    expect(countOccurrences(html, "<input")).toBe(4);
+    expect(countOccurrences(html, "opcional")).toBe(4);
   });
 
   it("prefills every field from `values`", () => {
@@ -64,7 +76,8 @@ describe("<EmergencyContactFields> — framed=false (EmergencyContactSheet host)
     );
     expect(html).not.toContain("<fieldset");
     expect(html).not.toContain("Contactos para emergencias");
-    expect(html).toContain('id="preferredVetName"');
-    expect(html).toContain('id="emergencyContactPhone"');
+    expect(html).toContain("Veterinario/a de cabecera");
+    expect(html).toContain("Teléfono del contacto");
+    expect(countOccurrences(html, "<input")).toBe(4);
   });
 });

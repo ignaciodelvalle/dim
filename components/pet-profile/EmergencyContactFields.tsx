@@ -10,7 +10,15 @@
 // labels, placeholders, and PhoneFormatWarning behavior. Controlled: the
 // host owns the state (useState in EditProfileForm; a small local state in
 // the sheet) and passes `values` + a single `onChange(field, value)`.
+//
+// wave-3 D1 (design-system audit finding 1): the 4 fields used to hand-roll
+// their own <label>/<input> pair, duplicating LnField/LnInput exactly and
+// losing the mobile iOS-zoom hardening + focus-ring wiring those primitives
+// provide. Field ids are now LnField's own generated ids (useId()) instead
+// of the fixed "preferredVetName" etc. — nothing outside this component
+// referenced the old literal ids (verified: no external anchors/queries).
 
+import { LnField, LnInput } from "@/components/ui/Field";
 import { looksLikeArPhone } from "@/lib/reference/ar-phone";
 
 export type EmergencyContactValues = {
@@ -39,72 +47,56 @@ function PhoneFormatWarning({ value }: { value: string }) {
 function FieldsGrid({ values, onChange }: Props) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <LnField label="Veterinario/a de cabecera">
+        {({ id }) => (
+          <LnInput
+            id={id}
+            type="text"
+            value={values.preferredVetName}
+            onChange={(e) => onChange("preferredVetName", e.target.value)}
+            maxLength={80}
+            placeholder="Dra. Pérez"
+          />
+        )}
+      </LnField>
       <div>
-        <label
-          htmlFor="preferredVetName"
-          className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
-        >
-          Veterinario/a de cabecera
-        </label>
-        <input
-          id="preferredVetName"
-          type="text"
-          value={values.preferredVetName}
-          onChange={(e) => onChange("preferredVetName", e.target.value)}
-          maxLength={80}
-          placeholder="Dra. Pérez"
-          className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
-        />
-      </div>
-      <div>
-        <label
-          htmlFor="preferredVetPhone"
-          className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
-        >
-          Teléfono del vet
-        </label>
-        <input
-          id="preferredVetPhone"
-          type="tel"
-          value={values.preferredVetPhone}
-          onChange={(e) => onChange("preferredVetPhone", e.target.value)}
-          placeholder="+54 9 11 1234-5678"
-          className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
-        />
+        <LnField label="Teléfono del vet">
+          {({ id }) => (
+            <LnInput
+              id={id}
+              type="tel"
+              value={values.preferredVetPhone}
+              onChange={(e) => onChange("preferredVetPhone", e.target.value)}
+              placeholder="+54 9 11 1234-5678"
+            />
+          )}
+        </LnField>
         <PhoneFormatWarning value={values.preferredVetPhone} />
       </div>
+      <LnField label="Contacto de emergencia">
+        {({ id }) => (
+          <LnInput
+            id={id}
+            type="text"
+            value={values.emergencyContactName}
+            onChange={(e) => onChange("emergencyContactName", e.target.value)}
+            maxLength={80}
+            placeholder="Lucía F."
+          />
+        )}
+      </LnField>
       <div>
-        <label
-          htmlFor="emergencyContactName"
-          className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
-        >
-          Contacto de emergencia
-        </label>
-        <input
-          id="emergencyContactName"
-          type="text"
-          value={values.emergencyContactName}
-          onChange={(e) => onChange("emergencyContactName", e.target.value)}
-          maxLength={80}
-          placeholder="Lucía F."
-          className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
-        />
-      </div>
-      <div>
-        <label
-          htmlFor="emergencyContactPhone"
-          className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
-        >
-          Teléfono del contacto
-        </label>
-        <input
-          id="emergencyContactPhone"
-          type="tel"
-          value={values.emergencyContactPhone}
-          onChange={(e) => onChange("emergencyContactPhone", e.target.value)}
-          placeholder="+54 9 11 1234-5678"
-          className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
-        />
+        <LnField label="Teléfono del contacto">
+          {({ id }) => (
+            <LnInput
+              id={id}
+              type="tel"
+              value={values.emergencyContactPhone}
+              onChange={(e) => onChange("emergencyContactPhone", e.target.value)}
+              placeholder="+54 9 11 1234-5678"
+            />
+          )}
+        </LnField>
         <PhoneFormatWarning value={values.emergencyContactPhone} />
       </div>
     </div>
