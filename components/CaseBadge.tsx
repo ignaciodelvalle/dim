@@ -65,6 +65,17 @@ export function CaseBadge({ publicCode, caseKind, status, size = "md" }: Props) 
   return (
     <Link
       href={`/casos/${publicCode}`}
+      // prefetch=false: this badge is always-mounted alert-strip content on
+      // the pet profile (Face 1, eager) — see PetActionRow.tsx and
+      // EventTimeline.tsx for the full incident writeup on how concurrent
+      // eager Link prefetching combines with a known Next.js 15.5.x
+      // App Router production-mode defect (RSC fetch resolves 200 with a
+      // valid flight payload, but the client router silently drops it —
+      // no history commit, no re-render) to make real navigations
+      // intermittently no-op. Reduces one more source of concurrent
+      // background fetch pressure at the moment a user is likely clicking
+      // something else on the same page.
+      prefetch={false}
       className={`inline-flex items-center rounded-full bg-ln-card ring-1 ring-ln-line transition hover:bg-ln-stripe    ${sizeClasses}`}
     >
       <Icon name={KIND_ICON[caseKind]} size="sm" decorative />
