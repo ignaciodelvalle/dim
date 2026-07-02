@@ -4,8 +4,16 @@
 // Terminal: status_changed with to_status='active' (recovered) closes
 // the episode atomically with the same event. Custody_transferred during
 // the episode also closes via return-to-owner handshake.
-// Auto-close: cron closes episodes inactive >180 days.
-// No reopen — losing the pet again opens a new episode.
+// Auto-close: cron closes episodes inactive >60d AND open >365d (ADR-18,
+// pet-document-redesign — raised from 180d so a lost pet can never silently
+// expire in under a year). The closer deliberately does NOT reset
+// pets.status, so the profile can still show status='lost' with no open
+// episode; reactivateLostSearchAction (app/actions/reactivate-lost-search.ts)
+// covers that case by opening a brand-new episode directly (a narrow,
+// kind-specific carve-out — manualOpenAllowed stays false for the general
+// open path below).
+// No reopen — losing the pet again (or reactivating a stale search) opens a
+// new episode; reopenAllowed stays false.
 
 import type { CaseLifecycle } from "./types";
 

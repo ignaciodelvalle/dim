@@ -1,11 +1,13 @@
-// Tests for <LostCaseBlock> — pet-document-redesign S2 (lost-as-case-block).
+// Tests for <LostCaseBlock> — pet-document-redesign S2 (lost-as-case-block)
+// + ADR-18 STALE variant.
 //
-// Covers: open-episode guard (renders nothing without one), owner sees all
-// applicable capabilities (Marcar encontrada, actualizar last-seen, share/
-// poster, disclosure toggles), org gets the read-only variant (no toggles,
-// no Marcar encontrada, no /perdida update, no share/poster). Render via
-// react-dom/server → HTML string (same pattern as LostLastSeenCard.test.tsx
-// — "use client" components with no browser-only hooks render fine this way).
+// Covers: no-open-episode renders the STALE banner (not nothing), owner sees
+// all applicable capabilities (Marcar encontrada, actualizar last-seen,
+// share/poster, disclosure toggles), org gets the read-only variant (no
+// toggles, no Marcar encontrada, no /perdida update, no share/poster).
+// Render via react-dom/server → HTML string (same pattern as
+// LostLastSeenCard.test.tsx — "use client" components with no browser-only
+// hooks render fine this way).
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -51,8 +53,8 @@ function render(node: Parameters<typeof renderToStaticMarkup>[0]): string {
   return renderToStaticMarkup(node);
 }
 
-describe("<LostCaseBlock> — open-episode guard", () => {
-  it("renders nothing when there is no open episode", () => {
+describe("<LostCaseBlock> — STALE variant (ADR-18, no open episode while status still lost)", () => {
+  it("owner: renders the stale banner with both CTAs, not an empty block", () => {
     const html = render(
       <LostCaseBlock
         pet={pet}
@@ -63,7 +65,27 @@ describe("<LostCaseBlock> — open-episode guard", () => {
         isOwner={true}
       />,
     );
-    expect(html).toBe("");
+    expect(html).not.toBe("");
+    expect(html).toContain("Búsqueda cerrada por inactividad");
+    expect(html).toContain("Reactivar búsqueda");
+    expect(html).toContain("Apareció");
+    expect(html).toContain('data-lost-case-variant="stale"');
+  });
+
+  it("org: renders the informational banner without CTAs", () => {
+    const html = render(
+      <LostCaseBlock
+        pet={pet}
+        photoUrl={null}
+        episode={null}
+        scans={[]}
+        ownerFirstName="Ana"
+        isOwner={false}
+      />,
+    );
+    expect(html).toContain("Búsqueda cerrada por inactividad");
+    expect(html).not.toContain("Reactivar búsqueda");
+    expect(html).not.toContain("Apareció");
   });
 });
 

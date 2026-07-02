@@ -146,7 +146,10 @@ describe("close-stale-lost-episodes", () => {
   let caseId: string;
 
   beforeAll(async () => {
-    const openedAt = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+    // ADR-18 (pet-document-redesign): threshold raised 180d -> 365d so a lost
+    // pet can never silently expire in under a year. 400d clears the new
+    // boundary with margin (matches the custody_dispute fixture below).
+    const openedAt = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
     const [row] = await db
       .insert(cases)
       .values({
@@ -162,9 +165,27 @@ describe("close-stale-lost-episodes", () => {
     caseId = row.id;
   });
 
-  it("scan finds cases open >180d without recent events", async () => {
+  it("scan finds cases open >365d without recent events", async () => {
     const candidates = await findStaleLostEpisodes();
     expect(candidates.some((c) => c.id === caseId)).toBe(true);
+  });
+
+  it("scan does NOT find cases open >180d but <365d (ADR-18 boundary)", async () => {
+    const openedAt = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+    const [row] = await db
+      .insert(cases)
+      .values({
+        publicCode: "CAS-CC-LOST-200D",
+        caseKind: "lost_pet_episode",
+        primarySubjectKind: "registered_pet",
+        primaryPetId: petLost,
+        status: "open",
+        openedAt,
+        openedReason: "Test fixture for the 180d<x<365d ADR-18 boundary",
+      })
+      .returning();
+    const candidates = await findStaleLostEpisodes();
+    expect(candidates.some((c) => c.id === row.id)).toBe(false);
   });
 
   it("processOne flips status to closed with closed_reason=auto_expired", async () => {

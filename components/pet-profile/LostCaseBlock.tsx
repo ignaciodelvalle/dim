@@ -48,6 +48,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { setPetDisclosurePrefsAction } from "@/app/actions/lost-mode";
+import { reactivateLostSearchAction } from "@/app/actions/reactivate-lost-search";
 import {
   type DisclosurePrefs,
   LostDisclosureCard,
@@ -84,10 +85,16 @@ type Props = {
 };
 
 export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, isOwner }: Props) {
-  // No open episode → nothing to render. The caller (page.tsx) only mounts
-  // this block when `pet.status === 'lost'`, but a defensive guard keeps the
-  // component self-contained.
-  if (!episode) return null;
+  // No open episode while status is still 'lost' — the auto-close cron
+  // (ADR-18) never resets pets.status, so this is the STALE state, not the
+  // absence of a lost pet. The caller (page.tsx) only mounts this block when
+  // `pet.status === 'lost'`, so a null episode here unambiguously means the
+  // episode auto-closed for inactivity and the search needs a decision.
+  if (!episode) {
+    return (
+      <StaleLostCaseBanner petPublicToken={pet.publicToken} petSex={pet.sex} isOwner={isOwner} />
+    );
+  }
 
   const markFoundAction = setPetFoundAction.bind(null, pet.publicToken);
   const toggleAction = setPetDisclosurePrefsAction.bind(null, pet.publicToken);
@@ -269,6 +276,62 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// StaleLostCaseBanner — the case auto-closed for inactivity (ADR-18) but
+// pets.status is still 'lost'. Two CTAs for the owner: reopen a fresh
+// episode, or confirm the pet was found. Org viewers get an informational
+// read-only banner (same parity model as the main block).
+// ---------------------------------------------------------------------------
+
+function StaleLostCaseBanner({
+  petPublicToken,
+  petSex,
+  isOwner,
+}: {
+  petPublicToken: string;
+  petSex: string | null;
+  isOwner: boolean;
+}) {
+  const reactivateAction = reactivateLostSearchAction.bind(null, petPublicToken);
+  const markFoundAction = setPetFoundAction.bind(null, petPublicToken);
+
+  return (
+    <div
+      data-section="lost-case-block"
+      data-lost-case-variant="stale"
+      className="overflow-hidden rounded-md border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5"
+    >
+      <p className="m-0 font-[var(--font-ln-serif)] text-[var(--text-md)] font-semibold text-[var(--color-ln-warn)]">
+        Búsqueda cerrada por inactividad
+      </p>
+      <p className="mt-1 text-[var(--text-sm)] text-[var(--color-ln-warn)]">
+        No hubo actividad en más de un año, así que el caso se cerró automáticamente. La mascota
+        sigue marcada como perdida.
+      </p>
+      {isOwner && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <form action={reactivateAction}>
+            <button
+              type="submit"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border-[3px] border-[var(--color-ln-warn-100)] bg-[var(--color-ln-card)] px-4 text-[var(--text-sm)] font-semibold text-[var(--color-ln-warn)] transition-colors hover:bg-white"
+            >
+              Reactivar búsqueda
+            </button>
+          </form>
+          <form action={markFoundAction}>
+            <button
+              type="submit"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-ok px-4 text-[var(--text-sm)] font-semibold text-white transition-colors hover:opacity-90"
+            >
+              Apareció · marcar {foundParticiple(petSex)}
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

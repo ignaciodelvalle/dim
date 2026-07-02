@@ -1,9 +1,14 @@
-// Use-case: close stale lost_pet_episode cases (inactive >180 days).
+// Use-case: close stale lost_pet_episode cases (inactive >60d AND open >365d).
 //
 // Migrated from lib/case-closers/close-stale-lost-episodes.ts.
 // The lib file becomes a thin re-export shim (strangler pattern).
 //
-// Scan: lost_pet_episode cases with status='open', opened_at < now-180d,
+// pet-document-redesign ADR-18: staleAfterDays raised 180 -> 365 so a lost
+// pet can never silently expire in under a year. The 60-day inactivity
+// guard is an ADDITIONAL AND-condition (both must hold), so the effective
+// minimum age before any auto-close is >= 1 year.
+//
+// Scan: lost_pet_episode cases with status='open', opened_at < now-365d,
 // AND no pet_events attached in the last 60 days.
 // Process: in ONE tx — UPDATE status='closed', closed_reason='auto_expired'
 // (guarded AND status='open'); if 0 rows → return (anti-race); if
@@ -18,7 +23,7 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 
 export interface CloseStaleLostEpisodesOptions {
   now?: Date;
-  /** Days a case must have been open before becoming eligible. Default 180. */
+  /** Days a case must have been open before becoming eligible. Default 365 (ADR-18). */
   staleAfterDays?: number;
   /** Days of inactivity required to consider a case stale. Default 60. */
   inactivityDays?: number;
@@ -34,7 +39,7 @@ export async function findStaleLostEpisodes(
   options?: CloseStaleLostEpisodesOptions,
 ): Promise<CloseStaleLostEpisodesCandidate[]> {
   const now = options?.now ?? new Date();
-  const staleAfterMs = (options?.staleAfterDays ?? 180) * 24 * 60 * 60 * 1000;
+  const staleAfterMs = (options?.staleAfterDays ?? 365) * 24 * 60 * 60 * 1000;
   const inactivityMs = (options?.inactivityDays ?? 60) * 24 * 60 * 60 * 1000;
   const openedBefore = new Date(now.getTime() - staleAfterMs);
   const inactiveSince = new Date(now.getTime() - inactivityMs);
