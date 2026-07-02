@@ -22,23 +22,21 @@ export const PUBLIC_NAV: NavItem[] = [
 // Owner portal
 // ---------------------------------------------------------------------------
 
-// Owner nav — re-ranked to "two duties + identity + a bell" (four-actor lean IA
-// critique §2, 2026-07-01). A citizen has two civic duties: keep their own
-// record in order and report what they witness. The first item reads
-// "Mis mascotas" (H2: a recognizable noun beats a verb for first-run) and points
-// at the compliance-register home /inicio (pets + capture + vencimientos), with
-// matchPrefixes so it stays active while viewing a pet at /mis-mascotas/[token].
-// "Denunciar" → /denuncias/mias. Identity lives in the account pill and
-// notifications in the bell (both in AppCitizenMasthead), so neither is a nav
-// peer. Turnos / Adopciones / Refugios / Perdidas surface in context (home
-// widgets, footer, pet pages), not as top-level destinations.
+// Owner nav — 3 items (wave-3 P6, PO decision #645 point 5, 2026-07-02).
+// This SUPERSEDES the four-actor lean IA critique §2 "two duties + identity
+// + a bell" 2-item redesign (2026-07-01, decision #559): that version
+// collapsed "Mis mascotas" into "Inicio" (one item, matchPrefixes covering
+// both /inicio and /mis-mascotas) on the reasoning that dropping the tab
+// orphaned nothing (/inicio already links to /mis-mascotas). The PO
+// reviewed with fresh eyes and decided the two destinations are distinct
+// enough to deserve separate nav items: **Inicio** (the compliance-register
+// home — capture, vencimientos, reminders) and **Mis mascotas** (the pet
+// list/management surface). "Denunciar" is unchanged. Each item now owns a
+// single, disjoint matchPrefix — no matchPrefixes array needed since the
+// two owner destinations no longer share a highlight zone.
 export const OWNER_NAV: NavItem[] = [
-  {
-    href: "/inicio",
-    label: "Mis mascotas",
-    matchPrefix: "/inicio",
-    matchPrefixes: ["/inicio", "/mis-mascotas"],
-  },
+  { href: "/inicio", label: "Inicio", matchPrefix: "/inicio" },
+  { href: "/mis-mascotas", label: "Mis mascotas", matchPrefix: "/mis-mascotas" },
   { href: "/denuncias/mias", label: "Denunciar", matchPrefix: "/denuncias" },
 ];
 

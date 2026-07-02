@@ -58,8 +58,13 @@ test("logged-in owner on /adoptar is NOT stranded — keeps a role return (D4)",
   await expect(page.locator("#main-content")).toHaveCount(1);
 
   // The stranded-user fix: a guaranteed ≤1-click return to the role home.
-  // Rendered as a "Volver a mi app" affordance in the masthead, plus the role
-  // "Inicio" nav item pointing at /inicio (NOT the public landing /).
+  // Wave-3 P6 (PO decision #645 point 5) dropped the separate "Volver a mi
+  // app" affordance for this exact citizen+owner case — OWNER_NAV's own
+  // "Inicio" nav item (pointing at /inicio, NOT the public landing /) now
+  // covers it on its own. Keep matching BOTH labels via .or(): a discreet
+  // "Volver a mi app" return still renders for other roles/surfaces (D13
+  // token-landing, operator stranded on a public page), so this assertion
+  // stays true regardless of which affordance a given session gets.
   const banner = page.getByRole("banner");
   const returnLink = banner.getByRole("link", { name: /volver a mi app/i });
   const inicioLink = banner.getByRole("link", { name: /^inicio$/i });

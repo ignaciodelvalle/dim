@@ -211,20 +211,31 @@ describe("buildOrgNavFlat", () => {
 });
 
 describe("OWNER_NAV", () => {
-  // Re-ranked 2026-07-01 (four-actor lean IA critique §2): "two duties + identity
-  // + a bell". The nav array holds only the two civic duties; identity (Cuenta)
-  // is the account pill and notifications are the bell — both in AppCitizenMasthead.
-  it("has exactly 2 items — the two civic duties", () => {
-    expect(OWNER_NAV).toHaveLength(2);
+  // wave-3 P6 (PO decision #645 point 5, 2026-07-02): 3 items. This
+  // SUPERSEDES the 2026-07-01 "two duties + identity + a bell" 2-item
+  // redesign (decision #559) — the PO decided Inicio and Mis mascotas are
+  // distinct enough destinations to both be nav peers. Identity (Cuenta) is
+  // still the account pill and notifications are still the bell — neither
+  // is a nav peer.
+  it("has exactly 3 items", () => {
+    expect(OWNER_NAV).toHaveLength(3);
   });
 
-  it("leads with 'Mis mascotas' → /inicio, active on pet pages via matchPrefixes", () => {
-    const home = OWNER_NAV.find((i) => i.label === "Mis mascotas");
-    expect(home).toBeDefined();
-    expect(home?.href).toBe("/inicio");
-    // Stays highlighted while viewing a pet at /mis-mascotas/[token].
-    expect(home?.matchPrefixes).toContain("/inicio");
-    expect(home?.matchPrefixes).toContain("/mis-mascotas");
+  it("leads with 'Inicio' → /inicio, matchPrefix scoped to /inicio only", () => {
+    const inicio = OWNER_NAV.find((i) => i.label === "Inicio");
+    expect(inicio).toBeDefined();
+    expect(inicio?.href).toBe("/inicio");
+    expect(inicio?.matchPrefix).toBe("/inicio");
+    // No longer shares a highlight zone with /mis-mascotas — that's now its
+    // own nav item (see below).
+    expect(inicio?.matchPrefixes).toBeUndefined();
+  });
+
+  it("has 'Mis mascotas' → /mis-mascotas, active on pet pages via matchPrefix", () => {
+    const misMascotas = OWNER_NAV.find((i) => i.label === "Mis mascotas");
+    expect(misMascotas).toBeDefined();
+    expect(misMascotas?.href).toBe("/mis-mascotas");
+    expect(misMascotas?.matchPrefix).toBe("/mis-mascotas");
   });
 
   it("contains Denunciar tab pointing to /denuncias/mias", () => {
@@ -233,12 +244,23 @@ describe("OWNER_NAV", () => {
     expect(denunciar?.href).toBe("/denuncias/mias");
   });
 
-  it("no longer surfaces Notificaciones, Adopciones, Turnos or Mis Mascotas as nav peers", () => {
+  it("Inicio and Mis mascotas have disjoint matchPrefixes (no double-highlight)", () => {
+    const inicio = OWNER_NAV.find((i) => i.label === "Inicio");
+    const misMascotas = OWNER_NAV.find((i) => i.label === "Mis mascotas");
+    expect(inicio?.matchPrefix).not.toBe(misMascotas?.matchPrefix);
+    expect("/mis-mascotas/abc123".startsWith(inicio?.matchPrefix ?? "")).toBe(false);
+    expect("/inicio".startsWith(misMascotas?.matchPrefix ?? "")).toBe(false);
+  });
+
+  it("still in order Inicio → Mis mascotas → Denunciar", () => {
+    expect(OWNER_NAV.map((i) => i.label)).toEqual(["Inicio", "Mis mascotas", "Denunciar"]);
+  });
+
+  it("no longer surfaces Notificaciones, Adopciones or Turnos as nav peers", () => {
     const hrefs = OWNER_NAV.map((i) => i.href);
-    expect(hrefs).not.toContain("/notificaciones"); // now the bell
+    expect(hrefs).not.toContain("/notificaciones"); // still the bell
     expect(hrefs).not.toContain("/adoptar");
     expect(hrefs).not.toContain("/mis-turnos");
-    expect(hrefs).not.toContain("/mis-mascotas"); // reachable in-context from /inicio
   });
 });
 

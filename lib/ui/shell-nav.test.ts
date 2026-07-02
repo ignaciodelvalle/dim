@@ -136,11 +136,15 @@ describe("resolveShellNav — owner (D3/D4 stranded fix)", () => {
     expect(r.nav).not.toBe(PUBLIC_NAV);
   });
 
-  it("owner on /denuncias (public surface) keeps a 1-click return to the role home", () => {
+  it("owner on /denuncias (public surface) has NO separate return chip — OWNER_NAV's own Inicio item covers it (wave-3 P6)", () => {
     const r = resolveShellNav(owner("/denuncias"));
     expect(r.variant).toBe("citizen");
-    expect(r.showReturn).toBe(true);
-    expect(r.returnHref).toBe("/inicio");
+    expect(r.nav).toBe(OWNER_NAV);
+    expect(r.showReturn).toBe(false);
+    expect(r.returnHref).toBeUndefined();
+    // The dedupe only holds because OWNER_NAV itself always renders an
+    // Inicio item pointing at the same home — guard the premise here too.
+    expect(OWNER_NAV.some((i) => i.label === "Inicio" && i.href === "/inicio")).toBe(true);
   });
 
   it("owner on a deep /inicio sub-route is still 'home' (no return)", () => {

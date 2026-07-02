@@ -251,16 +251,24 @@ export function resolveShellNav(input: ShellNavInput): ShellNavResult {
   }
 
   // Personal role on any non-operator surface — including public browse pages.
-  // THE STRANDED-USER FIX (D3/D4): the role nav is kept, never replaced by
-  // PUBLIC_NAV, and a guaranteed 1-click return to the role home is present
-  // whenever the user is off their own home surface.
-  const home = roleHome(role);
-  const offHome = !(pathname === home || pathname.startsWith(`${home}/`));
+  // THE STRANDED-USER FIX (D3/D4) still holds for the NAV: it's kept, never
+  // replaced by PUBLIC_NAV, regardless of how far off-home the user wanders.
+  //
+  // The separate "Volver a mi app" RETURN affordance used to also render
+  // here whenever `offHome` (D4's original guarantee). Wave-3 P6 (PO
+  // decision #645 point 5) removed it for THIS branch only: `citizenNavFor`
+  // (OWNER_NAV) always renders and, since P6, carries its own always-visible
+  // "Inicio" item pointing at this exact same `roleHome(role)` href — the
+  // return chip was a literal duplicate on every citizen page. The OTHER
+  // `showReturn` call sites above are untouched and stay true: token-landing
+  // (D13) renders NO nav at all, and the operator branches (govt/admin
+  // stranded on a public surface, or a personal role inside an org context)
+  // use ADMIN_NAV/GOB_NAV/org nav, none of which link back to /mis-mascotas
+  // — for those, the return affordance is still the only way back.
   return {
     variant: "citizen",
     nav: citizenNavFor(role),
-    showReturn: offHome,
-    returnHref: offHome ? home : undefined,
+    showReturn: false,
     switcher,
   };
 }
