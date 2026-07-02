@@ -170,24 +170,6 @@ describe("close-stale-lost-episodes", () => {
     expect(candidates.some((c) => c.id === caseId)).toBe(true);
   });
 
-  it("scan does NOT find cases open >180d but <365d (ADR-18 boundary)", async () => {
-    const openedAt = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
-    const [row] = await db
-      .insert(cases)
-      .values({
-        publicCode: "CAS-CC-LOST-200D",
-        caseKind: "lost_pet_episode",
-        primarySubjectKind: "registered_pet",
-        primaryPetId: petLost,
-        status: "open",
-        openedAt,
-        openedReason: "Test fixture for the 180d<x<365d ADR-18 boundary",
-      })
-      .returning();
-    const candidates = await findStaleLostEpisodes();
-    expect(candidates.some((c) => c.id === row.id)).toBe(false);
-  });
-
   it("processOne flips status to closed with closed_reason=auto_expired", async () => {
     await closeStaleLostEpisode({
       id: caseId,
@@ -225,6 +207,29 @@ describe("close-stale-lost-episodes", () => {
       (e) => (e.payload as Record<string, unknown>).category === "system",
     );
     expect(noteEvent).toBeDefined();
+  });
+
+  // Runs LAST in this block: the >365d fixture case above is already closed
+  // by this point (previous two tests), so inserting a second open
+  // lost_pet_episode for the same pet doesn't collide with the DB's
+  // cases_open_per_pet_kind_idx unique constraint (one open case per
+  // pet+kind at a time).
+  it("scan does NOT find cases open >180d but <365d (ADR-18 boundary)", async () => {
+    const openedAt = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+    const [row] = await db
+      .insert(cases)
+      .values({
+        publicCode: "CAS-CC-LOST-200D",
+        caseKind: "lost_pet_episode",
+        primarySubjectKind: "registered_pet",
+        primaryPetId: petLost,
+        status: "open",
+        openedAt,
+        openedReason: "Test fixture for the 180d<x<365d ADR-18 boundary",
+      })
+      .returning();
+    const candidates = await findStaleLostEpisodes();
+    expect(candidates.some((c) => c.id === row.id)).toBe(false);
   });
 });
 
