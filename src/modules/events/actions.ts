@@ -57,6 +57,7 @@ import { createNote } from "./application/identity/note-use-case";
 import { createDeathRecord } from "./application/lifecycle/death-record-use-case";
 import { setPetFound } from "./application/lifecycle/set-pet-found-use-case";
 import { setPetLostWriter } from "./application/lifecycle/set-pet-lost-use-case";
+import { updateLostLastSeen } from "./application/lifecycle/update-lost-last-seen-use-case";
 import { createDeworming } from "./application/medical/deworming-use-case";
 import { markMedicationDoseTaken } from "./application/medical/medication-dose-taken-use-case";
 import { createMedicationEnd } from "./application/medical/medication-end-use-case";
@@ -1319,6 +1320,75 @@ export async function setPetLostAction(
   if (String(formData.get("noRedirect") ?? "") === "1") {
     return { error: null, ok: true };
   }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// Update lost last-seen (WU-6 lifecycle) — "ACTUALIZAR" on LostCaseBlock
+// ---------------------------------------------------------------------------
+
+// Re-export types only (no value re-exports in "use server" files).
+export type {
+  UpdateLostLastSeenParams,
+  UpdateLostLastSeenResult,
+} from "./application/lifecycle/update-lost-last-seen-use-case";
+
+export async function updateLostLastSeenAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  // AUTH: requirePetAccess (accepts non-alive), same as setPetLostAction/
+  // setPetFoundAction — the use-case itself rejects non-'lost' status.
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, eventAuthorship } = access;
+
+  const locationDescription = String(formData.get("locationAddress") ?? "").trim() || null;
+  const reason = String(formData.get("reason") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
+  const loc = parseLocationFromFormData(formData);
+  // locality:"none" — this flow doesn't validate against the INDEC catalog
+  // (parity with setPetLostAction's own last-seen point capture); coords are
+  // optional (an owner may want to log a text-only update with no map pin).
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+
+  // Compose the note text from the address/reference + free-text note — the
+  // note_added payload has a single required `text` field (no separate
+  // location_description like status_changed has).
+  const text = [locationDescription, reason].filter(Boolean).join(" — ") || null;
+
+  const repo = new EventsRepository();
+
+  const result = await updateLostLastSeen(
+    {
+      petId: pet.id,
+      petStatus: pet.status,
+      recordedByUserId: user.id,
+      eventAuthorship: eventAuthorship as {
+        authorRole: string;
+        authorOrganizationId: string | null;
+        authorVerified: boolean;
+      },
+      text,
+      locationLat: normalizedLoc.lat != null ? String(normalizedLoc.lat) : null,
+      locationLng: normalizedLoc.lng != null ? String(normalizedLoc.lng) : null,
+      clientIdempotencyKey,
+    },
+    { repo },
+  );
+
+  if (result.error) return { error: result.error };
 
   redirect(`/mis-mascotas/${publicToken}`);
 }

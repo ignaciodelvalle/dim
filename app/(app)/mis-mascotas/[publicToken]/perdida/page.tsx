@@ -1,13 +1,28 @@
-// Marcar como perdida — Libreta Nacional redesign.
-// Presentation only; MarkLostWizard and server action unchanged.
+// Marcar como perdida / Actualizar última ubicación — Libreta Nacional redesign.
+//
+// Two flows share this route depending on pet.status:
+//   - status !== 'lost' (and !== 'deceased'): first-time MarkLostWizard.
+//   - status === 'lost' WITH an open lost_pet_episode case: UpdateLastSeenForm
+//     — the "ACTUALIZAR" affordance on LostCaseBlock's "Última vez visto" card
+//     links here. This does NOT redirect away: doing so unconditionally for
+//     status='lost' was a regression that turned "ACTUALIZAR" into a dead end
+//     (it always bounced back to the profile it was launched from).
+//   - status === 'lost' WITHOUT an open case: the episode auto-closed for
+//     inactivity (ADR-18 stale cron) but pets.status is still 'lost'. The
+//     profile's StaleLostCaseBanner already offers "Reactivar búsqueda" /
+//     "Marcar encontrada" for this state, so redirecting there is correct —
+//     there's nothing for this route to update.
+//   - status === 'deceased': unchanged — always redirect to the profile.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { fetchLostEpisodeForPet } from "@/lib/infra/lost-mode";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
-import { setPetLostAction } from "@/src/modules/events/actions";
+import { setPetLostAction, updateLostLastSeenAction } from "@/src/modules/events/actions";
 import { MarkLostWizard } from "./MarkLostWizard";
+import { UpdateLastSeenForm } from "./UpdateLastSeenForm";
 
 export default async function MarkPetLostPage({
   params,
@@ -18,11 +33,41 @@ export default async function MarkPetLostPage({
   const session = await requireOwnedPetByToken(publicToken);
   const { pet } = session;
 
-  if (pet.status === "lost") {
-    redirect(`/mis-mascotas/${pet.publicToken}`);
-  }
   if (pet.status === "deceased") {
     redirect(`/mis-mascotas/${publicToken}`);
+  }
+
+  if (pet.status === "lost") {
+    const episode = await fetchLostEpisodeForPet(pet.id);
+    if (!episode) {
+      // Stale (auto-closed) episode — nothing to update here; the profile's
+      // StaleLostCaseBanner is the correct next step.
+      redirect(`/mis-mascotas/${pet.publicToken}`);
+    }
+
+    const updateAction = updateLostLastSeenAction.bind(null, pet.publicToken);
+
+    return (
+      <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+        <Link
+          href={`/mis-mascotas/${pet.publicToken}`}
+          className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        >
+          ← {pet.name}
+        </Link>
+
+        <UpdateLastSeenForm
+          action={updateAction}
+          petName={pet.name}
+          petJurisdictionProvince={pet.jurisdictionProvince ?? null}
+          petJurisdictionLocality={pet.jurisdictionLocality ?? null}
+          defaultPlaceName={episode.placeName}
+          defaultNote={episode.ownerNote}
+          defaultLat={episode.lastSeenLat != null ? Number(episode.lastSeenLat) : null}
+          defaultLng={episode.lastSeenLng != null ? Number(episode.lastSeenLng) : null}
+        />
+      </div>
+    );
   }
 
   const boundAction = setPetLostAction.bind(null, pet.publicToken);
