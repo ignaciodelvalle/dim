@@ -12,6 +12,7 @@ import {
 } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { portalBase } from "@/lib/ui/portal-base";
 
 const TYPE_LABELS: Record<ApprovalRequestType, string> = {
   role_upgrade_vet: "Matrículas veterinarias",
@@ -35,6 +36,7 @@ export default async function ColaPage({
   searchParams: Promise<{ type?: string; cursor?: string }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const base = await portalBase();
 
   const { type: rawType, cursor: rawCursor } = await searchParams;
   const activeType = parseTypeParam(rawType);
@@ -74,9 +76,9 @@ export default async function ColaPage({
   const lastReq = pending.at(-1);
   const olderLink =
     hasMore && lastReq
-      ? olderHref("/gob/cola", filterParams, { ts: lastReq.createdAt, id: lastReq.id })
+      ? olderHref(`${base}/cola`, filterParams, { ts: lastReq.createdAt, id: lastReq.id })
       : null;
-  const newerLink = rawCursor ? newerHref("/gob/cola", filterParams) : null;
+  const newerLink = rawCursor ? newerHref(`${base}/cola`, filterParams) : null;
 
   return (
     <main className="px-6 py-8">
@@ -89,7 +91,7 @@ export default async function ColaPage({
         {/* Type filter chips — links drop ?cursor so filters reset to page 1 */}
         <nav aria-label="Filtrar por tipo" className="flex flex-wrap gap-2">
           <Link
-            href="/gob/cola"
+            href={`${base}/cola`}
             className={[
               "inline-flex items-center rounded-full border px-3.5 py-1 text-sm font-medium no-underline transition-colors",
               !activeType
@@ -102,7 +104,7 @@ export default async function ColaPage({
           {(APPROVAL_REQUEST_TYPES as readonly ApprovalRequestType[]).map((t) => (
             <Link
               key={t}
-              href={`/gob/cola?type=${t}`}
+              href={`${base}/cola?type=${t}`}
               className={[
                 "inline-flex items-center rounded-full border px-3.5 py-1 text-sm font-medium no-underline transition-colors",
                 activeType === t
@@ -116,7 +118,7 @@ export default async function ColaPage({
         </nav>
 
         <BulkApprovalQueueList
-          detailUrlPrefix="/gob/cola"
+          detailUrlPrefix={`${base}/cola`}
           items={pending.map((req) => ({
             publicToken: req.publicToken,
             type: req.type,

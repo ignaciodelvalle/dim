@@ -11,6 +11,7 @@ import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/component
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { portalBase } from "@/lib/ui/portal-base";
 
 import { OfferingReviewActions } from "./OfferingReviewActions";
 
@@ -34,6 +35,7 @@ export default async function GobServicioDetailPage({
 }) {
   const { offeringToken } = await params;
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const base = await portalBase();
 
   const [row] = await db
     .select({
@@ -85,7 +87,7 @@ export default async function GobServicioDetailPage({
     <div className="space-y-6 max-w-3xl">
       <div>
         <Link
-          href="/gob/servicios"
+          href={`${base}/servicios`}
           className="text-[13px] text-ln-op-azul underline underline-offset-4 hover:text-ln-op-ink no-underline"
         >
           {"←"} Volver a servicios pendientes

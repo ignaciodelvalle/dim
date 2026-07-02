@@ -32,9 +32,16 @@ export function buildJurisdictionRulesHref(input: {
   country: string;
   province?: string | null;
   locality?: string | null;
+  /**
+   * Portal prefix the link must stay inside (portal-follows-viewer,
+   * 2026-07-02): the rules surface renders under both /admin and /gob, and
+   * drill-down links must not eject the viewer from their portal. Server
+   * pages resolve it via lib/ui/portal-base and thread it down as a prop.
+   */
+  base?: "/admin" | "/gob";
 }): string {
   const country = seg(input.country);
   const province = seg(input.province);
   const locality = seg(input.locality);
-  return `/gob/reglas/${country}/${province}/${locality}`;
+  return `${input.base ?? "/gob"}/reglas/${country}/${province}/${locality}`;
 }

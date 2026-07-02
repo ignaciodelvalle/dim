@@ -7,6 +7,7 @@ import { OpCard, OpCardBody, OpCodeBadge, OpPill } from "@/components/ui/dashboa
 import { approvalRequests, db, organizations, profiles } from "@/db";
 import { canDecideRequest } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { portalBase } from "@/lib/ui/portal-base";
 
 import { ReviewActions } from "./ReviewActions";
 
@@ -39,6 +40,7 @@ export default async function ReviewRequestPage({
 }) {
   const { publicToken } = await params;
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const base = await portalBase();
 
   const [request] = await db
     .select()
@@ -85,7 +87,7 @@ export default async function ReviewRequestPage({
         {/* Back link */}
         <div>
           <Link
-            href="/gob/cola"
+            href={`${base}/cola`}
             className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4 no-underline"
           >
             ← Volver a la cola
