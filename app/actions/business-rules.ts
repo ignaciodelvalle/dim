@@ -129,7 +129,7 @@ export async function createBusinessRuleAction(
     return { error: null, warning: result.reason };
   }
   redirect(
-    `/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`,
+    `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
   );
 }
 
@@ -159,7 +159,7 @@ export async function updateBusinessRuleAction(
 
   const { country, province, locality } = normalizeJurisdiction(formData);
   redirect(
-    `/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`,
+    `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
   );
 }
 
@@ -172,6 +172,6 @@ export async function deleteBusinessRuleAction(ruleId: string, formData: FormDat
   const province = (formData.get("jurisdictionProvince") as string | null) ?? "_";
   const locality = (formData.get("jurisdictionLocality") as string | null) ?? "_";
   redirect(
-    `/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province || "_")}/${encodeURIComponent(locality || "_")}/reglas`,
+    `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province || "_")}/${encodeURIComponent(locality || "_")}`,
   );
 }

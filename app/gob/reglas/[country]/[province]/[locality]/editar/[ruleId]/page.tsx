@@ -52,7 +52,7 @@ export default async function EditRulePage({
   const RuleForm = RULE_FORM_REGISTRY[ruleType];
   if (!RuleForm) notFound();
 
-  const backHref = `/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`;
+  const backHref = `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`;
 
   const jurisdictionLabel = `${country} · ${province ?? "(nivel pais)"} · ${locality ?? "(toda la provincia)"}`;
   const extraProps = buildEditFormExtraProps(ruleType, payload);
@@ -61,8 +61,8 @@ export default async function EditRulePage({
     <div className="max-w-2xl space-y-6">
       <OpCrumbs
         items={[
-          { label: "Jurisdicciones", href: "/admin/jurisdicciones" },
-          { label: "Reglas", href: backHref },
+          { label: "Reglas", href: "/gob/reglas" },
+          { label: jurisdictionLabel, href: backHref },
           { label: "Editar regla" },
         ]}
       />

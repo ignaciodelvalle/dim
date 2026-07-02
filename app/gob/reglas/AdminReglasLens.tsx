@@ -1,5 +1,7 @@
-// /admin/jurisdicciones — list of provinces with rule counts.
-// Spec 2026-05-19-govt-business-rules-poc-design §6.1.
+// AdminReglasLens — the admin capability lens of the unified /gob/reglas
+// surface (design ADR-1). Folded in verbatim from the old /admin/jurisdicciones
+// index page; only the rules-href target moved (buildJurisdictionRulesHref now
+// points at /gob/reglas/... instead of /admin/jurisdicciones/.../reglas).
 //
 // Province-wide rules (locality IS NULL) and locality overrides are counted
 // separately so the numbers reconcile with the per-jurisdiction rules page.
@@ -16,9 +18,10 @@ import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 import { LocalityRuleDrilldown } from "./LocalityRuleDrilldown";
 
-export const dynamic = "force-dynamic";
-
-export default async function AdminJurisdiccionesPage() {
+export async function AdminReglasLens() {
+  // Defense in depth (R1.9): the parent page already branches on
+  // profile.role === "admin", but this component re-asserts the stricter
+  // admin-only guard independently.
   await requireAdminOrRedirect();
 
   // Separate query for province-wide rules (locality IS NULL).

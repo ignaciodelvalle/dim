@@ -55,6 +55,31 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url, { status: 308 });
   }
 
+  // Permanent redirect: /admin/jurisdicciones/* -> /gob/reglas/* (admin-rules-
+  // console, R1.6). The old .../[country]/[province]/[locality]/reglas/{...}
+  // CRUD subtree dropped the trailing "/reglas" segment when it folded into
+  // the unified surface (the "reglas" root is now /gob/reglas itself), so
+  // this is a structural remap, not a straight prefix swap.
+  const jurisdiccionesMatch = pathname.match(
+    /^\/admin\/jurisdicciones(?:\/([^/]+)\/([^/]+)\/([^/]+)\/reglas((?:\/.*)?))?$/,
+  );
+  if (jurisdiccionesMatch) {
+    const [, country, province, locality, rest] = jurisdiccionesMatch;
+    const url = request.nextUrl.clone();
+    url.pathname = country
+      ? `/gob/reglas/${country}/${province}/${locality}${rest ?? ""}`
+      : "/gob/reglas";
+    return NextResponse.redirect(url, { status: 308 });
+  }
+
+  // Permanent redirect: /admin/servicios/* -> /gob/servicios/* (servicios
+  // dedup, R5.3 — mirrors the AC3 cola/usuarios/organizaciones pattern).
+  if (pathname === "/admin/servicios" || pathname.startsWith("/admin/servicios/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = pathname.replace(/^\/admin\/servicios/, "/gob/servicios");
+    return NextResponse.redirect(url, { status: 308 });
+  }
+
   return await updateSession(request);
 }
 

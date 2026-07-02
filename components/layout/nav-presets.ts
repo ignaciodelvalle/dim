@@ -359,15 +359,16 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     label: "Gobernanza",
     items: [
-      {
-        href: "/admin/jurisdicciones",
-        label: "Jurisdicciones",
-        matchPrefix: "/admin/jurisdicciones",
-      },
+      // Reglas/Servicios live under /gob (single surface, admin-rules-console
+      // dedup — mirrors the AC3 cola/usuarios/organizaciones pattern). Admin
+      // keeps universal scope there via the /gob layout's role branch. The
+      // dead /admin/jurisdicciones + /admin/servicios duplicates were
+      // removed; the middleware 308s stay for bookmarks.
+      { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
       { href: "/admin/historial", label: "Historial", matchPrefix: "/admin/historial" },
       // WS-L — Libro de eventos (event-sourcing visible; read-only).
       { href: "/admin/libro", label: "Libro de eventos", matchPrefix: "/admin/libro" },
-      { href: "/admin/servicios", label: "Servicios", matchPrefix: "/admin/servicios" },
+      { href: "/gob/servicios", label: "Servicios", matchPrefix: "/gob/servicios" },
     ],
   },
 ];

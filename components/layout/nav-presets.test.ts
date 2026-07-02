@@ -295,23 +295,24 @@ describe("ADMIN_NAV — no route regression", () => {
 
   const expectedRoutes = [
     "/admin",
-    // Cola/Usuarios/Organizaciones moved to the /gob surface (AC3 — single
-    // surface per feature; dead /admin duplicates removed).
+    // Cola/Usuarios/Organizaciones/Reglas/Servicios moved to the /gob surface
+    // (AC3 + admin-rules-console — single surface per feature; dead /admin
+    // duplicates removed).
     "/gob/cola",
     "/gob/usuarios",
     "/gob/organizaciones",
+    "/gob/reglas",
+    "/gob/servicios",
     "/admin/historial",
     "/admin/auditoria",
     "/admin/outbox",
     "/admin/sistema",
     "/admin/govts",
     "/admin/admins",
-    "/admin/servicios",
     "/admin/observaciones",
     "/admin/moderacion",
     "/admin/casos",
     "/admin/alertas", // WS-K — bandeja de alertas + triage
-    "/admin/jurisdicciones",
     "/admin/libro", // WS-L — Libro de eventos
   ];
 
@@ -477,12 +478,15 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/sistema",
   "/admin/govts",
   "/admin/admins",
-  "/admin/servicios",
+  // admin-rules-console — Reglas/Servicios repointed from /admin/* to /gob/*.
+  // The dead /admin/jurisdicciones + /admin/servicios duplicates were
+  // deleted; the middleware 308s stay for bookmarks.
+  "/gob/reglas",
+  "/gob/servicios",
   "/admin/observaciones",
   "/admin/moderacion",
   "/admin/casos",
   "/admin/alertas", // WS-K — bandeja de alertas + triage
-  "/admin/jurisdicciones",
   "/admin/censo", // Paquete E — censo poblacional & salud del registro
   "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
   "/admin/poblacion", // Paquete G — control poblacional (North Star)

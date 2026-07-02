@@ -1,9 +1,9 @@
-// /admin/jurisdicciones/[country]/[province]/[locality]/reglas — list +
-// create entry points for the rule types of a specific jurisdiction.
+// /gob/reglas/[country]/[province]/[locality] — list + create entry points
+// for the rule types of a specific jurisdiction (admin lens, design ADR-1).
 // Spec 2026-05-19-govt-business-rules-poc-design §6.2.
 //
 // Route params: '_' is the sentinel for "null". So
-// /admin/jurisdicciones/AR/_/_/reglas -> country-level rules for AR.
+// /gob/reglas/AR/_/_ -> country-level rules for AR.
 
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
@@ -35,7 +35,7 @@ function jurisdictionLabel(country: string, province: string | null, locality: s
   return parts.join(" · ");
 }
 
-export default async function AdminJurisdiccionReglasPage({
+export default async function JurisdictionReglasPage({
   params,
 }: {
   params: Promise<{ country: string; province: string; locality: string }>;
@@ -81,7 +81,7 @@ export default async function AdminJurisdiccionReglasPage({
       {/* Breadcrumbs */}
       <OpCrumbs
         items={[
-          { label: "Jurisdicciones", href: "/admin/jurisdicciones" },
+          { label: "Reglas", href: "/gob/reglas" },
           { label: jurisdictionLabel(country, province, locality) },
         ]}
       />
@@ -109,7 +109,7 @@ export default async function AdminJurisdiccionReglasPage({
               actions={
                 <div className="flex gap-3">
                   <Link
-                    href={`/admin/jurisdicciones/${segCountry}/${segProvince}/${segLocality}/reglas/editar/${rule.id}`}
+                    href={`/gob/reglas/${segCountry}/${segProvince}/${segLocality}/editar/${rule.id}`}
                     className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                   >
                     Editar
@@ -161,7 +161,7 @@ export default async function AdminJurisdiccionReglasPage({
                         </p>
                       </div>
                       <Link
-                        href={`/admin/jurisdicciones/${segCountry}/${segProvince}/${segLocality}/reglas/nueva?ruleType=${t}`}
+                        href={`/gob/reglas/${segCountry}/${segProvince}/${segLocality}/nueva?ruleType=${t}`}
                         className="shrink-0 text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                       >
                         {"Configurar ->"}

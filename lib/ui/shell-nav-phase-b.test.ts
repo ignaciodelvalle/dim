@@ -63,12 +63,13 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/sistema",
   "/admin/govts",
   "/admin/admins",
-  "/admin/servicios",
+  // admin-rules-console — Reglas/Servicios repointed from /admin/* to /gob/*.
+  "/gob/reglas",
+  "/gob/servicios",
   "/admin/observaciones",
   "/admin/moderacion",
   "/admin/casos",
   "/admin/alertas", // WS-K — bandeja de alertas + triage
-  "/admin/jurisdicciones",
   "/admin/censo", // Paquete E — censo poblacional & salud del registro
   "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
   "/admin/poblacion", // Paquete G — control poblacional (North Star)

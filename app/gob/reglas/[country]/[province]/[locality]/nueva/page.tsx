@@ -34,7 +34,7 @@ export default async function NewRulePage({
 
   const ruleType = sp.ruleType as GovtBusinessRuleType | undefined;
 
-  const backHref = `/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`;
+  const backHref = `/gob/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`;
 
   const RuleForm = ruleType ? RULE_FORM_REGISTRY[ruleType] : undefined;
 
@@ -45,13 +45,7 @@ export default async function NewRulePage({
   ) {
     return (
       <div className="max-w-2xl space-y-4">
-        <OpCrumbs
-          items={[
-            { label: "Jurisdicciones", href: "/admin/jurisdicciones" },
-            { label: "Reglas", href: backHref },
-            { label: "Nueva regla" },
-          ]}
-        />
+        <OpCrumbs items={[{ label: "Reglas", href: "/gob/reglas" }, { label: "Nueva regla" }]} />
         <OpBreach
           title={
             !ruleType || !(GOVT_BUSINESS_RULE_TYPES as readonly string[]).includes(ruleType)
@@ -76,8 +70,8 @@ export default async function NewRulePage({
     <div className="max-w-2xl space-y-6">
       <OpCrumbs
         items={[
-          { label: "Jurisdicciones", href: "/admin/jurisdicciones" },
-          { label: "Reglas", href: backHref },
+          { label: "Reglas", href: "/gob/reglas" },
+          { label: jurisdictionLabel, href: backHref },
           { label: "Nueva regla" },
         ]}
       />
