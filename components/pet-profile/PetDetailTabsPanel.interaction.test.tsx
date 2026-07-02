@@ -1,16 +1,18 @@
 // @vitest-environment jsdom
 //
 // PetDetailTabsPanel interaction test — router-hot-path fix for the
-// FlipCard "Girar" button and the Credencial|Libreta tab buttons
-// (PetDetailTabs). Same defect class as SheetHost.interaction.test.tsx's
-// sheets: Next 15.5.x's App Router can silently drop a router.replace
-// transition's own fetch in production (see lib/ui/sheet-nav.ts's module
-// docblock). Both click paths now write the URL via pushTabUrl (native
-// History API) instead of router.replace — this file exercises the real
-// click-driven path (RTL + jsdom) the way a production user would, and
-// explicitly asserts that browser back restores the previous face (a
-// popstate → useSearchParams() reactivity property that must not be
-// assumed — see task contract).
+// FlipCard "Girar" button, which is the ONLY face switcher since wave-3 P2
+// (PO decision #645 removed the Credencial|Libreta tab title bar). Same
+// defect class as SheetHost.interaction.test.tsx's sheets: Next 15.5.x's
+// App Router can silently drop a router.replace transition's own fetch in
+// production (see lib/ui/sheet-nav.ts's module docblock). The Girar click
+// path writes the URL via pushTabUrl (native History API) instead of
+// router.replace — this file exercises the real click-driven path (RTL +
+// jsdom) the way a production user would, and explicitly asserts that
+// browser back restores the previous face (a popstate → useSearchParams()
+// reactivity property that must not be assumed — see task contract). It
+// also asserts the button's aria-pressed state, since the flip control now
+// carries the full accessible-nav contract the removed tablist used to own.
 //
 // next/navigation is mocked the same way as SheetHost.interaction.test.tsx:
 // jsdom's real history.pushState/replaceState is wrapped to notify
@@ -131,6 +133,15 @@ function renderPanel(initialFace: "credencial" | "libreta" = "credencial") {
 }
 
 describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => {
+  it("starts on Credencial with aria-pressed=false (Libreta not active)", () => {
+    renderPanel("credencial");
+
+    expect(screen.getByRole("button", { name: "Girar a Libreta" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
   it("clicking Girar flips the face and updates the URL to ?tab=libreta&lente=todo — no router involved", () => {
     renderPanel("credencial");
 
@@ -138,7 +149,9 @@ describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => 
     fireEvent.click(screen.getByRole("button", { name: "Girar a Libreta" }));
 
     expect(window.location.search).toBe("?tab=libreta&lente=todo");
-    expect(screen.getByRole("button", { name: "Girar a Credencial" })).toBeInTheDocument();
+    const flipped = screen.getByRole("button", { name: "Girar a Credencial" });
+    expect(flipped).toBeInTheDocument();
+    expect(flipped).toHaveAttribute("aria-pressed", "true");
     expect(routerPush).not.toHaveBeenCalled();
     expect(routerReplace).not.toHaveBeenCalled();
   });
@@ -151,7 +164,9 @@ describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => 
 
     fireEvent.click(screen.getByRole("button", { name: "Girar a Credencial" }));
     expect(window.location.search).toBe("");
-    expect(screen.getByRole("button", { name: "Girar a Libreta" })).toBeInTheDocument();
+    const flipped = screen.getByRole("button", { name: "Girar a Libreta" });
+    expect(flipped).toBeInTheDocument();
+    expect(flipped).toHaveAttribute("aria-pressed", "false");
     expect(routerPush).not.toHaveBeenCalled();
     expect(routerReplace).not.toHaveBeenCalled();
   });
@@ -173,46 +188,12 @@ describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => 
     });
     expect(screen.getByRole("button", { name: "Girar a Libreta" })).toBeInTheDocument();
   });
-});
 
-describe("PetDetailTabsPanel — Credencial|Libreta tab buttons (router-hot-path fix)", () => {
-  it("clicking the Libreta tab button flips to Libreta and writes ?tab=libreta&lente=todo", () => {
+  it("does not render a Credencial|Libreta tab title bar — the flip button is the only switcher", () => {
     renderPanel("credencial");
 
-    fireEvent.click(screen.getByRole("button", { name: "Libreta" }));
-
-    expect(window.location.search).toBe("?tab=libreta&lente=todo");
-    expect(screen.getByRole("button", { name: "Girar a Credencial" })).toBeInTheDocument();
-    expect(routerPush).not.toHaveBeenCalled();
-    expect(routerReplace).not.toHaveBeenCalled();
-  });
-
-  it("clicking the Credencial tab button from Libreta flips back and strips the params", () => {
-    window.history.replaceState(null, "", "/mis-mascotas/abc123?tab=libreta&lente=todo");
-    renderPanel("libreta");
-
-    fireEvent.click(screen.getByRole("button", { name: "Credencial" }));
-
-    expect(window.location.search).toBe("");
-    expect(screen.getByRole("button", { name: "Girar a Libreta" })).toBeInTheDocument();
-    expect(routerPush).not.toHaveBeenCalled();
-    expect(routerReplace).not.toHaveBeenCalled();
-  });
-
-  it("browser back after a tab-button click restores the previous face via popstate", async () => {
-    renderPanel("credencial");
-
-    fireEvent.click(screen.getByRole("button", { name: "Libreta" }));
-    expect(window.location.search).toBe("?tab=libreta&lente=todo");
-
-    act(() => {
-      window.history.back();
-    });
-
-    await waitFor(() => {
-      expect(window.location.search).toBe("");
-    });
-    expect(screen.getByRole("button", { name: "Credencial" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Credencial" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Libreta" })).not.toBeInTheDocument();
   });
 });
 

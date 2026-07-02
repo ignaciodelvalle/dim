@@ -4,8 +4,9 @@
 // (pet-document-redesign ADR-11). PRESENTATION ONLY: it has no navigation
 // state of its own — `activeFace` is read from the caller (PetDetailTabsPanel,
 // which owns the ?tab= sync) and `onFlip` is a callback the caller wires to
-// the exact same URL write PetDetailTabs.switchTab uses, so the "Girar"
-// button and the tab nav always agree.
+// its own ?tab= write. Since wave-3 P2 (PO decision #645), the "Girar"
+// button rendered here is the ONLY face switcher — the Credencial|Libreta
+// tab title bar was removed.
 //
 // Both `front` and `back` are ALWAYS mounted — the back face needs to exist
 // in the DOM from the first render so ResizeObserver can measure it and the
@@ -24,7 +25,7 @@ type FlipCardProps = {
   front: ReactNode;
   back: ReactNode;
   activeFace: FlipCardFace;
-  /** Toggles the face — wired by the caller to the same ?tab= write as PetDetailTabs. */
+  /** Toggles the face — wired by the caller (PetDetailTabsPanel.switchFace) to its ?tab= write. */
   onFlip: () => void;
 };
 
@@ -128,6 +129,16 @@ export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
   );
 }
 
+// This button is now the ONLY face switcher (PO decision #645 point 2 — the
+// Credencial|Libreta tab titles were removed, "one credential-style box"
+// insisted). It carries the full accessible-nav contract the tab bar used to
+// own: a descriptive aria-label naming the TARGET face (unchanged wording —
+// interaction tests key off it) plus aria-pressed reflecting whether the
+// alternate (Libreta) face is currently showing, since there's no longer a
+// visible tablist to convey that state. The icon is CONTEXTUAL, not a static
+// "refresh" glyph: it previews the face this button flips TO — a booklet
+// while on Credencial (flip to Libreta), an id-card while on Libreta (flip
+// back to Credencial).
 function FlipAffordance({ isLibreta, onFlip }: { isLibreta: boolean; onFlip: () => void }) {
   return (
     <button
@@ -135,10 +146,11 @@ function FlipAffordance({ isLibreta, onFlip }: { isLibreta: boolean; onFlip: () 
       onClick={onFlip}
       data-section="flip-affordance"
       aria-label={isLibreta ? "Girar a Credencial" : "Girar a Libreta"}
+      aria-pressed={isLibreta}
       title="Girar"
       className="absolute right-0 top-0 z-10 inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-azul)] shadow-sm transition-colors hover:border-[var(--color-ln-line-strong)]"
     >
-      <Icon name="girar" size="sm" decorative />
+      <Icon name={isLibreta ? "credential" : "libreta"} size="sm" decorative />
     </button>
   );
 }

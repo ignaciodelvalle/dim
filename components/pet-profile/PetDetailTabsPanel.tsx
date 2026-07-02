@@ -1,7 +1,9 @@
 "use client";
 
-// PetDetailTabsPanel — client component driving the two-face tab system
-// (two-face redesign, 2026-07-01, design ADR-1/ADR-6).
+// PetDetailTabsPanel — client component driving the two-face flip system
+// (two-face redesign, 2026-07-01, design ADR-1/ADR-6; wave-3 P2, PO decision
+// #645, removed the Credencial|Libreta tab title bar — the "Girar" button
+// rendered by FlipCard is now the ONLY face switcher).
 //
 // - Reads the active face from ?tab= (default: credencial).
 // - Syncs hash fragments: legacy anchors (#libreta, #vacunas, #historial,
@@ -22,9 +24,13 @@ import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-data";
 import { FlipCard } from "@/components/pet-profile/FlipCard";
 import { LibretaFace } from "@/components/pet-profile/LibretaFace";
-import { resolvePetFace } from "@/lib/domain/pet-face-nav";
+import { type PetFace, resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { pushTabUrl } from "@/lib/ui/sheet-nav";
-import { PetDetailTabs, type TabKey } from "./PetDetailTabs";
+
+/** Which face is active. Same shape as `PetFace` — kept as a local alias so
+ * every prior call site (props, HASH_TO_TAB, state) can keep the name it
+ * already used before the tab bar (PetDetailTabs.tsx) was removed. */
+export type TabKey = PetFace;
 
 // ---------------------------------------------------------------------------
 // Loading skeleton / error state
@@ -163,9 +169,10 @@ export function PetDetailTabsPanel({
       }
       router.replace(`?${params.toString()}`, { scroll: false });
       requestAnimationFrame(() => {
-        document
-          .querySelector("[data-section='pet-detail-tabs']")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.querySelector("[data-section='flip-card']")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
       });
     }
   }, [router, searchParams, initialFace, isOwner]);
@@ -178,9 +185,7 @@ export function PetDetailTabsPanel({
     return <LibretaFace data={libretaData} petPublicToken={petPublicToken} isOwner={isOwner} />;
   }
 
-  // "Girar" affordance (ADR-11): mirrors PetDetailTabs.switchTab's exact URL
-  // write so the flip button and the tab nav always drive the same ?tab=
-  // state.
+  // "Girar" affordance (ADR-11) — the only face switcher since wave-3 P2.
   //
   // Router-hot-path fix: writes the URL via pushTabUrl (native History API)
   // instead of router.replace — reproduced 3/3 in production with the same
@@ -202,19 +207,17 @@ export function PetDetailTabsPanel({
     pushTabUrl(qs ? `${pathname}?${qs}` : pathname);
   }
 
+  // Wave-3 P2 (PO decision #645): the Credencial|Libreta tab title bar is
+  // gone — FlipCard's "Girar" button is the only switcher, so this wrapper
+  // no longer hosts a tablist and doesn't claim `role="tabpanel"`.
   return (
-    <div>
-      <div className="print:hidden">
-        <PetDetailTabs petPublicToken={petPublicToken} activeTab={activeFace} isOwner={isOwner} />
-      </div>
-      <div id="tab-panel" role="tabpanel">
-        <FlipCard
-          front={credencialContent}
-          back={renderBackContent()}
-          activeFace={activeFace}
-          onFlip={switchFace}
-        />
-      </div>
+    <div id="tab-panel">
+      <FlipCard
+        front={credencialContent}
+        back={renderBackContent()}
+        activeFace={activeFace}
+        onFlip={switchFace}
+      />
     </div>
   );
 }

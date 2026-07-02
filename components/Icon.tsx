@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Baby,
   Bell,
+  BookOpen,
   BriefcaseMedical,
   Building2,
   Camera,
@@ -112,6 +113,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   // ── Core semantic icons ──────────────────────────────────────────────────
   credenciales: IdCard,
   credential: IdCard,
+  libreta: BookOpen,
+  booklet: BookOpen,
   denuncia: Megaphone,
   lupa: Search,
   search: Search,
