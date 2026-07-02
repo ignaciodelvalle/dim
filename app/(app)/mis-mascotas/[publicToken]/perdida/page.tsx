@@ -48,10 +48,10 @@ export default async function MarkPetLostPage({
     const updateAction = updateLostLastSeenAction.bind(null, pet.publicToken);
 
     return (
-      <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+      <div className="mx-auto max-w-md px-8 py-7 pb-12">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="mb-5 inline-block font-[var(--font-ln-mono)] text-[var(--text-sm)] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← {pet.name}
         </Link>
@@ -92,11 +92,11 @@ export default async function MarkPetLostPage({
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Marcar como perdida
         </h1>
-        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
+        <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
           Al marcar a {pet.name} como perdida, su credencial pública mostrará la información que
           elijas a continuación. Podés cambiarla en cualquier momento o revertir el estado cuando
           aparezca.

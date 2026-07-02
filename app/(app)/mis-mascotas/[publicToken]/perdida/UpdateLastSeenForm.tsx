@@ -50,7 +50,7 @@ export function UpdateLastSeenForm({
         subtitle="Sumá un dato nuevo — no reemplaza el registro original."
       />
       <LnSheetBody>
-        <form id="update-last-seen-form" action={formAction} className="flex flex-col gap-[14px]">
+        <form id="update-last-seen-form" action={formAction} className="flex flex-col gap-3.5">
           <input
             type="hidden"
             name="clientIdempotencyKey"
@@ -58,7 +58,7 @@ export function UpdateLastSeenForm({
             suppressHydrationWarning
           />
 
-          <p className="text-[12.5px] text-[var(--color-ln-mute)]">
+          <p className="text-[var(--text-sm)] text-[var(--color-ln-mute)]">
             Marcá dónde la viste ahora — esto se suma a la actividad del caso, el registro original
             de cuando se marcó como perdida queda intacto.
           </p>
@@ -90,7 +90,7 @@ export function UpdateLastSeenForm({
 
           {state.error && (
             <p
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              className="font-[var(--font-ln-mono)] text-[var(--text-sm)] text-[var(--color-ln-err)]"
               role="alert"
             >
               {state.error}
