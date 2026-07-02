@@ -153,3 +153,73 @@ describe("LibretaFace — ADR-10 consolidation (no lens chips, share removed)", 
     expect(html).toContain("Estado de vacunación");
   });
 });
+
+// wave-3 P3 (PO decision #645 point 3): Emergencia moved off CredentialFace
+// into a compact owner-only block near this face's footer, above the
+// immutability note.
+describe("LibretaFace — Emergencia block (wave-3 P3)", () => {
+  it("renders nothing when emergencyContacts is omitted (org viewers never receive it)", () => {
+    const html = renderToStaticMarkup(
+      <LibretaFace data={faceData()} petPublicToken="abc" isOwner />,
+    );
+    expect(html).not.toContain("Emergencia");
+    expect(html).not.toContain("libreta-emergencia");
+  });
+
+  it("renders vet + contact rows with tel: links when both are set", () => {
+    const html = renderToStaticMarkup(
+      <LibretaFace
+        data={faceData()}
+        petPublicToken="abc"
+        isOwner
+        emergencyContacts={{
+          preferredVetPhone: "1122334455",
+          emergencyContactName: "Ana",
+          emergencyContactPhone: "1166778899",
+        }}
+      />,
+    );
+    expect(html).toContain('data-section="libreta-emergencia"');
+    expect(html).toContain("Emergencia");
+    expect(html).toContain('href="tel:1122334455"');
+    expect(html).toContain('href="tel:1166778899"');
+    expect(html).toContain("Ana");
+    expect(html).toContain("Editar →");
+  });
+
+  it("shows the add-data prompt and opens ?sheet=emergencia when a field is missing", () => {
+    const html = renderToStaticMarkup(
+      <LibretaFace
+        data={faceData()}
+        petPublicToken="abc"
+        isOwner
+        emergencyContacts={{
+          preferredVetPhone: null,
+          emergencyContactName: null,
+          emergencyContactPhone: null,
+        }}
+      />,
+    );
+    expect(html).toContain("Agregar datos de emergencia →");
+    expect(html).toContain('href="/mis-mascotas/abc?sheet=emergencia"');
+  });
+
+  it("appears above the immutability note, near the footer", () => {
+    const html = renderToStaticMarkup(
+      <LibretaFace
+        data={faceData()}
+        petPublicToken="abc"
+        isOwner
+        emergencyContacts={{
+          preferredVetPhone: "1122334455",
+          emergencyContactName: "Ana",
+          emergencyContactPhone: "1166778899",
+        }}
+      />,
+    );
+    const emergenciaPos = html.indexOf('data-section="libreta-emergencia"');
+    const notePos = html.indexOf("Los eventos no se editan ni se borran");
+    expect(emergenciaPos).toBeGreaterThan(-1);
+    expect(notePos).toBeGreaterThan(emergenciaPos);
+  });
+});

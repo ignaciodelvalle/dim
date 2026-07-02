@@ -23,7 +23,10 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-data";
 import { FlipCard } from "@/components/pet-profile/FlipCard";
-import { LibretaFace } from "@/components/pet-profile/LibretaFace";
+import {
+  LibretaFace,
+  type LibretaFaceEmergencyContacts,
+} from "@/components/pet-profile/LibretaFace";
 import { type PetFace, resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { pushTabUrl } from "@/lib/ui/sheet-nav";
 
@@ -92,6 +95,14 @@ type Props = {
    * toggle and no face hidden anymore.
    */
   isOwner: boolean;
+  /**
+   * Owner-only vet/emergency contact rows, forwarded to LibretaFace's
+   * Emergencia block (wave-3 P3, PO decision #645 point 3). `null`/
+   * `undefined` renders no Emergencia block. Passed synchronously (same
+   * viewer-profile query page.tsx already ran for the credential face) — it
+   * does not go through the deferred `getLibretaFaceData` fetch.
+   */
+  emergencyContacts?: LibretaFaceEmergencyContacts | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -103,6 +114,7 @@ export function PetDetailTabsPanel({
   credencialContent,
   initialFace,
   isOwner,
+  emergencyContacts,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -182,7 +194,14 @@ export function PetDetailTabsPanel({
   function renderBackContent() {
     if (libretaError) return <TabErrorState message={libretaError} />;
     if (!libretaData) return <TabLoadingSkeleton />;
-    return <LibretaFace data={libretaData} petPublicToken={petPublicToken} isOwner={isOwner} />;
+    return (
+      <LibretaFace
+        data={libretaData}
+        petPublicToken={petPublicToken}
+        isOwner={isOwner}
+        emergencyContacts={emergencyContacts}
+      />
+    );
   }
 
   // "Girar" affordance (ADR-11) — the only face switcher since wave-3 P2.

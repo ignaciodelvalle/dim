@@ -8,15 +8,24 @@
 // EventTimelineList so H3 curated detail + provenance/amendment badges
 // render verbatim). VacunasStatusBadges is always on (ADR-10). Share
 // management moved out entirely (ADR-14) — see MergedShareSheet
-// (`?sheet=compartir`); this face keeps only the immutability note and the
-// keepsake ExportLibretaButton in its footer.
+// (`?sheet=compartir`); this face keeps the immutability note, a compact
+// owner-only Emergencia block (wave-3 P3, PO decision #645 point 3 — moved
+// off CredentialFace), and the keepsake ExportLibretaButton in its footer.
 
 import { EventTimelineList } from "@/app/(app)/mis-mascotas/[publicToken]/EventTimeline";
+import { Icon } from "@/components/Icon";
 import { ExportLibretaButton } from "@/components/pet-profile/ExportLibretaButton";
 import { FutureLedgerList } from "@/components/pet-profile/FutureLedgerList";
+import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { VacunasStatusBadges } from "@/components/pet-profile/VacunasStatusBadges";
 import type { LibretaFaceData } from "@/src/modules/pets/application/tab-data/types";
 import { pastEventMatchesAudience } from "./libreta-lens";
+
+export type LibretaFaceEmergencyContacts = {
+  preferredVetPhone: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+};
 
 type Props = {
   data: LibretaFaceData;
@@ -26,9 +35,16 @@ type Props = {
    * libreta-sanitaria-relevant subset (ADR-10). No user-facing toggle.
    */
   isOwner: boolean;
+  /**
+   * Owner-only vet/emergency contact rows. `null`/`undefined` (org viewers,
+   * or a fetch that yielded no profile row) renders no Emergencia block at
+   * all — pass an object (even with every field `null`) to show the "Agregar
+   * datos de emergencia" prompt for an owner who hasn't filled these in yet.
+   */
+  emergencyContacts?: LibretaFaceEmergencyContacts | null;
 };
 
-export function LibretaFace({ data, petPublicToken, isOwner }: Props) {
+export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }: Props) {
   const audience = isOwner ? "owner" : "org";
 
   // Future items are never filtered by audience (matches the old lens
@@ -66,6 +82,10 @@ export function LibretaFace({ data, petPublicToken, isOwner }: Props) {
         </>
       )}
 
+      {emergencyContacts && (
+        <EmergenciaBlock contacts={emergencyContacts} petPublicToken={petPublicToken} />
+      )}
+
       {/* Immutability, in plain es-AR (append-only ledger — WS-3). */}
       <p className="text-xs text-[var(--color-ln-mute)]">
         Los eventos no se editan ni se borran. Una corrección es un evento nuevo.
@@ -75,6 +95,78 @@ export function LibretaFace({ data, petPublicToken, isOwner }: Props) {
         <span>Asientos firmados digitalmente · inmutables</span>
         <ExportLibretaButton petPublicToken={petPublicToken} />
       </footer>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EmergenciaBlock — compact vet + emergency contact info, tap-to-call.
+// Owner-only (see Props.emergencyContacts). Shows a quiet "Agregar datos de
+// emergencia" prompt when any of the three source fields is missing.
+// ---------------------------------------------------------------------------
+
+function EmergenciaBlock({
+  contacts,
+  petPublicToken,
+}: {
+  contacts: LibretaFaceEmergencyContacts;
+  petPublicToken: string;
+}) {
+  const { preferredVetPhone, emergencyContactName, emergencyContactPhone } = contacts;
+  const hasAnyContact = Boolean(preferredVetPhone || emergencyContactPhone);
+  const isMissingSomething = !preferredVetPhone || !emergencyContactName || !emergencyContactPhone;
+  // pet-document-redesign ADR-13 (Phase 5): the edit entry point is the
+  // narrow in-profile `?sheet=emergencia` sheet — same destination for both
+  // the "add" prompt (missing data) and the "edit" affordance (has data).
+  const editHref = `/mis-mascotas/${petPublicToken}?sheet=emergencia`;
+
+  return (
+    <div
+      data-section="libreta-emergencia"
+      className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3.5 py-3"
+    >
+      <p className="mb-1.5 font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-faint)]">
+        Emergencia
+      </p>
+      {hasAnyContact && (
+        <div className="divide-y divide-[var(--color-ln-line-2)]">
+          {preferredVetPhone && (
+            <a
+              href={`tel:${preferredVetPhone}`}
+              className="flex items-center justify-between gap-3 py-2 text-sm no-underline first:pt-0 last:pb-0"
+            >
+              <span className="text-[var(--color-ln-mute)]">Veterinario</span>
+              <span className="flex items-center gap-1.5 font-medium text-[var(--color-ln-azul)]">
+                <Icon name="telefono" size="sm" decorative />
+                {preferredVetPhone}
+              </span>
+            </a>
+          )}
+          {emergencyContactPhone && (
+            <a
+              href={`tel:${emergencyContactPhone}`}
+              className="flex items-center justify-between gap-3 py-2 text-sm no-underline first:pt-0 last:pb-0"
+            >
+              <span className="text-[var(--color-ln-mute)]">
+                {emergencyContactName ?? "Contacto de emergencia"}
+              </span>
+              <span className="flex items-center gap-1.5 font-medium text-[var(--color-ln-azul)]">
+                <Icon name="telefono" size="sm" decorative />
+                {emergencyContactPhone}
+              </span>
+            </a>
+          )}
+        </div>
+      )}
+      <SheetTriggerLink
+        href={editHref}
+        className={[
+          "inline-block text-xs text-[var(--color-ln-mute)] no-underline hover:underline",
+          hasAnyContact ? "mt-2" : "",
+        ].join(" ")}
+      >
+        {isMissingSomething ? "Agregar datos de emergencia →" : "Editar →"}
+      </SheetTriggerLink>
     </div>
   );
 }

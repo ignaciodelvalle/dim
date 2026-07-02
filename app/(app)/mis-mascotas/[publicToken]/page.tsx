@@ -492,6 +492,15 @@ export default async function PetDetailPage({
           petPublicToken={pet.publicToken}
           initialFace={activeFace}
           isOwner={isOwner}
+          emergencyContacts={
+            isOwner
+              ? {
+                  preferredVetPhone: viewerContacts?.preferredVetPhone ?? null,
+                  emergencyContactName: viewerContacts?.emergencyContactName ?? null,
+                  emergencyContactPhone: viewerContacts?.emergencyContactPhone ?? null,
+                }
+              : null
+          }
           credencialContent={
             <div className="flex flex-col gap-4 py-5">
               {/* 1. Credencial first — identity ALWAYS first. No conditional
@@ -528,15 +537,6 @@ export default async function PetDetailPage({
                             serviceDogRow.serviceType,
                           manageHref: `/mis-mascotas/${pet.publicToken}/asistencia`,
                           presentHref: buildPresentarHref(pet.publicToken),
-                        }
-                      : null
-                  }
-                  emergencyContacts={
-                    isOwner
-                      ? {
-                          preferredVetPhone: viewerContacts?.preferredVetPhone ?? null,
-                          emergencyContactName: viewerContacts?.emergencyContactName ?? null,
-                          emergencyContactPhone: viewerContacts?.emergencyContactPhone ?? null,
                         }
                       : null
                   }

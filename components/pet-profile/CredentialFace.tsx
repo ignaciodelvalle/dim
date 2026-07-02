@@ -11,16 +11,12 @@
 //
 // Org-path viewers receive the exact same read-only object — no Anotar / no
 // ⋯ Más live here; those belong to the caller's action row (page.tsx). The
-// Emergencia card (vet/emergency contacts) is owner-only: the caller only
-// passes `emergencyContacts` on the owner access path (page.tsx never fetches
-// that profile data for org viewers).
+// Emergencia card (vet/emergency contacts) moved to LibretaFace (wave-3 P3,
+// PO decision #645 point 3) — this face no longer renders it.
 
 import Link from "next/link";
 
-import { Icon } from "@/components/Icon";
 import { ComplianceObligationsPanel } from "@/components/pet-profile/ComplianceObligationsPanel";
-import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
-import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnHero, type LnHeroProps } from "@/components/ui/Hero";
 import type { ComplianceState } from "@/lib/projections/pet-compliance";
 
@@ -33,12 +29,6 @@ export type CredentialFaceServiceDogInfo = {
   serviceTypeLabel: string;
   manageHref: string;
   presentHref: string;
-};
-
-export type CredentialFaceEmergencyContacts = {
-  preferredVetPhone: string | null;
-  emergencyContactName: string | null;
-  emergencyContactPhone: string | null;
 };
 
 /**
@@ -62,13 +52,6 @@ export type CredentialFaceProps = {
   ppp?: CredentialFacePppInfo | null;
   /** Rendered only for a vigente, in-service registered service dog. */
   serviceDog?: CredentialFaceServiceDogInfo | null;
-  /**
-   * Owner-only vet/emergency contact rows. `null`/`undefined` (org viewers,
-   * or a fetch that yielded no profile row) renders no Emergencia card at
-   * all — pass an object (even with every field `null`) to show the "Agregar
-   * datos de emergencia" prompt for an owner who hasn't filled these in yet.
-   */
-  emergencyContacts?: CredentialFaceEmergencyContacts | null;
   petPublicToken: string;
   /** In-Memoriam skin (ADR-15) — sepia tone + ribbon + deceased-date line. */
   memorial?: CredentialFaceMemorial | null;
@@ -81,7 +64,6 @@ export function CredentialFace({
   publicHref,
   ppp,
   serviceDog,
-  emergencyContacts,
   petPublicToken,
   memorial,
 }: CredentialFaceProps) {
@@ -129,10 +111,6 @@ export function CredentialFace({
 
       {complianceState.cards.length > 0 && (
         <ComplianceObligationsPanel state={complianceState} petPublicToken={petPublicToken} />
-      )}
-
-      {emergencyContacts && (
-        <EmergencyCard contacts={emergencyContacts} petPublicToken={petPublicToken} />
       )}
 
       {(ppp || serviceDog) && (
@@ -183,75 +161,5 @@ export function CredentialFace({
         </div>
       )}
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// EmergencyCard — vet + emergency contact, tap-to-call. Owner-only (see
-// CredentialFaceProps.emergencyContacts). Shows a quiet "Agregar datos de
-// emergencia" prompt when any of the three source fields is missing.
-// ---------------------------------------------------------------------------
-
-function EmergencyCard({
-  contacts,
-  petPublicToken,
-}: {
-  contacts: CredentialFaceEmergencyContacts;
-  petPublicToken: string;
-}) {
-  const { preferredVetPhone, emergencyContactName, emergencyContactPhone } = contacts;
-  const hasAnyContact = Boolean(preferredVetPhone || emergencyContactPhone);
-  const isMissingSomething = !preferredVetPhone || !emergencyContactName || !emergencyContactPhone;
-  // pet-document-redesign ADR-13 (Phase 5): the edit entry point moved from
-  // the full /cuenta/editar page (with a #emergencia scroll anchor) to the
-  // narrow in-profile `?sheet=emergencia` sheet — same destination for both
-  // the "add" prompt (missing data) and the "edit" affordance (has data).
-  const editHref = `/mis-mascotas/${petPublicToken}?sheet=emergencia`;
-
-  return (
-    <LnCard>
-      <LnCardHead title="Emergencia" />
-      <LnCardBody>
-        {hasAnyContact && (
-          <div className="divide-y divide-[var(--color-ln-line-2)]">
-            {preferredVetPhone && (
-              <a
-                href={`tel:${preferredVetPhone}`}
-                className="flex items-center justify-between gap-3 py-2.5 text-sm no-underline first:pt-0 last:pb-0"
-              >
-                <span className="text-[var(--color-ln-mute)]">Veterinario</span>
-                <span className="flex items-center gap-1.5 font-medium text-[var(--color-ln-azul)]">
-                  <Icon name="telefono" size="sm" decorative />
-                  {preferredVetPhone}
-                </span>
-              </a>
-            )}
-            {emergencyContactPhone && (
-              <a
-                href={`tel:${emergencyContactPhone}`}
-                className="flex items-center justify-between gap-3 py-2.5 text-sm no-underline first:pt-0 last:pb-0"
-              >
-                <span className="text-[var(--color-ln-mute)]">
-                  {emergencyContactName ?? "Contacto de emergencia"}
-                </span>
-                <span className="flex items-center gap-1.5 font-medium text-[var(--color-ln-azul)]">
-                  <Icon name="telefono" size="sm" decorative />
-                  {emergencyContactPhone}
-                </span>
-              </a>
-            )}
-          </div>
-        )}
-        <SheetTriggerLink
-          href={editHref}
-          className={[
-            "inline-block text-xs text-[var(--color-ln-mute)] no-underline hover:underline",
-            hasAnyContact ? "mt-2.5" : "",
-          ].join(" ")}
-        >
-          {isMissingSomething ? "Agregar datos de emergencia →" : "Editar →"}
-        </SheetTriggerLink>
-      </LnCardBody>
-    </LnCard>
   );
 }
