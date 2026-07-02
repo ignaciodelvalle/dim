@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { type ReactNode, createContext, useContext } from "react";
 
 import { Icon, type IconName } from "@/components/Icon";
@@ -14,10 +14,21 @@ import { Icon, type IconName } from "@/components/Icon";
  * use LnTabs from ./Tabs instead.
  *
  * - Active tab is read from `searchParams[paramKey]`; falls back to `defaultValue`.
- * - Switching tabs calls `router.replace` preserving the other searchParams.
+ * - Switching tabs navigates via a full document navigation, preserving the
+ *   other searchParams (see design note below).
  * - `UrlTabsContent` reads the active tab from context; hidden when inactive.
  *
  * Accessibility: role="tablist"/"tab"/"tabpanel", aria-selected, aria-controls.
+ *
+ * Design note (router-drop defect, same cure as components/gob/JurisdictionSwitcher.tsx):
+ * Next 15.5.18's App Router can silently drop a client transition's own fetch in
+ * production — the RSC request resolves 200 but the URL and UI never update.
+ * The consumer pages (app/gob/maltrato, app/gob/perdidas) server-render the tab
+ * content from this searchParam on every request, so a `router.replace`
+ * transition is exposed to the drop. A full document navigation
+ * (`window.location.assign`) is the one mechanism proven immune — the
+ * browser's native GET cannot be silently dropped, and it always re-runs the
+ * server component with the new searchParams.
  */
 
 const TabsContext = createContext<string>("");
@@ -52,14 +63,13 @@ export function UrlTabs({
   className = "",
   "aria-label": ariaLabel,
 }: UrlTabsProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get(paramKey) ?? defaultValue;
 
   function handleTabClick(value: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set(paramKey, value);
-    router.replace(`?${params.toString()}`, { scroll: false });
+    window.location.assign(`?${params.toString()}`);
   }
 
   return (

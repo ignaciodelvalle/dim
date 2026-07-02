@@ -8,7 +8,7 @@
 // (dynamic) SituationalMap. Perdidas is mounted server-side and seeded here as
 // the default-on layer, so its features paint on first render without a fetch.
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AggregationToggle } from "@/components/panorama/AggregationToggle";
@@ -97,7 +97,6 @@ export function PanoramaConsole({
   initialBounds,
   localityCentroids = {},
 }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   // Feature data per layer (the default is seeded; others fetched on toggle).
   // This is the LIVE cache (asOf=null). The temporal as-of cache is separate.
@@ -201,10 +200,12 @@ export function PanoramaConsole({
   // period-sensitive). Reference layers keep their cache — they refetch on toggle.
   //
   // W2 fix: after clearing the caches, refetch any CURRENTLY ACTIVE layers that
-  // are period-sensitive (aggregated point + choropleth). This is required so a
-  // preset's period change (router.replace) fetches at the NEW params rather than
-  // having the active-preset layers go blank (cache cleared, no refetch triggered).
-  // The fetch uses the NEW searchParams (post-replace) via the effect closure.
+  // are period-sensitive (aggregated point + choropleth). This still applies to
+  // period/scope changes that stay within a client-router transition (e.g. the
+  // aggregation-level toggle); the preset button now commits its period via a
+  // full navigation (see onPreset below), which remounts the console instead of
+  // relying on this effect.
+  // The fetch uses the NEW searchParams via the effect closure.
   // Mount guard for the cache-invalidation effect below: the server already
   // seeded the default layer at the initial params (C2), so skip the first run.
   const layerSeededQsRef = useRef<string | null>(qs);
@@ -212,7 +213,7 @@ export function PanoramaConsole({
   useEffect(() => {
     // Skip the FIRST run (mount): clearing + refetching here would wipe the C2
     // seed in provinceDataRef and flash a redundant load. Only react to ACTUAL
-    // param changes (period/scope toggles, preset router.replace).
+    // param changes (e.g. the aggregation-level toggle).
     if (layerSeededQsRef.current === qs) {
       layerSeededQsRef.current = null;
       return;
@@ -682,15 +683,17 @@ export function PanoramaConsole({
    * Then the [searchParams] effect fired (triggered by pushState), cleared the
    * cache entries for aggregated-point layers, blanking the map.
    *
-   * Correct ordering:
+   * Router-drop fix (see the design note inside the function body below): the
+   * period commit now goes through a full document navigation instead of
+   * `router.replace`, so steps 1-2 below only matter for the brief moment
+   * before the navigation lands — the reload re-mounts this console from the
+   * server-rendered default layer at the new period.
+   *
+   * Ordering:
    * 1. Deactivate all currently active layers + clear all caches.
    * 2. Set level + mark the preset's layers active (loading=true) in state —
    *    no fetch here.
-   * 3. Call router.replace with the new period — this triggers the
-   *    [searchParams] effect, which clears period-sensitive caches (already
-   *    empty) and then refetches the NOW-ACTIVE layers at the CORRECT period.
-   *    The effect reads the layers from statesRef (which already has the preset
-   *    layers marked active), so the refetch picks up exactly the right set.
+   * 3. Commit the new period via a full navigation (window.location.assign).
    * 4. Record the preset id for the PresetPanel highlight.
    */
   const onPreset = useCallback(
@@ -731,14 +734,27 @@ export function PanoramaConsole({
 
       setActivePresetId(id);
 
-      // Replace the URL with the preset period. This triggers the [searchParams]
-      // effect, which (W2 fix) now also refetches the active period-sensitive
-      // layers at the new params — picking them up from statesRef.
+      // Commit the preset period via a full document navigation.
+      //
+      // Design note (router-drop defect, same cure as
+      // components/gob/JurisdictionSwitcher.tsx): Next 15.5.18's App Router can
+      // silently drop a client transition's own fetch in production — the RSC
+      // request resolves 200 but the URL and searchParams never update. This
+      // console's page (app/gob/panorama, app/admin/panorama) server-renders the
+      // initial layer + KPIs from `?period=` on every request, so a
+      // `router.replace` transition here is exposed to the drop. A full
+      // navigation is the one mechanism proven immune — the browser's native GET
+      // cannot be silently dropped, and it always re-runs the server component
+      // with the new searchParams. This does reset the client-only preset-layer
+      // activation state set above (it was never URL-encoded to begin with), but
+      // that's already the accepted behavior on this page: selecting a
+      // province/locality via JurisdictionSwitcher triggers the same kind of full
+      // reload.
       const nextParams = new URLSearchParams(searchParams.toString());
       nextParams.set("period", preset.periodPreset);
-      router.replace(`?${nextParams.toString()}`);
+      window.location.assign(`?${nextParams.toString()}`);
     },
-    [searchParams, router],
+    [searchParams],
   );
 
   // Whether any aggregation-axis-sensitive layer is active (choropleth or
@@ -757,7 +773,7 @@ export function PanoramaConsole({
   const onScrub = useCallback((next: Date | null) => setAsOf(next), []);
 
   // A1 PR-7: autozoom — derive the current jurisdiction selection from
-  // searchParams (set by JurisdictionSwitcher via router.replace).
+  // searchParams (set by JurisdictionSwitcher via a full document navigation).
   // The province code is an ISO 3166-2:AR string (e.g. "AR-X"); the locality
   // is identified by its slug. The locality centroid comes from the server-
   // preloaded localityCentroids map (keyed by slug), so no client-side DB

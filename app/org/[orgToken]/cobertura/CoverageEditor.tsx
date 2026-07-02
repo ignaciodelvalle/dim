@@ -5,8 +5,17 @@
 // Province selection drives a searchParam update so the server can pass down
 // the correct localities list (same pattern as JurisdictionSwitcher pages).
 // Locality options are pre-loaded by the server page and passed as a prop.
+//
+// Design note (router-drop defect, same cure as components/gob/JurisdictionSwitcher.tsx):
+// Next 15.5.18's App Router can silently drop a client transition's own fetch in
+// production — the RSC request resolves 200 but the URL and UI never update.
+// This page server-renders the locality options from `?province=` on every
+// request, so a `router.replace` transition is exposed to the drop. A full
+// document navigation (`window.location.assign`) is the one mechanism proven
+// immune — the browser's native GET cannot be silently dropped, and it always
+// re-runs the server component with the new searchParams.
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import type { OrganizationCoverage } from "@/db";
@@ -34,7 +43,6 @@ type Props = {
 };
 
 export function CoverageEditor({ orgToken, provinces, localities, zones, canManage }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +62,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
       params.delete("province");
     }
     params.delete("locality");
-    router.replace(`/org/${orgToken}/cobertura?${params.toString()}`, { scroll: false });
+    window.location.assign(`/org/${orgToken}/cobertura?${params.toString()}`);
   }
 
   function handleAdd() {
