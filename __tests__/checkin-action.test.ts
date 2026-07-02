@@ -59,7 +59,7 @@ vi.mock("next/cache", () => ({
 // ---------------------------------------------------------------------------
 
 const mockRequirePetAccess = vi.fn();
-vi.mock("@/lib/pet-access", () => ({
+vi.mock("@/lib/infra/pet-access", () => ({
   requirePetAccess: (token: string) => mockRequirePetAccess(token),
 }));
 
@@ -68,7 +68,7 @@ vi.mock("@/lib/pet-access", () => ({
 // ---------------------------------------------------------------------------
 
 const mockUpload = vi.fn();
-vi.mock("@/lib/uploads", () => ({
+vi.mock("@/lib/infra/uploads", () => ({
   uploadAttachmentIfPresent: (_sb: unknown, file: unknown, _bucket: unknown) => mockUpload(file),
 }));
 
@@ -77,7 +77,7 @@ vi.mock("@/lib/uploads", () => ({
 // ---------------------------------------------------------------------------
 
 const mockInsertEventIdempotent = vi.fn();
-vi.mock("@/lib/event-idempotency", () => ({
+vi.mock("@/lib/events/event-idempotency", () => ({
   insertEventIdempotent: (values: unknown, tx: unknown) => mockInsertEventIdempotent(values, tx),
 }));
 
@@ -85,7 +85,7 @@ vi.mock("@/lib/event-idempotency", () => ({
 // Mock: @/lib/event-schemas — pass through the payload as-is.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/event-schemas", () => ({
+vi.mock("@/lib/events/event-schemas", () => ({
   validateEventPayload: (_eventType: string, payload: unknown) => payload,
 }));
 
