@@ -18,7 +18,7 @@ import {
   joinChoroplethData,
 } from "@/lib/infra/geo-join";
 import type maplibregl from "maplibre-gl";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /**
@@ -175,7 +175,6 @@ export function MapChoropleth({
   scaleMode = "sequential",
   target,
 }: MapChoroplethProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [drillState, setDrillState] = useState<DrillState>({
@@ -200,7 +199,29 @@ export function MapChoropleth({
   // ---------------------------------------------------------------------------
   // Cross-filter
   // ---------------------------------------------------------------------------
-
+  //
+  // `paramKeys` has no current wired consumer (confirmed: all 6 gob/*
+  // dashboard pages + design/dashboards + the 2 MapChoropleth/Dynamic
+  // wrappers omit it) — it's a documented, not-yet-used extension point
+  // ("mismo patrón que PeriodPicker" at the top of this file), not accidental
+  // dead code. Curing the mechanism now (rather than deleting it) keeps it
+  // correct-by-default whenever a caller wires it.
+  //
+  // Router-drop defect (engram #621/#622, same reasoning as
+  // components/gob/PeriodPicker.tsx / JurisdictionSwitcher.tsx): every
+  // current and plausible MapChoropleth host (gob/vigilancia, gob/poblacion,
+  // gob/perdidas, gob/censo, gob/campanas, gob/analytics) is an async Server
+  // Component that fetches its KPIs/charts from `searchParams` on every
+  // request — this is NOT a same-route client-only rerender the way the
+  // pet-profile sheets are (lib/ui/sheet-nav.ts's shallow History API
+  // helpers do not apply here: a shallow pushState/replaceState would update
+  // the URL but never re-run the server fetch, so the "filtrando KPIs y
+  // charts de la página" this prop promises would silently never happen —
+  // arguably worse than the original defect, since it would look like it
+  // works). A full document navigation is the one mechanism proven immune to
+  // the silent-drop defect and the only one that actually re-runs the server
+  // component with the new searchParams — same as PeriodPicker's
+  // updateParams.
   const updateCrossFilter = useCallback(
     (selectedCode: string, currentLevel: GeoLevel) => {
       const keys = paramKeysRef.current;
@@ -209,9 +230,9 @@ export function MapChoropleth({
       if (!key) return;
       const params = new URLSearchParams(searchParams.toString());
       params.set(key, selectedCode);
-      router.replace(`?${params.toString()}`, { scroll: false });
+      window.location.assign(`?${params.toString()}`);
     },
-    [router, searchParams],
+    [searchParams],
   );
 
   // ---------------------------------------------------------------------------

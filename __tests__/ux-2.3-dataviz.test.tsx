@@ -18,13 +18,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
-// React hook stubs — MapChoropleth uses useRouter/useSearchParams/useEffect/
-// useRef/useState/useCallback. We stub only what prevents SSR rendering.
+// React hook stubs — MapChoropleth uses useSearchParams/useEffect/useRef/
+// useState/useCallback. We stub only what prevents SSR rendering.
 // ---------------------------------------------------------------------------
 
 // Stub Next.js navigation hooks used by MapChoropleth.
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn() }),
   useSearchParams: () => ({ toString: () => "" }),
 }));
 
