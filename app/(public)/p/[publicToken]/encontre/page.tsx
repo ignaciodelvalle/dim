@@ -209,14 +209,21 @@ export default async function FinderInPossessionPage({
   }
 
   // Resolve owner first name (for the header copy "X está esperando que la encuentren").
-  const [ownerRow] = await db
-    .select({ displayName: profiles.displayName })
-    .from(ownerships)
-    .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-    .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
-    .limit(1);
+  // Gated on disclosePrefs — only fetch the name if the owner opted in, same as
+  // the credential page (app/(public)/p/[publicToken]/page.tsx) and the cartel
+  // page (app/(app)/mis-mascotas/[publicToken]/cartel/page.tsx).
+  let ownerFirstName: string | null = null;
 
-  const ownerFirstName = ownerRow?.displayName ? ownerRow.displayName.trim().split(/\s+/)[0] : null;
+  if (pet.discloseFirstNameWhenLost) {
+    const [ownerRow] = await db
+      .select({ displayName: profiles.displayName })
+      .from(ownerships)
+      .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
+      .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+      .limit(1);
+
+    ownerFirstName = ownerRow?.displayName ? ownerRow.displayName.trim().split(/\s+/)[0] : null;
+  }
 
   return (
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.
@@ -247,11 +254,11 @@ export default async function FinderInPossessionPage({
               <h1 className="text-xl font-semibold text-[var(--color-ln-ink)]">
                 La tengo conmigo: {pet.name}
               </h1>
-              {ownerFirstName && (
-                <p className="text-xs text-[var(--color-ln-mute)] mt-0.5">
-                  {ownerFirstName} está esperando que la encuentren.
-                </p>
-              )}
+              <p className="text-xs text-[var(--color-ln-mute)] mt-0.5">
+                {ownerFirstName
+                  ? `${ownerFirstName} está esperando que la encuentren.`
+                  : "El dueño/a está esperando que la encuentren."}
+              </p>
             </div>
           </div>
 
