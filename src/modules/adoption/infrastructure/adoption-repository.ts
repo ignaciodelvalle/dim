@@ -17,7 +17,13 @@ import {
   profiles,
   reminders,
 } from "@/db";
-import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
+import {
+  closeCase,
+  findOpenAdoptionApplicationCase,
+  findOpenAdoptionListingCase,
+  findOpenCaseForPetAndKind,
+  openCase,
+} from "@/lib/case-helpers";
 import { validateEventPayload } from "@/lib/event-schemas";
 
 // ---------------------------------------------------------------------------
@@ -197,6 +203,17 @@ export const AdoptionRepository = {
   /**
    * Updates adoption eligibility and inserts the adoption_eligibility_set event.
    * Must be called inside a db.transaction().
+   *
+   * Case wiring (CASE_ATTACHMENT_RULES adoption_eligibility_set):
+   *   - eligible=true  → opens an adoption_listing case (or attaches to one
+   *                      already open for this org, degrading `opens` per the
+   *                      rule) and writes case_id on the event atomically.
+   *   - eligible=false → attaches to the org's open adoption_listing case if
+   *                      one exists; otherwise the event inserts with no
+   *                      case_id (silent no-op — matches the documented
+   *                      `requires-open` override for this event/payload).
+   * case_id is append-only on pet_events (DB trigger), so the decision must
+   * be made before/at the same insert — it cannot be backfilled later.
    */
   async setEligibility(args: SetEligibilityArgs, tx: Tx): Promise<void> {
     await tx
@@ -211,6 +228,31 @@ export const AdoptionRepository = {
         updatedAt: args.now,
       })
       .where(eq(pets.id, args.petId));
+
+    let caseId: string | null = null;
+    const existingListingCase = await findOpenAdoptionListingCase(args.petId, args.orgId, tx);
+    if (args.eligible) {
+      if (existingListingCase) {
+        caseId = existingListingCase.id;
+      } else {
+        const caseRow = await openCase(
+          {
+            kind: "adoption_listing",
+            primarySubjectKind: "registered_pet",
+            primaryPetId: args.petId,
+            openedByUserId: args.userId,
+            openedByOrganizationId: args.orgId,
+            openedReason: "auto: adoption listing opened — pet marked eligible for adoption",
+          },
+          tx,
+        );
+        caseId = caseRow.id;
+      }
+    } else {
+      // requires-open (with silent no-op override): attach if a listing is
+      // open, otherwise leave case_id null rather than rejecting the insert.
+      caseId = existingListingCase?.id ?? null;
+    }
 
     const payload = validateEventPayload("adoption_eligibility_set", {
       eligible: args.eligible,
@@ -235,6 +277,7 @@ export const AdoptionRepository = {
       authorOrganizationId: args.orgId,
       authorVerified: args.orgVerified,
       payload,
+      caseId,
     });
   },
 
@@ -302,6 +345,17 @@ export const AdoptionRepository = {
   /**
    * Inserts an adoption_application_submitted event. Must be called inside
    * a db.transaction() so the org member fan-out can share the same tx.
+   *
+   * Case wiring (CASE_ATTACHMENT_RULES adoption_application_submitted, mode
+   * "opens"): opens an adoption_application case scoped to (pet, applicant)
+   * — or attaches to one already open for THIS applicant, degrading `opens`
+   * per the rule. The scoping is per-applicant (not per-pet): the partial
+   * unique index `cases_open_adoption_app_per_applicant_idx` allows multiple
+   * distinct applicants to each have their own concurrent open
+   * adoption_application case for the same pet, so a second application from
+   * a DIFFERENT applicant opens a second, distinct case. case_id is
+   * append-only on pet_events, so the decision is made atomically with this
+   * insert.
    */
   async insertApplication(args: InsertApplicationArgs, tx: Tx): Promise<{ eventId: string }> {
     const payload = validateEventPayload("adoption_application_submitted", {
@@ -316,6 +370,27 @@ export const AdoptionRepository = {
       prior_pets: args.priorPets ?? undefined,
     });
 
+    const existingApplicationCase = await findOpenAdoptionApplicationCase(
+      args.petId,
+      args.userId,
+      tx,
+    );
+    const caseId = existingApplicationCase
+      ? existingApplicationCase.id
+      : (
+          await openCase(
+            {
+              kind: "adoption_application",
+              primarySubjectKind: "registered_pet",
+              primaryPetId: args.petId,
+              applicantUserId: args.userId,
+              openedByUserId: args.userId,
+              openedReason: "auto: adoption application submitted",
+            },
+            tx,
+          )
+        ).id;
+
     const [eventRow] = await tx
       .insert(petEvents)
       .values({
@@ -328,6 +403,7 @@ export const AdoptionRepository = {
         authorOrganizationId: null,
         authorVerified: false,
         payload,
+        caseId,
       })
       .returning({ id: petEvents.id });
 
