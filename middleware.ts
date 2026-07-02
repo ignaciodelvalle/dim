@@ -55,6 +55,35 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url, { status: 308 });
   }
 
+  // Permanent redirects: legacy pet-profile lens routes (/vacunas, /historial,
+  // /libreta) → the two-face profile with the matching `?tab=` query.
+  //
+  // These three page.tsx files already call permanentRedirect() themselves
+  // (see app/(app)/mis-mascotas/[publicToken]/{vacunas,historial,libreta}/page.tsx),
+  // but that page-level call does NOT reliably produce an HTTP 308 in
+  // production: the shared boundary at
+  // app/(app)/mis-mascotas/[publicToken]/loading.tsx makes Next.js stream a
+  // 200 shell first and perform the redirect client-side via RSC flight
+  // data — with JavaScript disabled/broken the request just hangs on
+  // "Cargando…" forever. Live QA caught this (engram #635). Handling the
+  // redirect here, at the edge, guarantees a real 308 before the request
+  // ever reaches the page — the page-level permanentRedirect() calls stay in
+  // place as belt-and-suspenders in case this matcher/regex ever misses.
+  //
+  // Must be an EXACT match on the three known lens segments: `/vacunas` has
+  // a real sibling page at `/vacunas/programar` (schedule-a-vaccine form)
+  // that must NOT be redirected.
+  const legacyPetLensMatch = pathname.match(
+    /^\/mis-mascotas\/([^/]+)\/(vacunas|historial|libreta)$/,
+  );
+  if (legacyPetLensMatch) {
+    const [, publicToken, tab] = legacyPetLensMatch;
+    const url = request.nextUrl.clone();
+    url.pathname = `/mis-mascotas/${publicToken}`;
+    url.search = `?tab=${tab}`;
+    return NextResponse.redirect(url, { status: 308 });
+  }
+
   return await updateSession(request);
 }
 
