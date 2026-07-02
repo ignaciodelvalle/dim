@@ -17,19 +17,35 @@ export function MasSheet(props: MasSheetInput) {
 
   return (
     <ul className="flex flex-col gap-2">
-      {items.map((item) => (
-        <li key={item.id}>
-          <Link
-            href={item.href}
-            className="flex min-h-11 w-full items-center justify-between rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-3 text-sm font-medium text-[var(--color-ln-ink-2)] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
-          >
-            {item.label}
-            <span aria-hidden className="shrink-0 text-xs opacity-60">
-              →
-            </span>
-          </Link>
-        </li>
-      ))}
+      {items.map((item) =>
+        item.disabled ? (
+          <li key={item.id}>
+            <div
+              aria-disabled="true"
+              className="flex min-h-11 w-full items-center justify-between rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-3 text-sm font-medium text-[var(--color-ln-mute)] opacity-60"
+            >
+              {item.label}
+              {item.badge && (
+                <span className="shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.04em]">
+                  {item.badge}
+                </span>
+              )}
+            </div>
+          </li>
+        ) : (
+          <li key={item.id}>
+            <Link
+              href={item.href}
+              className="flex min-h-11 w-full items-center justify-between rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-3 text-sm font-medium text-[var(--color-ln-ink-2)] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
+            >
+              {item.label}
+              <span aria-hidden className="shrink-0 text-xs opacity-60">
+                →
+              </span>
+            </Link>
+          </li>
+        ),
+      )}
     </ul>
   );
 }

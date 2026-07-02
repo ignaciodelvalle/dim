@@ -43,6 +43,7 @@ const baseProps = {
   petStatus: "active" as const,
   ownershipRole: "owner" as const,
   hasPendingReturnProposal: false,
+  chapitaData: { interested: false, requestedAt: null },
 };
 
 describe("<SheetMounter> — sheet=anotar, owner path", () => {
@@ -66,6 +67,29 @@ describe("<SheetMounter> — no sheet param", () => {
   it("renders nothing when sheet is absent", () => {
     currentSheet = null;
     const html = renderToStaticMarkup(<SheetMounter {...baseProps} accessPath="owner" />);
+    expect(html).toBe("");
+  });
+});
+
+describe("<SheetMounter> — sheet=chapita (ADR-17b / REQ-11.2, REQ-9.3)", () => {
+  it("owner + active pet: reaches the shared Sheet primitive", () => {
+    currentSheet = "chapita";
+    expect(() =>
+      renderToStaticMarkup(<SheetMounter {...baseProps} accessPath="owner" />),
+    ).not.toThrow();
+  });
+
+  it("org viewer: renders nothing", () => {
+    currentSheet = "chapita";
+    const html = renderToStaticMarkup(<SheetMounter {...baseProps} accessPath="org" />);
+    expect(html).toBe("");
+  });
+
+  it("deceased pet: renders nothing even for the owner (REQ-9.3)", () => {
+    currentSheet = "chapita";
+    const html = renderToStaticMarkup(
+      <SheetMounter {...baseProps} accessPath="owner" petStatus="deceased" chapitaData={null} />,
+    );
     expect(html).toBe("");
   });
 });

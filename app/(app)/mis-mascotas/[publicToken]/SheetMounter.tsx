@@ -57,6 +57,7 @@ import {
 } from "@/src/modules/events/actions";
 import { updatePetAction } from "@/src/modules/pets/actions";
 
+import { PhysicalTagInterestSheet } from "./_chapita/PhysicalTagInterestSheet";
 import { MasSheet } from "./_more/MasSheet";
 import { MergedShareSheet } from "./_share/MergedShareSheet";
 import { TransferSenderForm } from "./_transfer/TransferSenderForm";
@@ -96,6 +97,12 @@ type Props = {
   accessPath: "owner" | "org";
   ownershipRole: string | null;
   hasPendingReturnProposal: boolean;
+  /**
+   * physical-tag-interest state for the owner viewer (pet-document-redesign
+   * ADR-17b). Null for org viewers / deceased pets — the chapita branch
+   * denies those before this is ever read.
+   */
+  chapitaData: { interested: boolean; requestedAt: Date | null } | null;
 };
 
 export function SheetMounter({
@@ -110,6 +117,7 @@ export function SheetMounter({
   accessPath,
   ownershipRole,
   hasPendingReturnProposal,
+  chapitaData,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -137,7 +145,8 @@ export function SheetMounter({
     // REQ-4.4: org viewers never get an Anotar entry point. No trigger
     // renders for them (action row / footer CTA), and this is the
     // defense-in-depth backstop for a hand-typed URL.
-    if (accessPath !== "owner") return null;
+    // REQ-9.3: a deceased pet never accepts new events — same backstop.
+    if (accessPath !== "owner" || petStatus === "deceased") return null;
     return (
       <Sheet id="anotar" title={`Anotar algo de ${petName}`} open onClose={close} size="lg">
         <div className="space-y-7">
@@ -262,6 +271,23 @@ export function SheetMounter({
             enableAction: enable,
             revokeAction: revoke,
           }}
+        />
+      </Sheet>
+    );
+  }
+
+  if (sheet === "chapita") {
+    // REQ-11.2/REQ-9.3: owner-only, never for a deceased pet (ordering a
+    // physical tag for a deceased pet is nonsensical) — defense-in-depth
+    // backstop for a hand-typed URL, same pattern as the anotar branch.
+    if (accessPath !== "owner" || petStatus === "deceased" || !chapitaData) return null;
+    return (
+      <Sheet id="chapita" title="Chapa física" open onClose={close}>
+        <PhysicalTagInterestSheet
+          petPublicToken={petToken}
+          petName={petName}
+          initialInterested={chapitaData.interested}
+          initialRequestedAt={chapitaData.requestedAt}
         />
       </Sheet>
     );

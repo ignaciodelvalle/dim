@@ -18,6 +18,10 @@ export interface MasSheetItem {
   id: string;
   label: string;
   href: string;
+  /** Non-interactive placeholder row (ADR-17c) — renders as aria-disabled, not a link. */
+  disabled?: boolean;
+  /** Small label shown next to a disabled item, e.g. "Próximamente". */
+  badge?: string;
 }
 
 /**
@@ -36,6 +40,14 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
       href: `/mis-mascotas/${pet.publicToken}?sheet=editar-mascota`,
     },
   ];
+
+  // Deceased (ADR-15/REQ-9.3): no write-affordances beyond corrections + who
+  // to call. Everything else below (transfer/find-home/service-dog/confirm-
+  // return/travel-docs/ficha/tracking) is suppressed.
+  if (pet.status === "deceased") {
+    items.push({ id: "contacts", label: "Contactos de emergencia", href: "/cuenta/editar" });
+    return items;
+  }
 
   if (ownershipRole === "owner" && pet.status === "active") {
     items.push({
@@ -85,6 +97,17 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
   });
 
   items.push({ id: "contacts", label: "Contactos de emergencia", href: "/cuenta/editar" });
+
+  // Deferred GPS-tracking placeholder (ADR-17c) — a quiet non-interactive
+  // row, not a live feature. Never shown for a deceased pet (handled by the
+  // early return above).
+  items.push({
+    id: "tracking",
+    label: "Rastreo GPS",
+    href: "#",
+    disabled: true,
+    badge: "Próximamente",
+  });
 
   return items;
 }

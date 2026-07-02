@@ -78,3 +78,38 @@ describe("CredentialFace — H1 provenance gate (negative case)", () => {
     expect(html).toContain("Registrada");
   });
 });
+
+describe("CredentialFace — In-Memoriam skin (ADR-15)", () => {
+  it("renders no memorial ribbon when memorial is absent (default/active pet)", () => {
+    const state = deriveComplianceState(complianceInput());
+    const html = render(state);
+    expect(html).not.toContain("In Memoriam");
+  });
+
+  it("renders the In Memoriam ribbon with the birth-death year line when memorial is set", () => {
+    const state = deriveComplianceState(complianceInput());
+    const html = renderToStaticMarkup(
+      <CredentialFace
+        {...baseProps}
+        complianceState={state}
+        memorial={{ birthYear: 2015, deathYear: 2026 }}
+      />,
+    );
+    expect(html).toContain("In Memoriam");
+    expect(html).toContain("2015");
+    expect(html).toContain("2026");
+    expect(html).toContain('data-section="memorial-ribbon"');
+  });
+
+  it("falls back to a bare 'In Memoriam' line when birth/death years are unknown", () => {
+    const state = deriveComplianceState(complianceInput());
+    const html = renderToStaticMarkup(
+      <CredentialFace
+        {...baseProps}
+        complianceState={state}
+        memorial={{ birthYear: null, deathYear: null }}
+      />,
+    );
+    expect(html).toContain("In Memoriam");
+  });
+});

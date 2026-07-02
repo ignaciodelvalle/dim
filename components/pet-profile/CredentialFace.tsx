@@ -40,6 +40,15 @@ export type CredentialFaceEmergencyContacts = {
   emergencyContactPhone: string | null;
 };
 
+/**
+ * In-Memoriam skin data (pet-document-redesign ADR-15). Passed only when
+ * `pet.status === 'deceased'` — its presence IS the memorial-mode switch.
+ */
+export type CredentialFaceMemorial = {
+  birthYear: number | null;
+  deathYear: number | null;
+};
+
 export type CredentialFaceProps = {
   /** Everything LnHero needs except `actions` — the QR is injected here. */
   heroProps: Omit<LnHeroProps, "actions">;
@@ -60,6 +69,8 @@ export type CredentialFaceProps = {
    */
   emergencyContacts?: CredentialFaceEmergencyContacts | null;
   petPublicToken: string;
+  /** In-Memoriam skin (ADR-15) — sepia tone + ribbon + deceased-date line. */
+  memorial?: CredentialFaceMemorial | null;
 };
 
 export function CredentialFace({
@@ -71,9 +82,35 @@ export function CredentialFace({
   serviceDog,
   emergencyContacts,
   petPublicToken,
+  memorial,
 }: CredentialFaceProps) {
+  const memorialDateLine = memorial
+    ? memorial.birthYear && memorial.deathYear
+      ? `En memoria · ${memorial.birthYear}–${memorial.deathYear}`
+      : "En memoria"
+    : null;
+
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className="flex flex-col gap-4"
+      style={memorial ? { filter: "grayscale(0.35) sepia(0.2)" } : undefined}
+    >
+      {memorial && (
+        <div
+          data-section="memorial-ribbon"
+          className="rounded-[var(--radius-sm)] border px-3.5 py-2 text-center"
+          style={{
+            background: "var(--color-ln-memorial-chip-bg)",
+            borderColor: "var(--color-ln-memorial-chip-bd)",
+            color: "var(--color-ln-memorial-chip-text)",
+          }}
+        >
+          <p className="m-0 font-[var(--font-ln-serif)] text-sm font-semibold italic">
+            In Memoriam{memorialDateLine ? ` · ${memorialDateLine}` : ""}
+          </p>
+        </div>
+      )}
+
       <LnHero
         {...heroProps}
         actions={

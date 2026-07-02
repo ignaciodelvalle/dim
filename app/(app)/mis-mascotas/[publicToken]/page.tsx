@@ -31,10 +31,15 @@
 // while the pet is lost (spec REQ-5.1/REQ-5.2). The D9 `?fromLost=1` bypass
 // is gone too (REQ-6.3 no-op redirect, see the top of this function).
 //
+// pet-document-redesign (2026-07-02, ADR-15): the pet.status === 'deceased'
+// early return (<DeceasedView>, <LnMemorialTimeline>) was DELETED too. A
+// deceased pet now renders the SAME document with an In-Memoriam skin —
+// see `memorial` / CredentialFace's `memorial` prop and the pruned
+// [Compartir][Más] action bar below.
+//
 // Preserved verbatim:
 //   - <PetOpenCasesSection>, <PregnancyInProgressCard> — inside PetAlertStrip.
 //   - <RabiesObservationBanner>, <TransitBanner> — page-local, inside PetAlertStrip.
-//   - <DeceasedView> — early return for deceased pets.
 //
 // PPP/service-dog attestation state is read from `typedEvents`
 // (PROFILE_V2_TYPED_EVENT_TYPES), which now includes `dangerous_breed_attested`
@@ -59,7 +64,6 @@ import {
   db,
   organizations,
   ownerships,
-  petEvents,
   petServiceDog,
   profiles,
   serviceOfferings,
@@ -71,34 +75,23 @@ import {
   fetchPetEventsForProfileV2,
 } from "@/lib/analytics/owner-dashboard";
 import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-face-nav";
-import { excludeSelfScansClause } from "@/lib/events/events";
 import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
-import { isLibretaSanitariaEvent } from "@/lib/infra/libreta-sanitaria";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { getPhysicalTagInterest } from "@/lib/infra/physical-tag-interest";
 import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/infra/service-dog-labels";
-import {
-  eventAttachmentSignedUrl,
-  eventAttachmentSignedUrls,
-  petPhotoUrl,
-} from "@/lib/infra/storage";
+import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/infra/storage";
 import { deriveComplianceState } from "@/lib/projections/pet-compliance";
-import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel } from "@/lib/utils/format";
-import { and, asc, desc, eq, gt, inArray, isNull, notInArray } from "drizzle-orm";
-import Image from "next/image";
+import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/utils/format";
+import { and, asc, desc, eq, gt, isNull, notInArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { Suspense } from "react";
-import type { EventTimeline } from "./EventTimeline";
 import { PostCreateModal } from "./PostCreateModal";
 import { SheetMounter } from "./SheetMounter";
 import { ConvertFosterButton } from "./_components/ConvertFosterButton";
-
-// NOTE: eventsWithAttachments is fetched only when pet.status === 'deceased'
-// (needed by DeceasedView). For active pets, fetchPetEventsForProfileV2 is
-// used instead, which runs two targeted queries without attachment signing.
 
 // ---------------------------------------------------------------------------
 // Pet state derivation — maps pets fields to the visual state ring convention.
@@ -118,359 +111,6 @@ function derivePetStateLabel(pet: Pet): string | null {
   if (pet.rabiesObservationStatus === "in_progress") return "Obs. antirrábica";
   if (pet.pregnancyStatus === "in_progress") return "Gestación";
   return null;
-}
-
-// ---------------------------------------------------------------------------
-// Deceased (in-memoriam) view — PRESERVED
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// LnMemorialTimeline — read-only timeline for the deceased memorial view
-// ---------------------------------------------------------------------------
-
-type MemorialEvent = {
-  id: string;
-  eventType: string;
-  payload: unknown;
-  occurredAt: Date | string;
-  notes: string | null;
-  attachmentUrl: string | null;
-};
-
-// Map event types to icon emoji and dot color for the memorial
-function memorialEventStyle(eventType: string): { color: string; icon: string } {
-  switch (eventType) {
-    case "vaccination_administered":
-      return { color: "var(--color-ln-azul)", icon: "💉" };
-    case "weight_recorded":
-      return { color: "var(--color-ln-celeste)", icon: "⚖️" };
-    case "sterilization_performed":
-      return { color: "var(--color-ln-rosa)", icon: "✂️" };
-    case "microchip_implanted":
-      return { color: "var(--color-ln-azul)", icon: "🔖" };
-    case "vet_visit_logged":
-      return { color: "var(--color-ln-ok)", icon: "🩺" };
-    case "medication_started":
-    case "medication_stopped":
-      return { color: "var(--color-ln-violeta)", icon: "💊" };
-    case "note_added":
-      return { color: "var(--color-ln-memorial-note)", icon: "📝" };
-    case "clinical_info_logged":
-      return { color: "var(--color-ln-celeste)", icon: "📋" };
-    case "death_recorded":
-      return { color: "var(--color-ln-memorial)", icon: "🍃" };
-    default:
-      return { color: "var(--color-ln-mute)", icon: "·" };
-  }
-}
-
-function LnMemorialTimeline({
-  events,
-  publicToken: _publicToken,
-}: {
-  events: MemorialEvent[];
-  publicToken: string;
-}) {
-  if (events.length === 0) {
-    return (
-      <p className="text-[13px]" style={{ color: "var(--color-ln-mute)" }}>
-        Sin eventos registrados.
-      </p>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-0">
-      {events.map((ev, i) => {
-        const { color, icon } = memorialEventStyle(ev.eventType);
-        const date = ev.occurredAt instanceof Date ? ev.occurredAt : new Date(ev.occurredAt);
-        const monthAbbr = date
-          .toLocaleDateString("es-AR", { month: "short" })
-          .toUpperCase()
-          .replace(".", "");
-        const year = date.getFullYear();
-        const dateLabel = `${monthAbbr} ${year}`;
-        const summary = eventPayloadSummarySimple(ev.eventType, ev.payload);
-        const isDeathEvent = ev.eventType === "death_recorded";
-        const isLast = i === events.length - 1;
-
-        return (
-          <div
-            key={ev.id}
-            className="grid"
-            style={{ gridTemplateColumns: "88px 30px 1fr", gap: "0 0" }}
-          >
-            {/* Date column */}
-            <div
-              className="flex items-start justify-end pr-[14px] pt-[10px] font-[var(--font-ln-mono)] text-[11px] leading-[1.3] tracking-[.04em]"
-              style={{ color: "var(--color-ln-mute)" }}
-            >
-              {dateLabel}
-            </div>
-
-            {/* Dot + vertical connector */}
-            <div className="flex flex-col items-center">
-              <div
-                className="mt-[12px] flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-full border-2 text-[11px]"
-                style={{
-                  borderColor: color,
-                  color: color,
-                  background: "var(--color-ln-card)",
-                }}
-              >
-                {icon}
-              </div>
-              {!isLast && (
-                <div
-                  className="w-px flex-1"
-                  style={{
-                    background: "var(--color-ln-line-2)",
-                    minHeight: 20,
-                  }}
-                />
-              )}
-            </div>
-
-            {/* Body */}
-            <div className="pb-[18px] pl-[14px] pt-[10px]">
-              <p
-                className={[
-                  "m-0 text-[13.5px] font-semibold leading-tight",
-                  isDeathEvent ? "font-[var(--font-ln-serif)]" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                style={{ color: isDeathEvent ? "var(--color-ln-memorial)" : "var(--color-ln-ink)" }}
-              >
-                {summary.primary}
-              </p>
-              {summary.secondary && (
-                <p className="mt-[2px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
-                  {summary.secondary}
-                </p>
-              )}
-              {ev.notes && (
-                <p className="mt-[3px] text-sm italic" style={{ color: "var(--color-ln-mute)" }}>
-                  {ev.notes}
-                </p>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Lightweight payload summary (avoids importing heavy lib/events in page.tsx path)
-function eventPayloadSummarySimple(
-  eventType: string,
-  payload: unknown,
-): { primary: string; secondary?: string } {
-  const p = (payload ?? {}) as Record<string, unknown>;
-  switch (eventType) {
-    case "vaccination_administered":
-      return {
-        primary: typeof p.vaccine_name === "string" ? `Vacuna · ${p.vaccine_name}` : "Vacunación",
-        secondary: typeof p.vet_name === "string" ? p.vet_name : undefined,
-      };
-    case "weight_recorded":
-      return {
-        primary: typeof p.weight_kg === "number" ? `Peso · ${p.weight_kg} kg` : "Peso registrado",
-      };
-    case "sterilization_performed":
-      return { primary: "Esterilización" };
-    case "microchip_implanted":
-      return {
-        primary: "Microchip implantado",
-        secondary: typeof p.chip_id === "string" ? p.chip_id : undefined,
-      };
-    case "vet_visit_logged":
-      return { primary: "Visita al veterinario" };
-    case "medication_started":
-      return {
-        primary: typeof p.drug_name === "string" ? `Medicación · ${p.drug_name}` : "Medicación",
-      };
-    case "medication_stopped":
-      return {
-        primary:
-          typeof p.drug_name === "string" ? `Fin medicación · ${p.drug_name}` : "Fin de medicación",
-      };
-    case "note_added":
-      return { primary: "Nota", secondary: typeof p.text === "string" ? p.text : undefined };
-    case "death_recorded":
-      return {
-        primary: "Fallecimiento",
-        secondary: typeof p.cause === "string" ? `Causa: ${p.cause}` : undefined,
-      };
-    default:
-      return { primary: eventType };
-  }
-}
-
-function deceasedSubtitle(pet: Pet): string {
-  const deceasedYear = pet.deceasedAt ? new Date(pet.deceasedAt).getFullYear() : null;
-  if (pet.dateOfBirth && deceasedYear) {
-    const birthYear = new Date(pet.dateOfBirth).getFullYear();
-    return `En memoria · ${birthYear} – ${deceasedYear}`;
-  }
-  if (deceasedYear) {
-    const genderedWord = pet.sex === "male" ? "Fallecido" : "Fallecida";
-    const fullDate = formatDate(pet.deceasedAt);
-    return `En memoria · ${genderedWord} el ${fullDate}`;
-  }
-  return "En memoria";
-}
-
-function DeceasedView({
-  pet,
-  photoUrl,
-  eventsWithAttachments,
-}: {
-  pet: Pet;
-  photoUrl: string | null;
-  eventsWithAttachments: Parameters<typeof EventTimeline>[0]["events"];
-}) {
-  // Derive birth and death years for the subtitle
-  const birthYear = pet.dateOfBirth ? new Date(pet.dateOfBirth).getFullYear() : null;
-  const deathYear = pet.deceasedAt ? new Date(pet.deceasedAt).getFullYear() : null;
-  const subtitle =
-    birthYear && deathYear ? `En memoria · ${birthYear} – ${deathYear}` : deceasedSubtitle(pet);
-
-  return (
-    <div
-      className="min-h-screen"
-      style={{ background: "var(--color-ln-memorial-bg)", fontFamily: "var(--font-ln-sans)" }}
-    >
-      {/* Desaturated guilloché */}
-      <div
-        aria-hidden="true"
-        className="h-[4px]"
-        style={{
-          background:
-            "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
-          filter: "grayscale(.5)",
-          opacity: 0.5,
-        }}
-      />
-
-      <div className="mx-auto max-w-2xl px-[24px] py-[28px] pb-[64px]">
-        {/* Back link */}
-        <Link
-          href="/mis-mascotas"
-          className="mb-[28px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
-        >
-          ← Mis mascotas
-        </Link>
-
-        {/* ---------------------------------------------------------------- */}
-        {/* Memorial hero — centered                                         */}
-        {/* ---------------------------------------------------------------- */}
-        <div className="mb-[36px] flex flex-col items-center gap-[14px] pt-[12px] text-center">
-          {/* Photo: grayscale + sepia, opacity 0.82 */}
-          <div
-            className="relative overflow-hidden rounded-full border-2 border-[var(--color-ln-line-strong)]"
-            style={{
-              width: 150,
-              height: 150,
-              filter: "grayscale(1) sepia(.35)",
-              opacity: 0.82,
-            }}
-          >
-            {photoUrl ? (
-              <Image src={photoUrl} alt={pet.name} fill sizes="150px" className="object-cover" />
-            ) : (
-              <div
-                className="flex h-full w-full items-center justify-center font-[var(--font-ln-serif)] text-[56px] font-semibold text-[var(--color-ln-mute)]"
-                style={{
-                  background: "repeating-linear-gradient(135deg,#e7e2d6 0 6px,#f3f0e7 6px 12px)",
-                }}
-              >
-                {pet.name.charAt(0).toUpperCase()}
-              </div>
-            )}
-          </div>
-
-          {/* Serif name 52px */}
-          <h1
-            className="m-0 font-[var(--font-ln-serif)] font-semibold leading-tight tracking-[-0.02em]"
-            style={{ fontSize: 52, color: "var(--color-ln-memorial-ink)" }}
-          >
-            {pet.name}
-          </h1>
-
-          {/* Italic subtitle */}
-          <p
-            className="font-[var(--font-ln-serif)] font-medium"
-            style={{ fontSize: 16, color: "var(--color-ln-memorial)", fontStyle: "italic" }}
-          >
-            {subtitle}
-          </p>
-
-          {/* Text links */}
-          <p
-            className="font-[var(--font-ln-sans)] text-[13px]"
-            style={{ color: "var(--color-ln-mute)" }}
-          >
-            <Link
-              href={`/mis-mascotas/${pet.publicToken}/editar`}
-              className="text-[var(--color-ln-azul)] underline underline-offset-4 hover:text-[var(--color-ln-azul-700)]"
-            >
-              Editar mascota
-            </Link>
-            <span className="mx-[8px]" style={{ color: "var(--color-ln-memorial-faint)" }}>
-              ·
-            </span>
-            <Link
-              href={`/p/${pet.publicToken}`}
-              target="_blank"
-              rel="noopener"
-              className="text-[var(--color-ln-azul)] underline underline-offset-4 hover:text-[var(--color-ln-azul-700)]"
-            >
-              Ver credencial pública
-            </Link>
-            <span className="mx-[8px]" style={{ color: "var(--color-ln-memorial-faint)" }}>
-              ·
-            </span>
-            <Link
-              href={`/mis-mascotas/${pet.publicToken}?sheet=nota`}
-              className="text-[var(--color-ln-azul)] underline underline-offset-4 hover:text-[var(--color-ln-azul-700)]"
-            >
-              + Agregar nota
-            </Link>
-          </p>
-        </div>
-
-        {/* ---------------------------------------------------------------- */}
-        {/* Read-only libreta timeline                                        */}
-        {/* ---------------------------------------------------------------- */}
-        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[24px] py-[22px]">
-          {/* Eyebrow + heading */}
-          <p
-            className="mb-[4px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.14em]"
-            style={{ color: "var(--color-ln-mute)" }}
-          >
-            Libreta sanitaria
-          </p>
-          <h2
-            className="m-0 mb-[6px] font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em]"
-            style={{ color: "var(--color-ln-memorial-ink)" }}
-          >
-            Historial
-          </h2>
-          <p className="mb-[20px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
-            Solo lectura. Los eventos registrados en vida se conservan.
-          </p>
-
-          {/* Memorial timeline */}
-          <LnMemorialTimeline
-            events={eventsWithAttachments.filter((e) => isLibretaSanitariaEvent(e.eventType))}
-            publicToken={pet.publicToken}
-          />
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -571,6 +211,15 @@ export default async function PetDetailPage({
     ownershipRole = ownerRow?.role ?? null;
   }
 
+  // Deceased (pet-document-redesign ADR-15): NO early return anymore — the
+  // pet always renders the SAME document with an In-Memoriam skin (see
+  // `memorial` below, threaded into CredentialFace). The old heavy O(N)
+  // deceasedEvents + attachment-signing query is gone too: the Libreta back
+  // (deferred fetch, "todo" lens = no filtering) already returns the pet's
+  // full history including death_recorded, subsuming the old parallel
+  // LnMemorialTimeline.
+  const isDeceased = pet.status === "deceased";
+
   // Stage 2: queries that depend on ownershipRole or are owner-only.
   // hasPendingReturnProposal depends on ownershipRole (must be "owner").
   let hasPendingReturnProposal = false;
@@ -581,6 +230,10 @@ export default async function PetDetailPage({
     emergencyContactPhone: string | null;
     displayName: string;
   } | null = null;
+  // Chapita (physical-tag-interest) state for the owner — powers the 5th
+  // action-bar icon + ?sheet=chapita (pet-document-redesign ADR-17b). Never
+  // fetched for a deceased pet (REQ-9.3 suppresses the entry point).
+  let chapitaData: { interested: boolean; requestedAt: Date | null } | null = null;
 
   if (accessPath === "owner") {
     // "Confirmar devolución": only the legal owner, only when a pending return
@@ -605,56 +258,19 @@ export default async function PetDetailPage({
       .where(eq(profiles.id, user.id))
       .limit(1);
 
-    const [returnProposalResult, [profileRow]] = await Promise.all([
+    const chapitaQuery = isDeceased
+      ? Promise.resolve(null)
+      : getPhysicalTagInterest(pet.id, user.id);
+
+    const [returnProposalResult, [profileRow], chapitaState] = await Promise.all([
       returnProposalQuery,
       contactsQuery,
+      chapitaQuery,
     ]);
 
     hasPendingReturnProposal = returnProposalResult;
     viewerContacts = profileRow ?? null;
-  }
-
-  // EARLY RETURN for deceased: need full event list + signed attachments for
-  // the DeceasedView (EventTimeline component). Only this branch fetches the
-  // heavy O(N) query — active pets use fetchPetEventsForProfileV2 below.
-  if (pet.status === "deceased") {
-    const deceasedEvents = await db
-      .select()
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause()))
-      .orderBy(desc(petEvents.occurredAt));
-    const deceasedEventIds = deceasedEvents.map((e) => e.id);
-    const deceasedAttachmentRows =
-      deceasedEventIds.length > 0
-        ? await db.select().from(attachments).where(inArray(attachments.eventId, deceasedEventIds))
-        : [];
-
-    // Batch-sign all attachment paths in a single Storage round-trip instead
-    // of N sequential createSignedUrl calls.
-    const pathsToSign = deceasedAttachmentRows
-      .filter((a) => a.eventId != null)
-      .map((a) => a.storagePath);
-    const deceasedUrlByPath = await eventAttachmentSignedUrls(supabase, pathsToSign);
-
-    // Build event-id → signed-url map (one attachment per event).
-    const deceasedUrlMap = new Map<string, string>();
-    for (const a of deceasedAttachmentRows) {
-      if (!a.eventId) continue;
-      const url = deceasedUrlByPath.get(a.storagePath);
-      if (url) deceasedUrlMap.set(a.eventId, url);
-    }
-
-    const deceasedEventsWithAttachments = deceasedEvents.map((e) => ({
-      ...e,
-      attachmentUrl: deceasedUrlMap.get(e.id) ?? null,
-    }));
-    return (
-      <DeceasedView
-        pet={pet}
-        photoUrl={photoUrl}
-        eventsWithAttachments={deceasedEventsWithAttachments}
-      />
-    );
+    chapitaData = chapitaState;
   }
 
   // Lost-episode + scans fetch — relocated out of the old early-return into
@@ -777,8 +393,10 @@ export default async function PetDetailPage({
   // Build LnHero data from pet fields.
   // pet.status is "active" here, EXCEPT when the owner opened the full profile
   // of a lost pet via ?fromLost=1 (D9) — the lost early-return is bypassed but
-  // the pet is still lost, so reflect that honestly in the hero ring. Deceased
-  // always early-returns above.
+  // the pet is still lost, so reflect that honestly in the hero ring. A
+  // deceased pet still resolves to "ok" here (LnHero has no memorial ring
+  // state) — the memorial skin lives entirely in CredentialFace's `memorial`
+  // prop below (ribbon + sepia tone), which is a stronger signal anyway.
   const lnPetStatus: "ok" | "sick" | "lost" | "pregnant" = (() => {
     if (pet.status === "lost") return "lost";
     if (pet.pregnancyStatus === "in_progress") return "pregnant";
@@ -793,6 +411,15 @@ export default async function PetDetailPage({
   const breedLine = [pet.breed, pet.sex ? sexLabel(pet.sex) : null, age, speciesLabel(pet.species)]
     .filter(Boolean)
     .join(" · ");
+
+  // In-Memoriam skin data (pet-document-redesign ADR-15) — presence of this
+  // object is CredentialFace's memorial-mode switch.
+  const memorial = isDeceased
+    ? {
+        birthYear: pet.dateOfBirth ? new Date(pet.dateOfBirth).getFullYear() : null,
+        deathYear: pet.deceasedAt ? new Date(pet.deceasedAt).getFullYear() : null,
+      }
+    : null;
 
   // Compliance projection (comply-first slice §2) — leads Face 1's stamp row.
   // Pure derivation over data already loaded above: no extra query. The rabies
@@ -914,6 +541,7 @@ export default async function PetDetailPage({
                       : null
                   }
                   petPublicToken={pet.publicToken}
+                  memorial={memorial}
                 />
               </div>
 
@@ -994,9 +622,13 @@ export default async function PetDetailPage({
                     of quiet actions (owner-only actions render nothing for
                     org viewers, who get no capture control anywhere on the
                     page). Mark-lost stays always visible here (T2), never
-                    buried in ⋯ Más. */}
+                    buried in ⋯ Más.
+                    Deceased (ADR-15/REQ-9.3): the bar collapses to
+                    [Compartir][Más] only — no Anotar (a closed life record
+                    accepts no new events), no Perdida/Encontrada (moot), no
+                    Chapita (ordering a tag for a deceased pet is nonsensical). */}
               <div data-section="action-row" className="flex flex-wrap gap-2">
-                {isOwner && (
+                {isOwner && !isDeceased && (
                   <Link
                     href={`/mis-mascotas/${pet.publicToken}?sheet=anotar`}
                     className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--color-ln-azul)] px-4 text-sm font-semibold text-white no-underline transition-colors hover:bg-ln-azul-700"
@@ -1028,6 +660,15 @@ export default async function PetDetailPage({
                   >
                     <Icon name="check" size="sm" decorative />
                     Marcar encontrada
+                  </Link>
+                )}
+                {isOwner && !isDeceased && (
+                  <Link
+                    href={`/mis-mascotas/${pet.publicToken}?sheet=chapita`}
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border-[3px] border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 text-sm font-semibold text-[var(--color-ln-azul)] no-underline transition-colors hover:border-[var(--color-ln-line-strong)]"
+                  >
+                    <Icon name="tag" size="sm" decorative />
+                    Chapita
                   </Link>
                 )}
                 {isOwner && (
@@ -1078,6 +719,7 @@ export default async function PetDetailPage({
             : null
         }
         editPetData={{ existingPet: pet, existingPhotoUrl: editPhotoUrl }}
+        chapitaData={chapitaData}
       />
 
       {/* Sticky Anotar (mobile) — repurposed from the old mark-lost slot
@@ -1090,8 +732,9 @@ export default async function PetDetailPage({
       />
 
       {/* Post-create modal — shown once after a successful new-pet create.
-            Only rendered for the owner on an active pet; deceased + lost paths
-            have early returns above and will never reach this point. */}
+            recienCreado only ever comes from the create-pet flow, whose
+            result is always an active pet — deceased/lost pets never carry
+            this param. */}
       {recienCreado && accessPath === "owner" && <PostCreateModal publicToken={pet.publicToken} />}
     </div>
   );

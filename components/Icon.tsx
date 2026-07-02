@@ -64,6 +64,7 @@ import {
   Smartphone,
   Stethoscope,
   Syringe,
+  Tag,
   Users,
   Wrench,
   X,
@@ -176,6 +177,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   share: Share2,
   check: Check,
   ellipsis: MoreHorizontal,
+  tag: Tag,
 };
 
 /** All registered icon names — consumed by the IconSearch browser in /design. */
