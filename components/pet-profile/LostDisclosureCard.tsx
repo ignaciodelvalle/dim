@@ -1,3 +1,5 @@
+"use client";
+
 // LostDisclosureCard — the owner-facing surface for the 5 disclosure
 // toggles that already exist on `pets`:
 //   - disclose_first_name_when_lost
@@ -13,8 +15,24 @@
 // This intentionally duplicates the disclosure list from the existing
 // MarkLostForm — once both surfaces live, that form's toggles can be
 // replaced by importing this component.
+//
+// wave-3 D2 (design-system audit finding 2): the 5 rows used to hand-roll
+// their own toggle switch (px values copied from Toggle.tsx internals),
+// duplicating LnToggle's amber variant, which was purpose-built for
+// disclosure/lost-mode settings per its own docblock. Now a "use client"
+// component using LnToggleGroup directly — this DROPS the previous
+// no-JS-required <form action={...}> submit-per-row model in favor of a
+// client onChange calling `toggleAction` directly. This is safe: the LostCaseBlock
+// doc comment (this component's only caller) already anticipated exactly
+// this alternative ("or the action must be pre-bound and passed down as a
+// prop") — `toggleAction` IS a pre-bound Server Action
+// (setPetDisclosurePrefsAction.bind(null, publicToken)), fully callable
+// from a client event handler. LostCaseBlock itself stays a Server
+// Component (for LostScanFeed's server-only db import, unrelated to this).
 
 import Link from "next/link";
+
+import { LnToggleGroup } from "@/components/ui/Toggle";
 
 export type DisclosurePrefs = {
   discloseFirstNameWhenLost: boolean;
@@ -88,50 +106,18 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
         </Link>
       </div>
 
-      <ul className="flex flex-col gap-[7px]">
-        {ROWS.map((row) => (
-          <li key={row.key}>
-            <form
-              action={async () => {
-                "use server";
-                await toggleAction(row.key, !prefs[row.key]);
-              }}
-              className="flex items-center gap-[10px] rounded-[4px] border border-[var(--color-ln-line-2)] bg-[var(--color-ln-stripe)] px-[12px] py-[9px]"
-            >
-              <div className="min-w-0 flex-1">
-                <p
-                  className="text-[12.5px] font-semibold leading-tight"
-                  style={{ color: "var(--color-ln-ink)" }}
-                >
-                  {row.label}
-                </p>
-                <p className="text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
-                  {row.description}
-                </p>
-              </div>
-              {/* Amber toggle knob — server-rendered, submit on click */}
-              <button
-                type="submit"
-                role="switch"
-                aria-checked={prefs[row.key]}
-                aria-label={`Mostrar ${row.label.toLowerCase()}`}
-                className="relative mt-[1px] h-[21px] w-[38px] flex-shrink-0 cursor-pointer rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
-                style={{
-                  background: prefs[row.key]
-                    ? "var(--color-ln-warn)"
-                    : "var(--color-ln-line-strong)",
-                }}
-              >
-                <span
-                  aria-hidden
-                  className="absolute top-[2px] h-[17px] w-[17px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.2)] transition-[left] duration-150"
-                  style={{ left: prefs[row.key] ? 19 : 2 }}
-                />
-              </button>
-            </form>
-          </li>
-        ))}
-      </ul>
+      <LnToggleGroup
+        items={ROWS.map((row) => ({
+          key: row.key,
+          label: row.label,
+          description: row.description,
+          checked: prefs[row.key],
+          variant: "amber",
+        }))}
+        onChange={(key, next) => {
+          void toggleAction(key as keyof DisclosurePrefs, next);
+        }}
+      />
 
       <p
         className="mt-[10px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em]"

@@ -30,19 +30,21 @@
 // poster, no MarkLostWizard entry point.
 //
 // DEVIATION from design.md's file-map ("(client)"): this is a plain Server
-// Component, not "use client". LostDisclosureCard's toggle rows are inline
+// Component, not "use client". Originally this was ALSO because
+// LostDisclosureCard's toggle rows were inline
 // `<form action={async () => { "use server"; ... }}>` closures — Next.js
 // forbids declaring an inline server action inside a Client Component's
 // subtree (it must be a Server Component, or the action must be pre-bound
-// and passed down as a prop). LostScanFeed also transitively imports
-// lib/infra/lost-mode → @/db, which is guarded by `import "server-only"`
-// and errors if pulled into a client bundle. Both failures showed up at
-// `pnpm build` time. A Server Component here matches how the original
+// and passed down as a prop). wave-3 D2 moved LostDisclosureCard to
+// LnToggleGroup (now "use client" itself, calling the pre-bound
+// `toggleAction` prop directly — the "pre-bound and passed as a prop"
+// alternative this comment already named) — that reason is gone, but
+// LostScanFeed still transitively imports lib/infra/lost-mode → @/db,
+// which is guarded by `import "server-only"` and errors if pulled into a
+// client bundle. A Server Component here still matches how the original
 // LostCockpit was architected (async RSC composing "use client"
-// subcomponents is fine; the reverse — a client component importing a
-// server-action-bearing child — is not). No behavior change: this
-// component still never uses hooks/state, so dropping "use client" costs
-// nothing.
+// subcomponents is fine). No behavior change: this component still never
+// uses hooks/state itself, so staying a Server Component costs nothing.
 
 import Image from "next/image";
 import Link from "next/link";
