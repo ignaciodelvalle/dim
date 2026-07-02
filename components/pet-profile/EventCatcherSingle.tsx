@@ -9,8 +9,15 @@
 // (`buildKindDeeplink`/`buildAnotarUrl`) as the home-screen `EventCatcher`,
 // minus the pet picker — the pet is already fixed by the profile it's
 // embedded in, so there's no chip row, no active-pet state, no long-press.
+//
+// go() (router-hot-path fix): a chip/submit target that's a `?sheet=`
+// shorthand on THIS route (e.g. weight_recorded → ?sheet=peso) opens via
+// pushSheetUrl (History API, no router involved) instead of router.push —
+// see lib/ui/sheet-nav.ts. A target on a different route (a full page, e.g.
+// vaccination_administered → /eventos/nuevo/vacuna, or the /anotar fallback)
+// is a real navigation and still goes through router.push as before.
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import {
@@ -21,6 +28,7 @@ import {
 import { quickCaptureAction } from "@/app/actions/quick-capture";
 import { LnButton } from "@/components/ui/Button";
 import type { EventType } from "@/db/schema";
+import { isSameRouteUrl, pushSheetUrl } from "@/lib/ui/sheet-nav";
 
 type Props = {
   petPublicToken: string;
@@ -44,11 +52,16 @@ const singleQuickActions = SINGLE_QUICK_TYPES.map((eventType) =>
 
 export function EventCatcherSingle({ petPublicToken, petName }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const taRef = useRef<HTMLTextAreaElement | null>(null);
   const [text, setText] = useState("");
   const [isPending, startTransition] = useTransition();
 
   function go(href: string) {
+    if (isSameRouteUrl(pathname, href)) {
+      pushSheetUrl(href);
+      return;
+    }
     router.push(href);
   }
 

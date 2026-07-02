@@ -19,6 +19,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import { ComplianceObligationsPanel } from "@/components/pet-profile/ComplianceObligationsPanel";
+import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnHero, type LnHeroProps } from "@/components/ui/Hero";
 import type { ComplianceState } from "@/lib/projections/pet-compliance";
@@ -241,7 +242,7 @@ function EmergencyCard({
             )}
           </div>
         )}
-        <Link
+        <SheetTriggerLink
           href={editHref}
           className={[
             "inline-block text-xs text-[var(--color-ln-mute)] no-underline hover:underline",
@@ -249,7 +250,7 @@ function EmergencyCard({
           ].join(" ")}
         >
           {isMissingSomething ? "Agregar datos de emergencia →" : "Editar →"}
-        </Link>
+        </SheetTriggerLink>
       </LnCardBody>
     </LnCard>
   );

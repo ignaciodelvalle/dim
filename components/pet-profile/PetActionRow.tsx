@@ -9,23 +9,19 @@
 // (nonsensical for a deceased pet). Every icon is aria-label + title only,
 // no visible text (mirrors FlipCard's "Girar" affordance pattern).
 //
-// prefetch=false on every icon (CRITICAL-1 fix, verify-report #617): each
-// icon only ever changes `?sheet=` on the SAME route — there is no separate
-// page/data to prefetch, so the default eager Link prefetch bought nothing.
-// Left at the default, all 5 icons (plus every other always-mounted Link on
-// this page — see EventTimeline.tsx/CaseBadge.tsx) fire background RSC
-// prefetch fetches concurrently on mount. That concurrent fetch pressure is
-// the documented trigger for a known Next.js 15.5.x App Router
-// production-mode router defect: a clicked Link's own navigation fetch can
-// resolve 200 with a fully valid flight payload, yet the client router
-// silently drops it — no history.pushState, no re-render, no error —
-// reproduced live via Playwright network+history instrumentation against
-// the :3000 prod build. Disabling prefetch here removes this page's biggest
-// source of that pressure at the exact moment a user is most likely to
-// click one of these icons (first interaction after page load).
+// Each icon opens its sheet via SheetTriggerLink — the History API directly
+// (pushSheetUrl), NOT a Link/router.push soft navigation. prefetch=false
+// mitigation (8078eaed/b953c9c1) did not fully fix the underlying Next.js
+// 15.5.x App Router production-mode defect where a clicked Link's own
+// navigation fetch can resolve 200 with a fully valid flight payload yet the
+// client router silently drops it — no history.pushState, no re-render, no
+// error (engram #621, verify-report #617 CRITICAL-1). Sheets are this page's
+// primary interaction surface, so they leave the router's hot path entirely:
+// see lib/ui/sheet-nav.ts for the full mechanism (Next's native shallow
+// routing over window.history.pushState/replaceState).
 
 import { Icon } from "@/components/Icon";
-import Link from "next/link";
+import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 
 type Props = {
   petPublicToken: string;
@@ -47,68 +43,62 @@ export function PetActionRow({ petPublicToken, isOwner, isDeceased, petStatus }:
   return (
     <div data-section="action-row" className="flex flex-wrap gap-2">
       {isOwner && !isDeceased && (
-        <Link
+        <SheetTriggerLink
           href={`/mis-mascotas/${petPublicToken}?sheet=anotar`}
-          prefetch={false}
           aria-label="Anotar"
           title="Anotar"
           className={`${ICON_LINK_BASE} ${PRIMARY}`}
         >
           <Icon name="edit" size="sm" decorative />
-        </Link>
+        </SheetTriggerLink>
       )}
-      <Link
+      <SheetTriggerLink
         href={`/mis-mascotas/${petPublicToken}?sheet=compartir`}
-        prefetch={false}
         aria-label="Compartir"
         title="Compartir"
         className={`${ICON_LINK_BASE} ${SECONDARY}`}
       >
         <Icon name="share" size="sm" decorative />
-      </Link>
+      </SheetTriggerLink>
       {petStatus === "active" && (
-        <Link
+        <SheetTriggerLink
           href={`/mis-mascotas/${petPublicToken}?sheet=marcar-perdida`}
-          prefetch={false}
           aria-label="Marcar como perdida"
           title="Marcar como perdida"
           className={`${ICON_LINK_BASE} ${DANGER_OUTLINE}`}
         >
           <Icon name="alert-triangle" size="sm" decorative />
-        </Link>
+        </SheetTriggerLink>
       )}
       {petStatus === "lost" && (
-        <Link
+        <SheetTriggerLink
           href={`/mis-mascotas/${petPublicToken}?sheet=marcar-encontrada`}
-          prefetch={false}
           aria-label="Marcar encontrada"
           title="Marcar encontrada"
           className={`${ICON_LINK_BASE} ${SUCCESS}`}
         >
           <Icon name="check" size="sm" decorative />
-        </Link>
+        </SheetTriggerLink>
       )}
       {isOwner && !isDeceased && (
-        <Link
+        <SheetTriggerLink
           href={`/mis-mascotas/${petPublicToken}?sheet=chapita`}
-          prefetch={false}
           aria-label="Chapita"
           title="Chapita"
           className={`${ICON_LINK_BASE} ${SECONDARY}`}
         >
           <Icon name="tag" size="sm" decorative />
-        </Link>
+        </SheetTriggerLink>
       )}
       {isOwner && (
-        <Link
+        <SheetTriggerLink
           href={`/mis-mascotas/${petPublicToken}?sheet=mas`}
-          prefetch={false}
           aria-label="Más"
           title="Más"
           className={`${ICON_LINK_BASE} ${SECONDARY}`}
         >
           <Icon name="ellipsis" size="sm" decorative />
-        </Link>
+        </SheetTriggerLink>
       )}
     </div>
   );

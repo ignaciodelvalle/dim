@@ -24,13 +24,23 @@
  * fallback page renders, now the PRIMARY in-profile entry point. Owner-only;
  * org viewers never reach this branch (no trigger renders for them — see
  * page.tsx action row + PetAnotarFooterCta).
+ *
+ * Router-hot-path fix: this component is always mounted by page.tsx
+ * regardless of `?sheet=` (verified — page.tsx never gates it behind
+ * `sp.sheet`), so open state simply reacts to useSearchParams(), which Next
+ * updates reactively on both the SSR-provided initial URL AND on
+ * pushSheetUrl()'s shallow window.history.pushState calls from every
+ * trigger (PetActionRow, EventCatcherSingle, CredentialFace's Emergencia
+ * link, MasSheet — see lib/ui/sheet-nav.ts). `close()` uses closeSheetNav
+ * instead of router.replace so closing never touches the router either.
  */
 
 import { TurnoAntirrabicaSheet } from "@/components/pet-profile/TurnoAntirrabicaSheet";
 import { LnButton } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
 import { CaptureBox } from "./anotar/CaptureBox";
@@ -128,7 +138,6 @@ export function SheetMounter({
   chapitaData,
   emergencyContacts,
 }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const sheet = searchParams.get("sheet");
@@ -147,8 +156,8 @@ export function SheetMounter({
   const close = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("text");
-    router.replace(buildCloseSheetUrl(pathname, params));
-  }, [router, pathname, searchParams]);
+    closeSheetNav(buildCloseSheetUrl(pathname, params));
+  }, [pathname, searchParams]);
 
   if (sheet === "anotar") {
     // REQ-4.4: org viewers never get an Anotar entry point. No trigger

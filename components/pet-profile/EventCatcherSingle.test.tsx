@@ -25,6 +25,7 @@ const buildKindDeeplinkMock = vi.fn(
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
+  usePathname: () => "/mis-mascotas/TK-0001",
 }));
 
 vi.mock("@/app/actions/quick-capture", () => ({
