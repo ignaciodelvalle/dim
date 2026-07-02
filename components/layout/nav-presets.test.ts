@@ -14,7 +14,12 @@ import {
   buildOrgNavFlat,
 } from "./nav-presets";
 
-const ALL_GATED_CAPS = new Set(["intake.create", "adoption.review", "capability.grant"]);
+const ALL_GATED_CAPS = new Set([
+  "appointment.manage",
+  "intake.create",
+  "adoption.review",
+  "capability.grant",
+]);
 
 describe("PUBLIC_NAV", () => {
   it("has exactly 4 items", () => {
@@ -78,16 +83,17 @@ describe("buildOrgNav (section structure)", () => {
 });
 
 describe("buildOrgNavFlat", () => {
-  it("produces 14 membership-only items when no capabilities are passed", () => {
-    expect(buildOrgNavFlat("ORG-ABC")).toHaveLength(14);
+  it("produces 13 membership-only items when no capabilities are passed", () => {
+    expect(buildOrgNavFlat("ORG-ABC")).toHaveLength(13);
   });
 
   it("produces 18 items when all gated capabilities are granted", () => {
     expect(buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS })).toHaveLength(18);
   });
 
-  it("hides Ingresos, Check-ins and Permisos without their capabilities", () => {
+  it("hides Agenda, Ingresos, Check-ins and Permisos without their capabilities", () => {
     const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
+    expect(labels).not.toContain("Agenda");
     expect(labels).not.toContain("Ingresos");
     expect(labels).not.toContain("Check-ins");
     expect(labels).not.toContain("Permisos");
@@ -98,8 +104,17 @@ describe("buildOrgNavFlat", () => {
       (i) => i.label,
     );
     expect(intakeOnly).toContain("Ingresos");
+    expect(intakeOnly).not.toContain("Agenda");
     expect(intakeOnly).not.toContain("Check-ins");
     expect(intakeOnly).not.toContain("Permisos");
+
+    const agendaOnly = buildOrgNavFlat("ORG-ABC", {
+      granted: new Set(["appointment.manage"]),
+    }).map((i) => i.label);
+    expect(agendaOnly).toContain("Agenda");
+    expect(agendaOnly).not.toContain("Ingresos");
+    expect(agendaOnly).not.toContain("Check-ins");
+    expect(agendaOnly).not.toContain("Permisos");
   });
 
   it("contains the previously missing membership-level items", () => {
@@ -156,9 +171,8 @@ describe("buildOrgNavFlat", () => {
     expect(panel.href).toBe("/org/ORG-ABC");
   });
 
-  it("contains Agenda, Mascotas, Servicios, Operaciones, Miembros, Cobertura, Configuración, Maltrato entries", () => {
+  it("contains Mascotas, Servicios, Operaciones, Miembros, Cobertura, Configuración, Maltrato entries", () => {
     const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
-    expect(labels).toContain("Agenda");
     expect(labels).toContain("Mascotas");
     expect(labels).toContain("Servicios");
     expect(labels).toContain("Operaciones");
@@ -632,7 +646,7 @@ describe("ADMIN_NAV_FLAT — derived flat list", () => {
  * Frozen href snapshot: the FULL set of org hrefs with ALL capabilities granted.
  * Hard-coded so a dropped href shrinks the sections union but NOT this set —
  * the invariant test genuinely catches membership regressions (non-tautological).
- * 18 hrefs total (14 ungated + 4 gated).
+ * 18 hrefs total (13 ungated + 5 gated).
  */
 const ORG_HREF_SNAPSHOT = new Set([
   "/org/ORG-ABC",
@@ -679,10 +693,11 @@ describe("buildOrgNav — section invariants", () => {
     expect(sectionHrefs.length).toBe(unique.size);
   });
 
-  it("with no capabilities, gated items (Ingresos, Check-ins, Permisos) are absent from all sections", () => {
+  it("with no capabilities, gated items (Agenda, Ingresos, Check-ins, Permisos) are absent from all sections", () => {
     const sections = buildOrgNav("ORG-ABC", { granted: new Set() });
     const allItems = sections.flatMap((s) => s.items);
     const labels = allItems.map((i) => i.label);
+    expect(labels).not.toContain("Agenda");
     expect(labels).not.toContain("Ingresos");
     expect(labels).not.toContain("Check-ins");
     expect(labels).not.toContain("Permisos");

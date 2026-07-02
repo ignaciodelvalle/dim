@@ -51,8 +51,8 @@ export const OWNER_NAV: NavItem[] = [
 export type OrgNavOptions = {
   /**
    * Capabilities granted to the viewing member (from getGrantedCapabilities).
-   * Capability-gated items (Ingresos, Check-ins, Permisos) only render when
-   * their capability is present. Omit to build the membership-only nav.
+   * Capability-gated items (Agenda, Ingresos, Check-ins, Permisos) only render
+   * when their capability is present. Omit to build the membership-only nav.
    */
   granted?: ReadonlySet<string>;
 };
@@ -75,6 +75,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       href: `/org/${orgToken}/agenda`,
       label: "Agenda",
       matchPrefix: `/org/${orgToken}/agenda`,
+      requiredCapability: "appointment.manage",
       section: "Operación",
     },
     {
