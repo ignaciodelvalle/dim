@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { DateRangePicker } from "./DateRangePicker";
@@ -11,7 +11,9 @@ import type { DateRange } from "./DateRangePicker";
  *
  * Chips de presets (7d / 30d / 90d / ytd) + toggle "Personalizado" que despliega
  * el `<DateRangePicker>` inline. Cada selección actualiza los searchParams vía
- * `router.replace` con `scroll: false`.
+ * una navegación de documento completa (`window.location.assign`) — NO usa
+ * `router.replace`/`router.refresh` (ver nota de diseño más abajo, misma
+ * razón que JurisdictionSwitcher.tsx).
  *
  * Comportamiento:
  *  - Seleccionar un preset → setea `?period=<preset>` y limpia `?from` y `?to`.
@@ -83,7 +85,6 @@ export function PeriodPicker({
   multiYear = false,
   className = "",
 }: PeriodPickerProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const presets = multiYear ? [...PRESETS, ...MULTI_YEAR_PRESETS] : PRESETS;
@@ -99,6 +100,16 @@ export function PeriodPicker({
     to: toValue,
   });
 
+  // Design note (router-drop defect, engram #621/#622 — same reasoning as
+  // JurisdictionSwitcher.tsx / components/gob/JurisdictionSwitcher.tsx and
+  // fixed here for the identical reason, noted as adjacent debt in
+  // b0a5c7af): dashboards on this surface (Panorama, vigilancia, etc.) are
+  // SERVER-rendered from `searchParams` on every request, so a
+  // client-router transition (router.replace/router.refresh) is exposed to
+  // Next 15.5.18's App Router silently dropping its own RSC fetch in
+  // production. A full document navigation is the one mechanism proven
+  // immune — the browser's native GET cannot be silently dropped, and it
+  // always re-runs the server component with the new searchParams.
   function updateParams(updates: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, value] of Object.entries(updates)) {
@@ -108,7 +119,7 @@ export function PeriodPicker({
         params.set(key, value);
       }
     }
-    router.replace(`?${params.toString()}`, { scroll: false });
+    window.location.assign(`?${params.toString()}`);
   }
 
   function handlePresetClick(preset: PeriodPreset) {
