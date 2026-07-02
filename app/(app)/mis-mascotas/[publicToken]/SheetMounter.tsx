@@ -7,7 +7,7 @@
  * Closing removes the `sheet` (and `text`) params from the URL via router.replace.
  *
  * Supported sheet IDs:
- *   vacuna | peso | sintoma | medicacion | nota
+ *   vacuna | peso | sintoma | medicacion | nota | anotar
  *   mostrar-tier2 | compartir-libreta | transferir-mascota
  *
  * NOTE: Full reminder pre-fill (initialVaccineName / sourceReminderId) is
@@ -18,6 +18,12 @@
  *
  * NOTE: SymptomForm accepts `freeText` and `onsetAt` prefill slots via searchParams.
  * These are forwarded from buildCaptureDeeplink when the symptom_observed intent fires.
+ *
+ * `anotar` (pet-document-redesign D1, ADR-5): hosts CaptureBox + the full
+ * discoverability list (CaptureOptionsList) — the same content the /anotar
+ * fallback page renders, now the PRIMARY in-profile entry point. Owner-only;
+ * org viewers never reach this branch (no trigger renders for them — see
+ * page.tsx action row + PetAnotarFooterCta).
  */
 
 import { TurnoAntirrabicaSheet } from "@/components/pet-profile/TurnoAntirrabicaSheet";
@@ -27,6 +33,8 @@ import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
+import { CaptureBox } from "./anotar/CaptureBox";
+import { CaptureOptionsList } from "./anotar/CaptureOptionsList";
 import { MedicationStartForm } from "./eventos/nuevo/medicacion-inicio/MedicationStartForm";
 import { NoteForm } from "./eventos/nuevo/nota/NoteForm";
 import { WeightForm } from "./eventos/nuevo/peso/WeightForm";
@@ -115,12 +123,40 @@ export function SheetMounter({
   // Symptom-specific prefill slots (symptom_observed registry entry).
   const freeText = searchParams.get("freeText") ?? undefined;
   const onsetAt = searchParams.get("onsetAt") ?? undefined;
+  // anotar-specific prefill: forwarded event kind (e.g. from EventCatcher's
+  // handoff, mirrors the `/anotar?kind=` fallback-page contract).
+  const kind = searchParams.get("kind") ?? undefined;
 
   const close = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("text");
     router.replace(buildCloseSheetUrl(pathname, params));
   }, [router, pathname, searchParams]);
+
+  if (sheet === "anotar") {
+    // REQ-4.4: org viewers never get an Anotar entry point. No trigger
+    // renders for them (action row / footer CTA), and this is the
+    // defense-in-depth backstop for a hand-typed URL.
+    if (accessPath !== "owner") return null;
+    return (
+      <Sheet id="anotar" title={`Anotar algo de ${petName}`} open onClose={close} size="lg">
+        <div className="space-y-7">
+          <CaptureBox
+            petPublicToken={petToken}
+            petName={petName}
+            initialText={text}
+            initialKind={kind}
+          />
+          <div className="flex items-center gap-3 text-xs text-[var(--color-ln-mute)]">
+            <div className="h-px flex-1 bg-[var(--color-ln-stripe)]" />
+            <span>o elegí directamente</span>
+            <div className="h-px flex-1 bg-[var(--color-ln-stripe)]" />
+          </div>
+          <CaptureOptionsList petPublicToken={petToken} />
+        </div>
+      </Sheet>
+    );
+  }
 
   if (sheet === "vacuna") {
     const action = createVaccinationAction.bind(null, petToken);

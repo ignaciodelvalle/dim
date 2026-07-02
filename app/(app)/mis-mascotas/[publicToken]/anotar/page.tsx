@@ -1,12 +1,17 @@
 // Captura rápida — Libreta Nacional redesign.
 // Presentation only; CaptureBox client component unchanged.
+//
+// pet-document-redesign ADR-5: `?sheet=anotar` (SheetMounter) is now the
+// PRIMARY in-profile entry point; this route survives as a thin fallback
+// host page — same render, reachable via deep links (buildCaptureDeeplink),
+// e2e, and the /eventos/nuevo redirect doctrine (AGENTS.md rule 5). The
+// options list below is shared with the sheet via CaptureOptionsList.
 
 import Link from "next/link";
 
-import { buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { CaptureBox } from "./CaptureBox";
-import { ALL_CAPTURE_OPTIONS } from "./handoff";
+import { CaptureOptionsList } from "./CaptureOptionsList";
 
 export default async function CapturePage({
   params,
@@ -21,23 +26,6 @@ export default async function CapturePage({
   const { pet } = session;
 
   const token = pet.publicToken;
-  const today = new Date().toISOString().slice(0, 10);
-
-  // Build all option hrefs once (server-side, no client JS needed for the list).
-  const optionsWithHref = ALL_CAPTURE_OPTIONS.map((opt) => {
-    let href: string;
-    if (opt.routeOverride) {
-      href = `/mis-mascotas/${token}${opt.routeOverride}`;
-    } else {
-      href =
-        buildCaptureDeeplink(opt.eventType, token, { occurredAt: today }) ??
-        `/mis-mascotas/${token}`;
-    }
-    return { ...opt, href };
-  });
-
-  // Group by category for section rendering.
-  const categories = Array.from(new Set(ALL_CAPTURE_OPTIONS.map((o) => o.category)));
 
   return (
     <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
@@ -64,37 +52,16 @@ export default async function CapturePage({
 
       {/* WP-7: Full discoverability list — all loggable events and owner flows,
           grouped by category, driven by ALL_CAPTURE_OPTIONS + registry so it
-          stays in sync automatically. */}
-      <div className="mt-[40px] space-y-[28px]">
+          stays in sync automatically. Shared with SheetMounter's ?sheet=anotar
+          via CaptureOptionsList (pet-document-redesign D1). */}
+      <div className="mt-10 space-y-7">
         <div className="flex items-center gap-3 text-xs text-[var(--color-ln-mute)]">
           <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
           <span>o elegí directamente</span>
           <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
         </div>
 
-        {categories.map((category) => {
-          const items = optionsWithHref.filter((o) => o.category === category);
-          return (
-            <section key={category}>
-              <h2 className="mb-[8px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
-                {category}
-              </h2>
-              <ul className="divide-y divide-[var(--color-ln-stripe)] rounded-[4px] border border-[var(--color-ln-line-strong)] overflow-hidden">
-                {items.map((opt) => (
-                  <li key={`${opt.eventType}-${opt.routeOverride ?? ""}`}>
-                    <Link
-                      href={opt.href}
-                      className="flex items-center justify-between px-[14px] py-[10px] text-[13px] text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
-                    >
-                      <span>{opt.label}</span>
-                      <span className="text-[var(--color-ln-mute)] text-[11px]">→</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          );
-        })}
+        <CaptureOptionsList petPublicToken={token} />
       </div>
     </div>
   );

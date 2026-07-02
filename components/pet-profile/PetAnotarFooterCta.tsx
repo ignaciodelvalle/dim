@@ -3,10 +3,14 @@
 // ADR-9). Mark-lost is now always visible in the Face 1 action row (T2), so
 // this slot is free for the primary capture verb.
 //
-// Visibility: owner + active pet only. Lost pets show LostCockpit (early
-// return, no faces render); deceased pets have no capture surface; org
-// viewers never get a capture CTA anywhere on the page (spec: no Anotar
-// control exists for org viewers).
+// pet-document-redesign D3/ADR-5: opens `?sheet=anotar` (SheetMounter) —
+// sheet, not page nav — same as the Face 1 action row's Anotar item.
+//
+// Visibility: owner + active pet only. Lost pets show the normal profile +
+// LostCaseBlock (no separate cockpit — pet-document-redesign REQ-5.1), and
+// Anotar stays hidden for them per the original visibility rule (unchanged);
+// deceased pets have no capture surface; org viewers never get a capture CTA
+// anywhere on the page (spec REQ-4.4: no Anotar entry point for org viewers).
 
 import Link from "next/link";
 
@@ -25,7 +29,7 @@ export function PetAnotarFooterCta({ petPublicToken, petStatus, isOwner }: Props
       data-section="anotar-footer-cta"
     >
       <Link
-        href={`/mis-mascotas/${petPublicToken}/anotar`}
+        href={`/mis-mascotas/${petPublicToken}?sheet=anotar`}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-ln-azul text-white font-semibold text-sm px-4 py-3 hover:bg-ln-azul-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul focus-visible:ring-offset-2 transition-colors"
       >
         Anotar
