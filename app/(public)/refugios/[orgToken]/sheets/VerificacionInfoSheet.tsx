@@ -2,7 +2,8 @@
 
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { usePathname, useSearchParams } from "next/navigation";
 
 // "Qué significa verificado" — educational text. No form. Handoff P2-9.
 
@@ -16,7 +17,6 @@ function formatVerifiedDate(d: Date): string {
 }
 
 export function VerificacionInfoSheet({ verifiedByName, verifiedAt }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const open = searchParams.get("sheet") === "verificacion-info";
@@ -26,7 +26,7 @@ export function VerificacionInfoSheet({ verifiedByName, verifiedAt }: Props) {
       id="verificacion-info"
       title="¿Qué significa que esté verificado?"
       open={open}
-      onClose={() => router.replace(buildCloseSheetUrl(pathname, searchParams))}
+      onClose={() => closeSheetNav(buildCloseSheetUrl(pathname, searchParams))}
       size="md"
     >
       <div className="space-y-4 text-sm text-[var(--color-ln-ink-2)] leading-relaxed">

@@ -4,7 +4,8 @@ import { useState } from "react";
 
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { usePathname, useSearchParams } from "next/navigation";
 
 // "Compartir refugio" — copy-link + native share (handoff P2-9).
 
@@ -14,7 +15,6 @@ interface Props {
 }
 
 export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [copied, setCopied] = useState(false);
@@ -51,7 +51,7 @@ export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
       id="compartir-org"
       title={`Compartir ${orgDisplayName}`}
       open={open}
-      onClose={() => router.replace(buildCloseSheetUrl(pathname, searchParams))}
+      onClose={() => closeSheetNav(buildCloseSheetUrl(pathname, searchParams))}
       size="sm"
     >
       <div className="space-y-4">

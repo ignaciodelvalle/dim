@@ -15,11 +15,12 @@ import { useActionState, useEffect } from "react";
 import { LnInput, LnTextarea } from "@/components/ui/Field";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
+import { closeSheetNav } from "@/lib/ui/sheet-nav";
 import {
   type SubmitOrgContactState,
   submitOrgContactAction,
 } from "@/src/modules/organizations/actions";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 interface Props {
   orgToken: string;
@@ -31,7 +32,6 @@ interface Props {
 const initialState: SubmitOrgContactState = { ok: false, error: null };
 
 export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -45,17 +45,17 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
   useEffect(() => {
     if (!state.ok || !open) return;
     const timer = setTimeout(() => {
-      router.replace(buildCloseSheetUrl(pathname, searchParams));
+      closeSheetNav(buildCloseSheetUrl(pathname, searchParams));
     }, 4000);
     return () => clearTimeout(timer);
-  }, [state.ok, open, pathname, searchParams, router]);
+  }, [state.ok, open, pathname, searchParams]);
 
   return (
     <Sheet
       id="contactar"
       title={`Contactar a ${orgDisplayName}`}
       open={open}
-      onClose={() => router.replace(buildCloseSheetUrl(pathname, searchParams))}
+      onClose={() => closeSheetNav(buildCloseSheetUrl(pathname, searchParams))}
       size="md"
     >
       <div className="space-y-5">

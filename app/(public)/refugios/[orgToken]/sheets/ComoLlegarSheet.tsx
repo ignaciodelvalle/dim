@@ -2,7 +2,8 @@
 
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { usePathname, useSearchParams } from "next/navigation";
 
 // "Cómo llegar" — three navigator deep-links (handoff P2-9).
 // Only renders when lat/lng are set; the LocationPanel only triggers
@@ -15,7 +16,6 @@ interface Props {
 }
 
 export function ComoLlegarSheet({ orgDisplayName, latitude, longitude }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const open = searchParams.get("sheet") === "como-llegar";
@@ -28,7 +28,7 @@ export function ComoLlegarSheet({ orgDisplayName, latitude, longitude }: Props) 
       id="como-llegar"
       title={`Cómo llegar a ${orgDisplayName}`}
       open={open}
-      onClose={() => router.replace(buildCloseSheetUrl(pathname, searchParams))}
+      onClose={() => closeSheetNav(buildCloseSheetUrl(pathname, searchParams))}
       size="sm"
     >
       <div className="space-y-4">

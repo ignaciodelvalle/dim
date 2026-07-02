@@ -2,7 +2,8 @@
 
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { usePathname, useSearchParams } from "next/navigation";
 
 // "Consulta sin turno" — for offerings flagged requiresAppointment=false.
 // Surfaces phone + hours + address so the visitor can drop by directly.
@@ -26,7 +27,6 @@ export function ConsultaSinTurnoSheet({
   orgPhone,
   jurisdictionLabel,
 }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const open = searchParams.get("sheet") === "consulta-sin-turno";
@@ -36,7 +36,7 @@ export function ConsultaSinTurnoSheet({
       id="consulta-sin-turno"
       title="Consulta sin turno"
       open={open}
-      onClose={() => router.replace(buildCloseSheetUrl(pathname, searchParams))}
+      onClose={() => closeSheetNav(buildCloseSheetUrl(pathname, searchParams))}
       size="sm"
     >
       <div className="space-y-4 text-sm text-[var(--color-ln-ink-2)]">

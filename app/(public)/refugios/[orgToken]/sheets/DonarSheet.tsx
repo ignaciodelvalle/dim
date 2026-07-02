@@ -5,7 +5,8 @@ import { useState } from "react";
 import { Sheet } from "@/components/ui/VaulSheet";
 import type { DonationMethods } from "@/lib/infra/org-public-profile";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { usePathname, useSearchParams } from "next/navigation";
 
 // "Doná" sheet — exposes whichever donation channels the org filled in
 // `organizations.donation_methods` (P1-1 JSONB). Render is purely
@@ -41,7 +42,6 @@ function buildRows(methods: DonationMethods): Row[] {
 }
 
 export function DonarSheet({ orgDisplayName, methods }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export function DonarSheet({ orgDisplayName, methods }: Props) {
       id="donar"
       title={`Doná a ${orgDisplayName}`}
       open={open}
-      onClose={() => router.replace(buildCloseSheetUrl(pathname, searchParams))}
+      onClose={() => closeSheetNav(buildCloseSheetUrl(pathname, searchParams))}
       size="md"
     >
       <div className="space-y-4">
