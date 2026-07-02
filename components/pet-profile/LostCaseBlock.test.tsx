@@ -1,0 +1,146 @@
+// Tests for <LostCaseBlock> — pet-document-redesign S2 (lost-as-case-block).
+//
+// Covers: open-episode guard (renders nothing without one), owner sees all
+// applicable capabilities (Marcar encontrada, actualizar last-seen, share/
+// poster, disclosure toggles), org gets the read-only variant (no toggles,
+// no Marcar encontrada, no /perdida update, no share/poster). Render via
+// react-dom/server → HTML string (same pattern as LostLastSeenCard.test.tsx
+// — "use client" components with no browser-only hooks render fine this way).
+
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+
+import { LostCaseBlock, type LostCaseBlockPet } from "./LostCaseBlock";
+import type { ScanFeedItem } from "./LostScanFeed";
+
+const pet: LostCaseBlockPet = {
+  id: "pet-1",
+  name: "Firulais",
+  publicToken: "abc123",
+  sex: "male",
+  discloseFirstNameWhenLost: true,
+  disclosePhoneWhenLost: false,
+  discloseEmailWhenLost: false,
+  discloseLastLocationWhenLost: true,
+  allowFinderFormWhenLost: true,
+};
+
+const episode = {
+  id: "ep-1",
+  publicCode: "LOS-00042",
+  openedAt: new Date("2026-06-20T10:00:00Z"),
+  jurisdictionLocality: "La Plata",
+  placeName: "Plaza Italia",
+  ownerNote: "Salió por la puerta del frente",
+  sightingsCount: 2,
+  lastSeenLat: null,
+  lastSeenLng: null,
+};
+
+const scans: ScanFeedItem[] = [
+  {
+    kind: "scan",
+    id: "s1",
+    at: new Date("2026-06-21T10:00:00Z"),
+    count: 1,
+    localityLabel: "La Plata",
+  },
+];
+
+function render(node: Parameters<typeof renderToStaticMarkup>[0]): string {
+  return renderToStaticMarkup(node);
+}
+
+describe("<LostCaseBlock> — open-episode guard", () => {
+  it("renders nothing when there is no open episode", () => {
+    const html = render(
+      <LostCaseBlock
+        pet={pet}
+        photoUrl={null}
+        episode={null}
+        scans={[]}
+        ownerFirstName="Ana"
+        isOwner={true}
+      />,
+    );
+    expect(html).toBe("");
+  });
+});
+
+describe("<LostCaseBlock> — owner variant (all capabilities)", () => {
+  const html = render(
+    <LostCaseBlock
+      pet={pet}
+      photoUrl={null}
+      episode={episode}
+      scans={scans}
+      ownerFirstName="Ana"
+      isOwner={true}
+    />,
+  );
+
+  it("renders the urgent header with publicCode and public credential link", () => {
+    expect(html).toContain("LOS-00042");
+    expect(html).toContain("Credencial pública");
+  });
+
+  it("renders Marcar encontrada (capability 2)", () => {
+    expect(html).toContain("Marcar encontrado");
+  });
+
+  it("renders the actualizar last-seen link (capability 3 / 7)", () => {
+    expect(html).toContain("actualizar");
+    expect(html).toContain("/mis-mascotas/abc123/perdida");
+  });
+
+  it("renders the scans/sightings feed (capability 4)", () => {
+    expect(html).toContain("Avistamientos y escaneos");
+  });
+
+  it("renders the disclosure toggles (capability 5)", () => {
+    expect(html).toContain("Datos visibles");
+    expect(html).toContain("Tu nombre");
+  });
+
+  it("renders share + poster (capability 6)", () => {
+    expect(html).toContain("Compartir credencial");
+    expect(html).toContain("/mis-mascotas/abc123/cartel");
+  });
+});
+
+describe("<LostCaseBlock> — org read-only variant (REQ-5.3)", () => {
+  const html = render(
+    <LostCaseBlock
+      pet={pet}
+      photoUrl={null}
+      episode={episode}
+      scans={scans}
+      ownerFirstName="Ana"
+      isOwner={false}
+    />,
+  );
+
+  it("still renders informational header + last-seen summary + scans feed", () => {
+    expect(html).toContain("LOS-00042");
+    expect(html).toContain("Plaza Italia");
+    expect(html).toContain("Avistamientos y escaneos");
+  });
+
+  it("does NOT render Marcar encontrada", () => {
+    expect(html).not.toContain("Marcar encontrado");
+  });
+
+  it("does NOT render the /perdida update link", () => {
+    expect(html).not.toContain("/perdida");
+    expect(html).not.toContain("actualizar");
+  });
+
+  it("does NOT render share/poster affordances", () => {
+    expect(html).not.toContain("Compartir credencial");
+    expect(html).not.toContain("/cartel");
+  });
+
+  it("does NOT render the disclosure toggles", () => {
+    expect(html).not.toContain("Datos visibles");
+  });
+});

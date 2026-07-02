@@ -28,7 +28,7 @@ export function MarkFoundButton({
     <form action={action} onSubmit={handleSubmit} className="flex-shrink-0">
       <button
         type="submit"
-        className="cursor-pointer rounded-[3px] border border-white bg-white px-[16px] py-[9px] font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-[var(--color-ln-seal)] transition-colors hover:bg-white/90"
+        className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-sm border border-white bg-white px-4 py-2 font-[var(--font-ln-sans)] text-[var(--text-sm)] font-semibold text-[var(--color-ln-seal)] transition-colors hover:bg-white/90"
       >
         ✓ {label}
       </button>

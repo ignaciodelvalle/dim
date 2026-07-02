@@ -54,3 +54,49 @@ describe("OpRailNav — 44px nav links (UX 2.1)", () => {
     expect(html).toContain("min-h-11");
   });
 });
+
+// ---------------------------------------------------------------------------
+// LostCaseBlock — Marcar encontrada button (pet-document-redesign S2, NFR-3)
+// ---------------------------------------------------------------------------
+
+import { LostCaseBlock, type LostCaseBlockPet } from "@/components/pet-profile/LostCaseBlock";
+
+const lostCaseBlockPet: LostCaseBlockPet = {
+  id: "pet-1",
+  name: "Firulais",
+  publicToken: "abc123",
+  sex: "male",
+  discloseFirstNameWhenLost: true,
+  disclosePhoneWhenLost: false,
+  discloseEmailWhenLost: false,
+  discloseLastLocationWhenLost: true,
+  allowFinderFormWhenLost: true,
+};
+
+const lostCaseBlockEpisode = {
+  id: "ep-1",
+  publicCode: "LOS-00042",
+  openedAt: new Date("2026-06-20T10:00:00Z"),
+  jurisdictionLocality: "La Plata",
+  placeName: "Plaza Italia",
+  ownerNote: null,
+  sightingsCount: 0,
+  lastSeenLat: null,
+  lastSeenLng: null,
+};
+
+describe("LostCaseBlock — Marcar encontrada button uses min-h-11 (44px, UX 2.1 / NFR-3)", () => {
+  it("owner variant's Marcar encontrada button carries min-h-11", () => {
+    const html = renderToStaticMarkup(
+      <LostCaseBlock
+        pet={lostCaseBlockPet}
+        photoUrl={null}
+        episode={lostCaseBlockEpisode}
+        scans={[]}
+        ownerFirstName="Ana"
+        isOwner={true}
+      />,
+    );
+    expect(html).toContain("min-h-11");
+  });
+});
