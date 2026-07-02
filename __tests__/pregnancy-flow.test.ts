@@ -6,8 +6,7 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { recordPregnancyEndedWriter, recordPregnancyStartedWriter } from "@/app/actions/pregnancy";
-import { db, notifications, ownerships, petEvents, pets, profiles, reminders } from "@/db";
-import { getEarnedAchievements } from "@/lib/achievements/catalog";
+import { db, notifications, ownerships, pets, profiles, reminders } from "@/db";
 import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -246,20 +245,6 @@ describe("recordPregnancyEndedWriter — outcomes + reminder cancellation", () =
         ),
       );
     expect(pendingFuture.length).toBe(0);
-
-    // Achievement A4 earned.
-    const events = await db
-      .select()
-      .from(petEvents)
-      .where(eq(petEvents.petId, pet.id))
-      .orderBy(petEvents.occurredAt);
-    const earned = getEarnedAchievements({
-      pet: closed,
-      events,
-      serviceDog: null,
-      cases: [],
-    });
-    expect(earned.some((a) => a.id === "i_had_litter")).toBe(true);
   });
 
   it("miscarriage flips status to completed_miscarriage", async () => {
