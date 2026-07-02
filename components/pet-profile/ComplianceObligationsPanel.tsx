@@ -13,10 +13,9 @@
 // bordered cards with a leading icon. No new color tokens (token ratchet).
 // ---------------------------------------------------------------------------
 
-import Link from "next/link";
-
 import { Icon } from "@/components/Icon";
 import { LnBadge, type LnBadgeProps } from "@/components/ui/Badge";
+import { LnLinkButton } from "@/components/ui/LinkButton";
 import { LnVstamp } from "@/components/ui/StatusFlag";
 import type {
   ComplianceState,
@@ -100,12 +99,12 @@ function ObligationCardView({
       </p>
 
       {showTurnoAction && (
-        <Link
+        <LnLinkButton
           href={`/mis-mascotas/${petPublicToken}?sheet=turno-antirrabica`}
-          className="mt-1 inline-flex min-h-11 w-fit items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-4 font-[var(--font-ln-sans)] text-sm font-semibold text-white no-underline transition-colors hover:bg-[var(--color-ln-azul-700)]"
+          className="mt-1 w-fit"
         >
           Programar turno
-        </Link>
+        </LnLinkButton>
       )}
 
       {isReserved && (

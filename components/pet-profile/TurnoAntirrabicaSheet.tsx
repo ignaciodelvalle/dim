@@ -12,7 +12,7 @@
 // select. Touch targets ≥44px via min-h-11 (Ley 26.653 / WCAG 2.1 AA).
 // ---------------------------------------------------------------------------
 
-import Link from "next/link";
+import { LnLinkButton } from "@/components/ui/LinkButton";
 
 export function TurnoAntirrabicaSheet({ petToken }: { petToken: string }) {
   return (
@@ -21,26 +21,21 @@ export function TurnoAntirrabicaSheet({ petToken }: { petToken: string }) {
         ¿Cómo querés ponerte al día con la vacuna antirrábica?
       </p>
 
-      <Link
+      <LnLinkButton
         href="/turnos/buscar?service_kind=vaccination_rabies"
-        className="inline-flex min-h-11 flex-col items-start justify-center gap-0.5 rounded-[var(--radius-card)] bg-[var(--color-ln-azul)] px-4 py-2 no-underline transition-colors hover:bg-[var(--color-ln-azul-700)]"
+        shape="block"
+        subtitle="Recomendado · agenda la aplicación"
       >
-        <span className="font-[var(--font-ln-sans)] text-sm font-semibold text-white">
-          Reservar turno con un veterinario
-        </span>
-        <span className="font-[var(--font-ln-sans)] text-xs text-[var(--color-ln-celeste-050)]">
-          Recomendado · agenda la aplicación
-        </span>
-      </Link>
+        Reservar turno con un veterinario
+      </LnLinkButton>
 
-      <Link
+      <LnLinkButton
         href={`/mis-mascotas/${petToken}/vacunas/programar`}
-        className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-card)] border border-[var(--color-ln-line-strong)] px-4 py-2 no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
+        shape="block"
+        fill="outline"
       >
-        <span className="font-[var(--font-ln-sans)] text-sm font-semibold text-[var(--color-ln-azul)]">
-          Solo recordármelo
-        </span>
-      </Link>
+        Solo recordármelo
+      </LnLinkButton>
 
       <p className="font-[var(--font-ln-sans)] text-xs text-[var(--color-ln-faint)]">
         Un recordatorio solo te avisa; no reemplaza la vacuna ni pone la obligación al día.

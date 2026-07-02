@@ -6,6 +6,7 @@
 // its one action per design: "Marcar dada" (medication), a reschedule link
 // (appointment), or "Programar turno" (a due/over rabies reminder).
 
+import { LnLinkButton } from "@/components/ui/LinkButton";
 import { markMedicationDoseTakenAction } from "@/src/modules/events/actions";
 import Link from "next/link";
 import type { FutureLedgerItem } from "./libreta-future.helpers";
@@ -63,13 +64,13 @@ function FutureLedgerRowAction({
   }
 
   return (
-    <Link
+    <LnLinkButton
       href={`/mis-mascotas/${petPublicToken}?sheet=turno-antirrabica`}
       prefetch={false}
-      className="shrink-0 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-4 font-[var(--font-ln-sans)] text-sm font-semibold text-white no-underline transition-colors hover:bg-[var(--color-ln-azul-700)]"
+      className="shrink-0"
     >
       Programar turno
-    </Link>
+    </LnLinkButton>
   );
 }
 
