@@ -76,10 +76,20 @@ export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
     return (
       <div data-section="flip-card" data-reduced-motion="true" className="relative">
         <FlipAffordance isLibreta={isLibreta} onFlip={onFlip} />
-        <div ref={frontRef} data-section="flip-front" aria-hidden={isLibreta} className={isLibreta ? "hidden" : "block"}>
+        <div
+          ref={frontRef}
+          data-section="flip-front"
+          aria-hidden={isLibreta}
+          className={isLibreta ? "hidden" : "block"}
+        >
           {front}
         </div>
-        <div ref={backRef} data-section="flip-back" aria-hidden={!isLibreta} className={isLibreta ? "block" : "hidden"}>
+        <div
+          ref={backRef}
+          data-section="flip-back"
+          aria-hidden={!isLibreta}
+          className={isLibreta ? "block" : "hidden"}
+        >
           {back}
         </div>
       </div>
@@ -87,11 +97,7 @@ export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
   }
 
   return (
-    <div
-      data-section="flip-card"
-      className="relative"
-      style={{ perspective: "2000px" }}
-    >
+    <div data-section="flip-card" className="relative" style={{ perspective: "2000px" }}>
       <FlipAffordance isLibreta={isLibreta} onFlip={onFlip} />
       <div
         className="relative w-full transition-transform duration-500 ease-in-out [transform-style:preserve-3d]"

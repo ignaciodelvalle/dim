@@ -60,7 +60,12 @@ describe("<FlipCard> — both faces always mounted", () => {
 
   it("marks the non-active face aria-hidden (credencial active → back hidden)", () => {
     const html = renderToStaticMarkup(
-      <FlipCard front={<div>F</div>} back={<div>B</div>} activeFace="credencial" onFlip={() => {}} />,
+      <FlipCard
+        front={<div>F</div>}
+        back={<div>B</div>}
+        activeFace="credencial"
+        onFlip={() => {}}
+      />,
     );
     expect(html).toContain('data-section="flip-front" aria-hidden="false"');
     expect(html).toContain('data-section="flip-back" aria-hidden="true"');
@@ -76,7 +81,12 @@ describe("<FlipCard> — both faces always mounted", () => {
 
   it("renders the Girar affordance with an aria-label describing the target face", () => {
     const html = renderToStaticMarkup(
-      <FlipCard front={<div>F</div>} back={<div>B</div>} activeFace="credencial" onFlip={() => {}} />,
+      <FlipCard
+        front={<div>F</div>}
+        back={<div>B</div>}
+        activeFace="credencial"
+        onFlip={() => {}}
+      />,
     );
     expect(html).toContain('aria-label="Girar a Libreta"');
   });
@@ -86,7 +96,12 @@ describe("<FlipCard> — prefers-reduced-motion instant swap", () => {
   it("has no transition/transform class and no rotateY when reduced motion is active", () => {
     stubMatchMedia(true);
     const html = renderToStaticMarkup(
-      <FlipCard front={<div>F</div>} back={<div>B</div>} activeFace="credencial" onFlip={() => {}} />,
+      <FlipCard
+        front={<div>F</div>}
+        back={<div>B</div>}
+        activeFace="credencial"
+        onFlip={() => {}}
+      />,
     );
     expect(html).toContain('data-reduced-motion="true"');
     expect(html).not.toContain("transition-transform");
