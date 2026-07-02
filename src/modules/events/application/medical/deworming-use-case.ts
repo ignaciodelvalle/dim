@@ -8,7 +8,14 @@
 //   - Deworming reminder created when nextDueAt provided.
 //   - Attachment inserted when uploadedPath provided.
 //   - No outbox. No audit_log.
+//
+// wave-3 A1 (adjacent debt from the same fix createVaccination already has,
+// see vaccination-use-case.ts): supersede any other open deworming reminder
+// that resolves to the same product, case/accent-insensitively, before
+// inserting the new one — otherwise every deworming event with a nextDueAt
+// piles up a duplicate open reminder instead of replacing the old one.
 
+import { normalize } from "@/lib/domain/vaccine-reminder-state";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
@@ -38,7 +45,14 @@ export type CreateDewormingInput = {
 };
 
 type Deps = {
-  repo: Pick<EventsRepository, "insertEventIdempotent" | "insertAttachment" | "insertReminders">;
+  repo: Pick<
+    EventsRepository,
+    | "insertEventIdempotent"
+    | "insertAttachment"
+    | "insertReminders"
+    | "findOpenReminders"
+    | "completeReminder"
+  >;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
 };
 
@@ -107,6 +121,30 @@ export async function createDeworming(
     }
 
     if (nextDueAt) {
+      const reminderTitle = `Refuerzo antiparasitario: ${product}`;
+
+      // Supersede any other open deworming reminder that resolves to the
+      // same product, case/accent-insensitively (title is free text, so
+      // "Refuerzo antiparasitario: praziquantel" vs "...Praziquantel" must
+      // NOT coexist) — same pattern as createVaccination.
+      const openDewormingReminders = await repo.findOpenReminders(
+        pet.id,
+        "deworming",
+        tx as Parameters<typeof repo.findOpenReminders>[2],
+      );
+      const normalizedNewTitle = normalize(reminderTitle);
+      const duplicates = openDewormingReminders.filter(
+        (r) => normalize(r.title) === normalizedNewTitle,
+      );
+      for (const duplicate of duplicates) {
+        await repo.completeReminder(
+          duplicate.id,
+          pet.id,
+          now,
+          tx as Parameters<typeof repo.completeReminder>[3],
+        );
+      }
+
       await repo.insertReminders(
         [
           {
@@ -114,7 +152,7 @@ export async function createDeworming(
             userId: user.id,
             reminderType: "deworming",
             dueAt: nextDueAt,
-            title: `Refuerzo antiparasitario: ${product}`,
+            title: reminderTitle,
             description: `Próxima dosis programada para ${pet.name}.`,
             sourceEventId: event.id,
           },

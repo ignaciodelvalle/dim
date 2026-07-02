@@ -25,6 +25,8 @@ function makeRepo(overrides: FakeRepo = {}): EventsRepository {
     }),
     insertAttachment: vi.fn().mockResolvedValue(undefined),
     insertReminders: vi.fn().mockResolvedValue(undefined),
+    completeReminder: vi.fn().mockResolvedValue(undefined),
+    findOpenReminders: vi.fn().mockResolvedValue([]),
     ...overrides,
   } as unknown as EventsRepository;
 }
@@ -91,6 +93,80 @@ describe("createDeworming", () => {
     const { repo, transaction } = makeDeps();
     await createDeworming(BASE_INPUT, { repo, transaction });
     expect(repo.insertReminders).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Duplicate reminder supersede (wave-3 A1 — same pattern as createVaccination)
+// ---------------------------------------------------------------------------
+
+describe("createDeworming duplicate reminder supersede", () => {
+  it("completes an existing open deworming reminder with a different-case title", async () => {
+    const { repo, transaction } = makeDeps({
+      findOpenReminders: vi
+        .fn()
+        .mockResolvedValue([{ id: "reminder-old", title: "Refuerzo antiparasitario: Frontline" }]),
+    });
+    const input: CreateDewormingInput = {
+      ...BASE_INPUT,
+      product: "frontline",
+      nextDueAt: new Date("2025-06-01T10:00:00Z"),
+    };
+    await createDeworming(input, { repo, transaction });
+    expect(repo.completeReminder).toHaveBeenCalledWith(
+      "reminder-old",
+      "pet-1",
+      expect.any(Date),
+      "fake-tx",
+    );
+    expect(repo.insertReminders).toHaveBeenCalledTimes(1);
+  });
+
+  it("completes an existing open deworming reminder with a diacritic-only difference", async () => {
+    const { repo, transaction } = makeDeps({
+      findOpenReminders: vi
+        .fn()
+        .mockResolvedValue([
+          { id: "reminder-old", title: "refuerzo antiparasitario: praziquantel" },
+        ]),
+    });
+    const input: CreateDewormingInput = {
+      ...BASE_INPUT,
+      product: "Praziquantel",
+      nextDueAt: new Date("2025-06-01T10:00:00Z"),
+    };
+    await createDeworming(input, { repo, transaction });
+    expect(repo.completeReminder).toHaveBeenCalledWith(
+      "reminder-old",
+      "pet-1",
+      expect.any(Date),
+      "fake-tx",
+    );
+  });
+
+  it("does NOT touch an open reminder for a different product", async () => {
+    const { repo, transaction } = makeDeps({
+      findOpenReminders: vi
+        .fn()
+        .mockResolvedValue([
+          { id: "reminder-other", title: "Refuerzo antiparasitario: Ivermectina" },
+        ]),
+    });
+    const input: CreateDewormingInput = {
+      ...BASE_INPUT,
+      product: "Frontline",
+      nextDueAt: new Date("2025-06-01T10:00:00Z"),
+    };
+    await createDeworming(input, { repo, transaction });
+    expect(repo.completeReminder).not.toHaveBeenCalled();
+    expect(repo.insertReminders).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT call findOpenReminders/completeReminder when nextDueAt is null", async () => {
+    const { repo, transaction } = makeDeps();
+    await createDeworming(BASE_INPUT, { repo, transaction });
+    expect(repo.findOpenReminders).not.toHaveBeenCalled();
+    expect(repo.completeReminder).not.toHaveBeenCalled();
   });
 });
 
