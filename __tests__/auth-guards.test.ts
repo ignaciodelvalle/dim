@@ -50,7 +50,7 @@ const mockGetProfileCached = vi.fn();
 const mockGetJurisdictionsCached = vi.fn();
 const mockGetOrgMembershipCached = vi.fn();
 
-vi.mock("@/lib/request-cache", () => ({
+vi.mock("@/lib/infra/request-cache", () => ({
   getProfileCached: (...args: unknown[]) => mockGetProfileCached(...args),
   getJurisdictionsCached: (...args: unknown[]) => mockGetJurisdictionsCached(...args),
   getOrgMembershipCached: (...args: unknown[]) => mockGetOrgMembershipCached(...args),

@@ -6,11 +6,11 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/govt-dashboards", () => ({
+vi.mock("@/lib/analytics/govt-dashboards", () => ({
   fetchAnalyticsMetrics: vi.fn(),
   fetchPerdidasMetrics: vi.fn(),
 }));
-vi.mock("@/lib/govt-home-kpis", () => ({
+vi.mock("@/lib/analytics/govt-home-kpis", () => ({
   fetchRabiesCoverage: vi.fn(),
   fetchBitesPer10k: vi.fn(),
   fetchActiveZoonosis: vi.fn(),

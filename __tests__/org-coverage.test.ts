@@ -48,7 +48,7 @@ const MOCK_ORG_ID = "00000000-cafe-dead-beef-000000000001";
 const MOCK_ORG_TOKEN = "mock-org-token-for-role-tests";
 const MOCK_USER_ID = "00000000-cafe-dead-beef-000000000002";
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireOrgAccessByToken: vi.fn(async () => ({
     user: { id: MOCK_USER_ID },
     organization: { id: MOCK_ORG_ID },

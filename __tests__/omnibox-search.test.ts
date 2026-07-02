@@ -23,7 +23,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireAdminOrGovtOrRedirect: vi.fn(),
   requireOrgAccessByToken: vi.fn(),
 }));

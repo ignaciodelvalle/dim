@@ -20,7 +20,7 @@ import { withMutationOverride } from "./_helpers/db-overrides";
 
 // Hoist vi.mock calls so they apply before any imports are resolved.
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireAdminOrGovtOrRedirect: vi.fn(),
   requireUserOrRedirect: vi.fn(),
 }));
