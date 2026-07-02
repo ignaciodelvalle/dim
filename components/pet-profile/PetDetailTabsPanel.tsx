@@ -6,8 +6,10 @@
 // - Reads the active face from ?tab= (default: credencial).
 // - Syncs hash fragments: legacy anchors (#libreta, #vacunas, #historial,
 //   #resumen) still activate the right face on mount.
-// - Deferred loading: the Libreta face's data is fetched once via a server
-//   action on first activation and memoised.
+// - FlipCard (ADR-11) mounts BOTH faces always: the Libreta face's data is
+//   fetched once via a server action on MOUNT (not gated behind first
+//   activation) so the back face has real content to flip into from the
+//   start; a loading skeleton scoped to the back face covers the gap.
 // - Credencial content is pre-rendered server-side and passed as a node
 //   (eager, zero client cost) — Face 1 stays the only SSR-eager content.
 // - Print: libreta-print.css is imported here so it's only applied when this
@@ -18,6 +20,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-data";
+import { FlipCard } from "@/components/pet-profile/FlipCard";
 import { LibretaFace } from "@/components/pet-profile/LibretaFace";
 import { type PetLens, resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { PetDetailTabs, type TabKey } from "./PetDetailTabs";
@@ -103,7 +106,6 @@ export function PetDetailTabsPanel({
 
   const [libretaData, setLibretaData] = useState<LibretaFaceData | null>(null);
   const [libretaError, setLibretaError] = useState<string | null>(null);
-  const [loadingLibreta, setLoadingLibreta] = useState(false);
   const fetchedRef = useRef(false);
 
   // Sync face from searchParam changes (back/forward nav). Must reuse the
@@ -123,9 +125,7 @@ export function PetDetailTabsPanel({
   const fetchLibreta = useCallback(async () => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
-    setLoadingLibreta(true);
     const result = await getLibretaFaceData(petPublicToken);
-    setLoadingLibreta(false);
     if (result.ok) {
       setLibretaData(result.data);
     } else {
@@ -133,15 +133,17 @@ export function PetDetailTabsPanel({
     }
   }, [petPublicToken]);
 
-  // Trigger fetch when the Libreta face activates (skip credencial — eager).
+  // pet-document-redesign ADR-11: FlipCard mounts BOTH faces always, so the
+  // back face needs real content (or at least a scoped skeleton) from the
+  // very first render — the fetch fires unconditionally on mount instead of
+  // being gated behind first Libreta activation. This trades one extra
+  // round-trip on every page load for eliminating the height-jump the old
+  // "fetch on first activation" gate caused on the first flip. The skeleton
+  // this produces is scoped to the back face only (see `backContent` below)
+  // — the eager, SSR'd front face is never affected.
   useEffect(() => {
-    if (activeFace === "libreta") fetchLibreta();
-  }, [activeFace, fetchLibreta]);
-
-  // Also fetch on first mount if Libreta is already the initial face.
-  useEffect(() => {
-    if (initialFace === "libreta") fetchLibreta();
-  }, [initialFace, fetchLibreta]);
+    fetchLibreta();
+  }, [fetchLibreta]);
 
   // On mount: check for a legacy hash fragment and activate that face.
   const hashHandledRef = useRef(false);
@@ -168,10 +170,9 @@ export function PetDetailTabsPanel({
     }
   }, [router, searchParams, initialFace, isOwner]);
 
-  function renderPanel() {
-    if (activeFace === "credencial") return credencialContent;
-
-    if (loadingLibreta) return <TabLoadingSkeleton />;
+  // Back face content — skeleton/error scoped here only (never the front,
+  // which is the eager SSR credencialContent).
+  function renderBackContent() {
     if (libretaError) return <TabErrorState message={libretaError} />;
     if (!libretaData) return <TabLoadingSkeleton />;
     return (
@@ -184,13 +185,35 @@ export function PetDetailTabsPanel({
     );
   }
 
+  // "Girar" affordance (ADR-11): mirrors PetDetailTabs.switchTab's exact URL
+  // write so the flip button and the tab nav always drive the same ?tab=
+  // state — PetDetailTabs.tsx itself stays untouched (task 1.6).
+  function switchFace() {
+    const target: TabKey = activeFace === "credencial" ? "libreta" : "credencial";
+    const params = new URLSearchParams(searchParams.toString());
+    if (target === "credencial") {
+      params.delete("tab");
+      params.delete("lente");
+    } else {
+      params.set("tab", "libreta");
+      params.set("lente", isOwner ? "todo" : "vacunas");
+    }
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+  }
+
   return (
     <div>
       <div className="print:hidden">
         <PetDetailTabs petPublicToken={petPublicToken} activeTab={activeFace} isOwner={isOwner} />
       </div>
       <div id="tab-panel" role="tabpanel">
-        {renderPanel()}
+        <FlipCard
+          front={credencialContent}
+          back={renderBackContent()}
+          activeFace={activeFace}
+          onFlip={switchFace}
+        />
       </div>
     </div>
   );

@@ -178,6 +178,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   check: Check,
   ellipsis: MoreHorizontal,
   tag: Tag,
+  girar: RefreshCw,
 };
 
 /** All registered icon names — consumed by the IconSearch browser in /design. */
