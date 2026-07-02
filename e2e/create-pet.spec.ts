@@ -43,7 +43,9 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
 
   // -- Navigate to new-pet form -----------------------------------------
   await page.goto("/mis-mascotas/nueva");
-  await expect(page.getByRole("heading", { name: /nueva mascota/i })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /registrar (tu primera )?mascota/i }),
+  ).toBeVisible();
 
   // -- Name -------------------------------------------------------------
   await page.getByLabel(/nombre/i).fill(PET_NAME);
