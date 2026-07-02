@@ -80,6 +80,7 @@ import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credential-channels";
 import { getPhysicalTagInterest } from "@/lib/infra/physical-tag-interest";
 import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/infra/service-dog-labels";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/infra/storage";
@@ -235,6 +236,13 @@ export default async function PetDetailPage({
   // action-bar icon + ?sheet=chapita (pet-document-redesign ADR-17b). Never
   // fetched for a deceased pet (REQ-9.3 suppresses the entry point).
   let chapitaData: { interested: boolean; requestedAt: Date | null } | null = null;
+  // Physical credential channel availability for the pet's jurisdiction
+  // (admin-rules-console ADR-5/R3.5) — which channels (printable QR, engraved
+  // plate, NFC) are configured for this jurisdiction, resolved via the same
+  // cascade tiers as other rule types. Rendered inside the chapita sheet.
+  let physicalCredentialChannels: Awaited<
+    ReturnType<typeof resolvePhysicalCredentialChannels>
+  > | null = null;
 
   if (accessPath === "owner") {
     // "Confirmar devolución": only the legal owner, only when a pending return
@@ -263,15 +271,25 @@ export default async function PetDetailPage({
       ? Promise.resolve(null)
       : getPhysicalTagInterest(pet.id, user.id);
 
-    const [returnProposalResult, [profileRow], chapitaState] = await Promise.all([
+    const physicalCredentialChannelsQuery = isDeceased
+      ? Promise.resolve(null)
+      : resolvePhysicalCredentialChannels({
+          country: "AR",
+          province: pet.jurisdictionProvince ?? null,
+          locality: pet.jurisdictionLocality ?? null,
+        });
+
+    const [returnProposalResult, [profileRow], chapitaState, channels] = await Promise.all([
       returnProposalQuery,
       contactsQuery,
       chapitaQuery,
+      physicalCredentialChannelsQuery,
     ]);
 
     hasPendingReturnProposal = returnProposalResult;
     viewerContacts = profileRow ?? null;
     chapitaData = chapitaState;
+    physicalCredentialChannels = channels;
   }
 
   // Lost-episode + scans fetch — relocated out of the old early-return into
@@ -678,6 +696,7 @@ export default async function PetDetailPage({
         }
         editPetData={{ existingPet: pet, existingPhotoUrl: editPhotoUrl }}
         chapitaData={chapitaData}
+        physicalCredentialChannels={physicalCredentialChannels}
         emergencyContacts={
           isOwner
             ? {

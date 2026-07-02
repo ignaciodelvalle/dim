@@ -12,6 +12,7 @@ import type { ComponentType } from "react";
 
 import type { GovtBusinessRuleType } from "@/db";
 
+import { PhysicalCredentialChannelsForm } from "./PhysicalCredentialChannelsForm";
 import { PppAttestationRegistriesForm } from "./PppAttestationRegistriesForm";
 import { PppBreedListForm } from "./PppBreedListForm";
 import { PppWeightThresholdForm } from "./PppWeightThresholdForm";
@@ -38,6 +39,7 @@ export const RULE_FORM_REGISTRY: Partial<
   ppp_breed_list: PppBreedListForm as ComponentType<RuleFormProps>,
   ppp_weight_threshold: PppWeightThresholdForm as ComponentType<RuleFormProps>,
   ppp_attestation_required_registries: PppAttestationRegistriesForm as ComponentType<RuleFormProps>,
+  physical_credential_channels: PhysicalCredentialChannelsForm as ComponentType<RuleFormProps>,
 };
 
 /**
@@ -70,6 +72,13 @@ export function buildCreateFormExtraProps(
         initialRegistries: Array.isArray(payload.registries) ? payload.registries : [],
         initialNotes: "",
       };
+    case "physical_credential_channels":
+      return {
+        initialPrintableQr: Boolean(payload.printable_qr),
+        initialEngravedPlate: payload.engraved_plate ?? { enabled: false },
+        initialNfcTag: payload.nfc_tag ?? { enabled: false },
+        initialNotes: "",
+      };
     default:
       return { initialNotes: "" };
   }
@@ -93,6 +102,12 @@ export function buildEditFormExtraProps(
         initialRegistries: Array.isArray(payload.registries)
           ? (payload.registries as { id: string; label: string; required: boolean }[])
           : [],
+      };
+    case "physical_credential_channels":
+      return {
+        initialPrintableQr: Boolean(payload.printable_qr),
+        initialEngravedPlate: payload.engraved_plate ?? { enabled: false },
+        initialNfcTag: payload.nfc_tag ?? { enabled: false },
       };
     default:
       return {};

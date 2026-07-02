@@ -13,12 +13,20 @@
 import { useState, useTransition } from "react";
 
 import { togglePhysicalTagInterestAction } from "@/app/actions/physical-tag-interest";
+import type { PhysicalCredentialChannels } from "@/lib/domain/business-rules-defaults";
 
 type Props = {
   petPublicToken: string;
   petName: string;
   initialInterested: boolean;
   initialRequestedAt: Date | null;
+  /**
+   * Physical credential channels available in the pet's jurisdiction
+   * (admin-rules-console ADR-5/R3.5), resolved server-side. Null when the
+   * caller couldn't resolve it (deceased pet, org viewer — never reaches
+   * this component in that case).
+   */
+  channels: PhysicalCredentialChannels | null;
 };
 
 const DATE_FMT = new Intl.DateTimeFormat("es-AR", {
@@ -32,6 +40,7 @@ export function PhysicalTagInterestSheet({
   petName,
   initialInterested,
   initialRequestedAt,
+  channels,
 }: Props) {
   const [interested, setInterested] = useState(initialInterested);
   const [requestedAt, setRequestedAt] = useState<Date | null>(initialRequestedAt);
@@ -105,6 +114,63 @@ export function PhysicalTagInterestSheet({
           {error}
         </p>
       )}
+
+      {channels &&
+        (channels.printable_qr || channels.engraved_plate.enabled || channels.nfc_tag.enabled) && (
+          <div className="space-y-2 border-t border-[var(--color-ln-line)] pt-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-ln-mute)]">
+              Canales disponibles en tu zona
+            </p>
+            {channels.printable_qr && (
+              <p className="text-sm text-[var(--color-ln-ink-2)]">
+                QR imprimible en casa — descargá el código de {petName} y pegalo en cualquier
+                chapita física propia.
+              </p>
+            )}
+            {channels.engraved_plate.enabled && (
+              <p className="text-sm text-[var(--color-ln-ink-2)]">
+                Placa grabada disponible
+                {channels.engraved_plate.providerName
+                  ? ` con ${channels.engraved_plate.providerName}`
+                  : ""}
+                {channels.engraved_plate.providerUrl && (
+                  <>
+                    {" — "}
+                    <a
+                      href={channels.engraved_plate.providerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--color-ln-azul)] underline underline-offset-2"
+                    >
+                      ver proveedor
+                    </a>
+                  </>
+                )}
+                .
+              </p>
+            )}
+            {channels.nfc_tag.enabled && (
+              <p className="text-sm text-[var(--color-ln-ink-2)]">
+                Chapita NFC disponible
+                {channels.nfc_tag.providerName ? ` con ${channels.nfc_tag.providerName}` : ""}
+                {channels.nfc_tag.providerUrl && (
+                  <>
+                    {" — "}
+                    <a
+                      href={channels.nfc_tag.providerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--color-ln-azul)] underline underline-offset-2"
+                    >
+                      ver proveedor
+                    </a>
+                  </>
+                )}
+                .
+              </p>
+            )}
+          </div>
+        )}
     </div>
   );
 }

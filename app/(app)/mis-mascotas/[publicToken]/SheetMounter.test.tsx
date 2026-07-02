@@ -44,6 +44,7 @@ const baseProps = {
   ownershipRole: "owner" as const,
   hasPendingReturnProposal: false,
   chapitaData: { interested: false, requestedAt: null },
+  physicalCredentialChannels: null,
   emergencyContacts: {
     preferredVetName: "",
     preferredVetPhone: "",

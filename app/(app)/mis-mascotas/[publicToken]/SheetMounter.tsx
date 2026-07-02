@@ -56,6 +56,7 @@ import { createLibretaShareAction } from "@/app/actions/libreta-share";
 import { enableTier2PublicAction, revokeTier2PublicAction } from "@/app/actions/tier2-public";
 import { PetForm } from "@/components/PetForm";
 import type { Pet } from "@/db";
+import type { PhysicalCredentialChannels } from "@/lib/domain/business-rules-defaults";
 import {
   createMedicationStartAction,
   createNoteAction,
@@ -116,6 +117,12 @@ type Props = {
    */
   chapitaData: { interested: boolean; requestedAt: Date | null } | null;
   /**
+   * Physical credential channel availability for the pet's jurisdiction
+   * (admin-rules-console ADR-5/R3.5) — resolved via
+   * resolvePhysicalCredentialChannels. Same null-gating as chapitaData.
+   */
+  physicalCredentialChannels: PhysicalCredentialChannels | null;
+  /**
    * Current vet/emergency contact values for the `?sheet=emergencia` sheet
    * (pet-document-redesign ADR-13). Owner-only — null for org viewers, same
    * gating page.tsx already applies to `viewerContacts`.
@@ -136,6 +143,7 @@ export function SheetMounter({
   ownershipRole,
   hasPendingReturnProposal,
   chapitaData,
+  physicalCredentialChannels,
   emergencyContacts,
 }: Props) {
   const pathname = usePathname();
@@ -307,6 +315,7 @@ export function SheetMounter({
           petName={petName}
           initialInterested={chapitaData.interested}
           initialRequestedAt={chapitaData.requestedAt}
+          channels={physicalCredentialChannels}
         />
       </Sheet>
     );
