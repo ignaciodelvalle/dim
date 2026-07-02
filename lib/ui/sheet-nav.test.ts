@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetSheetNavStateForTests,
   closeSheetNav,
+  closeSheetNavWithFullReload,
   isSameRouteUrl,
   pushSheetUrl,
 } from "./sheet-nav";
@@ -74,6 +75,30 @@ describe("pushSheetUrl / closeSheetNav — history-API state machine", () => {
     vi.stubGlobal("window", undefined);
     expect(() => pushSheetUrl("/x?sheet=y")).not.toThrow();
     expect(() => closeSheetNav("/x")).not.toThrow();
+  });
+});
+
+describe("closeSheetNavWithFullReload — post-mutation stale-server-data close", () => {
+  const assign = vi.fn();
+
+  beforeEach(() => {
+    assign.mockClear();
+    vi.stubGlobal("window", { location: { assign } });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("navigates via window.location.assign (never history-API shallow close)", () => {
+    closeSheetNavWithFullReload("/mis-mascotas/abc");
+    expect(assign).toHaveBeenCalledWith("/mis-mascotas/abc");
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a no-op when window is undefined (SSR safety)", () => {
+    vi.stubGlobal("window", undefined);
+    expect(() => closeSheetNavWithFullReload("/x")).not.toThrow();
   });
 });
 

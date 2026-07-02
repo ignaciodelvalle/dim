@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import {
   type CreateShareResult,
@@ -33,6 +33,16 @@ export function SharesManager({ petPublicToken, shares }: Props) {
   const [label, setLabel] = useState("");
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  // Mirrors the `shares` prop but can also be trimmed locally on a
+  // successful revoke — revalidatePath() (server action) only refreshes
+  // RSC trees, it doesn't touch this already-mounted client component's
+  // state, so without this the revoked row + its "Revocar" button stayed
+  // live until a hard reload.
+  const [localShares, setLocalShares] = useState(shares);
+
+  useEffect(() => {
+    setLocalShares(shares);
+  }, [shares]);
 
   const [createState, createAction, createPending] = useActionState(
     async (_prev: CreateShareResult | null, formData: FormData) => {
@@ -55,6 +65,12 @@ export function SharesManager({ petPublicToken, shares }: Props) {
     },
     initialRevokeState,
   );
+
+  useEffect(() => {
+    if (revokeState && "ok" in revokeState) {
+      setLocalShares((prev) => prev.filter((s) => s.id !== revokeState.shareTokenRowId));
+    }
+  }, [revokeState]);
 
   function buildShareUrl(token: string): string {
     return `${window.location.origin}/libreta/compartir/${token}`;
@@ -190,9 +206,9 @@ export function SharesManager({ petPublicToken, shares }: Props) {
       )}
 
       {/* Active shares list */}
-      {shares.length > 0 ? (
+      {localShares.length > 0 ? (
         <ul className="space-y-2">
-          {shares.map((share) => (
+          {localShares.map((share) => (
             <li
               key={share.id}
               className="flex items-start justify-between gap-3 rounded-[4px] border border-[var(--color-ln-line)] px-3 py-2.5"

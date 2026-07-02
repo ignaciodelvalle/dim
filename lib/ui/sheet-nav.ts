@@ -68,6 +68,33 @@ export function closeSheetNav(closeUrl: string): void {
 }
 
 /**
+ * Closes the currently open sheet via a FULL document navigation instead of
+ * closeSheetNav()'s history-API shallow close.
+ *
+ * Use this (not closeSheetNav) when the sheet's action just mutated
+ * server-rendered content elsewhere on the page that a shallow close does
+ * NOT re-fetch — e.g. EmergencyContactSheet saving `profiles.emergency_*`,
+ * which CredentialFace's EmergencyCard (a Server Component) renders as part
+ * of page.tsx's initial SSR output. The server action already calls
+ * revalidatePath(), but that only marks the RSC cache stale — nothing in
+ * this shallow-routing architecture ever issues the follow-up RSC fetch
+ * that would pick it up, so the card kept showing the old phone until a
+ * hard reload.
+ *
+ * `router.refresh()` is NOT a safe substitute: it goes through the SAME
+ * client-router transition machinery as router.push/replace, so it's
+ * exposed to the identical silent-drop defect this whole module exists to
+ * route around (engram #621/#622, reproduced 3/3 in production for the
+ * Anotar icon before this file existed). A full document navigation is the
+ * one mechanism proven immune — same reasoning JurisdictionSwitcher.tsx and
+ * PeriodPicker.tsx use for their own post-mutation `window.location.assign`.
+ */
+export function closeSheetNavWithFullReload(closeUrl: string): void {
+  if (typeof window === "undefined") return;
+  window.location.assign(closeUrl);
+}
+
+/**
  * Switches the pet profile's active face/tab (`?tab=`/`?lente=`) by pushing
  * `url` onto the history stack — same primitive as pushSheetUrl, same
  * router-hot-path rationale (module docblock), and the same reason it must

@@ -222,7 +222,7 @@ describe("revokeLibretaShareForUser", () => {
       .limit(1);
 
     const result = await revokeLibretaShareForUser(userId, row.id);
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, shareTokenRowId: row.id });
 
     const [updated] = await db
       .select()
@@ -311,7 +311,7 @@ describe("revokeLibretaShareForUser", () => {
 
     try {
       const result = await revokeLibretaShareForUser(userId2, row.id);
-      expect(result).toEqual({ ok: true });
+      expect(result).toEqual({ ok: true, shareTokenRowId: row.id });
 
       const [updated] = await db
         .select({

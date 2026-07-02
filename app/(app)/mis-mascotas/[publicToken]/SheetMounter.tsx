@@ -39,7 +39,7 @@ import { TurnoAntirrabicaSheet } from "@/components/pet-profile/TurnoAntirrabica
 import { LnButton } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
-import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { closeSheetNav, closeSheetNavWithFullReload } from "@/lib/ui/sheet-nav";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
@@ -157,6 +157,20 @@ export function SheetMounter({
     const params = new URLSearchParams(searchParams.toString());
     params.delete("text");
     closeSheetNav(buildCloseSheetUrl(pathname, params));
+  }, [pathname, searchParams]);
+
+  // EmergencyContactSheet's onSaved (not its "×"/cancel onClose, which stays
+  // on the regular shallow `close` above): the save mutates
+  // `profiles.emergency_*`, which CredentialFace's EmergencyCard renders
+  // server-side from page.tsx's initial SSR output. A shallow close never
+  // re-fetches that RSC tree, so the card kept the old phone until a hard
+  // reload — see closeSheetNavWithFullReload's docblock for why
+  // router.refresh() isn't a safe fix either (same silent-drop defect,
+  // engram #621/#622).
+  const closeAfterEmergencyContactSave = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("text");
+    closeSheetNavWithFullReload(buildCloseSheetUrl(pathname, params));
   }, [pathname, searchParams]);
 
   if (sheet === "anotar") {
@@ -321,7 +335,7 @@ export function SheetMounter({
         <EmergencyContactSheet
           petPublicToken={petToken}
           initialValues={emergencyContacts}
-          onSaved={close}
+          onSaved={closeAfterEmergencyContactSave}
         />
       </Sheet>
     );

@@ -48,5 +48,5 @@ export async function revokeLibretaShareForUser(
     .set({ revokedAt: new Date(), revokedByUserId: userId })
     .where(eq(libretaShareTokens.id, shareTokenRowId));
 
-  return { ok: true };
+  return { ok: true, shareTokenRowId };
 }
