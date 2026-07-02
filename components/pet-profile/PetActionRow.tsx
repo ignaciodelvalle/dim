@@ -22,6 +22,7 @@
 
 import { Icon } from "@/components/Icon";
 import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
+import { iconCircleButtonClass } from "@/components/ui/IconCircleButton";
 
 type Props = {
   petPublicToken: string;
@@ -30,14 +31,13 @@ type Props = {
   petStatus: "active" | "lost" | "deceased";
 };
 
-const ICON_LINK_BASE =
-  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-full px-3 no-underline transition-colors";
-const PRIMARY = "bg-[var(--color-ln-azul)] text-white hover:bg-ln-azul-700";
-const SECONDARY =
-  "border-[3px] border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-azul)] hover:border-[var(--color-ln-line-strong)]";
-const DANGER_OUTLINE =
-  "border-[3px] border-ln-err bg-transparent text-ln-err hover:bg-ln-err hover:text-white";
-const SUCCESS = "bg-ln-ok text-white hover:opacity-90";
+// wave-3 D5 (design-system audit finding 4): the circular icon-button shape
+// itself (44×44 min touch target, rounded-full, centered) and its named
+// color variants now live in the shared iconCircleButtonClass (also used by
+// FlipCard's "Girar" affordance) — this file only adds its own `px-3`
+// (harmless no-op given the fixed min-w-11 box, kept for exact parity) and
+// `no-underline` (needed since these render as <a> via SheetTriggerLink).
+const LINK_EXTRA = "px-3 no-underline";
 
 export function PetActionRow({ petPublicToken, isOwner, isDeceased, petStatus }: Props) {
   return (
@@ -47,7 +47,7 @@ export function PetActionRow({ petPublicToken, isOwner, isDeceased, petStatus }:
           href={`/mis-mascotas/${petPublicToken}?sheet=anotar`}
           aria-label="Anotar"
           title="Anotar"
-          className={`${ICON_LINK_BASE} ${PRIMARY}`}
+          className={iconCircleButtonClass("primary", LINK_EXTRA)}
         >
           <Icon name="edit" size="sm" decorative />
         </SheetTriggerLink>
@@ -56,7 +56,7 @@ export function PetActionRow({ petPublicToken, isOwner, isDeceased, petStatus }:
         href={`/mis-mascotas/${petPublicToken}?sheet=compartir`}
         aria-label="Compartir"
         title="Compartir"
-        className={`${ICON_LINK_BASE} ${SECONDARY}`}
+        className={iconCircleButtonClass("secondary", LINK_EXTRA)}
       >
         <Icon name="share" size="sm" decorative />
       </SheetTriggerLink>
@@ -65,7 +65,7 @@ export function PetActionRow({ petPublicToken, isOwner, isDeceased, petStatus }:
           href={`/mis-mascotas/${petPublicToken}?sheet=marcar-perdida`}
           aria-label="Marcar como perdida"
           title="Marcar como perdida"
-          className={`${ICON_LINK_BASE} ${DANGER_OUTLINE}`}
+          className={iconCircleButtonClass("danger-outline", LINK_EXTRA)}
         >
           <Icon name="alert-triangle" size="sm" decorative />
         </SheetTriggerLink>
@@ -75,7 +75,7 @@ export function PetActionRow({ petPublicToken, isOwner, isDeceased, petStatus }:
           href={`/mis-mascotas/${petPublicToken}?sheet=marcar-encontrada`}
           aria-label="Marcar encontrada"
           title="Marcar encontrada"
-          className={`${ICON_LINK_BASE} ${SUCCESS}`}
+          className={iconCircleButtonClass("success", LINK_EXTRA)}
         >
           <Icon name="check" size="sm" decorative />
         </SheetTriggerLink>
@@ -85,7 +85,7 @@ export function PetActionRow({ petPublicToken, isOwner, isDeceased, petStatus }:
           href={`/mis-mascotas/${petPublicToken}?sheet=chapita`}
           aria-label="Chapita"
           title="Chapita"
-          className={`${ICON_LINK_BASE} ${SECONDARY}`}
+          className={iconCircleButtonClass("secondary", LINK_EXTRA)}
         >
           <Icon name="tag" size="sm" decorative />
         </SheetTriggerLink>
@@ -95,7 +95,7 @@ export function PetActionRow({ petPublicToken, isOwner, isDeceased, petStatus }:
           href={`/mis-mascotas/${petPublicToken}?sheet=mas`}
           aria-label="Más"
           title="Más"
-          className={`${ICON_LINK_BASE} ${SECONDARY}`}
+          className={iconCircleButtonClass("secondary", LINK_EXTRA)}
         >
           <Icon name="ellipsis" size="sm" decorative />
         </SheetTriggerLink>

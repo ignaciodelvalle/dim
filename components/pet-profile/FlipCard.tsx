@@ -17,6 +17,7 @@
 // being rotated out of view, and no transition class is applied.
 
 import { Icon } from "@/components/Icon";
+import { IconCircleButton } from "@/components/ui/IconCircleButton";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export type FlipCardFace = "credencial" | "libreta";
@@ -141,16 +142,16 @@ export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
 // back to Credencial).
 function FlipAffordance({ isLibreta, onFlip }: { isLibreta: boolean; onFlip: () => void }) {
   return (
-    <button
-      type="button"
+    <IconCircleButton
+      variant="flip"
       onClick={onFlip}
       data-section="flip-affordance"
       aria-label={isLibreta ? "Girar a Credencial" : "Girar a Libreta"}
       aria-pressed={isLibreta}
       title="Girar"
-      className="absolute right-0 top-0 z-10 inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-azul)] shadow-sm transition-colors hover:border-[var(--color-ln-line-strong)]"
+      className="absolute right-0 top-0 z-10"
     >
       <Icon name={isLibreta ? "credential" : "libreta"} size="sm" decorative />
-    </button>
+    </IconCircleButton>
   );
 }
