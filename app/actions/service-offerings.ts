@@ -189,9 +189,11 @@ export async function approveServiceOfferingAction(
   const result = await approveServiceOfferingForAuthorityUC(user.id, publicToken);
   if ("error" in result) return { error: result.error };
 
-  // Servicios dedup (admin-rules-console R5.1): /admin/servicios no longer
-  // exists — /gob/servicios is the single canonical surface for both roles.
+  // Servicios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
+  // /admin/servicios is a thin wrapper re-exporting this same page, so both
+  // copies need revalidating or the /admin one goes stale.
   revalidatePath("/gob/servicios");
+  revalidatePath("/admin/servicios");
   return { error: null };
 }
 
@@ -284,9 +286,11 @@ export async function rejectServiceOfferingAction(
   const result = await rejectServiceOfferingForAuthorityUC(user.id, publicToken, rejectionReason);
   if ("error" in result) return { error: result.error };
 
-  // Servicios dedup (admin-rules-console R5.1): /admin/servicios no longer
-  // exists — /gob/servicios is the single canonical surface for both roles.
+  // Servicios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
+  // /admin/servicios is a thin wrapper re-exporting this same page, so both
+  // copies need revalidating or the /admin one goes stale.
   revalidatePath("/gob/servicios");
+  revalidatePath("/admin/servicios");
   return { error: null };
 }
 

@@ -50,9 +50,11 @@ export async function verifyOrgAction(input: { organizationId: string }) {
   const { user } = await requireAdminOrRedirect();
   const result = await _verifyOrg(user.id, input);
   if ("ok" in result) {
-    // The org list lives under /gob now (AC3 — the /admin duplicate was removed).
+    // Organizaciones is a dual-portal surface (portal-follows-viewer,
+    // 2026-07-02): /admin/organizaciones is a thin wrapper re-exporting this
+    // same page, so both copies need revalidating.
     revalidatePath("/gob/organizaciones");
-    revalidatePath("/admin");
+    revalidatePath("/admin/organizaciones");
   }
   return result;
 }
@@ -64,9 +66,11 @@ export async function unverifyOrgAction(input: {
   const { user } = await requireAdminOrRedirect();
   const result = await _unverifyOrg(user.id, input);
   if ("ok" in result) {
-    // The org list lives under /gob now (AC3 — the /admin duplicate was removed).
+    // Organizaciones is a dual-portal surface (portal-follows-viewer,
+    // 2026-07-02): /admin/organizaciones is a thin wrapper re-exporting this
+    // same page, so both copies need revalidating.
     revalidatePath("/gob/organizaciones");
-    revalidatePath("/admin");
+    revalidatePath("/admin/organizaciones");
   }
   return result;
 }

@@ -93,8 +93,11 @@ export async function revokeVetRoleAction(input: {
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await _revokeVetRole(user.id, input);
   if ("ok" in result) {
+    // Usuarios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
+    // /admin/usuarios is a thin wrapper re-exporting this same page, so both
+    // copies need revalidating.
     revalidatePath("/gob/usuarios");
-    revalidatePath("/admin");
+    revalidatePath("/admin/usuarios");
   }
   return result;
 }
@@ -107,8 +110,11 @@ export async function revokeOrgVerificationAction(input: {
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await _revokeOrgVerification(user.id, input);
   if ("ok" in result) {
+    // Organizaciones is a dual-portal surface (portal-follows-viewer,
+    // 2026-07-02): /admin/organizaciones is a thin wrapper re-exporting this
+    // same page, so both copies need revalidating.
     revalidatePath("/gob/organizaciones");
-    revalidatePath("/admin");
+    revalidatePath("/admin/organizaciones");
   }
   return result;
 }
@@ -121,9 +127,11 @@ export async function revokeGovtLocalityAction(input: {
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await _revokeGovtLocality(user.id, input);
   if ("ok" in result) {
-    revalidatePath("/admin");
-    // Revalidate the gob/usuarios page — Next.js silently ignores
-    // paths for non-existent pages, so this is safe.
+    // Usuarios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
+    // /admin/usuarios is a thin wrapper re-exporting this same page, so both
+    // copies need revalidating. Next.js silently ignores paths for
+    // non-existent pages, so this is safe either way.
+    revalidatePath("/admin/usuarios");
     revalidatePath("/gob/usuarios");
   }
   return result;
