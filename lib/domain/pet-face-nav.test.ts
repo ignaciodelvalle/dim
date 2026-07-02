@@ -45,11 +45,11 @@ describe("resolvePetFace", () => {
       expected: { face: "libreta", lens: "todo" },
     },
     {
-      name: "?tab=libreta with no lente — legacy grouped official view",
+      name: "?tab=libreta with no lente (owner) — legacy grouped official view clamps to todo",
       tab: "libreta",
       lente: undefined,
       isOwner: true,
-      expected: { face: "libreta", lens: "oficial" },
+      expected: { face: "libreta", lens: "todo" },
     },
     {
       name: "?tab=libreta&lente=vacunas — explicit lente wins",
@@ -66,10 +66,17 @@ describe("resolvePetFace", () => {
       expected: { face: "libreta", lens: "todo" },
     },
     {
-      name: "?tab=libreta&lente=oficial — explicit lente wins",
+      name: "?tab=libreta&lente=oficial (owner) — legacy deep link clamps to todo",
       tab: "libreta",
       lente: "oficial",
       isOwner: true,
+      expected: { face: "libreta", lens: "todo" },
+    },
+    {
+      name: "?tab=libreta&lente=oficial (org viewer) — explicit lente wins, not clamped",
+      tab: "libreta",
+      lente: "oficial",
+      isOwner: false,
       expected: { face: "libreta", lens: "oficial" },
     },
     {
@@ -94,10 +101,17 @@ describe("resolvePetFace", () => {
       expected: { face: "libreta", lens: "oficial" },
     },
     {
-      name: "invalid lente value falls back to oficial default",
+      name: "invalid lente value (owner) falls back to oficial default, then clamps to todo",
       tab: "libreta",
       lente: "bogus",
       isOwner: true,
+      expected: { face: "libreta", lens: "todo" },
+    },
+    {
+      name: "invalid lente value (org viewer) falls back to oficial default, not clamped",
+      tab: "libreta",
+      lente: "bogus",
+      isOwner: false,
       expected: { face: "libreta", lens: "oficial" },
     },
     {

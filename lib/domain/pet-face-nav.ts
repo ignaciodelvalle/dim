@@ -9,6 +9,9 @@
 //
 // Org-path viewers are clamped: Face 2's `todo` lens is never reachable for
 // them, via UI toggle or a hand-typed URL (`?tab=libreta&lente=todo`).
+// Symmetrically, owners are clamped away from `oficial` (org-only) — a
+// legacy `?tab=libreta` (no `lente`) or hand-typed `?lente=oficial` deep link
+// resolves to `todo` for an owner instead.
 
 export type PetFace = "credencial" | "libreta";
 export type PetLens = "todo" | "vacunas" | "oficial";
@@ -55,6 +58,11 @@ export function resolvePetFace({ tab, lente, isOwner }: ResolvePetFaceInput): Re
   // Org-viewer clamp: Todo is never reachable for org-path viewers.
   if (!isOwner && lens === "todo") {
     lens = "vacunas";
+  }
+
+  // Owner clamp: Oficial is org-only — never reachable for owners.
+  if (isOwner && lens === "oficial") {
+    lens = "todo";
   }
 
   return { face: "libreta", lens };

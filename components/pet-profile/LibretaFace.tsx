@@ -31,19 +31,27 @@ type Props = {
   petPublicToken: string;
   /** Lens resolved server-side from resolvePetFace (URL is the source of truth). */
   initialLens: LibretaLens;
-  /** Org-path viewers never see `todo` — the chip is not rendered for them. */
+  /**
+   * Owners see [Todo, Vacunas] — `oficial` is org-only. Org-path viewers see
+   * [Vacunas, Oficial] — `todo` is never reachable for them.
+   */
   isOwner: boolean;
 };
 
 export function LibretaFace({ data, petPublicToken, initialLens, isOwner }: Props) {
-  // Defensive clamp — resolvePetFace already clamps org viewers server-side,
-  // but this guards direct callers/future callers from ever mounting an org
-  // viewer on the `todo` lens.
-  const [lens, setLens] = useState<LibretaLens>(() =>
-    !isOwner && initialLens === "todo" ? "vacunas" : initialLens,
-  );
+  // Defensive clamp — resolvePetFace already clamps both directions
+  // server-side (org viewer `todo` → `vacunas`; owner `oficial` → `todo`),
+  // but this guards direct callers/future callers from ever mounting a
+  // viewer on a lens they can't select.
+  const [lens, setLens] = useState<LibretaLens>(() => {
+    if (!isOwner && initialLens === "todo") return "vacunas";
+    if (isOwner && initialLens === "oficial") return "todo";
+    return initialLens;
+  });
 
-  const visibleLenses = isOwner ? LENSES : LENSES.filter((l) => l !== "todo");
+  const visibleLenses = isOwner
+    ? LENSES.filter((l) => l !== "oficial")
+    : LENSES.filter((l) => l !== "todo");
 
   const future = data.future.filter((item) => futureItemMatchesLens(item, lens));
   const past = data.past.filter((row) => pastEventMatchesLens(row.eventType, lens));
