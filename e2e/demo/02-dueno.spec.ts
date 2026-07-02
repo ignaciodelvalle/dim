@@ -36,12 +36,12 @@ test("segmento 02 — dueno", async ({ page }) => {
   const token = page.url().match(/\/nueva\/([^/]+)\/credencial/)?.[1];
   expect(token, "pet publicToken parsed from credential URL").toBeTruthy();
 
-  // 3. Pet profile — two-face redesign (2026-07-01): Credencial (Face 1) is
-  // the default, then the Libreta face (Face 2) with an explicit lens, per
-  // the in-app nav pattern (design ADR-5: legacy `?tab=` deep links still
-  // resolve, but new navigation always writes an explicit `&lente=`).
-  // The vacunas LENS comes AFTER registering the vaccine below, so the
-  // recording shows the result — not an empty lens.
+  // 3. Pet profile — Credencial (Face 1) is the default; Libreta (Face 2) is
+  // ONE consolidated timeline now (pet-document-redesign ADR-10) — no lens
+  // toggle anymore. `?lente=` still round-trips as a legacy-compat URL param
+  // (REQ-6) but no longer selects a filter; every value resolves the same
+  // face. The Libreta content itself comes AFTER registering the vaccine
+  // below, so the recording shows a populated timeline, not an empty one.
   await showScreen(page, `/mis-mascotas/${token}`);
   await showScreen(page, `/mis-mascotas/${token}?tab=libreta&lente=todo`);
 
@@ -74,14 +74,31 @@ test("segmento 02 — dueno", async ({ page }) => {
   await page.waitForLoadState("networkidle").catch(() => {});
   await fullScroll(page);
 
-  // 5. Proof on camera: Libreta face (vacunas lens) + full history now show
-  // the registered vaccine.
-  await showScreen(page, `/mis-mascotas/${token}?tab=libreta&lente=vacunas`);
+  // 5. Proof on camera: Libreta face (consolidated timeline) + full history
+  // now show the registered vaccine.
+  await showScreen(page, `/mis-mascotas/${token}?tab=libreta&lente=todo`);
   await showScreen(page, `/mis-mascotas/${token}/historial`);
+
+  // 5a. FLIP CARD — literal CSS-3D flip between Credencial and Libreta
+  // (pet-document-redesign ADR-11). Start back on Credencial (default), then
+  // drive the flip via the "Girar" button itself (not a `?tab=` URL nav) so
+  // the recording shows the actual flip transition, then flip back.
+  await visit(page, `/mis-mascotas/${token}`);
+  await fullScroll(page);
+  await page.getByRole("button", { name: /girar a libreta/i }).click();
+  await page.waitForTimeout(700); // 500ms CSS transition + settle
+  await fullScroll(page);
+  await page.getByRole("button", { name: /girar a credencial/i }).click();
+  await page.waitForTimeout(700);
 
   // 5b. CHAPITA — physical-tag-interest sheet (pet-document-redesign
   // ADR-17b), the revived 5th action-bar icon on an active pet's profile.
   await showScreen(page, `/mis-mascotas/${token}?sheet=chapita`);
+
+  // 5c. EMERGENCIA — vet/emergency-contact edit sheet (pet-document-redesign
+  // ADR-13), reachable from CredentialFace's Emergencia card "Agregar datos
+  // de emergencia" / "Editar" affordance.
+  await showScreen(page, `/mis-mascotas/${token}?sheet=emergencia`);
 
   // 6. TURNOS — search → offering → slot → confirm booking (fail loud: needs seeded slots).
   // Drive the real filter form: seed-coverage's castración campaign lives in Palermo.
