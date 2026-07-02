@@ -2,16 +2,19 @@
 
 // ExportLibretaButton — Item 14.3.
 //
-// Triggers the server-side on-the-fly libreta PDF export by opening
-// /api/mis-mascotas/[publicToken]/libreta-export in a new tab. The route
-// returns print-ready HTML; the browser's auto-print script lets the user
-// save it as PDF. No persistence (pet_attachments deferred).
+// Opens /api/mis-mascotas/[publicToken]/libreta-export in a new tab. That
+// route returns print-ready HTML (Content-Type: text/html, no
+// Content-Disposition) and auto-triggers window.print() on load — the PDF
+// is produced by the browser's own print-to-PDF, not the server. There is
+// no server-side PDF generation; the label reflects that (real
+// server-generated PDF export is a tracked follow-up, not this button's
+// behavior). No persistence (pet_attachments deferred).
 //
 // Empty libreta edge: the export route renders an empty-state section —
-// no broken PDF.
+// no broken print view.
 
 export function ExportLibretaButton({ petPublicToken }: { petPublicToken: string }) {
-  function handleExport() {
+  function handlePrint() {
     const url = `/api/mis-mascotas/${petPublicToken}/libreta-export`;
     window.open(url, "_blank", "noopener,noreferrer");
   }
@@ -19,10 +22,10 @@ export function ExportLibretaButton({ petPublicToken }: { petPublicToken: string
   return (
     <button
       type="button"
-      onClick={handleExport}
+      onClick={handlePrint}
       className="cursor-pointer font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] hover:underline print:hidden"
     >
-      Exportar libreta (PDF)
+      Imprimir libreta (PDF)
     </button>
   );
 }

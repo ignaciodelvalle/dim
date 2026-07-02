@@ -9,7 +9,10 @@
 // Empty libreta: returns the HTML with an empty-state section (no broken output).
 //
 // URL: GET /api/mis-mascotas/[publicToken]/libreta-export
-// Response: text/html; charset=utf-8 with Content-Disposition suggest filename.
+// Response: text/html; charset=utf-8, rendered inline (no Content-Disposition —
+// this is an HTML print view, not a file download; do not claim a .pdf
+// filename for HTML content). The page auto-triggers window.print() so the
+// user produces the PDF via the browser's own print-to-PDF, not the server.
 
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
@@ -309,11 +312,13 @@ export async function GET(
 </body>
 </html>`;
 
+  // No Content-Disposition: this response is HTML rendered inline for the
+  // browser's print-to-PDF flow, not a downloadable file — claiming a
+  // ".pdf" filename here would misrepresent the actual content type.
   return new NextResponse(html, {
     status: 200,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
-      "Content-Disposition": `inline; filename="libreta-${publicToken}.pdf"`,
       "Cache-Control": "no-store",
     },
   });

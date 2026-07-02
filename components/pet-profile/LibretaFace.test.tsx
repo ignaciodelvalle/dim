@@ -135,11 +135,15 @@ describe("LibretaFace — ADR-10 consolidation (no lens chips, share removed)", 
     expect(html).not.toContain("Nuevo enlace");
   });
 
-  it("still renders ExportLibretaButton in the footer", () => {
+  it("still renders ExportLibretaButton in the footer with honest print-to-PDF copy", () => {
     const html = renderToStaticMarkup(
       <LibretaFace data={faceData()} petPublicToken="abc" isOwner />,
     );
-    expect(html).toContain("Exportar libreta (PDF)");
+    // "Imprimir" (not "Exportar") — the route has no server-side PDF
+    // generation, it opens a print-styled HTML view that auto-triggers
+    // window.print(); the label must not claim a real export.
+    expect(html).toContain("Imprimir libreta (PDF)");
+    expect(html).not.toContain("Exportar libreta (PDF)");
   });
 
   it("VacunasStatusBadges renders unconditionally (org viewer too — always-on, ADR-10)", () => {
