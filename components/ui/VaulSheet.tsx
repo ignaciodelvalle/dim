@@ -67,8 +67,17 @@ export function Sheet({ id, title, open, onClose, size = "md", triggerRef, child
         <Drawer.Overlay className="fixed inset-0 z-[var(--z-drawer)] bg-black/40" />
 
         {/* Content */}
+        {/* No explicit aria-labelledby here — Radix's DialogPrimitive.Content
+            (which vaul's Content wraps) already wires aria-labelledby to its
+            own internally-generated titleId and expects Drawer.Title (=
+            DialogPrimitive.Title) to render with that same id. Overriding
+            either side with a custom id used to break Radix's own title
+            presence check (it looks up its internal titleId via
+            document.getElementById, which never matched our custom id),
+            producing a false "DialogContent requires a DialogTitle" warning
+            even though the sheet always renders a visible title. */}
         <Drawer.Content
-          aria-labelledby={`sheet-title-${id}`}
+          data-sheet-id={id}
           className={[
             "fixed bottom-0 right-0 z-[var(--z-sheet)] flex flex-col",
             "h-[85dvh] w-full",
@@ -83,9 +92,7 @@ export function Sheet({ id, title, open, onClose, size = "md", triggerRef, child
 
           {/* Header */}
           <div className="flex items-center justify-between border-b border-ln-line px-5 py-4">
-            <Drawer.Title id={`sheet-title-${id}`} className="text-base font-semibold text-ln-ink">
-              {title}
-            </Drawer.Title>
+            <Drawer.Title className="text-base font-semibold text-ln-ink">{title}</Drawer.Title>
             <Drawer.Close
               aria-label="Cerrar"
               className="flex h-8 w-8 items-center justify-center rounded-full text-ln-ink-2 transition-colors hover:bg-ln-stripe hover:text-ln-ink"
