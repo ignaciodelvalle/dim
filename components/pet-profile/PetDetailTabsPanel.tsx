@@ -15,7 +15,7 @@
 // - Print: libreta-print.css is imported here so it's only applied when this
 //   component (and thus the Libreta face) is rendered.
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
@@ -23,6 +23,7 @@ import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-
 import { FlipCard } from "@/components/pet-profile/FlipCard";
 import { LibretaFace } from "@/components/pet-profile/LibretaFace";
 import { resolvePetFace } from "@/lib/domain/pet-face-nav";
+import { pushTabUrl } from "@/lib/ui/sheet-nav";
 import { PetDetailTabs, type TabKey } from "./PetDetailTabs";
 
 // ---------------------------------------------------------------------------
@@ -98,6 +99,7 @@ export function PetDetailTabsPanel({
   isOwner,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const [activeFace, setActiveFace] = useState<TabKey>(initialFace);
@@ -178,7 +180,14 @@ export function PetDetailTabsPanel({
 
   // "Girar" affordance (ADR-11): mirrors PetDetailTabs.switchTab's exact URL
   // write so the flip button and the tab nav always drive the same ?tab=
-  // state — PetDetailTabs.tsx itself stays untouched (task 1.6).
+  // state.
+  //
+  // Router-hot-path fix: writes the URL via pushTabUrl (native History API)
+  // instead of router.replace — reproduced 3/3 in production with the same
+  // silent-drop symptom as the sheets (see lib/ui/sheet-nav.ts). pushState
+  // (not replaceState) is required here so the browser back button can undo
+  // a flip and restore the previous face via popstate → useSearchParams()
+  // reactivity below.
   function switchFace() {
     const target: TabKey = activeFace === "credencial" ? "libreta" : "credencial";
     const params = new URLSearchParams(searchParams.toString());
@@ -190,7 +199,7 @@ export function PetDetailTabsPanel({
       params.set("lente", isOwner ? "todo" : "oficial");
     }
     const qs = params.toString();
-    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+    pushTabUrl(qs ? `${pathname}?${qs}` : pathname);
   }
 
   return (

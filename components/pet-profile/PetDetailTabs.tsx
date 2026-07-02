@@ -1,12 +1,20 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+
+import { pushTabUrl } from "@/lib/ui/sheet-nav";
 
 // Two-face redesign (2026-07-01, design ADR-6): the tab shell collapsed from
 // 4 tabs (resumen/libreta/vacunas/historial) to 2 faces. `resolvePetFace`
 // (lib/domain/pet-face-nav.ts) maps every legacy ?tab= value onto one of
 // these two + a lens; the URL keeps writing "resumen"→"credencial" and
 // vacunas/historial/libreta collapse into "libreta" + an explicit `lente`.
+//
+// Router-hot-path fix: the tab buttons switch faces via pushTabUrl (native
+// History API) instead of router.replace — Next's App Router can silently
+// drop a router.replace transition's own fetch in production (see
+// lib/ui/sheet-nav.ts's module docblock for the full defect writeup). This
+// mirrors SheetTriggerLink/SheetMounter's fix for the profile's sheets.
 export type TabKey = "credencial" | "libreta";
 
 type Props = {
@@ -26,7 +34,7 @@ export function PetDetailTabs({
   activeTab,
   isOwner = true,
 }: Props) {
-  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   function switchTab(tab: TabKey) {
@@ -42,7 +50,7 @@ export function PetDetailTabs({
       params.set("lente", isOwner ? "todo" : "vacunas");
     }
     const qs = params.toString();
-    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+    pushTabUrl(qs ? `${pathname}?${qs}` : pathname);
   }
 
   const tabs: Array<{ key: TabKey; label: string }> = [

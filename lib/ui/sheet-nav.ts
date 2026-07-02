@@ -18,9 +18,11 @@
 // https://nextjs.org/docs/app/api-reference/functions/use-router (native
 // History API / shallow routing).
 //
-// Only use these helpers for same-route `?sheet=` transitions. A target URL
-// on a DIFFERENT route (e.g. a full /eventos/nuevo/* page) is a real
-// navigation and must go through next/navigation's router as usual —
+// Only use these helpers for same-route transitions — `?sheet=` (the
+// original router-hot-path fix) and, as of the face-flip/tab-button fix,
+// `?tab=`/`?lente=` (the pet profile's Credencial|Libreta face switch). A
+// target URL on a DIFFERENT route (e.g. a full /eventos/nuevo/* page) is a
+// real navigation and must go through next/navigation's router as usual —
 // see isSameRouteUrl.
 
 /**
@@ -63,6 +65,27 @@ export function closeSheetNav(closeUrl: string): void {
   } else {
     window.history.replaceState(null, "", closeUrl);
   }
+}
+
+/**
+ * Switches the pet profile's active face/tab (`?tab=`/`?lente=`) by pushing
+ * `url` onto the history stack — same primitive as pushSheetUrl, same
+ * router-hot-path rationale (module docblock), and the same reason it must
+ * be `pushState` rather than `replaceState`: a face switch needs its own
+ * history entry so the browser back button can undo it (restoring the prior
+ * face via popstate → useSearchParams() reactivity), the same way back
+ * already undoes an opened sheet.
+ *
+ * `url` must target the SAME route as the current page (only `tab`/`lente`
+ * search params differ) — see isSameRouteUrl.
+ *
+ * Used by the "Girar" flip affordance (PetDetailTabsPanel) and the
+ * Credencial|Libreta tab buttons (PetDetailTabs) so both click paths agree
+ * on the same ?tab= write and never touch router.push/router.replace.
+ */
+export function pushTabUrl(url: string): void {
+  if (typeof window === "undefined") return;
+  window.history.pushState(null, "", url);
 }
 
 /**
