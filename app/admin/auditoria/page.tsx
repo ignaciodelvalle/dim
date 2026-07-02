@@ -5,7 +5,7 @@ import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashbo
 import { type AuditLogAction, auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/ui/audit-action-labels";
-import { buildTargetLinkInfo } from "@/lib/ui/audit-target-link";
+import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 const AUDITORIA_PAGE_LIMIT = 200;
@@ -48,6 +48,7 @@ export default async function AdminAuditoriaPage({
       approvalRequestId: auditLog.approvalRequestId,
       targetUserId: auditLog.targetUserId,
       performedAt: auditLog.performedAt,
+      payload: auditLog.payload,
     })
     .from(auditLog)
     .where(whereClause)
@@ -248,6 +249,15 @@ export default async function AdminAuditoriaPage({
                           </span>
                         </>
                       )}
+                      {(() => {
+                        const target = businessRuleTargetSummary(entry.action, entry.payload);
+                        return target ? (
+                          <>
+                            {" "}
+                            {"·"} sobre: <span className="font-ln-mono">{target}</span>
+                          </>
+                        ) : null;
+                      })()}
                     </p>
                   </div>
                   <time className="whitespace-nowrap text-sm text-ln-op-mute">

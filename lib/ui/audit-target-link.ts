@@ -42,3 +42,40 @@ export function buildTargetLinkInfo(profile: {
     href: deriveTargetHref(profile.id, profile.role),
   };
 }
+
+// ---------------------------------------------------------------------------
+// govt_business_rule_* target summary (admin-rules-console live-QA finding)
+// ---------------------------------------------------------------------------
+
+const BUSINESS_RULE_ACTIONS = new Set([
+  "govt_business_rule_created",
+  "govt_business_rule_updated",
+  "govt_business_rule_deleted",
+]);
+
+/**
+ * Target summary for govt_business_rule_* audit rows: the 3 rule-mutation
+ * action codes are generic across every rule type (design decision — see
+ * lib/ui/audit-action-labels.test.ts), so the row itself carries no target
+ * reference. The writers already put ruleType + jurisdiction in
+ * `auditLog.payload` — this derives a "ruleType @ jurisdiction" summary from
+ * it instead of leaving the row un-attributable (previously: action + actor
+ * + timestamp only, impossible to tell WHICH rule was mutated without
+ * cross-referencing timestamps). Pure function — no DB calls.
+ */
+export function businessRuleTargetSummary(action: string, payload: unknown): string | null {
+  if (!BUSINESS_RULE_ACTIONS.has(action)) return null;
+  if (payload == null || typeof payload !== "object") return null;
+  const p = payload as Record<string, unknown>;
+  const ruleType = typeof p.ruleType === "string" ? p.ruleType : null;
+  if (!ruleType) return null;
+  const jurisdiction = p.jurisdiction as
+    | { country?: string | null; province?: string | null; locality?: string | null }
+    | undefined;
+  const parts = [
+    jurisdiction?.country ?? "AR",
+    jurisdiction?.province ?? "(nivel país)",
+    jurisdiction?.locality ?? "(toda la provincia)",
+  ];
+  return `${ruleType} @ ${parts.join(" · ")}`;
+}
