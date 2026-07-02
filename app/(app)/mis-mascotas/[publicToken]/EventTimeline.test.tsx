@@ -69,3 +69,25 @@ describe("<EventTimelineList> — row link prefetch (regression for CRITICAL-1)"
     expect(html).not.toContain("<a");
   });
 });
+
+// ---------------------------------------------------------------------------
+// 320px row-header stacking (live QA finding 6, engram #635): wrapped titles
+// crowded the inline top-right timestamp. Structural sentinel — asserts the
+// row header uses the repo's stack-then-row responsive pattern (flex-col by
+// default, sm:flex-row from the sm breakpoint up) instead of always being a
+// row, for both the linked (publicToken present) and unlinked row shapes.
+// ---------------------------------------------------------------------------
+
+describe("<EventTimelineList> — row header stacks the timestamp below the title at narrow widths", () => {
+  it("linked row header (publicToken present) is flex-col by default, sm:flex-row above sm", () => {
+    const html = renderToStaticMarkup(
+      <EventTimelineList events={[baseEvent]} publicToken="abc123" />,
+    );
+    expect(html).toContain("flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between");
+  });
+
+  it("unlinked row header (no publicToken) is flex-col by default, sm:flex-row above sm", () => {
+    const html = renderToStaticMarkup(<EventTimelineList events={[baseEvent]} />);
+    expect(html).toContain("flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between");
+  });
+});

@@ -134,7 +134,7 @@ export function EventTimelineList({
                 // deep archival detail rows; prefetching them eagerly was
                 // never load-bearing for UX.
                 prefetch={false}
-                className="flex items-start justify-between gap-3 -mx-1 px-1 py-0.5 rounded-md hover:bg-[var(--color-ln-stripe)] transition-colors"
+                className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3 -mx-1 px-1 py-0.5 rounded-md hover:bg-[var(--color-ln-stripe)] transition-colors"
               >
                 <div className="min-w-0 space-y-0.5">
                   <p className="font-medium text-[var(--color-ln-ink)]">
@@ -144,12 +144,12 @@ export function EventTimelineList({
                     <p className="text-xs text-[var(--color-ln-mute)]">{summary.secondary}</p>
                   )}
                 </div>
-                <time className="text-xs text-[var(--color-ln-mute)] shrink-0">
+                <time className="text-xs text-[var(--color-ln-mute)] sm:shrink-0">
                   {formatDateTime(event.occurredAt)}
                 </time>
               </Link>
             ) : (
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                 <div className="min-w-0 space-y-0.5">
                   <p className="font-medium text-[var(--color-ln-ink)]">
                     {summary.primary ?? eventTypeLabel(eventType)}
@@ -158,7 +158,7 @@ export function EventTimelineList({
                     <p className="text-xs text-[var(--color-ln-mute)]">{summary.secondary}</p>
                   )}
                 </div>
-                <time className="text-xs text-[var(--color-ln-mute)] shrink-0">
+                <time className="text-xs text-[var(--color-ln-mute)] sm:shrink-0">
                   {formatDateTime(event.occurredAt)}
                 </time>
               </div>
