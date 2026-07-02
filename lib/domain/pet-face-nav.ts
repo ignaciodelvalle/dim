@@ -67,3 +67,36 @@ export function resolvePetFace({ tab, lente, isOwner }: ResolvePetFaceInput): Re
 
   return { face: "libreta", lens };
 }
+
+// ---------------------------------------------------------------------------
+// Legacy `?fromLost=1` bypass — REQ-6.3 no-op redirect
+// ---------------------------------------------------------------------------
+//
+// D9's `?fromLost=1` used to bypass the LostCockpit early-return. Cockpit is
+// gone (pet-document-redesign S2) — the normal profile always renders for
+// lost pets now — so the param has no target. Instead of silently ignoring
+// it (dead param retained forever in shared/bookmarked links), the page
+// redirects to the same URL with `fromLost` stripped and every other param
+// preserved (so legacy `?tab=`/`?lente=` deep links keep working per
+// REQ-6.1/6.2).
+
+/**
+ * Pure helper: given the raw searchParams record from a Next.js page, builds
+ * the redirect target path (with `fromLost` removed) — or `null` when
+ * `fromLost` isn't present at all (no redirect needed).
+ */
+export function buildFromLostRedirectTarget(
+  publicToken: string,
+  searchParams: Record<string, string | string[] | undefined>,
+): string | null {
+  if (searchParams.fromLost === undefined) return null;
+
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (key === "fromLost") continue;
+    if (typeof value === "string") qs.set(key, value);
+    else if (Array.isArray(value)) for (const v of value) qs.append(key, v);
+  }
+  const query = qs.toString();
+  return `/mis-mascotas/${publicToken}${query ? `?${query}` : ""}`;
+}

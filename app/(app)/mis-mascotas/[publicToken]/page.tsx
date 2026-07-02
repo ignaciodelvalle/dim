@@ -13,23 +13,28 @@
 //   back-link → org notice (org-path only) → PetDetailTabsPanel, whose
 //   `credencialContent` (Face 1, eager) is: CredentialFace (identity +
 //   compliance stamps + QR + owner-only Emergencia card + compact
-//   ppp/service-dog rows) → <PetAlertStrip> (avisos, urgency-ordered) → a
-//   single action row led by Anotar (Compartir · Marcar perdida · ⋯ Más).
-//   The Libreta face (deferred) is one future+past timeline with a
-//   role-scoped lens set (owner: Todo/Vacunas; org: Vacunas/Oficial) — see
-//   LibretaFace.
+//   ppp/service-dog rows) → <PetAlertStrip> (avisos, urgency-ordered,
+//   LostCaseBlock leads it when the pet is lost) → a single action row led
+//   by Anotar (Compartir · Marcar perdida/encontrada · ⋯ Más). The Libreta
+//   face (deferred) is one future+past timeline with a role-scoped lens set
+//   (owner: Todo/Vacunas; org: Vacunas/Oficial) — see LibretaFace.
 //
 // resolvePetFace (lib/domain/pet-face-nav.ts) is the single pure mapper for
 // every legacy `?tab=` deep link (resumen/vacunas/historial/libreta) onto
 // {face, lens}; the H1 compliance wiring at deriveComplianceState below is
 // unchanged by the redesign.
 //
+// pet-document-redesign (2026-07-02, S2): the pet.status === 'lost' early
+// return (LostCockpit, full-screen) was DELETED. The normal profile now
+// ALWAYS renders — lost surfaces as <LostCaseBlock> at the top of
+// PetAlertStrip, so Credencial/Libreta/action row/Anotar sheet stay usable
+// while the pet is lost (spec REQ-5.1/REQ-5.2). The D9 `?fromLost=1` bypass
+// is gone too (REQ-6.3 no-op redirect, see the top of this function).
+//
 // Preserved verbatim:
 //   - <PetOpenCasesSection>, <PregnancyInProgressCard> — inside PetAlertStrip.
 //   - <RabiesObservationBanner>, <TransitBanner> — page-local, inside PetAlertStrip.
 //   - <DeceasedView> — early return for deceased pets.
-//   - <LostCockpit>  — early return for lost pets (D9: "ver perfil completo"
-//                       bypasses this via ?fromLost=1 or any ?tab= param).
 //
 // Note: PPP/service-dog attestation state is read from `typedEvents`
 // (PROFILE_V2_TYPED_EVENT_TYPES), which does NOT include
@@ -43,6 +48,7 @@ import { Icon } from "@/components/Icon";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { CredentialFace } from "@/components/pet-profile/CredentialFace";
+import { LostCaseBlock } from "@/components/pet-profile/LostCaseBlock";
 import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertStrip";
 import { PetAnotarFooterCta } from "@/components/pet-profile/PetAnotarFooterCta";
 import { PetDetailTabsPanel } from "@/components/pet-profile/PetDetailTabsPanel";
@@ -64,8 +70,9 @@ import {
   fetchActiveRemindersForPet,
   fetchPetEventsForProfileV2,
 } from "@/lib/analytics/owner-dashboard";
-import { resolvePetFace } from "@/lib/domain/pet-face-nav";
+import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { excludeSelfScansClause } from "@/lib/events/events";
+import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
 import { isLibretaSanitariaEvent } from "@/lib/infra/libreta-sanitaria";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
 import { requirePetAccess } from "@/lib/infra/pet-access";
@@ -78,14 +85,13 @@ import {
 } from "@/lib/infra/storage";
 import { deriveComplianceState } from "@/lib/projections/pet-compliance";
 import { ageFromDateOfBirth, formatDate, sexLabel, speciesLabel } from "@/lib/utils/format";
-import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, notInArray } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { Suspense } from "react";
 import type { EventTimeline } from "./EventTimeline";
-import { LostCockpit } from "./LostCockpit";
 import { PostCreateModal } from "./PostCreateModal";
 import { SheetMounter } from "./SheetMounter";
 import { ConvertFosterButton } from "./_components/ConvertFosterButton";
@@ -483,12 +489,16 @@ export default async function PetDetailPage({
   const tabParam = typeof sp.tab === "string" ? sp.tab : undefined;
   const lenteParam = typeof sp.lente === "string" ? sp.lente : undefined;
   const recienCreado = sp.recienCreado === "true";
-  // D9: when lost, the cockpit is shown by default, but it is not a dead end —
-  // the owner can open the normal profile via "ver perfil completo"
-  // (?fromLost=1), which bypasses the lost early-return below so they can keep
-  // logging events / viewing the libreta. Any tab=… param implies the same
-  // intent (the owner is navigating the profile's tabs).
-  const showFullProfileWhileLost = sp.fromLost === "1" || tabParam !== undefined;
+
+  // REQ-6.3 (pet-document-redesign): the D9 `?fromLost=1` bypass has no
+  // target anymore — LostCockpit is gone and the normal profile always
+  // renders for lost pets (REQ-5.1). Redirect to the plain profile URL
+  // (fromLost stripped, every other param preserved) so old deep links /
+  // bookmarks don't retain a dead param or error.
+  const fromLostRedirectTarget = buildFromLostRedirectTarget(publicToken, sp);
+  if (fromLostRedirectTarget) {
+    redirect(fromLostRedirectTarget);
+  }
 
   const access = await requirePetAccess(publicToken);
   if (!access.ok) notFound();
@@ -529,10 +539,20 @@ export default async function PetDetailPage({
     db.select().from(petServiceDog).where(eq(petServiceDog.petId, pet.id)).limit(1),
     // Capped at 50, most recent first — the cap needs a deterministic order or
     // a pet with >50 cases would silently lose an arbitrary subset.
+    // Excludes HIDDEN_FROM_SUBJECT_CASE_KINDS (welfare_denuncia) and
+    // lost_pet_episode — same predicate as findOpenCasesForPetWithCodes, so
+    // the alert-strip trigger below (`allCases.some(open)`) never fires on a
+    // case the owner isn't supposed to see, and lost stays single-rendering-
+    // path (LostCaseBlock owns it) — pet-document-redesign REQ-1.1/1.4.
     db
       .select()
       .from(cases)
-      .where(eq(cases.primaryPetId, pet.id))
+      .where(
+        and(
+          eq(cases.primaryPetId, pet.id),
+          notInArray(cases.caseKind, [...GENERIC_CASE_LIST_EXCLUDED_KINDS]),
+        ),
+      )
       .orderBy(desc(cases.openedAt))
       .limit(50),
   ]);
@@ -637,25 +657,27 @@ export default async function PetDetailPage({
     );
   }
 
-  // EARLY RETURN for lost: show the lost cockpit instead of the normal sections.
-  // Runs before the heavy fetchPetEventsForProfileV2 / weight / reminder queries
-  // since those are irrelevant when the pet is lost.
-  // D9: the cockpit is NOT a dead end. When the owner asks for the full profile
-  // (showFullProfileWhileLost: ?fromLost=1 or a tab=… deep link), we fall
-  // through to the normal profile so they can keep logging events / viewing the
-  // libreta while the pet remains lost. Org-path viewers always see the cockpit.
-  if (pet.status === "lost" && !(showFullProfileWhileLost && accessPath === "owner")) {
+  // Lost-episode + scans fetch — relocated out of the old early-return into
+  // the mainline (pet-document-redesign REQ-5.1/ADR-7): runs unconditionally
+  // when `status === 'lost'`, for BOTH owner and org viewers, since the
+  // normal profile now always renders and LostCaseBlock (rendered below, in
+  // the alert strip) needs this data for both roles — org gets the
+  // read-only variant, not a separate cockpit.
+  let lostEpisode: Awaited<ReturnType<typeof fetchLostEpisodeForPet>> = null;
+  let lostScans: Awaited<ReturnType<typeof fetchLostScanEvents>> = [];
+  if (pet.status === "lost") {
     // Fetch episode first so we can pass its caseId to the scan feed query.
     // This scopes sighting rows to the current episode and prevents cross-episode
     // pollution when a pet was lost→found→lost again.
-    const episode = await fetchLostEpisodeForPet(pet.id);
-    const rawScans = await fetchLostScanEvents(pet.id, undefined, episode?.id ?? undefined);
+    lostEpisode = await fetchLostEpisodeForPet(pet.id);
+    const rawScans = await fetchLostScanEvents(pet.id, undefined, lostEpisode?.id ?? undefined);
 
     // P0g: resolve signed URLs for sighting AND finder-in-possession items that
     // carry a photoStoragePath. event-attachments is a private bucket so
     // thumbnails need short-lived signed URLs. We use the SSR supabase client
-    // (owner is authenticated at this point).
-    const scans = await Promise.all(
+    // (owner is authenticated at this point; org viewers reach here too and
+    // share the same signed-URL resolution).
+    lostScans = await Promise.all(
       rawScans.map(async (item) => {
         if ((item.kind === "sighting" || item.kind === "finder") && item.photoStoragePath) {
           const url = await eventAttachmentSignedUrl(supabase, item.photoStoragePath);
@@ -664,36 +686,13 @@ export default async function PetDetailPage({
         return item;
       }),
     );
-
-    const heroPet = {
-      name: pet.name,
-      publicToken: pet.publicToken,
-      photoUrl,
-      species: speciesLabel(pet.species),
-      breed: pet.breed,
-      ageLabel: ageFromDateOfBirth(pet.dateOfBirth) ?? "—",
-      weightLabel: pet.estimatedWeightKg ? `${pet.estimatedWeightKg} kg` : null,
-      state: "urgent" as const,
-      stateLabel: "Perdida",
-      lostMode: true,
-    };
-
-    // Derive owner first name from displayName (first word only).
-    const ownerFirstName = viewerContacts?.displayName
-      ? (viewerContacts.displayName.split(" ")[0] ?? viewerContacts.displayName)
-      : "el dueño";
-
-    return (
-      <LostCockpit
-        pet={pet}
-        petHeroProps={heroPet}
-        photoUrl={photoUrl}
-        episode={episode}
-        scans={scans}
-        ownerFirstName={ownerFirstName}
-      />
-    );
   }
+
+  // Derive owner first name from displayName (first word only) — feeds
+  // LostCaseBlock's disclosure preview copy for owner viewers only.
+  const ownerFirstName = viewerContacts?.displayName
+    ? (viewerContacts.displayName.split(" ")[0] ?? viewerContacts.displayName)
+    : "el dueño";
 
   // v2 targeted queries — replaces the old O(N) events + attachment signing.
   const { typedEvents } = await fetchPetEventsForProfileV2(pet.id);
@@ -924,6 +923,26 @@ export default async function PetDetailPage({
               <PetAlertStrip
                 alerts={(() => {
                   const alerts: PetAlert[] = [];
+                  // Lost — leads the strip (design ADR-6/ADR-7). Pushed first
+                  // so same-tone (urgent) stability keeps it above rabies.
+                  // LostCaseBlock itself guards on `episode` being non-null,
+                  // so this stays safe even if status flips mid-render.
+                  if (pet.status === "lost") {
+                    alerts.push({
+                      id: "lost",
+                      tone: "urgent",
+                      node: (
+                        <LostCaseBlock
+                          pet={pet}
+                          photoUrl={photoUrl}
+                          episode={lostEpisode}
+                          scans={lostScans}
+                          ownerFirstName={ownerFirstName}
+                          isOwner={isOwner}
+                        />
+                      ),
+                    });
+                  }
                   if (pet.rabiesObservationStatus === "in_progress") {
                     alerts.push({
                       id: "rabies",
@@ -979,7 +998,7 @@ export default async function PetDetailPage({
               <div data-section="action-row" className="flex flex-wrap gap-2">
                 {isOwner && (
                   <Link
-                    href={`/mis-mascotas/${pet.publicToken}/anotar`}
+                    href={`/mis-mascotas/${pet.publicToken}?sheet=anotar`}
                     className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--color-ln-azul)] px-4 text-sm font-semibold text-white no-underline transition-colors hover:bg-ln-azul-700"
                   >
                     <Icon name="edit" size="sm" decorative />
