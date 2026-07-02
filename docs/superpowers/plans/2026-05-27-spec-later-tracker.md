@@ -15,7 +15,9 @@ under a new design doc and delete the corresponding section here.
 ## 1. PPP card — Ley CABA 4078 export {#ppp-card}
 
 **Where in code:**
-- `app/(app)/mis-mascotas/[publicToken]/page.tsx` — `{/* §4.9 (3) PPP card */}` block (renders `<PpPCard>` + `<PppExportCabaButton>` when the pet is a `potentially_dangerous_breed`).
+- `app/(app)/mis-mascotas/[publicToken]/page.tsx` — `{/* §4.9 (3) PPP card */}` block (renders `<PpPCard>` when the pet is a `potentially_dangerous_breed`).
+
+> **2026-07-02 (wave-3 D15):** `components/PppExportCabaButton.tsx` was deleted — the pet-document-redesign (two-face) rewrite no longer renders it anywhere (`page.tsx`'s PPP card block dropped the export button along with the rest of the old v2.1 flat layout; the PPP row now lives on `CredentialFace`, see AGENTS.md rule 5). This entry stays open for the underlying CABA export DECISION, which is still unresolved — only the dead button component is gone.
 
 **What's there today:** the PPP card renders for PPP-flagged pets in CABA. The export button posts to a stub server action. The on-device flow works (user sees the card, can fill it).
 

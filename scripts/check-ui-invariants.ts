@@ -66,12 +66,6 @@ export const TOUCH_TARGET_ALLOWLIST = new Set<string>([
   "components/ui/dashboard/OpCallout.tsx:h-9",
   "components/ui/dashboard/OpCallout.tsx:w-9",
 
-  // app/(app)/inicio/_components/QuickCaptureWidget.tsx — <img> and avatar
-  // <div> displaying a pet photo inside a <Link>; the photo is purely
-  // presentational, the Link itself is the interactive target.
-  "app/(app)/inicio/_components/QuickCaptureWidget.tsx:w-9",
-  "app/(app)/inicio/_components/QuickCaptureWidget.tsx:h-9",
-
   // app/(public)/denuncias/page.tsx — decorative icon <div> (aria-hidden SVG)
   // inside a <Link> that is the actual touch target.
   "app/(public)/denuncias/page.tsx:h-9",
