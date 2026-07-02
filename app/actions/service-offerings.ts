@@ -189,7 +189,8 @@ export async function approveServiceOfferingAction(
   const result = await approveServiceOfferingForAuthorityUC(user.id, publicToken);
   if ("error" in result) return { error: result.error };
 
-  revalidatePath("/admin/servicios");
+  // Servicios dedup (admin-rules-console R5.1): /admin/servicios no longer
+  // exists — /gob/servicios is the single canonical surface for both roles.
   revalidatePath("/gob/servicios");
   return { error: null };
 }
@@ -283,7 +284,8 @@ export async function rejectServiceOfferingAction(
   const result = await rejectServiceOfferingForAuthorityUC(user.id, publicToken, rejectionReason);
   if ("error" in result) return { error: result.error };
 
-  revalidatePath("/admin/servicios");
+  // Servicios dedup (admin-rules-console R5.1): /admin/servicios no longer
+  // exists — /gob/servicios is the single canonical surface for both roles.
   revalidatePath("/gob/servicios");
   return { error: null };
 }
