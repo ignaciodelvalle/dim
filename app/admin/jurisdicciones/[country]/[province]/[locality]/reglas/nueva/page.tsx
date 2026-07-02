@@ -5,12 +5,10 @@ import Link from "next/link";
 
 import { OpBreach, OpCrumbs } from "@/components/ui/dashboard";
 import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
+import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/reference/breeds";
 
-import { PppAttestationRegistriesForm } from "./PppAttestationRegistriesForm";
-import { PppBreedListForm } from "./PppBreedListForm";
-import { PppWeightThresholdForm } from "./PppWeightThresholdForm";
+import { RULE_FORM_REGISTRY, buildCreateFormExtraProps } from "./forms";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +36,13 @@ export default async function NewRulePage({
 
   const backHref = `/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`;
 
-  if (!ruleType || !(GOVT_BUSINESS_RULE_TYPES as readonly string[]).includes(ruleType)) {
+  const RuleForm = ruleType ? RULE_FORM_REGISTRY[ruleType] : undefined;
+
+  if (
+    !ruleType ||
+    !(GOVT_BUSINESS_RULE_TYPES as readonly string[]).includes(ruleType) ||
+    !RuleForm
+  ) {
     return (
       <div className="max-w-2xl space-y-4">
         <OpCrumbs
@@ -48,7 +52,13 @@ export default async function NewRulePage({
             { label: "Nueva regla" },
           ]}
         />
-        <OpBreach title="Falta ?ruleType= en la URL." />
+        <OpBreach
+          title={
+            !ruleType || !(GOVT_BUSINESS_RULE_TYPES as readonly string[]).includes(ruleType)
+              ? "Falta ?ruleType= en la URL."
+              : "Configuración de este tipo de regla no disponible aún."
+          }
+        />
         <Link
           href={backHref}
           className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
@@ -60,6 +70,7 @@ export default async function NewRulePage({
   }
 
   const jurisdictionLabel = `${country} · ${province ?? "(nivel pais)"} · ${locality ?? "(toda la provincia)"}`;
+  const extraProps = buildCreateFormExtraProps(ruleType, RULE_TYPE_REGISTRY[ruleType].default);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -76,42 +87,13 @@ export default async function NewRulePage({
         <p className="text-[13px] text-ln-op-ink-2">{jurisdictionLabel}</p>
       </header>
 
-      {ruleType === "ppp_breed_list" && (
-        <PppBreedListForm
-          mode="create"
-          country={country}
-          province={province}
-          locality={locality}
-          initialBreeds={[...POTENTIALLY_DANGEROUS_DOG_BREEDS]}
-          initialNotes=""
-        />
-      )}
-      {ruleType === "ppp_weight_threshold" && (
-        <PppWeightThresholdForm
-          mode="create"
-          country={country}
-          province={province}
-          locality={locality}
-          initialKg={25}
-          initialAppliesIfBreedNotPPP={false}
-          initialNotes=""
-        />
-      )}
-      {ruleType === "ppp_attestation_required_registries" && (
-        <PppAttestationRegistriesForm
-          mode="create"
-          country={country}
-          province={province}
-          locality={locality}
-          initialRegistries={[]}
-          initialNotes=""
-        />
-      )}
-      {ruleType === "physical_credential_channels" && (
-        <p className="text-[13px] text-ln-op-mute">
-          Configuración de este tipo de regla no disponible aún.
-        </p>
-      )}
+      <RuleForm
+        mode="create"
+        country={country}
+        province={province}
+        locality={locality}
+        {...extraProps}
+      />
     </div>
   );
 }

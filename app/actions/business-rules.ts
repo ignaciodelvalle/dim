@@ -15,8 +15,8 @@
 import { redirect } from "next/navigation";
 
 import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
+import { getRuleTypeDef } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { parseRegistriesJson } from "@/lib/infra/parse-registries";
 
 import { createBusinessRuleWriter as _createBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/create-business-rule";
 import { deleteBusinessRuleWriter as _deleteBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/delete-business-rule";
@@ -93,48 +93,9 @@ function parseLegalAnchorIds(formData: FormData): string[] {
 // ---------------------------------------------------------------------------
 
 function parseRulePayloadFromForm(ruleType: GovtBusinessRuleType, formData: FormData): unknown {
-  // Each rule type encodes its payload as form fields. Parsing logic lives
-  // here so the action stays declarative — validators run after.
-  switch (ruleType) {
-    case "ppp_breed_list": {
-      const breeds = (formData.getAll("breeds") as string[])
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      return { breeds };
-    }
-    case "ppp_weight_threshold": {
-      const kgRaw = (formData.get("kg") as string | null)?.trim();
-      const kg = kgRaw && kgRaw !== "" ? Number.parseFloat(kgRaw) : null;
-      const appliesIfBreedNotPPP = formData.get("appliesIfBreedNotPPP") === "on";
-      return { kg, appliesIfBreedNotPPP };
-    }
-    case "ppp_attestation_required_registries": {
-      // Registries are serialised as a single JSON string (reorder-safe).
-      const raw = formData.get("registriesJson") as string | null;
-      const registries = parseRegistriesJson(raw);
-      return { registries };
-    }
-    case "physical_credential_channels": {
-      const printable_qr = formData.get("printable_qr") === "on";
-
-      function parseProvider(channel: string) {
-        const enabled = formData.get(`enabled_${channel}`) === "on";
-        const providerNameRaw = (formData.get(`provider_name_${channel}`) as string | null)?.trim();
-        const providerUrlRaw = (formData.get(`provider_url_${channel}`) as string | null)?.trim();
-        return {
-          enabled,
-          ...(providerNameRaw ? { providerName: providerNameRaw } : {}),
-          ...(providerUrlRaw ? { providerUrl: providerUrlRaw } : {}),
-        };
-      }
-
-      return {
-        printable_qr,
-        engraved_plate: parseProvider("engraved_plate"),
-        nfc_tag: parseProvider("nfc_tag"),
-      };
-    }
-  }
+  // Parsing logic per rule type lives in the registry (lib/domain/rule-types-
+  // registry.ts) so the action stays declarative — validators run after.
+  return getRuleTypeDef(ruleType).parseFromForm(formData);
 }
 
 export async function createBusinessRuleAction(

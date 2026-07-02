@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 
 import { auditLog, db, govtBusinessRules } from "@/db";
-import { reEvaluatePppBreedListChange } from "@/lib/infra/business-rules-reeval";
 import { validateRulePayload } from "@/lib/infra/business-rules-validators";
+import { runReevalHookIfRegistered } from "@/lib/infra/rule-types-effects";
 
 import type { UpdateBusinessRuleWriterParams } from "./types";
 
@@ -55,8 +55,8 @@ export async function updateBusinessRuleWriter(
       .from(govtBusinessRules)
       .where(eq(govtBusinessRules.id, params.ruleId))
       .limit(1);
-    if (updated?.ruleType === "ppp_breed_list") {
-      await reEvaluatePppBreedListChange({
+    if (updated) {
+      await runReevalHookIfRegistered(updated.ruleType, {
         country: updated.jurisdictionCountry,
         province: updated.jurisdictionProvince,
         locality: updated.jurisdictionLocality,

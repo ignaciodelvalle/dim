@@ -16,35 +16,14 @@ import {
   govtBusinessRules,
   profiles,
 } from "@/db";
-import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
+import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { formatDate } from "@/lib/utils/format";
 
 import { DeleteRuleButton } from "./DeleteRuleButton";
+import { RULE_FORM_REGISTRY } from "./nueva/forms";
 
 export const dynamic = "force-dynamic";
-
-const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
-  ppp_breed_list: "Lista de razas PPP",
-  ppp_weight_threshold: "Umbral de peso PPP",
-  ppp_attestation_required_registries: "Registros de atestación requeridos",
-  physical_credential_channels: "Canales de credencial física",
-};
-
-const RULE_TYPE_DESCRIPTION: Record<GovtBusinessRuleType, string> = {
-  ppp_breed_list: "Qué razas se consideran Potencialmente Peligrosas en esta jurisdicción.",
-  ppp_weight_threshold: "Si el peso del animal por sí solo dispara el status PPP, y a qué kilos.",
-  ppp_attestation_required_registries:
-    "En qué registros oficiales el dueño debe atestar a su mascota PPP.",
-  physical_credential_channels:
-    "Qué canales de emisión de credencial física están habilitados (QR imprimible, placa grabada, NFC).",
-};
-
-// Rule types that do not yet have a configuration form.
-// Excluded from the "missing types / Configurar" listing to avoid dead-end links.
-const RULE_TYPES_NOT_YET_AVAILABLE: ReadonlySet<GovtBusinessRuleType> = new Set([
-  "physical_credential_channels",
-]);
 
 function decodeNullable(raw: string): string | null {
   if (raw === "_") return null;
@@ -90,7 +69,7 @@ export default async function AdminJurisdiccionReglasPage({
   const activeByType = new Map(rows.map((r) => [r.rule.ruleType, r]));
   // Exclude rule types that don't have a configuration form yet — no dead-end links.
   const missingTypes = GOVT_BUSINESS_RULE_TYPES.filter(
-    (t) => !activeByType.has(t) && !RULE_TYPES_NOT_YET_AVAILABLE.has(t),
+    (t) => !activeByType.has(t) && t in RULE_FORM_REGISTRY,
   );
 
   const segCountry = encodeURIComponent(country);
@@ -126,7 +105,7 @@ export default async function AdminJurisdiccionReglasPage({
         {rows.map(({ rule, updatedBy }) => (
           <OpCard key={rule.id}>
             <OpCardHead
-              title={RULE_TYPE_LABEL[rule.ruleType as GovtBusinessRuleType]}
+              title={RULE_TYPE_REGISTRY[rule.ruleType as GovtBusinessRuleType].label}
               actions={
                 <div className="flex gap-3">
                   <Link
@@ -171,11 +150,13 @@ export default async function AdminJurisdiccionReglasPage({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-[13px] font-medium text-ln-op-ink">
-                          {RULE_TYPE_LABEL[t]}
+                          {RULE_TYPE_REGISTRY[t].label}
                         </p>
-                        <p className="text-[11px] text-ln-op-mute">{RULE_TYPE_DESCRIPTION[t]}</p>
+                        <p className="text-[11px] text-ln-op-mute">
+                          {RULE_TYPE_REGISTRY[t].description}
+                        </p>
                         <p className="text-[11px] text-ln-op-mute mt-1">
-                          Default: {JSON.stringify(BUSINESS_RULES_DEFAULTS[t]).slice(0, 120)}
+                          Default: {JSON.stringify(RULE_TYPE_REGISTRY[t].default).slice(0, 120)}
                           {"..."}
                         </p>
                       </div>

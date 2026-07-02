@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
-import { auditLog, db, govtBusinessRules } from "@/db";
-import { reEvaluatePppBreedListChange } from "@/lib/infra/business-rules-reeval";
+import { type GovtBusinessRuleType, auditLog, db, govtBusinessRules } from "@/db";
+import { runReevalHookIfRegistered } from "@/lib/infra/rule-types-effects";
 
 import type { DeleteBusinessRuleWriterParams } from "./types";
 
@@ -15,7 +15,7 @@ export async function deleteBusinessRuleWriter(
   // Capture the row scope BEFORE the tx so the post-commit reeval has
   // the jurisdiction even though the row is gone.
   let scope: { country: string; province: string | null; locality: string | null } | null = null;
-  let ruleType: string | null = null;
+  let ruleType: GovtBusinessRuleType | null = null;
   try {
     await db.transaction(async (tx) => {
       const [existing] = await tx
@@ -45,8 +45,8 @@ export async function deleteBusinessRuleWriter(
         },
       });
     });
-    if (ruleType === "ppp_breed_list" && scope) {
-      await reEvaluatePppBreedListChange(scope);
+    if (ruleType && scope) {
+      await runReevalHookIfRegistered(ruleType, scope);
     }
     return { ok: true };
   } catch (err) {

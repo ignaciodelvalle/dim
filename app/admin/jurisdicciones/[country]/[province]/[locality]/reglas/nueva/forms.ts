@@ -1,0 +1,100 @@
+// Client form-component map (design ADR-2). A rule type is "available" in
+// the console iff it has an entry here — this supersedes the old
+// RULE_TYPES_NOT_YET_AVAILABLE set (a rule type not listed here is simply
+// absent from the map, so callers do `ruleType in RULE_FORM_REGISTRY`
+// instead of checking a separate exclusion list).
+//
+// Adding a rule type's form = one entry here. `nueva/page.tsx` and
+// `editar/[ruleId]/page.tsx` render `RULE_FORM_REGISTRY[ruleType]` instead of
+// an if-ladder.
+
+import type { ComponentType } from "react";
+
+import type { GovtBusinessRuleType } from "@/db";
+
+import { PppAttestationRegistriesForm } from "./PppAttestationRegistriesForm";
+import { PppBreedListForm } from "./PppBreedListForm";
+import { PppWeightThresholdForm } from "./PppWeightThresholdForm";
+
+export type RuleFormProps = {
+  mode: "create" | "edit";
+  ruleId?: string;
+  country: string;
+  province: string | null;
+  locality: string | null;
+  // biome-ignore lint/suspicious/noExplicitAny: each form has its own initialXxx prop shape (breeds vs kg vs registries); the map is consumed via a per-ruleType switch that narrows props at the call site.
+  [key: string]: any;
+};
+
+// Each concrete form component declares its OWN (narrower, non-optional)
+// initialXxx props — that's the whole point of per-type forms. The shared
+// map type is intentionally loose (RuleFormProps has an index signature);
+// buildCreateFormExtraProps/buildEditFormExtraProps below are the single
+// place responsible for supplying the right shape per ruleType, so this cast
+// is safe: page.tsx never renders a form with the wrong extra props.
+export const RULE_FORM_REGISTRY: Partial<
+  Record<GovtBusinessRuleType, ComponentType<RuleFormProps>>
+> = {
+  ppp_breed_list: PppBreedListForm as ComponentType<RuleFormProps>,
+  ppp_weight_threshold: PppWeightThresholdForm as ComponentType<RuleFormProps>,
+  ppp_attestation_required_registries: PppAttestationRegistriesForm as ComponentType<RuleFormProps>,
+};
+
+/**
+ * Per-rule-type "create" initial props (the defaults a brand-new rule starts
+ * from). Kept alongside the component map so `nueva/page.tsx` stays a single
+ * `RULE_FORM_REGISTRY[ruleType]` lookup instead of an if-ladder.
+ */
+export function buildCreateFormExtraProps(
+  ruleType: GovtBusinessRuleType,
+  defaultPayload: unknown,
+): Record<string, unknown> {
+  const payload = (defaultPayload ?? {}) as Record<string, unknown>;
+  switch (ruleType) {
+    case "ppp_breed_list":
+      return {
+        initialBreeds: Array.isArray(payload.breeds) ? payload.breeds : [],
+        initialNotes: "",
+      };
+    case "ppp_weight_threshold":
+      // NOTE: intentionally NOT the raw default (kg: null) — the create form
+      // has always suggested 25kg as a starting point (pre-registry behavior
+      // preserved verbatim; the *resolver* default is still null/no-op).
+      return {
+        initialKg: 25,
+        initialAppliesIfBreedNotPPP: false,
+        initialNotes: "",
+      };
+    case "ppp_attestation_required_registries":
+      return {
+        initialRegistries: Array.isArray(payload.registries) ? payload.registries : [],
+        initialNotes: "",
+      };
+    default:
+      return { initialNotes: "" };
+  }
+}
+
+/** Per-rule-type "edit" initial props, read off an existing row's payload. */
+export function buildEditFormExtraProps(
+  ruleType: GovtBusinessRuleType,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  switch (ruleType) {
+    case "ppp_breed_list":
+      return { initialBreeds: Array.isArray(payload.breeds) ? (payload.breeds as string[]) : [] };
+    case "ppp_weight_threshold":
+      return {
+        initialKg: typeof payload.kg === "number" ? payload.kg : null,
+        initialAppliesIfBreedNotPPP: Boolean(payload.appliesIfBreedNotPPP),
+      };
+    case "ppp_attestation_required_registries":
+      return {
+        initialRegistries: Array.isArray(payload.registries)
+          ? (payload.registries as { id: string; label: string; required: boolean }[])
+          : [],
+      };
+    default:
+      return {};
+  }
+}

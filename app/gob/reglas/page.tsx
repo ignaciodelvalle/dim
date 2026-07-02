@@ -8,18 +8,12 @@
 import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge } from "@/components/ui/dashboard";
-import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
+import { GOVT_BUSINESS_RULE_TYPES } from "@/db";
+import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 
 export const dynamic = "force-dynamic";
-
-const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
-  ppp_breed_list: "Lista de razas PPP",
-  ppp_weight_threshold: "Umbral de peso PPP",
-  ppp_attestation_required_registries: "Registros de atestación requeridos",
-  physical_credential_channels: "Canales de credencial física",
-};
 
 const SOURCE_LABEL: Record<string, string> = {
   default: "Default nacional",
@@ -94,7 +88,7 @@ export default async function GobReglasPage() {
                 <li key={ruleType} className="px-4 py-3 space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-[13px] font-medium text-ln-op-ink">
-                      {RULE_TYPE_LABEL[ruleType]}
+                      {RULE_TYPE_REGISTRY[ruleType].label}
                     </p>
                     <span className="text-sm text-ln-op-mute">{SOURCE_LABEL[source]}</span>
                   </div>
