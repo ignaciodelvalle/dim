@@ -115,7 +115,11 @@ export function AppCitizenMasthead({
           <span className="block font-[var(--font-ln-serif)] text-[19px] font-semibold tracking-[-0.01em]">
             {BRANDING.appName}
           </span>
-          <span className="block font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.22em] text-[var(--color-ln-celeste)]">
+          {/* Hidden below md: the wide letter-spacing (tracking-[.22em]) makes this
+              line ~150px wide, which forces the header row past 320px viewports
+              and causes document-level horizontal scroll. Same hidden/md:block
+              pattern already used below for the user name. */}
+          <span className="hidden font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.22em] text-[var(--color-ln-celeste)] md:block">
             MI MASCOTA ARGENTINA
           </span>
         </span>
