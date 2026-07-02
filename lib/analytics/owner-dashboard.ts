@@ -1237,6 +1237,11 @@ export const PROFILE_V2_TYPED_EVENT_TYPES = [
   // Microchip — Estado actual chip line
   "microchip_recorded",
   "microchip_implanted",
+  // PPP attestation — Credencial compliance stamp + ppp row (pet-document-redesign REQ-10.1).
+  // Was missing from this whitelist, so fetchPetEventsForProfileV2 silently
+  // dropped the event before it reached derivePpp or the direct ppp.attested
+  // prop, making an attested PPP always render "Atestación pendiente".
+  "dangerous_breed_attested",
 ] as const;
 
 export type ProfileV2TypedEventType = (typeof PROFILE_V2_TYPED_EVENT_TYPES)[number];

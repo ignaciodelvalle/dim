@@ -36,10 +36,10 @@
 //   - <RabiesObservationBanner>, <TransitBanner> — page-local, inside PetAlertStrip.
 //   - <DeceasedView> — early return for deceased pets.
 //
-// Note: PPP/service-dog attestation state is read from `typedEvents`
-// (PROFILE_V2_TYPED_EVENT_TYPES), which does NOT include
-// `dangerous_breed_attested` — this is a pre-existing gap shared with
-// deriveComplianceState's `derivePpp`, not introduced by this redesign.
+// PPP/service-dog attestation state is read from `typedEvents`
+// (PROFILE_V2_TYPED_EVENT_TYPES), which now includes `dangerous_breed_attested`
+// (pet-document-redesign REQ-10.1) — both the compliance stamp (derivePpp)
+// and the `ppp.attested` prop below read the same fixed whitelist.
 // ---------------------------------------------------------------------------
 
 import { fetchPendingReturnProposalForOwner } from "@/app/actions/return-to-owner";
