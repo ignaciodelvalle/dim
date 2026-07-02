@@ -130,7 +130,9 @@ export function CredentialFace({
         <ComplianceObligationsPanel state={complianceState} petPublicToken={petPublicToken} />
       )}
 
-      {emergencyContacts && <EmergencyCard contacts={emergencyContacts} />}
+      {emergencyContacts && (
+        <EmergencyCard contacts={emergencyContacts} petPublicToken={petPublicToken} />
+      )}
 
       {(ppp || serviceDog) && (
         <div data-section="credentials" className="flex flex-col gap-2">
@@ -189,10 +191,21 @@ export function CredentialFace({
 // emergencia" prompt when any of the three source fields is missing.
 // ---------------------------------------------------------------------------
 
-function EmergencyCard({ contacts }: { contacts: CredentialFaceEmergencyContacts }) {
+function EmergencyCard({
+  contacts,
+  petPublicToken,
+}: {
+  contacts: CredentialFaceEmergencyContacts;
+  petPublicToken: string;
+}) {
   const { preferredVetPhone, emergencyContactName, emergencyContactPhone } = contacts;
   const hasAnyContact = Boolean(preferredVetPhone || emergencyContactPhone);
   const isMissingSomething = !preferredVetPhone || !emergencyContactName || !emergencyContactPhone;
+  // pet-document-redesign ADR-13 (Phase 5): the edit entry point moved from
+  // the full /cuenta/editar page (with a #emergencia scroll anchor) to the
+  // narrow in-profile `?sheet=emergencia` sheet — same destination for both
+  // the "add" prompt (missing data) and the "edit" affordance (has data).
+  const editHref = `/mis-mascotas/${petPublicToken}?sheet=emergencia`;
 
   return (
     <LnCard>
@@ -228,17 +241,15 @@ function EmergencyCard({ contacts }: { contacts: CredentialFaceEmergencyContacts
             )}
           </div>
         )}
-        {isMissingSomething && (
-          <Link
-            href="/cuenta/editar#emergencia"
-            className={[
-              "inline-block text-xs text-[var(--color-ln-mute)] no-underline hover:underline",
-              hasAnyContact ? "mt-2.5" : "",
-            ].join(" ")}
-          >
-            Agregar datos de emergencia →
-          </Link>
-        )}
+        <Link
+          href={editHref}
+          className={[
+            "inline-block text-xs text-[var(--color-ln-mute)] no-underline hover:underline",
+            hasAnyContact ? "mt-2.5" : "",
+          ].join(" ")}
+        >
+          {isMissingSomething ? "Agregar datos de emergencia →" : "Editar →"}
+        </Link>
       </LnCardBody>
     </LnCard>
   );

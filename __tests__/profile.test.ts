@@ -13,8 +13,29 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { updateProfileForUser, uploadAvatarForUser } from "@/app/actions/profile";
+// updateEmergencyContactsAction (pet-document-redesign ADR-13, Phase 5) calls
+// requireUserOrRedirect() — mocked here so the narrow-write test below can
+// drive it directly against the real seeded actor without a Next.js request
+// context. Doesn't affect the *ForUser writers above, which are called
+// directly with an explicit userId (never go through this guard).
+vi.mock("@/lib/infra/auth-guards", () => ({
+  requireUserOrRedirect: vi.fn(),
+}));
+
+// revalidatePath needs a Next.js request/static-generation context that
+// doesn't exist under vitest — mocked to a no-op, same reasoning as the
+// auth-guards mock above.
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+
+import {
+  updateEmergencyContactsAction,
+  updateProfileForUser,
+  uploadAvatarForUser,
+} from "@/app/actions/profile";
 import { auditLog, db, notifications, profiles } from "@/db";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -215,6 +236,73 @@ describe("updateProfileForUser — validation rejections", () => {
       phone: "",
     });
     expect(result).not.toHaveProperty("error");
+  });
+});
+
+// ============================================================================
+// updateEmergencyContactsAction — narrow write (pet-document-redesign
+// ADR-13, Phase 5). Scoped to the 4 vet/emergency fields; must never touch
+// displayName even though it reuses updateProfileForUser under the hood.
+// ============================================================================
+
+describe("updateEmergencyContactsAction — scoped write", () => {
+  it("updates only the 4 emergency fields, displayName untouched", async () => {
+    vi.mocked(requireUserOrRedirect).mockResolvedValue({
+      user: { id: actorUserId },
+    } as never);
+
+    await db
+      .update(profiles)
+      .set({
+        displayName: "Untouched Display Name",
+        preferredVetName: null,
+        preferredVetPhone: null,
+        emergencyContactName: null,
+        emergencyContactPhone: null,
+      })
+      .where(eq(profiles.id, actorUserId));
+
+    const result = await updateEmergencyContactsAction("pet-token-does-not-matter", {
+      preferredVetName: "Dra. Pérez",
+      preferredVetPhone: "+54 9 11 1111-1111",
+      emergencyContactName: "Lucía F.",
+      emergencyContactPhone: "+54 9 11 2222-2222",
+    });
+
+    expect(result).not.toHaveProperty("error");
+
+    const [row] = await db
+      .select({
+        displayName: profiles.displayName,
+        preferredVetName: profiles.preferredVetName,
+        preferredVetPhone: profiles.preferredVetPhone,
+        emergencyContactName: profiles.emergencyContactName,
+        emergencyContactPhone: profiles.emergencyContactPhone,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, actorUserId))
+      .limit(1);
+
+    // Scoped: displayName is passed through unchanged, never overwritten.
+    expect(row.displayName).toBe("Untouched Display Name");
+    expect(row.preferredVetName).toBe("Dra. Pérez");
+    expect(row.preferredVetPhone).toBe("+54 9 11 1111-1111");
+    expect(row.emergencyContactName).toBe("Lucía F.");
+    expect(row.emergencyContactPhone).toBe("+54 9 11 2222-2222");
+  });
+
+  it("returns NOT_FOUND for a user with no profile row", async () => {
+    vi.mocked(requireUserOrRedirect).mockResolvedValue({
+      user: { id: "00000000-0000-0000-0000-000000000099" },
+    } as never);
+
+    const result = await updateEmergencyContactsAction("pet-token-does-not-matter", {
+      preferredVetName: "Should not save",
+    });
+
+    expect(result).toHaveProperty("error");
+    if (!("error" in result)) return;
+    expect(result.error).toMatch(/NOT_FOUND/);
   });
 });
 
