@@ -46,7 +46,12 @@ test("segmento 02 — dueno", async ({ page }) => {
   await showScreen(page, `/mis-mascotas/${token}?tab=libreta&lente=todo`);
 
   // 4. VACUNA — event capture end to end, with attachment photo.
-  await showScreen(page, `/mis-mascotas/${token}/anotar`);
+  // pet-document-redesign (D1/ADR-5): Anotar is now a ?sheet=anotar sheet on
+  // the profile itself, not a page nav to /anotar (that route stays as a
+  // thin fallback — see SheetMounter.tsx). CaptureOptionsList is the exact
+  // same shared component either way, so "Registrar vacuna" renders
+  // identically inside the sheet.
+  await showScreen(page, `/mis-mascotas/${token}?sheet=anotar`);
   await page.getByRole("link", { name: "Registrar vacuna" }).click();
   await page.waitForLoadState("networkidle").catch(() => {});
   await fullScroll(page);
@@ -73,6 +78,10 @@ test("segmento 02 — dueno", async ({ page }) => {
   // the registered vaccine.
   await showScreen(page, `/mis-mascotas/${token}?tab=libreta&lente=vacunas`);
   await showScreen(page, `/mis-mascotas/${token}/historial`);
+
+  // 5b. CHAPITA — physical-tag-interest sheet (pet-document-redesign
+  // ADR-17b), the revived 5th action-bar icon on an active pet's profile.
+  await showScreen(page, `/mis-mascotas/${token}?sheet=chapita`);
 
   // 6. TURNOS — search → offering → slot → confirm booking (fail loud: needs seeded slots).
   // Drive the real filter form: seed-coverage's castración campaign lives in Palermo.
