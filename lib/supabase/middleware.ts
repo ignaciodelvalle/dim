@@ -35,7 +35,20 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: getUser() forces a server-side validation of the session token.
   // Do not skip this — it's what keeps sessions fresh across page loads.
-  await supabase.auth.getUser();
+  //
+  // A stale/revoked refresh token makes Supabase throw AuthApiError
+  // (code refresh_token_not_found, HTTP 400). Left uncaught it escapes the
+  // middleware and kills the whole server process (observed live 2026-07-02:
+  // one browser holding a discarded session crashed next start). A bad
+  // client token must never be fatal — treat it as "not signed in" and let
+  // the request continue; the auth guards downstream redirect to /login.
+  try {
+    await supabase.auth.getUser();
+  } catch (error) {
+    const isAuthError =
+      typeof error === "object" && error !== null && "__isAuthError" in error;
+    if (!isAuthError) throw error;
+  }
 
   return supabaseResponse;
 }
