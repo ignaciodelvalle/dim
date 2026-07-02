@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { LnPetStatus } from "./Chip";
 
 /**
@@ -118,7 +120,14 @@ export function LnVstamp({ variant, className = "" }: LnVstampProps) {
 // ---------- Memorial chip -------------------------------------------------
 // Used in the deceased profile sub-bar
 
-export function LnMemorialChip({ className = "" }: { className?: string }) {
+export function LnMemorialChip({
+  className = "",
+  children,
+}: {
+  className?: string;
+  /** Overrides the default "En memoria" label — e.g. to append a birth–death year range. */
+  children?: ReactNode;
+}) {
   return (
     <span
       className={[
@@ -129,7 +138,7 @@ export function LnMemorialChip({ className = "" }: { className?: string }) {
         .filter(Boolean)
         .join(" ")}
     >
-      En memoria
+      {children ?? "En memoria"}
     </span>
   );
 }

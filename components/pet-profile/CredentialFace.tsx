@@ -19,6 +19,7 @@ import Link from "next/link";
 import { ComplianceObligationsPanel } from "@/components/pet-profile/ComplianceObligationsPanel";
 import { LnAlert } from "@/components/ui/Alert";
 import { LnHero, type LnHeroProps } from "@/components/ui/Hero";
+import { LnMemorialChip } from "@/components/ui/StatusFlag";
 import type { ComplianceState } from "@/lib/projections/pet-compliance";
 
 export type CredentialFacePppInfo = {
@@ -68,11 +69,15 @@ export function CredentialFace({
   petPublicToken,
   memorial,
 }: CredentialFaceProps) {
-  const memorialDateLine = memorial
-    ? memorial.birthYear && memorial.deathYear
-      ? `En memoria · ${memorial.birthYear}–${memorial.deathYear}`
-      : "En memoria"
-    : null;
+  // wave-3 D12 (design-system audit finding 6): the ribbon used to hand-roll
+  // its own box using the exact same 3 --color-ln-memorial-chip-* tokens
+  // LnMemorialChip already wraps up — it's the canonical memorial-state
+  // treatment (StatusFlag.tsx) and had zero consumers. Route through it
+  // instead of reinventing the same colors/shape a second time.
+  const memorialYearRange =
+    memorial?.birthYear && memorial?.deathYear
+      ? `${memorial.birthYear}–${memorial.deathYear}`
+      : null;
 
   return (
     <div
@@ -80,18 +85,10 @@ export function CredentialFace({
       style={memorial ? { filter: "grayscale(0.35) sepia(0.2)" } : undefined}
     >
       {memorial && (
-        <div
-          data-section="memorial-ribbon"
-          className="rounded-[var(--radius-sm)] border px-3.5 py-2 text-center"
-          style={{
-            background: "var(--color-ln-memorial-chip-bg)",
-            borderColor: "var(--color-ln-memorial-chip-bd)",
-            color: "var(--color-ln-memorial-chip-text)",
-          }}
-        >
-          <p className="m-0 font-[var(--font-ln-serif)] text-sm font-semibold italic">
-            In Memoriam{memorialDateLine ? ` · ${memorialDateLine}` : ""}
-          </p>
+        <div data-section="memorial-ribbon" className="flex justify-center">
+          <LnMemorialChip>
+            En memoria{memorialYearRange ? ` · ${memorialYearRange}` : ""}
+          </LnMemorialChip>
         </div>
       )}
 

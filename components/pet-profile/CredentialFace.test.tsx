@@ -80,13 +80,18 @@ describe("CredentialFace — H1 provenance gate (negative case)", () => {
 });
 
 describe("CredentialFace — In-Memoriam skin (ADR-15)", () => {
+  // wave-3 D12: the ribbon now renders through the shared LnMemorialChip
+  // (components/ui/StatusFlag.tsx) instead of hand-rolling its own box —
+  // its canonical label is "En memoria" (Spanish, matching the rest of the
+  // app's es-AR-only copy), replacing the former ad-hoc "In Memoriam" text.
   it("renders no memorial ribbon when memorial is absent (default/active pet)", () => {
     const state = deriveComplianceState(complianceInput());
     const html = render(state);
-    expect(html).not.toContain("In Memoriam");
+    expect(html).not.toContain("En memoria");
+    expect(html).not.toContain('data-section="memorial-ribbon"');
   });
 
-  it("renders the In Memoriam ribbon with the birth-death year line when memorial is set", () => {
+  it("renders the En memoria ribbon with the birth-death year line when memorial is set", () => {
     const state = deriveComplianceState(complianceInput());
     const html = renderToStaticMarkup(
       <CredentialFace
@@ -95,13 +100,13 @@ describe("CredentialFace — In-Memoriam skin (ADR-15)", () => {
         memorial={{ birthYear: 2015, deathYear: 2026 }}
       />,
     );
-    expect(html).toContain("In Memoriam");
+    expect(html).toContain("En memoria");
     expect(html).toContain("2015");
     expect(html).toContain("2026");
     expect(html).toContain('data-section="memorial-ribbon"');
   });
 
-  it("falls back to a bare 'In Memoriam' line when birth/death years are unknown", () => {
+  it("falls back to a bare 'En memoria' line when birth/death years are unknown", () => {
     const state = deriveComplianceState(complianceInput());
     const html = renderToStaticMarkup(
       <CredentialFace
@@ -110,6 +115,7 @@ describe("CredentialFace — In-Memoriam skin (ADR-15)", () => {
         memorial={{ birthYear: null, deathYear: null }}
       />,
     );
-    expect(html).toContain("In Memoriam");
+    expect(html).toContain("En memoria");
+    expect(html).not.toContain("–"); // no year range when years are unknown
   });
 });
