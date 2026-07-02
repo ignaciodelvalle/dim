@@ -339,6 +339,10 @@ export function OrgMascotasBulkList({
                   {ageInfo} · ingreso{" "}
                   {new Date(card.startedAt).toLocaleDateString("es-AR", {
                     dateStyle: "medium",
+                    // Fixed timeZone — server (UTC) and client (browser-local)
+                    // must format the same calendar day, otherwise dates near
+                    // local midnight flip between SSR and hydration (#418).
+                    timeZone: "America/Argentina/Buenos_Aires",
                   })}
                 </p>
                 <p className="text-sm text-ln-op-mute">
