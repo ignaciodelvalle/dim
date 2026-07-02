@@ -1,0 +1,118 @@
+// @vitest-environment jsdom
+//
+// JurisdictionSwitcher — router-drop defect fix (finding 5, live QA).
+// The province/locality selects used to write the URL via `router.replace`,
+// which Next 15.5.18's App Router can silently drop in production (same
+// defect class documented in lib/ui/sheet-nav.ts). Unlike the pet profile's
+// sheets, /gob/vigilancia's panels are SERVER-rendered from searchParams, so
+// a shallow history write alone would leave stale content on screen. The fix
+// bypasses the client router entirely via a full document navigation
+// (`window.location.assign`) — this test asserts that mechanism directly and
+// that no router method is ever invoked.
+
+import "@testing-library/jest-dom/vitest";
+
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const routerPush = vi.fn();
+const routerReplace = vi.fn();
+const routerRefresh = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: routerPush, replace: routerReplace, refresh: routerRefresh }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
+
+import { JurisdictionSwitcher } from "./JurisdictionSwitcher";
+
+const ALLOWED_PROVINCES = [
+  { code: "AR-B", name: "Buenos Aires" },
+  { code: "AR-C", name: "CABA" },
+];
+
+const LOCALITIES = [
+  { slug: "la-plata", name: "La Plata" },
+  { slug: "mar-del-plata", name: "Mar del Plata" },
+];
+
+const mockAssign = vi.fn();
+const originalLocation = window.location;
+
+function setUrl(url: string) {
+  window.history.replaceState(null, "", url);
+  const current = new URL(url, "http://localhost");
+  // jsdom's real window.location.assign performs a navigation it doesn't
+  // support ("Not implemented: navigation"), and its `assign` method isn't
+  // directly spy-able (non-configurable on the Location object). Replace the
+  // whole object with a plain stub that mirrors the fields the component and
+  // useSearchParams mock read, plus a jest.fn() for `assign`.
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    writable: true,
+    value: { ...originalLocation, ...current, assign: mockAssign },
+  });
+}
+
+beforeEach(() => {
+  routerPush.mockClear();
+  routerReplace.mockClear();
+  routerRefresh.mockClear();
+  mockAssign.mockClear();
+  setUrl("/gob/vigilancia?period=30d");
+});
+
+afterEach(() => {
+  cleanup();
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    writable: true,
+    value: originalLocation,
+  });
+});
+
+describe("JurisdictionSwitcher — full navigation on change (router-drop fix)", () => {
+  it("selecting a province navigates via window.location.assign, preserving other params", () => {
+    render(<JurisdictionSwitcher allowedProvinces={ALLOWED_PROVINCES} />);
+
+    fireEvent.change(screen.getByLabelText("Provincia"), { target: { value: "AR-B" } });
+
+    expect(mockAssign).toHaveBeenCalledTimes(1);
+    const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost/gob/vigilancia");
+    expect(url.searchParams.get("period")).toBe("30d");
+    expect(url.searchParams.get("province")).toBe("AR-B");
+    expect(url.searchParams.get("locality")).toBeNull();
+  });
+
+  it("selecting a province clears any previously-selected locality", () => {
+    setUrl("/gob/vigilancia?period=30d&province=AR-B&locality=la-plata");
+    render(<JurisdictionSwitcher allowedProvinces={ALLOWED_PROVINCES} localities={LOCALITIES} />);
+
+    fireEvent.change(screen.getByLabelText("Provincia"), { target: { value: "AR-C" } });
+
+    const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost/gob/vigilancia");
+    expect(url.searchParams.get("province")).toBe("AR-C");
+    expect(url.searchParams.get("locality")).toBeNull();
+  });
+
+  it("selecting a locality navigates via window.location.assign, preserving province", () => {
+    setUrl("/gob/vigilancia?period=30d&province=AR-B");
+    render(<JurisdictionSwitcher allowedProvinces={ALLOWED_PROVINCES} localities={LOCALITIES} />);
+
+    fireEvent.change(screen.getByLabelText("Localidad"), { target: { value: "la-plata" } });
+
+    const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost/gob/vigilancia");
+    expect(url.searchParams.get("province")).toBe("AR-B");
+    expect(url.searchParams.get("locality")).toBe("la-plata");
+  });
+
+  it("never calls router.replace/push/refresh — only the full-navigation path", () => {
+    render(<JurisdictionSwitcher allowedProvinces={ALLOWED_PROVINCES} localities={LOCALITIES} />);
+
+    fireEvent.change(screen.getByLabelText("Provincia"), { target: { value: "AR-B" } });
+
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(routerReplace).not.toHaveBeenCalled();
+    expect(routerRefresh).not.toHaveBeenCalled();
+  });
+});

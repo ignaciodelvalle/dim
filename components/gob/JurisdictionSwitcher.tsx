@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useId, useMemo } from "react";
 
 /**
@@ -12,8 +12,9 @@ import { useId, useMemo } from "react";
  *
  * Comportamiento:
  *  - Al cambiar provincia, la localidad se limpia automáticamente.
- *  - Los cambios actualizan los searchParams vía `router.replace` con `scroll: false`,
- *    preservando todos los demás params presentes en la URL.
+ *  - Los cambios actualizan los searchParams vía una navegación de documento completa
+ *    (`window.location.assign`), preservando todos los demás params presentes en la
+ *    URL — NO usa `router.replace`/`router.refresh` (ver nota de diseño más abajo).
  *  - Si `allowedProvinces` tiene más de un elemento, el select de provincia incluye
  *    una opción vacía "Todas" para scope nacional.
  *  - El select de localidad queda `disabled` si no hay provincia seleccionada o si
@@ -60,7 +61,6 @@ export function JurisdictionSwitcher({
   paramKeys = { province: "province", locality: "locality" },
   className = "",
 }: JurisdictionSwitcherProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const uid = useId();
 
@@ -72,6 +72,26 @@ export function JurisdictionSwitcher({
 
   const showNationalOption = allowedProvinces.length > 1;
 
+  // Design note (router-drop defect, engram #621 / verify-report #617
+  // CRITICAL-1): Next 15.5.18's App Router can silently drop a client
+  // transition's own fetch in production — the RSC request resolves 200
+  // but the URL and UI never update. lib/ui/sheet-nav.ts cures this for the
+  // pet profile by writing the URL directly via the native History API
+  // (shallow routing), which works there because that page's content is
+  // client-rendered.
+  //
+  // /gob/vigilancia is different: every panel (choropleth, KPI tiles,
+  // signals, trend) is SERVER-rendered from `searchParams` on each request.
+  // A shallow `history.replaceState` would update the URL/selects but leave
+  // stale server-rendered content on screen. Pairing it with
+  // `router.refresh()` doesn't provably fix the drop bug either —
+  // `refresh()` goes through the SAME client-router transition machinery as
+  // `replace()`/`push()`, so it is not known-safe.
+  //
+  // The one mechanism guaranteed immune to a client-router defect is
+  // bypassing the client router entirely: a full document navigation. The
+  // browser's native GET cannot be silently dropped, and it always re-runs
+  // the server component with the new searchParams.
   function updateParams(updates: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, value] of Object.entries(updates)) {
@@ -81,7 +101,7 @@ export function JurisdictionSwitcher({
         params.set(key, value);
       }
     }
-    router.replace(`?${params.toString()}`, { scroll: false });
+    window.location.assign(`?${params.toString()}`);
   }
 
   function handleProvinceChange(e: React.ChangeEvent<HTMLSelectElement>) {
