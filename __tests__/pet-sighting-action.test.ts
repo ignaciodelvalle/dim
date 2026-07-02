@@ -47,7 +47,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 // ---------------------------------------------------------------------------
 
 const mockUpload = vi.fn();
-vi.mock("@/lib/uploads", () => ({
+vi.mock("@/lib/infra/uploads", () => ({
   uploadAttachmentIfPresent: (...args: unknown[]) => mockUpload(...args),
 }));
 
@@ -73,7 +73,7 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/rate-limit", async (importOriginal) => {
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
@@ -409,7 +409,7 @@ describe("reportPetSightingAction — idempotency guard", () => {
     capturedAttachmentInsert = null;
 
     // Override the idempotency helper so we can control wasNoop.
-    vi.doMock("@/lib/event-idempotency", () => ({
+    vi.doMock("@/lib/events/event-idempotency", () => ({
       insertEventIdempotent: mockInsertEventIdempotent,
     }));
   });
