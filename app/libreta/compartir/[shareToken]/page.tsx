@@ -118,7 +118,9 @@ export default async function PublicLibretaPage({
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.
     <div className="bg-[var(--color-ln-paper)] p-6">
       <div className="mx-auto max-w-2xl space-y-6 pb-20 pt-6">
-        {/* Vet login banner — encourages vets to sign in for full write access. */}
+        {/* Read-only notice — this share link has no write UI; it's a shared
+            view of the owner's libreta. See docs/audits for the tracked
+            follow-up on a vet write flow. */}
         <div
           role="note"
           className="print:hidden rounded-[4px] border px-[16px] py-[12px]"
@@ -129,15 +131,9 @@ export default async function PublicLibretaPage({
           }}
         >
           <p className="text-[13px]" style={{ color: "var(--color-ln-ink-2)" }}>
-            <strong style={{ color: "var(--color-ln-ink)" }}>¿Sos veterinario/a?</strong>{" "}
-            <Link
-              href="/login"
-              className="font-semibold no-underline hover:underline"
-              style={{ color: "var(--color-ln-azul)" }}
-            >
-              Iniciá sesión
-            </Link>{" "}
-            para registrar eventos en esta libreta.
+            <strong style={{ color: "var(--color-ln-ink)" }}>Vista de solo lectura.</strong> Estás
+            viendo la libreta sanitaria compartida por el dueño/a. Para sumar nuevos eventos,
+            contactá al dueño/a.
           </p>
         </div>
 
