@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   attachments,
+  cases,
   db,
   organizations,
   ownerships,
@@ -510,5 +511,215 @@ describe("W-2 parity: reminder description uses org displayName and pet name", (
     expect(capturedDescription).toBe(
       `${ORG_DISPLAY_NAME} pidió un check-in sobre ${PET_NAME}. Subí fotos y contanos cómo está.`,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Bugfix regression: case records were never opened for adoption events.
+//
+// setEligibility() and insertApplication() insert pet_events rows without
+// ever calling openCase(), despite CASE_ATTACHMENT_RULES declaring
+// opensKind: "adoption_listing" / "adoption_application" for these event
+// kinds. case_id is append-only on pet_events (DB trigger), so the
+// open-or-attach decision has to be made atomically with the insert — these
+// tests cover that wiring directly against Postgres (not mocks).
+// ---------------------------------------------------------------------------
+
+describe("AdoptionRepository — case-opening wiring (bugfix)", () => {
+  describe("setEligibility", () => {
+    it("opens an adoption_listing case and attaches its id to the pet_event when eligible=true", async () => {
+      const now = new Date();
+
+      await db.transaction(async (tx) => {
+        await AdoptionRepository.setEligibility(
+          {
+            petId: petId2,
+            eligible: true,
+            ineligibleReason: null,
+            ineligibleReasonNotes: null,
+            ineligibleUntil: null,
+            now,
+            userId: actorUserId,
+            orgId,
+            orgVerified: true,
+            previousState: null,
+          },
+          tx,
+        );
+      });
+
+      const [event] = await db
+        .select({ caseId: petEvents.caseId })
+        .from(petEvents)
+        .where(
+          and(eq(petEvents.petId, petId2), eq(petEvents.eventType, "adoption_eligibility_set")),
+        )
+        .limit(1);
+
+      expect(event?.caseId).not.toBeNull();
+
+      const [caseRow] = await db
+        .select()
+        .from(cases)
+        .where(eq(cases.id, event?.caseId as string));
+
+      expect(caseRow).toBeTruthy();
+      expect(caseRow.caseKind).toBe("adoption_listing");
+      expect(caseRow.status).toBe("open");
+      expect(caseRow.primaryPetId).toBe(petId2);
+      expect(caseRow.openedByOrganizationId).toBe(orgId);
+    });
+  });
+
+  describe("insertApplication", () => {
+    let applicantAId: string;
+    let applicantBId: string;
+
+    beforeAll(async () => {
+      applicantAId = crypto.randomUUID();
+      applicantBId = crypto.randomUUID();
+      await db.insert(profiles).values([
+        {
+          id: applicantAId,
+          displayName: "Applicant A",
+          dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+          dniVerified: false,
+          role: "owner",
+        },
+        {
+          id: applicantBId,
+          displayName: "Applicant B",
+          dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+          dniVerified: false,
+          role: "owner",
+        },
+      ]);
+    });
+
+    afterAll(async () => {
+      // Deleting these profiles cascades to SET NULL on
+      // pet_events.recorded_by_user_id, which is an UPDATE on pet_events —
+      // the append-only trigger blocks that without the escape hatch.
+      await withMutationOverride(async (tx) => {
+        await tx.delete(profiles).where(eq(profiles.id, applicantAId));
+        await tx.delete(profiles).where(eq(profiles.id, applicantBId));
+      });
+    });
+
+    it("opens an adoption_application case on the first application and attaches its id to the pet_event", async () => {
+      let eventId = "";
+
+      await db.transaction(async (tx) => {
+        const result = await AdoptionRepository.insertApplication(
+          {
+            petId: petId2,
+            userId: applicantAId,
+            orgId,
+            housingType: "casa_con_patio",
+            otherPets: null,
+            dailyRoutine: null,
+            notes: null,
+            motivation: "Quiero darle un hogar seguro.",
+            priorPets: "no",
+            now: new Date(),
+          },
+          tx,
+        );
+        eventId = result.eventId;
+      });
+
+      const [event] = await db
+        .select({ caseId: petEvents.caseId })
+        .from(petEvents)
+        .where(eq(petEvents.id, eventId));
+
+      expect(event?.caseId).not.toBeNull();
+
+      const [caseRow] = await db
+        .select()
+        .from(cases)
+        .where(eq(cases.id, event?.caseId as string));
+
+      expect(caseRow).toBeTruthy();
+      expect(caseRow.caseKind).toBe("adoption_application");
+      expect(caseRow.status).toBe("open");
+      expect(caseRow.primaryPetId).toBe(petId2);
+      expect(caseRow.applicantUserId).toBe(applicantAId);
+    });
+
+    it("opens a SECOND, distinct adoption_application case for a second application from a DIFFERENT applicant", async () => {
+      // CASE_ATTACHMENT_RULES.adoption_application_submitted is mode "opens",
+      // but the production lookup (findOpenAdoptionApplicationCase) is scoped
+      // by (petId, applicantUserId) — matching the partial unique index
+      // `cases_open_adoption_app_per_applicant_idx`, which allows multiple
+      // applicants to each hold their own concurrent open
+      // adoption_application case for the same pet. So a second applicant's
+      // submission must NOT attach to the first applicant's still-open case
+      // — it opens its own.
+      let firstEventId = "";
+      await db.transaction(async (tx) => {
+        const result = await AdoptionRepository.insertApplication(
+          {
+            petId: petId2,
+            userId: applicantAId,
+            orgId,
+            housingType: "casa_con_patio",
+            otherPets: null,
+            dailyRoutine: null,
+            notes: null,
+            motivation: "Quiero darle un hogar seguro.",
+            priorPets: "no",
+            now: new Date(),
+          },
+          tx,
+        );
+        firstEventId = result.eventId;
+      });
+
+      let secondEventId = "";
+      await db.transaction(async (tx) => {
+        const result = await AdoptionRepository.insertApplication(
+          {
+            petId: petId2,
+            userId: applicantBId,
+            orgId,
+            housingType: "departamento",
+            otherPets: null,
+            dailyRoutine: null,
+            notes: null,
+            motivation: "Quiero darle un hogar seguro.",
+            priorPets: "no",
+            now: new Date(),
+          },
+          tx,
+        );
+        secondEventId = result.eventId;
+      });
+
+      const [firstEvent] = await db
+        .select({ caseId: petEvents.caseId })
+        .from(petEvents)
+        .where(eq(petEvents.id, firstEventId));
+      const [secondEvent] = await db
+        .select({ caseId: petEvents.caseId })
+        .from(petEvents)
+        .where(eq(petEvents.id, secondEventId));
+
+      expect(firstEvent?.caseId).not.toBeNull();
+      expect(secondEvent?.caseId).not.toBeNull();
+      // Distinct cases — the second applicant does NOT attach to the first's.
+      expect(secondEvent?.caseId).not.toBe(firstEvent?.caseId);
+
+      const openCases = await db
+        .select()
+        .from(cases)
+        .where(and(eq(cases.primaryPetId, petId2), eq(cases.caseKind, "adoption_application")));
+
+      expect(openCases).toHaveLength(2);
+      expect(openCases.every((c) => c.status === "open")).toBe(true);
+      expect(new Set(openCases.map((c) => c.applicantUserId))).toEqual(
+        new Set([applicantAId, applicantBId]),
+      );
+    });
   });
 });
