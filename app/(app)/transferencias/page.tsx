@@ -6,6 +6,7 @@ import Link from "next/link";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, petTransfers, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { speciesLabel } from "@/lib/utils/format";
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -134,7 +135,7 @@ export default async function TransferenciasHubPage() {
                           <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold text-[var(--color-ln-ink)]">
                             {petName}{" "}
                             <span className="font-[var(--font-ln-sans)] text-[13px] font-normal text-[var(--color-ln-mute)]">
-                              ({petSpecies})
+                              ({speciesLabel(petSpecies)})
                             </span>
                           </p>
                           {fromDisplayName && (

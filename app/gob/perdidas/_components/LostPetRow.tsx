@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { OpPill } from "@/components/ui/dashboard";
 import type { LostPetRow as LostPetRowData } from "@/lib/analytics/govt-dashboards";
+import { speciesLabel } from "@/lib/utils/format";
 
 type LostPetRowProps = {
   pet: LostPetRowData;
@@ -17,7 +18,7 @@ function formatRelative(date: Date | null): string {
     const hours = Math.floor(diffMs / (60 * 60 * 1000));
     return hours <= 0 ? "hace minutos" : `hace ${hours} h`;
   }
-  if (days < 30) return `hace ${days} dias`;
+  if (days < 30) return `hace ${days} días`;
   const months = Math.floor(days / 30);
   return months === 1 ? "hace 1 mes" : `hace ${months} meses`;
 }
@@ -50,7 +51,7 @@ export function LostPetRow({ pet }: LostPetRowProps) {
         <div className="min-w-0 space-y-0.5">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-[13px] font-medium text-ln-op-ink">{pet.petName}</p>
-            <OpPill tone="neutral">{pet.species}</OpPill>
+            <OpPill tone="neutral">{speciesLabel(pet.species)}</OpPill>
             <OpPill tone={statusTone}>{statusLabel}</OpPill>
           </div>
           <p className="text-sm text-ln-op-mute">

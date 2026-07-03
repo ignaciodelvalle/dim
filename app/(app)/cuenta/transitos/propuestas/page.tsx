@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { speciesLabel } from "@/lib/utils/format";
 import { desc, eq } from "drizzle-orm";
 
 const STATUS_LABELS = {
@@ -89,7 +90,7 @@ export default async function PropuestasInboxPage() {
                       <span className="font-normal text-[var(--color-ln-mute)]">→ {pet.name}</span>
                     </p>
                     <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-                      {pet.species}
+                      {speciesLabel(pet.species)}
                       {proposal.proposedDurationWeeks &&
                         ` · ${proposal.proposedDurationWeeks} sem.`}{" "}
                       · Expira{" "}

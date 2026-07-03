@@ -7,6 +7,7 @@ import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, organizations, ownerships, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { speciesLabel } from "@/lib/utils/format";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { CoFosterToggle } from "./CoFosterToggle";
@@ -102,7 +103,7 @@ export default async function TransitosActivosPage() {
                     {pet.name}
                   </Link>
                   <p className="mt-[2px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
-                    {pet.species}
+                    {speciesLabel(pet.species)}
                     {pet.breed && ` · ${pet.breed}`}
                     {org && ` · refugio: ${org.displayName}`}
                   </p>

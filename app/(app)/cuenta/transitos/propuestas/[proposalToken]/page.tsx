@@ -8,6 +8,7 @@ import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { sexLabel, speciesLabel } from "@/lib/utils/format";
 import { eq } from "drizzle-orm";
 
 import { ProposalActions } from "./ProposalActions";
@@ -55,9 +56,9 @@ export default async function ProposalDetailPage({
           {pet.name}
         </h1>
         <p className="mt-[4px] text-[13px] text-[var(--color-ln-mute)]">
-          {pet.species}
+          {speciesLabel(pet.species)}
           {pet.breed && ` · ${pet.breed}`}
-          {pet.sex && ` · ${pet.sex}`}
+          {pet.sex && ` · ${sexLabel(pet.sex)}`}
         </p>
       </div>
 

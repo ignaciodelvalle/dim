@@ -21,7 +21,7 @@ import { fetchSeizures } from "@/lib/analytics/compliance-metrics";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
-import { formatDate } from "@/lib/utils/format";
+import { formatDate, speciesLabel } from "@/lib/utils/format";
 
 import { ReasignarButton } from "./_components/ReasignarButton";
 
@@ -195,7 +195,10 @@ export default async function DecomisosDashboardPage() {
                           {petName && (
                             <span className="text-[13px] text-ln-op-ink">
                               {petName}
-                              <span className="text-ln-op-mute"> ({petSpecies ?? "—"})</span>
+                              <span className="text-ln-op-mute">
+                                {" "}
+                                ({petSpecies ? speciesLabel(petSpecies) : "—"})
+                              </span>
                             </span>
                           )}
                           {petToken && (

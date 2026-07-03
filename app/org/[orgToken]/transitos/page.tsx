@@ -9,7 +9,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { db, fosterProposals, organizationMemberships, ownerships, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
-import { formatDate } from "@/lib/utils/format";
+import { formatDate, speciesLabel } from "@/lib/utils/format";
 
 import { EndFosterButton } from "./EndFosterButton";
 
@@ -187,7 +187,7 @@ export default async function OrgTransitosPage({
                           </span>
                         </p>
                         <p className="text-sm text-ln-op-mute">
-                          {pet.species} · iniciado{" "}
+                          {speciesLabel(pet.species)} · iniciado{" "}
                           {new Date(ownership.startedAt).toLocaleDateString("es-AR", {
                             day: "numeric",
                             month: "short",
@@ -231,7 +231,7 @@ export default async function OrgTransitosPage({
                           </span>
                         </p>
                         <p className="text-sm text-ln-op-mute">
-                          {pet.species} · {formatDate(ownership.startedAt)}
+                          {speciesLabel(pet.species)} · {formatDate(ownership.startedAt)}
                           {ownership.endedAt ? ` – ${formatDate(ownership.endedAt)}` : ""}
                         </p>
                       </div>

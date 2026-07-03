@@ -16,6 +16,7 @@ import Link from "next/link";
 import { OpBreach, OpCallout, OpCard, OpCardBody, OpCrumbs } from "@/components/ui/dashboard";
 import { db, organizationMemberships, organizations, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { speciesLabel } from "@/lib/utils/format";
 
 import { ProposeTransferForm } from "./ProposeTransferForm";
 
@@ -135,7 +136,7 @@ export default async function OrgTransferenciaNuevaPage({
                     >
                       <div className="min-w-0 space-y-0.5">
                         <p className="text-[13px] font-medium text-ln-op-ink">{p.name}</p>
-                        <p className="text-sm text-ln-op-mute capitalize">{p.species}</p>
+                        <p className="text-sm text-ln-op-mute">{speciesLabel(p.species)}</p>
                       </div>
                       <span className="text-sm text-ln-op-azul shrink-0">Seleccionar →</span>
                     </Link>

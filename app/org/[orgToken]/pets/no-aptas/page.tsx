@@ -3,6 +3,7 @@ import Link from "next/link";
 import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { speciesLabel } from "@/lib/utils/format";
 import { and, eq, isNull } from "drizzle-orm";
 
 const REASON_LABELS: Record<string, string> = {
@@ -98,7 +99,7 @@ export default async function PetsNoAptasPage({
                           {reEvalDue && <OpPill tone="open">Re-evaluación vencida</OpPill>}
                         </div>
                         <p className="text-sm text-ln-op-mute">
-                          {pet.species}
+                          {speciesLabel(pet.species)}
                           {pet.adoptionIneligibleReasonNotes &&
                             ` · ${pet.adoptionIneligibleReasonNotes}`}
                           {until && (

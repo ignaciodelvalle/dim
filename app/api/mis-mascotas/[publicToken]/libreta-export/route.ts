@@ -25,6 +25,7 @@ import {
   libretaSanitariaClause,
 } from "@/lib/infra/libreta-sanitaria";
 import { createClient } from "@/lib/supabase/server";
+import { sexLabel, speciesLabel } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -295,7 +296,7 @@ export async function GET(
   <header class="cover">
     <div class="meta">Libreta Sanitaria Digital · MiMAR</div>
     <h1>${petName}</h1>
-    <div class="meta">${htmlEscape(petRow.species)} ${petRow.breed ? `· ${htmlEscape(petRow.breed)}` : ""} · ${htmlEscape(petRow.sex)}</div>
+    <div class="meta">${htmlEscape(speciesLabel(petRow.species))} ${petRow.breed ? `· ${htmlEscape(petRow.breed)}` : ""} · ${htmlEscape(sexLabel(petRow.sex))}</div>
     ${ownerEsc ? `<div class="owner-line">Dueño/a: <strong>${ownerEsc}</strong></div>` : ""}
   </header>
 

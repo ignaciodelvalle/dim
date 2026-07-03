@@ -8,6 +8,7 @@ import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
 import { type Pet, db, ownerships, petServiceDog, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { speciesLabel } from "@/lib/utils/format";
 import { and, eq, isNull } from "drizzle-orm";
 import { ServiceDogForm } from "./ServiceDogForm";
 
@@ -123,7 +124,7 @@ export default async function AsistenciaPage({
         {pet.species !== "dog" && (
           <LnCallout tone="warn">
             Ley 26.858 reconoce este derecho de acceso solo para perros. Esta sección no aplica a{" "}
-            <strong>{pet.species}</strong>.
+            <strong>{speciesLabel(pet.species).toLowerCase()}</strong>.
           </LnCallout>
         )}
 

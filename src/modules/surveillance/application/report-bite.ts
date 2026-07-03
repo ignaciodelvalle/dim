@@ -11,6 +11,7 @@
 //   - AUDIT_LOG: NONE (bite actions never wrote audit_log — preserve absence).
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { speciesLabel } from "@/lib/utils/format";
 
 import { computeObservationUntil, isRabiesVaccineValid } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
@@ -214,7 +215,7 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
           userId: authorityId,
           notificationType: "bite_reported_authority",
           severity: input.severity === "severe" ? "urgent" : "warning",
-          title: `Mordedura reportada — ${pet.name} (${pet.species})`,
+          title: `Mordedura reportada — ${pet.name} (${speciesLabel(pet.species)})`,
           body: `Reportada por el dueño. Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación 10 días iniciada.`,
           relatedPetId: pet.id,
           // Authority recipient: surveillance hub (cannot open /mis-mascotas).

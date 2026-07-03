@@ -4,6 +4,7 @@
 // Extracted as a thin wrapper so the vecino page can stay a pure server component.
 
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
+import { speciesLabel } from "@/lib/utils/format";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -59,7 +60,9 @@ export function MatchConfirmationCardVecino({
     });
   }
 
-  const speciesLine = [petSpecies, petBreed].filter(Boolean).join(", ");
+  const speciesLine = [petSpecies ? speciesLabel(petSpecies) : null, petBreed]
+    .filter(Boolean)
+    .join(", ");
   const details = [petColor, petSex ? sexLabel(petSex) : null].filter(Boolean).join(" · ");
 
   return (

@@ -11,6 +11,7 @@
 //   - AUDIT_LOG: NONE.
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { speciesLabel } from "@/lib/utils/format";
 
 import { orgTypeToReporterRole } from "../domain/bite";
 import { computeObservationUntil, isRabiesVaccineValid } from "../domain/rabies-observation";
@@ -246,7 +247,7 @@ export async function reportBiteFromOrg(
           userId: authorityId,
           notificationType: "bite_reported_authority",
           severity: input.severity === "severe" ? "urgent" : "warning",
-          title: `Mordedura reportada — ${pet.name} (${pet.species})`,
+          title: `Mordedura reportada — ${pet.name} (${speciesLabel(pet.species)})`,
           body: `Reportada por ${organization.displayName} (${reporterRole}). Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación 10 días iniciada.`,
           relatedPetId: pet.id,
           // Authority recipient: surveillance hub (cannot open /mis-mascotas).

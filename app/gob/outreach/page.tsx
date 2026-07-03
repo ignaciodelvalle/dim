@@ -28,7 +28,7 @@ import {
 } from "@/lib/infra/outreach-pipelines";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
-import { relativeDaysShort } from "@/lib/utils/format";
+import { relativeDaysShort, speciesLabel } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -175,7 +175,7 @@ export default async function GobOutreachPage() {
                     <div className="min-w-0 space-y-0.5">
                       <p className="font-medium text-ln-op-ink">{pet.petName}</p>
                       <p className="text-ln-op-mute">
-                        {pet.species} ·{" "}
+                        {speciesLabel(pet.species)} ·{" "}
                         {[pet.jurisdictionLocality, pet.jurisdictionProvince]
                           .filter(Boolean)
                           .join(", ")}

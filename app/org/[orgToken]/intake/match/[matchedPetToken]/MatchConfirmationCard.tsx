@@ -12,6 +12,7 @@ import { useState, useTransition } from "react";
 
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
 import { OpBreach, OpPill } from "@/components/ui/dashboard";
+import { speciesLabel } from "@/lib/utils/format";
 import { useRouter } from "next/navigation";
 
 type Props = {
@@ -70,7 +71,9 @@ export function MatchConfirmationCard({
     });
   }
 
-  const speciesLine = [petSpecies, petBreed].filter(Boolean).join(", ");
+  const speciesLine = [petSpecies ? speciesLabel(petSpecies) : null, petBreed]
+    .filter(Boolean)
+    .join(", ");
   const details = [petColor, petSex ? sexLabel(petSex) : null].filter(Boolean).join(" · ");
 
   return (

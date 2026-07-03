@@ -17,6 +17,7 @@ import { inArray } from "drizzle-orm";
 
 import { type db, type petEvents, type pets, profiles } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { speciesLabel } from "@/lib/utils/format";
 
 import type { NewNotification } from "../types";
 
@@ -100,7 +101,7 @@ export async function routeOutbreakSignalNotifications(
     );
   }
   bodyLines.push(
-    `- Especie: ${pet.species}`,
+    `- Especie: ${speciesLabel(pet.species)}`,
     `- Jurisdicción: ${[pet.jurisdictionLocality, pet.jurisdictionProvince].filter(Boolean).join(", ") || "no especificada"}`,
     `- Match strength: ${disease.high_count} high · ${disease.medium_count} medium`,
     "",
