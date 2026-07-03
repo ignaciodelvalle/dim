@@ -19,6 +19,7 @@ const ALL_GATED_CAPS = new Set([
   "intake.create",
   "adoption.review",
   "capability.grant",
+  "bite.report",
 ]);
 
 describe("PUBLIC_NAV", () => {
@@ -83,19 +84,22 @@ describe("buildOrgNav (section structure)", () => {
 });
 
 describe("buildOrgNavFlat", () => {
-  it("produces 13 membership-only items when no capabilities are passed", () => {
-    expect(buildOrgNavFlat("ORG-ABC")).toHaveLength(13);
+  it("produces 12 membership-only items when no capabilities are passed", () => {
+    // Mordeduras moved behind bite.report (QA 2026-07-03): the form was
+    // reachable by members whose submits the action would reject.
+    expect(buildOrgNavFlat("ORG-ABC")).toHaveLength(12);
   });
 
   it("produces 18 items when all gated capabilities are granted", () => {
     expect(buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS })).toHaveLength(18);
   });
 
-  it("hides Agenda, Ingresos, Check-ins and Permisos without their capabilities", () => {
+  it("hides Agenda, Ingresos, Check-ins, Mordeduras and Permisos without their capabilities", () => {
     const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
     expect(labels).not.toContain("Agenda");
     expect(labels).not.toContain("Ingresos");
     expect(labels).not.toContain("Check-ins");
+    expect(labels).not.toContain("Mordeduras");
     expect(labels).not.toContain("Permisos");
   });
 
@@ -123,11 +127,10 @@ describe("buildOrgNavFlat", () => {
     expect(labels).toContain("Voluntarios");
     expect(labels).toContain("Transferencias");
     expect(labels).toContain("Casos");
-    expect(labels).toContain("Mordeduras");
   });
 
-  it("Mordeduras entry points to the report form (no index page under /mordedura)", () => {
-    const items = buildOrgNavFlat("ORG-ABC");
+  it("shows Mordeduras only with bite.report, pointing at the report form", () => {
+    const items = buildOrgNavFlat("ORG-ABC", { granted: new Set(["bite.report"]) });
     const mordeduras = items.find((i) => i.label === "Mordeduras");
     expect(mordeduras?.href).toBe("/org/ORG-ABC/mordedura/nuevo");
     expect(mordeduras?.matchPrefix).toBe("/org/ORG-ABC/mordedura");
