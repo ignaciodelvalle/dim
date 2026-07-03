@@ -15,6 +15,7 @@ import { useEffect } from "react";
 export function ScrollReset() {
   const pathname = usePathname();
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the intentional trigger — the effect resets scroll on every route change without reading its value (same idiom as WizardShell).
   useEffect(() => {
     for (const el of document.querySelectorAll<HTMLElement>("[data-scroll-reset]")) {
       el.scrollTop = 0;
