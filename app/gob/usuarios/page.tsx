@@ -17,6 +17,7 @@ import { searchUsers } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { deriveTargetHref } from "@/lib/ui/audit-target-link";
 import { portalBase } from "@/lib/ui/portal-base";
 
 import { ProposeUserActions } from "./ProposeUserActions";
@@ -71,7 +72,7 @@ export default async function UsuariosPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          MiMAR Gobierno · Usuarios
+          {base === "/admin" ? "Admin · Usuarios" : "MiMAR Gobierno · Usuarios"}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Usuarios</h1>
         <p className="text-[13px] text-ln-op-ink-2">
@@ -162,6 +163,12 @@ export default async function UsuariosPage({
                   <ProposeUserActions
                     target={{ id: u.id, displayName: u.displayName, role: u.role }}
                     actorRole={profile.role}
+                    // Govt/admin accounts are managed on their detail pages
+                    // (create/assign-locality/revoke live there), not inline
+                    // here. For an admin viewer we link to that page instead of
+                    // showing a dead "sin acciones" line. Govt viewers can't
+                    // reach /admin/*, so they keep the no-inline-actions notice.
+                    manageHref={base === "/admin" ? deriveTargetHref(u.id, u.role) : null}
                   />
                   {u.role === "vet" && (
                     <RevokeUserActions

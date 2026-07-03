@@ -247,6 +247,21 @@ export async function fetchGovtActivity(): Promise<GovtActivityRow[]> {
   }));
 }
 
+// Order the "actividad por govt" table so the operators an admin actually needs
+// to see surface first: most recent action, then most decisions (30d), then
+// name. Govts with no recorded action sink to the bottom. Pure — no DB. The
+// /admin/sistema page sorts then truncates with a "hay más" hint so a roster of
+// duplicate seed govts can't push live operators below the fold.
+export function sortGovtActivityByActivity(rows: readonly GovtActivityRow[]): GovtActivityRow[] {
+  return [...rows].sort((a, b) => {
+    const at = a.lastActionAt ? a.lastActionAt.getTime() : Number.NEGATIVE_INFINITY;
+    const bt = b.lastActionAt ? b.lastActionAt.getTime() : Number.NEGATIVE_INFINITY;
+    if (at !== bt) return bt - at;
+    if (a.decisions30d !== b.decisions30d) return b.decisions30d - a.decisions30d;
+    return a.displayName.localeCompare(b.displayName, "es-AR");
+  });
+}
+
 // Latest run per cron_name. Two queries because Drizzle doesn't compose
 // DISTINCT ON cleanly; the cron_name cardinality is tiny so this is fine.
 export async function fetchCronRuns(): Promise<CronRunRow[]> {

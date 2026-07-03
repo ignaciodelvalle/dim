@@ -1,10 +1,11 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { OpButton, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { type AuditLogAction, auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
 import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
@@ -131,6 +132,80 @@ export default async function AdminAuditoriaPage({
 
   const hasFilters = actionFilter !== null || actorFilter !== null;
 
+  // Collapse consecutive runs of the same action+actor (e.g. a ~150-row bulk
+  // override backfill) into one expandable group so real events stay scannable.
+  const groups = groupConsecutiveAuditRows(entries);
+
+  const actorName = (uid: string | null) =>
+    uid ? (namesById.get(uid) ?? "Desconocido") : "Usuario eliminado";
+
+  const fmtTime = (d: Date) =>
+    new Date(d).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
+
+  // Link a collapsed run to the filtered view (same action + actor). action is
+  // always a valid enum code; actor is omitted when the actor was hard-deleted.
+  const runFilterHref = (action: string, uid: string | null) => {
+    const params = new URLSearchParams({ action });
+    if (uid) params.set("actor", uid);
+    return `/admin/auditoria?${params.toString()}`;
+  };
+
+  // Shared row body — the label line + actor/target detail + timestamp. Reused
+  // for standalone rows and for the expanded children of a collapsed run.
+  const EntryBody = ({ entry }: { entry: (typeof entries)[number] }) => (
+    <>
+      <div className="min-w-0 space-y-0.5">
+        <p className="text-[13px] font-medium text-ln-op-ink" title={entry.action}>
+          {auditActionLabel(entry.action)}
+        </p>
+        <p className="text-sm text-ln-op-mute">
+          {actorName(entry.actorUserId)}
+          {entry.targetUserId &&
+            (() => {
+              const target = targetsById.get(entry.targetUserId);
+              const targetName = target?.displayName ?? "Usuario eliminado";
+              const targetHref = target?.href ?? null;
+              return (
+                <>
+                  {" "}
+                  {"·"} sobre:{" "}
+                  {targetHref ? (
+                    <Link
+                      href={targetHref}
+                      className="underline underline-offset-2 hover:text-ln-op-ink"
+                    >
+                      {targetName}
+                    </Link>
+                  ) : (
+                    <span>{targetName}</span>
+                  )}
+                </>
+              );
+            })()}
+          {entry.approvalRequestId && (
+            <>
+              {" "}
+              {"·"} req:{" "}
+              <span className="font-ln-mono">{entry.approvalRequestId.slice(0, 8)}&#x2026;</span>
+            </>
+          )}
+          {(() => {
+            const target = businessRuleTargetSummary(entry.action, entry.payload);
+            return target ? (
+              <>
+                {" "}
+                {"·"} sobre: <span className="font-ln-mono">{target}</span>
+              </>
+            ) : null;
+          })()}
+        </p>
+      </div>
+      <time className="whitespace-nowrap text-sm text-ln-op-mute">
+        {fmtTime(entry.performedAt)}
+      </time>
+    </>
+  );
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -205,69 +280,53 @@ export default async function AdminAuditoriaPage({
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line-2">
-              {entries.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="flex items-start justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <p className="text-[13px] font-medium text-ln-op-ink" title={entry.action}>
-                      {auditActionLabel(entry.action)}
-                    </p>
-                    <p className="text-sm text-ln-op-mute">
-                      {entry.actorUserId
-                        ? (namesById.get(entry.actorUserId) ?? "Desconocido")
-                        : "Usuario eliminado"}
-                      {entry.targetUserId &&
-                        (() => {
-                          const target = targetsById.get(entry.targetUserId);
-                          const targetName = target?.displayName ?? "Usuario eliminado";
-                          const targetHref = target?.href ?? null;
-                          return (
-                            <>
-                              {" "}
-                              {"·"} sobre:{" "}
-                              {targetHref ? (
-                                <Link
-                                  href={targetHref}
-                                  className="underline underline-offset-2 hover:text-ln-op-ink"
-                                >
-                                  {targetName}
-                                </Link>
-                              ) : (
-                                <span>{targetName}</span>
-                              )}
-                            </>
-                          );
-                        })()}
-                      {entry.approvalRequestId && (
-                        <>
-                          {" "}
-                          {"·"} req:{" "}
-                          <span className="font-ln-mono">
-                            {entry.approvalRequestId.slice(0, 8)}&#x2026;
-                          </span>
-                        </>
-                      )}
-                      {(() => {
-                        const target = businessRuleTargetSummary(entry.action, entry.payload);
-                        return target ? (
-                          <>
-                            {" "}
-                            {"·"} sobre: <span className="font-ln-mono">{target}</span>
-                          </>
-                        ) : null;
-                      })()}
-                    </p>
-                  </div>
-                  <time className="whitespace-nowrap text-sm text-ln-op-mute">
-                    {new Date(entry.performedAt).toLocaleString("es-AR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </time>
-                </li>
-              ))}
+              {groups.map((group) =>
+                group.kind === "single" ? (
+                  <li
+                    key={group.row.id}
+                    className="flex items-start justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
+                  >
+                    <EntryBody entry={group.row} />
+                  </li>
+                ) : (
+                  <li key={group.key} className="px-4 py-2 odd:bg-ln-op-stripe">
+                    <details className="group/run">
+                      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 select-none">
+                        <div className="min-w-0 space-y-0.5">
+                          <p className="flex items-center gap-2 text-[13px] font-medium text-ln-op-ink">
+                            {auditActionLabel(group.action)}
+                            <OpPill tone="neutral">×{group.count}</OpPill>
+                          </p>
+                          <p className="text-sm text-ln-op-mute">
+                            {actorName(group.actorUserId)} {"·"} {group.count} acciones consecutivas{" "}
+                            <span className="group-open/run:hidden">{"·"} tocá para expandir</span>{" "}
+                            {"·"}{" "}
+                            <a
+                              href={runFilterHref(group.action, group.actorUserId)}
+                              className="underline underline-offset-2 hover:text-ln-op-ink"
+                            >
+                              ver filtradas
+                            </a>
+                          </p>
+                        </div>
+                        <time className="whitespace-nowrap text-sm text-ln-op-mute">
+                          {fmtTime(group.earliestAt)} {"–"} {fmtTime(group.latestAt)}
+                        </time>
+                      </summary>
+                      <ul className="mt-2 divide-y divide-ln-op-line-2 border-l-2 border-ln-op-line pl-3">
+                        {group.rows.map((entry) => (
+                          <li
+                            key={entry.id}
+                            className="flex items-start justify-between gap-3 py-2"
+                          >
+                            <EntryBody entry={entry} />
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  </li>
+                ),
+              )}
             </ul>
           </OpCardBody>
         </OpCard>

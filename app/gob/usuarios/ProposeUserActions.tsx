@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState, useTransition } from "react";
 
 import { proposeVetUpgradeAction } from "@/app/actions/admin-proposals";
@@ -12,9 +13,14 @@ type Mode = "idle" | "vet";
 export function ProposeUserActions({
   target,
   actorRole: _actorRole,
+  manageHref = null,
 }: {
   target: Target;
   actorRole: "admin" | "govt";
+  /** Detail page where this account is actually managed (govt/admin rows,
+   *  admin portal only). When present it replaces the dead "sin acciones"
+   *  notice with a link to the page that carries the real controls. */
+  manageHref?: string | null;
 }) {
   const [mode, setMode] = useState<Mode>("idle");
 
@@ -25,6 +31,16 @@ export function ProposeUserActions({
   }
 
   if (!canProposeVet) {
+    if (manageHref) {
+      return (
+        <Link
+          href={manageHref}
+          className="text-sm font-medium text-ln-op-azul no-underline hover:underline underline-offset-4"
+        >
+          Gestionar cuenta {"→"}
+        </Link>
+      );
+    }
     return (
       <p className="text-sm text-ln-op-mute">
         Sin acciones disponibles desde tu rol para este usuario.

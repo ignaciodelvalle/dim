@@ -9,6 +9,7 @@ import {
   fetchGovtActivity,
   fetchQueueHealth,
   fetchUserMetrics,
+  sortGovtActivityByActivity,
 } from "@/lib/analytics/admin-metrics";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
@@ -26,6 +27,10 @@ const STATUS_TONE: Record<string, CronTone> = {
   failed: "danger",
   running: "open",
 };
+
+// Cap the "actividad por govt" table so a universal-scope roster (which can hold
+// dozens of duplicate seed govts) never pushes live operators below the fold.
+const GOVT_ACTIVITY_LIMIT = 25;
 
 export default async function AdminSistemaPage() {
   await requireAdminOrRedirect();
@@ -225,71 +230,83 @@ export default async function AdminSistemaPage() {
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Actividad por govt
         </p>
-        {govts.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute">No hay govts activos.</p>
-        ) : (
-          <OpCard>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <caption className="sr-only">
-                  Actividad de operadores govt: localidades asignadas, decisiones y última acción
-                </caption>
-                <thead>
-                  <tr className="border-b border-ln-op-line">
-                    <th
-                      scope="col"
-                      className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                    >
-                      Govt
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                    >
-                      Localidades
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                    >
-                      Decisiones 30d
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                    >
-                      Última acción
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {govts.map((g) => (
-                    <tr key={g.userId} className="border-t border-ln-op-line">
-                      <td className="px-3 py-2 text-[13px] font-medium text-ln-op-ink">
-                        {g.displayName}
-                      </td>
-                      <td className="px-3 py-2 tabular-nums text-sm text-ln-op-ink-2">
-                        {g.localitiesCount}
-                      </td>
-                      <td className="px-3 py-2 tabular-nums text-sm text-ln-op-ink-2">
-                        {g.decisions30d}
-                      </td>
-                      <td className="px-3 py-2 text-[11px] text-ln-op-mute">
-                        {g.lastActionAt
-                          ? new Date(g.lastActionAt).toLocaleDateString("es-AR", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "—"}
-                      </td>
+        {(() => {
+          // Surface the most active operators first, then cap the render so a
+          // long seed roster can't bury them.
+          const sortedGovts = sortGovtActivityByActivity(govts);
+          const visibleGovts = sortedGovts.slice(0, GOVT_ACTIVITY_LIMIT);
+          const govtsTruncated = sortedGovts.length > GOVT_ACTIVITY_LIMIT;
+          return govts.length === 0 ? (
+            <p className="text-[13px] text-ln-op-mute">No hay govts activos.</p>
+          ) : (
+            <OpCard>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <caption className="sr-only">
+                    Actividad de operadores govt: localidades asignadas, decisiones y última acción
+                  </caption>
+                  <thead>
+                    <tr className="border-b border-ln-op-line">
+                      <th
+                        scope="col"
+                        className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                      >
+                        Govt
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                      >
+                        Localidades
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                      >
+                        Decisiones 30d
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+                      >
+                        Última acción
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </OpCard>
-        )}
+                  </thead>
+                  <tbody>
+                    {visibleGovts.map((g) => (
+                      <tr key={g.userId} className="border-t border-ln-op-line">
+                        <td className="px-3 py-2 text-[13px] font-medium text-ln-op-ink">
+                          {g.displayName}
+                        </td>
+                        <td className="px-3 py-2 tabular-nums text-sm text-ln-op-ink-2">
+                          {g.localitiesCount}
+                        </td>
+                        <td className="px-3 py-2 tabular-nums text-sm text-ln-op-ink-2">
+                          {g.decisions30d}
+                        </td>
+                        <td className="px-3 py-2 text-[11px] text-ln-op-mute">
+                          {g.lastActionAt
+                            ? new Date(g.lastActionAt).toLocaleDateString("es-AR", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {govtsTruncated && (
+                <p className="px-3 py-2 text-[11px] text-ln-op-mute">
+                  Mostrando los {GOVT_ACTIVITY_LIMIT} govts más activos de {sortedGovts.length}.
+                </p>
+              )}
+            </OpCard>
+          );
+        })()}
       </section>
 
       <DashboardFreshnessFooter ctx={adminCtx} />

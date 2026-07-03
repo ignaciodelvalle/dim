@@ -1,20 +1,81 @@
 import Link from "next/link";
 
-import { count, eq, isNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
-import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
+import { OpButton, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, govtAssignments, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { isDeadGovt } from "@/lib/infra/govt-roster";
+import {
+  type GovtStatusFilter,
+  isDeadGovt,
+  matchEmailIds,
+  normalizeGovtStatus,
+} from "@/lib/infra/govt-roster";
 import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
+import { likeContains } from "@/lib/utils/like-helpers";
 
-export default async function GovtsPage() {
+// Universal-scope roster: cap the render and tell the operator when there is
+// more, so ~50 seed govts don't force a wall of unpaginated rows.
+const GOVTS_PAGE_LIMIT = 50;
+
+const STATUS_CHIPS: { value: GovtStatusFilter; label: string }[] = [
+  { value: "all", label: "Todos" },
+  { value: "active", label: "Activos" },
+  { value: "dead", label: "Sin localidades" },
+  { value: "inactive", label: "Desactivados" },
+];
+
+export default async function GovtsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>;
+}) {
   await requireAdminOrRedirect();
+
+  const sp = await searchParams;
+  const query = (sp.q ?? "").trim();
+  const status = normalizeGovtStatus(sp.status);
 
   const supabase = createAdminClient();
 
-  // Fetch all institutional govt profiles
-  const govtRows = await db
+  // Emails come from auth.users (no email column on profiles). C21: page through
+  // ALL auth users so emails stay complete past 200. We need the full map both
+  // to render emails and to resolve email-substring matches for the ?q= filter.
+  const emailMap = await buildAuthEmailMap(supabase);
+
+  // Search matches display_name (accent-insensitive ILIKE, wildcard-safe) OR
+  // email (resolved to ids from the auth map — email is not a profiles column).
+  const emailMatchIds = query ? matchEmailIds(emailMap, query) : [];
+  const searchClause = query
+    ? or(
+        sql`unaccent(${profiles.displayName}) ILIKE unaccent(${likeContains(query)}) ESCAPE '\'`,
+        ...(emailMatchIds.length > 0 ? [inArray(profiles.id, emailMatchIds)] : []),
+      )
+    : undefined;
+
+  // Status filter pushed into SQL so the LIMIT is applied AFTER filtering.
+  // "dead" = active profile holding zero active localities (cannot operate).
+  const statusClause =
+    status === "active"
+      ? isNull(profiles.deactivatedAt)
+      : status === "inactive"
+        ? isNotNull(profiles.deactivatedAt)
+        : status === "dead"
+          ? and(
+              isNull(profiles.deactivatedAt),
+              sql`NOT EXISTS (SELECT 1 FROM ${govtAssignments} WHERE ${govtAssignments.userId} = ${profiles.id} AND ${govtAssignments.revokedAt} IS NULL)`,
+            )
+          : undefined;
+
+  const whereClause = and(
+    eq(profiles.role, "govt"),
+    ...(searchClause ? [searchClause] : []),
+    ...(statusClause ? [statusClause] : []),
+  );
+
+  // Fetch limit+1 to detect truncation without a COUNT query. Active govts sort
+  // first, then by display name.
+  const rawRows = await db
     .select({
       id: profiles.id,
       displayName: profiles.displayName,
@@ -23,23 +84,28 @@ export default async function GovtsPage() {
       createdAt: profiles.createdAt,
     })
     .from(profiles)
-    .where(eq(profiles.role, "govt"));
+    .where(whereClause)
+    .orderBy(sql`${profiles.deactivatedAt} IS NULL DESC`, profiles.displayName)
+    .limit(GOVTS_PAGE_LIMIT + 1);
 
-  // Fetch active locality counts per govt
-  const localityCounts = await db
-    .select({
-      userId: govtAssignments.userId,
-      activeCount: count(govtAssignments.id),
-    })
-    .from(govtAssignments)
-    .where(isNull(govtAssignments.revokedAt))
-    .groupBy(govtAssignments.userId);
+  const truncated = rawRows.length > GOVTS_PAGE_LIMIT;
+  const govtRows = truncated ? rawRows.slice(0, GOVTS_PAGE_LIMIT) : rawRows;
+
+  // Active locality counts, restricted to the rows we render.
+  const govtIds = govtRows.map((g) => g.id);
+  const localityCounts =
+    govtIds.length > 0
+      ? await db
+          .select({
+            userId: govtAssignments.userId,
+            activeCount: count(govtAssignments.id),
+          })
+          .from(govtAssignments)
+          .where(and(inArray(govtAssignments.userId, govtIds), isNull(govtAssignments.revokedAt)))
+          .groupBy(govtAssignments.userId)
+      : [];
 
   const localityCountMap = new Map(localityCounts.map((r) => [r.userId, Number(r.activeCount)]));
-
-  // Fetch emails from auth.users via service-role client (no email column on
-  // profiles). C21: page through ALL auth users so emails stay complete past 200.
-  const emailMap = await buildAuthEmailMap(supabase);
 
   const govts = govtRows.map((g) => ({
     ...g,
@@ -47,8 +113,14 @@ export default async function GovtsPage() {
     activeLocalityCount: localityCountMap.get(g.id) ?? 0,
   }));
 
-  const activeGovts = govts.filter((g) => g.deactivatedAt === null);
-  const deactivatedGovts = govts.filter((g) => g.deactivatedAt !== null);
+  // Build hrefs that preserve the sibling filter when switching chips.
+  const chipHref = (s: GovtStatusFilter) => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (s !== "all") params.set("status", s);
+    const qs = params.toString();
+    return qs ? `/admin/govts?${qs}` : "/admin/govts";
+  };
 
   return (
     <main className="px-6 py-8">
@@ -68,35 +140,71 @@ export default async function GovtsPage() {
           </Link>
         </header>
 
-        {activeGovts.length === 0 ? (
+        {/* Search — display name or email. Status chips preserve the query. */}
+        <form action="/admin/govts" method="get" className="flex items-center gap-2">
+          <input
+            type="text"
+            name="q"
+            defaultValue={query}
+            placeholder="Buscar por nombre o email"
+            className="flex-1 text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          />
+          {status !== "all" && <input type="hidden" name="status" value={status} />}
+          <OpButton type="submit" variant="primary" size="sm">
+            Buscar
+          </OpButton>
+        </form>
+
+        <nav aria-label="Filtrar por estado" className="flex flex-wrap items-center gap-2">
+          {STATUS_CHIPS.map((chip) => {
+            const active = chip.value === status;
+            return (
+              <Link
+                key={chip.value}
+                href={chipHref(chip.value)}
+                aria-current={active ? "true" : undefined}
+                className={
+                  active
+                    ? "rounded-full bg-ln-op-azul px-3 py-1 text-xs font-semibold text-white"
+                    : "rounded-full border border-ln-op-line px-3 py-1 text-xs font-medium text-ln-op-ink-2 hover:border-ln-op-azul"
+                }
+              >
+                {chip.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {govts.length === 0 ? (
           <div className="text-center py-12 rounded-[6px] border border-dashed border-ln-op-line">
-            <p className="text-sm text-ln-op-mute">Aun no hay govts activos.</p>
-            <Link
-              href="/admin/govts/new"
-              className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
-            >
-              Crear el primer govt
-            </Link>
+            <p className="text-sm text-ln-op-mute">
+              {query || status !== "all"
+                ? "Ningún govt coincide con la búsqueda."
+                : "Aun no hay govts."}
+            </p>
+            {!query && status === "all" && (
+              <Link
+                href="/admin/govts/new"
+                className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
+              >
+                Crear el primer govt
+              </Link>
+            )}
           </div>
         ) : (
-          <ul className="space-y-2">
-            {activeGovts.map((g) => (
-              <GovtRow key={g.id} govt={g} />
-            ))}
-          </ul>
-        )}
-
-        {deactivatedGovts.length > 0 && (
-          <details className="group">
-            <summary className="cursor-pointer text-sm text-ln-op-mute hover:text-ln-op-ink-2 select-none">
-              Desactivados ({deactivatedGovts.length})
-            </summary>
-            <ul className="mt-2 space-y-2">
-              {deactivatedGovts.map((g) => (
+          <>
+            <ul className="space-y-2">
+              {govts.map((g) => (
                 <GovtRow key={g.id} govt={g} />
               ))}
             </ul>
-          </details>
+            {truncated && (
+              <p className="text-sm text-ln-op-mute">
+                Mostrando los primeros {GOVTS_PAGE_LIMIT}. Hay más — refiná la búsqueda o el filtro
+                de estado.
+              </p>
+            )}
+          </>
         )}
 
         <p className="text-sm text-ln-op-mute">
