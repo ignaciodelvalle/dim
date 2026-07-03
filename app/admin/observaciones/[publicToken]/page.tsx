@@ -12,6 +12,7 @@ import {
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { PET_OBSERVATION_SELECT } from "@/lib/infra/pet-projections";
+import { speciesLabel } from "@/lib/utils/format";
 import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
 
 import { CloseObservationForm } from "./CloseObservationForm";
@@ -101,7 +102,7 @@ export default async function ObservationDetailPage({
           <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
               <dt className="text-[11px] text-ln-op-mute">Especie</dt>
-              <dd className="text-[13px] text-ln-op-ink">{pet.species}</dd>
+              <dd className="text-[13px] text-ln-op-ink">{speciesLabel(pet.species)}</dd>
             </div>
             <div>
               <dt className="text-[11px] text-ln-op-mute">{"Jurisdicción"}</dt>

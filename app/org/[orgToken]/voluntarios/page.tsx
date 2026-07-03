@@ -2,6 +2,7 @@ import { JurisdictionFilter } from "@/components/JurisdictionFilter";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { speciesLabel } from "@/lib/utils/format";
 import { searchFosterVolunteers } from "@/src/modules/foster/actions";
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -127,7 +128,7 @@ export default async function VoluntariosPage({
             <option value="">— sin mascota —</option>
             {orgPets.map((p) => (
               <option key={p.id} value={p.publicToken}>
-                {p.name} ({p.species})
+                {p.name} ({speciesLabel(p.species)})
               </option>
             ))}
           </select>

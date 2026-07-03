@@ -124,7 +124,7 @@ export default async function GobVigilanciazoonosisPage({
           }
         />
         <OpCardBody>
-          <TimeSeriesChart data={trendPoints} seriesLabel="Signals" />
+          <TimeSeriesChart data={trendPoints} seriesLabel="Señales" />
         </OpCardBody>
       </OpCard>
     </div>

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { speciesLabel } from "@/lib/utils/format";
 import { proposeFosterAction } from "@/src/modules/foster/actions";
 
 type Row = {
@@ -132,7 +133,7 @@ export function VolunteerRow({
               >
                 {orgPets.map((p) => (
                   <option key={p.id} value={p.publicToken}>
-                    {p.name} ({p.species})
+                    {p.name} ({speciesLabel(p.species)})
                   </option>
                 ))}
               </select>

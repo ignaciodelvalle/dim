@@ -42,7 +42,7 @@ export function ProposeOrgActions({ org }: { org: Org }) {
   return (
     <div className="flex items-center gap-2">
       <OpButton type="button" onClick={propose} disabled={pending} variant="ghost" size="sm">
-        {pending ? "Creando..." : "Proponer verificacion"}
+        {pending ? "Creando..." : "Proponer verificación"}
       </OpButton>
       {error && <p className="text-sm text-ln-op-danger">{error}</p>}
     </div>

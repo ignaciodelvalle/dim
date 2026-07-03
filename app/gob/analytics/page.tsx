@@ -185,7 +185,7 @@ export default async function GobAnalyticsPage({
         className="grid grid-cols-2 md:grid-cols-4 gap-3"
       >
         <OpKpi
-          label="Pets totales"
+          label="Mascotas totales"
           value={String(metrics.totalPets)}
           sub="activos + perdidos"
           sparkline={
@@ -375,7 +375,7 @@ export default async function GobAnalyticsPage({
 
       {/* Outbreak history table */}
       <OpCard aria-labelledby={panelOutbreakId}>
-        <OpCardHead title={<span id={panelOutbreakId}>Brotes historicos</span>} />
+        <OpCardHead title={<span id={panelOutbreakId}>Brotes históricos</span>} />
         <OpCardBody>
           <OutbreakHistoryTable rows={outbreakHistory} />
         </OpCardBody>

@@ -33,6 +33,7 @@ import {
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
+import { findDisease } from "@/lib/reference/diseases";
 
 import type {
   AggregatedPointCell,
@@ -323,7 +324,7 @@ export async function loadOutbreakSignals(
       locationLat: r.locationLat,
       locationLng: r.locationLng,
       diseaseCode: r.diseaseCode,
-      diseaseLabel: r.diseaseLabel,
+      diseaseLabel: r.diseaseLabel ?? findDisease(r.diseaseCode)?.label ?? null,
       occurredAt: r.occurredAt ? r.occurredAt.toISOString() : null,
     })),
     truncated: rows.length >= PER_LAYER_CAP,
@@ -1784,7 +1785,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         return rows.map((r) => ({
           date: r.occurredAt,
           type: r.diseaseCode ?? "outbreak_signal",
-          label: r.diseaseLabel ?? r.diseaseCode ?? "Señal de brote",
+          label: r.diseaseLabel ?? findDisease(r.diseaseCode)?.label ?? "Señal de brote",
         }));
       }
 

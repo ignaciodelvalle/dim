@@ -5,6 +5,7 @@ import { OpBreach, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
+import { speciesLabel } from "@/lib/utils/format";
 import type { RabiesObservationStatus } from "@/src/modules/surveillance/domain/rabies-observation";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -181,7 +182,7 @@ export default async function ObservacionesPage() {
                         {r.petName}{" "}
                         <span className="text-sm font-normal text-ln-op-mute">
                           {"· "}
-                          {r.species}
+                          {speciesLabel(r.species)}
                         </span>
                       </p>
                       <p className="text-sm text-ln-op-mute">

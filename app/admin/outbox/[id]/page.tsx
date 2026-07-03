@@ -120,7 +120,7 @@ export default async function AdminOutboxDetailPage({
         <h1 className="text-[22px] font-semibold text-ln-op-ink">
           {TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind}
         </h1>
-        <p className="text-[13px] text-ln-op-ink-2">{jurisdiction || "Sin jurisdiccion"}</p>
+        <p className="text-[13px] text-ln-op-ink-2">{jurisdiction || "Sin jurisdicción"}</p>
         <OpCodeBadge tone="neutral">{row.id}</OpCodeBadge>
       </header>
 

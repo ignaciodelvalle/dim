@@ -12,18 +12,12 @@ import Link from "next/link";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
 import { db, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
-import { formatDate } from "@/lib/utils/format";
+import { formatDate, speciesLabel } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { IntakeForm } from "./IntakeForm";
 
 type TabKey = "cola" | "registrar";
-
-const SPECIES_LABEL: Record<string, string> = {
-  dog: "Perro",
-  cat: "Gato",
-  other: "Otra especie",
-};
 
 export default async function IntakePage({
   params,
@@ -153,8 +147,7 @@ export default async function IntakePage({
                     <div className="min-w-0 space-y-0.5">
                       <p className="text-[13px] font-medium text-ln-op-ink">{row.petName}</p>
                       <p className="text-sm text-ln-op-mute">
-                        {SPECIES_LABEL[row.petSpecies] ?? row.petSpecies} ·{" "}
-                        {formatDate(row.occurredAt)}
+                        {speciesLabel(row.petSpecies)} · {formatDate(row.occurredAt)}
                       </p>
                     </div>
                     <Link

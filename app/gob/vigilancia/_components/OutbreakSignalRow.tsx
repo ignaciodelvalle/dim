@@ -4,6 +4,7 @@ import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { OpCodeBadge } from "@/components/ui/dashboard";
 import type { SurveillanceSignal } from "@/lib/analytics/govt-dashboards";
 import { computeConfidence } from "@/lib/events/event-confidence";
+import { speciesLabel } from "@/lib/utils/format";
 
 type OutbreakSignalRowProps = {
   signal: SurveillanceSignal;
@@ -57,7 +58,7 @@ export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
             <ConfidenceBadge tier={confidenceTier} />
           </div>
           <p className="text-sm text-ln-op-ink-2 truncate">
-            {signal.petName} · {signal.petSpecies}
+            {signal.petName} · {speciesLabel(signal.petSpecies)}
           </p>
           <p className="text-sm text-ln-op-mute truncate">
             {signal.locality ?? "—"}, {signal.province ?? "—"}
@@ -75,7 +76,7 @@ export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
           href={`/gob/vigilancia/investigaciones/nuevo?diseaseCode=${signal.diseaseCode}&signalId=${signal.signalEventId}`}
           className="text-sm text-ln-op-azul hover:underline"
         >
-          Abrir investigacion →
+          Abrir investigación →
         </Link>
       </div>
     </li>

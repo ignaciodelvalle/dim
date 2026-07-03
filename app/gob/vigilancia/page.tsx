@@ -307,7 +307,7 @@ export default async function GobVigilanciaPage({
           }}
         />
         <OpKpi
-          label="Pets hoy"
+          label="Mascotas hoy"
           value={String(metrics.petsRegisteredToday)}
           info={{
             definition:
@@ -595,7 +595,7 @@ export default async function GobVigilanciaPage({
           title={<span id={panelTrendId}>Tendencia de enfermedades reportables (12 meses)</span>}
         />
         <OpCardBody>
-          <TimeSeriesChartDynamic data={trendPoints} seriesLabel="Signals" />
+          <TimeSeriesChartDynamic data={trendPoints} seriesLabel="Señales" />
         </OpCardBody>
       </OpCard>
 

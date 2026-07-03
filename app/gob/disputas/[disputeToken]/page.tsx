@@ -12,6 +12,7 @@ import {
   profiles,
 } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { speciesLabel } from "@/lib/utils/format";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { AddPartyForm } from "./AddPartyForm";
@@ -22,8 +23,8 @@ import { WithdrawDisputeButton } from "./WithdrawDisputeButton";
 const PARTY_ROLE_LABELS: Record<string, string> = {
   current_owner: "Dueño actual",
   claimant_owner: "Reclamante",
-  current_org_custody: "Organizacion en custodia",
-  claimant_org: "Organizacion reclamante",
+  current_org_custody: "Organización en custodia",
+  claimant_org: "Organización reclamante",
   witness: "Testigo",
 };
 
@@ -127,7 +128,7 @@ export default async function DisputeDetailPage({
           </OpPill>
         </div>
         <p className="text-[13px] text-ln-op-mute">
-          {pet.species}
+          {speciesLabel(pet.species)}
           {pet.breed && ` · ${pet.breed}`} · {dispute.jurisdictionLocality},{" "}
           {dispute.jurisdictionProvince}
         </p>
@@ -136,7 +137,7 @@ export default async function DisputeDetailPage({
 
       {dispute.status === "open" && (
         <div className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-[13px] text-ln-op-warn">
-          Disputa abierta — la mascota queda bloqueada para transferencias o adopcion hasta que se
+          Disputa abierta — la mascota queda bloqueada para transferencias o adopción hasta que se
           resuelva o retire.
         </div>
       )}

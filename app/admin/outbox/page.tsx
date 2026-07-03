@@ -299,7 +299,7 @@ export default async function AdminOutboxPage({
                     scope="col"
                     className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                   >
-                    Jurisdiccion
+                    Jurisdicción
                   </th>
                   <th
                     scope="col"
@@ -329,7 +329,7 @@ export default async function AdminOutboxPage({
                     scope="col"
                     className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                   >
-                    Accion
+                    Acción
                   </th>
                 </tr>
               </thead>
