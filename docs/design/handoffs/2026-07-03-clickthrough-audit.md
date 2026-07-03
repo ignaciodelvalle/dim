@@ -60,12 +60,25 @@ residue accounts from e2e; ignore those.)
 
 | Beat | Token |
 |---|---|
-| Pet con `event_amended` (beat Libro / D0-3) | `DEMO-PET-001` |
-| Pet perdido (credencial Tier-1) | `DIM-4SUZ-U2HT` |
-| Org refugio verificado | `DIM-EE4N-G2M9` (Refugio Test) |
+| Pet con `event_amended` (beat Libro / D0-3) | `DEMO-PET-001` — **"Rocco"** post-polish |
+| Pet perdido (credencial Tier-1) | `DIM-4SUZ-U2HT` (Michi) |
+| Org refugio verificado | `DIM-EE4N-G2M9` (**Refugio Esperanza Animal**, ex "Refugio Test") |
 | Pet activo (credencial Tier-0) | `DIM-BU4K-QRZU` |
+| Oferta turno antirrábica (Segmento 1 booking) | `DEMO-SVO-RABIA-01` — Clínica Veterinaria Recoleta, 160 slots lun-vie 09-13 ART |
 
 Public credential URLs: `http://localhost:3000/p/<token>`.
+
+### Data polish (post-DoR, PO request 2026-07-03)
+
+`pnpm seed:demo-polish` ran against this environment: owner@ curated to 4
+pets (Firulais, Michi, Atún, Rocco — full identity + photos + libretas
+12-20 events), 18 renames (DEMO/QA/e2e names → es-AR pet culture), 17
+surplus ownerships redistributed to other seeded humans, 66k PANO pets
+got clean human names + breed/color/DOB, 53 placeholder photos
+(species-aware, warm palette) across owner/adoptable/lost/org-portal
+sets, antirrábica offering + slots created for the booking beat.
+demo:verify re-run: ALL GREEN. Note for filming: photos are generated
+placeholders (silhouette + initial), not real animal photos.
 
 ### Fixes A/B/C shipped this session (gate references)
 
