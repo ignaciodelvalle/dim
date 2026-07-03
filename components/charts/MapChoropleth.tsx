@@ -353,8 +353,11 @@ export function MapChoropleth({
               .filter((f) => !f.missingData && !f.suppressed)
               .map((f) => f.value ?? 0);
             const minVal = values.length > 0 ? Math.min(...values) : 0;
-            const maxVal =
-              values.length > 0 && values.length > 1 ? Math.max(...values) : minVal + 1;
+            // Interpolate stops must be strictly ascending — when every region
+            // carries the same value (Math.max === Math.min) widen the range,
+            // or MapLibre rejects the whole fill-color expression.
+            const rawMax = values.length > 0 ? Math.max(...values) : 0;
+            const maxVal = rawMax > minVal ? rawMax : minVal + 1;
 
             // Enrich GeoJSON features with choropleth metadata
             const enriched: GeoJSON.FeatureCollection = {
