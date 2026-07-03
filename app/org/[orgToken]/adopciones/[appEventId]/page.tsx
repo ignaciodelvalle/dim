@@ -14,6 +14,7 @@ import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashbo
 import { auditLog, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { upcastPayload } from "@/lib/events/event-upcasters";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { isUuid } from "@/lib/utils/uuid";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ReviewButtons } from "./ReviewButtons";
@@ -78,16 +79,22 @@ export default async function AdoptionReviewDetailPage({
 
   // Applicant identity. profiles.id may not be FK-backed via auth.users
   // (stub profiles exist) but for an actual application the submitter is
-  // always a real auth user.
-  const [applicant] = await db
-    .select({
-      id: profiles.id,
-      displayName: profiles.displayName,
-      phone: profiles.phone,
-    })
-    .from(profiles)
-    .where(eq(profiles.id, payload.applicant_user_id))
-    .limit(1);
+  // always a real auth user. Historic/seeded payloads can carry a non-uuid
+  // applicant_user_id (e.g. external_user_404) — comparing that against the
+  // uuid column aborts the query (22P02) and crashes the page, so guard the
+  // lookup and fall back to the "(perfil no encontrado)" rendering.
+  const applicantUserId = isUuid(payload.applicant_user_id) ? payload.applicant_user_id : null;
+  const [applicant] = applicantUserId
+    ? await db
+        .select({
+          id: profiles.id,
+          displayName: profiles.displayName,
+          phone: profiles.phone,
+        })
+        .from(profiles)
+        .where(eq(profiles.id, applicantUserId))
+        .limit(1)
+    : [undefined];
 
   // PII access trail (V1-9). The org reviewer is now reading the applicant's
   // full identity (name, phone, housing). Record one audit row per page view.
@@ -242,7 +249,9 @@ async function recordAdopterPiiView(args: {
     await db.insert(auditLog).values({
       actorUserId: args.actorUserId,
       action: "adopter_pii_viewed",
-      targetUserId: args.applicantUserId,
+      // Historic payloads may carry a non-uuid applicant id; the uuid FK
+      // column gets NULL then, and the raw value survives in the payload.
+      targetUserId: isUuid(args.applicantUserId) ? args.applicantUserId : null,
       targetOrganizationId: args.organizationId,
       payload: {
         org_id: args.organizationId,
