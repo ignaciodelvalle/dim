@@ -27,6 +27,7 @@ describe("GET /api/cron/business-rules-reeval", () => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
     vi.doUnmock("@/lib/infra/business-rules-reeval");
+    vi.doUnmock("@/lib/infra/case-cron");
     vi.doUnmock("@/db");
   });
 
@@ -53,6 +54,12 @@ describe("GET /api/cron/business-rules-reeval", () => {
     const reEvalMock = vi.fn().mockResolvedValue(reEvalResult);
     vi.doMock("@/lib/infra/business-rules-reeval", () => ({
       reEvaluatePppClassificationChange: reEvalMock,
+    }));
+
+    // Telemetry wrapper (fleet telemetry, 2026-07-03): passthrough so the
+    // pure route test doesn't need a cron_runs-capable db mock.
+    vi.doMock("@/lib/infra/case-cron", () => ({
+      withCronRun: (_name: string, fn: () => Promise<unknown>) => fn(),
     }));
 
     return { reEvalMock };
@@ -143,6 +150,11 @@ describe("GET /api/cron/business-rules-reeval", () => {
     }));
     vi.doMock("@/lib/infra/business-rules-reeval", () => ({
       reEvaluatePppClassificationChange: vi.fn(),
+    }));
+    // This case builds its own mocks (doesn't go through mockDeps), so the
+    // telemetry-wrapper passthrough must be re-declared here too.
+    vi.doMock("@/lib/infra/case-cron", () => ({
+      withCronRun: (_name: string, fn: () => Promise<unknown>) => fn(),
     }));
     const res = await callRoute({ "x-cron-secret": "test-secret" });
     expect(res.status).toBe(500);

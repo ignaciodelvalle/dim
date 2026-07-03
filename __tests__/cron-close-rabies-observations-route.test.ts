@@ -19,9 +19,15 @@ describe("GET /api/cron/close-rabies-observations", () => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
     vi.doUnmock("@/lib/infra/rabies-observation-closer");
+    vi.doUnmock("@/lib/infra/case-cron");
   });
 
   async function callRoute(headers: Record<string, string>) {
+    // Telemetry wrapper (fleet telemetry, 2026-07-03): passthrough so the
+    // pure route test doesn't need a cron_runs-capable db mock.
+    vi.doMock("@/lib/infra/case-cron", () => ({
+      withCronRun: (_name: string, fn: () => Promise<unknown>) => fn(),
+    }));
     const { GET } = await import("@/app/api/cron/close-rabies-observations/route");
     const req = new Request("http://test.local/api/cron/close-rabies-observations", { headers });
     return GET(req as unknown as Parameters<typeof GET>[0]);
