@@ -241,10 +241,13 @@ describe("OWNER_NAV", () => {
     expect(misMascotas?.matchPrefix).toBe("/mis-mascotas");
   });
 
-  it("contains Denunciar tab pointing to /denuncias/mias", () => {
-    const denunciar = OWNER_NAV.find((i) => i.label === "Denunciar");
-    expect(denunciar).toBeDefined();
-    expect(denunciar?.href).toBe("/denuncias/mias");
+  it("contains Denuncias tab pointing to /denuncias/mias", () => {
+    // "Denuncias" (noun), not "Denunciar" (verb) — an action label pointing
+    // at a list misled nav-first users (flow audit 2026-07-03, PO decision);
+    // the list's own "Nueva denuncia" CTA carries the action.
+    const denuncias = OWNER_NAV.find((i) => i.label === "Denuncias");
+    expect(denuncias).toBeDefined();
+    expect(denuncias?.href).toBe("/denuncias/mias");
   });
 
   it("Inicio and Mis mascotas have disjoint matchPrefixes (no double-highlight)", () => {
@@ -255,8 +258,8 @@ describe("OWNER_NAV", () => {
     expect("/inicio".startsWith(misMascotas?.matchPrefix ?? "")).toBe(false);
   });
 
-  it("still in order Inicio → Mis mascotas → Denunciar", () => {
-    expect(OWNER_NAV.map((i) => i.label)).toEqual(["Inicio", "Mis mascotas", "Denunciar"]);
+  it("still in order Inicio → Mis mascotas → Denuncias", () => {
+    expect(OWNER_NAV.map((i) => i.label)).toEqual(["Inicio", "Mis mascotas", "Denuncias"]);
   });
 
   it("no longer surfaces Notificaciones, Adopciones or Turnos as nav peers", () => {

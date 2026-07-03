@@ -31,13 +31,17 @@ export const PUBLIC_NAV: NavItem[] = [
 // reviewed with fresh eyes and decided the two destinations are distinct
 // enough to deserve separate nav items: **Inicio** (the compliance-register
 // home — capture, vencimientos, reminders) and **Mis mascotas** (the pet
-// list/management surface). "Denunciar" is unchanged. Each item now owns a
+// list/management surface). Each item now owns a
 // single, disjoint matchPrefix — no matchPrefixes array needed since the
 // two owner destinations no longer share a highlight zone.
 export const OWNER_NAV: NavItem[] = [
   { href: "/inicio", label: "Inicio", matchPrefix: "/inicio" },
   { href: "/mis-mascotas", label: "Mis mascotas", matchPrefix: "/mis-mascotas" },
-  { href: "/denuncias/mias", label: "Denunciar", matchPrefix: "/denuncias" },
+  // "Denuncias", not "Denunciar" (flow audit 2026-07-03, PO decision): an
+  // action verb pointing at a LIST promised the create flow and delivered
+  // status. The noun matches the destination; the list's own "Nueva
+  // denuncia" CTA covers the action.
+  { href: "/denuncias/mias", label: "Denuncias", matchPrefix: "/denuncias" },
 ];
 
 // ---------------------------------------------------------------------------
