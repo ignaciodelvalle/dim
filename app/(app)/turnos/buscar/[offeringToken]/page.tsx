@@ -56,8 +56,8 @@ export default async function OfferingDetailPage({
     .where(
       sql`${timeSlots.serviceOfferingId} = ${offering.id}
           AND ${timeSlots.status} = 'open'
-          AND ${timeSlots.startsAt} >= ${now}
-          AND ${timeSlots.startsAt} <= ${windowEnd}
+          AND ${timeSlots.startsAt} >= ${now.toISOString()}
+          AND ${timeSlots.startsAt} <= ${windowEnd.toISOString()}
           AND ${timeSlots.bookingsCount} < ${timeSlots.capacity}`,
     )
     .orderBy(timeSlots.startsAt);
