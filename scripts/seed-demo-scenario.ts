@@ -135,8 +135,11 @@ const {
 const SHARED_PASSWORD = "Test1234!";
 
 // Focal jurisdiction for the complete demo cut (baked decision §0).
+// FOCAL_LOCALITY must resolve against ar_localities (issue #758) — "CABA" is
+// never a locality_name in the catalog, only the INDEC "componente" record
+// for the whole city, whose canonical name is the string below.
 const FOCAL_PROVINCE = "CABA";
-const FOCAL_LOCALITY = "CABA";
+const FOCAL_LOCALITY = "Ciudad Autónoma de Buenos Aires";
 
 // Demo prefix for all rows created by this script — keys idempotency.
 const DEMO_TAG = "DEMO-";

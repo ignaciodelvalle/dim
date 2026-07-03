@@ -346,6 +346,47 @@ describe("createInstitutionalAccountForAuthority — validation: invalid email r
   });
 });
 
+describe("createInstitutionalAccountForAuthority — unresolvable locality rejected (issue #758)", () => {
+  const BAD_LOC_EMAIL = "fase5-bad-loc@dim-test.local";
+
+  it("rejects an (province, locality) pair that doesn't resolve against ar_localities, with an es-AR error, and creates no auth user or govt_assignments row", async () => {
+    await deleteTestUser(BAD_LOC_EMAIL);
+
+    const result = await createInstitutionalAccountForAuthority(actorUserId, {
+      role: "govt",
+      email: BAD_LOC_EMAIL,
+      displayName: "Bad Locality Test",
+      // "CABA" is a province name, never a locality_name in ar_localities —
+      // the exact production bug (issue #758).
+      initialLocalities: [{ province: "Buenos Aires", locality: "CABA" }],
+    });
+
+    expect(result).toHaveProperty("error");
+    const message = (result as { error: string }).error;
+    expect(message).toMatch(/Localidad/);
+
+    // Resolution happens BEFORE auth.admin.createUser (step 1.5) — no orphan
+    // auth user should exist for this email.
+    const { data: list } = await adminSdk.auth.admin.listUsers({ perPage: 200 });
+    expect(list?.users.some((u) => u.email === BAD_LOC_EMAIL)).toBe(false);
+
+    // No ACTIVE govt_assignments row should have been inserted for this pair.
+    // (A revoked historical row with this exact pair legitimately exists —
+    // preserved by migration 0117, which revoked it rather than guessing.)
+    const stray = await db
+      .select({ id: govtAssignments.id })
+      .from(govtAssignments)
+      .where(
+        and(
+          eq(govtAssignments.jurisdictionProvince, "Buenos Aires"),
+          eq(govtAssignments.jurisdictionLocality, "CABA"),
+          isNull(govtAssignments.revokedAt),
+        ),
+      );
+    expect(stray).toHaveLength(0);
+  });
+});
+
 describe("createInstitutionalAccountForAuthority — govt with empty initialLocalities", () => {
   const ZERO_LOC_EMAIL = "fase5-zero-loc@dim-test.local";
 
@@ -1387,5 +1428,32 @@ describe("assignGovtLocalityForAuthority — duplicate assignment returns noOp",
     if ("error" in result) return;
     expect(result.ok).toBe(true);
     expect(result.noOp).toBe(true);
+  });
+});
+
+describe("assignGovtLocalityForAuthority — unresolvable locality rejected (issue #758)", () => {
+  it("rejects an (province, locality) pair that doesn't resolve against ar_localities, with an es-AR error, and inserts no govt_assignments row", async () => {
+    // "CABA" is a province name, never a locality_name in ar_localities —
+    // the exact production bug (issue #758).
+    const result = await assignGovtLocalityForAuthority(deactivateActorId, {
+      targetUserId: assignGovtId,
+      province: "Buenos Aires",
+      locality: "CABA",
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toMatch(/Localidad/);
+
+    const stray = await db
+      .select({ id: govtAssignments.id })
+      .from(govtAssignments)
+      .where(
+        and(
+          eq(govtAssignments.userId, assignGovtId),
+          eq(govtAssignments.jurisdictionProvince, "Buenos Aires"),
+          eq(govtAssignments.jurisdictionLocality, "CABA"),
+        ),
+      );
+    expect(stray).toHaveLength(0);
   });
 });
