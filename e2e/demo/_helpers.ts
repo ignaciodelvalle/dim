@@ -16,7 +16,9 @@ export const ACCOUNTS = {
 // Real animal photos shipped in the repo, reused for live upload flows.
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PHOTO_DIR = path.resolve(here, "../../docs/archive/Fotos");
-export const DEMO_PHOTOS = ["bolt.jpg", "courage.jpg", "hachi.jpg"].map((f) => path.join(PHOTO_DIR, f));
+export const DEMO_PHOTOS = ["bolt.jpg", "courage.jpg", "hachi.jpg"].map((f) =>
+  path.join(PHOTO_DIR, f),
+);
 
 /** Log in through the real UI at /login and wait until we leave the login page. */
 export async function loginAs(page: Page, email: string): Promise<void> {
@@ -29,7 +31,11 @@ export async function loginAs(page: Page, email: string): Promise<void> {
 }
 
 /** Navigate to a path, tolerate 308 redirects, settle, then pause briefly for the recording. */
-export async function visit(page: Page, urlPath: string, opts: { settle?: number } = {}): Promise<void> {
+export async function visit(
+  page: Page,
+  urlPath: string,
+  opts: { settle?: number } = {},
+): Promise<void> {
   await page.goto(urlPath, { waitUntil: "domcontentloaded" }).catch(() => {});
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.waitForTimeout(opts.settle ?? 600);
@@ -60,7 +66,12 @@ export async function showScreen(page: Page, urlPath: string): Promise<void> {
 /** Best-effort: fill an input found by label regex, ignore if absent (screens vary by data). */
 export async function tryFill(page: Page, label: RegExp, value: string): Promise<void> {
   const field = page.getByLabel(label).first();
-  if (await field.count().then((c) => c > 0).catch(() => false)) {
+  if (
+    await field
+      .count()
+      .then((c) => c > 0)
+      .catch(() => false)
+  ) {
     await field.fill(value).catch(() => {});
   }
 }
@@ -93,7 +104,11 @@ export async function clickContinuar(page: Page): Promise<void> {
 }
 
 /** Drive a LocalityPickerAcross typeahead: type, wait for the dropdown, pick the first match. */
-export async function pickLocality(page: Page, inputSelector: string, query: string): Promise<void> {
+export async function pickLocality(
+  page: Page,
+  inputSelector: string,
+  query: string,
+): Promise<void> {
   const input = page.locator(inputSelector);
   await expect(input, `locality typeahead ${inputSelector}`).toBeVisible();
   await input.fill(query);

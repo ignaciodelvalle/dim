@@ -25,7 +25,9 @@ function findVideos(dir) {
 
 const videos = findVideos(SRC);
 if (videos.length === 0) {
-  console.log(`No .webm found under ${SRC}. Run: pnpm exec playwright test -c playwright.demo.config.ts`);
+  console.log(
+    `No .webm found under ${SRC}. Run: pnpm exec playwright test -c playwright.demo.config.ts`,
+  );
   process.exit(0);
 }
 

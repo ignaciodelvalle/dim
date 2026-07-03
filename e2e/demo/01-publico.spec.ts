@@ -13,10 +13,19 @@ test("segmento 01 — publico", async ({ page }) => {
 
   // 2. Adoptar: use the filter form (visible typing), then click a real pet card
   await visit(page, "/adoptar");
-  await page.locator('input[name="q"]').fill("a").catch(() => {});
-  await page.locator('select[name="species"]').selectOption({ index: 1 }).catch(() => {});
+  await page
+    .locator('input[name="q"]')
+    .fill("a")
+    .catch(() => {});
+  await page
+    .locator('select[name="species"]')
+    .selectOption({ index: 1 })
+    .catch(() => {});
   await page.waitForTimeout(500);
-  await page.getByRole("button", { name: /aplicar filtros/i }).click().catch(() => {});
+  await page
+    .getByRole("button", { name: /aplicar filtros/i })
+    .click()
+    .catch(() => {});
   await page.waitForLoadState("networkidle").catch(() => {});
   await fullScroll(page);
   const petCard = page.locator('a[href^="/adoptar/DIM"]').first();
@@ -50,13 +59,25 @@ test("segmento 01 — publico", async ({ page }) => {
     const codeInput = page.locator('input[type="text"], input[type="search"]').first();
     await codeInput.fill(denCode).catch(() => {});
     await page.waitForTimeout(400);
-    await page.getByRole("button", { name: /buscar|consultar|ver/i }).first().click().catch(() => {});
+    await page
+      .getByRole("button", { name: /buscar|consultar|ver/i })
+      .first()
+      .click()
+      .catch(() => {});
     await page.waitForLoadState("networkidle").catch(() => {});
     await fullScroll(page);
   }
 
   // 7. Static / legal / feedback
-  for (const p of ["/acerca", "/ayuda", "/accesibilidad", "/privacidad", "/terminos", "/cookies", "/sugerencias"]) {
+  for (const p of [
+    "/acerca",
+    "/ayuda",
+    "/accesibilidad",
+    "/privacidad",
+    "/terminos",
+    "/cookies",
+    "/sugerencias",
+  ]) {
     await showScreen(page, p);
   }
 

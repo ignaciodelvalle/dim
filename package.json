@@ -99,11 +99,6 @@
     "node": ">=22.13.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "@biomejs/biome",
-      "esbuild",
-      "sharp",
-      "supabase"
-    ]
+    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild", "sharp", "supabase"]
   }
 }
