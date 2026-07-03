@@ -26,7 +26,9 @@ import type {
 
 export type UseLayerFeaturesParams = {
   layerId: LayerId;
+  /** ISO 3166-2:AR province code (e.g. "AR-B"), NOT a display name. Resolved server-side via provinceByCode. */
   province?: string | null;
+  /** Locality slug scoped to `province`, NOT a display name. Resolved server-side via localityByName. */
   locality?: string | null;
   level?: AggregationLevel;
   /** F4 temporal reproduction: ISO date-time upper bound. Omit for the live edge. */

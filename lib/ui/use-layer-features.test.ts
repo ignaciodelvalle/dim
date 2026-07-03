@@ -18,18 +18,23 @@ describe("buildLayerFeaturesUrl", () => {
     expect(buildLayerFeaturesUrl({ layerId: "perdidas" })).toBe("/api/panorama/perdidas");
   });
 
+  // NOTE: province/locality are opaque strings to this pure URL builder, but
+  // in real usage they must be an ISO 3166-2:AR code (e.g. "AR-B") and a
+  // locality slug — NOT display names — per app/api/panorama/[layer]/route.ts's
+  // provinceByCode/localityByName resolution. Using realistic values here so
+  // this test doesn't teach a future caller the wrong contract.
   it("includes province, locality, level and asOf when provided", () => {
     const url = buildLayerFeaturesUrl({
       layerId: "cobertura",
-      province: "Buenos Aires",
-      locality: "La Plata",
+      province: "AR-B",
+      locality: "la-plata",
       level: "province",
       asOf: "2026-06-01T00:00:00.000Z",
     });
     const parsed = new URL(url, "http://x");
     expect(parsed.pathname).toBe("/api/panorama/cobertura");
-    expect(parsed.searchParams.get("province")).toBe("Buenos Aires");
-    expect(parsed.searchParams.get("locality")).toBe("La Plata");
+    expect(parsed.searchParams.get("province")).toBe("AR-B");
+    expect(parsed.searchParams.get("locality")).toBe("la-plata");
     expect(parsed.searchParams.get("level")).toBe("province");
     expect(parsed.searchParams.get("asOf")).toBe("2026-06-01T00:00:00.000Z");
   });
@@ -95,16 +100,16 @@ describe("useLayerFeatures", () => {
   it("refetches when a param changes, using the new param in the request URL", async () => {
     const { result, rerender } = renderHook(
       ({ province }: { province: string }) => useLayerFeatures({ layerId: "perdidas", province }),
-      { initialProps: { province: "Buenos Aires" } },
+      { initialProps: { province: "AR-B" } },
     );
 
     await waitFor(() => expect(result.current.status).toBe("ok"));
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
 
-    rerender({ province: "Córdoba" });
+    rerender({ province: "AR-X" });
 
     await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2));
     const lastCallUrl = vi.mocked(fetch).mock.calls[1]?.[0] as string;
-    expect(new URL(lastCallUrl, "http://x").searchParams.get("province")).toBe("Córdoba");
+    expect(new URL(lastCallUrl, "http://x").searchParams.get("province")).toBe("AR-X");
   });
 });
