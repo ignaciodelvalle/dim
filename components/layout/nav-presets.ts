@@ -147,6 +147,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       href: `/org/${orgToken}/mordedura/nuevo`,
       label: "Mordeduras",
       matchPrefix: `/org/${orgToken}/mordedura`,
+      requiredCapability: "bite.report",
       section: "Casos",
     },
     // Administración
