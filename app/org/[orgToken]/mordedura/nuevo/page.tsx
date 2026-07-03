@@ -32,9 +32,9 @@ export default async function NewOrgBitePage({
   if (auth.error !== null) {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
-        <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
-        <p className="text-[13px] text-ln-op-mute">
+        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">Sin acceso</h1>
+        <p className="text-[var(--text-md)] text-ln-op-ink-2">{auth.error}</p>
+        <p className="text-[var(--text-md)] text-ln-op-mute">
           Podés pedir el permiso «Reportar mordeduras» desde la página de permisos de tu
           organización.
         </p>

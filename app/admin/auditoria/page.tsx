@@ -155,7 +155,7 @@ export default async function AdminAuditoriaPage({
   const EntryBody = ({ entry }: { entry: (typeof entries)[number] }) => (
     <>
       <div className="min-w-0 space-y-0.5">
-        <p className="text-[13px] font-medium text-ln-op-ink" title={entry.action}>
+        <p className="text-[var(--text-md)] font-medium text-ln-op-ink" title={entry.action}>
           {auditActionLabel(entry.action)}
         </p>
         <p className="text-sm text-ln-op-mute">
@@ -293,7 +293,7 @@ export default async function AdminAuditoriaPage({
                     <details className="group/run">
                       <summary className="flex cursor-pointer list-none items-start justify-between gap-3 select-none">
                         <div className="min-w-0 space-y-0.5">
-                          <p className="flex items-center gap-2 text-[13px] font-medium text-ln-op-ink">
+                          <p className="flex items-center gap-2 text-[var(--text-md)] font-medium text-ln-op-ink">
                             {auditActionLabel(group.action)}
                             <OpPill tone="neutral">×{group.count}</OpPill>
                           </p>

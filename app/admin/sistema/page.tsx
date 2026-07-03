@@ -237,7 +237,7 @@ export default async function AdminSistemaPage() {
           const visibleGovts = sortedGovts.slice(0, GOVT_ACTIVITY_LIMIT);
           const govtsTruncated = sortedGovts.length > GOVT_ACTIVITY_LIMIT;
           return govts.length === 0 ? (
-            <p className="text-[13px] text-ln-op-mute">No hay govts activos.</p>
+            <p className="text-[var(--text-md)] text-ln-op-mute">No hay govts activos.</p>
           ) : (
             <OpCard>
               <div className="overflow-x-auto">
@@ -276,7 +276,7 @@ export default async function AdminSistemaPage() {
                   <tbody>
                     {visibleGovts.map((g) => (
                       <tr key={g.userId} className="border-t border-ln-op-line">
-                        <td className="px-3 py-2 text-[13px] font-medium text-ln-op-ink">
+                        <td className="px-3 py-2 text-[var(--text-md)] font-medium text-ln-op-ink">
                           {g.displayName}
                         </td>
                         <td className="px-3 py-2 tabular-nums text-sm text-ln-op-ink-2">
@@ -285,7 +285,7 @@ export default async function AdminSistemaPage() {
                         <td className="px-3 py-2 tabular-nums text-sm text-ln-op-ink-2">
                           {g.decisions30d}
                         </td>
-                        <td className="px-3 py-2 text-[11px] text-ln-op-mute">
+                        <td className="px-3 py-2 text-[var(--text-sm)] text-ln-op-mute">
                           {g.lastActionAt
                             ? new Date(g.lastActionAt).toLocaleDateString("es-AR", {
                                 day: "numeric",
@@ -300,7 +300,7 @@ export default async function AdminSistemaPage() {
                 </table>
               </div>
               {govtsTruncated && (
-                <p className="px-3 py-2 text-[11px] text-ln-op-mute">
+                <p className="px-3 py-2 text-[var(--text-sm)] text-ln-op-mute">
                   Mostrando los {GOVT_ACTIVITY_LIMIT} govts más activos de {sortedGovts.length}.
                 </p>
               )}
