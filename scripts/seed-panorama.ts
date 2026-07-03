@@ -16,9 +16,12 @@
  *   (2026-06-20) — not `new Date()` — so the temporal distribution is stable.
  *
  * ─── PANO- TAG ─────────────────────────────────────────────────────────────
- *   Every synthetic pet's `name` starts with "PANO-" (e.g. "PANO-000042 Luna").
+ *   Every synthetic pet's `public_token` starts with "PANO-" (PANO-NNNNNN /
+ *   PANO-HIST-NNNNNN); the `name` column carries ONLY the human name — the
+ *   old name prefix leaked into /perdidas cards (pre-demo polish 2026-07-03).
  *   Synthetic orgs use publicToken "PANO-ORG-<slug>". Welfare reports are
- *   tagged by the same provincial distribution. Cleanup keys off PANO- prefix.
+ *   tagged by the same provincial distribution. Cleanup keys off the
+ *   public_token prefix.
  *
  * ─── LOCAL-ONLY GUARD ──────────────────────────────────────────────────────
  *   Refuses to run against a non-local DATABASE_URL host unless --allow-remote
@@ -270,9 +273,14 @@ function panoPublicToken(i: number): string {
   return `PANO-${String(i).padStart(6, "0")}`;
 }
 
-/** Pet name with PANO- tag prefix. */
-function panoName(i: number, baseName: string): string {
-  return `${PANO_TAG}${String(i).padStart(6, "0")} ${baseName}`;
+/**
+ * Human pet name — NO tag prefix. The synthetic marker lives ONLY in
+ * public_token (PANO-NNNNNN): prefixed names leaked into user-facing
+ * surfaces (/perdidas showed "PANO-000213 Coco" — pre-demo polish
+ * 2026-07-03). Cleanup keys off public_token, not name.
+ */
+function panoName(_i: number, baseName: string): string {
+  return baseName;
 }
 
 // ---------------------------------------------------------------------------
@@ -828,7 +836,7 @@ async function runClean(): Promise<void> {
   const panoPets = await db
     .select({ id: pets.id })
     .from(pets)
-    .where(like(pets.name, `${PANO_TAG}%`));
+    .where(like(pets.publicToken, `${PANO_TAG}%`));
 
   log("INFO", `Found ${panoPets.length} PANO-tagged pets`);
 
@@ -2068,7 +2076,7 @@ async function seedEnforcementCases(): Promise<{ decomisos: number; disputes: nu
       locality: pets.jurisdictionLocality,
     })
     .from(pets)
-    .where(like(pets.name, `${PANO_TAG}%`))
+    .where(like(pets.publicToken, `${PANO_TAG}%`))
     .limit(40);
 
   if (panoPets.length === 0) {
@@ -2269,7 +2277,7 @@ async function seedHealthCampaigns(
   const petPoolRows = await db
     .select({ id: pets.id, province: pets.jurisdictionProvince })
     .from(pets)
-    .where(like(pets.name, `${PANO_TAG}%`));
+    .where(like(pets.publicToken, `${PANO_TAG}%`));
 
   const petsByProvince = new Map<string, string[]>();
   for (const r of petPoolRows) {
@@ -2559,8 +2567,8 @@ async function seedModelProvinceHistory(
   // Deterministic, collision-free token + name for history rows. Distinct from
   // the numeric PANO-NNNNNN tokens used by the main seed.
   const histToken = (i: number): string => `PANO-HIST-${String(i).padStart(6, "0")}`;
-  const histName = (i: number, base: string): string =>
-    `${PANO_TAG}HIST-${String(i).padStart(6, "0")} ${base}`;
+  // Human name only — the synthetic marker lives in the token (see panoName).
+  const histName = (_i: number, base: string): string => base;
 
   for (const province of PROVINCES) {
     const provinceName = province.name;
@@ -3383,7 +3391,7 @@ async function seedHistoryCampaigns(
   const petPoolRows = await db
     .select({ id: pets.id, province: pets.jurisdictionProvince })
     .from(pets)
-    .where(like(pets.name, `${PANO_TAG}%`));
+    .where(like(pets.publicToken, `${PANO_TAG}%`));
 
   const petsByProvince = new Map<string, string[]>();
   for (const r of petPoolRows) {

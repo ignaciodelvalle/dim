@@ -141,9 +141,6 @@ const SHARED_PASSWORD = "Test1234!";
 const FOCAL_PROVINCE = "CABA";
 const FOCAL_LOCALITY = "Ciudad Autónoma de Buenos Aires";
 
-// Demo prefix for all rows created by this script — keys idempotency.
-const DEMO_TAG = "DEMO-";
-
 // Anchor date for freshness: recent so footers say "calculado al…" today.
 // Use current day at noon UTC so re-runs stay fresh.
 const ANCHOR_DATE = new Date();
@@ -326,6 +323,26 @@ const DEMO_PET_TOKENS = [
   "DEMO-PET-010",
 ] as const;
 
+// Human names + identity per token — the synthetic marker lives ONLY in the
+// public_token; "DEMO-PET-001 Demo" as a NAME leaked into every user-facing
+// card (pre-demo polish 2026-07-03). Keep in sync with the rename table in
+// scripts/seed-demo-polish.ts.
+const DEMO_PET_IDENTITY: Record<
+  string,
+  { name: string; breed: string; color: string; sex: "male" | "female" }
+> = {
+  "DEMO-PET-001": { name: "Rocco", breed: "Boxer", color: "atigrado", sex: "male" },
+  "DEMO-PET-002": { name: "Greta", breed: "Ovejero alemán", color: "negro y fuego", sex: "female" },
+  "DEMO-PET-003": { name: "Simón", breed: "Mestizo", color: "marrón", sex: "male" },
+  "DEMO-PET-004": { name: "Tango", breed: "Galgo", color: "gris", sex: "male" },
+  "DEMO-PET-005": { name: "Frida", breed: "Salchicha", color: "marrón", sex: "female" },
+  "DEMO-PET-006": { name: "Camilo", breed: "Beagle", color: "tricolor", sex: "male" },
+  "DEMO-PET-007": { name: "Renata", breed: "Border collie", color: "blanco y negro", sex: "female" },
+  "DEMO-PET-008": { name: "Bianca", breed: "Caniche toy", color: "blanco", sex: "female" },
+  "DEMO-PET-009": { name: "Morocho", breed: "Mestizo", color: "negro", sex: "male" },
+  "DEMO-PET-010": { name: "Pipa", breed: "Golden retriever", color: "dorado", sex: "female" },
+};
+
 // Month offsets for the series — 7 distinct months (≥6) gives us ≥4 buckets
 // in any monthly aggregation window.
 const SERIES_MONTHS = [0, 1, 2, 3, 4, 5, 6] as const;
@@ -342,13 +359,16 @@ async function ensureDemoPet(
 
   if (existing) return { id: existing.id, existed: true };
 
+  const identity = DEMO_PET_IDENTITY[token];
   const [pet] = await db
     .insert(pets)
     .values({
       publicToken: token,
       species: "dog",
-      name: `${DEMO_TAG}${token.replace("DEMO-", "")} Demo`,
-      sex: "unknown",
+      name: identity?.name ?? token,
+      breed: identity?.breed ?? null,
+      color: identity?.color ?? null,
+      sex: identity?.sex ?? "unknown",
       status: "active",
       jurisdictionCountry: "AR",
       jurisdictionProvince: FOCAL_PROVINCE,
