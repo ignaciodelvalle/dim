@@ -371,7 +371,12 @@ export async function identificationFunnel(ctx: ProjectionContext): Promise<Funn
     AND pi.iso_national_id IS NOT NULL AND length(btrim(pi.iso_national_id)) = 8
   )`;
 
-  const isoConditions = [sql`pi.kind = 'microchip_iso'`, sql`pi.status = 'active'`];
+  // isoValid MUST apply the SAME population predicate as `chipped`
+  // (activeCond) — without it, a deceased pet's valid ISO chip counted in
+  // isoValid but not in chipped, violating the funnel monotonic assert and
+  // 500ing /admin/censo the moment the data held one such pet. It also
+  // counts DISTINCT pets (not identification rows) for the same reason.
+  const isoConditions = [sql`pi.kind = 'microchip_iso'`, sql`pi.status = 'active'`, activeCond];
   if (scope) isoConditions.push(sql`(${scope})`);
 
   // scanned: DISTINCT pets with a credential_scanned event in the ctx period.
@@ -396,8 +401,8 @@ export async function identificationFunnel(ctx: ProjectionContext): Promise<Funn
 
     db
       .select({
-        valid: sql<number>`count(*) FILTER (WHERE ${validIso})::int`,
-        chipped: sql<number>`count(*)::int`,
+        valid: sql<number>`count(DISTINCT pi.pet_id) FILTER (WHERE ${validIso})::int`,
+        chipped: sql<number>`count(DISTINCT pi.pet_id)::int`,
       })
       .from(sql`pet_identifications pi`)
       .innerJoin(pets, sql`${pets.id} = pi.pet_id`)

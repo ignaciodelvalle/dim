@@ -82,13 +82,19 @@ describe("MapChoropleth — gradient scale legend (UX 2.3 item 1)", () => {
     expect(html).toContain("Casos abiertos");
   });
 
-  it("does NOT render gradient when scaleLabel is omitted", () => {
+  // The GRADIENT SCALE bar uses `linear-gradient(to right, …)`; the
+  // always-rendered suppressed-cell swatch (map-QOL hatching) uses
+  // `repeating-linear-gradient(45deg, …)` — assert on the scale's exact
+  // pattern so the hatch swatch doesn't false-positive the substring.
+  const SCALE_GRADIENT = "linear-gradient(to right";
+
+  it("does NOT render the gradient scale when scaleLabel is omitted", () => {
     const html = renderToStaticMarkup(<MapChoropleth data={baseData} />);
-    // No gradient without label.
-    expect(html).not.toContain("linear-gradient");
+    // No gradient scale without label (the hatch swatch may still render).
+    expect(html).not.toContain(SCALE_GRADIENT);
   });
 
-  it("does NOT render gradient when all data values are the same (no meaningful range)", () => {
+  it("does NOT render the gradient scale when all data values are the same (no meaningful range)", () => {
     const flatData = [
       { code: "AR-B", value: 10, label: "Buenos Aires" },
       { code: "AR-C", value: 10, label: "CABA" },
@@ -96,8 +102,8 @@ describe("MapChoropleth — gradient scale legend (UX 2.3 item 1)", () => {
     const html = renderToStaticMarkup(
       <MapChoropleth data={flatData} scaleLabel="Casos abiertos" />,
     );
-    // min === max → gradient intentionally hidden.
-    expect(html).not.toContain("linear-gradient");
+    // min === max → gradient scale intentionally hidden.
+    expect(html).not.toContain(SCALE_GRADIENT);
   });
 
   it("renders 'Sin datos' swatch for COLOR_NO_DATA", () => {
@@ -105,9 +111,11 @@ describe("MapChoropleth — gradient scale legend (UX 2.3 item 1)", () => {
     expect(html).toContain("Sin datos");
   });
 
-  it("renders 'Suprimido (privacidad)' swatch for COLOR_SUPPRESSED", () => {
+  it("renders the suppressed-cell swatch for COLOR_SUPPRESSED", () => {
     const html = renderToStaticMarkup(<MapChoropleth data={baseData} />);
-    expect(html).toContain("Suprimido");
+    // map-QOL renamed 'Suprimido (privacidad)' → 'Datos insuficientes
+    // (privacidad)' so the operator learns WHY there is no number.
+    expect(html).toContain("Datos insuficientes (privacidad)");
   });
 
   it("color swatches are aria-hidden (color not the sole means — list provides text)", () => {

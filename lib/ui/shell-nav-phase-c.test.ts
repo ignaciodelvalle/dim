@@ -42,9 +42,12 @@ describe("Phase C — stranded-user invariant (owner on public surfaces)", () =>
       // 3. And the layout boundary renders exactly that role nav in the masthead.
       expect(mastheadNavFor(r)).toBe(OWNER_NAV);
 
-      // 4. Guaranteed ≤1-click return to the role home (D4).
-      expect(r.showReturn).toBe(true);
-      expect(r.returnHref).toBe("/inicio");
+      // 4. Guaranteed ≤1-click return to the role home (D4) — since wave-3 P6
+      //    the return IS the nav's own Inicio item (no separate chip, which
+      //    would duplicate it; see shell-nav.test.ts "NO separate return
+      //    chip"). The invariant holds as long as OWNER_NAV renders Inicio.
+      expect(r.showReturn).toBe(false);
+      expect(r.nav.some((i) => i.label === "Inicio" && i.href === "/inicio")).toBe(true);
     });
   }
 

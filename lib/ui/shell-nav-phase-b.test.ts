@@ -53,19 +53,20 @@ const GOB_HREF_SNAPSHOT = new Set([
 const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin",
   "/admin/panorama", // Centro de Situación Nacional — flagship console
-  // AC3 — Cola/Usuarios/Organizaciones repointed from /admin/* to /gob/*.
-  "/gob/cola",
-  "/gob/usuarios",
-  "/gob/organizaciones",
+  // portal-follows-viewer (2026-07-02): the admin rail points at the /admin
+  // copies of every shared surface — the earlier AC3 /gob/* repoints were
+  // superseded when the shared pages got served under /admin too.
+  "/admin/cola",
+  "/admin/usuarios",
+  "/admin/organizaciones",
+  "/admin/reglas",
+  "/admin/servicios",
   "/admin/historial",
   "/admin/auditoria",
   "/admin/outbox",
   "/admin/sistema",
   "/admin/govts",
   "/admin/admins",
-  // admin-rules-console — Reglas/Servicios repointed from /admin/* to /gob/*.
-  "/gob/reglas",
-  "/gob/servicios",
   "/admin/observaciones",
   "/admin/moderacion",
   "/admin/casos",
@@ -77,7 +78,16 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/libro", // WS-L — Libro de eventos (event-sourcing visible)
 ]);
 
-const ALL_ORG_CAPS = new Set(["intake.create", "adoption.review", "capability.grant"]);
+// Every capability the org nav gates on — must track nav-presets.test.ts's
+// ALL_GATED_CAPS (appointment.manage gates Agenda; bite.report gates
+// Mordeduras since QA 2026-07-03).
+const ALL_ORG_CAPS = new Set([
+  "appointment.manage",
+  "intake.create",
+  "adoption.review",
+  "capability.grant",
+  "bite.report",
+]);
 
 const ORG_HREF_SNAPSHOT = new Set([
   "/org/ORG-ABC",

@@ -16,7 +16,7 @@
 // than failing — the matrix is contract-level, not seed-level.
 
 import { type SupabaseClient, createClient } from "@supabase/supabase-js";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, ownerships, petAchievementViews, petEvents, pets } from "@/db";
@@ -103,13 +103,42 @@ beforeAll(async () => {
     contexts.set(role as RlsRole, { client, userId: data.user.id });
   }
 
-  // Resolve the fixture pet id — first pet visible to owner.
+  // Resolve the fixture pet id — the first owner-visible pet WITHOUT an
+  // open bite_incident case. The old "first pet" pick collided with the
+  // partial unique index cases_open_per_pet_kind_idx whenever local QA had
+  // left an open bite case on that pet (e.g. CAS-3KRJ-433G on the 2026-07-03
+  // smoke run) — seed/QA residue must never fail this fixture.
   const ownerCtx = contexts.get("owner");
   if (ownerCtx) {
-    const { data } = await ownerCtx.client.from("pets").select("id").limit(1);
-    ownerPetId = data && data.length > 0 ? (data[0].id as string) : null;
+    // status='active' only: a LOST pet's disclosure policies deliberately
+    // widen visibility (public credential, finder flows), which flips the
+    // deny probes for other_user/admin — the matrix asserts the BASELINE
+    // posture, so the fixture pet must be in the baseline state.
+    const { data } = await ownerCtx.client
+      .from("pets")
+      .select("id,status")
+      .eq("status", "active")
+      .limit(20);
+    const candidateIds = (data ?? []).map((r) => r.id as string);
+    if (candidateIds.length === 0) {
+      setupError = "owner has zero ACTIVE pets after sign-in — re-seed with `pnpm seed:test`.";
+      return;
+    }
+    const openBite = await db
+      .select({ petId: cases.primaryPetId })
+      .from(cases)
+      .where(
+        and(
+          inArray(cases.primaryPetId, candidateIds),
+          eq(cases.caseKind, "bite_incident"),
+          eq(cases.status, "open"),
+        ),
+      );
+    const busy = new Set(openBite.map((r) => r.petId));
+    ownerPetId = candidateIds.find((id) => !busy.has(id)) ?? null;
     if (!ownerPetId) {
-      setupError = "owner has zero pets after sign-in — re-seed with `pnpm seed:test`.";
+      setupError =
+        "every owner pet already has an open bite_incident case — close one or re-seed with `pnpm seed:test`.";
       return;
     }
   }
@@ -291,7 +320,11 @@ async function probeSelect(
   // see the fixture resource (the owner's first pet & associated data).
   // For tables that don't have a pet_id or user_id, fall back to "any row".
   let query = client.from(table).select("*").limit(1);
-  if (ctx.ownerPetId && ["pet_events", "ownerships"].includes(table)) {
+  // pet_identifications is scoped to the fixture pet like the other per-pet
+  // tables: unfiltered it probed "any row", and any LOST pet in the DB
+  // (whose disclosure policies deliberately expose its chip for finder
+  // lookup) flipped the other_user deny probe — a data-dependent assertion.
+  if (ctx.ownerPetId && ["pet_events", "ownerships", "pet_identifications"].includes(table)) {
     query = client.from(table).select("*").eq("pet_id", ctx.ownerPetId).limit(1);
   } else if (ctx.ownerPetId && table === "cases") {
     query = client.from(table).select("*").eq("primary_pet_id", ctx.ownerPetId).limit(1);
