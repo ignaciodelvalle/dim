@@ -40,6 +40,7 @@ Ultimate trajectory: **Mi Argentina integration** — federation with the Argent
 | RLS coverage test | `__tests__/rls/coverage.test.ts` |
 | Scan retention / 90d TTL purge | `lib/scan-retention.ts` |
 | Server actions | `app/actions/` |
+| Business rules (registry + resolver + console) | `lib/domain/rule-types-registry.ts`, `lib/infra/business-rules-resolver.ts`, `/admin/reglas` |
 | Nav presets + AppShell | `components/layout/nav-presets.ts`, `components/layout/AppShell.tsx` |
 | Legal framework (AR laws) | `docs/legal-framework-full.md` |
 | Privacy checklist (PII gate) | [§ Privacidad y manejo de datos](#privacidad-y-manejo-de-datos) |
@@ -230,16 +231,18 @@ Internal identifiers, routes for the authenticated admin portal, DB column names
 
 If you find a `refugio` reference outside these three categories — a route, a column, a function name, an English doc — that's drift; rename it to `org`.
 
-### Business rules ownership (future)
+### Business rules ownership (SHIPPED — admin rules console)
 
-When the system grows to support configurable business rules (minimum age to register a pet, mandatory vaccinations by jurisdiction, eligibility criteria for service offerings, etc.), the configuration follows a layered ownership:
+Configurable business rules are live. They live in `govt_business_rules` (migration `0116_promote_business_rules.sql`) behind a declarative type registry (`GOVT_BUSINESS_RULE_TYPES` + `lib/domain/rule-types-registry.ts`), with per-type Zod validators in `lib/infra/business-rules-validators.ts`. Writes go through `app/actions/business-rules.ts` (audit-logged). The admin console is at `/admin/reglas`.
+
+Ownership follows the layered model as designed:
 
 - **Govt** configures rules within their assigned jurisdictions. A govt of CABA can set rules that apply in CABA. A govt of Mendoza Capital can set rules for Mendoza Capital.
 - **Admin** configures rules universally (Argentina-wide defaults) or in any specific jurisdiction (override). Admin acts as both the universal-scope setter and the escalation path for jurisdictional rules when no govt is in scope.
 
-When multiple rules conflict, **more specific wins**: locality > province > country > hardcoded default. A Belgrano rule overrides a CABA rule overrides an Argentina rule overrides the code default.
+When multiple rules conflict, **more specific wins**: locality > province > country > hardcoded default, resolved by `resolveBusinessRule` in `lib/infra/business-rules-resolver.ts`. A Belgrano rule overrides a CABA rule overrides an Argentina rule overrides the code default.
 
-Schema for `business_rules` is deferred until the feature lands. The concept is locked here so future designs respect the hierarchy.
+**In flight — rules-engine v2 (SDD change `jurisdiction-compliance`):** extends the same table and registry (never a parallel system) with legal obligation types (`rabies_vaccination`, `sterilization`, `microchip_identification`), `requirement_level` tiers + legal metadata columns (planned migration 0118), a versioned national legal-baseline dataset with PO sign-off gate, and jurisdiction-aware compliance metrics and nudges. Artifacts in engram under `sdd/jurisdiction-compliance/*`.
 
 ### Hard constraints
 
@@ -383,11 +386,7 @@ None of these are blockers for v1. The data model accepts them without rework; t
 - `species`, `breed?`, `name`, `sex` (male|female|unknown)
 - `date_of_birth?`, `birth_date_is_estimated` (bool) — DOB is computed from the years+months input on signup; flagged as estimated by default
 - `color?`, `distinguishing_features?`
-- **Microchip block (legacy — see `PetIdentification` below):**
-  - `microchip_id?`, `microchip_country_code?`, `microchip_implanted_at?`, `microchip_implanted_by?`, `microchip_location?`
-  - These columns coexist with `pet_identifications` during the dual-write window opened by compliance PR 0. Writers populate both inside one transaction; readers consult `pet_identifications` first with a legacy fallback (`lib/chip-lookup.ts`). Migration 0057 drops the legacy block next sprint.
-- **Tattoo block (legacy — same dual-write story):**
-  - `tattoo_code?`, `tattoo_location?`, `tattoo_description?`, `tattoo_recorded_at?`, `tattoo_recorded_by?`, `tattoo_photo_id?`
+- **Identifiers (microchip / tattoo):** live in `pet_identifications` — see `PetIdentification` below. The legacy parallel columns on `pets` (`microchip_id`, `microchip_country_code`, `tattoo_code`, etc.) were **dropped by migration `0084_drop_legacy_chip_tattoo_columns.sql`**; the dual-write window opened by compliance PR 0 is closed. Readers go through `lib/chip-lookup.ts`.
 - `primary_photo_id?` (fk → Attachment)
 - `status` (active|lost|deceased), `deceased_at?`
 - **Health & lifestyle (owner self-reported):**
@@ -441,7 +440,7 @@ None of these are blockers for v1. The data model accepts them without rework; t
 - `recorded_at`, `recorded_by_user_id?`, `recorded_by_label?`, `photo_id?`, `implantation_site?`
 - **Replacement chain:** `replaced_by_id` (self-FK), `replacement_reason` (`damaged | migrated | illegible | medical | other`)
 - **Partial unique index:** `(code) WHERE kind='microchip_iso' AND status='active'` — los chips no pueden colisionar; los tatuajes legítimamente sí (CABA Ord. 41.831 no normaliza códigos entre registros).
-- **Sustituye las columnas paralelas en `pets`** (microchip_id, tattoo_code, etc.). El sprint actual hace doble-write para no romper consumidores; migración 0057 dropea las columnas legacy.
+- **Sustituye las columnas paralelas en `pets`** (microchip_id, tattoo_code, etc.). La ventana de doble-write cerró: la migración `0084_drop_legacy_chip_tattoo_columns.sql` dropeó las columnas legacy.
 - **Norma bridge:** `ref.identification_kind_norma` mapea cada `kind` a su Res. SENASA / Ord. CABA correspondiente.
 
 ### `PetEvent` — append-only timeline (the spine)
@@ -1073,6 +1072,8 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | 🟡 | Admin page completo (4 roles, account_type institutional, split `/gob` vs `/admin`) | spec v2.2 (`2026-05-17-admin-page-design.md`), plan parcial existe |
 | ✅ | `/gob` portal scope-bound por localidad / jurisdicción | `requireAdminOrGovtOrRedirect()` en `lib/auth-guards.ts`; admin ve scope universal, govt filtra por sus `govt_assignments`; todos los helpers de `lib/govt-dashboards.ts` aceptan el par `actor + jurisdictions` |
 | ✅ | Government dashboards (sanitary / analyst / welfare officer) | `/gob/mortalidad`, `/gob/vigilancia`, `/gob/analytics`, `/gob/poblacion`, `/gob/censo`, `/gob/programa` — UI completa con proyecciones sobre el event log |
+| ✅ | Admin rules console — `govt_business_rules` + registry declarativo de 8 tipos, cascade locality > province > country > default | `/admin/reglas` + `lib/domain/rule-types-registry.ts` + `lib/infra/business-rules-resolver.ts` (migración 0116) |
+| 🟢 | Rules-engine v2: jurisdiction-aware compliance (obligation types + legal baseline versionado + honest compliance surface + métricas jurisdiction-aware) | SDD change `jurisdiction-compliance` — spec/design/tasks en engram (`sdd/jurisdiction-compliance/*`); migración 0118 planeada |
 
 ### Identity & legal
 
