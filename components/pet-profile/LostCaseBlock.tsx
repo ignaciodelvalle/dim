@@ -9,7 +9,8 @@
 // All 9 capabilities:
 //   1. Urgent-treatment header — publicCode + /casos/[publicCode] link +
 //      public /p/{token} link.
-//   2. Marcar encontrada — owner-only, via MarkFoundButton.
+//   2. Marcar encontrada — owner-only, opens the ?sheet=marcar-encontrada
+//      confirmation sheet (SheetTriggerLink, same path as the action row).
 //   3. Last-seen card + update — owner: LostLastSeenCard with "actualizar"
 //      (→ /perdida → MarkLostWizard); org: plain read-only summary, no edit
 //      affordance (LostLastSeenCard always renders an edit link, so org gets
@@ -58,7 +59,7 @@ import {
 import { LostLastSeenCard } from "@/components/pet-profile/LostLastSeenCard";
 import { LostScanFeed, type ScanFeedItem } from "@/components/pet-profile/LostScanFeed";
 import { LostShareCard } from "@/components/pet-profile/LostShareCard";
-import { MarkFoundButton } from "@/components/pet-profile/MarkFoundButton";
+import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { LnAlert } from "@/components/ui/Alert";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { LostEpisode } from "@/lib/infra/lost-mode";
@@ -99,7 +100,6 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
     );
   }
 
-  const markFoundAction = setPetFoundAction.bind(null, pet.publicToken);
   const toggleAction = setPetDisclosurePrefsAction.bind(null, pet.publicToken);
 
   const prefs: DisclosurePrefs = {
@@ -168,11 +168,17 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
             </p>
           </div>
 
+          {/* Opens the marcar-encontrada confirmation sheet (same one the
+              action row triggers) instead of a native window.confirm — the
+              blocking dialog froze input dispatch during QA and duplicated
+              the confirmation path (QA round 2, 2026-07-03 finding #2). */}
           {isOwner && (
-            <MarkFoundButton
-              action={markFoundAction}
-              label={`Marcar ${foundParticiple(pet.sex)}`}
-            />
+            <SheetTriggerLink
+              href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-encontrada`}
+              className="inline-flex min-h-11 flex-shrink-0 cursor-pointer items-center justify-center rounded-sm border border-white bg-white px-4 py-2 font-[var(--font-ln-sans)] text-[var(--text-sm)] font-semibold text-[var(--color-ln-seal)] no-underline transition-colors hover:bg-white/90"
+            >
+              ✓ Marcar {foundParticiple(pet.sex)}
+            </SheetTriggerLink>
           )}
         </div>
       </div>
