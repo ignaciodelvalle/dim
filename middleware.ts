@@ -34,24 +34,30 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url, { status: 308 });
   }
 
-  // Permanent redirects: legacy /admin work-surface paths → /gob.
-  // These paths moved in Slice 4 of the rebrand epic. Preserves query strings
-  // (e.g. ?q= on search pages) and path suffixes (e.g. /[publicToken] on cola).
-  if (pathname === "/admin/cola" || pathname.startsWith("/admin/cola/")) {
-    const url = request.nextUrl.clone();
-    url.pathname = pathname.replace(/^\/admin\/cola/, "/gob/cola");
-    return NextResponse.redirect(url, { status: 308 });
-  }
+  // Portal-follows-viewer (2026-07-02): the shared work surfaces (cola,
+  // usuarios, organizaciones, reglas, servicios) exist under BOTH /admin and
+  // /gob — same page implementation, chrome from each segment's layout. The
+  // old AC3-era /admin→/gob 308s for these paths are GONE: /admin/* now
+  // serves real pages. Only the renamed jurisdicciones subtree still remaps.
+  //
+  // Pages/components build their internal links from this header so a viewer
+  // browsing under /admin never silently lands in /gob chrome (and vice
+  // versa). Set on the request so server components can read it via headers().
+  request.headers.set("x-portal-base", pathname.startsWith("/admin") ? "/admin" : "/gob");
 
-  if (pathname === "/admin/usuarios" || pathname.startsWith("/admin/usuarios/")) {
+  // Permanent redirect: /admin/jurisdicciones/* -> /admin/reglas/* (the
+  // surface was renamed by admin-rules-console R1.6; the CRUD subtree dropped
+  // the trailing "/reglas" segment when it folded into the unified surface).
+  // Portal-follows-viewer keeps the admin bookmark inside the admin portal.
+  const jurisdiccionesMatch = pathname.match(
+    /^\/admin\/jurisdicciones(?:\/([^/]+)\/([^/]+)\/([^/]+)\/reglas((?:\/.*)?))?$/,
+  );
+  if (jurisdiccionesMatch) {
+    const [, country, province, locality, rest] = jurisdiccionesMatch;
     const url = request.nextUrl.clone();
-    url.pathname = pathname.replace(/^\/admin\/usuarios/, "/gob/usuarios");
-    return NextResponse.redirect(url, { status: 308 });
-  }
-
-  if (pathname === "/admin/organizaciones" || pathname.startsWith("/admin/organizaciones/")) {
-    const url = request.nextUrl.clone();
-    url.pathname = pathname.replace(/^\/admin\/organizaciones/, "/gob/organizaciones");
+    url.pathname = country
+      ? `/admin/reglas/${country}/${province}/${locality}${rest ?? ""}`
+      : "/admin/reglas";
     return NextResponse.redirect(url, { status: 308 });
   }
 

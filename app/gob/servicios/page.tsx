@@ -12,9 +12,11 @@ import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboar
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { portalBase } from "@/lib/ui/portal-base";
 
 export default async function GobServiciosPage() {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const base = await portalBase();
 
   // Build the filter: govt sees only their localities; admin sees all pending.
   const baseCondition = eq(serviceOfferings.status, "pending_approval");
@@ -123,7 +125,7 @@ export default async function GobServiciosPage() {
                 <OpCard>
                   <OpCardBody>
                     <Link
-                      href={`/gob/servicios/${offering.publicToken}`}
+                      href={`${base}/servicios/${offering.publicToken}`}
                       className="flex items-start justify-between gap-3 group no-underline"
                     >
                       <div className="min-w-0 space-y-0.5">

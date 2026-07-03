@@ -11,12 +11,17 @@
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
-
-import { redirect } from "next/navigation";
+//
+// NOTE: on success these actions return `redirectTo` in BusinessRuleFormState
+// instead of calling next/navigation's redirect() — the calling form does a
+// full document navigation (lib/ui/full-page-action-nav.ts) instead of
+// relying on the framework's own post-action transition, which Next 15.5.x
+// can silently drop in production (verify-report #650 WARNING-1, see
+// BusinessRuleFormState's redirectTo doc comment for the full mechanism).
 
 import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
+import { getRuleTypeDef } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { parseRegistriesJson } from "@/lib/infra/parse-registries";
 
 import { createBusinessRuleWriter as _createBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/create-business-rule";
 import { deleteBusinessRuleWriter as _deleteBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/delete-business-rule";
@@ -88,53 +93,25 @@ function parseLegalAnchorIds(formData: FormData): string[] {
     .filter((s) => s.length > 0);
 }
 
+/**
+ * Reads the `portalBase` hidden field the form threads down from
+ * lib/ui/portal-base.ts (portal-follows-viewer, 2026-07-02) so the
+ * post-mutation `redirectTo` stays inside whichever portal the operator is
+ * browsing. Defaults to "/gob" for older/mistrusted form payloads — never
+ * throws on an unexpected value.
+ */
+function resolvePortalBase(formData: FormData): "/admin" | "/gob" {
+  return formData.get("portalBase") === "/admin" ? "/admin" : "/gob";
+}
+
 // ---------------------------------------------------------------------------
 // Form-bound actions (admin-gated)
 // ---------------------------------------------------------------------------
 
 function parseRulePayloadFromForm(ruleType: GovtBusinessRuleType, formData: FormData): unknown {
-  // Each rule type encodes its payload as form fields. Parsing logic lives
-  // here so the action stays declarative — validators run after.
-  switch (ruleType) {
-    case "ppp_breed_list": {
-      const breeds = (formData.getAll("breeds") as string[])
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      return { breeds };
-    }
-    case "ppp_weight_threshold": {
-      const kgRaw = (formData.get("kg") as string | null)?.trim();
-      const kg = kgRaw && kgRaw !== "" ? Number.parseFloat(kgRaw) : null;
-      const appliesIfBreedNotPPP = formData.get("appliesIfBreedNotPPP") === "on";
-      return { kg, appliesIfBreedNotPPP };
-    }
-    case "ppp_attestation_required_registries": {
-      // Registries are serialised as a single JSON string (reorder-safe).
-      const raw = formData.get("registriesJson") as string | null;
-      const registries = parseRegistriesJson(raw);
-      return { registries };
-    }
-    case "physical_credential_channels": {
-      const printable_qr = formData.get("printable_qr") === "on";
-
-      function parseProvider(channel: string) {
-        const enabled = formData.get(`enabled_${channel}`) === "on";
-        const providerNameRaw = (formData.get(`provider_name_${channel}`) as string | null)?.trim();
-        const providerUrlRaw = (formData.get(`provider_url_${channel}`) as string | null)?.trim();
-        return {
-          enabled,
-          ...(providerNameRaw ? { providerName: providerNameRaw } : {}),
-          ...(providerUrlRaw ? { providerUrl: providerUrlRaw } : {}),
-        };
-      }
-
-      return {
-        printable_qr,
-        engraved_plate: parseProvider("engraved_plate"),
-        nfc_tag: parseProvider("nfc_tag"),
-      };
-    }
-  }
+  // Parsing logic per rule type lives in the registry (lib/domain/rule-types-
+  // registry.ts) so the action stays declarative — validators run after.
+  return getRuleTypeDef(ruleType).parseFromForm(formData);
 }
 
 export async function createBusinessRuleAction(
@@ -167,9 +144,11 @@ export async function createBusinessRuleAction(
   if (result.noOp) {
     return { error: null, warning: result.reason };
   }
-  redirect(
-    `/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`,
-  );
+  const base = resolvePortalBase(formData);
+  return {
+    error: null,
+    redirectTo: `${base}/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
+  };
 }
 
 export async function updateBusinessRuleAction(
@@ -197,20 +176,28 @@ export async function updateBusinessRuleAction(
   if (!result.ok) return { error: result.error };
 
   const { country, province, locality } = normalizeJurisdiction(formData);
-  redirect(
-    `/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}/reglas`,
-  );
+  const base = resolvePortalBase(formData);
+  return {
+    error: null,
+    redirectTo: `${base}/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`,
+  };
 }
 
-export async function deleteBusinessRuleAction(ruleId: string, formData: FormData): Promise<void> {
+export async function deleteBusinessRuleAction(
+  ruleId: string,
+  _previous: BusinessRuleFormState,
+  formData: FormData,
+): Promise<BusinessRuleFormState> {
   const { user } = await requireAdminOrRedirect();
   const reason = (formData.get("reason") as string | null)?.trim() ?? "";
   const result = await _deleteBusinessRuleWriter({ actorUserId: user.id, ruleId, reason });
-  if (!result.ok) throw new Error(result.error);
+  if (!result.ok) return { error: result.error };
   const country = (formData.get("jurisdictionCountry") as string | null) ?? "AR";
   const province = (formData.get("jurisdictionProvince") as string | null) ?? "_";
   const locality = (formData.get("jurisdictionLocality") as string | null) ?? "_";
-  redirect(
-    `/admin/jurisdicciones/${encodeURIComponent(country)}/${encodeURIComponent(province || "_")}/${encodeURIComponent(locality || "_")}/reglas`,
-  );
+  const base = resolvePortalBase(formData);
+  return {
+    error: null,
+    redirectTo: `${base}/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province || "_")}/${encodeURIComponent(locality || "_")}`,
+  };
 }

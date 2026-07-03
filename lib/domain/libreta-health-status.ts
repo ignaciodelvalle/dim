@@ -68,6 +68,8 @@ export type LibretaHealthStatus = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+// Default tier of the `due_soon_window` business rule (admin-rules-console) —
+// live resolution happens in the server caller; see computeVaccinationSummary.
 const DUE_SOON_WINDOW_DAYS = 30;
 
 type AnyEvent = {
@@ -87,11 +89,21 @@ function asDate(value: Date | string | null | undefined): Date | null {
  * Build the per-vaccine snapshot for a pet. For every core vaccine of the
  * pet's species (and every non-core vaccine that has at least one event),
  * we find the latest vaccination_administered event and classify it.
+ *
+ * `dueSoonWindowDays` (admin-rules-console, promoted from the module-level
+ * DUE_SOON_WINDOW_DAYS constant, design ADR-4 item 2) is resolved by the
+ * SERVER CALLER via `resolveBusinessRule("due_soon_window", pet jurisdiction)`
+ * and threaded in here as a plain param — this function stays pure/sync
+ * rather than becoming async or importing the resolver (which would pull
+ * `db` into every consumer of this domain module, including tests). Defaults
+ * to the constant so existing callers that don't pass it see zero behavior
+ * change.
  */
 export function computeVaccinationSummary(
   events: readonly AnyEvent[],
   species: string,
   now: Date = new Date(),
+  dueSoonWindowDays: number = DUE_SOON_WINDOW_DAYS,
 ): VaccinationSummary {
   // Latest event per vaccine name (case-insensitive match against the catalog).
   const latestByVaccine = new Map<string, { occurredAt: Date; nextDueAt: Date | null }>();
@@ -170,7 +182,7 @@ export function computeVaccinationSummary(
     const msUntilDue = nextDueAt.getTime() - now.getTime();
     let status: VaccineSnapshot["status"];
     if (msUntilDue < 0) status = "expired";
-    else if (msUntilDue < DUE_SOON_WINDOW_DAYS * DAY_MS) status = "due_soon";
+    else if (msUntilDue < dueSoonWindowDays * DAY_MS) status = "due_soon";
     else status = "active";
     perVaccine.push({
       vaccineName: def.name,

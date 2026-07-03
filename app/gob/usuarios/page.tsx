@@ -17,6 +17,7 @@ import { searchUsers } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { portalBase } from "@/lib/ui/portal-base";
 
 import { ProposeUserActions } from "./ProposeUserActions";
 import { RevokeUserActions } from "./RevokeUserActions";
@@ -44,6 +45,7 @@ export default async function UsuariosPage({
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const base = await portalBase();
   const results = await searchUsers(query, { role: profile.role, jurisdictions });
 
   // Registro & cumplimiento (Item 4): C2 ISO-validity (population-state) and C5
@@ -116,7 +118,7 @@ export default async function UsuariosPage({
         />
       </section>
 
-      <form action="/gob/usuarios" method="get" className="flex items-center gap-2">
+      <form action={`${base}/usuarios`} method="get" className="flex items-center gap-2">
         <input
           type="text"
           name="q"

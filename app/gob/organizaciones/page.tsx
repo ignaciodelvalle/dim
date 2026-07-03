@@ -5,6 +5,7 @@ import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { OpButton, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { searchOrganizations } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { portalBase } from "@/lib/ui/portal-base";
 
 import { ProposeOrgActions } from "./ProposeOrgActions";
 import { RevokeOrgActions } from "./RevokeOrgActions";
@@ -25,6 +26,7 @@ export default async function OrganizacionesPage({
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const base = await portalBase();
   const { items: results, truncated } = await searchOrganizations(query, {
     role: profile.role,
     jurisdictions,
@@ -49,7 +51,7 @@ export default async function OrganizacionesPage({
         </p>
       </header>
 
-      <form action="/gob/organizaciones" method="get" className="flex items-center gap-2">
+      <form action={`${base}/organizaciones`} method="get" className="flex items-center gap-2">
         <input
           type="text"
           name="q"

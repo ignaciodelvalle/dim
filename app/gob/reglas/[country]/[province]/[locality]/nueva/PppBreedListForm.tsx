@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 
 import {
   type BusinessRuleFormState,
@@ -14,6 +14,7 @@ import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import { canSaveWithImpactGate, requiresImpactConfirmation } from "@/lib/domain/rule-impact-gate";
 import { DOG_BREEDS, POTENTIALLY_DANGEROUS_DOG_BREEDS } from "@/lib/reference/breeds";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -25,6 +26,7 @@ type Props = {
   country: string;
   province: string | null;
   locality: string | null;
+  base: "/admin" | "/gob";
   initialBreeds: string[];
   initialNotes: string;
 };
@@ -35,6 +37,7 @@ export function PppBreedListForm({
   country,
   province,
   locality,
+  base,
   initialBreeds,
   initialNotes,
 }: Props) {
@@ -45,6 +48,12 @@ export function PppBreedListForm({
   const [state, formAction, isPending] = useActionState(action, initialState);
   const [breeds, setBreeds] = useState<string[]>(initialBreeds);
   const [customBreed, setCustomBreed] = useState("");
+
+  // Router-drop workaround (verify-report #650 WARNING-1) — see
+  // lib/ui/full-page-action-nav.ts's module docblock.
+  useEffect(() => {
+    if (state.redirectTo) navigateAfterActionSuccess(state.redirectTo);
+  }, [state.redirectTo]);
 
   // C9: impact gate. The banner already computes the affected-pet count; we
   // thread it here (no second preview call) and require the operator to
@@ -92,6 +101,7 @@ export function PppBreedListForm({
       <input type="hidden" name="jurisdictionCountry" value={country} />
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
+      <input type="hidden" name="portalBase" value={base} />
 
       <p className="text-[13px] rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn">
         Las mascotas con raza marcada se evalúan automáticamente al guardar. Los dueños afectados

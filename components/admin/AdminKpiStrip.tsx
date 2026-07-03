@@ -65,7 +65,7 @@ export function AdminKpiStrip({ data }: { data: AdminKpiStripData }) {
       <OpKpi
         label="Usuarios personales"
         value={data.totalPersonal}
-        href="/gob/usuarios"
+        href="/admin/usuarios"
         info={{
           definition: "Total de cuentas personales activas en la plataforma.",
           formula: "count(*) where account_type = 'personal'",
@@ -78,7 +78,7 @@ export function AdminKpiStrip({ data }: { data: AdminKpiStripData }) {
         sub={
           data.oldestPendingDaysAgo != null ? `Más vieja: ${data.oldestPendingDaysAgo}d` : undefined
         }
-        href="/gob/cola"
+        href="/admin/cola"
         info={{
           definition: "Solicitudes de aprobación en estado pendiente en este momento.",
           caveat: "Incluye solicitudes de todas las jurisdicciones.",

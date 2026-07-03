@@ -15,6 +15,7 @@ import {
   reminders,
 } from "@/db";
 import { getReminderVariant, isVaccineReportable } from "@/lib/domain/vaccine-reminder-state";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { and, eq, gte, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 
 type DB = typeof defaultDb;
@@ -27,9 +28,16 @@ export type VaccineDueScanResult = {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-// Days ahead window: include all reminders due within 14 days (upcoming
-// variant). There is no backward limit — indefinitely overdue reminders are
-// included (overdue / overdue_critical variants).
+// Days ahead window: include all reminders due within N days (upcoming
+// variant, default 14). There is no backward limit — indefinitely overdue
+// reminders are included (overdue / overdue_critical variants). Default
+// tier of the `reminder_windows` business rule (admin-rules-console, design
+// ADR-4 item 3) — this cron sweep scans ALL reminders globally with no
+// per-pet jurisdiction context, so it resolves the window ONCE at sweep
+// start, country-level only (resolveBusinessRule below), instead of once
+// per reminder row (would be N DB round-trips in a hot cron — rejected on
+// cost, per ADR-4). Kept as a fallback constant for callers/tests that
+// don't go through the resolver path.
 const WINDOW_AHEAD_DAYS = 14;
 
 /**
@@ -60,7 +68,16 @@ export async function runVaccineDueScan(
   options?: { now?: Date },
 ): Promise<VaccineDueScanResult> {
   const now = options?.now ?? new Date();
-  const windowEnd = new Date(now.getTime() + WINDOW_AHEAD_DAYS * MS_PER_DAY);
+  // Country-level only — see the WINDOW_AHEAD_DAYS comment above (ADR-4 item 3).
+  // Resolved against the caller's dbInstance so tests that inject a
+  // transaction-scoped db see their own fixture rows, not the shared pool.
+  const reminderWindowRule = await resolveBusinessRule(
+    "reminder_windows",
+    { country: "AR" },
+    dbInstance,
+  );
+  const windowAheadDays = reminderWindowRule.payload.aheadDays;
+  const windowEnd = new Date(now.getTime() + windowAheadDays * MS_PER_DAY);
 
   // Fetch all active, non-snoozed vaccine reminders within the window.
   // No backward limit — overdue reminders are included indefinitely.

@@ -2,8 +2,8 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { GOVT_BUSINESS_RULE_TYPES, auditLog, db, govtBusinessRules } from "@/db";
 import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
-import { reEvaluatePppBreedListChange } from "@/lib/infra/business-rules-reeval";
 import { validateRulePayload } from "@/lib/infra/business-rules-validators";
+import { runReevalHookIfRegistered } from "@/lib/infra/rule-types-effects";
 
 import type { CreateBusinessRuleResult, CreateBusinessRuleWriterParams } from "./types";
 
@@ -97,15 +97,13 @@ export async function createBusinessRuleWriter(
     });
 
     // Trigger re-evaluation outside the tx so the tx-bound auditLog row
-    // commits even if the reeval errors. PPP is the only ruleType that
-    // affects pet-level state today; future types add their own hook.
-    if (params.ruleType === "ppp_breed_list") {
-      await reEvaluatePppBreedListChange({
-        country: params.jurisdictionCountry,
-        province: params.jurisdictionProvince,
-        locality: params.jurisdictionLocality,
-      });
-    }
+    // commits even if the reeval errors. Only rule types with a registered
+    // reevalHook (lib/infra/rule-types-effects.ts) affect record-level state.
+    await runReevalHookIfRegistered(params.ruleType, {
+      country: params.jurisdictionCountry,
+      province: params.jurisdictionProvince,
+      locality: params.jurisdictionLocality,
+    });
 
     return { ok: true, ruleId };
   } catch (err) {

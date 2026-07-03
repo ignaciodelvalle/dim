@@ -247,12 +247,12 @@ describe("physicalCredentialChannelsSchema — validator", () => {
 
 describe("createBusinessRuleWriter — physical_credential_channels does NOT trigger PPP reeval", () => {
   it.skipIf(!dbConstraintAllowsNewType)(
-    "creating a physical_credential_channels rule does not invoke reEvaluatePppBreedListChange [requires migration 0107]",
+    "creating a physical_credential_channels rule does not invoke reEvaluatePppClassificationChange [requires migration 0107]",
     async () => {
       // Spy on the reeval module before importing the writer so the spy
       // intercepts calls made during the test.
       const reevalModule = await import("@/lib/infra/business-rules-reeval");
-      const reevalSpy = vi.spyOn(reevalModule, "reEvaluatePppBreedListChange");
+      const reevalSpy = vi.spyOn(reevalModule, "reEvaluatePppClassificationChange");
 
       const { createBusinessRuleWriter } = await import("@/app/actions/business-rules");
 
@@ -280,15 +280,17 @@ describe("createBusinessRuleWriter — physical_credential_channels does NOT tri
     },
   );
 
-  it("PPP guards use exact ruleType equality — verified by code inspection", () => {
-    // This test documents the invariant without a DB write:
-    // createBusinessRuleWriter and updateBusinessRuleWriter both gate the reeval
-    // with `if (params.ruleType === "ppp_breed_list")` and
-    // `if (updated?.ruleType === "ppp_breed_list")` respectively — exact string
-    // comparison, not startsWith or includes. Any non-ppp_breed_list ruleType
-    // (including physical_credential_channels) will never trigger reeval.
-    //
-    // Source verified: app/actions/business-rules.ts lines 164, 235, 288.
+  it("reevalHook dispatch is registry-driven — verified by code inspection", () => {
+    // This test documents the invariant without a DB write: the 3 writer
+    // use-cases (create/update/delete-business-rule.ts) call
+    // runReevalHookIfRegistered(ruleType, scope), which looks up
+    // RULE_TYPE_EFFECTS[ruleType]?.reevalHook (lib/infra/rule-types-effects.ts)
+    // — a Partial<Record<...>> keyed exclusively by ruleType. Only
+    // 'ppp_breed_list' (and, once weight-threshold enforcement ships,
+    // 'ppp_weight_threshold') has an entry. physical_credential_channels has
+    // NO entry, so the lookup returns undefined and the hook never runs —
+    // structurally equivalent to the old exact-equality guard, but data-
+    // driven instead of hardcoded per call site.
     expect(true).toBe(true);
   });
 });

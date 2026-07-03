@@ -331,23 +331,24 @@ describe("ADMIN_NAV — no route regression", () => {
 
   const expectedRoutes = [
     "/admin",
-    // Cola/Usuarios/Organizaciones moved to the /gob surface (AC3 — single
-    // surface per feature; dead /admin duplicates removed).
-    "/gob/cola",
-    "/gob/usuarios",
-    "/gob/organizaciones",
+    // Cola/Usuarios/Organizaciones/Reglas/Servicios exist under both portals
+    // (portal-follows-viewer, 2026-07-02) — admin nav points at the /admin/*
+    // copy so an admin never leaves admin chrome.
+    "/admin/cola",
+    "/admin/usuarios",
+    "/admin/organizaciones",
+    "/admin/reglas",
+    "/admin/servicios",
     "/admin/historial",
     "/admin/auditoria",
     "/admin/outbox",
     "/admin/sistema",
     "/admin/govts",
     "/admin/admins",
-    "/admin/servicios",
     "/admin/observaciones",
     "/admin/moderacion",
     "/admin/casos",
     "/admin/alertas", // WS-K — bandeja de alertas + triage
-    "/admin/jurisdicciones",
     "/admin/libro", // WS-L — Libro de eventos
   ];
 
@@ -502,23 +503,25 @@ describe("GOB_NAV_FLAT — derived flat list", () => {
 const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin",
   "/admin/panorama", // Centro de Situación Nacional — flagship console
-  // AC3 — Cola/Usuarios/Organizaciones repointed from /admin/* to /gob/*. The
-  // dead /admin duplicates were deleted; the middleware 308s stay for bookmarks.
-  "/gob/cola",
-  "/gob/usuarios",
-  "/gob/organizaciones",
+  // portal-follows-viewer (2026-07-02) — Cola/Usuarios/Organizaciones exist
+  // under both /admin and /gob; admin nav points at the /admin/* copy.
+  "/admin/cola",
+  "/admin/usuarios",
+  "/admin/organizaciones",
   "/admin/historial",
   "/admin/auditoria",
   "/admin/outbox",
   "/admin/sistema",
   "/admin/govts",
   "/admin/admins",
+  // admin-rules-console — Reglas/Servicios exist under both portals; admin
+  // nav points at the /admin/* copy.
+  "/admin/reglas",
   "/admin/servicios",
   "/admin/observaciones",
   "/admin/moderacion",
   "/admin/casos",
   "/admin/alertas", // WS-K — bandeja de alertas + triage
-  "/admin/jurisdicciones",
   "/admin/censo", // Paquete E — censo poblacional & salud del registro
   "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
   "/admin/poblacion", // Paquete G — control poblacional (North Star)
@@ -619,30 +622,38 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
     expect(union).toEqual(ADMIN_HREF_SNAPSHOT);
   });
 
-  // AC3 — no admin nav href may point at a path that the middleware 308-
-  // redirects. Those legacy /admin work-surface paths now live under /gob; a
-  // nav href landing on them would force a needless cross-portal 308 hop on
-  // every click (and risk reviving the deleted dead pages). Keep the redirects
-  // for external bookmarks, but the in-app nav must link to the live surface.
-  it("no ADMIN_NAV_SECTIONS href resolves to a middleware 308 redirect (AC3)", () => {
-    // The exact set of /admin paths middleware.ts 308-redirects to /gob/*.
-    const REDIRECTED_ADMIN_PATHS = new Set([
-      "/admin/cola",
-      "/admin/usuarios",
-      "/admin/organizaciones",
-    ]);
-    // Exclude deferred sentinels (#defer-…): they are client anchors that never
-    // reach the server, so the middleware 308 rules don't apply to them (D6).
+  // portal-follows-viewer (2026-07-02) — no admin nav href may point at
+  // /gob/*. The 5 shared work surfaces (cola, usuarios, organizaciones,
+  // reglas, servicios) now have a real /admin/* copy (thin wrapper re-
+  // exporting the /gob page; chrome from the admin layout), so an admin nav
+  // href landing on /gob/* would silently eject the viewer into gob chrome —
+  // exactly what portal-follows-viewer exists to prevent.
+  it("no ADMIN_NAV_SECTIONS href points at /gob/* (portal-follows-viewer)", () => {
     const hrefs = ADMIN_NAV_SECTIONS.flatMap((s) =>
       s.items.filter((i) => !i.deferred).map((i) => i.href),
     );
     for (const href of hrefs) {
-      expect(REDIRECTED_ADMIN_PATHS.has(href)).toBe(false);
+      expect(href.startsWith("/gob/")).toBe(false);
     }
-    // And the live targets ARE present (the repoint actually happened).
-    expect(hrefs).toContain("/gob/cola");
-    expect(hrefs).toContain("/gob/usuarios");
-    expect(hrefs).toContain("/gob/organizaciones");
+    // And the live /admin/* targets ARE present (the repoint actually happened).
+    expect(hrefs).toContain("/admin/cola");
+    expect(hrefs).toContain("/admin/usuarios");
+    expect(hrefs).toContain("/admin/organizaciones");
+    expect(hrefs).toContain("/admin/reglas");
+    expect(hrefs).toContain("/admin/servicios");
+  });
+
+  // The old AC3-era /admin/{cola,usuarios,organizaciones} → /gob/* redirects
+  // are GONE (portal-follows-viewer serves real pages at those paths now).
+  // Only the renamed /admin/jurisdicciones bookmark still remaps, to
+  // /admin/reglas — verify the admin nav doesn't link to that dead alias.
+  it("no ADMIN_NAV_SECTIONS href points at the legacy /admin/jurisdicciones alias", () => {
+    const hrefs = ADMIN_NAV_SECTIONS.flatMap((s) =>
+      s.items.filter((i) => !i.deferred).map((i) => i.href),
+    );
+    for (const href of hrefs) {
+      expect(href.startsWith("/admin/jurisdicciones")).toBe(false);
+    }
   });
 });
 

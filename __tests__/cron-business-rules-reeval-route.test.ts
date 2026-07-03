@@ -2,11 +2,16 @@
 //
 // Branches:
 //   1. Auth failure → 401
-//   2. Auth success + db query returns rows + reEvaluatePppBreedListChange succeeds → 200
+//   2. Auth success + db query returns rows + reEvaluatePppClassificationChange succeeds → 200
 //   3. Auth success + handler throws → 500
 //
-// Both db (@/db) and reEvaluatePppBreedListChange (@/lib/infra/business-rules-reeval)
-// are mocked so the test stays pure (no DB access).
+// Both db (@/db) and reEvaluatePppClassificationChange
+// (@/lib/infra/business-rules-reeval) are mocked so the test stays pure (no
+// DB access). NOTE: the mock path was previously "@/lib/business-rules-
+// reeval" (stale — the module lives at "@/lib/infra/business-rules-reeval"),
+// so vi.doMock never intercepted the real import and this suite silently ran
+// against the REAL (unmocked) implementation. Fixed alongside the
+// admin-rules-console reeval generalization.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -47,7 +52,7 @@ describe("GET /api/cron/business-rules-reeval", () => {
 
     const reEvalMock = vi.fn().mockResolvedValue(reEvalResult);
     vi.doMock("@/lib/infra/business-rules-reeval", () => ({
-      reEvaluatePppBreedListChange: reEvalMock,
+      reEvaluatePppClassificationChange: reEvalMock,
     }));
 
     return { reEvalMock };
@@ -137,7 +142,7 @@ describe("GET /api/cron/business-rules-reeval", () => {
       govtBusinessRules: {},
     }));
     vi.doMock("@/lib/infra/business-rules-reeval", () => ({
-      reEvaluatePppBreedListChange: vi.fn(),
+      reEvaluatePppClassificationChange: vi.fn(),
     }));
     const res = await callRoute({ "x-cron-secret": "test-secret" });
     expect(res.status).toBe(500);

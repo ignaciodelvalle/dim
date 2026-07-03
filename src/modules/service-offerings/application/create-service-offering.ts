@@ -16,14 +16,13 @@
 //
 // createServiceOfferingForOrg delegates to this writer (Fase 1.5 approval routing).
 
-import { db, notifications, profiles, serviceOfferings } from "@/db";
+import { db, notifications, serviceOfferings } from "@/db";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { generateOfferingToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken } from "@/lib/infra/unique-token";
 import { CreateServiceOfferingInput } from "@/lib/reference/scheduling-schemas";
 import { findServiceKind } from "@/lib/reference/service-kinds";
-import { eq } from "drizzle-orm";
 
 import type { OrgProvider, ServiceOfferingResult } from "../domain/types";
 
@@ -129,20 +128,12 @@ export async function createServiceOfferingWriter(
 
       // Fan out to authorities.
       if (authorityIds.length > 0) {
-        const roleById = new Map<string, string>();
-        for (const id of authorityIds) {
-          const [p] = await tx
-            .select({ id: profiles.id, role: profiles.role })
-            .from(profiles)
-            .where(eq(profiles.id, id))
-            .limit(1);
-          if (p) roleById.set(p.id, p.role);
-        }
-
+        // Servicios dedup (admin-rules-console R5.1): /gob/servicios is the
+        // single canonical surface for both roles — admin reaches universal
+        // scope there too, /admin/servicios no longer exists. Role no longer
+        // needs to be looked up just to pick a CTA URL.
         await tx.insert(notifications).values(
           authorityIds.map((authorityId) => {
-            const role = roleById.get(authorityId) ?? "admin";
-            const authCtaUrl = role === "govt" ? "/gob/servicios" : "/admin/servicios";
             return {
               userId: authorityId,
               notificationType: "service_offering_pending_authority",
@@ -150,7 +141,7 @@ export async function createServiceOfferingWriter(
               body: `${providerLabel} solicitó aprobar "${parsed.data.displayName}" (${kindDef.label}).`,
               severity: "info" as const,
               ctaLabel: "Revisar",
-              ctaUrl: authCtaUrl,
+              ctaUrl: "/gob/servicios",
             };
           }),
         );

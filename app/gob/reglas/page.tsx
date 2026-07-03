@@ -1,25 +1,23 @@
-// /gob/reglas — govt read-only view of the business rules that apply to them.
-// Spec 2026-05-19-govt-business-rules-poc-design §6.4.
+// /gob/reglas — THE single rules console (design ADR-1). Server-side
+// capability branch on profile.role:
+//   - admin lens: inline CRUD at universal scope + jurisdiction picker
+//     (folded in verbatim from the old /admin/jurisdicciones surface).
+//   - govt lens: read-only resolved-cascade view, pre-scoped to the user's
+//     own institutional assignments (unchanged behavior, BR6 preserved).
 //
-// Resolves each ruleType for the govt's assigned jurisdictions and shows
-// where in the cascade the value came from (default vs country vs
-// province vs locality). No edit buttons (BR6).
-
-import Link from "next/link";
+// Mirrors app/gob/servicios/page.tsx — one page, two presentational lenses,
+// not parallel routes (AC3 pattern).
 
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge } from "@/components/ui/dashboard";
-import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
+import { GOVT_BUSINESS_RULE_TYPES } from "@/db";
+import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { portalBase } from "@/lib/ui/portal-base";
+
+import { AdminReglasLens } from "./AdminReglasLens";
 
 export const dynamic = "force-dynamic";
-
-const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
-  ppp_breed_list: "Lista de razas PPP",
-  ppp_weight_threshold: "Umbral de peso PPP",
-  ppp_attestation_required_registries: "Registros de atestación requeridos",
-  physical_credential_channels: "Canales de credencial física",
-};
 
 const SOURCE_LABEL: Record<string, string> = {
   default: "Default nacional",
@@ -28,17 +26,26 @@ const SOURCE_LABEL: Record<string, string> = {
   locality: "Override localidad",
 };
 
-export default async function GobReglasPage() {
+export default async function ReglasPage() {
   const { jurisdictions, profile } = await requireAdminOrGovtOrRedirect();
+  const base = await portalBase();
 
-  // Admin reads every rule across the country; govt reads only its assigned
-  // jurisdictions. For simplicity we group rule reads by jurisdiction here.
+  if (profile.role === "admin") {
+    return <AdminReglasLens base={base} />;
+  }
+
+  return <GovtReglasReadOnlyView jurisdictions={jurisdictions} />;
+}
+
+async function GovtReglasReadOnlyView({
+  jurisdictions,
+}: {
+  jurisdictions: { province: string | null; locality: string | null }[];
+}) {
   const scopes =
-    profile.role === "admin"
+    jurisdictions.length === 0
       ? [{ province: null as string | null, locality: null as string | null }]
-      : jurisdictions.length === 0
-        ? [{ province: null as string | null, locality: null as string | null }]
-        : jurisdictions;
+      : jurisdictions;
 
   const groups = await Promise.all(
     scopes.map(async (scope) => {
@@ -66,14 +73,8 @@ export default async function GobReglasPage() {
           Reglas que aplican a tu jurisdicción
         </h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Vista de solo lectura. La administración de reglas la hace el admin nacional desde{" "}
-          <Link
-            href="/admin/jurisdicciones"
-            className="underline underline-offset-4 text-ln-op-azul"
-          >
-            /admin/jurisdicciones
-          </Link>
-          .
+          Vista de solo lectura, pre-filtrada a tus localidades asignadas. La administración de
+          reglas la hace el admin nacional.
         </p>
       </header>
 
@@ -94,7 +95,7 @@ export default async function GobReglasPage() {
                 <li key={ruleType} className="px-4 py-3 space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-[13px] font-medium text-ln-op-ink">
-                      {RULE_TYPE_LABEL[ruleType]}
+                      {RULE_TYPE_REGISTRY[ruleType].label}
                     </p>
                     <span className="text-sm text-ln-op-mute">{SOURCE_LABEL[source]}</span>
                   </div>

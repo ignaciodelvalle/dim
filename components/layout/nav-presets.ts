@@ -322,10 +322,12 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     label: "Operaciones",
     items: [
-      // Cola/Usuarios/Organizaciones live under /gob (single surface). Admin
-      // keeps universal scope there via the /gob layout. The dead /admin/*
-      // duplicates were removed (AC3); the middleware 308s stay for bookmarks.
-      { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
+      // Cola/Usuarios/Organizaciones/Reglas/Servicios exist under BOTH /admin
+      // and /gob (portal-follows-viewer, 2026-07-02) — thin /admin/* wrappers
+      // re-export the /gob page; chrome comes from each segment's layout. The
+      // admin nav links to the /admin/* copy so an admin never leaves the
+      // admin chrome. The old /admin→/gob 308s for these paths are GONE.
+      { href: "/admin/cola", label: "Cola", matchPrefix: "/admin/cola" },
       { href: "/admin/alertas", label: "Alertas", matchPrefix: "/admin/alertas" },
       { href: "/admin/casos", label: "Casos", matchPrefix: "/admin/casos" },
       { href: "/admin/moderacion", label: "Moderación", matchPrefix: "/admin/moderacion" },
@@ -344,25 +346,27 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     label: "Identidad y acceso",
     items: [
-      // Usuarios/Organizaciones live under /gob (single surface, AC3).
-      { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
+      // Usuarios/Organizaciones exist under both portals (portal-follows-
+      // viewer) — admin nav points at the /admin/* copy.
+      { href: "/admin/usuarios", label: "Usuarios", matchPrefix: "/admin/usuarios" },
       { href: "/admin/govts", label: "Govts", matchPrefix: "/admin/govts" },
       { href: "/admin/admins", label: "Admins", matchPrefix: "/admin/admins" },
       {
-        href: "/gob/organizaciones",
+        href: "/admin/organizaciones",
         label: "Organizaciones",
-        matchPrefix: "/gob/organizaciones",
+        matchPrefix: "/admin/organizaciones",
       },
     ],
   },
   {
     label: "Gobernanza",
     items: [
-      {
-        href: "/admin/jurisdicciones",
-        label: "Jurisdicciones",
-        matchPrefix: "/admin/jurisdicciones",
-      },
+      // Reglas/Servicios exist under both portals (portal-follows-viewer,
+      // admin-rules-console) — admin nav points at the /admin/* copy so an
+      // admin drilling into a jurisdiction or a rule form stays in /admin
+      // chrome. Only the renamed /admin/jurisdicciones bookmark still 308s
+      // (to /admin/reglas).
+      { href: "/admin/reglas", label: "Reglas", matchPrefix: "/admin/reglas" },
       { href: "/admin/historial", label: "Historial", matchPrefix: "/admin/historial" },
       // WS-L — Libro de eventos (event-sourcing visible; read-only).
       { href: "/admin/libro", label: "Libro de eventos", matchPrefix: "/admin/libro" },

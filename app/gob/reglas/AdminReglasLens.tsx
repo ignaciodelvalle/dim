@@ -1,5 +1,7 @@
-// /admin/jurisdicciones — list of provinces with rule counts.
-// Spec 2026-05-19-govt-business-rules-poc-design §6.1.
+// AdminReglasLens — the admin capability lens of the unified /gob/reglas
+// surface (design ADR-1). Folded in verbatim from the old /admin/jurisdicciones
+// index page; only the rules-href target moved (buildJurisdictionRulesHref now
+// points at /gob/reglas/... instead of /admin/jurisdicciones/.../reglas).
 //
 // Province-wide rules (locality IS NULL) and locality overrides are counted
 // separately so the numbers reconcile with the per-jurisdiction rules page.
@@ -16,9 +18,18 @@ import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 import { LocalityRuleDrilldown } from "./LocalityRuleDrilldown";
 
-export const dynamic = "force-dynamic";
+type Props = {
+  /**
+   * Portal prefix the drill-down links must stay inside (portal-follows-viewer,
+   * 2026-07-02) — this lens renders under both /admin/reglas and /gob/reglas.
+   */
+  base: "/admin" | "/gob";
+};
 
-export default async function AdminJurisdiccionesPage() {
+export async function AdminReglasLens({ base }: Props) {
+  // Defense in depth (R1.9): the parent page already branches on
+  // profile.role === "admin", but this component re-asserts the stricter
+  // admin-only guard independently.
   await requireAdminOrRedirect();
 
   // Separate query for province-wide rules (locality IS NULL).
@@ -97,7 +108,7 @@ export default async function AdminJurisdiccionesPage() {
             <li className="flex items-center justify-between border-t border-ln-op-line px-4 py-3">
               <span className="text-[13px] text-ln-op-ink-2">Reglas a nivel país AR</span>
               <Link
-                href={buildJurisdictionRulesHref({ country: "AR" })}
+                href={buildJurisdictionRulesHref({ country: "AR", base })}
                 className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
               >
                 {"Ver reglas ->"}
@@ -135,7 +146,7 @@ export default async function AdminJurisdiccionesPage() {
                       </p>
                     </div>
                     <Link
-                      href={buildJurisdictionRulesHref({ country: "AR", province: p.name })}
+                      href={buildJurisdictionRulesHref({ country: "AR", province: p.name, base })}
                       className="shrink-0 text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                     >
                       {pwCount === 0 ? "Crear regla ->" : "Ver reglas ->"}
@@ -157,6 +168,7 @@ export default async function AdminJurisdiccionesPage() {
                               country: "AR",
                               province: p.name,
                               locality: l.locality,
+                              base,
                             })}
                             className="text-[11px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                           >
@@ -168,7 +180,7 @@ export default async function AdminJurisdiccionesPage() {
                   )}
                   {/* AC4 — reach ANY locality (not just ones with existing
                       rules) so a fresh locality override can be created. */}
-                  <LocalityRuleDrilldown provinceCode={p.code} provinceName={p.name} />
+                  <LocalityRuleDrilldown provinceCode={p.code} provinceName={p.name} base={base} />
                 </li>
               );
             })}

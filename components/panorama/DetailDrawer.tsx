@@ -195,6 +195,20 @@ function FeatureBody({
   layerId,
   properties,
 }: { layerId: LayerId; properties: Record<string, unknown> }) {
+  // This drawer is shared by /admin/panorama and /gob/panorama (both render the
+  // same layer registry). "organizaciones" is one of the dual-portal surfaces
+  // (cola/usuarios/organizaciones/reglas/servicios — portal-follows-viewer,
+  // 2026-07-02): it exists under BOTH /admin and /gob, so its drill link must
+  // follow the viewer's current portal instead of hardcoding /gob (server twin:
+  // lib/ui/portal-base.ts; this is the client-side derivation since DetailDrawer
+  // is a client component and cannot call headers()).
+  //
+  // The other drill links below (maltrato/perdidas/vigilancia/analytics) stay
+  // hardcoded to /gob — those pages have NO /admin copy, so deriving the portal
+  // for them would 404 for an admin viewer instead of fixing anything.
+  const pathname = usePathname();
+  const portal = pathname?.startsWith("/admin") ? "/admin" : "/gob";
+
   switch (layerId) {
     case "decomisos": {
       const code = str(properties, "code");
@@ -298,7 +312,10 @@ function FeatureBody({
             <Row label="Refugio" value={str(properties, "name") ?? "—"} />
             <Row label="Verificación" value={verified ? "Verificado" : "Sin verificar"} />
           </dl>
-          <DrillLink href="/gob/organizaciones">Ver organizaciones →</DrillLink>
+          {/* Organizaciones has an /admin twin (portal parity) — portal-aware
+              href keeps the viewer in-portal; DrillLink adds the cross-portal
+              suffix only for surfaces without a twin. */}
+          <DrillLink href={`${portal}/organizaciones`}>Ver organizaciones →</DrillLink>
         </>
       );
     }

@@ -90,8 +90,13 @@ export async function proposeVetUpgradeAction(
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await _proposeVetUpgradeForUser(user.id, input);
   if ("ok" in result) {
+    // Cola/Usuarios are dual-portal surfaces (portal-follows-viewer,
+    // 2026-07-02): /admin/cola and /admin/usuarios are thin wrappers
+    // re-exporting these same pages, so both copies need revalidating.
     revalidatePath("/gob/cola");
     revalidatePath("/gob/usuarios");
+    revalidatePath("/admin/cola");
+    revalidatePath("/admin/usuarios");
   }
   return result;
 }
@@ -102,8 +107,13 @@ export async function proposeOrgVerificationAction(
   const { user } = await requireAdminOrGovtOrRedirect();
   const result = await _proposeOrgVerificationForOrg(user.id, input);
   if ("ok" in result) {
+    // Cola/Organizaciones are dual-portal surfaces (portal-follows-viewer,
+    // 2026-07-02): /admin/cola and /admin/organizaciones are thin wrappers
+    // re-exporting these same pages, so both copies need revalidating.
     revalidatePath("/gob/cola");
     revalidatePath("/gob/organizaciones");
+    revalidatePath("/admin/cola");
+    revalidatePath("/admin/organizaciones");
   }
   return result;
 }

@@ -41,11 +41,54 @@ export interface PhysicalCredentialChannels {
   nfc_tag: PhysicalCredentialProvider;
 }
 
+// ---------------------------------------------------------------------------
+// Promoted rule types (design ADR-2/ADR-4) — hardcoded operational constants
+// promoted to per-jurisdiction-overridable rules. Each default snapshots the
+// CURRENT constant so rollout is non-breaking (R4.2): no override anywhere
+// -> resolveBusinessRule returns exactly what the old literal returned.
+// ---------------------------------------------------------------------------
+
+export interface RabiesObservationWindow {
+  /** Legal rabies-observation window, in days. Was RABIES_OBSERVATION_WINDOW_DAYS. */
+  days: number;
+}
+
+export interface DueSoonWindow {
+  /** "Próximo a vencer" lookahead window, in days. Was DUE_SOON_WINDOW_DAYS. */
+  days: number;
+}
+
+export interface ReminderWindowCadence {
+  vaccineType: string;
+  aheadDays: number;
+}
+
+export interface ReminderWindows {
+  /** Global reminder lookahead, in days. Was WINDOW_AHEAD_DAYS. */
+  aheadDays: number;
+  /**
+   * Per-vaccine cadence overrides (R4.7) — validated independently, but not
+   * yet editable from the console UI (no per-vaccine cadence concept exists
+   * in the current consumer). Defaults to empty; extensible without a schema
+   * change once a UI/consumer for it ships.
+   */
+  cadences: ReminderWindowCadence[];
+}
+
+export interface LongStayDays {
+  /** Shelter long-stay threshold, in days. Was LONG_STAY_DAYS. */
+  days: number;
+}
+
 export interface BusinessRulePayloadByType {
   ppp_breed_list: PppBreedList;
   ppp_weight_threshold: PppWeightThreshold;
   ppp_attestation_required_registries: PppAttestationRequiredRegistries;
   physical_credential_channels: PhysicalCredentialChannels;
+  rabies_observation_window: RabiesObservationWindow;
+  due_soon_window: DueSoonWindow;
+  reminder_windows: ReminderWindows;
+  long_stay_days: LongStayDays;
 }
 
 export type BusinessRulePayload<T extends keyof BusinessRulePayloadByType> =
@@ -69,4 +112,8 @@ export const BUSINESS_RULES_DEFAULTS: {
     engraved_plate: { enabled: false },
     nfc_tag: { enabled: false },
   },
+  rabies_observation_window: { days: 10 },
+  due_soon_window: { days: 30 },
+  reminder_windows: { aheadDays: 14, cadences: [] },
+  long_stay_days: { days: 60 },
 };

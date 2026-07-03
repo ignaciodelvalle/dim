@@ -27,9 +27,14 @@ type Props = {
   provinceCode: string;
   /** Canonical province name — written into the [province] route segment. */
   provinceName: string;
+  /**
+   * Portal prefix the navigation must stay inside (portal-follows-viewer,
+   * 2026-07-02) — passed down from the server parent (AdminReglasLens).
+   */
+  base: "/admin" | "/gob";
 };
 
-export function LocalityRuleDrilldown({ provinceCode, provinceName }: Props) {
+export function LocalityRuleDrilldown({ provinceCode, provinceName, base }: Props) {
   const router = useRouter();
   const inputId = useId();
   const [query, setQuery] = useState("");
@@ -71,6 +76,7 @@ export function LocalityRuleDrilldown({ provinceCode, provinceName }: Props) {
         country: "AR",
         province: provinceName,
         locality: localityName,
+        base,
       }),
     );
   }
@@ -92,6 +98,8 @@ export function LocalityRuleDrilldown({ provinceCode, provinceName }: Props) {
           setTimeout(() => setOpen(false), 150);
         }}
         placeholder="Buscar localidad…"
+        aria-label={`Buscar localidad en ${provinceName}`}
+        name={`locality-search-${provinceCode}`}
         aria-autocomplete="list"
         aria-expanded={open}
         className="w-full max-w-sm text-sm rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"

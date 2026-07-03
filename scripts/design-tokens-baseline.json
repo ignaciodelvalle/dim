@@ -1791,20 +1791,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/servicios/page.tsx": {
-      "text": 6,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/admin/servicios/[offeringToken]/page.tsx": {
-      "text": 9,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/admin/programa/page.tsx": {
       "text": 23,
       "space": 0,
@@ -1910,63 +1896,77 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/jurisdicciones/LocalityRuleDrilldown.tsx": {
+    "app/gob/reglas/LocalityRuleDrilldown.tsx": {
       "text": 3,
       "space": 0,
       "rounded": 2,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/jurisdicciones/page.tsx": {
+    "app/gob/reglas/AdminReglasLens.tsx": {
       "text": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/jurisdicciones/[country]/[province]/[locality]/reglas/DeleteRuleButton.tsx": {
+    "app/gob/reglas/[country]/[province]/[locality]/DeleteRuleButton.tsx": {
       "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/jurisdicciones/[country]/[province]/[locality]/reglas/page.tsx": {
+    "app/gob/reglas/[country]/[province]/[locality]/page.tsx": {
       "text": 7,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/jurisdicciones/[country]/[province]/[locality]/reglas/nueva/page.tsx": {
+    "app/gob/reglas/[country]/[province]/[locality]/nueva/page.tsx": {
+      "text": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/reglas/[country]/[province]/[locality]/nueva/NumericWindowRuleForm.tsx": {
       "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/jurisdicciones/[country]/[province]/[locality]/reglas/nueva/PppAttestationRegistriesForm.tsx": {
+    "app/gob/reglas/[country]/[province]/[locality]/nueva/PppAttestationRegistriesForm.tsx": {
       "text": 8,
       "space": 0,
       "rounded": 2,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/jurisdicciones/[country]/[province]/[locality]/reglas/nueva/PppBreedListForm.tsx": {
+    "app/gob/reglas/[country]/[province]/[locality]/nueva/PppBreedListForm.tsx": {
       "text": 6,
       "space": 0,
       "rounded": 2,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/jurisdicciones/[country]/[province]/[locality]/reglas/nueva/PppWeightThresholdForm.tsx": {
+    "app/gob/reglas/[country]/[province]/[locality]/nueva/PppWeightThresholdForm.tsx": {
       "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/jurisdicciones/[country]/[province]/[locality]/reglas/editar/[ruleId]/page.tsx": {
+    "app/gob/reglas/[country]/[province]/[locality]/nueva/PhysicalCredentialChannelsForm.tsx": {
+      "text": 4,
+      "space": 0,
+      "rounded": 1,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/reglas/[country]/[province]/[locality]/editar/[ruleId]/page.tsx": {
       "text": 2,
       "space": 0,
       "rounded": 0,

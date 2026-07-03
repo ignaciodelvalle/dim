@@ -34,10 +34,10 @@ import {
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/infra/breeds-server";
 import { openCase } from "@/lib/infra/case-helpers";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
 import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
+import { resolvePppClassificationForJurisdiction } from "@/lib/infra/ppp-classification";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { generateTattooAckToken, validateTattooAckToken } from "@/lib/infra/tattoo-ack-token";
 import { lookupByTattoo, normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
@@ -269,10 +269,16 @@ export async function createIntake(
   const now = new Date();
   const authorVerified = organization.verified;
 
-  // Jurisdiction-aware PPP evaluation (spec govt-business-rules-poc §4).
-  const potentiallyDangerousBreed = await isPotentiallyDangerousBreedForJurisdiction(
+  // Jurisdiction-aware PPP evaluation (spec govt-business-rules-poc §4;
+  // weight-threshold enforcement admin-rules-console ADR-3). The intake form
+  // has no weight field (unlike owner register/update), so estimatedWeightKg
+  // is always null here — the composed resolver degrades to breed-only for
+  // shelter intake, identical to the pre-weight-enforcement behavior. Wiring
+  // a weight field into the intake form is a follow-up, not this change.
+  const potentiallyDangerousBreed = await resolvePppClassificationForJurisdiction(
     parsed.species,
     parsed.breed,
+    null,
     {
       country: "AR",
       province: parsed.jurisdictionProvince,

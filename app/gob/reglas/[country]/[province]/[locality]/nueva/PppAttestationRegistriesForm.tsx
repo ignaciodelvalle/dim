@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import {
   type BusinessRuleFormState,
@@ -9,6 +9,7 @@ import {
 } from "@/app/actions/business-rules";
 import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 const initialState: BusinessRuleFormState = { error: null };
 
@@ -20,6 +21,7 @@ type Props = {
   country: string;
   province: string | null;
   locality: string | null;
+  base: "/admin" | "/gob";
   initialRegistries: Registry[];
   initialNotes: string;
 };
@@ -30,6 +32,7 @@ export function PppAttestationRegistriesForm({
   country,
   province,
   locality,
+  base,
   initialRegistries,
   initialNotes,
 }: Props) {
@@ -38,6 +41,13 @@ export function PppAttestationRegistriesForm({
       ? updateBusinessRuleAction.bind(null, ruleId)
       : createBusinessRuleAction;
   const [state, formAction, isPending] = useActionState(action, initialState);
+
+  // Router-drop workaround (verify-report #650 WARNING-1) — see
+  // lib/ui/full-page-action-nav.ts's module docblock.
+  useEffect(() => {
+    if (state.redirectTo) navigateAfterActionSuccess(state.redirectTo);
+  }, [state.redirectTo]);
+
   const [registries, setRegistries] = useState<Registry[]>(initialRegistries);
   const [newId, setNewId] = useState("");
   const [newLabel, setNewLabel] = useState("");
@@ -67,6 +77,7 @@ export function PppAttestationRegistriesForm({
       <input type="hidden" name="jurisdictionCountry" value={country} />
       <input type="hidden" name="jurisdictionProvince" value={province ?? ""} />
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
+      <input type="hidden" name="portalBase" value={base} />
 
       <p className="text-[13px] text-ln-op-ink-2">
         Lista de registros oficiales en los que el dueno debe registrar (atestar) a su mascota PPP.
