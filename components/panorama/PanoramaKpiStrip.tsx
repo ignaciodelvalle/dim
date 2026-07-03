@@ -12,15 +12,27 @@
 // matches the same number on the detail dashboard it links to.
 //
 // map-QOL additions:
-// - Period-over-period delta on the window-sensitive tiles, rendered INSIDE
-//   the tile via OpKpi's deltaV2 slot: an arrow glyph PAIRED with the signed
-//   percentage + sr-only text (never color-only).
+// - Period-over-period delta on the window-sensitive tiles: a NEUTRAL text
+//   line under each tile — direction glyph (▲▼＝) + signed percentage, no
+//   valence color. Several KPIs are bad-when-up (zoonosis, mordeduras), so a
+//   green "Sube" would misread a worsening trend as improvement.
 // - Freshness chip ("Datos al …", from lastIngestAt) + an "Actualizar" button
 //   for a SELECTIVE refresh: the parent refetches KPIs + active layers via
 //   plain client fetches — no reload, the map never unmounts.
 
 import { OpKpi } from "@/components/ui/dashboard";
-import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import type { KpiDelta, PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+
+// Direction glyph, NEVER a valence color. Several panorama KPIs are
+// bad-when-up (zoonosis, mordeduras) — OpKpi's deltaV2 slot paints up=green
+// "Sube", which would read a rising outbreak as an improvement (code review
+// 2026-07-03). The delta stays a neutral text line: the sign + glyph carry
+// direction, and no hue implies good/bad.
+const DELTA_GLYPH: Record<KpiDelta["direction"], string> = {
+  up: "▲",
+  down: "▼",
+  flat: "＝",
+};
 
 type Props = {
   kpis: PanoramaKpis;
@@ -39,19 +51,23 @@ export function PanoramaKpiStrip({ kpis, onRefresh, refreshing = false }: Props)
           second row on wide screens). */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
         {kpis.kpis.map((kpi) => (
-          <OpKpi
-            key={kpi.id}
-            label={kpi.label}
-            value={kpi.value}
-            tone={kpi.tone}
-            bar={kpi.bar}
-            sub={kpi.sub}
-            href={kpi.href}
-            info={kpi.info}
-            deltaV2={
-              kpi.delta ? { value: kpi.delta.pct, period: "vs período anterior" } : undefined
-            }
-          />
+          <div key={kpi.id} className="space-y-1">
+            <OpKpi
+              label={kpi.label}
+              value={kpi.value}
+              tone={kpi.tone}
+              bar={kpi.bar}
+              sub={kpi.sub}
+              href={kpi.href}
+              info={kpi.info}
+            />
+            {kpi.delta && (
+              <p className="flex items-center gap-1 text-xs tabular-nums text-ln-op-mute">
+                <span aria-hidden="true">{DELTA_GLYPH[kpi.delta.direction]}</span>
+                <span>{kpi.delta.label}</span>
+              </p>
+            )}
+          </div>
         ))}
       </div>
       {/* Recalculation cue + freshness chip — the strip tracks the active

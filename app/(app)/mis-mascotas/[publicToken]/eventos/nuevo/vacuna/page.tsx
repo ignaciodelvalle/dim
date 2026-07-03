@@ -1,6 +1,7 @@
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { db, reminders } from "@/db";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
+import { isUuid } from "@/lib/utils/uuid";
 import { createVaccinationAction } from "@/src/modules/events/actions";
 import { and, eq, isNull } from "drizzle-orm";
 import { VaccinationForm } from "./VaccinationForm";
@@ -31,7 +32,12 @@ export default async function NewVaccinationPage({
   // its title. This is the original prefill path (kept intact).
   let initialVaccineName: string | undefined = sp.vaccineName ?? undefined;
   let validReminderId: string | undefined;
-  if (sp.reminderId) {
+  // Guard the uuid column comparison: reminderId arrives from a query string
+  // (notification CTAs, reminder actions, hand-typed URLs). A non-uuid value
+  // hits Postgres 22P02 and crashes the RSC — a garbage/stale ?reminderId=
+  // must degrade to "no prefill", not a 500 (same class as lib/utils/uuid's
+  // other call sites).
+  if (isUuid(sp.reminderId)) {
     const [reminder] = await db
       .select()
       .from(reminders)
