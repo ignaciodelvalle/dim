@@ -4,7 +4,7 @@
 // Returns domain types or lightweight shapes (not raw Drizzle row types).
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import {
   attachments,
@@ -17,6 +17,8 @@ import {
   profiles,
   reminders,
 } from "@/db";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import {
   closeCase,
   findOpenAdoptionApplicationCase,
@@ -24,7 +26,7 @@ import {
   findOpenCaseForPetAndKind,
   openCase,
 } from "@/lib/infra/case-helpers";
-import { validateEventPayload } from "@/lib/events/event-schemas";
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -52,6 +54,35 @@ type SetListingStatusArgs = {
   action: "publish" | "pause" | "unpause" | "unpublish";
   currentListedAt: Date | null;
   now: Date;
+};
+
+type SetBulkEligibilityIdempotentArgs = {
+  petId: string;
+  eligible: boolean;
+  ineligibleReason: string | null;
+  ineligibleReasonNotes: string | null;
+  ineligibleUntil: Date | null;
+  now: Date;
+  userId: string;
+  orgId: string;
+  orgVerified: boolean;
+  /** Deterministic UUID derived from (bulkActionId + ":" + petId). */
+  clientIdempotencyKey: string;
+};
+
+type BatchShelterPetForEligibility = {
+  petId: string;
+  publicToken: string;
+};
+
+type BatchShelterPetForListing = {
+  petId: string;
+  publicToken: string;
+  adoptionListedAt: Date | null;
+  status: string;
+  adoptionEligible: boolean | null;
+  inCustodyDispute: boolean | null;
+  rabiesObservationStatus: string | null;
 };
 
 type UpdateListingContentArgs = {
@@ -136,7 +167,22 @@ type PetWithOrgResult = {
   org: OrgRow;
 } | null;
 
+// NOTE: ApplicationEventRow is intentionally NOT exported from the repository
+// public surface. Callers receive only the projected shape defined per method.
+// Keeping the raw row type internal prevents accidental PII leaks (the payload
+// carries applicant name/phone/address/DNI) across module boundaries.
 type ApplicationEventRow = typeof petEvents.$inferSelect;
+
+/**
+ * Projected application shape returned by findApplicationForReview.
+ * Contains only the fields the review/info-request callers need.
+ * The full event (including PII payload) stays in the immutable event log.
+ */
+type ApplicationReviewShape = {
+  id: string;
+  /** Extracted from payload — the only PII field callers legitimately need. */
+  applicantUserId: string | null;
+};
 
 // ---------------------------------------------------------------------------
 // Repository
@@ -188,14 +234,15 @@ export const AdoptionRepository = {
   },
 
   /**
-   * Finds a profile by DNI number. Returns the profile id or null.
+   * Finds a profile by DNI (via hash — no plaintext comparison).
+   * Wave 5 Item 25a: equality matching uses HMAC-SHA256 hash, never plaintext.
    */
   async findStubAdopterByDni(dni: string, tx?: Tx): Promise<{ id: string } | null> {
     const client = tx ?? db;
     const [row] = await client
       .select({ id: profiles.id })
       .from(profiles)
-      .where(eq(profiles.dniNumber, dni))
+      .where(eq(profiles.dniHash, hashDni(dni)))
       .limit(1);
     return row ?? null;
   },
@@ -314,6 +361,131 @@ export const AdoptionRepository = {
         .set({ adoptionListingPausedAt: null, updatedAt: args.now })
         .where(eq(pets.id, args.petId));
     }
+  },
+
+  // ---------------------------------------------------------------------------
+  // Bulk operations
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Batch ownership query for bulk eligibility writes.
+   *
+   * Returns only pets under active shelter_custody of the given org that are
+   * NOT deceased — matches the single-pet requireAlivePetAccess scope.
+   */
+  async findBatchShelterPetsForEligibility(
+    tokens: string[],
+    orgId: string,
+  ): Promise<BatchShelterPetForEligibility[]> {
+    if (tokens.length === 0) return [];
+    return db
+      .select({ petId: pets.id, publicToken: pets.publicToken })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          inArray(pets.publicToken, tokens),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+          ne(pets.status, "deceased"),
+        ),
+      );
+  },
+
+  /**
+   * Batch ownership query for bulk listing publish/unpublish.
+   *
+   * Fetches the extra columns needed to evaluate publish guards (D18–D21)
+   * per pet in the loop. Same scope as findBatchShelterPetsForEligibility.
+   */
+  async findBatchShelterPetsForListing(
+    tokens: string[],
+    orgId: string,
+  ): Promise<BatchShelterPetForListing[]> {
+    if (tokens.length === 0) return [];
+    return db
+      .select({
+        petId: pets.id,
+        publicToken: pets.publicToken,
+        adoptionListedAt: pets.adoptionListedAt,
+        status: pets.status,
+        adoptionEligible: pets.adoptionEligible,
+        inCustodyDispute: pets.inCustodyDispute,
+        rabiesObservationStatus: pets.rabiesObservationStatus,
+      })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          inArray(pets.publicToken, tokens),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+          ne(pets.status, "deceased"),
+        ),
+      );
+  },
+
+  /**
+   * Atomically updates pet eligibility columns and inserts an
+   * adoption_eligibility_set event using insertEventIdempotent.
+   *
+   * Differs from setEligibility: uses idempotency-key deduplication so
+   * re-submitting the same bulkActionId is a safe no-op (wasNoop=true).
+   * The previous_state is null for the bulk path (performance: no pre-load).
+   *
+   * Must be called inside a db.transaction().
+   */
+  async setBulkEligibilityIdempotent(
+    args: SetBulkEligibilityIdempotentArgs,
+    tx: Tx,
+  ): Promise<{ wasNoop: boolean }> {
+    // UPDATE pets eligibility columns (last-write-wins — idempotent on retry).
+    await tx
+      .update(pets)
+      .set({
+        adoptionEligible: args.eligible,
+        adoptionIneligibleReason: args.eligible ? null : (args.ineligibleReason ?? null),
+        adoptionIneligibleReasonNotes: args.eligible ? null : (args.ineligibleReasonNotes ?? null),
+        adoptionIneligibleUntil: args.eligible ? null : args.ineligibleUntil,
+        adoptionEligibilitySetAt: args.now,
+        adoptionEligibilitySetByUserId: args.userId,
+        updatedAt: args.now,
+      })
+      .where(eq(pets.id, args.petId));
+
+    const payload = validateEventPayload("adoption_eligibility_set", {
+      eligible: args.eligible,
+      ineligible_reason: args.eligible ? null : (args.ineligibleReason ?? null),
+      ineligible_reason_notes: args.eligible ? null : (args.ineligibleReasonNotes ?? null),
+      ineligible_until: args.eligible
+        ? null
+        : args.ineligibleUntil
+          ? args.ineligibleUntil.toISOString()
+          : null,
+      // Bulk path: previous_state is null for performance (no per-pet pre-load).
+      previous_state: null,
+    });
+
+    const { wasNoop } = await insertEventIdempotent(
+      {
+        petId: args.petId,
+        eventType: "adoption_eligibility_set",
+        occurredAt: args.now,
+        recordedAt: args.now,
+        recordedByUserId: args.userId,
+        authorRole: "shelter",
+        authorOrganizationId: args.orgId,
+        authorVerified: args.orgVerified,
+        payload,
+        notes: null,
+        clientIdempotencyKey: args.clientIdempotencyKey,
+      },
+      tx as Parameters<typeof insertEventIdempotent>[1],
+    );
+
+    return { wasNoop };
   },
 
   /**
@@ -490,17 +662,38 @@ export const AdoptionRepository = {
   },
 
   /**
-   * Loads a pending application for org-side review (approve/reject).
+   * Loads a pending application for org-side review (approve/reject/info-request).
    * Verifies the pet is under active shelter_custody of the given org.
+   *
+   * PII fix (Item 27): projects ONLY the fields callers need. The full event
+   * payload (which may contain applicant name/phone/address/DNI from the
+   * adoption_application_submitted event) is kept in the immutable event log
+   * but is never returned to callers. applicantUserId is the single PII field
+   * the review and notification flows legitimately require.
    */
   async findApplicationForReview(
     applicationEventId: string,
     organizationId: string,
     tx?: Tx,
-  ): Promise<{ application: ApplicationEventRow; pet: PetRow } | { error: string }> {
+  ): Promise<
+    | {
+        application: ApplicationReviewShape;
+        pet: { id: string; name: string; publicToken: string };
+      }
+    | { error: string }
+  > {
     const client = tx ?? db;
     const [row] = await client
-      .select({ application: petEvents, pet: pets })
+      .select({
+        applicationId: petEvents.id,
+        // Extract only applicant_user_id from the payload — the single field
+        // callers need for notification routing. Name/phone/address/DNI stay
+        // in the immutable event log and are never returned.
+        applicantUserId: sql<string | null>`${petEvents.payload}->>'applicant_user_id'`,
+        petId: pets.id,
+        petName: pets.name,
+        petPublicToken: pets.publicToken,
+      })
       .from(petEvents)
       .innerJoin(pets, eq(pets.id, petEvents.petId))
       .innerJoin(ownerships, eq(ownerships.petId, pets.id))
@@ -522,7 +715,7 @@ export const AdoptionRepository = {
     // Check: already resolved?
     const decided = await client.execute<{ id: string }>(sql`
       SELECT id FROM pet_events
-      WHERE pet_id = ${row.pet.id}
+      WHERE pet_id = ${row.petId}
         AND event_type = 'adoption_application_resolved'
         AND payload->>'application_event_id' = ${applicationEventId}
       LIMIT 1
@@ -534,7 +727,7 @@ export const AdoptionRepository = {
     // Check: pet already finalized?
     const finalized = await client.execute<{ id: string }>(sql`
       SELECT id FROM pet_events
-      WHERE pet_id = ${row.pet.id}
+      WHERE pet_id = ${row.petId}
         AND event_type = 'adoption_finalized'
       LIMIT 1
     `);
@@ -542,7 +735,10 @@ export const AdoptionRepository = {
       return { error: "Esta mascota ya fue adoptada — no es posible revisar postulaciones." };
     }
 
-    return { application: row.application, pet: row.pet };
+    return {
+      application: { id: row.applicationId, applicantUserId: row.applicantUserId },
+      pet: { id: row.petId, name: row.petName, publicToken: row.petPublicToken },
+    };
   },
 
   /**
@@ -624,13 +820,14 @@ export const AdoptionRepository = {
       now,
     } = args;
 
-    // Stub profile insert.
+    // Stub profile insert. No plaintext DNI (Wave 5 Item 25a).
     if (isStubAdopter && dni) {
       await tx.insert(profiles).values({
         id: adopterUserId,
         displayName,
         phone,
-        dniNumber: dni,
+        dniHash: hashDni(dni),
+        dniLast4: dniLast4(dni),
         dniVerified: false,
         role: "owner",
       });

@@ -14,7 +14,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: vi.fn().mockResolvedValue({
     supabase: {},
     user: { id: "turnos-offering-detail-test-user" },
@@ -22,7 +22,7 @@ vi.mock("@/lib/auth-guards", () => ({
 }));
 
 import { db, organizations, serviceOfferings, timeSlots } from "@/db";
-import { generateOfferingToken, generatePublicToken } from "@/lib/publicToken";
+import { generateOfferingToken, generatePublicToken } from "@/lib/infra/publicToken";
 
 // ---------------------------------------------------------------------------
 // Fixtures

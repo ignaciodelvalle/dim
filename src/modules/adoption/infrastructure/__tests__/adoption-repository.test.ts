@@ -584,14 +584,14 @@ describe("AdoptionRepository — case-opening wiring (bugfix)", () => {
         {
           id: applicantAId,
           displayName: "Applicant A",
-          dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+          dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
           dniVerified: false,
           role: "owner",
         },
         {
           id: applicantBId,
           displayName: "Applicant B",
-          dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+          dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
           dniVerified: false,
           role: "owner",
         },
