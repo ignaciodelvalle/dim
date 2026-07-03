@@ -127,7 +127,13 @@ describe("runVaccineDueScan", () => {
     const n = rows[0];
     expect(n.notificationType).toBe("vaccine_due");
     expect(n.severity).toBe("warning");
-    expect(n.relatedEventId).toBe(eventId);
+    // relatedEventId must be NULL on cron-emitted notifications: migration
+    // 0088's unique index (user_id, related_event_id, notification_type)
+    // exempts NULL rows so the escalating cadence can re-emit for the same
+    // source event. Setting it made the 2nd scan crash with 23505
+    // (projection-cron audit 2026-07-03 C1).
+    expect(n.relatedEventId).toBeNull();
+    expect(n.relatedReminderId).toBe(reminderId);
     expect(n.relatedPetId).toBe(petId);
     expect(n.ctaLabel).toBe("Registrar vacuna"); // 14.2: deep-link to vaccination form
     // Canonical reminder-linked target (flow audit 2026-07-03): the full
@@ -155,6 +161,47 @@ describe("runVaccineDueScan", () => {
     expect(rows.length).toBe(1);
   });
 
+  it("emits AGAIN when the cadence window reopens (2nd scan, same source event)", async () => {
+    // The regression test migration 0088 demanded and nobody wrote: due_soon
+    // throttles daily for the first 3 days, so a scan one day later MUST
+    // insert a second notification for the SAME reminder + source event.
+    // Before the C1 fix this insert violated the (user_id, related_event_id,
+    // notification_type) unique index and 23505'd the whole run.
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000 + 60 * 1000);
+    const reEmit = await runVaccineDueScan(db, { now: tomorrow });
+    expect(reEmit.insertedCount).toBe(1);
+
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(eq(notifications.userId, userId), eq(notifications.notificationType, "vaccine_due")),
+      );
+    expect(rows.length).toBe(2);
+    // Every cron emission stays exempt from the 0088 natural key.
+    for (const n of rows) {
+      expect(n.relatedEventId).toBeNull();
+    }
+  });
+
+  it("archiving a notification does NOT reset the throttle cadence", async () => {
+    // Archive everything emitted so far, then scan at (real) NOW — moments
+    // after the last emission, inside the throttle window. Archiving
+    // dismisses from the inbox; it is not consent to full-frequency
+    // re-notification (projection-cron audit 2026-07-03 C2). Under the old
+    // `archived_at IS NULL` history filter this scan saw notif_count=0 and
+    // emitted immediately.
+    await db
+      .update(notifications)
+      .set({ archivedAt: new Date() })
+      .where(
+        and(eq(notifications.userId, userId), eq(notifications.notificationType, "vaccine_due")),
+      );
+
+    const afterArchive = await runVaccineDueScan();
+    expect(afterArchive.insertedCount).toBe(0);
+  });
+
   it("stops emitting once the reminder is marked completed_at", async () => {
     await db.update(reminders).set({ completedAt: new Date() }).where(eq(reminders.id, reminderId));
 
@@ -167,6 +214,6 @@ describe("runVaccineDueScan", () => {
       .where(
         and(eq(notifications.userId, userId), eq(notifications.notificationType, "vaccine_due")),
       );
-    expect(rows.length).toBe(1);
+    expect(rows.length).toBe(2);
   });
 });

@@ -53,8 +53,13 @@ const WINDOW_AHEAD_DAYS = 14;
  *   overdue_critical — daily indefinitely.
  *
  * Dedupe key: `notifications.relatedReminderId = reminders.id` AND
- * `notifications.notificationType LIKE 'vaccine_%'` AND
- * `notifications.archivedAt IS NULL`.
+ * `notifications.notificationType LIKE 'vaccine_%'` — archived rows COUNT
+ * (archiving dismisses from the inbox; it doesn't reset the cadence).
+ *
+ * relatedEventId is NEVER set on these inserts: migration 0088's unique
+ * index exempts cron notifications via related_event_id IS NULL so the
+ * escalating cadence can emit repeatedly for the same source event
+ * (projection-cron audit 2026-07-03 C1).
  *
  * Backward compat: pre-C2 notifications only have relatedEventId, so the new
  * throttle query (by relatedReminderId) sees notif_count=0 for existing
@@ -135,8 +140,11 @@ export async function runVaccineDueScan(
       FROM ${notifications}
       WHERE related_reminder_id = ${row.reminderId}
         AND notification_type LIKE 'vaccine_%'
-        AND archived_at IS NULL
     `);
+    // Archived rows COUNT toward the throttle: archiving dismisses the
+    // notification from the inbox, it does not consent to being re-notified
+    // at full frequency — the old `archived_at IS NULL` filter let archiving
+    // reset the cadence (projection-cron audit 2026-07-03 C2).
 
     const history = historyRows[0] ?? { first_at: null, last_at: null, notif_count: "0" };
     const notifCount = Number.parseInt(history.notif_count ?? "0", 10);
@@ -168,10 +176,15 @@ export async function runVaccineDueScan(
         body,
         severity,
         relatedPetId: row.petId,
-        // Both fields set: relatedReminderId drives throttle; relatedEventId
-        // preserves backward compat with pre-C2 queries that filter by event.
+        // relatedReminderId drives the throttle. relatedEventId is
+        // DELIBERATELY NOT SET: migration 0088's unique index
+        // (user_id, related_event_id, notification_type) exempts cron
+        // notifications via related_event_id IS NULL precisely so a repeat
+        // emission (the escalating upcoming→due_soon→overdue cadence) can
+        // insert again. Setting it made the SECOND scan for the same source
+        // event hit the index with no ON CONFLICT — a 23505 that killed the
+        // whole run (projection-cron audit 2026-07-03 C1).
         relatedReminderId: row.reminderId,
-        relatedEventId: row.sourceEventId ?? undefined,
         // 14.2 notice→action contract: deep-link directly to the vaccination
         // form so the owner can act in one tap. Canonical reminder-linked
         // target (flow audit 2026-07-03): the FULL form with reminderId, so
