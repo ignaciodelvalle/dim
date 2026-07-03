@@ -6,8 +6,13 @@
 // snoozeReminderAction with optimistic UI (the reminder hides
 // immediately; if the action fails it reappears via router.refresh).
 // "Agendar" navigates to /turnos/buscar with prefilters so the user
-// books a real appointment for the vaccine. "Registrar" keeps the
-// existing in-place capture flow via the vacuna sheet.
+// books a real appointment for the vaccine. "Registrar" goes to the
+// FULL vaccine form with reminderId — the canonical reminder-linked
+// path (same one PetReminders uses). The old ?sheet=vacuna&text= link
+// put the title in NOTES and dropped the reminder linkage, so the hot
+// vencimiento path registered a nameless dose and never closed the
+// reminder (flow audit 2026-07-03 #2; PO decision: reminder flows never
+// hit the sheet — it stays ad-hoc quick capture only).
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -17,18 +22,17 @@ import { snoozeReminderAction } from "@/app/actions/reminders";
 interface Props {
   reminderId: string;
   petToken: string;
-  title: string;
   /** Visual variant — controls primary button styling. */
   variant: "banner" | "row";
 }
 
-export function ReminderActions({ reminderId, petToken, title, variant }: Props) {
+export function ReminderActions({ reminderId, petToken, variant }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [hidden, setHidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const registerHref = `/mis-mascotas/${petToken}?sheet=vacuna&text=${encodeURIComponent(title)}`;
+  const registerHref = `/mis-mascotas/${petToken}/eventos/nuevo/vacuna?reminderId=${encodeURIComponent(reminderId)}`;
   // /turnos/buscar reads `service_kind` (not `service`/`pet`). The pet is chosen
   // later at reserve time via the booking form's pet selector, so only the
   // service kind needs to travel. vaccination_rabies is the generic vaccination

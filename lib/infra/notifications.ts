@@ -172,10 +172,12 @@ export async function runVaccineDueScan(
         relatedReminderId: row.reminderId,
         relatedEventId: row.sourceEventId ?? undefined,
         // 14.2 notice→action contract: deep-link directly to the vaccination
-        // form so the owner can act in one tap. The form pre-fills today's
-        // date; returnTo is not needed because SuccessScreen links back.
+        // form so the owner can act in one tap. Canonical reminder-linked
+        // target (flow audit 2026-07-03): the FULL form with reminderId, so
+        // the vaccine name pre-fills and the reminder closes on submit — the
+        // old /anotar?kind= hop reached the same form without the linkage.
         ctaLabel: "Registrar vacuna",
-        ctaUrl: `/mis-mascotas/${row.publicToken}/anotar?kind=vaccination_administered`,
+        ctaUrl: `/mis-mascotas/${row.publicToken}/eventos/nuevo/vacuna?reminderId=${row.reminderId}`,
       })
       .returning({ id: notifications.id });
     insertedNotificationIds.push(inserted.id);

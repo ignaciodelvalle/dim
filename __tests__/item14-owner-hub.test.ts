@@ -55,15 +55,18 @@ describe("selfDeactivatePersonalAccountForUser input validation", () => {
 // ---------------------------------------------------------------------------
 
 describe("vaccine_due notification ctaUrl (notice→action contract)", () => {
-  it("vaccine_due ctaUrl points to anotar with kind=vaccination_administered", () => {
+  it("vaccine_due ctaUrl points to the full vaccine form with reminderId", () => {
     // This is a snapshot of the expected ctaUrl pattern for the vaccine-due
-    // notification (lib/notifications.ts). We test the URL builder directly
-    // without importing the full scan function (which requires a live DB).
+    // notification (lib/infra/notifications.ts). Canonical reminder-linked
+    // target (flow audit 2026-07-03): the FULL form with reminderId so the
+    // name pre-fills and the reminder closes on submit — never the /anotar
+    // hop or the ?sheet=vacuna quick-capture (ad-hoc only).
     const publicToken = "DIM-TEST-TOKEN";
-    const expectedUrl = `/mis-mascotas/${publicToken}/anotar?kind=vaccination_administered`;
+    const reminderId = "0f8b7a5e-1234-4abc-9def-56789abcdef0";
+    const expectedUrl = `/mis-mascotas/${publicToken}/eventos/nuevo/vacuna?reminderId=${reminderId}`;
 
     // Verify the URL is well-formed and actionable.
-    expect(expectedUrl).toMatch(/\/mis-mascotas\/.+\/anotar\?kind=vaccination_administered/);
+    expect(expectedUrl).toMatch(/\/mis-mascotas\/.+\/eventos\/nuevo\/vacuna\?reminderId=.+/);
     expect(expectedUrl).not.toContain("undefined");
   });
 

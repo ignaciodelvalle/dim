@@ -775,7 +775,10 @@ describe("runVaccineDueScan — notification metadata", () => {
     expect(n.relatedReminderId).toBe(reminderId);
     expect(n.severity).toBe("info"); // upcoming → info
     expect(n.ctaLabel).toBe("Registrar vacuna"); // 14.2: deep-link to vaccination form
-    expect(n.ctaUrl).toContain("/anotar?kind=vaccination_administered");
+    // Canonical reminder-linked target (flow audit 2026-07-03): the full
+    // vaccine form with reminderId so the name pre-fills and the reminder
+    // closes on submit.
+    expect(n.ctaUrl).toContain(`/eventos/nuevo/vacuna?reminderId=${reminderId}`);
   });
 });
 

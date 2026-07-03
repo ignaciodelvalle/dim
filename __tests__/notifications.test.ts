@@ -130,7 +130,10 @@ describe("runVaccineDueScan", () => {
     expect(n.relatedEventId).toBe(eventId);
     expect(n.relatedPetId).toBe(petId);
     expect(n.ctaLabel).toBe("Registrar vacuna"); // 14.2: deep-link to vaccination form
-    expect(n.ctaUrl).toContain("/anotar?kind=vaccination_administered");
+    // Canonical reminder-linked target (flow audit 2026-07-03): the full
+    // vaccine form with reminderId so the name pre-fills and the reminder
+    // closes on submit.
+    expect(n.ctaUrl).toContain("/eventos/nuevo/vacuna?reminderId=");
     // Body should be the time-aware computed message ("Lila tiene una vacuna
     // programada en 3 días."), NOT the generic reminder description. The
     // computed message reflects the scan moment; the description is

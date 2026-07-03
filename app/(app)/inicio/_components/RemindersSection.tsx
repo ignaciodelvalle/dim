@@ -82,7 +82,6 @@ function ReminderBanner({ reminder }: { reminder: ActiveReminderRow }) {
       <ReminderActions
         reminderId={reminder.reminderId}
         petToken={reminder.petToken}
-        title={reminder.title}
         variant="banner"
       />
     </section>
@@ -133,12 +132,7 @@ export function RemindersSection({
                 statusText={buildStatusText(r.daysUntilDue)}
                 dueAt={`Vence el ${formatDueAt(r.dueAt)}`}
                 actions={
-                  <ReminderActions
-                    reminderId={r.reminderId}
-                    petToken={r.petToken}
-                    title={r.title}
-                    variant="row"
-                  />
+                  <ReminderActions reminderId={r.reminderId} petToken={r.petToken} variant="row" />
                 }
               />
             </li>
@@ -163,7 +157,6 @@ export function RemindersSection({
                       <ReminderActions
                         reminderId={r.reminderId}
                         petToken={r.petToken}
-                        title={r.title}
                         variant="row"
                       />
                     }
