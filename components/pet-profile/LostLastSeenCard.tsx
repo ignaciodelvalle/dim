@@ -4,24 +4,22 @@
 // the pet.
 //
 // When the mark-lost event included GPS coordinates (owner dropped a pin in
-// LocationFields), a small embedded MapLibre map replaces the placeholder
-// gradient. The map is loaded via next/dynamic (ssr: false) exactly as
-// denuncias/[id]/page.tsx does — maplibre-gl must not run on the server.
+// LocationFields), a STATIC-FIRST embed (components/maps/StaticFirstMap)
+// replaces the placeholder gradient: the map paints as a static preview and
+// only pulls the maplibre-gl chunk + live tiles after the owner explicitly
+// activates it (map-QOL P3 — design rule: static-first embeds, one single
+// "explorar" affordance, zero controls until activated). This is the OWNER
+// surface, so the point is rendered at exact precision.
 //
 // Sightings are reported by finders via the public credential (/p/{token}).
 // The owner-side add-sighting route was removed (P0a) — owners share the
 // public link instead.
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 
-import { CopyPublicLinkButton } from "./CopyPublicLinkButton";
+import { StaticFirstMap } from "@/components/maps/StaticFirstMap";
 
-const LocationMap = dynamic(() => import("@/components/LocationMap"), {
-  loading: () => (
-    <div className="w-full h-40 rounded-xl border border-ln-line bg-ln-stripe animate-pulse" />
-  ),
-});
+import { CopyPublicLinkButton } from "./CopyPublicLinkButton";
 
 interface Props {
   /** Pretty address line. e.g. "Plaza Italia" */
@@ -82,9 +80,13 @@ export function LostLastSeenCard({
 
       {hasCoords ? (
         <div className="relative overflow-hidden rounded-xl">
-          <div className="h-40 w-full overflow-hidden rounded-xl">
-            <LocationMap lat={lat} lng={lng} />
-          </div>
+          <StaticFirstMap
+            lat={lat as number}
+            lng={lng as number}
+            label={placeName}
+            precision="exact"
+            heightClassName="h-40"
+          />
           <Link
             href={editHref}
             className="absolute right-2 top-2 rounded-full bg-ln-card/95 px-3 py-1 text-[11px] font-semibold text-ln-azul shadow-sm hover:bg-ln-card "

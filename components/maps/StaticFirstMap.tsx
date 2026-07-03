@@ -53,10 +53,11 @@ export type StaticFirstMapProps = {
    * Default "exact".
    */
   precision?: "exact" | "approx";
+  /** Tailwind height class (static and active states). Default "h-64". */
+  heightClassName?: string;
 };
 
 const DEFAULT_ZOOM = 14;
-const MAP_HEIGHT_CLASS = "h-64";
 
 export function StaticFirstMap({
   lat,
@@ -64,6 +65,7 @@ export function StaticFirstMap({
   zoom = DEFAULT_ZOOM,
   label,
   precision = "exact",
+  heightClassName = "h-64",
 }: StaticFirstMapProps) {
   const [activated, setActivated] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -114,14 +116,14 @@ export function StaticFirstMap({
       {activated ? (
         <div
           ref={containerRef}
-          className={`${MAP_HEIGHT_CLASS} w-full`}
+          className={`${heightClassName} w-full`}
           aria-label={`Mapa interactivo${label ? ` de ${label}` : ""}, latitud ${lat}, longitud ${lng}. ${precisionLabel}.`}
         />
       ) : (
         <div
           role="img"
           aria-label={`Mapa estático${label ? ` de ${label}` : ""}, latitud ${lat}, longitud ${lng}. ${precisionLabel}.`}
-          className={`${MAP_HEIGHT_CLASS} relative flex w-full flex-col items-center justify-center gap-2 bg-ln-op-stripe px-4 text-center`}
+          className={`${heightClassName} relative flex w-full flex-col items-center justify-center gap-2 bg-ln-op-stripe px-4 text-center`}
         >
           <span aria-hidden="true" className="text-3xl">
             📍

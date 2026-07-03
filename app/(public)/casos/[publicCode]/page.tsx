@@ -17,6 +17,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { StaticFirstMap } from "@/components/maps/StaticFirstMap";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
   CaseDetailShell,
@@ -136,6 +137,20 @@ export default async function CaseDetailPage({ params }: PageProps) {
     };
   }
 
+  // map-QOL P3: read-only static-first map for the case's primary location.
+  // The coordinates were ALREADY in CaseDetail (no new query) but never
+  // rendered. Privacy gate: institutional viewers only (govt/admin) — a
+  // case's primary location can be a denounced address, so it is never
+  // surfaced to anonymous, owner or vet viewers (data minimisation).
+  const caseLat = detail.primaryLocationLat !== null ? Number(detail.primaryLocationLat) : null;
+  const caseLng = detail.primaryLocationLng !== null ? Number(detail.primaryLocationLng) : null;
+  const showCaseMap =
+    (viewerRole === "govt" || viewerRole === "admin") &&
+    caseLat !== null &&
+    caseLng !== null &&
+    Number.isFinite(caseLat) &&
+    Number.isFinite(caseLng);
+
   // Breadcrumb nav
   const breadcrumb = (
     <nav className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-ln-mute">
@@ -170,6 +185,22 @@ export default async function CaseDetailPage({ params }: PageProps) {
         isPublic={isPublic}
         breadcrumb={breadcrumb}
       >
+        {/* map-QOL P3: primary-location embed (institutional viewers only). */}
+        {showCaseMap && (
+          <section aria-label="Ubicación del caso">
+            <h2 className="mb-3 font-ln-serif text-[var(--text-xl)] font-semibold tracking-[-0.01em] text-ln-ink">
+              Ubicación
+            </h2>
+            <StaticFirstMap
+              lat={caseLat as number}
+              lng={caseLng as number}
+              label={`Caso ${detail.publicCode}`}
+              precision="exact"
+              heightClassName="h-48"
+            />
+          </section>
+        )}
+
         {/* Timeline */}
         <section>
           <h2 className="mb-3 font-ln-serif text-[21px] font-semibold tracking-[-0.01em] text-ln-ink">
