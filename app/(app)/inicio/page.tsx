@@ -20,6 +20,7 @@ import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import type { DashboardPet } from "@/lib/analytics/owner-dashboard";
 import {
   fetchActiveReminders,
+  fetchComplianceStatesForPets,
   fetchOpenWorkflows,
   fetchPetsForOwner,
   fetchUpcomingAppointments,
@@ -29,6 +30,7 @@ import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { petPhotoUrl } from "@/lib/infra/storage";
+import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
 import { BRANDING } from "@/lib/ui/branding";
 import { capCount, speciesLabel } from "@/lib/utils/format";
 import { greetingFirstName } from "@/lib/utils/greeting";
@@ -62,12 +64,6 @@ function adaptPet(p: DashboardPet): EventCatcherPet {
 
 // WORKFLOW_KIND_ICON + adaptWorkflow live in components/CasesWidget.tsx
 // (shared by /inicio and /cuenta/casos).
-
-/** Map DB pet status to LnPetStatus for registry rows. */
-function toLnStatus(status: string): "ok" | "lost" {
-  if (status === "lost") return "lost";
-  return "ok";
-}
 
 // ---------------------------------------------------------------------------
 // Page
@@ -109,6 +105,13 @@ export default async function InicioPage() {
   // Note: `pets` is already bounded to DASHBOARD_PETS_LIMIT rows; totalPets
   // is the full SQL count used in the "ver todas (N)" link.
   const registryPets = pets.filter((p) => p.status !== "deceased");
+
+  // Same compliance projection the pet-profile header derives — the registry
+  // chip must agree with the detail header (QA round 2 2026-07-03 #4).
+  const complianceByPet = await fetchComplianceStatesForPets(
+    user.id,
+    registryPets.map((p) => p.id),
+  );
 
   // Today's date for the greeting datestamp
   const today = new Date();
@@ -237,7 +240,15 @@ export default async function InicioPage() {
                 <LnRegRow
                   key={p.id}
                   name={p.name}
-                  status={toLnStatus(p.status)}
+                  status={(() => {
+                    const compliance = complianceByPet.get(p.id);
+                    return compliance
+                      ? lnPetStatusFromCompliance(
+                          { status: p.status, pregnancyStatus: p.pregnancyStatus },
+                          compliance,
+                        )
+                      : "registered";
+                  })()}
                   breed={speciesLabel(p.species)}
                   species={speciesLabel(p.species)}
                   photoSrc={petPhotoUrl(p.primaryPhotoStoragePath) ?? undefined}

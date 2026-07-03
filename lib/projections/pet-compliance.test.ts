@@ -4,6 +4,7 @@ import {
   type ComplianceEvent,
   type ComplianceInput,
   deriveComplianceState,
+  lnPetStatusFromCompliance,
 } from "@/lib/projections/pet-compliance";
 
 const NOW = new Date("2026-07-01T12:00:00Z");
@@ -266,5 +267,44 @@ describe("deriveComplianceState — ordering + summary", () => {
     );
     expect(state.summary).toEqual({ total: 3, ok: 2, label: "2 de 3 al día" });
     expect(state.worstTone).toBe("neutral");
+  });
+});
+
+describe("lnPetStatusFromCompliance — the single chip mapper (QA round 2 #4)", () => {
+  const notCompliant = deriveComplianceState(baseInput()); // 0 de 3 al día
+  const fullyCompliant = deriveComplianceState(
+    baseInput({
+      rabiesReminder: { variant: "upcoming", dueAt: new Date("2026-08-01T00:00:00Z") },
+      events: [
+        vaccination("Antirrábica", "2026-08-01T00:00:00Z", VET),
+        { eventType: "microchip_implanted", occurredAt: NOW, payload: {}, ...VET },
+        { eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...VET },
+      ],
+    }),
+  );
+
+  it("a fresh 0/3 pet is registered, never ok (AL DÍA)", () => {
+    expect(
+      lnPetStatusFromCompliance({ status: "active", pregnancyStatus: null }, notCompliant),
+    ).toBe("registered");
+  });
+
+  it("only full verified compliance earns ok", () => {
+    expect(fullyCompliant.summary.ok).toBe(fullyCompliant.summary.total);
+    expect(
+      lnPetStatusFromCompliance({ status: "active", pregnancyStatus: null }, fullyCompliant),
+    ).toBe("ok");
+  });
+
+  it("lost and pregnancy override compliance", () => {
+    expect(
+      lnPetStatusFromCompliance({ status: "lost", pregnancyStatus: null }, fullyCompliant),
+    ).toBe("lost");
+    expect(
+      lnPetStatusFromCompliance(
+        { status: "active", pregnancyStatus: "in_progress" },
+        fullyCompliant,
+      ),
+    ).toBe("pregnant");
   });
 });

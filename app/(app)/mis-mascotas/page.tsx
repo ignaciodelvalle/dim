@@ -18,14 +18,14 @@ import { attachments, db, ownerships, pets } from "@/db";
 import {
   countPendingApplications,
   countPendingTransfers,
-  fetchActiveReminders,
+  fetchComplianceStatesForPets,
 } from "@/lib/analytics/owner-dashboard";
-import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { PET_CARD_PHOTO_SELECT, PET_CARD_SELECT } from "@/lib/infra/pet-projections";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { resolveVetLanding } from "@/lib/infra/role-landing";
 import { petPhotoUrl } from "@/lib/infra/storage";
+import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
 import { and, count, eq, isNull } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";
@@ -62,60 +62,41 @@ export default async function MisMascotasPage({
   const { data: authData } = await supabase.auth.getUser();
   const userEmail = (authData?.user?.email ?? "").toLowerCase();
 
-  const [
-    ownedPets,
-    totalPetsCount,
-    activeReminders,
-    pendingApplicationsCount,
-    pendingTransfersCount,
-  ] = await Promise.all([
-    db
-      .select({
-        pet: PET_CARD_SELECT,
-        photo: PET_CARD_PHOTO_SELECT,
-        ownershipRole: ownerships.role,
-      })
-      .from(pets)
-      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-      .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-      .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)))
-      // Hard cap: prevents loading thousands of pet rows into JS for high-volume
-      // owners. Full pagination is tracked as a follow-up improvement.
-      .limit(MIS_MASCOTAS_LIMIT),
-    db
-      .select({ n: count() })
-      .from(ownerships)
-      .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)))
-      .then((r) => Number(r[0]?.n ?? 0)),
-    fetchActiveReminders(user.id),
-    countPendingApplications(user.id),
-    countPendingTransfers(user.id, userEmail),
-  ]);
+  const [ownedPets, totalPetsCount, pendingApplicationsCount, pendingTransfersCount] =
+    await Promise.all([
+      db
+        .select({
+          pet: PET_CARD_SELECT,
+          photo: PET_CARD_PHOTO_SELECT,
+          ownershipRole: ownerships.role,
+        })
+        .from(pets)
+        .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+        .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+        .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)))
+        // Hard cap: prevents loading thousands of pet rows into JS for high-volume
+        // owners. Full pagination is tracked as a follow-up improvement.
+        .limit(MIS_MASCOTAS_LIMIT),
+      db
+        .select({ n: count() })
+        .from(ownerships)
+        .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)))
+        .then((r) => Number(r[0]?.n ?? 0)),
+      countPendingApplications(user.id),
+      countPendingTransfers(user.id, userEmail),
+    ]);
 
-  // Highest-priority reminder variant per pet (for status dot derivation)
-  const reminderVariantByPet = new Map<string, ReminderVariant>();
-  for (const r of activeReminders) {
-    if (!reminderVariantByPet.has(r.petId)) {
-      reminderVariantByPet.set(r.petId, r.variant);
-    }
-  }
-
-  /** Derive the LnPetStatus from the pet row + reminders. */
-  function lnStatus(
-    petStatus: string,
-    petId: string,
-    pregnancyStatus: string | null,
-  ): "ok" | "sick" | "lost" | "pregnant" {
-    if (petStatus === "lost") return "lost";
-    if (pregnancyStatus === "in_progress") return "pregnant";
-    const rv = reminderVariantByPet.get(petId);
-    if (rv === "overdue_critical" || rv === "overdue" || rv === "due_soon") return "sick";
-    return "ok";
-  }
-
-  // Split into active (ok/sick/lost/pregnant) and deceased
+  // Split into active (ok/registered/lost/pregnant) and deceased
   const activePets = ownedPets.filter(({ pet }) => pet.status !== "deceased");
   const deceasedPets = ownedPets.filter(({ pet }) => pet.status === "deceased");
+
+  // Same compliance projection the pet-profile header derives — the list chip
+  // must agree with the detail header (QA round 2 2026-07-03 #4: one pet,
+  // three status truths). AL DÍA only when every obligation is verified-ok.
+  const complianceByPet = await fetchComplianceStatesForPets(
+    user.id,
+    activePets.map(({ pet }) => pet.id),
+  );
 
   return (
     <div className="mx-auto max-w-4xl px-[32px] py-[28px] pb-[48px]">
@@ -174,7 +155,13 @@ export default async function MisMascotasPage({
       ) : (
         <LnRegistry className="mb-[32px]">
           {activePets.map(({ pet, photo, ownershipRole }) => {
-            const st = lnStatus(pet.status, pet.id, pet.pregnancyStatus ?? null);
+            const compliance = complianceByPet.get(pet.id);
+            const st = compliance
+              ? lnPetStatusFromCompliance(
+                  { status: pet.status, pregnancyStatus: pet.pregnancyStatus ?? null },
+                  compliance,
+                )
+              : "registered";
             const isTransit = ownershipRole === "shelter_custody";
             const breedLine = [
               pet.breed,

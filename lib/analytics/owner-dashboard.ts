@@ -51,6 +51,13 @@ import {
   getReminderVariant,
   isVaccineReportable,
 } from "@/lib/domain/vaccine-reminder-state";
+import {
+  type ComplianceEvent,
+  type ComplianceState,
+  type RabiesReminder,
+  type ReservedRabiesTurno,
+  deriveComplianceState,
+} from "@/lib/projections/pet-compliance";
 
 // ---------------------------------------------------------------------------
 // Pets
@@ -74,6 +81,7 @@ export type DashboardPet = {
   name: string;
   species: string;
   status: string;
+  pregnancyStatus: string | null;
   color: string | null;
   primaryPhotoStoragePath: string | null;
   ownershipRole: string;
@@ -122,6 +130,7 @@ export async function fetchPetsForOwner(
       name: r.pet.name,
       species: r.pet.species,
       status: r.pet.status,
+      pregnancyStatus: r.pet.pregnancyStatus,
       color: r.pet.color,
       primaryPhotoStoragePath: r.photo?.storagePath ?? null,
       ownershipRole: r.ownershipRole,
@@ -1018,6 +1027,175 @@ export async function fetchActiveRemindersForPet(
   petId: string,
 ): Promise<ActiveReminderRow[]> {
   return fetchActiveRemindersBase(userId, petId);
+}
+
+// ---------------------------------------------------------------------------
+// Batch compliance projection — one status truth across surfaces
+// ---------------------------------------------------------------------------
+
+// Event types deriveComplianceState reads. A subset of
+// PROFILE_V2_TYPED_EVENT_TYPES — the lists only need the obligation events,
+// not medication/pregnancy/scan history.
+const COMPLIANCE_EVENT_TYPES = [
+  "vaccination_administered",
+  "sterilization_performed",
+  "microchip_implanted",
+  "dangerous_breed_attested",
+] as const;
+
+// Same rabies-reminder matcher the pet-profile header uses.
+const RABIES_TITLE_RE = /antirr[aá]b|rabi/i;
+
+/**
+ * Derive the compliance projection for a batch of pets in 4 bounded queries,
+ * so list surfaces (/inicio registry, /mis-mascotas) can show the SAME
+ * AL DÍA / REGISTRADA chip the pet-profile header derives — QA round 2
+ * (2026-07-03 #4) caught three different status truths for one pet.
+ *
+ * Deviation from the profile header's inputs: `microchipCode` is passed as
+ * null. The code only affects the card's detail text and the
+ * "Declarada · sin verificar" wording for an identification-without-implant
+ * pet — never whether the microchip obligation counts as ok — so the chip
+ * (ok ⇔ every obligation ok) is unaffected.
+ *
+ * Never throws — returns an empty map when petIds is empty.
+ */
+export async function fetchComplianceStatesForPets(
+  userId: string,
+  petIds: string[],
+): Promise<Map<string, ComplianceState>> {
+  if (petIds.length === 0) return new Map();
+  const now = new Date();
+
+  const [eventRows, reminderRows, petRows, turnoRows] = await Promise.all([
+    // Obligation events with provenance (H1: only professional/institutional
+    // events clear an obligation).
+    db
+      .select({
+        petId: petEvents.petId,
+        eventType: petEvents.eventType,
+        payload: petEvents.payload,
+        occurredAt: petEvents.occurredAt,
+        authorRole: petEvents.authorRole,
+        authorVerified: petEvents.authorVerified,
+        authorOrganizationId: petEvents.authorOrganizationId,
+      })
+      .from(petEvents)
+      .where(
+        and(
+          inArray(petEvents.petId, petIds),
+          inArray(petEvents.eventType, [...COMPLIANCE_EVENT_TYPES]),
+        ),
+      )
+      .orderBy(asc(petEvents.occurredAt)),
+    // Open vaccine reminders for these pets (variant computed below — same
+    // derivation as fetchActiveRemindersBase).
+    db
+      .select({
+        petId: reminders.petId,
+        title: reminders.title,
+        dueAt: reminders.dueAt,
+        petSpecies: pets.species,
+        petLocality: pets.jurisdictionLocality,
+      })
+      .from(reminders)
+      .innerJoin(pets, eq(pets.id, reminders.petId))
+      .where(
+        and(
+          eq(reminders.userId, userId),
+          eq(reminders.reminderType, "vaccine"),
+          isNull(reminders.completedAt),
+          or(isNull(reminders.snoozedUntil), lte(reminders.snoozedUntil, now)),
+          inArray(reminders.petId, petIds),
+        ),
+      ),
+    // PPP jurisdiction gate.
+    db
+      .select({ id: pets.id, ppp: pets.potentiallyDangerousBreed })
+      .from(pets)
+      .where(inArray(pets.id, petIds)),
+    // Reserved rabies turnos (WS-2) — presence flips the rabies card to
+    // "Turno reservado", which is NOT ok, matching the header.
+    db
+      .select({ petId: appointments.petId, slotStartsAt: timeSlots.startsAt })
+      .from(appointments)
+      .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
+      .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
+      .where(
+        and(
+          inArray(appointments.petId, petIds),
+          eq(appointments.status, "confirmed"),
+          eq(serviceOfferings.serviceKind, "vaccination_rabies"),
+          gte(timeSlots.startsAt, now),
+        ),
+      )
+      .orderBy(asc(timeSlots.startsAt)),
+  ]);
+
+  const eventsByPet = new Map<string, ComplianceEvent[]>();
+  for (const r of eventRows) {
+    const list = eventsByPet.get(r.petId) ?? [];
+    list.push({
+      eventType: r.eventType,
+      payload: r.payload,
+      occurredAt: r.occurredAt,
+      authorRole: r.authorRole,
+      authorVerified: r.authorVerified,
+      authorOrganizationId: r.authorOrganizationId,
+    });
+    eventsByPet.set(r.petId, list);
+  }
+
+  // Highest-priority rabies reminder per pet — same variant ordering the
+  // dashboard uses, then first title match (mirrors the profile header's
+  // petActiveReminders.find).
+  const rabiesReminderByPet = new Map<string, RabiesReminder>();
+  const reminderCandidates = reminderRows
+    .filter((r) => RABIES_TITLE_RE.test(r.title))
+    .map((r) => {
+      const daysUntilDue = Math.round((r.dueAt.getTime() - now.getTime()) / MS_PER_DAY);
+      const reportable = isVaccineReportable(r.title, r.petSpecies, r.petLocality ?? "");
+      return {
+        petId: r.petId,
+        dueAt: r.dueAt,
+        variant: getReminderVariant(daysUntilDue, reportable),
+      };
+    })
+    .sort((a, b) => {
+      const orderDiff = VARIANT_ORDER[a.variant] - VARIANT_ORDER[b.variant];
+      if (orderDiff !== 0) return orderDiff;
+      return a.dueAt.getTime() - b.dueAt.getTime();
+    });
+  for (const r of reminderCandidates) {
+    if (!rabiesReminderByPet.has(r.petId)) {
+      rabiesReminderByPet.set(r.petId, { variant: r.variant, dueAt: r.dueAt });
+    }
+  }
+
+  const turnoByPet = new Map<string, ReservedRabiesTurno>();
+  for (const r of turnoRows) {
+    if (r.petId !== null && !turnoByPet.has(r.petId)) {
+      turnoByPet.set(r.petId, { date: r.slotStartsAt, provider: null });
+    }
+  }
+
+  const pppByPet = new Map(petRows.map((r) => [r.id, Boolean(r.ppp)]));
+
+  const result = new Map<string, ComplianceState>();
+  for (const petId of petIds) {
+    result.set(
+      petId,
+      deriveComplianceState({
+        now,
+        events: eventsByPet.get(petId) ?? [],
+        rabiesReminder: rabiesReminderByPet.get(petId) ?? null,
+        reservedRabiesTurno: turnoByPet.get(petId) ?? null,
+        microchipCode: null,
+        pppApplies: pppByPet.get(petId) ?? false,
+      }),
+    );
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------

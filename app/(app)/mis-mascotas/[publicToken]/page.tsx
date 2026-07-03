@@ -84,7 +84,7 @@ import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credenti
 import { getPhysicalTagInterest } from "@/lib/infra/physical-tag-interest";
 import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/infra/service-dog-labels";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/infra/storage";
-import { deriveComplianceState } from "@/lib/projections/pet-compliance";
+import { deriveComplianceState, lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
 import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/utils/format";
 import { and, asc, desc, eq, gt, isNull, notInArray } from "drizzle-orm";
 import Link from "next/link";
@@ -456,16 +456,13 @@ export default async function PetDetailPage({
   // memorial ring state) — the memorial skin lives entirely in CredentialFace's
   // `memorial` prop below (ribbon + sepia tone), which is a stronger signal.
   //
-  // AL DÍA ("ok") is a compliance claim, not an aliveness claim: the header
-  // chip must agree with the compliance panel on the same screen (QA
-  // 2026-07-03 caught AL DÍA next to "0 de 3 al día"). Only claim it when
-  // every tracked obligation is satisfied; otherwise the credential is
-  // simply REGISTRADA.
-  const lnPetStatus: "ok" | "registered" | "sick" | "lost" | "pregnant" = (() => {
-    if (pet.status === "lost") return "lost";
-    if (pet.pregnancyStatus === "in_progress") return "pregnant";
-    return complianceState.summary.ok === complianceState.summary.total ? "ok" : "registered";
-  })();
+  // lnPetStatusFromCompliance is the SINGLE mapper shared with the /inicio
+  // registry and the /mis-mascotas list, so the header chip and every row
+  // chip always agree (QA round 2 2026-07-03 #4).
+  const lnPetStatus = lnPetStatusFromCompliance(
+    { status: pet.status, pregnancyStatus: pet.pregnancyStatus ?? null },
+    complianceState,
+  );
 
   // QR for the credential's Face 1 — same absolute-URL + inline-SVG pattern
   // as /mis-mascotas/nueva/[publicToken]/credencial and /cartel (no separate

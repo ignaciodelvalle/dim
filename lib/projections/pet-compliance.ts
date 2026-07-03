@@ -314,6 +314,28 @@ function derivePpp(input: ComplianceInput): ObligationCard {
 }
 
 /**
+ * Map a pet row + its compliance projection onto the status chip shown on the
+ * credential header and every pet list row (LnStatusFlag / LnRegRow).
+ *
+ * AL DÍA ("ok") is a COMPLIANCE claim, not an aliveness claim — it is only
+ * granted when every tracked obligation is verified-satisfied; otherwise the
+ * credential is simply REGISTRADA. Lost and pregnancy override compliance.
+ *
+ * This is THE single mapper for every surface that shows the chip (detail
+ * header, /inicio registry, /mis-mascotas list) — QA round 2 (2026-07-03)
+ * caught the same pet reading "AL DÍA" on the lists and "REGISTRADA · 0 de 3
+ * al día" on its own header.
+ */
+export function lnPetStatusFromCompliance(
+  pet: { status: string; pregnancyStatus: string | null },
+  compliance: ComplianceState,
+): "ok" | "registered" | "lost" | "pregnant" {
+  if (pet.status === "lost") return "lost";
+  if (pet.pregnancyStatus === "in_progress") return "pregnant";
+  return compliance.summary.ok === compliance.summary.total ? "ok" : "registered";
+}
+
+/**
  * Compose the four owner obligations into an ordered, summarized compliance
  * view. Cards are sorted worst-state first; the PPP card is omitted entirely
  * when it does not apply to the pet's jurisdiction.
