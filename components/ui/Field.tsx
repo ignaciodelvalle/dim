@@ -106,6 +106,61 @@ export function LnField({
   );
 }
 
+// ---------- Localized native validation ------------------------------------
+//
+// Native HTML5 constraint bubbles ("Please fill out this field.") follow the
+// BROWSER language, not the page's lang attribute — an es-AR product must not
+// surface English validation (QA round 2 2026-07-03 #6). Every LN control
+// localizes the bubble via setCustomValidity at `invalid` time and clears it
+// on input so re-validation runs against the native constraints again.
+
+type ValidatableControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+
+/** es-AR message for the control's current ValidityState. Exported for tests. */
+export function localizedValidationMessage(el: ValidatableControl): string {
+  const v = el.validity;
+  if (v.valueMissing) return "Completá este campo.";
+  if (v.typeMismatch && el instanceof HTMLInputElement && el.type === "email")
+    return "Ingresá una dirección de email válida.";
+  if (v.typeMismatch && el instanceof HTMLInputElement && el.type === "url")
+    return "Ingresá una URL válida.";
+  if (v.patternMismatch) return "Revisá el formato de este campo.";
+  if (v.tooShort && "minLength" in el && el.minLength > 0)
+    return `Usá al menos ${el.minLength} caracteres.`;
+  if (v.tooLong && "maxLength" in el && el.maxLength > 0)
+    return `Usá como máximo ${el.maxLength} caracteres.`;
+  if (v.rangeUnderflow && el instanceof HTMLInputElement)
+    return `El valor debe ser ${el.min} o mayor.`;
+  if (v.rangeOverflow && el instanceof HTMLInputElement)
+    return `El valor debe ser ${el.max} o menor.`;
+  if (v.stepMismatch || v.badInput) return "Ingresá un valor válido.";
+  return "Revisá este campo.";
+}
+
+/**
+ * Compose the caller's handlers with the localization ones. The `invalid`
+ * handler must set the message synchronously so the bubble the browser is
+ * about to display already carries the es-AR copy; clearing on input lets the
+ * next validation pass re-evaluate the native constraints from scratch.
+ */
+function withLocalizedValidity<E extends ValidatableControl>(rest: {
+  onInvalid?: React.FormEventHandler<E>;
+  onInput?: React.FormEventHandler<E>;
+}): { onInvalid: React.FormEventHandler<E>; onInput: React.FormEventHandler<E> } {
+  return {
+    onInvalid: (e) => {
+      rest.onInvalid?.(e);
+      if (!e.defaultPrevented) {
+        e.currentTarget.setCustomValidity(localizedValidationMessage(e.currentTarget));
+      }
+    },
+    onInput: (e) => {
+      e.currentTarget.setCustomValidity("");
+      rest.onInput?.(e);
+    },
+  };
+}
+
 // ---------- Shared control base classes -----------------------------------
 
 // Wave 2 Item 9: text-base on mobile prevents iOS Safari auto-zoom on focus;
@@ -135,6 +190,7 @@ export function LnInput({ invalid = false, mono = false, className = "", ...rest
         .filter(Boolean)
         .join(" ")}
       {...rest}
+      {...withLocalizedValidity<HTMLInputElement>(rest)}
     />
   );
 }
@@ -161,6 +217,7 @@ export function LnSelect({ invalid = false, className = "", children, ...rest }:
         .filter(Boolean)
         .join(" ")}
       {...rest}
+      {...withLocalizedValidity<HTMLSelectElement>(rest)}
     >
       {children}
     </select>
@@ -179,6 +236,7 @@ export function LnTextarea({ invalid = false, className = "", ...rest }: LnTexta
       aria-invalid={invalid || undefined}
       className={[controlBase, "resize-y leading-[1.5]", className].filter(Boolean).join(" ")}
       {...rest}
+      {...withLocalizedValidity<HTMLTextAreaElement>(rest)}
     />
   );
 }
@@ -265,6 +323,7 @@ export function LnCheckbox({
         .filter(Boolean)
         .join(" ")}
       {...rest}
+      {...withLocalizedValidity<HTMLInputElement>(rest)}
     />
   );
 
@@ -322,6 +381,7 @@ export function LnRadio({
         .filter(Boolean)
         .join(" ")}
       {...rest}
+      {...withLocalizedValidity<HTMLInputElement>(rest)}
     />
   );
 
