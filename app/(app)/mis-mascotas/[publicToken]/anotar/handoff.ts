@@ -4,21 +4,28 @@
 // plugin can't handle).
 
 import type { EventType } from "@/db/schema";
+import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
 import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 
-// Builds the URL EventCatcher uses to hand off typed text + chosen kind to
-// the matcher page. Pure function, lives outside EventCatcher.tsx so the
-// vitest import-analysis can parse it without JSX.
+// Builds the URL EventCatcher / EventCatcherSingle use to hand off typed
+// text + chosen kind to the capture surface. Pure function, lives outside
+// EventCatcher.tsx so the vitest import-analysis can parse it without JSX.
+//
+// Flow audit 2026-07-03: the target is the PROFILE with ?sheet=anotar — the
+// canonical capture surface — not the standalone /anotar page. From the
+// profile itself this is a same-route shallow sheet open (pushSheetUrl);
+// from /inicio it is one real navigation that lands the user on the pet's
+// profile with the capture sheet already open, instead of a dead-end page.
+// The /anotar page remains as a deep-link fallback route (old notification
+// CTAs still point there).
 export function buildAnotarUrl(
   publicToken: string,
   opts: { text?: string; kind?: EventType },
 ): string {
-  const base = `/mis-mascotas/${publicToken}/anotar`;
-  const params = new URLSearchParams();
+  const params = new URLSearchParams({ sheet: "anotar" });
   if (opts.kind) params.set("kind", opts.kind);
   if (opts.text) params.set("text", opts.text);
-  const qs = params.toString();
-  return qs ? `${base}?${qs}` : base;
+  return `/mis-mascotas/${publicToken}?${params.toString()}`;
 }
 
 // Quick-action cards shown in the capture box grid. Each links to a form
@@ -154,4 +161,45 @@ export function buildKindDeeplink(
     slots[noteKey] = text;
   }
   return buildCaptureDeeplink(eventType, publicToken, slots);
+}
+
+/**
+ * Resolve a capture intent (a known `kind`, or free text the deterministic
+ * matcher recognizes) into its target URL WITHOUT rendering anything —
+ * flow audit 2026-07-03 no-flash fix. SheetMounter calls this before
+ * mounting the anotar sheet: a resolvable deep link redirects straight to
+ * its form (sheet shorthand or full page) so the user never sees the anotar
+ * sheet flash open and immediately navigate away.
+ *
+ * Returns null when there is nothing to resolve (no kind/text, or the
+ * matcher didn't recognize the text) — the anotar sheet then renders
+ * normally and CaptureBox surfaces the "no reconocemos eso" UI.
+ */
+export function resolveCaptureIntentUrl(
+  publicToken: string,
+  opts: { kind?: string; text?: string },
+): string | null {
+  if (opts.kind) {
+    const url = buildKindDeeplink(
+      opts.kind as EventType,
+      publicToken,
+      opts.text?.trim() || undefined,
+    );
+    if (url) return url;
+  }
+  const trimmed = opts.text?.trim();
+  if (!trimmed) return null;
+  const match = matchCaptureIntent(trimmed);
+  if (!match) return null;
+  if (match.routeOverride) {
+    const base = `/mis-mascotas/${publicToken}${match.routeOverride}`;
+    const sep = match.routeOverride.includes("?") ? "&" : "?";
+    const slotParams = new URLSearchParams();
+    for (const [k, v] of Object.entries(match.slots)) {
+      if (v !== "" && v !== undefined) slotParams.set(k, v);
+    }
+    const qs = slotParams.toString();
+    return qs ? `${base}${sep}${qs}` : base;
+  }
+  return buildCaptureDeeplink(match.eventType, publicToken, match.slots);
 }

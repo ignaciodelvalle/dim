@@ -151,9 +151,10 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
     startTransition(async () => {
       const { url } = await quickCaptureAction(token, trimmed);
       // If the action matched a pattern, go straight to the form. Otherwise
-      // fall back to /anotar?text=... so CaptureBox can surface the
-      // "no reconocemos eso" UI — identical to the previous behavior.
-      go(url ?? `/mis-mascotas/${token}/anotar?text=${encodeURIComponent(trimmed)}`);
+      // fall back to the profile's ?sheet=anotar so CaptureBox can surface
+      // the "no reconocemos eso" UI on the pet's own profile (flow audit
+      // 2026-07-03 — home capture no longer strands the user on /anotar).
+      go(url ?? buildAnotarUrl(token, { text: trimmed }));
     });
   }
 

@@ -9,19 +9,25 @@ import { buildAnotarUrl } from "@/app/(app)/mis-mascotas/[publicToken]/anotar/ha
 const TOKEN = "DIM-TEST-TOKEN";
 
 describe("buildAnotarUrl", () => {
-  it("kind only produces kind param", () => {
+  // Flow audit 2026-07-03: the handoff target is the PROFILE with
+  // ?sheet=anotar (canonical capture surface) — same-route shallow open from
+  // the profile, one navigation from /inicio — never the standalone /anotar
+  // page (kept only as a deep-link fallback route).
+  it("kind only produces the profile sheet URL with kind param", () => {
     const url = buildAnotarUrl(TOKEN, { kind: "vaccination_administered" });
-    expect(url).toBe(`/mis-mascotas/${TOKEN}/anotar?kind=vaccination_administered`);
+    expect(url).toBe(`/mis-mascotas/${TOKEN}?sheet=anotar&kind=vaccination_administered`);
   });
 
-  it("kind + text produces both params", () => {
+  it("kind + text produces both params on the profile sheet URL", () => {
     const url = buildAnotarUrl(TOKEN, { kind: "vaccination_administered", text: "vacuna" });
+    expect(url).toContain(`/mis-mascotas/${TOKEN}?sheet=anotar`);
     expect(url).toContain("kind=vaccination_administered");
     expect(url).toContain("text=vacuna");
   });
 
   it("text only produces text param without kind", () => {
     const url = buildAnotarUrl(TOKEN, { text: "vacuna" });
+    expect(url).toContain("sheet=anotar");
     expect(url).toContain("text=vacuna");
     expect(url).not.toContain("kind=");
   });
