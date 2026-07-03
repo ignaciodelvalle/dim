@@ -26,7 +26,7 @@ import {
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
+import { TARGETS, buildProjectionContext, enoSlaTone, toneForTarget } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
@@ -137,11 +137,7 @@ export default async function GobSistemaPage({
         <OpKpi
           label="SLA ENO (resueltos)"
           value={enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
-          tone={
-            enoSla.onTimePct !== null
-              ? toneForTarget(enoSla.onTimePct, TARGETS.ENO_SLA_PCT)
-              : undefined
-          }
+          tone={enoSlaTone(enoSla)}
           sub={
             enoSla.breachedOpen > 0
               ? `${enoSla.breachedOpen} en incumplimiento activo`

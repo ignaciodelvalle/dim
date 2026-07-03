@@ -13,7 +13,7 @@
 // Tokens: relies entirely on OpKpi (design tokens `ln-op-*`). No raw colours.
 
 import { OpKpi } from "@/components/ui/dashboard";
-import { TARGETS, toneForTarget } from "@/lib/metrics";
+import { enoSlaTone } from "@/lib/metrics";
 
 export type AdminKpiStripData = {
   /** Total personal accounts (count). */
@@ -104,9 +104,7 @@ export function AdminKpiStrip({ data }: { data: AdminKpiStripData }) {
         <OpKpi
           label="SLA ENO"
           value={eno.onTimePct !== null ? `${eno.onTimePct}%` : "—"}
-          tone={
-            eno.onTimePct !== null ? toneForTarget(eno.onTimePct, TARGETS.ENO_SLA_PCT) : undefined
-          }
+          tone={enoSlaTone(eno)}
           sub={
             eno.breachedOpen > 0
               ? `${eno.breachedOpen} en breach activo`

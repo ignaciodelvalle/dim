@@ -35,6 +35,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,
+  enoSlaTone,
   evaluateAlertSubscriptions,
   fetchCrossJurisdictionOutliers,
   fetchDataQuality,
@@ -241,11 +242,7 @@ export default async function GobProgramaPage({
         <OpKpi
           label="SLA ENO"
           value={enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
-          tone={
-            enoSla.onTimePct !== null
-              ? toneForTarget(enoSla.onTimePct, TARGETS.ENO_SLA_PCT)
-              : undefined
-          }
+          tone={enoSlaTone(enoSla)}
           sub={
             enoSla.breachedOpen > 0
               ? `${enoSla.breachedOpen} en breach activo`

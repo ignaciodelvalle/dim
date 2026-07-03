@@ -36,6 +36,7 @@ import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,
+  enoSlaTone,
   evaluateAlertSubscriptions,
   fetchCrossJurisdictionOutliers,
   fetchDataQuality,
@@ -250,11 +251,7 @@ export default async function AdminProgramaPage({
         <OpKpi
           label="SLA ENO (resueltos)"
           value={enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
-          tone={
-            enoSla.onTimePct !== null
-              ? toneForTarget(enoSla.onTimePct, TARGETS.ENO_SLA_PCT)
-              : undefined
-          }
+          tone={enoSlaTone(enoSla)}
           sub={
             enoSla.breachedOpen > 0
               ? `${enoSla.breachedOpen} en incumplimiento activo`

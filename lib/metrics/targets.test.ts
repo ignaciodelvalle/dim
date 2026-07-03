@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { TARGETS, computeDeltaPct, decisionsDeltaPct, toneForTarget } from "./targets";
+import { TARGETS, computeDeltaPct, decisionsDeltaPct, enoSlaTone, toneForTarget } from "./targets";
 
 // ---------------------------------------------------------------------------
 // 1. TARGETS constant
@@ -210,5 +210,32 @@ describe("decisionsDeltaPct — value-pinning (C28)", () => {
     expect(
       decisionsDeltaPct({ approved7d: 10, rejected7d: 0, approved30d: 11, rejected30d: 0 }),
     ).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enoSlaTone — open breaches degrade the tile tone (QA 2026-07-03)
+// ---------------------------------------------------------------------------
+
+describe("enoSlaTone", () => {
+  it("returns the percentage tone when there are no open breaches", () => {
+    expect(enoSlaTone({ onTimePct: 100, breachedOpen: 0 })).toBe("ok");
+    expect(enoSlaTone({ onTimePct: 60, breachedOpen: 0 })).toBe("warn");
+    expect(enoSlaTone({ onTimePct: 10, breachedOpen: 0 })).toBe("danger");
+  });
+
+  it("never reads 'ok' while notifications are in active breach", () => {
+    // The regression: 100% delivered-on-time rendered "Normal" next to
+    // "12 en breach activo".
+    expect(enoSlaTone({ onTimePct: 100, breachedOpen: 12 })).toBe("warn");
+  });
+
+  it("keeps 'danger' when the percentage tone is already danger", () => {
+    expect(enoSlaTone({ onTimePct: 10, breachedOpen: 3 })).toBe("danger");
+  });
+
+  it("warns on open breaches even without a percentage", () => {
+    expect(enoSlaTone({ onTimePct: null, breachedOpen: 1 })).toBe("warn");
+    expect(enoSlaTone({ onTimePct: null, breachedOpen: 0 })).toBeUndefined();
   });
 });

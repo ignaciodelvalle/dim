@@ -144,6 +144,27 @@ export function toneForTarget(value: number, target: number, opts: ToneOpts = {}
 }
 
 // ---------------------------------------------------------------------------
+// enoSlaTone — tone for the SLA ENO KPI tile (A7)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tone for the SLA ENO tile. The on-time percentage only counts DELIVERED
+ * notifications, so it can read 100% while notifications sit past their
+ * sla_due_at undelivered — QA 2026-07-03 caught "100% · Normal" rendered
+ * next to "12 en breach activo". Open breaches must degrade the tone
+ * regardless of the delivered-on-time percentage.
+ */
+export function enoSlaTone(eno: {
+  onTimePct: number | null;
+  breachedOpen: number;
+}): ToneResult | undefined {
+  const pctTone =
+    eno.onTimePct !== null ? toneForTarget(eno.onTimePct, TARGETS.ENO_SLA_PCT) : undefined;
+  if (eno.breachedOpen > 0) return pctTone === "danger" ? "danger" : "warn";
+  return pctTone;
+}
+
+// ---------------------------------------------------------------------------
 // computeDeltaPct — percent change vs a prior-period value
 // ---------------------------------------------------------------------------
 
