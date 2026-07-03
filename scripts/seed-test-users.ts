@@ -19,7 +19,8 @@
  *   owner@dim.test       → role=owner, 3 mascotas + 1 reminder
  *   vet@dim.test         → role=vet (via approval flow)
  *   orgadmin@dim.test    → admin de "Refugio Test (Seed)" (verified via flow)
- *   govt@dim.test        → role=govt, CABA + La Plata
+ *   govt@dim.test        → role=govt, Ushuaia + El Calafate (remote)
+ *   govt-local@dim.test  → role=govt, La Plata + CABA/Palermo (local)
  *
  * Idempotent — safe to re-run.
  *
@@ -107,6 +108,13 @@ const {
   reminders,
 } = await import("../db");
 const { generatePublicToken } = await import("@/lib/infra/publicToken");
+// Safe to import: does NOT transitively pull in lib/supabase/admin.ts
+// (server-only), unlike createInstitutionalAccountForAuthority. Used to
+// canonicalize govt_assignments locations before this script inserts them
+// directly (see provisionGovt below — issue #758).
+const { JurisdictionValidationError, resolveCanonicalJurisdiction } = await import(
+  "@/lib/infra/jurisdiction-validation"
+);
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -151,7 +159,7 @@ const GOVT_REMOTE_LOCALITIES = [
 // over green test suite for the seed.
 const GOVT_LOCAL_LOCALITIES = [
   { province: "Buenos Aires", locality: "La Plata" },
-  { province: "Buenos Aires", locality: "CABA" },
+  { province: "CABA", locality: "Palermo" },
 ];
 
 // Coverage zones for the seed refugio — required for Lost & Found Fase 6
@@ -162,7 +170,7 @@ const ORG_COVERAGE_ZONES: Array<{
   isPrimary: boolean;
 }> = [
   { province: "Buenos Aires", locality: "La Plata", isPrimary: true },
-  { province: "Buenos Aires", locality: "CABA", isPrimary: false },
+  { province: "CABA", locality: "Palermo", isPrimary: false },
 ];
 
 // ---------------------------------------------------------------------------
@@ -173,7 +181,7 @@ const supabase: SupabaseClient = createSdkClient(SUPABASE_URL, SERVICE_ROLE_KEY,
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-type LogTag = "STEP" | "OK" | "SKIP" | "WARN" | "INFO" | "DONE";
+type LogTag = "STEP" | "OK" | "SKIP" | "WARN" | "INFO" | "DONE" | "ERROR";
 function log(tag: LogTag, msg: string) {
   console.log(`[${tag.padEnd(4)}] ${msg}`);
 }
@@ -506,15 +514,42 @@ async function provisionGovt(
         .where(eq(profiles.id, id));
 
       // Insert any govt_assignments that don't already exist (idempotent).
+      // Each loc is resolved through the SAME canonical catalog the real
+      // writers use (resolveCanonicalJurisdiction) before it ever touches
+      // govt_assignments — this script bypasses createInstitutionalAccountForAuthority
+      // (server-only import, see note above), so it must not bypass its
+      // canonicalization guarantee too. Fail loud on garbage input rather
+      // than silently insert a locality that will never resolve at read
+      // time (issue #758).
       for (const loc of config.localities) {
+        let canonicalProvince: string;
+        let canonicalLocality: string;
+        try {
+          const resolved = await resolveCanonicalJurisdiction({
+            rawProvince: loc.province,
+            rawLocality: loc.locality,
+          });
+          canonicalProvince = resolved.province.name;
+          canonicalLocality = resolved.locality.localityName;
+        } catch (err) {
+          if (err instanceof JurisdictionValidationError) {
+            log(
+              "ERROR",
+              `${config.email}: jurisdicción inválida (${loc.province} / ${loc.locality}) — ${err.message}`,
+            );
+            process.exit(2);
+          }
+          throw err;
+        }
+
         const [existing] = await tx
           .select({ id: govtAssignments.id })
           .from(govtAssignments)
           .where(
             and(
               eq(govtAssignments.userId, id),
-              eq(govtAssignments.jurisdictionProvince, loc.province),
-              eq(govtAssignments.jurisdictionLocality, loc.locality),
+              eq(govtAssignments.jurisdictionProvince, canonicalProvince),
+              eq(govtAssignments.jurisdictionLocality, canonicalLocality),
               isNull(govtAssignments.revokedAt),
             ),
           )
@@ -522,8 +557,8 @@ async function provisionGovt(
         if (existing) continue;
         await tx.insert(govtAssignments).values({
           userId: id,
-          jurisdictionProvince: loc.province,
-          jurisdictionLocality: loc.locality,
+          jurisdictionProvince: canonicalProvince,
+          jurisdictionLocality: canonicalLocality,
           grantedByUserId: adminId,
         });
       }
@@ -1015,7 +1050,7 @@ async function main() {
   );
   console.log(`  ${EMAILS.orgAdmin.padEnd(24)}  role=owner   → /org/${orgToken}`);
   console.log(`  ${EMAILS.govt.padEnd(24)}  role=govt    → /gob (Ushuaia + El Calafate)`);
-  console.log(`  ${EMAILS.govtLocal.padEnd(24)}  role=govt    → /gob (La Plata + CABA)`);
+  console.log(`  ${EMAILS.govtLocal.padEnd(24)}  role=govt    → /gob (La Plata + CABA/Palermo)`);
   console.log(`\n  Refugio portal:   /org/${orgToken}`);
   console.log("  Admin DIM:        /admin");
   console.log("  Gobierno:         /gob");

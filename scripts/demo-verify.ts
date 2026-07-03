@@ -70,8 +70,11 @@ const {
 // 4. Constants
 // ---------------------------------------------------------------------------
 
+// Must match FOCAL_LOCALITY in scripts/seed-demo-scenario.ts — "CABA" is not
+// a valid locality_name in ar_localities (issue #758); the componente record
+// for the whole city resolves under this canonical name instead.
 const FOCAL_PROVINCE = "CABA";
-const FOCAL_LOCALITY = "CABA";
+const FOCAL_LOCALITY = "Ciudad Autónoma de Buenos Aires";
 const REQUIRED_MONTHS = 4;
 
 type CheckResult = { label: string; ok: boolean; detail?: string };
