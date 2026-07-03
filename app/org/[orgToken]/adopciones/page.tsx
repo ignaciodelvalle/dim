@@ -21,6 +21,7 @@ import type { AdoptionQueueRow, AdoptionQueueStatus } from "@/components/Adoptio
 import { OpCard, OpCardBody } from "@/components/ui/dashboard";
 import { db } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { safePayloadUuid } from "@/lib/infra/sql-fragments";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 export const dynamic = "force-dynamic";
@@ -123,7 +124,7 @@ export default async function AdoptionReviewIndexPage({
         AND o.role = 'shelter_custody'
         AND o.ended_at IS NULL
         AND o.owner_organization_id = ${organization.id}
-      LEFT JOIN profiles pr ON pr.id = (s.payload->>'applicant_user_id')::uuid
+      LEFT JOIN profiles pr ON pr.id = ${safePayloadUuid(sql`s.payload->>'applicant_user_id'`)}
       WHERE s.event_type = 'adoption_application_submitted'
         AND NOT EXISTS (
           SELECT 1 FROM pet_events d
@@ -169,7 +170,7 @@ export default async function AdoptionReviewIndexPage({
       JOIN ownerships o ON o.pet_id = p.id
         AND o.role = 'shelter_custody'
         AND o.owner_organization_id = ${organization.id}
-      LEFT JOIN profiles pr ON pr.id = (s.payload->>'applicant_user_id')::uuid
+      LEFT JOIN profiles pr ON pr.id = ${safePayloadUuid(sql`s.payload->>'applicant_user_id'`)}
       JOIN pet_events res ON res.pet_id = s.pet_id
         AND res.event_type = 'adoption_application_resolved'
         AND res.payload->>'application_event_id' = s.id::text

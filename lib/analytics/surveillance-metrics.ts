@@ -33,6 +33,7 @@ import { and, count, eq, gte, lte, sql } from "drizzle-orm";
 
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { safePayloadUuid } from "@/lib/infra/sql-fragments";
 import {
   type DashboardJurisdiction,
   type ProjectionContext,
@@ -227,7 +228,7 @@ async function fetchRabiesComplianceForScope(
       )::text AS within
     FROM pet_events ended
     JOIN pet_events started
-      ON started.id = (ended.payload->>'observation_started_event_id')::uuid
+      ON started.id = ${safePayloadUuid(sql`ended.payload->>'observation_started_event_id'`)}
     JOIN pets ON pets.id = ended.pet_id
     WHERE ended.event_type = 'rabies_observation_ended'
       AND ended.occurred_at >= ${sinceIso}::timestamptz
@@ -247,7 +248,7 @@ async function fetchRabiesComplianceForScope(
       AND NOT EXISTS (
         SELECT 1 FROM pet_events ended
         WHERE ended.event_type = 'rabies_observation_ended'
-          AND (ended.payload->>'observation_started_event_id')::uuid = started.id
+          AND ${safePayloadUuid(sql`ended.payload->>'observation_started_event_id'`)} = started.id
       )
       ${scopeFragment}
   `);
