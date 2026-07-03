@@ -7,6 +7,16 @@
 // with the same filters the server used), and feeds the active layers to the
 // (dynamic) SituationalMap. Perdidas is mounted server-side and seeded here as
 // the default-on layer, so its features paint on first render without a fetch.
+//
+// map-QOL fluid state: the whole board (active layers, aggregation level,
+// preset, period) is URL-encoded (`?layers=&level=&preset=&period=`) and
+// committed via the shallow History API (lib/ui/map-layer-nav.ts) — never a
+// document navigation. This SUPERSEDES the interim `window.location.assign`
+// cure from commit 0e94f198: preset period commits now stay on the client
+// (shallow pushState + client refetch of KPIs and layers), immune to the
+// Next 15.5.x router-drop defect because no router transition is involved.
+// The URL is the state; localStorage only remembers the last board so a bare
+// URL can offer a one-time, subtle restore.
 
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -21,8 +31,9 @@ import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynam
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
+import { pushMapStateUrl, replaceMapStateUrl } from "@/lib/ui/map-layer-nav";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
-import { checkCompatibility } from "@/src/modules/panorama/domain/compatibility";
+import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import {
   AGGREGATED_POINT_IDS,
   AGGREGATED_POINT_LAYERS,
@@ -63,6 +74,74 @@ type ApiResponse = {
 
 // The two choropleth layer ids — the only layers the aggregation level affects.
 const CHOROPLETH_IDS = new Set<LayerId>(CHOROPLETH_LAYERS.map((l) => l.id));
+
+// ---------------------------------------------------------------------------
+// map-QOL URL-as-state helpers
+// ---------------------------------------------------------------------------
+
+// Params that change WHAT data the server would compute (scope + period).
+// The cache-invalidation and KPI-refetch effects key on THIS subset only, so
+// the client-only board params (layers/level/preset) written by the shallow
+// URL sync never wipe the layer caches or refetch KPIs.
+const SCOPE_PERIOD_KEYS = ["period", "from", "to", "province", "locality"] as const;
+
+const BOARD_STORAGE_KEY = "panorama:board:v1";
+
+type SavedBoard = {
+  layers: string;
+  level: AggregationLevel;
+  preset: string | null;
+  period: string | null;
+};
+
+/** The scope+period subset of a query string, in stable key order. */
+function scopePeriodQsOf(params: URLSearchParams): string {
+  const out = new URLSearchParams();
+  for (const key of SCOPE_PERIOD_KEYS) {
+    const value = params.get(key);
+    if (value !== null) out.set(key, value);
+  }
+  return out.toString();
+}
+
+/**
+ * Parses the `layers` URL param into validated layer ids.
+ * Returns null when the param is absent (no explicit board in the URL);
+ * an empty array is a valid, explicit "all layers off" board.
+ */
+function parseLayersParam(raw: string | null): LayerId[] | null {
+  if (raw === null) return null;
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s): s is LayerId => Boolean(getLayer(s as LayerId)));
+}
+
+/**
+ * Canonical `layers` param value for a set of active ids: registry order,
+ * comma-joined. Both onPreset and the URL-sync effect emit this form so the
+ * URL is stable regardless of activation order.
+ */
+function canonicalLayersKey(ids: readonly LayerId[]): string {
+  return PANORAMA_LAYERS.filter((l) => ids.includes(l.id))
+    .map((l) => l.id)
+    .join(",");
+}
+
+/** Persists the board (layers/level/preset/period) for the bare-URL restore. */
+function saveBoard(params: URLSearchParams): void {
+  try {
+    const board: SavedBoard = {
+      layers: params.get("layers") ?? "",
+      level: params.get("level") === "locality" ? "locality" : "province",
+      preset: params.get("preset"),
+      period: params.get("period"),
+    };
+    window.localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(board));
+  } catch {
+    // Storage unavailable (private mode, quota) — the board just isn't remembered.
+  }
+}
 
 type Props = {
   /** Default-on layer id (perdidas) — its features come pre-resolved from the server. */
@@ -127,20 +206,45 @@ export function PanoramaConsole({
   // layers are aggregated + rendered). Defaults to PROVINCE: the national
   // overview reads well at a glance, the province rollup is fast, and it keeps
   // the default off the slow rabies-coverage locality rollup. Locality (centroid
-  // symbols) is one toggle away.
-  const [level, setLevel] = useState<AggregationLevel>("province");
+  // symbols) is one toggle away. map-QOL: the URL (`?level=locality`) wins on
+  // mount so a shared/restored board reproduces the same axis.
+  const [level, setLevel] = useState<AggregationLevel>(() =>
+    searchParams.get("level") === "locality" ? "locality" : "province",
+  );
   const levelRef = useRef(level);
   levelRef.current = level;
 
   const [states, setStates] = useState<Record<LayerId, LayerPanelState>>(() => {
     const s = initialState();
-    s[defaultLayerId] = {
-      active: true,
-      loading: false,
-      count: defaultFeatures.features.length,
-      suppressedCount: defaultSuppressedCount,
-      truncated: defaultTruncated,
-    };
+    const urlLayerIds = parseLayersParam(searchParams.get("layers"));
+    if (urlLayerIds === null) {
+      // No explicit board in the URL — the server-seeded default layer is on.
+      s[defaultLayerId] = {
+        active: true,
+        loading: false,
+        count: defaultFeatures.features.length,
+        suppressedCount: defaultSuppressedCount,
+        truncated: defaultTruncated,
+      };
+      return s;
+    }
+    // URL board: the `layers` param defines the active set. The default layer
+    // keeps its server seed only at the seeded (province) axis; everything else
+    // starts loading and is resolved by the mount effect below.
+    const urlLevel: AggregationLevel =
+      searchParams.get("level") === "locality" ? "locality" : "province";
+    for (const id of urlLayerIds) {
+      const seeded = id === defaultLayerId && urlLevel === "province" && isAggregatedPointLayer(id);
+      s[id] = seeded
+        ? {
+            active: true,
+            loading: false,
+            count: defaultFeatures.features.length,
+            suppressedCount: defaultSuppressedCount,
+            truncated: defaultTruncated,
+          }
+        : { active: true, loading: true, count: 0, suppressedCount: 0, truncated: false };
+    }
     return s;
   });
   // Mirror of `states` for effects that must read the latest active set without
@@ -153,16 +257,21 @@ export function PanoramaConsole({
   // active alcance. The API mirrors the [layer] route's auth + scope rules.
   const [kpis, setKpis] = useState<PanoramaKpis>(initialKpis);
   const qs = searchParams.toString();
+  // map-QOL: KPI refetches key on the SCOPE+PERIOD subset only — the shallow
+  // board params (layers/level/preset) don't change what the KPIs measure.
+  const scopePeriodQs = useMemo(() => scopePeriodQsOf(searchParams), [searchParams]);
   // Skip the refetch for the very first render (the server already seeded the
   // KPIs for the initial searchParams); only refetch when the filters change.
-  const seededQsRef = useRef<string | null>(qs);
+  const seededQsRef = useRef<string | null>(scopePeriodQs);
   useEffect(() => {
-    if (seededQsRef.current === qs) {
+    if (seededQsRef.current === scopePeriodQs) {
       seededQsRef.current = null;
       return;
     }
     let cancelled = false;
-    fetch(`/api/panorama/kpis${qs ? `?${qs}` : ""}`, { headers: { accept: "application/json" } })
+    fetch(`/api/panorama/kpis${scopePeriodQs ? `?${scopePeriodQs}` : ""}`, {
+      headers: { accept: "application/json" },
+    })
       .then((r) => (r.ok ? (r.json() as Promise<PanoramaKpis>) : null))
       .then((body) => {
         if (!cancelled && body) setKpis(body);
@@ -173,7 +282,7 @@ export function PanoramaConsole({
     return () => {
       cancelled = true;
     };
-  }, [qs]);
+  }, [scopePeriodQs]);
 
   // --- F4 temporal reproduction -------------------------------------------
   // The active period window [since, until] drives the scrubber axis. Resolved
@@ -208,14 +317,22 @@ export function PanoramaConsole({
   // The fetch uses the NEW searchParams via the effect closure.
   // Mount guard for the cache-invalidation effect below: the server already
   // seeded the default layer at the initial params (C2), so skip the first run.
-  const layerSeededQsRef = useRef<string | null>(qs);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: qs identity is the intended trigger.
+  const layerSeededQsRef = useRef<string | null>(scopePeriodQs);
+  // map-QOL: a preset commit (or board restore) pushes a new period AND fetches
+  // its own layers in the same tick — this ref carries the scope+period qs that
+  // commit already handled, so the invalidation effect skips one run instead of
+  // double-fetching / wiping the just-seeded caches.
+  const presetCommittedQsRef = useRef<string | null>(null);
   useEffect(() => {
     // Skip the FIRST run (mount): clearing + refetching here would wipe the C2
     // seed in provinceDataRef and flash a redundant load. Only react to ACTUAL
-    // param changes (e.g. the aggregation-level toggle).
-    if (layerSeededQsRef.current === qs) {
+    // scope/period changes (board params layers/level/preset are excluded).
+    if (layerSeededQsRef.current === scopePeriodQs) {
       layerSeededQsRef.current = null;
+      return;
+    }
+    if (presetCommittedQsRef.current === scopePeriodQs) {
+      presetCommittedQsRef.current = null;
       return;
     }
     asOfDataRef.current.clear();
@@ -277,7 +394,7 @@ export function PanoramaConsole({
         }
       }),
     ).then(() => setLevelVersion((v) => v + 1));
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scopePeriodQs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When the as-of moves, refetch the ACTIVE TEMPORAL layers at that instant and
   // repaint. Non-temporal layers are not refetched (they are dimmed instead).
@@ -442,6 +559,64 @@ export function PanoramaConsole({
     [searchParams],
   );
 
+  // map-QOL: fetch a set of layers into the right caches at a given aggregation
+  // level, updating each layer's panel state as it resolves. Used by the fluid
+  // preset commit (onPreset) and the mount/board-restore effect — both mark the
+  // layers active+loading BEFORE calling this. `baseParams` carries the target
+  // scope/period (the client-only board params are stripped from the API URL).
+  const fetchLayersInto = useCallback(
+    async (ids: LayerId[], lvl: AggregationLevel, baseParams: URLSearchParams) => {
+      await Promise.all(
+        ids.map(async (id) => {
+          const params = new URLSearchParams(baseParams);
+          params.delete("layers");
+          params.delete("preset");
+          params.delete("level");
+          const levelSensitive = CHOROPLETH_IDS.has(id) || isAggregatedPointLayer(id);
+          if (levelSensitive && lvl === "province") params.set("level", "province");
+          else if (isAggregatedPointLayer(id)) params.set("level", "locality");
+          try {
+            const qsStr = params.toString();
+            const res = await fetch(`/api/panorama/${id}${qsStr ? `?${qsStr}` : ""}`, {
+              headers: { accept: "application/json" },
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const body = (await res.json()) as ApiResponse;
+            if (levelSensitive && lvl === "province") {
+              provinceDataRef.current.set(id, body.features);
+            } else {
+              dataRef.current.set(id, body.features);
+            }
+            setStates((s) => ({
+              ...s,
+              [id]: {
+                active: true,
+                loading: false,
+                count: body.features.features.length,
+                suppressedCount: body.suppressedCount,
+                truncated: body.truncated,
+              },
+            }));
+          } catch {
+            // On failure, leave the layer off and clear loading; no silent half-state.
+            setStates((s) => ({
+              ...s,
+              [id]: {
+                active: false,
+                loading: false,
+                count: 0,
+                suppressedCount: 0,
+                truncated: false,
+              },
+            }));
+          }
+        }),
+      );
+      setLevelVersion((v) => v + 1);
+    },
+    [],
+  );
+
   // Switch the aggregation axis. Refetch the ACTIVE choropleth layers AND the
   // active density+signal point layers (F1 Panorama v2) at the new level if not
   // already cached, then repaint. Reference layers are not affected.
@@ -541,7 +716,29 @@ export function PanoramaConsole({
       const activeIds = PANORAMA_LAYERS.filter((l) => states[l.id]?.active ?? false).map(
         (l) => l.id,
       );
-      const compat = checkCompatibility(activeIds, id, PANORAMA_LAYERS);
+      // map-QOL: BASE layers are radio-exclusive. Activating a base while
+      // another base is on SWAPS it (deactivates the current base in the same
+      // update) instead of blocking with a hint — the slot rule stays enforced
+      // by checkCompatibility below, run against the post-swap active set.
+      const proposedLayer = getLayer(id);
+      const swapOutIds =
+        proposedLayer && roleOf(proposedLayer) === "base"
+          ? activeIds.filter((aid) => {
+              const al = getLayer(aid);
+              return al !== undefined && roleOf(al) === "base";
+            })
+          : [];
+      const remainingActiveIds = activeIds.filter((aid) => !swapOutIds.includes(aid));
+      // Applies the base-swap to a state object: swapped-out layers go inactive.
+      const withSwapOut = (s: Record<LayerId, LayerPanelState>) => {
+        if (swapOutIds.length === 0) return s;
+        const next = { ...s };
+        for (const out of swapOutIds) {
+          next[out] = { ...next[out], active: false, compatibilityHint: undefined };
+        }
+        return next;
+      };
+      const compat = checkCompatibility(remainingActiveIds, id, PANORAMA_LAYERS);
       if (!compat.allowed) {
         // Block the toggle — set the hint on this layer so the panel can explain why.
         setStates((s) => ({
@@ -578,9 +775,9 @@ export function PanoramaConsole({
         if (provinceDataRef.current.has(id)) {
           const fc = provinceDataRef.current.get(id) ?? EMPTY_FC;
           setStates((s) => {
-            const nextActive = activeIds.concat(id);
+            const nextActive = remainingActiveIds.concat(id);
             const base = {
-              ...s,
+              ...withSwapOut(s),
               [id]: { ...s[id], active: true, loading: false, count: fc.features.length },
             };
             return applyHintsAfterActivate(base, nextActive);
@@ -591,7 +788,7 @@ export function PanoramaConsole({
         setStates((s) => ({ ...s, [id]: { ...s[id], active: true, loading: true } }));
         const body = await fetchChoroplethAt(id, "province");
         setStates((s) => {
-          const nextActive = activeIds.concat(id);
+          const nextActive = remainingActiveIds.concat(id);
           const layerState: LayerPanelState = body
             ? {
                 active: true,
@@ -601,7 +798,9 @@ export function PanoramaConsole({
                 truncated: body.truncated,
               }
             : { active: false, loading: false, count: 0, suppressedCount: 0, truncated: false };
-          const base = { ...s, [id]: layerState };
+          // The swap only lands when the activation succeeded — a failed fetch
+          // leaves the current base on instead of clearing both.
+          const base = { ...(body ? withSwapOut(s) : s), [id]: layerState };
           return applyHintsAfterActivate(base, body ? nextActive : activeIds);
         });
         setLevelVersion((v) => v + 1);
@@ -612,9 +811,9 @@ export function PanoramaConsole({
       if (dataRef.current.has(id)) {
         const fc = dataRef.current.get(id) ?? EMPTY_FC;
         setStates((s) => {
-          const nextActive = activeIds.concat(id);
+          const nextActive = remainingActiveIds.concat(id);
           const base = {
-            ...s,
+            ...withSwapOut(s),
             [id]: { ...s[id], active: true, loading: false, count: fc.features.length },
           };
           return applyHintsAfterActivate(base, nextActive);
@@ -642,9 +841,9 @@ export function PanoramaConsole({
         const body = (await res.json()) as ApiResponse;
         dataRef.current.set(id, body.features);
         setStates((s) => {
-          const nextActive = activeIds.concat(id);
+          const nextActive = remainingActiveIds.concat(id);
           const base = {
-            ...s,
+            ...withSwapOut(s),
             [id]: {
               active: true,
               loading: false,
@@ -672,29 +871,30 @@ export function PanoramaConsole({
   );
 
   // F3: active preset — null when the operator is in manual "modo avanzado".
-  const [activePresetId, setActivePresetId] = useState<PresetId | null>(null);
+  // map-QOL: the URL (`?preset=`) wins on mount so a shared board reproduces it.
+  const [activePresetId, setActivePresetId] = useState<PresetId | null>(() => {
+    const raw = searchParams.get("preset");
+    return raw !== null && getPreset(raw as PresetId) ? (raw as PresetId) : null;
+  });
 
   /**
-   * F3: Activate a preset.
+   * F3: Activate a preset — FLUID (map-QOL).
    *
-   * W2 fix: previously this called window.history.pushState then immediately
-   * awaited onToggle for each preset layer. Those fetches closed over the OLD
-   * searchParams (before the pushState re-render), so the period was wrong.
-   * Then the [searchParams] effect fired (triggered by pushState), cleared the
-   * cache entries for aggregated-point layers, blanking the map.
-   *
-   * Router-drop fix (see the design note inside the function body below): the
-   * period commit now goes through a full document navigation instead of
-   * `router.replace`, so steps 1-2 below only matter for the brief moment
-   * before the navigation lands — the reload re-mounts this console from the
-   * server-rendered default layer at the new period.
+   * Supersedes the interim router-drop cure from commit 0e94f198 (a full
+   * `window.location.assign` navigation on period commit). The router-drop
+   * defect only affects Next router transitions (`router.push/replace`); this
+   * path never touches the router: the period/board commit is a shallow
+   * History API pushState (lib/ui/map-layer-nav.ts) and the data refetch is a
+   * plain client fetch — nothing for the router to drop, no reload, the map
+   * stays mounted and the layers cross-fade in place.
    *
    * Ordering:
-   * 1. Deactivate all currently active layers + clear all caches.
-   * 2. Set level + mark the preset's layers active (loading=true) in state —
-   *    no fetch here.
-   * 3. Commit the new period via a full navigation (window.location.assign).
-   * 4. Record the preset id for the PresetPanel highlight.
+   * 1. Clear all caches + park the scrubber (a new period invalidates both).
+   * 2. Set level + mark the preset's layers active (loading=true).
+   * 3. Commit the board URL (period/layers/level/preset) via shallow pushState;
+   *    flag the new scope+period as handled so the invalidation effect skips.
+   * 4. Fetch the preset's layers directly against the NEW params (no closure
+   *    over stale searchParams) + persist the board for the bare-URL restore.
    */
   const onPreset = useCallback(
     (id: PresetId) => {
@@ -705,9 +905,10 @@ export function PanoramaConsole({
       dataRef.current.clear();
       provinceDataRef.current.clear();
       asOfDataRef.current.clear();
+      setAsOf(null);
 
-      // Switch aggregation level immediately so statesRef and the refetch in the
-      // [searchParams] effect both see the correct level.
+      // Switch aggregation level immediately so statesRef and any effect that
+      // reads levelRef both see the correct level.
       setLevel(preset.level);
       levelRef.current = preset.level;
 
@@ -734,28 +935,141 @@ export function PanoramaConsole({
 
       setActivePresetId(id);
 
-      // Commit the preset period via a full document navigation.
-      //
-      // Design note (router-drop defect, same cure as
-      // components/gob/JurisdictionSwitcher.tsx): Next 15.5.18's App Router can
-      // silently drop a client transition's own fetch in production — the RSC
-      // request resolves 200 but the URL and searchParams never update. This
-      // console's page (app/gob/panorama, app/admin/panorama) server-renders the
-      // initial layer + KPIs from `?period=` on every request, so a
-      // `router.replace` transition here is exposed to the drop. A full
-      // navigation is the one mechanism proven immune — the browser's native GET
-      // cannot be silently dropped, and it always re-runs the server component
-      // with the new searchParams. This does reset the client-only preset-layer
-      // activation state set above (it was never URL-encoded to begin with), but
-      // that's already the accepted behavior on this page: selecting a
-      // province/locality via JurisdictionSwitcher triggers the same kind of full
-      // reload.
+      // Commit the board URL shallowly (back-button undoable — an explicit
+      // user action) and fetch the preset layers against the NEW params.
       const nextParams = new URLSearchParams(searchParams.toString());
       nextParams.set("period", preset.periodPreset);
-      window.location.assign(`?${nextParams.toString()}`);
+      nextParams.set("layers", canonicalLayersKey(presetIds));
+      if (preset.level === "locality") nextParams.set("level", "locality");
+      else nextParams.delete("level");
+      nextParams.set("preset", id);
+      presetCommittedQsRef.current = scopePeriodQsOf(nextParams);
+      pushMapStateUrl(`?${nextParams.toString()}`);
+      saveBoard(nextParams);
+      void fetchLayersInto(presetIds, preset.level, nextParams);
     },
-    [searchParams],
+    [searchParams, fetchLayersInto],
   );
+
+  // map-QOL URL sync: mirror the board (active layers / level / preset) into
+  // the URL via shallow replaceState whenever it changes — toggles are silent
+  // normalizations (replace), presets push (see onPreset). Skips the first run
+  // (the mount URL already reflects the initial board or intentionally lacks
+  // one). Also persists the board for the bare-URL restore.
+  const activeLayersKey = useMemo(
+    () =>
+      PANORAMA_LAYERS.filter((l) => states[l.id]?.active)
+        .map((l) => l.id)
+        .join(","),
+    [states],
+  );
+  const urlSyncReadyRef = useRef(false);
+  useEffect(() => {
+    if (!urlSyncReadyRef.current) {
+      urlSyncReadyRef.current = true;
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const before = params.toString();
+    params.set("layers", activeLayersKey);
+    if (level === "locality") params.set("level", "locality");
+    else params.delete("level");
+    if (activePresetId !== null) params.set("preset", activePresetId);
+    else params.delete("preset");
+    if (params.toString() === before) return;
+    const qsStr = params.toString();
+    replaceMapStateUrl(`${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`);
+    saveBoard(params);
+  }, [activeLayersKey, level, activePresetId]);
+
+  // map-QOL mount effect (runs once): resolve the initial board.
+  // (a) URL carries `layers` → fetch whatever the server didn't seed.
+  // (b) Bare URL + a saved board in localStorage → subtle one-time restore via
+  //     shallow replaceState + client fetch (no redirect, no reload). The URL
+  //     stays the source of truth; localStorage is only the memory of it.
+  const mountInitDoneRef = useRef(false);
+  useEffect(() => {
+    if (mountInitDoneRef.current) return;
+    mountInitDoneRef.current = true;
+    const current = new URLSearchParams(window.location.search);
+    const urlLayerIds = parseLayersParam(current.get("layers"));
+    const missingFromCache = (ids: LayerId[], lvl: AggregationLevel) =>
+      ids.filter((lid) => {
+        const levelSensitive = CHOROPLETH_IDS.has(lid) || isAggregatedPointLayer(lid);
+        const cache =
+          levelSensitive && lvl === "province" ? provinceDataRef.current : dataRef.current;
+        return !cache.has(lid);
+      });
+
+    if (urlLayerIds !== null) {
+      const missing = missingFromCache(urlLayerIds, levelRef.current);
+      if (missing.length > 0) void fetchLayersInto(missing, levelRef.current, current);
+      return;
+    }
+
+    // Bare URL — offer the saved board, if any. Explicit period/preset params
+    // mean the operator navigated here on purpose: don't override.
+    if (current.get("period") !== null || current.get("preset") !== null) return;
+    let saved: SavedBoard | null = null;
+    try {
+      const raw = window.localStorage.getItem(BOARD_STORAGE_KEY);
+      saved = raw !== null ? (JSON.parse(raw) as SavedBoard) : null;
+    } catch {
+      return;
+    }
+    if (saved === null) return;
+    const savedIds = parseLayersParam(saved.layers || null);
+    if (savedIds === null || savedIds.length === 0) return;
+
+    const nextParams = new URLSearchParams(window.location.search);
+    nextParams.set("layers", canonicalLayersKey(savedIds));
+    const savedLevel: AggregationLevel = saved.level === "locality" ? "locality" : "province";
+    if (savedLevel === "locality") nextParams.set("level", "locality");
+    if (saved.preset !== null && getPreset(saved.preset as PresetId)) {
+      nextParams.set("preset", saved.preset);
+    }
+    if (saved.period !== null) nextParams.set("period", saved.period);
+
+    // The restored period differs from the server-rendered one → the seeded
+    // default features are stale for the new window: drop every cache and
+    // refetch the whole board. Same-period restores only fill the gaps.
+    const periodChanged = saved.period !== null && saved.period !== current.get("period");
+    if (periodChanged) {
+      dataRef.current.clear();
+      provinceDataRef.current.clear();
+      asOfDataRef.current.clear();
+    }
+    presetCommittedQsRef.current = scopePeriodQsOf(nextParams);
+    replaceMapStateUrl(`${window.location.pathname}?${nextParams.toString()}`);
+    setLevel(savedLevel);
+    levelRef.current = savedLevel;
+    setActivePresetId(
+      saved.preset !== null && getPreset(saved.preset as PresetId)
+        ? (saved.preset as PresetId)
+        : null,
+    );
+    setStates((s) => {
+      const next = { ...s };
+      for (const l of PANORAMA_LAYERS) {
+        if (savedIds.includes(l.id)) {
+          if (!next[l.id].active) {
+            next[l.id] = {
+              active: true,
+              loading: true,
+              count: 0,
+              suppressedCount: 0,
+              truncated: false,
+            };
+          }
+        } else if (next[l.id].active) {
+          next[l.id] = { ...next[l.id], active: false, compatibilityHint: undefined };
+        }
+      }
+      return next;
+    });
+    const toFetch = periodChanged ? savedIds : missingFromCache(savedIds, savedLevel);
+    if (toFetch.length > 0) void fetchLayersInto(toFetch, savedLevel, nextParams);
+  }, [fetchLayersInto]);
 
   // Whether any aggregation-axis-sensitive layer is active (choropleth or
   // density/signal point layers). The toggle hints when it has no current effect
@@ -804,12 +1118,28 @@ export function PanoramaConsole({
             activePresetId={activePresetId}
             onPreset={onPreset}
           />
-          <AggregationToggle
-            level={level}
-            onChange={onLevelChange}
-            relevant={anyChoroplethActive}
-          />
-          <LayerPanel states={states} onToggle={onToggle} scrubbing={scrubbing} />
+          {/* Design rule #667: consolidated view by default — presets are the
+              primary control; ALL advanced controls (aggregation axis + the
+              per-layer legend/toggles) live behind this single disclosure. */}
+          <details className="group space-y-2">
+            <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
+              <span
+                aria-hidden="true"
+                className="mr-1 inline-block transition-transform group-open:rotate-90"
+              >
+                ▸
+              </span>
+              Personalizar
+            </summary>
+            <div className="mt-2 space-y-3">
+              <AggregationToggle
+                level={level}
+                onChange={onLevelChange}
+                relevant={anyChoroplethActive}
+              />
+              <LayerPanel states={states} onToggle={onToggle} scrubbing={scrubbing} />
+            </div>
+          </details>
         </div>
       </div>
       <DetailDrawer selected={selected} onClose={closeDrawer} />

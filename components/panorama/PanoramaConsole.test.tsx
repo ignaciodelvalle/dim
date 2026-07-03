@@ -1,40 +1,35 @@
 // @vitest-environment jsdom
 //
-// PanoramaConsole — router-drop defect fix, scoped to `onPreset` (QA sweep,
-// fix/qa-findings-20260702). Committing a preset's period used to write the
-// URL via `router.replace`, which Next 15.5.18's App Router can silently drop
-// in production (same defect class documented in lib/ui/sheet-nav.ts and
-// cured in components/gob/JurisdictionSwitcher.tsx). This console's page
-// (app/gob/panorama, app/admin/panorama) server-renders the initial layer +
-// KPIs from `?period=` on every request, so a shallow client-router
-// transition alone would leave stale content on screen. The fix bypasses the
-// client router entirely via a full document navigation
-// (`window.location.assign`) — this test asserts that mechanism directly and
-// that no router method is ever invoked.
+// PanoramaConsole — map-QOL fluid board commits (feat/map-qol).
 //
-// Scope: this file covers ONLY the onPreset period-commit path, not the rest
-// of the console's surface (layer toggles, scrubber, aggregation axis). The
-// map and the other panels are mocked out — they pull in maplibre-gl and are
-// irrelevant to this fix.
+// The preset period commit used to be an INTERIM full document navigation
+// (`window.location.assign`, commit 0e94f198) to dodge the Next 15.5.x
+// router-drop defect. The map-QOL mechanism SUPERSEDES that cure: the board
+// (period/layers/level/preset) is committed via the shallow History API
+// (lib/ui/map-layer-nav.ts pushMapStateUrl) and the data is refetched with a
+// plain client fetch — no router transition exists to be dropped, and no
+// reload happens. These tests pin that contract:
+//   1. preset click → history.pushState with the full board URL, NO
+//      router.push/replace/refresh, NO location.assign;
+//   2. the preset's layers are fetched client-side against the NEW params;
+//   3. the committed board is persisted to localStorage for the bare-URL
+//      restore.
+//
+// Scope: the onPreset commit path + board persistence. The map and the other
+// panels are mocked out — they pull in maplibre-gl and are irrelevant here.
 
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const routerPush = vi.fn();
 const routerReplace = vi.fn();
 const routerRefresh = vi.fn();
 
-// Unlike the other router-drop tests in this suite, PanoramaConsole has an
-// effect keyed on the raw `searchParams` OBJECT reference (not its string
-// value) — it relies on Next.js's real guarantee that `useSearchParams()`
-// returns a stable reference across re-renders until the URL actually
-// changes. A naive `() => new URLSearchParams(...)` mock (fresh instance
-// every call) breaks that invariant: every re-render looks like a param
-// change, the effect fires, sets state, triggers another re-render, and so
-// on — an infinite loop that OOMs the test worker. Memoize by the search
-// string so identity only changes when the params actually do.
+// PanoramaConsole keys effects on the searchParams OBJECT identity — mirror
+// Next's real guarantee (stable reference until the URL actually changes) by
+// memoizing on the search string. A fresh instance per call would loop.
 let cachedSearchKey: string | null = null;
 let cachedSearchParams: URLSearchParams | null = null;
 
@@ -50,9 +45,9 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-// The map + surrounding panels are irrelevant to the onPreset navigation fix
-// and pull in maplibre-gl (heavy, browser-only) — stub them out. PresetPanel
-// is left real: it's the actual UI surface `onPreset` is wired to.
+// The map + surrounding panels are irrelevant to the fluid-commit contract and
+// pull in maplibre-gl (heavy, browser-only) — stub them out. PresetPanel is
+// left real: it's the actual UI surface `onPreset` is wired to.
 vi.mock("@/components/panorama/SituationalMapDynamic", () => ({
   SituationalMapDynamic: () => null,
 }));
@@ -76,23 +71,20 @@ import { PanoramaConsole } from "./PanoramaConsole";
 
 const EMPTY_FC = { type: "FeatureCollection" as const, features: [] };
 const INITIAL_KPIS = { kpis: [], recalculatedFor: "Nacional · este mes" };
+const OK_ENVELOPE = { features: EMPTY_FC, truncated: false, suppressedCount: 0 };
 
-const mockAssign = vi.fn();
-const originalLocation = window.location;
+const fetchMock = vi.fn(
+  async (_input: RequestInfo | URL, _init?: RequestInit) =>
+    ({
+      ok: true,
+      json: async () => OK_ENVELOPE,
+    }) as unknown as Response,
+);
 
 function setUrl(url: string) {
   window.history.replaceState(null, "", url);
-  const current = new URL(url, "http://localhost");
-  // jsdom's real window.location.assign performs a navigation it doesn't
-  // support ("Not implemented: navigation"), and its `assign` method isn't
-  // directly spy-able (non-configurable on the Location object). Replace the
-  // whole object with a plain stub that mirrors the fields the component and
-  // useSearchParams mock read, plus a jest.fn() for `assign`.
-  Object.defineProperty(window, "location", {
-    configurable: true,
-    writable: true,
-    value: { ...originalLocation, ...current, assign: mockAssign },
-  });
+  cachedSearchKey = null;
+  cachedSearchParams = null;
 }
 
 function renderConsole() {
@@ -109,34 +101,37 @@ beforeEach(() => {
   routerPush.mockClear();
   routerReplace.mockClear();
   routerRefresh.mockClear();
-  mockAssign.mockClear();
+  fetchMock.mockClear();
+  vi.stubGlobal("fetch", fetchMock);
+  window.localStorage.clear();
   setUrl("/gob/panorama");
 });
 
 afterEach(() => {
   cleanup();
-  Object.defineProperty(window, "location", {
-    configurable: true,
-    writable: true,
-    value: originalLocation,
-  });
+  vi.unstubAllGlobals();
 });
 
-describe("PanoramaConsole onPreset — full navigation on preset period commit (router-drop fix)", () => {
-  it("commits the preset's period via window.location.assign, preserving other params", () => {
+describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94f198 interim cure)", () => {
+  it("commits the preset board via history.pushState, preserving other params, without any reload", () => {
     setUrl("/gob/panorama?province=AR-B");
     renderConsole();
+    const pushSpy = vi.spyOn(window.history, "pushState");
 
     fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
 
-    expect(mockAssign).toHaveBeenCalledTimes(1);
-    const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost/gob/panorama");
-    expect(url.searchParams.get("province")).toBe("AR-B");
-    // "brotes-activos" is a 90d preset.
-    expect(url.searchParams.get("period")).toBe("90d");
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    // The URL updated in place — same document, no navigation.
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("province")).toBe("AR-B");
+    // "brotes-activos" is a 90d preset with base cobertura + signal zoonosis.
+    expect(params.get("period")).toBe("90d");
+    expect(params.get("preset")).toBe("brotes-activos");
+    expect(params.get("layers")).toBe("zoonosis,cobertura");
+    expect(window.location.pathname).toBe("/gob/panorama");
   });
 
-  it("never calls router.push/replace/refresh — only the full-navigation path", () => {
+  it("never calls router.push/replace/refresh — the commit bypasses the router entirely", () => {
     renderConsole();
 
     fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
@@ -144,5 +139,82 @@ describe("PanoramaConsole onPreset — full navigation on preset period commit (
     expect(routerPush).not.toHaveBeenCalled();
     expect(routerReplace).not.toHaveBeenCalled();
     expect(routerRefresh).not.toHaveBeenCalled();
+  });
+
+  it("fetches the preset's layers client-side against the NEW period", async () => {
+    renderConsole();
+
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.startsWith("/api/panorama/") && !u.includes("/kpis"));
+      expect(layerCalls.some((u) => u.includes("/api/panorama/cobertura"))).toBe(true);
+      expect(layerCalls.some((u) => u.includes("/api/panorama/zoonosis"))).toBe(true);
+      // Every layer fetch carries the preset's period — no stale closure.
+      for (const u of layerCalls) expect(u).toContain("period=90d");
+    });
+  });
+
+  it("persists the committed board to localStorage for the bare-URL restore", () => {
+    renderConsole();
+
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+
+    const raw = window.localStorage.getItem("panorama:board:v1");
+    expect(raw).not.toBeNull();
+    const board = JSON.parse(raw as string) as Record<string, unknown>;
+    expect(board.layers).toBe("zoonosis,cobertura");
+    expect(board.preset).toBe("brotes-activos");
+    expect(board.period).toBe("90d");
+  });
+});
+
+describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () => {
+  it("restores a saved board on a bare URL via shallow replaceState + client fetch", async () => {
+    window.localStorage.setItem(
+      "panorama:board:v1",
+      JSON.stringify({
+        layers: "cobertura,zoonosis",
+        level: "province",
+        preset: "brotes-activos",
+        period: "90d",
+      }),
+    );
+    renderConsole();
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get("layers")).toBe("zoonosis,cobertura");
+      expect(params.get("period")).toBe("90d");
+    });
+    // Restored WITHOUT touching the router (no navigation, no reload).
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(routerReplace).not.toHaveBeenCalled();
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.startsWith("/api/panorama/") && !u.includes("/kpis"));
+      expect(layerCalls.some((u) => u.includes("/api/panorama/cobertura"))).toBe(true);
+    });
+  });
+
+  it("does NOT restore when the URL already carries explicit board/period params", () => {
+    window.localStorage.setItem(
+      "panorama:board:v1",
+      JSON.stringify({
+        layers: "cobertura",
+        level: "province",
+        preset: null,
+        period: "90d",
+      }),
+    );
+    setUrl("/gob/panorama?period=30d");
+    renderConsole();
+
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("period")).toBe("30d");
+    expect(params.get("layers")).toBeNull();
   });
 });

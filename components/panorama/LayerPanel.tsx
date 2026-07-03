@@ -7,7 +7,16 @@
 // when the per-layer cap truncated the result. Toggling a layer asks the parent
 // to fetch /api/panorama/[layer] (or drop it). The panel is purely
 // presentational — fetch + map mutation live in the parent console.
+//
+// map-QOL: layers are grouped by their compatibility ROLE (F2, see
+// src/modules/panorama/domain/compatibility.ts) so the slot rules are visible
+// instead of implicit: BASE layers are exclusive (activating one swaps out the
+// current one — radio-like behavior, handled by the parent's onToggle), SIGNAL
+// allows at most one, REFERENCE layers stack freely. The progressive-disclosure
+// wrapper ("Personalizar") is owned by the parent console — this component
+// renders only the grouped list.
 
+import { type LayerRole, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { PANORAMA_LAYERS, isTemporalLayer } from "@/src/modules/panorama/domain/layers";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
 
@@ -38,112 +47,125 @@ type Props = {
   scrubbing?: boolean;
 };
 
+/** Role groups in display order, with es-AR titles that state the slot rule. */
+const ROLE_GROUPS: readonly { role: LayerRole; title: string }[] = [
+  { role: "base", title: "Base — una a la vez" },
+  { role: "signal", title: "Señal — una a la vez" },
+  { role: "reference", title: "Referencia — combinables" },
+];
+
 export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
   return (
-    <details className="group space-y-1.5">
-      <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
-        Capas (modo avanzado)
-      </summary>
-      <fieldset className="mt-1.5 space-y-1.5">
-        <legend className="sr-only">Capas (modo avanzado)</legend>
-        <ul className="space-y-1">
-          {PANORAMA_LAYERS.map((layer) => {
-            const st = states[layer.id];
-            const active = st?.active ?? false;
-            // Under a scrub, layers with no time dimension can't be reproduced
-            // as-of-t — flag and visually de-emphasise them in the legend.
-            const notReproducible = scrubbing && !isTemporalLayer(layer.id);
-            // F2 compatibility: an inactive layer may be blocked due to a
-            // conflict with the currently active set. The hint explains why.
-            const compatibilityHint = !active ? (st?.compatibilityHint ?? undefined) : undefined;
-            const isBlocked = Boolean(compatibilityHint);
-            return (
-              <li key={layer.id}>
-                <label
-                  className={`flex items-center gap-2.5 rounded-[6px] px-1.5 py-1 text-sm text-ln-op-ink-2 ${
-                    isBlocked
-                      ? "cursor-not-allowed opacity-40"
-                      : "cursor-pointer hover:bg-ln-op-card"
-                  } ${notReproducible ? "opacity-50" : ""}`}
-                  title={compatibilityHint}
-                >
-                  <input
-                    type="checkbox"
-                    className="h-3.5 w-3.5 accent-current"
-                    checked={active}
-                    disabled={isBlocked}
-                    aria-disabled={isBlocked}
-                    aria-describedby={isBlocked ? `compat-hint-${layer.id}` : undefined}
-                    onChange={() => {
-                      if (!isBlocked) onToggle(layer.id);
-                    }}
-                  />
-                  <span
-                    className="inline-block h-3 w-3 shrink-0 rounded-full border border-ln-op-line"
-                    style={{ background: layer.color }}
-                    aria-hidden="true"
-                  />
-                  <span className="flex-1">{layer.label}</span>
-                  {notReproducible && (
-                    <span
-                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-xs text-ln-op-mute"
-                      title="Esta capa no tiene dimensión temporal: muestra el estado actual, no reproducible en el tiempo."
+    <fieldset className="space-y-2">
+      <legend className="sr-only">Capas del mapa</legend>
+      {ROLE_GROUPS.map(({ role, title }) => {
+        const layers = PANORAMA_LAYERS.filter((l) => roleOf(l) === role);
+        if (layers.length === 0) return null;
+        return (
+          <div key={role} className="space-y-1">
+            <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">{title}</p>
+            <ul className="space-y-1">
+              {layers.map((layer) => {
+                const st = states[layer.id];
+                const active = st?.active ?? false;
+                // Under a scrub, layers with no time dimension can't be reproduced
+                // as-of-t — flag and visually de-emphasise them in the legend.
+                const notReproducible = scrubbing && !isTemporalLayer(layer.id);
+                // F2 compatibility: an inactive layer may be blocked due to a
+                // conflict with the currently active set. The hint explains why.
+                const compatibilityHint = !active
+                  ? (st?.compatibilityHint ?? undefined)
+                  : undefined;
+                const isBlocked = Boolean(compatibilityHint);
+                return (
+                  <li key={layer.id}>
+                    <label
+                      className={`flex items-center gap-2.5 rounded-[6px] px-1.5 py-1 text-sm text-ln-op-ink-2 ${
+                        isBlocked
+                          ? "cursor-not-allowed opacity-40"
+                          : "cursor-pointer hover:bg-ln-op-card"
+                      } ${notReproducible ? "opacity-50" : ""}`}
+                      title={compatibilityHint}
                     >
-                      no reproducible en el tiempo
-                    </span>
-                  )}
-                  {st?.loading && (
-                    <span className="text-[11px] text-ln-op-mute" aria-live="polite">
-                      cargando…
-                    </span>
-                  )}
-                  {active && !st?.loading && (
-                    <span className="tabular-nums text-[11px] text-ln-op-mute">
-                      {st.count.toLocaleString("es-AR")}
-                    </span>
-                  )}
-                  {active && !st?.loading && st.suppressedCount > 0 && (
-                    <span
-                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-xs text-ln-op-mute"
-                      title="Celdas ocultas por privacidad (k-anonimato, k=5)"
-                    >
-                      {st.suppressedCount} suprimido{st.suppressedCount === 1 ? "" : "s"}
-                    </span>
-                  )}
-                  {active && !st?.loading && st.truncated && (
-                    <span
-                      className="rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-1.5 py-0.5 text-xs text-ln-op-ink-2"
-                      title="Se alcanzó el tope por capa; hay más registros fuera de la vista."
-                    >
-                      capá al máximo (2.000)
-                    </span>
-                  )}
-                  {isBlocked && (
-                    <span
-                      className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-xs text-ln-op-mute"
-                      aria-hidden="true"
-                    >
-                      bloqueada
-                    </span>
-                  )}
-                </label>
-                {/* Inline helper text — visible (not color-only), associated to the
-                  checkbox via aria-describedby. Placed outside the <label> so it
-                  renders below the row and is perceivable without relying on color. */}
-                {isBlocked && compatibilityHint && (
-                  <p
-                    id={`compat-hint-${layer.id}`}
-                    className="mt-0.5 px-1.5 text-xs text-ln-op-mute"
-                    role="note"
-                  >
-                    {compatibilityHint}
-                  </p>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </fieldset>
-    </details>
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 accent-current"
+                        checked={active}
+                        disabled={isBlocked}
+                        aria-disabled={isBlocked}
+                        aria-describedby={isBlocked ? `compat-hint-${layer.id}` : undefined}
+                        onChange={() => {
+                          if (!isBlocked) onToggle(layer.id);
+                        }}
+                      />
+                      <span
+                        className="inline-block h-3 w-3 shrink-0 rounded-full border border-ln-op-line"
+                        style={{ background: layer.color }}
+                        aria-hidden="true"
+                      />
+                      <span className="flex-1">{layer.label}</span>
+                      {notReproducible && (
+                        <span
+                          className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-xs text-ln-op-mute"
+                          title="Esta capa no tiene dimensión temporal: muestra el estado actual, no reproducible en el tiempo."
+                        >
+                          no reproducible en el tiempo
+                        </span>
+                      )}
+                      {st?.loading && (
+                        <span className="text-[11px] text-ln-op-mute" aria-live="polite">
+                          cargando…
+                        </span>
+                      )}
+                      {active && !st?.loading && (
+                        <span className="tabular-nums text-[11px] text-ln-op-mute">
+                          {st.count.toLocaleString("es-AR")}
+                        </span>
+                      )}
+                      {active && !st?.loading && st.suppressedCount > 0 && (
+                        <span
+                          className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-xs text-ln-op-mute"
+                          title="Celdas ocultas por privacidad (k-anonimato, k=5)"
+                        >
+                          {st.suppressedCount} suprimido{st.suppressedCount === 1 ? "" : "s"}
+                        </span>
+                      )}
+                      {active && !st?.loading && st.truncated && (
+                        <span
+                          className="rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-1.5 py-0.5 text-xs text-ln-op-ink-2"
+                          title="Se alcanzó el tope por capa; hay más registros fuera de la vista."
+                        >
+                          capá al máximo (2.000)
+                        </span>
+                      )}
+                      {isBlocked && (
+                        <span
+                          className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-xs text-ln-op-mute"
+                          aria-hidden="true"
+                        >
+                          bloqueada
+                        </span>
+                      )}
+                    </label>
+                    {/* Inline helper text — visible (not color-only), associated to the
+                      checkbox via aria-describedby. Placed outside the <label> so it
+                      renders below the row and is perceivable without relying on color. */}
+                    {isBlocked && compatibilityHint && (
+                      <p
+                        id={`compat-hint-${layer.id}`}
+                        className="mt-0.5 px-1.5 text-xs text-ln-op-mute"
+                        role="note"
+                      >
+                        {compatibilityHint}
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
+    </fieldset>
   );
 }
