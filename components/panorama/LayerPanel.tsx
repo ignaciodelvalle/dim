@@ -45,6 +45,10 @@ type Props = {
   onToggle: (id: LayerId) => void;
   /** F4: a time scrub is active — non-temporal layers are flagged not reproducible. */
   scrubbing?: boolean;
+  /** map-QOL: per-layer opacity multiplier (0.2..1, default 1). */
+  opacities?: Partial<Record<LayerId, number>>;
+  /** map-QOL: opacity slider change — only rendered for ACTIVE layers. */
+  onOpacity?: (id: LayerId, value: number) => void;
 };
 
 /** Role groups in display order, with es-AR titles that state the slot rule. */
@@ -54,7 +58,13 @@ const ROLE_GROUPS: readonly { role: LayerRole; title: string }[] = [
   { role: "reference", title: "Referencia — combinables" },
 ];
 
-export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
+export function LayerPanel({
+  states,
+  onToggle,
+  scrubbing = false,
+  opacities = {},
+  onOpacity,
+}: Props) {
   return (
     <fieldset className="space-y-2">
       <legend className="sr-only">Capas del mapa</legend>
@@ -158,6 +168,29 @@ export function LayerPanel({ states, onToggle, scrubbing = false }: Props) {
                       >
                         {compatibilityHint}
                       </p>
+                    )}
+                    {/* map-QOL: per-layer opacity slider — advanced control,
+                        only for ACTIVE layers, lives inside Personalizar. */}
+                    {active && onOpacity && (
+                      <div className="flex items-center gap-2 px-1.5 pb-0.5 pl-8">
+                        <label htmlFor={`opacity-${layer.id}`} className="text-xs text-ln-op-mute">
+                          Opacidad
+                        </label>
+                        <input
+                          id={`opacity-${layer.id}`}
+                          type="range"
+                          min={0.2}
+                          max={1}
+                          step={0.1}
+                          value={opacities[layer.id] ?? 1}
+                          onChange={(e) => onOpacity(layer.id, Number(e.target.value))}
+                          className="h-1.5 w-24 accent-current"
+                          aria-label={`Opacidad de la capa ${layer.label}`}
+                        />
+                        <span className="tabular-nums text-xs text-ln-op-mute">
+                          {Math.round((opacities[layer.id] ?? 1) * 100)}%
+                        </span>
+                      </div>
                     )}
                   </li>
                 );

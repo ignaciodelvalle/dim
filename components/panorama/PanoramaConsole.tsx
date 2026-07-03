@@ -458,6 +458,14 @@ export function PanoramaConsole({
   // fetch resolves so the activeLayers memo recomputes (the cache is a ref).
   const [levelVersion, setLevelVersion] = useState(0);
 
+  // map-QOL: per-layer opacity multiplier (Personalizar slider). Client-only
+  // presentation state — intentionally NOT URL-encoded (the board shares WHAT
+  // is shown; how translucent a layer looks is a local viewing preference).
+  const [opacities, setOpacities] = useState<Partial<Record<LayerId, number>>>({});
+  const onOpacity = useCallback((id: LayerId, value: number) => {
+    setOpacities((prev) => ({ ...prev, [id]: value }));
+  }, []);
+
   // Build the active-layers array for the map from current state + cached data.
   // Under a scrub (asOf !== null): temporal layers paint their AS-OF features;
   // non-temporal layers are DIMMED (current-state data shown muted, never as if
@@ -509,11 +517,13 @@ export function PanoramaConsole({
         // the map can choose divergent vs sequential choropleth rendering.
         dataType: l.dataType,
         complianceTarget: l.complianceTarget,
+        // map-QOL: per-layer opacity multiplier from the Personalizar slider.
+        opacity: opacities[l.id] ?? 1,
       });
     }
     return out;
     // asOfVersion + scrubbing + level + levelVersion are intentional triggers.
-  }, [states, scrubbing, asOfVersion, level, levelVersion]);
+  }, [states, scrubbing, asOfVersion, level, levelVersion, opacities]);
 
   // Fetch a temporal layer's AS-OF features into the as-of cache (used when a
   // layer is toggled on mid-scrub, so it paints at the current instant, not live).
@@ -1168,7 +1178,13 @@ export function PanoramaConsole({
                 onChange={onLevelChange}
                 relevant={anyChoroplethActive}
               />
-              <LayerPanel states={states} onToggle={onToggle} scrubbing={scrubbing} />
+              <LayerPanel
+                states={states}
+                onToggle={onToggle}
+                scrubbing={scrubbing}
+                opacities={opacities}
+                onOpacity={onOpacity}
+              />
             </div>
           </details>
         </div>

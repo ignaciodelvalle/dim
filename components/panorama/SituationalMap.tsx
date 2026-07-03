@@ -23,6 +23,7 @@ import {
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED, RAMP_BLUE } from "@/lib/analytics/viz-scales";
+import { AR_BBOX } from "@/lib/ui/map-bounds";
 import { escapeHtml } from "@/lib/utils/escape-html";
 
 // ---------------------------------------------------------------------------
@@ -99,6 +100,12 @@ export type ActiveLayer = {
    * Undefined for density/signal/reference layers (sequential coloring).
    */
   complianceTarget?: number;
+  /**
+   * map-QOL: per-layer opacity multiplier 0.2..1 (default 1), set from the
+   * Personalizar panel. Multiplies the layer's base opacity expressions — the
+   * suppressed-cell muting and the F4 dim behavior are preserved underneath.
+   */
+  opacity?: number;
 };
 
 type Props = {
@@ -140,6 +147,16 @@ type Props = {
 const AR_CENTER: [number, number] = [-63.6167, -40.0];
 const AR_ZOOM = 3.4;
 const BASEMAP_URL = "/geo/ar-provinces.geojson";
+
+// map-QOL zoom-bounds clamp: the camera can never wander away from the
+// national territory. AR_BBOX (lib/ui/map-bounds) padded by a few degrees so
+// border jurisdictions aren't pinned against the viewport edge.
+const MAX_BOUNDS_PAD_DEG = 6;
+const AR_MAX_BOUNDS: [[number, number], [number, number]] = [
+  [AR_BBOX[0][0] - MAX_BOUNDS_PAD_DEG, AR_BBOX[0][1] - MAX_BOUNDS_PAD_DEG],
+  [AR_BBOX[1][0] + MAX_BOUNDS_PAD_DEG, AR_BBOX[1][1] + MAX_BOUNDS_PAD_DEG],
+];
+const MIN_ZOOM = 3;
 
 // Dark government-console palette (canvas / land / borders).
 const COLOR_CANVAS = "#0b1020";
@@ -240,6 +257,11 @@ export function SituationalMap({
         zoom: AR_ZOOM,
         attributionControl: false,
         dragRotate: false,
+        // map-QOL zoom bounds: pan/zoom clamped to the national territory —
+        // the operator can never get lost in the open ocean or zoom out to
+        // a meaningless world view.
+        maxBounds: AR_MAX_BOUNDS,
+        minZoom: MIN_ZOOM,
       });
       mapRef.current = map;
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -702,6 +724,19 @@ export function SituationalMap({
       if (!f) return;
       onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
     });
+    // map-QOL: double-click a unit → open its DetailDrawer AND zoom in on it
+    // (cancels MapLibre's default dblclick zoom so the camera centers the unit).
+    map.on("dblclick", pl, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      e.preventDefault();
+      const geom = f.geometry as GeoJSON.Point;
+      map.easeTo({
+        center: geom.coordinates as [number, number],
+        zoom: Math.max(map.getZoom() + 1.5, 8),
+      });
+      onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
+    });
   }
 
   /**
@@ -806,6 +841,18 @@ export function SituationalMap({
       if (!f) return;
       onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
     });
+    // map-QOL: double-click a locality cell → DetailDrawer + zoom to the cell.
+    map.on("dblclick", id, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      e.preventDefault();
+      const geom = f.geometry as GeoJSON.Point;
+      map.easeTo({
+        center: geom.coordinates as [number, number],
+        zoom: Math.max(map.getZoom() + 1.5, 8),
+      });
+      onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
+    });
   }
 
   // PR-6: count only features with non-null geometry (Point coordinates).
@@ -856,6 +903,15 @@ export function SituationalMap({
     { r: 32, label: "500+" },
   ];
 
+  // map-QOL "Mi alcance": snap the camera back to the operator's scope — the
+  // server-computed jurisdiction bbox (govt) or the national/data extent.
+  function fitToScope() {
+    const map = mapRef.current;
+    if (!map) return;
+    const bbox = initialBoundsRef.current ?? nationalBboxRef.current ?? AR_BBOX;
+    map.fitBounds(bbox, { padding: 56, animate: true, maxZoom: 11 });
+  }
+
   return (
     <div className="relative w-full" style={{ height }}>
       <div
@@ -865,6 +921,14 @@ export function SituationalMap({
         role="img"
         aria-label={`${label}. ${renderableCount} ${renderableCount === 1 ? "punto" : "puntos"} en la vista.`}
       />
+      {/* map-QOL: one-click return to the operator's scope. */}
+      <button
+        type="button"
+        onClick={fitToScope}
+        className="absolute left-3 top-3 rounded-[var(--radius-sm)] border border-white/20 bg-black/55 px-2.5 py-1 text-xs font-medium text-white/90 hover:bg-black/70"
+      >
+        Mi alcance
+      </button>
       {renderableCount === 0 && !hasProvChoro && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="rounded-[6px] bg-black/40 px-4 py-2 text-[13px] text-white/80">
@@ -872,8 +936,13 @@ export function SituationalMap({
           </p>
         </div>
       )}
-      {provinceLegends.length > 0 && (
-        <div className="pointer-events-none absolute bottom-3 left-3 space-y-2">
+      {/* map-QOL merged single legend: ONE region (bottom-left) hosts every
+          scale — province choropleth ramps AND the graduated-circle buckets. */}
+      {(provinceLegends.length > 0 || hasGraduatedLayer) && (
+        <div
+          aria-label="Leyenda del mapa"
+          className="pointer-events-none absolute bottom-3 left-3 space-y-2"
+        >
           {provinceLegends.map(({ layer, bounds, isDivergent }) => (
             <div
               key={layer.id}
@@ -936,44 +1005,43 @@ export function SituationalMap({
               </div>
             </div>
           ))}
-        </div>
-      )}
-      {/* F1 graduated-circle legend: fixed size → count-bucket mapping.
-          Shown bottom-right when any density/signal layer is active.
-          Does NOT depend on zoom — the circles are non-clustered, one per unit. */}
-      {hasGraduatedLayer && (
-        <div className="pointer-events-none absolute bottom-3 right-12 rounded-[6px] bg-black/55 px-3 py-2 text-[11px] text-white/90">
-          <div className="mb-1.5 font-medium text-white/80">Eventos por unidad</div>
-          <div className="flex flex-col gap-1">
-            {GRADUATED_BUCKETS.map((b) => (
-              <div key={b.label} className="flex items-center gap-2">
-                <span
-                  className="flex-none rounded-full"
-                  style={{
-                    width: b.r * 2,
-                    height: b.r * 2,
-                    background: "rgba(255,255,255,0.25)",
-                    border: "1.5px solid rgba(255,255,255,0.5)",
-                  }}
-                  aria-hidden="true"
-                />
-                <span className="tabular-nums text-white/70">{b.label}</span>
+          {/* F1 graduated-circle legend: fixed size → count-bucket mapping.
+              Does NOT depend on zoom — circles are non-clustered, one per unit. */}
+          {hasGraduatedLayer && (
+            <div className="rounded-[6px] bg-black/55 px-3 py-2 text-[11px] text-white/90">
+              <div className="mb-1.5 font-medium text-white/80">Eventos por unidad</div>
+              <div className="flex flex-col gap-1">
+                {GRADUATED_BUCKETS.map((b) => (
+                  <div key={b.label} className="flex items-center gap-2">
+                    <span
+                      className="flex-none rounded-full"
+                      style={{
+                        width: b.r * 2,
+                        height: b.r * 2,
+                        background: "rgba(255,255,255,0.25)",
+                        border: "1.5px solid rgba(255,255,255,0.5)",
+                      }}
+                      aria-hidden="true"
+                    />
+                    <span className="tabular-nums text-white/70">{b.label}</span>
+                  </div>
+                ))}
+                <div className="mt-0.5 flex items-center gap-2">
+                  <span
+                    className="flex-none rounded-full"
+                    style={{
+                      width: 10,
+                      height: 10,
+                      background: COLOR_SUPPRESSED,
+                      opacity: 0.6,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span className="text-white/50">Suprimido</span>
+                </div>
               </div>
-            ))}
-            <div className="mt-0.5 flex items-center gap-2">
-              <span
-                className="flex-none rounded-full"
-                style={{
-                  width: 10,
-                  height: 10,
-                  background: COLOR_SUPPRESSED,
-                  opacity: 0.6,
-                }}
-                aria-hidden="true"
-              />
-              <span className="text-white/50">Suprimido</span>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
@@ -1003,11 +1071,16 @@ function removeLayer(map: maplibregl.Map, id: string) {
 const DIM_OPACITY = 0.18;
 function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
   const dim = layer.dimmed === true;
+  // map-QOL: the per-layer opacity multiplier (Personalizar slider) scales the
+  // BASE opacities; the F4 dim state and the suppressed-cell muting win under it.
+  const op = typeof layer.opacity === "number" ? Math.min(Math.max(layer.opacity, 0.2), 1) : 1;
+  const scaled = (base: number) => base * op;
   if (layer.geomType === "choropleth") {
     // U5 province mode: mute the polygon fill instead of the centroid circles.
     if (layer.level === "province") {
       const fid = provinceFillLayerId(layer.id);
-      if (map.getLayer(fid)) map.setPaintProperty(fid, "fill-opacity", dim ? DIM_OPACITY : 0.82);
+      if (map.getLayer(fid))
+        map.setPaintProperty(fid, "fill-opacity", dim ? DIM_OPACITY : scaled(0.82));
       return;
     }
     const cid = choroLayerId(layer.id);
@@ -1018,7 +1091,12 @@ function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
       "circle-opacity",
       dim
         ? DIM_OPACITY
-        : (["case", ["==", ["get", "suppressed"], true], 0.45, 0.78] as unknown as number),
+        : ([
+            "case",
+            ["==", ["get", "suppressed"], true],
+            scaled(0.45),
+            scaled(0.78),
+          ] as unknown as number),
     );
     return;
   }
@@ -1031,7 +1109,12 @@ function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
         "circle-opacity",
         dim
           ? DIM_OPACITY
-          : (["case", ["==", ["get", "suppressed"], true], 0.45, 0.82] as unknown as number),
+          : ([
+              "case",
+              ["==", ["get", "suppressed"], true],
+              scaled(0.45),
+              scaled(0.82),
+            ] as unknown as number),
       );
     }
     return;
@@ -1039,8 +1122,8 @@ function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
   // Reference layers (discrete pins with clustering).
   const pl = pointLayerId(layer.id);
   const cl = clusterLayerId(layer.id);
-  if (map.getLayer(pl)) map.setPaintProperty(pl, "circle-opacity", dim ? DIM_OPACITY : 1);
-  if (map.getLayer(cl)) map.setPaintProperty(cl, "circle-opacity", dim ? DIM_OPACITY : 0.8);
+  if (map.getLayer(pl)) map.setPaintProperty(pl, "circle-opacity", dim ? DIM_OPACITY : scaled(1));
+  if (map.getLayer(cl)) map.setPaintProperty(cl, "circle-opacity", dim ? DIM_OPACITY : scaled(0.8));
 }
 
 // Layer-specific point popup copy (es-AR). Coarse layers (denuncias) state the
