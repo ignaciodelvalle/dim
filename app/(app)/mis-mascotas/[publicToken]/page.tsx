@@ -93,6 +93,7 @@ import QRCode from "qrcode";
 import { Suspense } from "react";
 import { SheetMounter } from "./SheetMounter";
 import { ConvertFosterButton } from "./_components/ConvertFosterButton";
+import { resolveCaptureIntentUrl } from "./anotar/handoff";
 
 // ---------------------------------------------------------------------------
 // Pet state derivation — maps pets fields to the visual state ring convention.
@@ -145,6 +146,23 @@ export default async function PetDetailPage({
   const { supabase, user, pet, accessPath, organization } = access;
 
   const isOwner = accessPath === "owner";
+
+  // No-flash capture routing (code review 2026-07-03): when a deep link /
+  // notification / home EventCatcher lands on `?sheet=anotar` carrying a
+  // resolvable intent (a known `kind`, or free text the deterministic matcher
+  // recognizes), resolve it HERE and redirect server-side — before any render.
+  // The old client-side ResolvedCaptureRedirect wasted a full profile render
+  // and used router.replace on the cross-route hop, inheriting the Next 15.5
+  // silent-drop defect that lib/ui/sheet-nav.ts exists to route around. Only
+  // owners capture (REQ-4.4) and never for a deceased pet (REQ-9.3); an
+  // unresolvable `?sheet=anotar` falls through to SheetMounter's sheet.
+  if (sp.sheet === "anotar" && isOwner && pet.status !== "deceased") {
+    const captureTarget = resolveCaptureIntentUrl(publicToken, {
+      kind: typeof sp.kind === "string" ? sp.kind : undefined,
+      text: typeof sp.text === "string" ? sp.text : undefined,
+    });
+    if (captureTarget) redirect(captureTarget);
+  }
 
   // Two-face redesign (2026-07-01): resolvePetFace is the single pure mapper
   // for every legacy ?tab= deep link (see lib/domain/pet-face-nav.ts). Org

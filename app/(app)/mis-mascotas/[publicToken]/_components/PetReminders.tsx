@@ -7,6 +7,7 @@ import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { ReminderCard } from "@/components/ReminderCard";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { ActiveReminderRow } from "@/lib/analytics/owner-dashboard";
+import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
 
 // ---------------------------------------------------------------------------
 // Date formatting helpers — Spanish, no date-fns dependency.
@@ -122,7 +123,7 @@ export function PetReminders({
                 actions={
                   <div className="flex items-center gap-2">
                     <Link
-                      href={`/mis-mascotas/${petToken}/eventos/nuevo/vacuna?reminderId=${r.reminderId}`}
+                      href={buildReminderVaccineUrl(petToken, r.reminderId)}
                       className="px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-xs font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
                     >
                       Registrar

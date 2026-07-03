@@ -39,13 +39,12 @@ import { TurnoAntirrabicaSheet } from "@/components/pet-profile/TurnoAntirrabica
 import { LnButton } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
-import { closeSheetNav, closeSheetNavWithFullReload, isSameRouteUrl } from "@/lib/ui/sheet-nav";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { closeSheetNav, closeSheetNavWithFullReload } from "@/lib/ui/sheet-nav";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useCallback } from "react";
 
 import { CaptureBox } from "./anotar/CaptureBox";
 import { CaptureOptionsList } from "./anotar/CaptureOptionsList";
-import { resolveCaptureIntentUrl } from "./anotar/handoff";
 import { MedicationStartForm } from "./eventos/nuevo/medicacion-inicio/MedicationStartForm";
 import { NoteForm } from "./eventos/nuevo/nota/NoteForm";
 import { WeightForm } from "./eventos/nuevo/peso/WeightForm";
@@ -186,15 +185,12 @@ export function SheetMounter({
     // defense-in-depth backstop for a hand-typed URL.
     // REQ-9.3: a deceased pet never accepts new events — same backstop.
     if (accessPath !== "owner" || petStatus === "deceased") return null;
-    // No-flash routing (flow audit 2026-07-03): a resolvable intent
-    // (?kind=… or matcher-recognized ?text=…) redirects straight to its
-    // target form instead of mounting the anotar sheet and having
-    // CaptureBox navigate away from inside it. Unresolvable input falls
-    // through to the sheet, where CaptureBox shows the "no reconocemos" UI.
-    const resolved = resolveCaptureIntentUrl(petToken, { kind, text });
-    if (resolved) {
-      return <ResolvedCaptureRedirect url={resolved} currentPathname={pathname} />;
-    }
+    // No-flash routing (flow audit + code review 2026-07-03): a resolvable
+    // intent (?kind=… or matcher-recognized ?text=…) is redirected to its
+    // target form by the SERVER (page.tsx, before render) so nothing flashes
+    // and no client router.replace can silently drop the hop. By the time we
+    // mount here the intent is unresolvable — open the anotar sheet with the
+    // "no reconocemos" UI.
     return (
       <Sheet id="anotar" title={`Anotar algo de ${petName}`} open onClose={close} size="lg">
         <div className="space-y-7">
@@ -460,33 +456,6 @@ export function SheetMounter({
   }
 
   // Unknown or absent sheet param — render nothing.
-  return null;
-}
-
-// ---------------------------------------------------------------------------
-// ResolvedCaptureRedirect — no-flash hop to a resolved capture target.
-// Renders nothing; on mount it REPLACES the ?sheet=anotar URL with the
-// resolved one — history.replaceState for a same-route ?sheet= shorthand
-// (shallow, SheetMounter re-renders with the target sheet; replace, not
-// push, so Back skips the transient anotar URL), router.replace for a
-// full-page form.
-// ---------------------------------------------------------------------------
-
-function ResolvedCaptureRedirect({
-  url,
-  currentPathname,
-}: {
-  url: string;
-  currentPathname: string;
-}) {
-  const router = useRouter();
-  useEffect(() => {
-    if (isSameRouteUrl(currentPathname, url)) {
-      window.history.replaceState(null, "", url);
-      return;
-    }
-    router.replace(url);
-  }, [url, currentPathname, router]);
   return null;
 }
 

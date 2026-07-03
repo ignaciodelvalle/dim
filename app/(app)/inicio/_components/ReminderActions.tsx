@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { snoozeReminderAction } from "@/app/actions/reminders";
+import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
 
 interface Props {
   reminderId: string;
@@ -32,7 +33,7 @@ export function ReminderActions({ reminderId, petToken, variant }: Props) {
   const [hidden, setHidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const registerHref = `/mis-mascotas/${petToken}/eventos/nuevo/vacuna?reminderId=${encodeURIComponent(reminderId)}`;
+  const registerHref = buildReminderVaccineUrl(petToken, reminderId);
   // /turnos/buscar reads `service_kind` (not `service`/`pet`). The pet is chosen
   // later at reserve time via the booking form's pet selector, so only the
   // service kind needs to travel. vaccination_rabies is the generic vaccination

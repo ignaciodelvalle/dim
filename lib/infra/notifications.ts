@@ -16,6 +16,7 @@ import {
 } from "@/db";
 import { getReminderVariant, isVaccineReportable } from "@/lib/domain/vaccine-reminder-state";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
 import { and, eq, gte, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 
 type DB = typeof defaultDb;
@@ -177,7 +178,7 @@ export async function runVaccineDueScan(
         // the vaccine name pre-fills and the reminder closes on submit — the
         // old /anotar?kind= hop reached the same form without the linkage.
         ctaLabel: "Registrar vacuna",
-        ctaUrl: `/mis-mascotas/${row.publicToken}/eventos/nuevo/vacuna?reminderId=${row.reminderId}`,
+        ctaUrl: buildReminderVaccineUrl(row.publicToken, row.reminderId),
       })
       .returning({ id: notifications.id });
     insertedNotificationIds.push(inserted.id);
