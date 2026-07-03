@@ -1086,6 +1086,37 @@ export function PanoramaConsole({
 
   const onScrub = useCallback((next: Date | null) => setAsOf(next), []);
 
+  // map-QOL selective refresh (freshness chip's "Actualizar"): refetch the
+  // KPIs + every ACTIVE layer with plain client fetches. No reload, no router,
+  // the map stays mounted — caches are simply overwritten with fresh data.
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    const params = new URLSearchParams(window.location.search);
+    const activeIds = PANORAMA_LAYERS.filter((l) => statesRef.current[l.id]?.active).map(
+      (l) => l.id,
+    );
+    setStates((s) => {
+      const next = { ...s };
+      for (const id of activeIds) next[id] = { ...next[id], loading: true };
+      return next;
+    });
+    const kpiFetch = fetch(`/api/panorama/kpis${scopePeriodQs ? `?${scopePeriodQs}` : ""}`, {
+      headers: { accept: "application/json" },
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<PanoramaKpis>) : null))
+      .then((body) => {
+        if (body) setKpis(body);
+      })
+      .catch(() => {
+        // Keep the last-known KPIs on a transient failure.
+      });
+    void Promise.all([kpiFetch, fetchLayersInto(activeIds, levelRef.current, params)]).finally(() =>
+      setRefreshing(false),
+    );
+  }, [refreshing, scopePeriodQs, fetchLayersInto]);
+
   // A1 PR-7: autozoom — derive the current jurisdiction selection from
   // searchParams (set by JurisdictionSwitcher via a full document navigation).
   // The province code is an ISO 3166-2:AR string (e.g. "AR-X"); the locality
@@ -1101,7 +1132,7 @@ export function PanoramaConsole({
     <div className="space-y-4">
       {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked by
           asOf in v1). The scrubber note states this so the operator isn't misled. */}
-      <PanoramaKpiStrip kpis={kpis} />
+      <PanoramaKpiStrip kpis={kpis} onRefresh={onRefresh} refreshing={refreshing} />
       <TimeScrubber since={since} until={until} onChange={onScrub} />
       <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
         <SituationalMapDynamic

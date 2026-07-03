@@ -33,6 +33,8 @@ import {
   type DashboardJurisdiction,
   buildProjectionContext,
 } from "@/lib/metrics";
+import { lastIngestAt } from "@/lib/metrics/freshness";
+import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { TARGETS } from "@/lib/metrics/targets";
 
@@ -52,6 +54,21 @@ export type KpiInfo = {
   definition: string;
   formula?: string;
   caveat?: string;
+};
+
+/**
+ * map-QOL: period-over-period comparison for a KPI. Only attached where the
+ * underlying metric is genuinely window-sensitive (cobertura, mordeduras,
+ * zoonosis) — state metrics (colas, stocks) get NO delta rather than a
+ * misleading 0%.
+ */
+export type KpiDelta = {
+  /** Rounded percent change vs the immediately-prior window of equal length. */
+  pct: number;
+  /** Direction, so the UI can pair the arrow glyph with the signed text. */
+  direction: "up" | "down" | "flat";
+  /** es-AR display/aria text, e.g. "+12% vs período anterior". */
+  label: string;
 };
 
 /** One headline KPI, ready to feed an OpKpi tile. */
@@ -80,6 +97,8 @@ export type PanoramaKpi = {
   href: string;
   /** The dashboard fetcher that produced this value (traceability / tests). */
   source: string;
+  /** Period-over-period delta — only on window-sensitive KPIs (map-QOL). */
+  delta?: KpiDelta;
 };
 
 export type PanoramaKpis = {
@@ -90,6 +109,13 @@ export type PanoramaKpis = {
    * recalculated for the active alcance/período (not a static national figure).
    */
   recalculatedFor: string;
+  /**
+   * map-QOL freshness: ISO timestamp of the newest scoped ingest event
+   * (lib/metrics/freshness.lastIngestAt), or null when the scope has no data.
+   * Serialized as a string so the payload survives the /api/panorama/kpis
+   * JSON round-trip unchanged.
+   */
+  dataAsOf: string | null;
 };
 
 /** es-AR integer formatting (thousands separator). */
@@ -100,6 +126,50 @@ function n(value: number): string {
 /** es-AR decimal: a dot becomes a comma (1 decimal figures from the fetchers). */
 function dec(value: number): string {
   return value.toString().replace(".", ",");
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The window immediately BEFORE the active period, same length. Standard
+ * preset lengths ride the named prior-window factories in lib/metrics/period
+ * (trailing60d/14d/24m — the doubled window's front half IS the prior window);
+ * custom lengths mirror the window backwards generically.
+ */
+function priorWindowOf(period: AnalyticsPeriod): { since: Date; until: Date } {
+  const lengthMs = period.until.getTime() - period.since.getTime();
+  const days = Math.round(lengthMs / DAY_MS);
+  // The factories anchor at NOW — only equivalent when the active window is a
+  // live trailing preset (until ≈ now). Historical/custom windows mirror
+  // generically instead.
+  const untilIsNow = Math.abs(Date.now() - period.until.getTime()) < DAY_MS;
+  const doubled = untilIsNow
+    ? days === 30
+      ? windows.trailing60d()
+      : days === 7
+        ? windows.trailing14d()
+        : days === 365
+          ? windows.trailing24m()
+          : null
+    : null;
+  if (doubled !== null) return { since: doubled.since, until: period.since };
+  return { since: new Date(period.since.getTime() - lengthMs), until: period.since };
+}
+
+/**
+ * Rounded percent change vs the prior value. Returns undefined when the prior
+ * value is 0 or non-finite — no meaningful % base, better no delta than a lie.
+ */
+function deltaOf(current: number, prior: number): KpiDelta | undefined {
+  if (!Number.isFinite(current) || !Number.isFinite(prior) || prior === 0) return undefined;
+  const pct = Math.round(((current - prior) / prior) * 100);
+  const direction = pct > 0 ? "up" : pct < 0 ? "down" : "flat";
+  const sign = pct > 0 ? "+" : "";
+  return {
+    pct,
+    direction,
+    label: `${sign}${pct.toLocaleString("es-AR")}% vs período anterior`,
+  };
 }
 
 /**
@@ -126,30 +196,59 @@ export async function getPanoramaKpis(
     adminLocality,
   });
 
-  const [coverage, analytics, perdidas, bites, zoonosis, welfare, sterilization] =
-    await Promise.all([
-      // 1. Cobertura antirrábica — lib/govt-home-kpis.fetchRabiesCoverage (ctx).
-      fetchRabiesCoverage(ctx),
-      // 2. Mascotas en cobertura (totalPets) — lib/govt-dashboards.fetchAnalyticsMetrics.
-      //    Non-ctx fetcher: thread adminProvince via opts so it applies explicit predicates.
-      fetchAnalyticsMetrics(actor, jurisdictions, {
-        since: period.since,
-        adminProvince,
-        adminLocality,
-      }),
-      // 3. Pérdidas activas — lib/govt-dashboards.fetchPerdidasMetrics (population metric).
-      //    Non-ctx fetcher: thread adminProvince via opts.
-      fetchPerdidasMetrics(actor, jurisdictions, { adminProvince, adminLocality }),
-      // 4. Mordeduras / 10k hab. — lib/govt-home-kpis.fetchBitesPer10k (ctx).
-      fetchBitesPer10k(ctx),
-      // 5. Zoonosis activas — lib/govt-home-kpis.fetchActiveZoonosis (ctx).
-      fetchActiveZoonosis(ctx),
-      // 6. Denuncias activas — lib/govt-home-kpis.fetchOpenWelfareReportsCount (ctx).
-      fetchOpenWelfareReportsCount(ctx),
-      // 7. Cobertura de esterilización — lib/metrics/population-control.fetchSterilizationCoverage.
-      // Same fetcher as /gob/poblacion → dashboard parity guaranteed.
-      fetchSterilizationCoverage(ctx),
-    ]);
+  // map-QOL period-over-period: the SAME window-sensitive fetchers run once
+  // more against the immediately-prior window (identical scope) so the deltas
+  // are parity-true by construction. Only the 3 window-sensitive metrics get a
+  // prior run — the state metrics (colas/stocks) would return the same value.
+  const priorWindow = priorWindowOf(period);
+  const priorCtx = buildProjectionContext(
+    actor,
+    jurisdictions,
+    { ...period, since: priorWindow.since, until: priorWindow.until },
+    { adminProvince, adminLocality },
+  );
+
+  const [
+    coverage,
+    analytics,
+    perdidas,
+    bites,
+    zoonosis,
+    welfare,
+    sterilization,
+    priorCoverage,
+    priorBites,
+    priorZoonosis,
+    ingestAt,
+  ] = await Promise.all([
+    // 1. Cobertura antirrábica — lib/govt-home-kpis.fetchRabiesCoverage (ctx).
+    fetchRabiesCoverage(ctx),
+    // 2. Mascotas en cobertura (totalPets) — lib/govt-dashboards.fetchAnalyticsMetrics.
+    //    Non-ctx fetcher: thread adminProvince via opts so it applies explicit predicates.
+    fetchAnalyticsMetrics(actor, jurisdictions, {
+      since: period.since,
+      adminProvince,
+      adminLocality,
+    }),
+    // 3. Pérdidas activas — lib/govt-dashboards.fetchPerdidasMetrics (population metric).
+    //    Non-ctx fetcher: thread adminProvince via opts.
+    fetchPerdidasMetrics(actor, jurisdictions, { adminProvince, adminLocality }),
+    // 4. Mordeduras / 10k hab. — lib/govt-home-kpis.fetchBitesPer10k (ctx).
+    fetchBitesPer10k(ctx),
+    // 5. Zoonosis activas — lib/govt-home-kpis.fetchActiveZoonosis (ctx).
+    fetchActiveZoonosis(ctx),
+    // 6. Denuncias activas — lib/govt-home-kpis.fetchOpenWelfareReportsCount (ctx).
+    fetchOpenWelfareReportsCount(ctx),
+    // 7. Cobertura de esterilización — lib/metrics/population-control.fetchSterilizationCoverage.
+    // Same fetcher as /gob/poblacion → dashboard parity guaranteed.
+    fetchSterilizationCoverage(ctx),
+    // Prior-window runs (deltas) — same fetchers, prior ctx.
+    fetchRabiesCoverage(priorCtx),
+    fetchBitesPer10k(priorCtx),
+    fetchActiveZoonosis(priorCtx),
+    // Freshness: newest scoped ingest event (map-QOL freshness chip).
+    lastIngestAt(ctx),
+  ]);
 
   const kpis: PanoramaKpi[] = [
     {
@@ -163,6 +262,7 @@ export async function getPanoramaKpis(
       tone: coverage.current >= coverage.target ? "ok" : "warn",
       href: "/gob/analytics",
       source: "govt-home-kpis.fetchRabiesCoverage",
+      delta: deltaOf(coverage.current, priorCoverage.current),
       info: {
         definition:
           "Porcentaje de perros activos en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. Meta de salud pública: 80%.",
@@ -214,6 +314,7 @@ export async function getPanoramaKpis(
       tone: "warn",
       href: "/gob/vigilancia",
       source: "govt-home-kpis.fetchBitesPer10k",
+      delta: deltaOf(bites.rate, priorBites.rate),
       info: {
         definition:
           "Tasa de incidentes de mordedura por cada 10.000 habitantes del censo provincial en los últimos 12 meses. Se usa como indicador de riesgo zoonótico (A6 proxy).",
@@ -231,6 +332,7 @@ export async function getPanoramaKpis(
       tone: zoonosis.count > 0 ? "danger" : "neutral",
       href: "/gob/vigilancia",
       source: "govt-home-kpis.fetchActiveZoonosis",
+      delta: deltaOf(zoonosis.count, priorZoonosis.count),
       info: {
         definition:
           "Total de señales zoonóticas activas: mascotas con observación rábica en curso (status='in_progress') + casos bite_incident abiertos (deduplicados) + reportes de leptospirosis e hidatidosis en los últimos 30 días.",
@@ -277,6 +379,7 @@ export async function getPanoramaKpis(
   return {
     kpis,
     recalculatedFor: describeRecalc(actor, jurisdictions, adminProvince, adminLocality),
+    dataAsOf: ingestAt?.toISOString() ?? null,
   };
 }
 

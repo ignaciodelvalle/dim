@@ -70,7 +70,7 @@ vi.mock("@/components/panorama/TimeScrubber", () => ({
 import { PanoramaConsole } from "./PanoramaConsole";
 
 const EMPTY_FC = { type: "FeatureCollection" as const, features: [] };
-const INITIAL_KPIS = { kpis: [], recalculatedFor: "Nacional · este mes" };
+const INITIAL_KPIS = { kpis: [], recalculatedFor: "Nacional · este mes", dataAsOf: null };
 const OK_ENVELOPE = { features: EMPTY_FC, truncated: false, suppressedCount: 0 };
 
 const fetchMock = vi.fn(

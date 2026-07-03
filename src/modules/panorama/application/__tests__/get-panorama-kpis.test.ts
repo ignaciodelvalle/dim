@@ -6,11 +6,15 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/govt-dashboards", () => ({
+// NOTE: the mock paths MUST match the SUT's import specifiers exactly
+// (@/lib/analytics/…). They used to point at @/lib/govt-* — nonexistent
+// modules — so the REAL fetchers loaded and vi.mocked(...) wrapped plain
+// functions (mockResolvedValue crashed). Fixed alongside the map-QOL deltas.
+vi.mock("@/lib/analytics/govt-dashboards", () => ({
   fetchAnalyticsMetrics: vi.fn(),
   fetchPerdidasMetrics: vi.fn(),
 }));
-vi.mock("@/lib/govt-home-kpis", () => ({
+vi.mock("@/lib/analytics/govt-home-kpis", () => ({
   fetchRabiesCoverage: vi.fn(),
   fetchBitesPer10k: vi.fn(),
   fetchActiveZoonosis: vi.fn(),
@@ -18,6 +22,9 @@ vi.mock("@/lib/govt-home-kpis", () => ({
 }));
 vi.mock("@/lib/metrics/population-control", () => ({
   fetchSterilizationCoverage: vi.fn(),
+}));
+vi.mock("@/lib/metrics/freshness", () => ({
+  lastIngestAt: vi.fn(),
 }));
 
 import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/analytics/govt-dashboards";
@@ -28,6 +35,7 @@ import {
   fetchRabiesCoverage,
 } from "@/lib/analytics/govt-home-kpis";
 import type { AnalyticsPeriod } from "@/lib/metrics";
+import { lastIngestAt } from "@/lib/metrics/freshness";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 
 import { getPanoramaKpis } from "../get-panorama-kpis";
@@ -70,6 +78,7 @@ function seedDefaults() {
     total: 1000,
     byProvince: [],
   });
+  vi.mocked(lastIngestAt).mockResolvedValue(new Date("2026-06-19T18:30:00.000Z"));
 }
 
 beforeEach(() => {
@@ -196,5 +205,73 @@ describe("getPanoramaKpis", () => {
     expect(byId.zoonosis.tone).toBe("neutral");
     expect(byId.denuncias.tone).toBe("neutral");
     expect(byId.perdidas.tone).toBe("neutral");
+  });
+
+  // ---------------------------------------------------------------------------
+  // map-QOL: period-over-period deltas + freshness
+  // ---------------------------------------------------------------------------
+
+  it("attaches deltas ONLY to window-sensitive KPIs, computed against the prior window", async () => {
+    // Current run first, prior run second (Promise.all evaluates in order).
+    vi.mocked(fetchRabiesCoverage)
+      .mockResolvedValueOnce({ current: 72, target: 80, partidos: 3, hasData: true })
+      .mockResolvedValueOnce({ current: 60, target: 80, partidos: 3, hasData: true });
+    vi.mocked(fetchBitesPer10k)
+      .mockResolvedValueOnce({ rate: 3.5, delta: 0, reports: 18 })
+      .mockResolvedValueOnce({ rate: 7, delta: 0, reports: 30 });
+
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const byId = Object.fromEntries(kpis.map((k) => [k.id, k]));
+
+    // cobertura: 72 vs 60 → +20%, up, es-AR signed label.
+    expect(byId.cobertura.delta).toEqual({
+      pct: 20,
+      direction: "up",
+      label: "+20% vs período anterior",
+    });
+    // mordeduras: 3.5 vs 7 → -50%, down.
+    expect(byId.mordeduras.delta?.pct).toBe(-50);
+    expect(byId.mordeduras.delta?.direction).toBe("down");
+    // zoonosis: same mock both runs → 0%, flat (still meaningful: window metric).
+    expect(byId.zoonosis.delta?.direction).toBe("flat");
+
+    // State metrics NEVER carry a delta (no misleading 0% on stocks/queues).
+    expect(byId.mascotas.delta).toBeUndefined();
+    expect(byId.perdidas.delta).toBeUndefined();
+    expect(byId.denuncias.delta).toBeUndefined();
+    expect(byId.esterilizacion.delta).toBeUndefined();
+  });
+
+  it("omits the delta when the prior value is 0 (no meaningful % base)", async () => {
+    vi.mocked(fetchActiveZoonosis)
+      .mockResolvedValueOnce({ count: 9, rabies: 2, lepto: 1, hidat: 0, deltaWeek: 0 })
+      .mockResolvedValueOnce({ count: 0, rabies: 0, lepto: 0, hidat: 0, deltaWeek: 0 });
+
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    expect(kpis.find((k) => k.id === "zoonosis")?.delta).toBeUndefined();
+  });
+
+  it("runs the prior window IMMEDIATELY before the active one, same length and scope", async () => {
+    await getPanoramaKpis({ role: "admin" }, [], period);
+
+    expect(fetchRabiesCoverage).toHaveBeenCalledTimes(2);
+    const priorCtx = vi.mocked(fetchRabiesCoverage).mock.calls[1][0];
+    // The prior window ends exactly where the active one starts…
+    expect(priorCtx.period.until).toEqual(period.since);
+    // …and spans the same length (365d here → prior-12m via windows.trailing24m).
+    const priorLen = priorCtx.period.until.getTime() - priorCtx.period.since.getTime();
+    const currentLen = period.until.getTime() - period.since.getTime();
+    expect(Math.round(priorLen / 86_400_000)).toBe(Math.round(currentLen / 86_400_000));
+    // Scope is identical (no widening in the comparison run).
+    expect(priorCtx.scope).toEqual(vi.mocked(fetchRabiesCoverage).mock.calls[0][0].scope);
+  });
+
+  it("surfaces the freshness timestamp as an ISO string (null-safe)", async () => {
+    const result = await getPanoramaKpis({ role: "admin" }, [], period);
+    expect(result.dataAsOf).toBe("2026-06-19T18:30:00.000Z");
+
+    vi.mocked(lastIngestAt).mockResolvedValue(null);
+    const empty = await getPanoramaKpis({ role: "admin" }, [], period);
+    expect(empty.dataAsOf).toBeNull();
   });
 });
