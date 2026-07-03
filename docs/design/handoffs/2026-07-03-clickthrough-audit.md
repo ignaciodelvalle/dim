@@ -91,6 +91,30 @@ placeholders (silhouette + initial), not real animal photos.
 - Bonus: `/admin/censo` funnel 500 on deceased-pet-with-ISO-chip fixed
   (`cd2714e6`) — Segmento 4 screen.
 
+### Beat-state pass (CC, post-polish 2026-07-03 evening)
+
+Direct DB fixes so no beat films empty (all through faithful shapes):
+
+- **Inbox owner@**: 8 stale notifications referencing pre-polish names ("QA
+  Ronda2 Perro") archived. One `vaccine_due` notification present with the
+  exact cron shape (title "Antirrábica anual", body "Atún tiene una vacuna
+  programada en 9 días.", CTA `/mis-mascotas/DIM-VT3V-SEA3/eventos/nuevo/
+  vacuna?reminderId=…`) — the fix-C beat is filmable.
+- **Vencimientos**: stale overdue pregnancy reminders on Michi closed; Atún
+  has "Antirrábica anual" due in 9 days (amber due-soon).
+- **Vet agenda (Segmento 2)**: 4 confirmed turnos Mon 09:00-09:45 ART at
+  Clínica Veterinaria Recoleta (Blue, Chicha, Cielo, Courage). NOTE: booked
+  Monday because prep ran Friday night — **film Segmento 2 on a weekday**.
+- **Michi stays LOST on purpose** — she IS the documented lost-pet beat
+  (DIM-4SUZ-U2HT). Expect the lost banner on owner@'s home.
+- **Shelter portals**: Esperanza Animal 4 pets, Patitas del Norte 5 — not
+  empty; the Segmento 3 short flow gets created on camera.
+
+Open PO calls before recording: (1) real photos for owner@'s 4 pets —
+current ones are tasteful placeholders but read as placeholders in close-ups;
+(2) NEXT_PUBLIC_DEMO_MODE banner on/off (rebuild needed if on); (3)
+CRON_SECRET in .env.local only if the manual cron gates are wanted.
+
 ---
 
 ## Fase 1 — Gates (Cowork)
