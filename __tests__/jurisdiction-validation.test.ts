@@ -126,6 +126,23 @@ describe("resolveCanonicalJurisdiction — unresolvable inputs throw Jurisdictio
     });
   });
 
+  it("throws INVALID_LOCALITY for province name given as a locality (issue #758 regression)", async () => {
+    // Production had a govt_assignments row with province='Buenos Aires',
+    // locality='CABA' — "CABA" is a province name, never a locality_name in
+    // ar_localities, so it silently produced an empty scope. This anchors
+    // the exact bad input against regressing.
+    if (!catalogPopulated) return;
+    await expect(
+      resolveCanonicalJurisdiction({
+        rawProvince: "Buenos Aires",
+        rawLocality: "CABA",
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_LOCALITY",
+      name: "JurisdictionValidationError",
+    });
+  });
+
   it("throws INVALID_LOCALITY for a CABA province with a non-barrio free-text", async () => {
     if (!cabaBarriosPopulated) return;
     await expect(
