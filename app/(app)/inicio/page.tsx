@@ -31,6 +31,7 @@ import { getProfileCached } from "@/lib/infra/request-cache";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { BRANDING } from "@/lib/ui/branding";
 import { capCount, speciesLabel } from "@/lib/utils/format";
+import { greetingFirstName } from "@/lib/utils/greeting";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
 import { PetHealthStatusStrip } from "./_components/PetHealthStatusStrip";
 import { RemindersSection } from "./_components/RemindersSection";
@@ -98,7 +99,7 @@ export default async function InicioPage() {
   // which filtered deactivated_at IS NULL.
   const firstName =
     profileRow && profileRow.deactivatedAt === null
-      ? (profileRow.displayName ?? "").trim().split(/\s+/)[0] || "amigo"
+      ? greetingFirstName(profileRow.displayName)
       : "amigo";
 
   const eventCatcherPets = pets.map(adaptPet);
