@@ -4,7 +4,11 @@ import { PanoramaConsole } from "@/components/panorama/PanoramaConsole";
 import { PanoramaDemoDisclosure } from "@/components/panorama/PanoramaDemoDisclosure";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
-import type { FeatureCollection, PanoramaLayer } from "@/src/modules/panorama/domain/types";
+import type {
+  AggregationLevel,
+  FeatureCollection,
+  PanoramaLayer,
+} from "@/src/modules/panorama/domain/types";
 
 // ---------------------------------------------------------------------------
 // PanoramaShell — server component composing the situational console chrome:
@@ -50,6 +54,12 @@ type Props = {
    * true) — avoids stacking two identical disclosures (D3).
    */
   suppressDemoDisclosure?: boolean;
+  /**
+   * Aggregation axis the page resolved the default layer's seed at — must
+   * match the level passed to getLayerFeatures. Scoped views pass "locality"
+   * so the console opens at the finest granularity (QA 2026-07-03).
+   */
+  initialLevel?: AggregationLevel;
 };
 
 export function PanoramaShell({
@@ -64,6 +74,7 @@ export function PanoramaShell({
   kpis,
   initialBounds,
   suppressDemoDisclosure = false,
+  initialLevel = "province",
 }: Props) {
   return (
     <div className="space-y-4">
@@ -140,6 +151,7 @@ export function PanoramaShell({
         initialKpis={kpis}
         initialBounds={initialBounds}
         localityCentroids={localityCentroids}
+        initialLevel={initialLevel}
       />
     </div>
   );

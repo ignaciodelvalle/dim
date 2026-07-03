@@ -165,6 +165,16 @@ type Props = {
    * from the JurisdictionSwitcher (A1 PR-7). Keyed by locality slug.
    */
   localityCentroids?: LocalityCentroids;
+  /**
+   * Aggregation axis the server seeded the default layer at, and the axis the
+   * console starts on when the URL doesn't pin one. Scoped views (a province
+   * or locality selected) seed at "locality" so the map opens at the finest
+   * granularity the data supports (QA 2026-07-03: polygons/points at locality
+   * granularity add reference and show the data's real resolution); the
+   * national view stays at "province" (fast rollup, readable overview).
+   * MUST match the level the page passed to getLayerFeatures for the seed.
+   */
+  initialLevel?: AggregationLevel;
 };
 
 export function PanoramaConsole({
@@ -175,11 +185,16 @@ export function PanoramaConsole({
   initialKpis,
   initialBounds,
   localityCentroids = {},
+  initialLevel = "province",
 }: Props) {
   const searchParams = useSearchParams();
   // Feature data per layer (the default is seeded; others fetched on toggle).
   // This is the LIVE cache (asOf=null). The temporal as-of cache is separate.
-  const dataRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
+  // When the server seeded the default layer at locality level (scoped view,
+  // initialLevel="locality"), the seed lands here — this IS the locality cache.
+  const dataRef = useRef<Map<LayerId, FeatureCollection>>(
+    initialLevel === "locality" ? new Map([[defaultLayerId, defaultFeatures]]) : new Map(),
+  );
   // As-of feature cache (F4): per (layer, asOf-iso) the features the layer had at
   // that instant. Refreshed when the scrubber moves; cleared when the period/scope
   // changes (a new window invalidates the axis). Live layers stay in dataRef.
@@ -190,27 +205,30 @@ export function PanoramaConsole({
   // and the layer is active. Cleared (with dataRef's choropleth entries) when the
   // scope/period changes so a new window refetches at the active level.
   //
-  // C2 fix: seed the default layer (perdidas, an aggregated point layer) into the
-  // PROVINCE cache because the console's default aggregation axis is "province".
-  // The server resolves the default seed at province level (app/*/panorama/page.tsx).
-  // Seeding into dataRef (locality cache) would leave provinceDataRef empty on
-  // first render, causing the activeLayers memo to find EMPTY_FC → blank map.
+  // C2 fix: seed the default layer (perdidas, an aggregated point layer) into
+  // the cache that matches the axis the SERVER resolved the seed at
+  // (initialLevel — see app/*/panorama/page.tsx). Seeding into the other cache
+  // would leave the active cache empty on first render, causing the
+  // activeLayers memo to find EMPTY_FC → blank map.
   const provinceDataRef = useRef<Map<LayerId, FeatureCollection>>(
-    isAggregatedPointLayer(defaultLayerId)
+    initialLevel === "province" && isAggregatedPointLayer(defaultLayerId)
       ? new Map([[defaultLayerId, defaultFeatures]])
       : new Map(),
   );
 
   // U5 aggregation axis — the granularity TOGGLE. Distinct from the scope filter
   // (JurisdictionSwitcher narrows WHAT is shown; this changes HOW the choropleth
-  // layers are aggregated + rendered). Defaults to PROVINCE: the national
-  // overview reads well at a glance, the province rollup is fast, and it keeps
-  // the default off the slow rabies-coverage locality rollup. Locality (centroid
-  // symbols) is one toggle away. map-QOL: the URL (`?level=locality`) wins on
-  // mount so a shared/restored board reproduces the same axis.
-  const [level, setLevel] = useState<AggregationLevel>(() =>
-    searchParams.get("level") === "locality" ? "locality" : "province",
-  );
+  // layers are aggregated + rendered). The national view defaults to PROVINCE
+  // (fast rollup, readable overview — and it keeps the default off the slow
+  // rabies-coverage locality rollup); scoped views arrive with
+  // initialLevel="locality" so the finest granularity is the default there.
+  // map-QOL: the URL (`?level=…`) wins on mount so a shared/restored board
+  // reproduces the same axis.
+  const [level, setLevel] = useState<AggregationLevel>(() => {
+    const urlLevel = searchParams.get("level");
+    if (urlLevel === "locality" || urlLevel === "province") return urlLevel;
+    return initialLevel;
+  });
   const levelRef = useRef(level);
   levelRef.current = level;
 
@@ -229,12 +247,15 @@ export function PanoramaConsole({
       return s;
     }
     // URL board: the `layers` param defines the active set. The default layer
-    // keeps its server seed only at the seeded (province) axis; everything else
-    // starts loading and is resolved by the mount effect below.
+    // keeps its server seed only at the axis the server seeded it at
+    // (initialLevel); everything else starts loading and is resolved by the
+    // mount effect below.
+    const urlLevelRaw = searchParams.get("level");
     const urlLevel: AggregationLevel =
-      searchParams.get("level") === "locality" ? "locality" : "province";
+      urlLevelRaw === "locality" || urlLevelRaw === "province" ? urlLevelRaw : initialLevel;
     for (const id of urlLayerIds) {
-      const seeded = id === defaultLayerId && urlLevel === "province" && isAggregatedPointLayer(id);
+      const seeded =
+        id === defaultLayerId && urlLevel === initialLevel && isAggregatedPointLayer(id);
       s[id] = seeded
         ? {
             active: true,

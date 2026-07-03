@@ -96,17 +96,22 @@ export default async function GobPanoramaPage({
   const layer = getLayer("perdidas")!;
   // Default layer features + the headline KPIs + the jurisdiction bbox resolve
   // concurrently. The KPIs reuse the tested dashboard fetchers (parity) and are
-  // scoped+period-aware. Seed the default layer at PROVINCE level (matching the
-  // PanoramaConsole default aggregation axis of "province"). Seeding at locality
-  // level would leave the provinceDataRef cache empty on first render and produce
-  // a blank map (C2).
+  // scoped+period-aware.
+  //
+  // Seed level follows the scope (QA 2026-07-03): a govt actor (always
+  // jurisdiction-scoped) or an explicit province selection opens at LOCALITY
+  // granularity — the finest the data supports; only the unscoped national
+  // (admin) view stays at PROVINCE. The level MUST match PanoramaShell's
+  // initialLevel or the console's seeded cache is the wrong one (C2).
+  const isScoped = provinceObj !== null || (profile.role !== "admin" && jurisdictions.length > 0);
+  const initialLevel = isScoped ? ("locality" as const) : ("province" as const);
   const [result, kpis, initialBounds] = await Promise.all([
     getLayerFeatures(
       "perdidas",
       actor,
       scoped,
       { since },
-      "province",
+      initialLevel,
       adminProvince,
       adminLocality,
     ),
@@ -127,6 +132,7 @@ export default async function GobPanoramaPage({
       localityCentroids={localityCentroids}
       kpis={kpis}
       initialBounds={initialBounds ?? undefined}
+      initialLevel={initialLevel}
     />
   );
 }

@@ -111,16 +111,20 @@ export default async function AdminPanoramaPage({
   const layer = getLayer("perdidas")!;
   // Default layer features + the headline KPIs resolve concurrently. The KPIs
   // reuse the tested dashboard fetchers (parity) and are scoped+period-aware.
-  // Seed the default layer at PROVINCE level (matching the PanoramaConsole default
-  // aggregation axis of "province"). Seeding at locality level would leave the
-  // provinceDataRef cache empty on first render and produce a blank map (C2).
+  //
+  // Seed level follows the scope (QA 2026-07-03): a selected province/locality
+  // opens at LOCALITY granularity (finest the data supports — shows the data's
+  // real resolution); the national view stays at PROVINCE (fast rollup,
+  // readable overview). The level MUST match PanoramaShell's initialLevel or
+  // the console's seeded cache is the wrong one and the map starts blank (C2).
+  const initialLevel = provinceObj ? ("locality" as const) : ("province" as const);
   const [result, kpis] = await Promise.all([
     getLayerFeatures(
       "perdidas",
       actor,
       scoped,
       { since },
-      "province",
+      initialLevel,
       adminProvince,
       adminLocality,
     ),
@@ -142,6 +146,7 @@ export default async function AdminPanoramaPage({
       // /admin shows the global DemoModeBanner (admin layout); suppress
       // Panorama's own notice so the page never stacks two disclosures (D3).
       suppressDemoDisclosure={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)}
+      initialLevel={initialLevel}
     />
   );
 }
