@@ -41,6 +41,7 @@
     "seed:panorama": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-panorama.ts",
     "seed:pet-photos": "tsx scripts/seed-pet-photos.ts",
     "seed:demo-polish": "tsx scripts/seed-demo-polish.ts",
+    "seed:real-photos": "tsx scripts/seed-real-photos.ts",
     "verify:history": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/verify-history-coverage.ts",
     "seed:demo:scenario": "node --conditions=react-server --import tsx scripts/seed-demo-scenario.ts",
     "demo:verify": "node --conditions=react-server --import tsx scripts/demo-verify.ts",

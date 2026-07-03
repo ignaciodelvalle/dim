@@ -61,3 +61,5 @@ e2e/.auth/
 
 # Local demo screen recordings — never commit (large binaries)
 *.webm
+scripts/assets/pet-photos-real/*
+!scripts/assets/pet-photos-real/README.md
