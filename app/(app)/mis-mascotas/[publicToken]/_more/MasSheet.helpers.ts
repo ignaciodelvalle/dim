@@ -105,16 +105,9 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
     href: `/mis-mascotas/${pet.publicToken}?sheet=emergencia`,
   });
 
-  // Deferred GPS-tracking placeholder (ADR-17c) — a quiet non-interactive
-  // row, not a live feature. Never shown for a deceased pet (handled by the
-  // early return above).
-  items.push({
-    id: "tracking",
-    label: "Rastreo GPS",
-    href: "#",
-    disabled: true,
-    badge: "Próximamente",
-  });
+  // The "Rastreo GPS · Próximamente" placeholder row was removed (lean audit
+  // 2026-07-03): a disabled row advertising a feature that doesn't exist is
+  // noise, not a roadmap. Re-add a real row when GPS tracking ships.
 
   return items;
 }

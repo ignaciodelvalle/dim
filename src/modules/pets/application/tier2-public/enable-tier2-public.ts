@@ -46,6 +46,5 @@ export async function enableTier2Public(
   }
 
   revalidatePath(`/mis-mascotas/${publicToken}`);
-  revalidatePath(`/mis-mascotas/${publicToken}/mostrar-libreta`);
   revalidatePath(`/p/${publicToken}`);
 }

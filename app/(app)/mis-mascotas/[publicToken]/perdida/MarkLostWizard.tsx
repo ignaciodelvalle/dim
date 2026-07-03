@@ -1,8 +1,15 @@
 "use client";
 
 // MarkLostWizard — Libreta Nacional redesign (seal/red tone, §10 handoff).
-// Presentation ONLY: 3-step wizard structure, formRef pattern, step logic,
-// action call, field names, and submit logic are untouched.
+//
+// Collects location + reconocimiento detail only. Disclosure preferences
+// (name/phone/email/location/finder-form) are NOT set here anymore (lean
+// audit 2026-07-03 dedup): they lived here AND in LostDisclosureCard, so the
+// same 5 toggles had two editors. Marking a pet lost now applies the pet's
+// existing (privacy-sensible default) disclosure prefs — setPetLostAction's
+// parseDisclosurePrefsFromForm falls back to petDefaults when the form
+// carries no disclosure fields — and LostDisclosureCard (always rendered in
+// the lost block post-mark) is the single place to tune them.
 
 import { useRef, useState, useTransition } from "react";
 
@@ -19,60 +26,13 @@ import {
   LnSubCard,
 } from "@/components/ui/Sheet";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
-import { LnToggle } from "@/components/ui/Toggle";
 import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
-import type { DisclosurePrefsInput, EventFormState } from "@/src/modules/events/actions";
+import type { EventFormState } from "@/src/modules/events/actions";
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
 
-const DISCLOSURE_TOGGLES: Array<{
-  name: keyof DisclosurePrefsInput;
-  formName: string;
-  label: string;
-  description: string;
-  defaultOn: boolean;
-}> = [
-  {
-    name: "discloseFirstNameWhenLost",
-    formName: "disclose_first_name_when_lost",
-    label: "Tu nombre",
-    description: "Quienes encuentren a tu mascota verán tu nombre de pila.",
-    defaultOn: true,
-  },
-  {
-    name: "disclosePhoneWhenLost",
-    formName: "disclose_phone_when_lost",
-    label: "Tu teléfono",
-    description: "La credencial pública mostrará un botón directo para llamarte.",
-    defaultOn: true,
-  },
-  {
-    name: "discloseEmailWhenLost",
-    formName: "disclose_email_when_lost",
-    label: "Tu email",
-    description: "Se mostrará un enlace de contacto por correo electrónico.",
-    defaultOn: false,
-  },
-  {
-    name: "discloseLastLocationWhenLost",
-    formName: "disclose_last_location_when_lost",
-    label: "Última ubicación conocida",
-    description: "Ayuda a orientar la búsqueda en el barrio correcto.",
-    defaultOn: true,
-  },
-  {
-    name: "allowFinderFormWhenLost",
-    formName: "allow_finder_form_when_lost",
-    label: "Formulario de quien la encontró",
-    description:
-      "Permite que alguien te avise a través de la credencial sin necesitar tu contacto.",
-    defaultOn: true,
-  },
-];
-
 export function MarkLostWizard({
   action,
-  disclosureDefaults,
   petName,
   petPublicToken,
   petHasMicrochip,
@@ -83,7 +43,6 @@ export function MarkLostWizard({
   petJurisdictionLocality,
 }: {
   action: FormAction;
-  disclosureDefaults: DisclosurePrefsInput;
   petName: string;
   petPublicToken: string;
   petHasMicrochip: boolean;
@@ -93,27 +52,19 @@ export function MarkLostWizard({
   petJurisdictionProvince: string | null;
   petJurisdictionLocality: string | null;
 }) {
-  // Detail step is conditional — pets with chip or tattoo skip it.
+  // Detail step is conditional — pets with chip or tattoo skip it, leaving a
+  // single-step location form.
   const showDetailsStep = !petHasMicrochip && !petHasTattoo;
-  const totalSteps = showDetailsStep ? 3 : 2;
+  const totalSteps = showDetailsStep ? 2 : 1;
   const stepLabels = showDetailsStep
-    ? ["¿Dónde la viste?", "Datos para reconocerla", "Qué querés que vean"]
-    : ["¿Dónde la viste?", "Qué querés que vean"];
+    ? ["¿Dónde la viste?", "Datos para reconocerla"]
+    : ["¿Dónde la viste?"];
 
   const [step, setStep] = useState(1);
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-
-  // Disclosure toggles state (LnToggle is controlled)
-  const [disclosure, setDisclosure] = useState<Record<string, boolean>>({
-    disclose_first_name_when_lost: disclosureDefaults.discloseFirstNameWhenLost,
-    disclose_phone_when_lost: disclosureDefaults.disclosePhoneWhenLost,
-    disclose_email_when_lost: disclosureDefaults.discloseEmailWhenLost,
-    disclose_last_location_when_lost: disclosureDefaults.discloseLastLocationWhenLost,
-    allow_finder_form_when_lost: disclosureDefaults.allowFinderFormWhenLost,
-  });
 
   function goBack() {
     setErrorMessage(null);
@@ -128,12 +79,8 @@ export function MarkLostWizard({
   function handleSubmit() {
     setErrorMessage(null);
     const formData = formRef.current ? new FormData(formRef.current) : new FormData();
-    // Sync controlled toggle state into formData before submit.
-    // (Hidden inputs in the form only capture the initial defaultChecked;
-    // LnToggle is controlled so we write the current values here.)
-    for (const [k, v] of Object.entries(disclosure)) {
-      formData.set(k, v ? "on" : "");
-    }
+    // No disclosure fields are submitted — setPetLostAction applies the pet's
+    // existing (default) prefs, and LostDisclosureCard edits them afterward.
     // Signal to setPetLostAction to skip the redirect.
     formData.set("noRedirect", "1");
     startTransition(async () => {
@@ -158,7 +105,7 @@ export function MarkLostWizard({
     return (
       <LnSuccessScreen
         title={`Activamos la búsqueda de ${petName}`}
-        description="Su perfil público ya muestra el aviso. Más gente va a poder ayudarte a encontrarla."
+        description="Su perfil público ya muestra el aviso con tus datos de contacto habituales. En su perfil podés ajustar qué información se ve (teléfono, ubicación, email)."
         next={[
           { label: "Compartir por WhatsApp", href: shareUrl },
           { label: "Imprimir cartel A4", href: printHref, variant: "secondary" },
@@ -365,41 +312,6 @@ export function MarkLostWizard({
               </LnSubCard>
             </section>
           )}
-
-          {/* Final step — disclosure toggles. */}
-          <section
-            data-section="step-disclosure"
-            className={step === totalSteps ? "flex flex-col gap-[12px]" : "sr-only"}
-            aria-hidden={step !== totalSteps}
-          >
-            <LnSubCard heading="Preferencias de divulgación">
-              <p className="text-sm text-[var(--color-ln-mute)]">
-                ¿Qué información mostramos en tu credencial pública mientras esté perdida? Podés
-                cambiar esto en cualquier momento.
-              </p>
-              <div className="flex flex-col gap-[8px]">
-                {DISCLOSURE_TOGGLES.map((toggle) => (
-                  <LnToggle
-                    key={toggle.formName}
-                    variant="amber"
-                    checked={disclosure[toggle.formName] ?? toggle.defaultOn}
-                    onChange={(v) => setDisclosure((prev) => ({ ...prev, [toggle.formName]: v }))}
-                    label={toggle.label}
-                    description={toggle.description}
-                  />
-                ))}
-              </div>
-              {/* Hidden inputs so formData picks up toggle state when JS reads FormData */}
-              {DISCLOSURE_TOGGLES.map((toggle) => (
-                <input
-                  key={toggle.formName}
-                  type="hidden"
-                  name={toggle.formName}
-                  value={(disclosure[toggle.formName] ?? toggle.defaultOn) ? "on" : ""}
-                />
-              ))}
-            </LnSubCard>
-          </section>
 
           {errorMessage && (
             <p

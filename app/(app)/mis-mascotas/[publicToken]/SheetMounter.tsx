@@ -77,11 +77,9 @@ import { MergedShareSheet } from "./_share/MergedShareSheet";
 import { TransferSenderForm } from "./_transfer/TransferSenderForm";
 
 type MarkLostData = {
-  discloseFirstNameWhenLost: boolean;
-  disclosePhoneWhenLost: boolean;
-  discloseEmailWhenLost: boolean;
-  discloseLastLocationWhenLost: boolean;
-  allowFinderFormWhenLost: boolean;
+  // Disclosure prefs are no longer collected at mark time (lean audit
+  // 2026-07-03 dedup) — LostDisclosureCard owns them; the mark applies the
+  // pet's existing defaults server-side.
   petHasMicrochip: boolean;
   petHasTattoo: boolean;
   petColor: string | null;
@@ -395,13 +393,6 @@ export function SheetMounter({
       >
         <MarkLostWizard
           action={action}
-          disclosureDefaults={{
-            discloseFirstNameWhenLost: markLostData.discloseFirstNameWhenLost,
-            disclosePhoneWhenLost: markLostData.disclosePhoneWhenLost,
-            discloseEmailWhenLost: markLostData.discloseEmailWhenLost,
-            discloseLastLocationWhenLost: markLostData.discloseLastLocationWhenLost,
-            allowFinderFormWhenLost: markLostData.allowFinderFormWhenLost,
-          }}
           petName={petName}
           petPublicToken={petToken}
           petHasMicrochip={markLostData.petHasMicrochip}

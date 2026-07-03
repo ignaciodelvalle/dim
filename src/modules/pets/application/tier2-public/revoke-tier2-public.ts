@@ -14,6 +14,5 @@ export async function revokeTier2Public(pet: Pet, publicToken: string): Promise<
     .where(eq(pets.id, pet.id));
 
   revalidatePath(`/mis-mascotas/${publicToken}`);
-  revalidatePath(`/mis-mascotas/${publicToken}/mostrar-libreta`);
   revalidatePath(`/p/${publicToken}`);
 }

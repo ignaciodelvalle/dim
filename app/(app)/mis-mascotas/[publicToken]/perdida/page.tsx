@@ -73,14 +73,6 @@ export default async function MarkPetLostPage({
   const boundAction = setPetLostAction.bind(null, pet.publicToken);
   const canonicalIds = await fetchActiveIdentifications(pet.id);
 
-  const disclosureDefaults = {
-    discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
-    disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
-    discloseEmailWhenLost: pet.discloseEmailWhenLost,
-    discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
-    allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
-  };
-
   return (
     <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
       {/* Back */}
@@ -97,15 +89,14 @@ export default async function MarkPetLostPage({
           Marcar como perdida
         </h1>
         <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
-          Al marcar a {pet.name} como perdida, su credencial pública mostrará la información que
-          elijas a continuación. Podés cambiarla en cualquier momento o revertir el estado cuando
-          aparezca.
+          Al marcar a {pet.name} como perdida, su credencial pública mostrará el aviso con tus datos
+          de contacto habituales. Vas a poder ajustar qué se ve, o revertir el estado, desde su
+          perfil.
         </p>
       </div>
 
       <MarkLostWizard
         action={boundAction}
-        disclosureDefaults={disclosureDefaults}
         petName={pet.name}
         petPublicToken={pet.publicToken}
         petHasMicrochip={canonicalIds.microchip !== null}

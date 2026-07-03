@@ -1,20 +1,22 @@
 "use client";
 
-// Shared view for the Tier 2 público temporal toggle.
-// Rendered both by the /mostrar-libreta deep-link page and the
-// ?sheet=mostrar-tier2 sheet in SheetMounter.
-//
-// The page wraps this in a <main> with a back-link; the sheet just
-// renders it directly inside the Sheet chrome.
+// Shared view for the Tier 2 público temporal toggle. Rendered inside the
+// merged "Compartir" sheet (MergedShareSheet, ?sheet=compartir). The old
+// standalone /mostrar-libreta page that also used this now just redirects
+// here (lean audit 2026-07-03).
 
 import Link from "next/link";
 
-const DURATION_CARDS: ReadonlyArray<{
+type DurationCard = {
   id: "24h" | "7d" | "30d" | "siempre";
   title: string;
   description: string;
   enabled: boolean;
-}> = [
+};
+
+// Bounded windows — the default UI. A vet visit or a trip has a natural end,
+// so a bounded exposure is the safe default.
+const BOUNDED_CARDS: ReadonlyArray<DurationCard> = [
   {
     id: "24h",
     title: "24 horas (recomendado)",
@@ -33,13 +35,19 @@ const DURATION_CARDS: ReadonlyArray<{
     description: "Internación, viaje largo, mudanza.",
     enabled: true,
   },
-  {
-    id: "siempre",
-    title: "Siempre visible",
-    description: "Útil para mascotas con condiciones crónicas. Podés revertirlo cuando quieras.",
-    enabled: true,
-  },
 ];
+
+// Permanent exposure is the highest-risk option (medical detail on the public
+// QR with no expiry), so it lives behind an "Avanzado" expander rather than
+// sitting inline as a peer of the bounded windows (lean audit 2026-07-03).
+// Still fully available — chronic-condition pets are a real use case — and
+// revoke stays instant.
+const PERMANENT_CARD: DurationCard = {
+  id: "siempre",
+  title: "Siempre visible",
+  description: "Útil para mascotas con condiciones crónicas. Podés revertirlo cuando quieras.",
+  enabled: true,
+};
 
 type Props = {
   petPublicToken: string;
@@ -90,6 +98,39 @@ export function Tier2PublicView({
   );
 }
 
+function DurationOption({ card, defaultChecked }: { card: DurationCard; defaultChecked: boolean }) {
+  return (
+    <label
+      className={`flex items-start gap-3 rounded-[4px] border px-4 py-3 ${
+        card.enabled
+          ? "cursor-pointer border-[var(--color-ln-line-strong)] has-[:checked]:border-[var(--color-ln-ok)] has-[:checked]:bg-[var(--color-ln-ok-050)]"
+          : "border-dashed border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] opacity-60 cursor-not-allowed"
+      }`}
+      title={card.enabled ? undefined : "Próximamente"}
+    >
+      <input
+        type="radio"
+        name="duration"
+        value={card.id}
+        defaultChecked={defaultChecked}
+        disabled={!card.enabled}
+        className="mt-0.5 h-4 w-4"
+      />
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-[var(--color-ln-ink)]">{card.title}</span>
+          {!card.enabled && (
+            <span className="text-xs uppercase tracking-wider font-semibold text-[var(--color-ln-mute)] px-1.5 py-0.5 rounded-full border border-[var(--color-ln-line-strong)]">
+              Próximamente
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-[var(--color-ln-ink-2)]">{card.description}</p>
+      </div>
+    </label>
+  );
+}
+
 function EnableForm({ enableAction }: { enableAction: (formData: FormData) => Promise<void> }) {
   return (
     <form action={enableAction} className="space-y-4">
@@ -97,42 +138,28 @@ function EnableForm({ enableAction }: { enableAction: (formData: FormData) => Pr
         <legend className="text-xs uppercase tracking-wider font-semibold text-[var(--color-ln-mute)] mb-1.5">
           Duración
         </legend>
-        {DURATION_CARDS.map((card, idx) => {
-          const isPrimary = idx === 0 && card.enabled;
-          return (
-            <label
-              key={card.id}
-              className={`flex items-start gap-3 rounded-[4px] border px-4 py-3 ${
-                card.enabled
-                  ? "cursor-pointer border-[var(--color-ln-line-strong)] has-[:checked]:border-[var(--color-ln-ok)] has-[:checked]:bg-[var(--color-ln-ok-050)]"
-                  : "border-dashed border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] opacity-60 cursor-not-allowed"
-              }`}
-              title={card.enabled ? undefined : "Próximamente"}
+        {BOUNDED_CARDS.map((card, idx) => (
+          <DurationOption key={card.id} card={card} defaultChecked={idx === 0} />
+        ))}
+
+        {/* Permanent exposure behind an expander — off the default path
+            (lean audit 2026-07-03). The radio still shares name="duration",
+            so a bounded default stays selected until the user opens this and
+            picks "Siempre visible". */}
+        <details className="group">
+          <summary className="cursor-pointer list-none py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-ln-mute)] [&::-webkit-details-marker]:hidden">
+            <span
+              aria-hidden="true"
+              className="mr-1 inline-block transition-transform group-open:rotate-90"
             >
-              <input
-                type="radio"
-                name="duration"
-                value={card.id}
-                defaultChecked={isPrimary}
-                disabled={!card.enabled}
-                className="mt-0.5 h-4 w-4"
-              />
-              <div className="min-w-0 flex-1 space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-[var(--color-ln-ink)]">
-                    {card.title}
-                  </span>
-                  {!card.enabled && (
-                    <span className="text-xs uppercase tracking-wider font-semibold text-[var(--color-ln-mute)] px-1.5 py-0.5 rounded-full border border-[var(--color-ln-line-strong)]">
-                      Próximamente
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-[var(--color-ln-ink-2)]">{card.description}</p>
-              </div>
-            </label>
-          );
-        })}
+              ▸
+            </span>
+            Avanzado
+          </summary>
+          <div className="mt-2">
+            <DurationOption card={PERMANENT_CARD} defaultChecked={false} />
+          </div>
+        </details>
       </fieldset>
 
       <button

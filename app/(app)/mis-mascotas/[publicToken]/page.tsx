@@ -681,11 +681,6 @@ export default async function PetDetailPage({
         markLostData={
           pet.status === "active"
             ? {
-                discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
-                disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
-                discloseEmailWhenLost: pet.discloseEmailWhenLost,
-                discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
-                allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
                 petHasMicrochip: canonicalIds.microchip !== null,
                 petHasTattoo: canonicalIds.tattoo !== null,
                 petColor: pet.color ?? null,

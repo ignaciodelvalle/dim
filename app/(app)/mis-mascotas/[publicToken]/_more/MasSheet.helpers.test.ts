@@ -1,5 +1,6 @@
-// Tests for deriveMasSheetItems — pet-document-redesign ADR-15/ADR-17c
-// (deceased pruning + deferred GPS-tracking placeholder row).
+// Tests for deriveMasSheetItems — pet-document-redesign ADR-15 (deceased
+// pruning). The ADR-17c GPS-tracking placeholder row was removed by the lean
+// audit (2026-07-03) — a disabled row advertising a nonexistent feature.
 
 import { describe, expect, it } from "vitest";
 import { type MasSheetInput, deriveMasSheetItems } from "./MasSheet.helpers";
@@ -27,27 +28,17 @@ describe("deriveMasSheetItems — deceased pruning (REQ-9.3)", () => {
     );
     expect(items.map((i) => i.id)).toEqual(["edit", "contacts"]);
   });
-
-  it("suppresses the tracking placeholder row for a deceased pet", () => {
-    const items = deriveMasSheetItems(
-      baseInput({ pet: { species: "dog", status: "deceased", publicToken: "abc123" } }),
-    );
-    expect(items.some((i) => i.id === "tracking")).toBe(false);
-  });
 });
 
-describe("deriveMasSheetItems — deferred GPS-tracking row (ADR-17c)", () => {
-  it("appends a disabled, badged 'tracking' row for a non-deceased owner", () => {
+describe("deriveMasSheetItems — no placeholder rows (lean audit 2026-07-03)", () => {
+  it("does not surface the removed GPS-tracking placeholder", () => {
     const items = deriveMasSheetItems(baseInput());
-    const tracking = items.find((i) => i.id === "tracking");
-    expect(tracking).toBeDefined();
-    expect(tracking?.disabled).toBe(true);
-    expect(tracking?.badge).toBe("Próximamente");
+    expect(items.some((i) => i.id === "tracking")).toBe(false);
   });
 
-  it("is the LAST item in the list", () => {
+  it("every item is a real, enabled destination (no disabled rows)", () => {
     const items = deriveMasSheetItems(baseInput());
-    expect(items[items.length - 1].id).toBe("tracking");
+    expect(items.every((i) => !i.disabled)).toBe(true);
   });
 });
 
