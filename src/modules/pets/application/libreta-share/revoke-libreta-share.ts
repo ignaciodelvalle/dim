@@ -8,7 +8,7 @@
 
 import { eq } from "drizzle-orm";
 
-import { db, libretaShareTokens, profiles } from "@/db";
+import { db, libretaShareTokens, pets, profiles } from "@/db";
 
 import type { RevokeShareResult } from "./types";
 
@@ -49,4 +49,24 @@ export async function revokeLibretaShareForUser(
     .where(eq(libretaShareTokens.id, shareTokenRowId));
 
   return { ok: true, shareTokenRowId };
+}
+
+// Resolves the pet's publicToken for a given share row, so the caller can
+// revalidate the pet page after a successful revoke. Returns null when the
+// share row or its pet can't be found (revalidation is then skipped).
+export async function findPetPublicTokenForShare(shareTokenRowId: string): Promise<string | null> {
+  const [shareRow] = await db
+    .select({ petId: libretaShareTokens.petId })
+    .from(libretaShareTokens)
+    .where(eq(libretaShareTokens.id, shareTokenRowId))
+    .limit(1);
+  if (!shareRow) return null;
+
+  const [pet] = await db
+    .select({ publicToken: pets.publicToken })
+    .from(pets)
+    .where(eq(pets.id, shareRow.petId))
+    .limit(1);
+
+  return pet?.publicToken ?? null;
 }

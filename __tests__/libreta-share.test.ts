@@ -15,6 +15,8 @@ import {
 } from "@/app/actions/libreta-share";
 import { db, libretaShareTokens, ownerships, pets, profiles, shareTelemetry } from "@/db";
 import { generateLibretaShareToken } from "@/lib/infra/publicToken";
+import { getActiveLibretaShares } from "@/src/modules/pets/application/libreta-share/get-active-libreta-shares";
+import { findPetPublicTokenForShare } from "@/src/modules/pets/application/libreta-share/revoke-libreta-share";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -444,5 +446,81 @@ describe("logLibretaShareViewForToken", () => {
       .where(eq(libretaShareTokens.id, row.id))
       .limit(1);
     expect(updated.viewCountCached).toBe(0);
+  });
+});
+
+// ============================================================================
+// getActiveLibretaShares — extracted from getActiveLibretaSharesAction
+// (strangler line-budget cleanup). Auth/ownership guard is enforced by the
+// caller (requirePetAccess); this use-case only filters by petId.
+// ============================================================================
+
+describe("getActiveLibretaShares", () => {
+  it("returns only non-revoked shares for the given pet", async () => {
+    await revokeAllShares();
+
+    const created = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "Active share",
+    });
+    expect(created).toHaveProperty("shareToken");
+
+    const revoked = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "To be revoked",
+    });
+    expect(revoked).toHaveProperty("shareToken");
+    if (!("shareToken" in revoked)) return;
+    const [revokedRow] = await db
+      .select({ id: libretaShareTokens.id })
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.shareToken, revoked.shareToken))
+      .limit(1);
+    await revokeLibretaShareForUser(userId, revokedRow.id);
+
+    const shares = await getActiveLibretaShares(petId);
+    expect(shares.length).toBe(1);
+    expect(shares[0].label).toBe("Active share");
+  });
+
+  it("returns an empty array when the pet has no active shares", async () => {
+    await revokeAllShares();
+    const shares = await getActiveLibretaShares(petId);
+    expect(shares).toEqual([]);
+  });
+});
+
+// ============================================================================
+// findPetPublicTokenForShare — extracted from revokeLibretaShareAction
+// (strangler line-budget cleanup). Resolves the pet's publicToken so the
+// action can revalidate the pet page after a successful revoke.
+// ============================================================================
+
+describe("findPetPublicTokenForShare", () => {
+  it("resolves the owning pet's publicToken for a valid share row", async () => {
+    await revokeAllShares();
+    const created = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "Token lookup",
+    });
+    expect(created).toHaveProperty("shareToken");
+    if (!("shareToken" in created)) return;
+
+    const [row] = await db
+      .select({ id: libretaShareTokens.id })
+      .from(libretaShareTokens)
+      .where(eq(libretaShareTokens.shareToken, created.shareToken))
+      .limit(1);
+
+    const publicToken = await findPetPublicTokenForShare(row.id);
+    expect(publicToken).toBe(PET_TOKEN);
+  });
+
+  it("returns null for a non-existent share row id", async () => {
+    const publicToken = await findPetPublicTokenForShare("00000000-0000-0000-0000-000000000000");
+    expect(publicToken).toBeNull();
   });
 });

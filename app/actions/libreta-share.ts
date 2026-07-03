@@ -13,15 +13,18 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { type LibretaShareToken, db, libretaShareTokens, pets } from "@/db";
+import type { LibretaShareToken } from "@/db";
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { createClient } from "@/lib/supabase/server";
 import { createLibretaShareForUser as _createLibretaShareForUser } from "@/src/modules/pets/application/libreta-share/create-libreta-share";
+import { getActiveLibretaShares as _getActiveLibretaShares } from "@/src/modules/pets/application/libreta-share/get-active-libreta-shares";
 import { logLibretaShareViewForToken as _logLibretaShareViewForToken } from "@/src/modules/pets/application/libreta-share/log-libreta-share-view";
-import { revokeLibretaShareForUser as _revokeLibretaShareForUser } from "@/src/modules/pets/application/libreta-share/revoke-libreta-share";
+import {
+  findPetPublicTokenForShare as _findPetPublicTokenForShare,
+  revokeLibretaShareForUser as _revokeLibretaShareForUser,
+} from "@/src/modules/pets/application/libreta-share/revoke-libreta-share";
 import type {
   CreateShareInput,
   CreateShareResult,
@@ -94,20 +97,8 @@ export async function revokeLibretaShareAction(
 
   const result = await _revokeLibretaShareForUser(user.id, shareTokenRowId);
   if ("ok" in result) {
-    // Find the pet publicToken to revalidate the page.
-    const [shareRow] = await db
-      .select({ petId: libretaShareTokens.petId })
-      .from(libretaShareTokens)
-      .where(eq(libretaShareTokens.id, shareTokenRowId))
-      .limit(1);
-    if (shareRow) {
-      const [pet] = await db
-        .select({ publicToken: pets.publicToken })
-        .from(pets)
-        .where(eq(pets.id, shareRow.petId))
-        .limit(1);
-      if (pet) revalidatePath(`/mis-mascotas/${pet.publicToken}`);
-    }
+    const petPublicToken = await _findPetPublicTokenForShare(shareTokenRowId);
+    if (petPublicToken) revalidatePath(`/mis-mascotas/${petPublicToken}`);
   }
   return result;
 }
@@ -140,10 +131,6 @@ export async function getActiveLibretaSharesAction(
   if (!access.ok) return { ok: false, error: "Acceso denegado" };
   if (access.accessPath !== "owner") return { ok: true, shares: [] };
 
-  const shares = await db
-    .select()
-    .from(libretaShareTokens)
-    .where(and(eq(libretaShareTokens.petId, access.pet.id), isNull(libretaShareTokens.revokedAt)));
-
+  const shares = await _getActiveLibretaShares(access.pet.id);
   return { ok: true, shares };
 }
