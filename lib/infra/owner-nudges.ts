@@ -22,6 +22,7 @@
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db, ownerships, petEvents, pets, reminders } from "@/db";
+import { overlayAmendments } from "@/lib/infra/amendment";
 import { replayPetMicrochip } from "@/lib/projections/pet-microchip";
 import type { ProjectionEvent } from "@/lib/projections/types";
 
@@ -34,6 +35,10 @@ const NUDGE_EVENT_TYPES = [
   "microchip_implanted",
   "sterilization_performed",
   "credential_scanned",
+  // Corrections — fetched so overlayAmendments projects corrected payloads
+  // (e.g. an amended next_due_at) before deriveVaccineStatus reads them
+  // (projection-cron audit 2026-07-03 A).
+  "event_amended",
 ] as const;
 
 // Scans within this window count toward the "credential activity" nudge.
@@ -320,9 +325,10 @@ export async function fetchPetHealthNudges(ownerId: string): Promise<PetHealthSt
       ),
     );
 
-  // Group events + reminders by pet.
+  // Project corrections, then group events + reminders by pet (D2 at the
+  // read boundary — projection-cron audit 2026-07-03 A).
   const eventsByPet = new Map<string, ProjectionEvent[]>();
-  for (const r of eventRows) {
+  for (const r of overlayAmendments(eventRows)) {
     const list = eventsByPet.get(r.petId) ?? [];
     list.push({
       id: r.id,

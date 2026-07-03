@@ -6,10 +6,13 @@
 // never returns activeShares for org-path callers, so SharesManager stays
 // owner-gated regardless of the widened read guard.
 //
-// H3/WS-3 amendment enrichment (amendedAt) is deliberately NOT done here —
-// it stays in the shim (app layer), same as the old getHistorialTabData
-// shim, so the pets module does not take a new dependency on the events
-// module (see scripts/check-dependency-direction.ts ALLOWED_EDGES).
+// Amendment projection (D2, projection-cron audit 2026-07-03 A): the fetched
+// stream already contains the event_amended rows, so overlayAmendments
+// (lib/infra/amendment.ts — a lib import, NOT an events-module dependency;
+// check-dependency-direction stays satisfied) projects corrected payloads +
+// amendedAt in one pure pass. Both the timeline rows AND the vaccination
+// summary read the PROJECTED stream, so a corrected dose date/name flows
+// into every derived view, not just a badge.
 
 import { and, asc, desc, eq, exists, gt, inArray, isNull, not, sql } from "drizzle-orm";
 
@@ -30,6 +33,7 @@ import {
 import { fetchActiveRemindersForPet, fetchPetWeightHistory } from "@/lib/analytics/owner-dashboard";
 import { computeVaccinationSummary } from "@/lib/domain/libreta-health-status";
 import { excludeSelfScansClause } from "@/lib/events/events";
+import { overlayAmendments } from "@/lib/infra/amendment";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { HIDDEN_FROM_SUBJECT_CASE_KINDS } from "@/lib/infra/case-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
@@ -155,16 +159,20 @@ export async function getLibretaFaceData(context: {
     }),
   );
 
-  // H3/WS-3 amendedAt enrichment happens in the shim (app/actions/pet-tab-data.ts)
-  // after this use-case returns — see the module-boundary note above.
-  const past: HistorialEventRow[] = pastEvents.map((e) => ({
+  // Project amendments ONCE over the fetched stream (module docblock) —
+  // timeline payloads, the Corregido badge (amendedAt) and the vaccination
+  // summary all read corrected values.
+  const projectedEvents = overlayAmendments(pastEvents);
+
+  const past: HistorialEventRow[] = projectedEvents.map((e) => ({
     ...e,
     attachmentUrl: urlByEventId.get(e.id) ?? null,
-    amendedAt: null,
+    amendedAt:
+      e.amendedAt instanceof Date ? e.amendedAt : e.amendedAt ? new Date(e.amendedAt) : null,
   }));
 
   const summary = computeVaccinationSummary(
-    pastEvents,
+    projectedEvents,
     pet.species,
     new Date(),
     dueSoonWindowRule.payload.days,

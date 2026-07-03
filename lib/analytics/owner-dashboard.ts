@@ -51,6 +51,7 @@ import {
   getReminderVariant,
   isVaccineReportable,
 } from "@/lib/domain/vaccine-reminder-state";
+import { overlayAmendments } from "@/lib/infra/amendment";
 import {
   type ComplianceEvent,
   type ComplianceState,
@@ -1041,6 +1042,10 @@ const COMPLIANCE_EVENT_TYPES = [
   "sterilization_performed",
   "microchip_implanted",
   "dangerous_breed_attested",
+  // Corrections — fetched so overlayAmendments projects corrected payloads
+  // before deriveComplianceState reads them (projection-cron audit
+  // 2026-07-03 A). Inert beyond the overlay: the deriver filters by type.
+  "event_amended",
 ] as const;
 
 // Same rabies-reminder matcher the pet-profile header uses.
@@ -1069,9 +1074,10 @@ export async function fetchComplianceStatesForPets(
 
   const [eventRows, reminderRows, petRows, turnoRows] = await Promise.all([
     // Obligation events with provenance (H1: only professional/institutional
-    // events clear an obligation).
+    // events clear an obligation). `id` feeds overlayAmendments' target match.
     db
       .select({
+        id: petEvents.id,
         petId: petEvents.petId,
         eventType: petEvents.eventType,
         payload: petEvents.payload,
@@ -1132,8 +1138,14 @@ export async function fetchComplianceStatesForPets(
       .orderBy(asc(timeSlots.startsAt)),
   ]);
 
+  // Project corrections BEFORE grouping (D2 at the read boundary —
+  // projection-cron audit 2026-07-03 A): an amended dose date/name feeds the
+  // compliance chip corrected. One global pass works because event ids are
+  // unique and amendments always target same-pet events.
+  const projectedEventRows = overlayAmendments(eventRows);
+
   const eventsByPet = new Map<string, ComplianceEvent[]>();
-  for (const r of eventRows) {
+  for (const r of projectedEventRows) {
     const list = eventsByPet.get(r.petId) ?? [];
     list.push({
       eventType: r.eventType,
@@ -1357,22 +1369,39 @@ export async function fetchPetWeightHistory(petId: string): Promise<PetWeightSam
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
 
-  const rows = await db.execute<{ occurred_at: string; kg: string | number }>(sql`
-    SELECT e.occurred_at::text AS occurred_at,
-           e.payload->>'kg'   AS kg
-    FROM pet_events e
-    WHERE e.pet_id    = ${petId}
-      AND e.event_type = 'weight_recorded'
-      AND e.occurred_at >= ${twelveMonthsAgo.toISOString()}
-    ORDER BY e.occurred_at ASC
-  `);
+  // Fetched with the pet's event_amended rows and projected in TS (was a
+  // SQL-side payload->>'kg' read) so a CORRECTED weight flows into the
+  // sparkline — projection-cron audit 2026-07-03 A. Amendments are fetched
+  // unwindowed: a correction recorded today can target a dose from months ago.
+  const rows = await db
+    .select({
+      id: petEvents.id,
+      eventType: petEvents.eventType,
+      occurredAt: petEvents.occurredAt,
+      payload: petEvents.payload,
+    })
+    .from(petEvents)
+    .where(
+      and(
+        eq(petEvents.petId, petId),
+        or(
+          and(
+            eq(petEvents.eventType, "weight_recorded"),
+            gte(petEvents.occurredAt, twelveMonthsAgo),
+          ),
+          eq(petEvents.eventType, "event_amended"),
+        ),
+      ),
+    )
+    .orderBy(asc(petEvents.occurredAt));
 
   const samples: PetWeightSample[] = [];
-  for (const r of rows) {
-    const raw = r.kg;
+  for (const r of overlayAmendments(rows)) {
+    if (r.eventType !== "weight_recorded") continue;
+    const raw = (r.payload as Record<string, unknown>).kg;
     const kg = typeof raw === "number" ? raw : Number.parseFloat(String(raw));
     if (!Number.isFinite(kg)) continue;
-    samples.push({ date: new Date(r.occurred_at), kg });
+    samples.push({ date: new Date(r.occurredAt), kg });
   }
   return samples;
 }
@@ -1420,6 +1449,10 @@ export const PROFILE_V2_TYPED_EVENT_TYPES = [
   // dropped the event before it reached derivePpp or the direct ppp.attested
   // prop, making an attested PPP always render "Atestación pendiente".
   "dangerous_breed_attested",
+  // Corrections — fetched so overlayAmendments can project corrected payloads
+  // over the typed stream (projection-cron audit 2026-07-03 A). Consumers
+  // filter by eventType, so the extra rows are inert beyond the overlay.
+  "event_amended",
 ] as const;
 
 export type ProfileV2TypedEventType = (typeof PROFILE_V2_TYPED_EVENT_TYPES)[number];
@@ -1511,7 +1544,10 @@ export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProf
     },
   );
 
-  return { typedEvents: typedRows, recentFive };
+  // Project corrections over the typed stream (D2 at the read boundary —
+  // projection-cron audit 2026-07-03 A): compliance stamps, pregnancy state,
+  // rabies observation and achievements all read corrected payloads.
+  return { typedEvents: overlayAmendments(typedRows), recentFive };
 }
 
 // ---------------------------------------------------------------------------

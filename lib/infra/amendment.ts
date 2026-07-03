@@ -121,6 +121,69 @@ export function latestAmendment(amendments: AmendmentRow[]): AmendmentRow | null
 }
 
 // ---------------------------------------------------------------------------
+// D2 at the read boundary — overlay a whole event stream in one pass
+// ---------------------------------------------------------------------------
+
+type OverlayableEvent = {
+  id: string;
+  eventType: string;
+  occurredAt: Date | string;
+  payload: unknown;
+};
+
+/**
+ * Project a fetched event stream so amended events carry their CORRECTED
+ * payload (D2: "the current value is always displayed") plus `amendedAt`.
+ *
+ * This is THE single mechanism every TypeScript read boundary applies
+ * (projection-cron audit 2026-07-03 A — applyAmendments existed but no
+ * boundary called it, so timelines and KPIs read pre-correction values).
+ * Pure and zero-query: callers include `event_amended` rows in the stream
+ * they already fetch; this derives the per-target overlay from them.
+ *
+ *  - `event_amended` rows pass through untouched (the correction itself is a
+ *    visible, append-only timeline entry).
+ *  - Targeted rows get `payload` projected via the LATEST amendment (chains
+ *    are flattened by amend-event.ts: every amendment targets the original)
+ *    and `amendedAt` set to that amendment's occurredAt.
+ *  - Untargeted rows get `amendedAt: null`.
+ */
+export function overlayAmendments<T extends OverlayableEvent>(
+  events: T[],
+): Array<T & { amendedAt: Date | string | null }> {
+  // Latest amendment per target — a single pass over the stream.
+  const latestByTarget = new Map<string, { occurredAt: Date | string; changes: ChangeEntry[] }>();
+  for (const e of events) {
+    if (e.eventType !== "event_amended") continue;
+    const p = (e.payload ?? {}) as Record<string, unknown>;
+    const targetId = typeof p.target_event_id === "string" ? p.target_event_id : null;
+    if (!targetId) continue;
+    const existing = latestByTarget.get(targetId);
+    if (!existing || new Date(e.occurredAt) > new Date(existing.occurredAt)) {
+      latestByTarget.set(targetId, {
+        occurredAt: e.occurredAt,
+        changes: Array.isArray(p.changes) ? (p.changes as ChangeEntry[]) : [],
+      });
+    }
+  }
+
+  if (latestByTarget.size === 0) {
+    return events.map((e) => ({ ...e, amendedAt: null }));
+  }
+
+  return events.map((e) => {
+    if (e.eventType === "event_amended") return { ...e, amendedAt: null };
+    const amendment = latestByTarget.get(e.id);
+    if (!amendment) return { ...e, amendedAt: null };
+    const projected = { ...(e.payload as Record<string, unknown>) };
+    for (const change of amendment.changes) {
+      projected[change.field] = change.new;
+    }
+    return { ...e, payload: projected, amendedAt: amendment.occurredAt };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Notification type constant (D5)
 // ---------------------------------------------------------------------------
 //

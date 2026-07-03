@@ -453,3 +453,85 @@ describe("fetchPetHealthNudges — cross-owner isolation", () => {
     expect(result).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// T8: amendment projection parity — a correction changes the derived status
+// (projection-cron audit 2026-07-03 A: fetch → overlayAmendments → derive)
+// ---------------------------------------------------------------------------
+
+describe("fetchPetHealthNudges — event_amended corrections project into the derivation", () => {
+  const EMAIL = "nudge-amend@dim-test.local";
+  const PASS = "NudgeAmend_2026!";
+  let userId: string;
+  let petId: string;
+  let vaccinationEventId: string;
+
+  beforeAll(async () => {
+    await ensureUserDeleted(EMAIL);
+    userId = await createUser(EMAIL, PASS);
+    const now = new Date();
+    const pet = await createPetForUser(userId, `AMD-${userId.slice(0, 4)}`);
+    petId = pet.id;
+    await insertMicrochip(pet.id, now); // silence chip nudge
+
+    // Vaccination with a FUTURE next_due_at → up_to_date, no overdue nudge.
+    const [vax] = await db
+      .insert(petEvents)
+      .values({
+        petId: pet.id,
+        eventType: "vaccination_administered",
+        occurredAt: new Date(now.getTime() - 30 * MS_PER_DAY),
+        payload: {
+          payload_version: 1,
+          vaccine_name: "Antirrábica",
+          brand: null,
+          batch: null,
+          administered_by: null,
+          next_due_at: new Date(now.getTime() + 300 * MS_PER_DAY).toISOString(),
+        },
+        authorRole: "owner",
+        recordedByUserId: null,
+      })
+      .returning();
+    vaccinationEventId = vax.id;
+  });
+
+  afterAll(() => cleanupUser(userId));
+
+  it("before the correction the vaccine reads up_to_date", async () => {
+    const result = await fetchPetHealthNudges(userId);
+    const pet = petByToken(result, `AMD-${userId.slice(0, 4)}`);
+    expect(pet?.vaccineStatus).toBe("up_to_date");
+  });
+
+  it("an event_amended correcting next_due_at into the past flips it to overdue", async () => {
+    const now = new Date();
+    const pastDue = new Date(now.getTime() - 10 * MS_PER_DAY).toISOString();
+    // The correction is a NEW event (append-only invariant #2) targeting the
+    // original — the projection must read the corrected value.
+    await db.insert(petEvents).values({
+      petId,
+      eventType: "event_amended",
+      occurredAt: now,
+      payload: {
+        payload_version: 1,
+        target_event_id: vaccinationEventId,
+        reason: "Fecha de refuerzo mal cargada",
+        changes: [
+          {
+            field: "next_due_at",
+            old: null,
+            new: pastDue,
+          },
+        ],
+      },
+      authorRole: "owner",
+      recordedByUserId: null,
+    });
+
+    const result = await fetchPetHealthNudges(userId);
+    const pet = petByToken(result, `AMD-${userId.slice(0, 4)}`);
+    expect(pet?.vaccineStatus).toBe("overdue");
+    expect(pet?.nudges.some((n) => n.kind === "vaccine_overdue")).toBe(true);
+  });
+});
