@@ -32,6 +32,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 
 import { searchOmniboxAction, searchOmniboxOrgAction } from "@/app/actions/omnibox-search";
 import type { OmniboxResult, OmniboxResults } from "@/lib/infra/omnibox-search";
+import { speciesLabel } from "@/lib/utils/format";
 
 const DEBOUNCE_MS = 250;
 const MIN_QUERY_LENGTH = 2;
@@ -62,7 +63,7 @@ function resultLabel(r: OmniboxResult): string {
 }
 
 function resultMeta(r: OmniboxResult): string {
-  if (r.type === "pet") return `${r.species} · ${r.publicToken}`;
+  if (r.type === "pet") return `${speciesLabel(r.species)} · ${r.publicToken}`;
   if (r.type === "person") return r.role;
   return `${r.caseKind} · ${r.status}`;
 }
