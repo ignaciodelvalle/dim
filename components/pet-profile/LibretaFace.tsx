@@ -68,8 +68,13 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
           <FutureLedgerList items={future} petPublicToken={petPublicToken} />
 
           {future.length > 0 && past.length > 0 && (
+            // Directional divider: a bare "— hoy —" read as a date tag for the
+            // future item directly above it (QA round 2 2026-07-03 #7: a 2027
+            // reminder appeared labeled "HOY"). Arrows disambiguate which side
+            // is upcoming and which is history.
             <div className="flex items-center gap-3 text-xs uppercase tracking-[.06em] text-[var(--color-ln-faint)]">
-              <span className="h-px flex-1 bg-[var(--color-ln-line)]" />— hoy —
+              <span className="h-px flex-1 bg-[var(--color-ln-line)]" />
+              próximo ↑ · hoy · historia ↓
               <span className="h-px flex-1 bg-[var(--color-ln-line)]" />
             </div>
           )}

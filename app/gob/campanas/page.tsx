@@ -153,7 +153,7 @@ export default async function GobCampanasPage({
   const choroplethData = Array.from(provinceAttendance.values()).map((p) => ({
     code: p.isoCode,
     value: p.count,
-    label: `${p.count} inscripción${p.count !== 1 ? "es" : ""} en ${p.name}`,
+    label: `${p.count} ${p.count === 1 ? "inscripción" : "inscripciones"} en ${p.name}`,
   }));
 
   const hasData = dashboard.offerings.length > 0;

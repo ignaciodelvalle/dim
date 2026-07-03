@@ -161,16 +161,13 @@ export default async function OrgMaltratoRecibidosPage({
 
   return (
     <div className="space-y-6">
-      <OpCrumbs
-        items={[
-          { label: "Panel", href: `/org/${orgToken}` },
-          { label: "Investigaciones de maltrato" },
-        ]}
-      />
+      <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Maltrato" }]} />
 
       <header className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Investigaciones de maltrato</h1>
+          {/* "Maltrato" — the surface's single name across nav, breadcrumb and
+              H1 (QA round 2 2026-07-03 finished unifying the 3 old names). */}
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Maltrato</h1>
           <p className="text-[13px] text-ln-op-mute">{organization.displayName}</p>
         </div>
         <Link

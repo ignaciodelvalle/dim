@@ -547,7 +547,7 @@ export function PetForm({
               {(conditions.size > 0 || emergencyInfoVisible) && (
                 <p className="text-sm text-[var(--color-ln-mute)]">
                   {conditions.size > 0
-                    ? `${conditions.size} condición${conditions.size > 1 ? "es" : ""} registrada${conditions.size > 1 ? "s" : ""}.`
+                    ? `${conditions.size} ${conditions.size > 1 ? "condiciones registradas" : "condición registrada"}.`
                     : "Aviso de emergencia médica activo."}
                 </p>
               )}

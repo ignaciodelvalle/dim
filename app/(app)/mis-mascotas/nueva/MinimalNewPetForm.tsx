@@ -98,7 +98,7 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
           producing a duplicate label. The helper text below + the "Requerido"
           note already convey the required constraint. */}
       <div className="flex flex-col gap-[6px]">
-        <LocationFields mode="l1" />
+        <LocationFields mode="l1" required />
         <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
           Requerido. Ayuda a las campañas regionales de salud animal.
         </p>

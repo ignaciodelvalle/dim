@@ -75,11 +75,17 @@ export function LocationFields({
   useMyLocationVariant = "secondary",
   allowAnonymous = false,
   onLocationPresenceChange,
+  required = false,
 }: {
   mode: LocationMode;
   defaultValue?: LocationFieldsValue;
   biasProvince?: string | null;
   biasLocality?: string | null;
+  /** Renders the red-seal `*` on the L1 "Localidad" label, matching the
+   * LnField required marker used by sibling fields (QA round 2 2026-07-03 #7:
+   * the helper said "Requerido" but the label carried no asterisk). Does not
+   * add native validation — callers own the required semantics. */
+  required?: boolean;
   // Override the wire-format name for the L2 address / lat / lng hidden
   // inputs. Retained for flexibility; no current consumer overrides these
   // (the lastKnownLocation alias was retired by critique §5).
@@ -289,6 +295,11 @@ export function LocationFields({
         <div className="space-y-1.5">
           <label htmlFor="localityName-input" className="block text-sm font-medium text-ln-ink">
             Localidad
+            {required && (
+              <span className="ml-1 text-[var(--color-ln-seal)]" aria-hidden="true">
+                *
+              </span>
+            )}
           </label>
           <LocalityPickerAcross
             id="localityName"

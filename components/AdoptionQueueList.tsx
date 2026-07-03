@@ -269,7 +269,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
       <p aria-live="polite" className="text-sm text-ln-op-mute">
         {rows.length === 0
           ? "Sin postulaciones"
-          : `${rows.length} postulación${rows.length !== 1 ? "es" : ""}`}
+          : `${rows.length} ${rows.length === 1 ? "postulación" : "postulaciones"}`}
       </p>
 
       {/* Empty state */}

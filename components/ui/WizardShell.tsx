@@ -69,9 +69,14 @@ export function LnWizardShell({
         )}
 
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-[var(--color-ln-mute)] tabular-nums">
-            Paso {currentStep} de {totalSteps}
-          </p>
+          {/* A single-step wizard has nothing to count — "Paso 1 de 1" reads
+              as noise (QA round 2 2026-07-03 #7), so counter + progress bar
+              only render for genuinely multi-step flows. */}
+          {totalSteps > 1 && (
+            <p className="text-xs text-[var(--color-ln-mute)] tabular-nums">
+              Paso {currentStep} de {totalSteps}
+            </p>
+          )}
           {stepLabel ? (
             <p className="text-sm font-medium text-[var(--color-ln-ink)] truncate">{stepLabel}</p>
           ) : null}
@@ -88,20 +93,22 @@ export function LnWizardShell({
         ) : null}
       </header>
 
-      <div
-        className="h-0.5 bg-[var(--color-ln-stripe)] mx-4 rounded-full overflow-hidden"
-        role="progressbar"
-        tabIndex={-1}
-        aria-valuenow={currentStep}
-        aria-valuemin={1}
-        aria-valuemax={totalSteps}
-        aria-label={`Paso ${currentStep} de ${totalSteps}`}
-      >
+      {totalSteps > 1 && (
         <div
-          className="h-full bg-[var(--color-ln-azul)] rounded-full transition-all duration-300"
-          style={{ width: `${progressPct}%` }}
-        />
-      </div>
+          className="h-0.5 bg-[var(--color-ln-stripe)] mx-4 rounded-full overflow-hidden"
+          role="progressbar"
+          tabIndex={-1}
+          aria-valuenow={currentStep}
+          aria-valuemin={1}
+          aria-valuemax={totalSteps}
+          aria-label={`Paso ${currentStep} de ${totalSteps}`}
+        >
+          <div
+            className="h-full bg-[var(--color-ln-azul)] rounded-full transition-all duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      )}
 
       {/* Plain <div>, NOT <main>: the AppShell already owns the #main-content
           <main> landmark that wraps this wizard. A nested <main> + duplicate id
