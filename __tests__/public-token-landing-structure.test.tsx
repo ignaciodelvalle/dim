@@ -42,6 +42,8 @@ vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("NOT_FOUND");
   }),
+  // ScrollReset (mounted by every AppShell variant) reads the pathname.
+  usePathname: vi.fn(() => "/p/TEST-TOKEN"),
 }));
 
 vi.mock("next/link", () => ({
