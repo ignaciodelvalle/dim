@@ -45,8 +45,7 @@ export async function updateSession(request: NextRequest) {
   try {
     await supabase.auth.getUser();
   } catch (error) {
-    const isAuthError =
-      typeof error === "object" && error !== null && "__isAuthError" in error;
+    const isAuthError = typeof error === "object" && error !== null && "__isAuthError" in error;
     if (!isAuthError) throw error;
   }
 

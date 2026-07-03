@@ -34,15 +34,18 @@ describe("middleware — legacy pet-profile lens redirects", () => {
     ["vacunas", "vacunas"],
     ["historial", "historial"],
     ["libreta", "libreta"],
-  ])("redirects /mis-mascotas/[publicToken]/%s to ?tab=%s with a real 308", async (segment, tab) => {
-    const request = requestFor(`/mis-mascotas/${PUBLIC_TOKEN}/${segment}`);
-    const response = await middleware(request);
+  ])(
+    "redirects /mis-mascotas/[publicToken]/%s to ?tab=%s with a real 308",
+    async (segment, tab) => {
+      const request = requestFor(`/mis-mascotas/${PUBLIC_TOKEN}/${segment}`);
+      const response = await middleware(request);
 
-    expect(response.status).toBe(308);
-    expect(response.headers.get("location")).toBe(
-      `https://dim.test/mis-mascotas/${PUBLIC_TOKEN}?tab=${tab}`,
-    );
-  });
+      expect(response.status).toBe(308);
+      expect(response.headers.get("location")).toBe(
+        `https://dim.test/mis-mascotas/${PUBLIC_TOKEN}?tab=${tab}`,
+      );
+    },
+  );
 
   it("does NOT match a trailing slash — exact segment match only, same as the page.tsx route it replaces", async () => {
     const request = requestFor(`/mis-mascotas/${PUBLIC_TOKEN}/vacunas/`);
