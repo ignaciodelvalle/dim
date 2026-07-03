@@ -10,7 +10,7 @@
 
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge } from "@/components/ui/dashboard";
 import { GOVT_BUSINESS_RULE_TYPES } from "@/db";
-import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
+import { RULE_TYPE_REGISTRY, summarizeRulePayload } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { portalBase } from "@/lib/ui/portal-base";
@@ -112,9 +112,11 @@ async function GovtReglasReadOnlyView({
                       ))}
                     </div>
                   ) : (
-                    <pre className="text-[11px] bg-ln-op-stripe rounded-[4px] p-3 overflow-x-auto text-ln-op-ink-2 font-mono">
-                      {JSON.stringify(payload, null, 2)}
-                    </pre>
+                    // es-AR summary instead of raw JSON — operators read the
+                    // console, they don't parse payloads (QA round 2 #7).
+                    <p className="text-[12.5px] text-ln-op-ink-2">
+                      {summarizeRulePayload(ruleType, payload)}
+                    </p>
                   )}
                 </li>
               ))}

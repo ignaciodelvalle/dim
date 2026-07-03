@@ -89,7 +89,7 @@ export async function AdminReglasLens({ base }: Props) {
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Jurisdicciones</h1>
         <p className="text-[13px] text-ln-op-ink-2">
           Configura reglas de negocio scope-aware por país, provincia o localidad. Sin overrides
-          {" -> "}se usan los defaults nacionales.
+          {" → "}se usan los defaults nacionales.
         </p>
       </header>
 

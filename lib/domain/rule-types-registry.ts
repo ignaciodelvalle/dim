@@ -186,3 +186,52 @@ export const RULE_TYPE_REGISTRY: { [K in GovtBusinessRuleType]: RuleTypeDef<K> }
 export function getRuleTypeDef<T extends GovtBusinessRuleType>(ruleType: T): RuleTypeDef<T> {
   return RULE_TYPE_REGISTRY[ruleType] as RuleTypeDef<T>;
 }
+
+/**
+ * es-AR one-line summary of a rule payload for console listings — replaces
+ * dumping truncated raw JSON at the operator (QA round 2 2026-07-03 #7).
+ * Total over unknown/legacy payload shapes: falls back to compact JSON rather
+ * than throwing, since historic rows may predate the current schema.
+ */
+export function summarizeRulePayload(ruleType: GovtBusinessRuleType, payload: unknown): string {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  switch (ruleType) {
+    case "ppp_breed_list": {
+      const breeds = Array.isArray(p.breeds) ? (p.breeds as string[]) : [];
+      if (breeds.length === 0) return "Sin razas listadas";
+      const shown = breeds.slice(0, 3).join(", ");
+      const rest = breeds.length - 3;
+      return `${breeds.length} ${breeds.length === 1 ? "raza" : "razas"}: ${shown}${rest > 0 ? ` y ${rest} más` : ""}`;
+    }
+    case "ppp_weight_threshold": {
+      if (typeof p.kg !== "number") return "Sin umbral de peso";
+      return `${p.kg} kg${p.appliesIfBreedNotPPP ? " · aplica aunque la raza no esté listada" : ""}`;
+    }
+    case "ppp_attestation_required_registries": {
+      const registries = Array.isArray(p.registries) ? p.registries : [];
+      return registries.length === 0
+        ? "Ningún registro requerido"
+        : `${registries.length} ${registries.length === 1 ? "registro requerido" : "registros requeridos"}`;
+    }
+    case "physical_credential_channels": {
+      const enabled: string[] = [];
+      if (p.printable_qr) enabled.push("QR imprimible");
+      if ((p.engraved_plate as { enabled?: boolean } | undefined)?.enabled)
+        enabled.push("placa grabada");
+      if ((p.nfc_tag as { enabled?: boolean } | undefined)?.enabled) enabled.push("NFC");
+      return enabled.length === 0 ? "Sin canales habilitados" : enabled.join(" · ");
+    }
+    case "rabies_observation_window":
+    case "due_soon_window":
+    case "long_stay_days": {
+      return typeof p.days === "number" ? `${p.days} días` : JSON.stringify(payload);
+    }
+    case "reminder_windows": {
+      return typeof p.aheadDays === "number"
+        ? `${p.aheadDays} días de anticipación`
+        : JSON.stringify(payload);
+    }
+    default:
+      return JSON.stringify(payload);
+  }
+}

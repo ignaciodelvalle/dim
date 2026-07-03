@@ -16,7 +16,7 @@ import {
   govtBusinessRules,
   profiles,
 } from "@/db";
-import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
+import { RULE_TYPE_REGISTRY, summarizeRulePayload } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";
 import { formatDate } from "@/lib/utils/format";
@@ -159,8 +159,7 @@ export default async function JurisdictionReglasPage({
                           {RULE_TYPE_REGISTRY[t].description}
                         </p>
                         <p className="text-[11px] text-ln-op-mute mt-1">
-                          Default: {JSON.stringify(RULE_TYPE_REGISTRY[t].default).slice(0, 120)}
-                          {"..."}
+                          Default: {summarizeRulePayload(t, RULE_TYPE_REGISTRY[t].default)}
                         </p>
                       </div>
                       <Link
