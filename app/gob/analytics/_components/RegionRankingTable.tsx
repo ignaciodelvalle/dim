@@ -87,7 +87,7 @@ export function RegionRankingTable({ top, bottom }: Props) {
         </h3>
         <RankingHalf
           rows={top}
-          captionText="Top 5 provincias por mayor cobertura antirrábica"
+          captionText="Provincias por mayor cobertura antirrábica"
           id="cap-ranking-top"
         />
       </section>
@@ -97,7 +97,7 @@ export function RegionRankingTable({ top, bottom }: Props) {
         </h3>
         <RankingHalf
           rows={bottom}
-          captionText="Top 5 provincias por menor cobertura antirrábica"
+          captionText="Provincias por menor cobertura antirrábica"
           id="cap-ranking-bottom"
         />
       </section>

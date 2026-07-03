@@ -24,7 +24,9 @@ const SEGMENT_LABELS: Record<string, string> = {
   cobertura: "Cobertura",
   configuracion: "Configuración",
   mordedura: "Mordeduras",
-  maltrato: "Bienestar",
+  // Must match the nav-rail label (nav-presets.ts) — QA 2026-07-03 caught the
+  // same module named "Maltrato" (rail) / "Bienestar" (breadcrumb) at once.
+  maltrato: "Maltrato",
   pets: "Mascotas",
   admin: "Admin",
 };

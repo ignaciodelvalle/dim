@@ -178,10 +178,12 @@ export default async function OrgMascotasPage({
             <OpCrumbs
               items={[
                 { label: "Panel", href: `/org/${orgToken}` },
-                { label: "Animales en custodia" },
+                { label: "Mascotas en custodia" },
               ]}
             />
-            <h1 className="text-[22px] font-semibold text-ln-op-ink">Animales en custodia</h1>
+            {/* Title matches the nav-rail item "Mascotas" (QA 2026-07-03:
+                sidebar said Mascotas, page said Animales en custodia). */}
+            <h1 className="text-[22px] font-semibold text-ln-op-ink">Mascotas en custodia</h1>
             <p className="text-[13px] text-ln-op-ink-2">
               {cards.length === 0
                 ? "Todavía no hay animales registrados a nombre de la organización."

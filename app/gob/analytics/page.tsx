@@ -339,7 +339,7 @@ export default async function GobAnalyticsPage({
 
       {/* Top 10 death causes -- v1: simple HTML/CSS bars (spec B.6 doesn't mandate recharts here) */}
       <OpCard aria-labelledby={panelDeathId}>
-        <OpCardHead title={<span id={panelDeathId}>Top 10 causas de muerte (12m)</span>} />
+        <OpCardHead title={<span id={panelDeathId}>Principales causas de muerte (12m)</span>} />
         <OpCardBody>
           {deathCauses.length === 0 ? (
             <LnEmptyState
