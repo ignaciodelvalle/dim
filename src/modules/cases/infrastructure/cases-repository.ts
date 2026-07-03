@@ -255,13 +255,20 @@ export class CasesRepository {
 
   /**
    * For adoption_application — finds an open case for (pet, kind, applicant).
-   * Returns null when none.
+   * Returns null when none. Scoped per applicant: the partial unique index
+   * `cases_open_adoption_app_per_applicant_idx` allows one open
+   * adoption_application case PER (pet, applicant) — multiple applicants may
+   * each have their own concurrent open case for the same pet.
+   *
+   * Pass `executor` (the tx from `db.transaction`) so the lookup participates
+   * in the same transaction as the caller's pet_event insert.
    */
   async findOpenAdoptionApplicationCase(
     petId: string,
     applicantUserId: string,
+    executor: CaseExecutor = db,
   ): Promise<Case | null> {
-    const [row] = await db
+    const [row] = await executor
       .select()
       .from(cases)
       .where(
@@ -278,9 +285,16 @@ export class CasesRepository {
 
   /**
    * For adoption_listing — finds an open case for (pet, kind, org).
+   *
+   * Pass `executor` (the tx from `db.transaction`) so the lookup participates
+   * in the same transaction as the caller's pet_event insert.
    */
-  async findOpenAdoptionListingCase(petId: string, orgId: string): Promise<Case | null> {
-    const [row] = await db
+  async findOpenAdoptionListingCase(
+    petId: string,
+    orgId: string,
+    executor: CaseExecutor = db,
+  ): Promise<Case | null> {
+    const [row] = await executor
       .select()
       .from(cases)
       .where(
