@@ -24,7 +24,7 @@ describe("GET /api/cron/drain-outbox", () => {
   afterEach(() => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
-    vi.doUnmock("@/lib/outbox-drainer");
+    vi.doUnmock("@/lib/infra/outbox-drainer");
     vi.doUnmock("@/db");
   });
 
@@ -94,7 +94,7 @@ describe("GET /api/cron/drain-outbox", () => {
 
     const computeNextRetryAtMock = vi.fn().mockReturnValue(new Date(Date.now() + 60_000));
 
-    vi.doMock("@/lib/outbox-drainer", () => ({
+    vi.doMock("@/lib/infra/outbox-drainer", () => ({
       MAX_ATTEMPTS: maxAttempts,
       deliverOutboxRow: deliverMock,
       computeNextRetryAt: computeNextRetryAtMock,

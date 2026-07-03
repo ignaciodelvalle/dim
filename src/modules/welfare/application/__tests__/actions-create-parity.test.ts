@@ -15,13 +15,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Hoist mocks before any imports
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: vi.fn(),
   requireAdminOrGovtOrRedirect: vi.fn(),
   requireAdminOrRedirect: vi.fn(),
 }));
 
-vi.mock("@/lib/rate-limit", async (importOriginal) => {
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,

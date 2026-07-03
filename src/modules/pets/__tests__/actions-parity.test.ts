@@ -35,7 +35,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-vi.mock("@/lib/pet-access", () => ({
+vi.mock("@/lib/infra/pet-access", () => ({
   requirePetAccess: vi.fn().mockResolvedValue({
     ok: true,
     user: { id: "user-1" },
@@ -72,7 +72,7 @@ vi.mock("@/lib/pet-access", () => ({
   }),
 }));
 
-vi.mock("@/lib/uploads", () => ({
+vi.mock("@/lib/infra/uploads", () => ({
   uploadAttachmentIfPresent: vi.fn().mockResolvedValue({
     uploadedPath: null,
     mimeType: null,
@@ -81,7 +81,7 @@ vi.mock("@/lib/uploads", () => ({
   }),
 }));
 
-vi.mock("@/lib/jurisdiction-validation", () => ({
+vi.mock("@/lib/infra/jurisdiction-validation", () => ({
   JurisdictionValidationError: class JurisdictionValidationError extends Error {},
   resolveCanonicalJurisdiction: vi.fn().mockResolvedValue({
     province: { name: "Buenos Aires" },
@@ -89,25 +89,25 @@ vi.mock("@/lib/jurisdiction-validation", () => ({
   }),
 }));
 
-vi.mock("@/lib/microchip-validation", () => ({
+vi.mock("@/lib/domain/microchip-validation", () => ({
   validateMicrochipId: vi.fn().mockReturnValue({ ok: true, normalized: "724123456789012" }),
 }));
 
-vi.mock("@/lib/chip-lookup", () => ({
+vi.mock("@/lib/infra/chip-lookup", () => ({
   lookupByChip: vi.fn().mockResolvedValue(null),
 }));
 
 // ARCH-S: updatePetAction now calls fetchActiveIdentifications to get canonical chip presence.
-vi.mock("@/lib/pet-identifiers", () => ({
+vi.mock("@/lib/infra/pet-identifiers", () => ({
   fetchActiveIdentifications: vi.fn().mockResolvedValue({ microchip: null, tattoo: null }),
 }));
 
-vi.mock("@/lib/microchip-force-token", () => ({
+vi.mock("@/lib/infra/microchip-force-token", () => ({
   generateForceToken: vi.fn().mockReturnValue("force-tok-abc"),
   validateForceToken: vi.fn().mockReturnValue(false),
 }));
 
-vi.mock("@/lib/breeds-server", () => ({
+vi.mock("@/lib/infra/breeds-server", () => ({
   isPotentiallyDangerousBreedForJurisdiction: vi.fn().mockResolvedValue(false),
 }));
 

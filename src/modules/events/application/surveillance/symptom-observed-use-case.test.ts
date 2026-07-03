@@ -27,13 +27,13 @@ vi.mock("server-only", () => ({}));
 // Hoist mock for symptom-matcher so it can be controlled per test.
 const mockMatchSymptoms = vi.hoisted(() => vi.fn());
 const mockAggregateDiseaseMatches = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/symptom-matcher", () => ({
+vi.mock("@/lib/domain/symptom-matcher", () => ({
   matchSymptoms: mockMatchSymptoms,
   aggregateDiseaseMatches: mockAggregateDiseaseMatches,
 }));
 
 const mockMaybeNotifyOwnersOfPublicAlert = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/owner-disease-alerts", () => ({
+vi.mock("@/lib/infra/owner-disease-alerts", () => ({
   maybeNotifyOwnersOfPublicAlert: mockMaybeNotifyOwnersOfPublicAlert,
 }));
 

@@ -30,7 +30,7 @@ describe("shouldShowDemoBanner()", () => {
 
 describe("lib/demo-mode.ts stays server-safe", () => {
   it('carries no "use client" directive (the server admin layout imports it)', () => {
-    const src = readFileSync(new URL("../lib/demo-mode.ts", import.meta.url), "utf8");
+    const src = readFileSync(new URL("../lib/domain/demo-mode.ts", import.meta.url), "utf8");
     expect(src).not.toMatch(/^\s*["']use client["']/m);
   });
 });

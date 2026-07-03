@@ -16,7 +16,7 @@ import * as supabaseServer from "@/lib/supabase/server";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: vi.fn(),
   requireAdminOrGovtOrRedirect: vi.fn(),
 }));

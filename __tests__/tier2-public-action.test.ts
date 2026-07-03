@@ -40,7 +40,7 @@ vi.mock("next/cache", () => ({
 // ---------------------------------------------------------------------------
 
 const mockRequirePetAccess = vi.fn();
-vi.mock("@/lib/pet-access", () => ({
+vi.mock("@/lib/infra/pet-access", () => ({
   requirePetAccess: (token: string) => mockRequirePetAccess(token),
 }));
 

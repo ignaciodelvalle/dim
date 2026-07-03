@@ -51,7 +51,7 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/rate-limit", async (importOriginal) => {
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
@@ -89,28 +89,28 @@ vi.mock("drizzle-orm", async (importOriginal) => {
 // Mock: heavy lib deps (not under test)
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/event-confidence", () => ({
+vi.mock("@/lib/events/event-confidence", () => ({
   computeConfidence: vi.fn(() => "self_reported"),
   isAtLeast: vi.fn(() => false),
 }));
-vi.mock("@/lib/format", () => ({
+vi.mock("@/lib/utils/format", () => ({
   sexLabel: vi.fn(() => ""),
   speciesLabel: vi.fn(() => "perro"),
   statusLabel: vi.fn(() => "activo"),
 }));
-vi.mock("@/lib/location", () => ({ readPoint: vi.fn(() => null) }));
-vi.mock("@/lib/origin-org", () => ({
+vi.mock("@/lib/domain/location", () => ({ readPoint: vi.fn(() => null) }));
+vi.mock("@/lib/infra/origin-org", () => ({
   resolveOriginOrg: vi.fn(async () => null),
   shouldShowOriginOrgBadge: vi.fn(() => false),
 }));
-vi.mock("@/lib/permanent-conditions", () => ({
+vi.mock("@/lib/reference/permanent-conditions", () => ({
   isPermanentCondition: vi.fn(() => false),
   permanentConditionShortLabel: vi.fn(() => ""),
 }));
-vi.mock("@/lib/pet-identifiers", () => ({
+vi.mock("@/lib/infra/pet-identifiers", () => ({
   fetchActiveIdentifications: vi.fn(async () => ({ microchip: null, tattoo: null })),
 }));
-vi.mock("@/lib/storage", () => ({ petPhotoUrl: vi.fn(() => null) }));
+vi.mock("@/lib/infra/storage", () => ({ petPhotoUrl: vi.fn(() => null) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => ({})) }));
 vi.mock("@/components/PppPublicBadge", () => ({ PppPublicBadge: vi.fn(() => null) }));
 vi.mock("@/components/event/ConfidenceBadge", () => ({ ConfidenceBadge: vi.fn(() => null) }));

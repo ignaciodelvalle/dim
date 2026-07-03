@@ -29,7 +29,7 @@ vi.mock("server-only", () => ({}));
 // ---------------------------------------------------------------------------
 
 const mockRequirePetAccess = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/pet-access", () => ({
+vi.mock("@/lib/infra/pet-access", () => ({
   requirePetAccess: mockRequirePetAccess,
   requireAlivePetAccess: vi.fn(),
 }));
@@ -47,11 +47,11 @@ const mockTransaction = vi.hoisted(() =>
 );
 const mockBroadcastLostPet = vi.hoisted(() => vi.fn());
 
-vi.mock("@/lib/lost-pet-broadcast", () => ({
+vi.mock("@/lib/infra/lost-pet-broadcast", () => ({
   broadcastLostPet: mockBroadcastLostPet,
 }));
 
-vi.mock("@/lib/location", () => ({
+vi.mock("@/lib/domain/location", () => ({
   writePoint: vi.fn((p: { lat: number; lng: number } | null) =>
     p
       ? { locationLat: String(p.lat), locationLng: String(p.lng) }
@@ -59,29 +59,29 @@ vi.mock("@/lib/location", () => ({
   ),
 }));
 
-vi.mock("@/lib/case-helpers", () => ({
+vi.mock("@/lib/infra/case-helpers", () => ({
   openCase: vi.fn().mockResolvedValue({ id: "case-stub" }),
   closeCase: vi.fn(),
   findOpenCaseForPetAndKind: vi.fn(),
 }));
 
-vi.mock("@/lib/event-schemas", () => ({
+vi.mock("@/lib/events/event-schemas", () => ({
   validateEventPayload: vi.fn((_type: string, payload: unknown) => payload),
 }));
 
-vi.mock("@/lib/microchip-validation", () => ({
+vi.mock("@/lib/domain/microchip-validation", () => ({
   validateMicrochipId: vi.fn(),
 }));
 
-vi.mock("@/lib/tattoo-lookup", () => ({
+vi.mock("@/lib/infra/tattoo-lookup", () => ({
   normalizeTattooCode: vi.fn(),
 }));
 
-vi.mock("@/lib/pet-identifiers", () => ({
+vi.mock("@/lib/infra/pet-identifiers", () => ({
   fetchActiveIdentifications: vi.fn().mockResolvedValue({ microchip: null, tattoo: null }),
 }));
 
-vi.mock("@/lib/form-checkbox", () => ({
+vi.mock("@/lib/ui/form-checkbox", () => ({
   checkboxOn: vi.fn(() => false),
 }));
 

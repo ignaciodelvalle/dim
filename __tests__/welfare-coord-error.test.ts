@@ -47,7 +47,7 @@ vi.mock("@/lib/supabase/server", () => ({
 // ---------------------------------------------------------------------------
 // Mock: rate-limit — always passes (no-op).
 // ---------------------------------------------------------------------------
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/infra/rate-limit", () => ({
   enforceRateLimit: vi.fn().mockResolvedValue(undefined),
   callerIp: vi.fn().mockReturnValue("127.0.0.1"),
   RateLimitError: class RateLimitError extends Error {},
@@ -58,7 +58,7 @@ vi.mock("@/lib/rate-limit", () => ({
 // formData fields "locationLat" / "locationLng" so the real
 // normalizeLocationForWrite receives them and performs the range check.
 // ---------------------------------------------------------------------------
-vi.mock("@/lib/location-value", () => ({
+vi.mock("@/lib/domain/location-value", () => ({
   parseLocationFromFormData: vi.fn().mockImplementation((fd: FormData) => ({
     province: String(fd.get("jurisdictionProvince") ?? "") || null,
     provinceCode: null,
@@ -91,38 +91,38 @@ vi.mock("@/db", () => ({
   notifications: {},
 }));
 
-vi.mock("@/lib/case-helpers", () => ({
+vi.mock("@/lib/infra/case-helpers", () => ({
   openCase: vi.fn(),
   closeCase: vi.fn(),
 }));
 
-vi.mock("@/lib/location", () => ({
+vi.mock("@/lib/domain/location", () => ({
   writePoint: vi.fn(() => ({ locationLat: null, locationLng: null })),
 }));
 
-vi.mock("@/lib/approval-routing", () => ({
+vi.mock("@/lib/infra/approval-routing", () => ({
   findAuthoritiesForJurisdiction: vi.fn().mockResolvedValue([]),
 }));
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireAdminOrGovtOrRedirect: vi.fn(),
   requireAdminOrRedirect: vi.fn(),
   requireUserOrRedirect: vi.fn(),
 }));
 
-vi.mock("@/lib/authority", () => ({
+vi.mock("@/lib/domain/authority", () => ({
   signalWelfareReport: vi.fn(),
 }));
 
-vi.mock("@/lib/format", () => ({
+vi.mock("@/lib/utils/format", () => ({
   parseDateInput: vi.fn(),
 }));
 
-vi.mock("@/lib/storage", () => ({
+vi.mock("@/lib/infra/storage", () => ({
   welfareAttachmentSignedUrl: vi.fn(),
 }));
 
-vi.mock("@/lib/welfare-exports", () => ({
+vi.mock("@/lib/analytics/welfare-exports", () => ({
   MPF_EXPORT_SCHEMA_VERSION: "1",
   createSignedExportUrl: vi.fn(),
   generateWelfareMpfPdf: vi.fn(),
@@ -130,11 +130,11 @@ vi.mock("@/lib/welfare-exports", () => ({
   welfareReportToMpfDto: vi.fn(),
 }));
 
-vi.mock("@/lib/welfare-moderation", () => ({
+vi.mock("@/lib/infra/welfare-moderation", () => ({
   computeFlagReasons: vi.fn().mockReturnValue([]),
 }));
 
-vi.mock("@/lib/welfare-uploads", () => ({
+vi.mock("@/lib/infra/welfare-uploads", () => ({
   uploadWelfareEvidence: vi.fn(),
 }));
 
