@@ -49,7 +49,6 @@ export type VaccineStatus = "up_to_date" | "overdue" | "unknown";
 export type NudgeKind =
   | "vaccine_overdue"
   | "chip_missing"
-  | "reminder_due"
   | "scan_activity"
   | "sterilization_pending";
 
@@ -187,17 +186,10 @@ export function derivePetHealthStatus(
     });
   }
 
-  // Next open reminder (soonest due). The full reminder workflow lives in the
-  // Vencimientos card; this is a per-pet pointer to it.
-  const nextReminder = [...openReminders].sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())[0];
-  if (nextReminder) {
-    nudges.push({
-      kind: "reminder_due",
-      label: `Próximo recordatorio: ${nextReminder.title}`,
-      actionHref: `/mis-mascotas/${pet.publicToken}?tab=vacunas`,
-      tone: "attention",
-    });
-  }
+  // The reminder_due nudge was removed (projection-cron audit 2026-07-03 C3,
+  // PO decision): it read the same reminders the Vencimientos card lists on
+  // the SAME /inicio screen — a third copy of one fact. openReminders still
+  // feeds the returned counters; the reminder workflow lives in Vencimientos.
 
   // Credential-scan activity is informational (neutral) — "tu credencial fue
   // escaneada N veces" is a positive, owner-only signal (someone is using the

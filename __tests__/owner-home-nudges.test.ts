@@ -288,14 +288,15 @@ describe("fetchPetHealthNudges — next reminder", () => {
 
   afterAll(() => cleanupUser(userId));
 
-  it("surfaces the open reminder and ignores the completed one", async () => {
+  it("counts the open reminder, ignores the completed one, and emits NO reminder nudge", async () => {
     const result = await fetchPetHealthNudges(userId);
     const pet = petByToken(result, `REM-${userId.slice(0, 4)}`);
+    // openReminders still counts (it feeds the per-pet flags)…
     expect(pet?.openReminders).toBe(1);
-    const reminderNudge = pet?.nudges.find((n) => n.kind === "reminder_due");
-    expect(reminderNudge).toBeDefined();
-    expect(reminderNudge?.label).toContain("Polivalente");
-    expect(reminderNudge?.label).not.toContain("Sextuple");
+    // …but no strip nudge duplicates it: the Vencimientos card on the same
+    // /inicio screen already lists these reminders (projection-cron audit
+    // 2026-07-03 C3, PO decision — one fact, one surface).
+    expect(pet?.nudges.some((n) => n.label.includes("recordatorio"))).toBe(false);
   });
 });
 
