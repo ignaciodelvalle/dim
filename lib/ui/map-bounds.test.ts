@@ -1,4 +1,4 @@
-// Unit tests for lib/ui/map-bounds.ts.
+// Unit tests for lib/ui/map-bounds.ts + map-bounds.server.ts.
 //
 // jurisdictionBounds is DB-bound (lib/infra/gov-scope.ts) — mocked here (same
 // technique as any other jurisdictionBounds caller test) so boundsForScope's
@@ -17,7 +17,8 @@ vi.mock("@/lib/infra/gov-scope", async (importOriginal) => {
 
 import { jurisdictionBounds } from "@/lib/infra/gov-scope";
 
-import { AR_BBOX, type Bbox, boundsForScope, fitBoundsOptions } from "./map-bounds";
+import { AR_BBOX, type Bbox, fitBoundsOptions } from "./map-bounds";
+import { boundsForScope } from "./map-bounds.server";
 
 describe("AR_BBOX", () => {
   it("is a valid MapLibre bbox ([[minLng,minLat],[maxLng,maxLat]]) with min < max on both axes", () => {

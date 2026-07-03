@@ -1,7 +1,10 @@
-// lib/ui/map-bounds.ts — Framework-agnostic map-bounds helpers (map-QOL P0
-// primitive). No React import here on purpose: these helpers are consumed by
-// both plain MapLibre-mounting effects (components/maps/StaticFirstMap.tsx)
-// and, in a later map-QOL commit, PanoramaConsole's map wiring.
+// lib/ui/map-bounds.ts — Framework-agnostic, CLIENT-SAFE map-bounds helpers
+// (map-QOL P0 primitive). No React and — critically — no server imports here:
+// this module is imported by client map components (SituationalMap,
+// StaticFirstMap hosts), so it must never pull in lib/infra/gov-scope.ts
+// (DB-bound via db/index.ts — a webpack build error in any client bundle).
+// The server-side bridge to jurisdictionBounds lives in
+// lib/ui/map-bounds.server.ts.
 //
 // AR_BBOX — Argentina's national bounding box, in the SAME
 // [[minLng,minLat],[maxLng,maxLat]] order lib/infra/gov-scope.ts's
@@ -13,13 +16,6 @@
 // components/charts/MapChoropleth.tsx's auto-fitBounds call already hardcodes
 // (`{ padding: 24, animate: false, maxZoom: 9 }`) into one reusable, tuned
 // default so later map-QOL callers don't re-guess these numbers per component.
-//
-// boundsForScope — bridges lib/infra/gov-scope.ts's DB-bound
-// `jurisdictionBounds` with a national fallback: callers always get a usable
-// bbox, even for admin's universal scope (empty jurisdictions → null) or a
-// govt viewer whose assignments resolve to no centroids.
-
-import { type DashboardJurisdiction, jurisdictionBounds } from "@/lib/infra/gov-scope";
 
 /** A MapLibre-style bounding box: [[minLng,minLat],[maxLng,maxLat]]. */
 export type Bbox = [[number, number], [number, number]];
@@ -52,15 +48,4 @@ export function fitBoundsOptions(opts?: Partial<FitBoundsOptions>): FitBoundsOpt
     maxZoom: opts?.maxZoom ?? 9,
     animate: opts?.animate ?? false,
   };
-}
-
-/**
- * Resolves a MapLibre bbox to fit for the given jurisdictions, falling back
- * to AR_BBOX when jurisdictionBounds returns null (admin universal scope, or
- * a govt viewer whose assignments have no resolvable centroids) — callers
- * always get a usable bbox, never null.
- */
-export async function boundsForScope(jurisdictions: DashboardJurisdiction[]): Promise<Bbox> {
-  const bounds = await jurisdictionBounds(jurisdictions);
-  return bounds ?? AR_BBOX;
 }
