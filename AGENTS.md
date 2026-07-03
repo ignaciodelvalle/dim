@@ -29,6 +29,7 @@ Ultimate trajectory: **Mi Argentina integration** — federation with the Argent
 | What | Where |
 |---|---|
 | Domain specs & plans index | `docs/superpowers/README.md` |
+| External-agent handoffs + orientation protocol | `docs/design/handoffs/README.md` — auditors/proposers MUST read it; canonical checkout only, never `.claude/worktrees/` |
 | Implementation plans | `docs/superpowers/plans/` |
 | 47 event types (`EVENT_TYPES` const) | `db/schema.ts` |
 | Per-event Zod schemas | `lib/event-schemas.ts` |
