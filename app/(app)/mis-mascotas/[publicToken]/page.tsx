@@ -91,7 +91,6 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { Suspense } from "react";
-import { PostCreateModal } from "./PostCreateModal";
 import { SheetMounter } from "./SheetMounter";
 import { ConvertFosterButton } from "./_components/ConvertFosterButton";
 
@@ -130,7 +129,6 @@ export default async function PetDetailPage({
   const sp = await searchParams;
   const tabParam = typeof sp.tab === "string" ? sp.tab : undefined;
   const lenteParam = typeof sp.lente === "string" ? sp.lente : undefined;
-  const recienCreado = sp.recienCreado === "true";
 
   // REQ-6.3 (pet-document-redesign): the D9 `?fromLost=1` bypass has no
   // target anymore — LostCockpit is gone and the normal profile always
@@ -712,11 +710,10 @@ export default async function PetDetailPage({
         }
       />
 
-      {/* Post-create modal — shown once after a successful new-pet create.
-            recienCreado only ever comes from the create-pet flow, whose
-            result is always an active pet — deceased/lost pets never carry
-            this param. */}
-      {recienCreado && accessPath === "owner" && <PostCreateModal publicToken={pet.publicToken} />}
+      {/* PostCreateModal was deleted (flow audit 2026-07-03 + PO decision):
+            the credencial aha page owns the post-create moment; nothing
+            produced ?recienCreado=true anymore, so the modal was dead code
+            stacking a third celebration screen when it did fire. */}
     </div>
   );
 }

@@ -2,8 +2,9 @@
 
 // MasSheet — "⋯ Más" sheet (design ADR-7). Groups everything that used to be
 // standalone Resumen sections or a full PetActionsMenu list into one sheet:
-// Editar · Transferir · Buscar hogar · Perro de asistencia · Confirmar
-// devolución (conditional) · Documentos de viaje · Ficha · Contactos.
+// Editar datos y ficha · Transferir · Buscar hogar · Perro de asistencia ·
+// Confirmar devolución (conditional) · Contactos. (Ficha merged into Editar
+// and travel-docs removed — flow audit 2026-07-03; see MasSheet.helpers.ts.)
 
 import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import Link from "next/link";

@@ -35,17 +35,25 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
 
   const items: MasSheetItem[] = [
     {
+      // "Editar datos y ficha" absorbs the old separate "Ficha" row — both
+      // pointed at the identical ?sheet=editar-mascota (the ficha lives in
+      // that form's "Otros" section), so two rows were a false choice
+      // (flow audit 2026-07-03).
       id: "edit",
-      label: "Editar datos",
+      label: "Editar datos y ficha",
       href: `/mis-mascotas/${pet.publicToken}?sheet=editar-mascota`,
     },
   ];
 
   // Deceased (ADR-15/REQ-9.3): no write-affordances beyond corrections + who
   // to call. Everything else below (transfer/find-home/service-dog/confirm-
-  // return/travel-docs/ficha/tracking) is suppressed.
+  // return/tracking) is suppressed.
   if (pet.status === "deceased") {
-    items.push({ id: "contacts", label: "Contactos de emergencia", href: "/cuenta/editar" });
+    items.push({
+      id: "contacts",
+      label: "Contactos de emergencia",
+      href: `/mis-mascotas/${pet.publicToken}?sheet=emergencia`,
+    });
     return items;
   }
 
@@ -81,22 +89,21 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
     });
   }
 
-  items.push({
-    id: "travel-docs",
-    label: "Documentos de viaje",
-    href: `/mis-mascotas/${pet.publicToken}/editar?section=docs`,
-  });
+  // "Documentos de viaje" was removed (flow audit 2026-07-03): its
+  // `?section=docs` deep link was a noop — the edit sheet has no section
+  // anchors — so the row promised a destination that didn't exist. Restore
+  // it when a section anchor ships.
+  //
+  // "Ficha" merged into the "Editar datos y ficha" row above (same target).
 
-  // Ficha (alergias, comidas, adiestramiento) lives in the same edit form's
-  // "Otros" section — no dedicated route exists yet, so this deep-links into
-  // the same editar-mascota sheet as "Editar datos".
+  // Pet-scoped emergency sheet (?sheet=emergencia) — the same profile fields
+  // the old /cuenta/editar path edited, without leaving the pet the user is
+  // looking at (flow audit 2026-07-03: two surfaces for one dataset).
   items.push({
-    id: "ficha",
-    label: "Ficha (alergias, comidas, adiestramiento)",
-    href: `/mis-mascotas/${pet.publicToken}?sheet=editar-mascota`,
+    id: "contacts",
+    label: "Contactos de emergencia",
+    href: `/mis-mascotas/${pet.publicToken}?sheet=emergencia`,
   });
-
-  items.push({ id: "contacts", label: "Contactos de emergencia", href: "/cuenta/editar" });
 
   // Deferred GPS-tracking placeholder (ADR-17c) — a quiet non-interactive
   // row, not a live feature. Never shown for a deceased pet (handled by the
