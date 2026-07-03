@@ -61,12 +61,13 @@ export default async function MisDenunciasPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
-      {/* Back */}
+      {/* Back — this is a reports page, its parent is the home dashboard,
+          not the pet roster (QA 2026-07-03). */}
       <Link
-        href="/mis-mascotas"
+        href="/inicio"
         className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
-        ← Mis mascotas
+        ← Inicio
       </Link>
 
       {/* Header */}

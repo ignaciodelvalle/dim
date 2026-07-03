@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { AppFooter } from "./AppFooter";
 import { GobStripe } from "./GobStripe";
+import { ScrollReset } from "./ScrollReset";
 
 /**
  * AppShell — the single, role-variant application chrome (Item 7, spec §3).
@@ -99,7 +100,8 @@ function CitizenShell({ masthead, footer, maxWidth, children }: CitizenProps) {
       {/* Thin Argentina institutional stripe (D7). */}
       <GobStripe />
       {masthead}
-      <main id="main-content" className="flex-1 overflow-auto">
+      <main id="main-content" data-scroll-reset className="flex-1 overflow-auto">
+        <ScrollReset />
         {maxWidth ? <div className={`${maxWidth} mx-auto`}>{children}</div> : children}
       </main>
       {footer ?? <AppFooter />}
@@ -132,7 +134,8 @@ function OperatorShell({ rail, topbar, banner, maxWidth, children }: OperatorPro
         {rail}
         <main id="main-content" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {topbar}
-          <div className="min-h-0 flex-1 overflow-auto px-6 py-[22px]">
+          <div data-scroll-reset className="min-h-0 flex-1 overflow-auto px-6 py-[22px]">
+            <ScrollReset />
             {maxWidth ? <div className={`${maxWidth} mx-auto`}>{children}</div> : children}
           </div>
         </main>
@@ -164,7 +167,8 @@ function LandingShell({ returnSlot, children }: LandingProps) {
         {/* Discreet "back to my app" — present only for logged-in viewers (D13). */}
         {returnSlot && <div className="ml-auto">{returnSlot}</div>}
       </header>
-      <main id="main-content" className="flex-1 overflow-auto">
+      <main id="main-content" data-scroll-reset className="flex-1 overflow-auto">
+        <ScrollReset />
         {children}
       </main>
     </div>
