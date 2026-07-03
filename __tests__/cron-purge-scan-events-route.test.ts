@@ -6,7 +6,7 @@
 //   3. Auth success + purge throws → 200 { ok: false } (error is captured in cron_runs,
 //      the route does NOT re-throw; it returns ok: false with runId)
 //
-// Both @/db (cronRuns, db) and @/lib/scan-retention (purgeExpiredScanEvents) are mocked.
+// Both @/db (cronRuns, db) and @/lib/infra/scan-retention (purgeExpiredScanEvents) are mocked.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

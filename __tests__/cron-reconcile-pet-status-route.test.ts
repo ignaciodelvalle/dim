@@ -8,7 +8,7 @@
 //   5. Auth success + rederive throws for one pet → error captured in details, run stays ok
 //   6. Auth success + Authorization: Bearer header variant
 //
-// Mocks: @/db (cronRuns, pets, db) + @/lib/rederive-pet-cache (rederivePetCache, hasDrift, driftedColumns)
+// Mocks: @/db (cronRuns, pets, db) + @/lib/infra/rederive-pet-cache (rederivePetCache, hasDrift, driftedColumns)
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

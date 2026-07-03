@@ -7,7 +7,7 @@
 //   4. Auth success + one row fails delivery → processed: 1, retried: 1 (not yet exhausted)
 //   5. Auth success + one row exhausts max attempts → processed: 1, failed: 1
 //
-// Mocks: @/db (cronRuns, eventNotificationOutbox, db) + @/lib/outbox-drainer (deliverOutboxRow, MAX_ATTEMPTS, computeNextRetryAt)
+// Mocks: @/db (cronRuns, eventNotificationOutbox, db) + @/lib/infra/outbox-drainer (deliverOutboxRow, MAX_ATTEMPTS, computeNextRetryAt)
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

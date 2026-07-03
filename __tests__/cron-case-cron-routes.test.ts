@@ -8,7 +8,7 @@
 //   GET /api/cron/expire-cross-org-transfers
 //
 // All five share the same shape: checkCronSecret(req) → auth guard, then
-// runCaseCron({...}) → JSON response. We mock @/lib/case-cron so both the
+// runCaseCron({...}) → JSON response. We mock @/lib/infra/case-cron so both the
 // auth helper and the runner are under our control, keeping tests pure (no DB).
 //
 // Branch coverage targets per route:
