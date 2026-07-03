@@ -16,9 +16,12 @@ import { type NextRequest, NextResponse } from "next/server";
 import { db, govtBusinessRules } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { reEvaluatePppClassificationChange } from "@/lib/infra/business-rules-reeval";
+import { withCronRun } from "@/lib/infra/case-cron";
 import { inArray } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
+
+const CRON_NAME = "business_rules_reeval";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
@@ -28,50 +31,68 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const start = Date.now();
   try {
-    // Re-eval every distinct jurisdiction that has a ppp_breed_list OR
-    // ppp_weight_threshold row (either can affect classification via the
-    // composed resolver). Also include a single "default AR scan" so pets
-    // in AR without any override still get re-evaluated against the
-    // hardcoded defaults.
-    const rows = await db
-      .select({
-        country: govtBusinessRules.jurisdictionCountry,
-        province: govtBusinessRules.jurisdictionProvince,
-        locality: govtBusinessRules.jurisdictionLocality,
-      })
-      .from(govtBusinessRules)
-      .where(inArray(govtBusinessRules.ruleType, ["ppp_breed_list", "ppp_weight_threshold"]));
+    const totals = await withCronRun(
+      CRON_NAME,
+      async () => {
+        // Re-eval every distinct jurisdiction that has a ppp_breed_list OR
+        // ppp_weight_threshold row (either can affect classification via the
+        // composed resolver). Also include a single "default AR scan" so pets
+        // in AR without any override still get re-evaluated against the
+        // hardcoded defaults.
+        const rows = await db
+          .select({
+            country: govtBusinessRules.jurisdictionCountry,
+            province: govtBusinessRules.jurisdictionProvince,
+            locality: govtBusinessRules.jurisdictionLocality,
+          })
+          .from(govtBusinessRules)
+          .where(inArray(govtBusinessRules.ruleType, ["ppp_breed_list", "ppp_weight_threshold"]));
 
-    let totalScanned = 0;
-    let totalFlippedToPpp = 0;
-    let totalFlippedToNonPpp = 0;
-    let totalNotified = 0;
+        let totalScanned = 0;
+        let totalFlippedToPpp = 0;
+        let totalFlippedToNonPpp = 0;
+        let totalNotified = 0;
 
-    // Always include the country-level default scan first.
-    const scopes: { country: string; province: string | null; locality: string | null }[] = [
-      { country: "AR", province: null, locality: null },
-      ...rows.map((r) => ({
-        country: r.country,
-        province: r.province,
-        locality: r.locality,
-      })),
-    ];
+        // Always include the country-level default scan first.
+        const scopes: { country: string; province: string | null; locality: string | null }[] = [
+          { country: "AR", province: null, locality: null },
+          ...rows.map((r) => ({
+            country: r.country,
+            province: r.province,
+            locality: r.locality,
+          })),
+        ];
 
-    for (const scope of scopes) {
-      const result = await reEvaluatePppClassificationChange(scope);
-      totalScanned += result.scanned;
-      totalFlippedToPpp += result.flippedToPpp;
-      totalFlippedToNonPpp += result.flippedToNonPpp;
-      totalNotified += result.notified;
-    }
+        for (const scope of scopes) {
+          const result = await reEvaluatePppClassificationChange(scope);
+          totalScanned += result.scanned;
+          totalFlippedToPpp += result.flippedToPpp;
+          totalFlippedToNonPpp += result.flippedToNonPpp;
+          totalNotified += result.notified;
+        }
+
+        return {
+          scopes: scopes.length,
+          scanned: totalScanned,
+          flippedToPpp: totalFlippedToPpp,
+          flippedToNonPpp: totalFlippedToNonPpp,
+          notified: totalNotified,
+        };
+      },
+      (r) => ({
+        itemsProcessed: r.scanned,
+        details: {
+          scopes: r.scopes,
+          flippedToPpp: r.flippedToPpp,
+          flippedToNonPpp: r.flippedToNonPpp,
+          notified: r.notified,
+        },
+      }),
+    );
 
     return NextResponse.json({
       ok: true,
-      scopes: scopes.length,
-      scanned: totalScanned,
-      flippedToPpp: totalFlippedToPpp,
-      flippedToNonPpp: totalFlippedToNonPpp,
-      notified: totalNotified,
+      ...totals,
       durationMs: Date.now() - start,
     });
   } catch (err) {

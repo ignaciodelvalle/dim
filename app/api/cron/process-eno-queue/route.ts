@@ -18,10 +18,13 @@
 // that even if overlap did occur, no duplicate legal notifications would be sent.
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { withCronRun } from "@/lib/infra/case-cron";
 import { processEnoQueueBatch } from "@/lib/infra/eno-queue-processor";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+
+const CRON_NAME = "process_eno_queue";
 
 export async function GET(request: NextRequest) {
   const authError = authorizeCronRequest(request);
@@ -30,7 +33,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await processEnoQueueBatch();
+    const result = await withCronRun(
+      CRON_NAME,
+      () => processEnoQueueBatch(),
+      (r) => ({
+        itemsProcessed: r.processed,
+        details: { processed: r.processed, failed: r.failed, skipped: r.skipped },
+      }),
+    );
     return NextResponse.json({
       ok: true,
       scanned_at: result.scannedAt.toISOString(),

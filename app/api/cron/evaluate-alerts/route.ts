@@ -14,8 +14,11 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { evaluateAndRecordFiringsForAllAdmins } from "@/app/actions/alert-firings";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { withCronRun } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
+
+const CRON_NAME = "evaluate_alerts";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
@@ -25,7 +28,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const start = Date.now();
   try {
-    const result = await evaluateAndRecordFiringsForAllAdmins();
+    const result = await withCronRun(
+      CRON_NAME,
+      () => evaluateAndRecordFiringsForAllAdmins(),
+      (r) => ({
+        itemsProcessed: r.evaluated,
+        details: { evaluated: r.evaluated, breaching: r.breaching, opened: r.opened },
+      }),
+    );
     return NextResponse.json({
       ok: true,
       ...result,

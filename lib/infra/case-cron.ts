@@ -79,6 +79,49 @@ export async function runCaseCron<TCandidate>(
 }
 
 /**
+ * General-purpose cronRuns telemetry wrapper — the sibling of runCaseCron
+ * for crons that are NOT candidate/process shaped (scans, queue drains,
+ * materializers). Projection-cron audit 2026-07-03 B1: 9 of the 21 fleet
+ * crons wrote no cron_runs row, so cron-health reported them "never_ran"
+ * forever and a real failure was indistinguishable from silence.
+ *
+ * Records status='running' before `fn`, finalizes ok/failed after; a throw
+ * is recorded (status='failed', error in details) and RE-THROWN so the
+ * route's own catch still shapes its 500 response.
+ */
+export async function withCronRun<T>(
+  cronName: string,
+  fn: () => Promise<T>,
+  summarize?: (result: T) => { itemsProcessed?: number; details?: Record<string, unknown> },
+): Promise<T> {
+  const [run] = await db.insert(cronRuns).values({ cronName, status: "running" }).returning();
+  try {
+    const result = await fn();
+    const summary = summarize?.(result) ?? {};
+    await db
+      .update(cronRuns)
+      .set({
+        status: "ok",
+        finishedAt: new Date(),
+        itemsProcessed: summary.itemsProcessed ?? 0,
+        details: summary.details ?? {},
+      })
+      .where(eq(cronRuns.id, run.id));
+    return result;
+  } catch (err) {
+    await db
+      .update(cronRuns)
+      .set({
+        status: "failed",
+        finishedAt: new Date(),
+        details: { error: err instanceof Error ? err.message : String(err) },
+      })
+      .where(eq(cronRuns.id, run.id));
+    throw err;
+  }
+}
+
+/**
  * Standardized cron request auth check. Returns `null` on success or
  * a `{ ok: false, error, status }` triple on failure that the caller
  * route can serialize directly to NextResponse.json.

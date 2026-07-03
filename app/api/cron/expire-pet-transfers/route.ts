@@ -8,9 +8,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { withCronRun } from "@/lib/infra/case-cron";
 import { expirePetTransfersAction as expirePetTransfersOnce } from "@/src/modules/transfers/actions";
 
 export const dynamic = "force-dynamic";
+
+const CRON_NAME = "expire_pet_transfers";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
@@ -20,7 +23,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const start = Date.now();
   try {
-    const stats = await expirePetTransfersOnce();
+    const stats = await withCronRun(
+      CRON_NAME,
+      () => expirePetTransfersOnce(),
+      (s) => ({
+        itemsProcessed: s.expired,
+        details: { expired: s.expired },
+      }),
+    );
     return NextResponse.json({
       ok: true,
       ...stats,

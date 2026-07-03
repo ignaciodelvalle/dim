@@ -10,9 +10,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { withCronRun } from "@/lib/infra/case-cron";
 import { closeEligibleRabiesObservations } from "@/lib/infra/rabies-observation-closer";
 
 export const dynamic = "force-dynamic";
+
+const CRON_NAME = "close_rabies_observations";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
@@ -22,7 +25,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const start = Date.now();
   try {
-    const stats = await closeEligibleRabiesObservations();
+    const stats = await withCronRun(
+      CRON_NAME,
+      () => closeEligibleRabiesObservations(),
+      (s) => ({
+        itemsProcessed: s.closedNegative + s.flaggedForReview,
+        details: {
+          scanned: s.scanned,
+          closedNegative: s.closedNegative,
+          flaggedForReview: s.flaggedForReview,
+          skippedNotYetDue: s.skippedNotYetDue,
+          errorCount: s.errors.length,
+        },
+      }),
+    );
     return NextResponse.json({
       ok: true,
       ...stats,

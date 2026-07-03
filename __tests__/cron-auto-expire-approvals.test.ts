@@ -158,10 +158,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // Clean up cron_runs created during tests.
+  // Clean up cron_runs created during tests (canonical snake-of-route name,
+  // cron-registry SSOT rule).
   await db
     .delete(cronRuns)
-    .where(eq(cronRuns.cronName, "approval_requests_auto_expiry"))
+    .where(eq(cronRuns.cronName, "auto_expire_approvals"))
     .catch(() => {});
 
   // Clean up audit_log rows referencing our approval_requests (FK).

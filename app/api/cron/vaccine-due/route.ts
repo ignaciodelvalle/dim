@@ -9,10 +9,13 @@
 // with the message so the Vercel cron dashboard surfaces it.
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { withCronRun } from "@/lib/infra/case-cron";
 import { runVaccineDueScan } from "@/lib/infra/notifications";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+
+const CRON_NAME = "vaccine_due";
 
 export async function GET(request: NextRequest) {
   const authError = authorizeCronRequest(request);
@@ -21,7 +24,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await runVaccineDueScan();
+    // cronRuns telemetry — projection-cron audit 2026-07-03 B1
+    const result = await withCronRun(
+      CRON_NAME,
+      () => runVaccineDueScan(),
+      (r) => ({
+        itemsProcessed: r.insertedCount,
+        details: { insertedCount: r.insertedCount },
+      }),
+    );
     return NextResponse.json({
       ok: true,
       scanned_at: result.scannedAt.toISOString(),

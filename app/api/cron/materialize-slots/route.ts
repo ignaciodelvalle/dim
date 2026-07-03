@@ -17,8 +17,11 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { materializeAllActiveSlots } from "@/app/actions/slot-materialization";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { withCronRun } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
+
+const CRON_NAME = "materialize_slots";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
@@ -29,7 +32,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const start = Date.now();
 
   try {
-    const { rulesProcessed, slotsInserted } = await materializeAllActiveSlots();
+    const { rulesProcessed, slotsInserted } = await withCronRun(
+      CRON_NAME,
+      () => materializeAllActiveSlots(),
+      (r) => ({
+        itemsProcessed: r.slotsInserted,
+        details: { rulesProcessed: r.rulesProcessed, slotsInserted: r.slotsInserted },
+      }),
+    );
     const durationMs = Date.now() - start;
 
     return NextResponse.json({ ok: true, rulesProcessed, slotsInserted, durationMs });

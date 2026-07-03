@@ -10,9 +10,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { withCronRun } from "@/lib/infra/case-cron";
 import { expireFosterProposalsAction as expireFosterProposals } from "@/src/modules/foster/actions";
 
 export const dynamic = "force-dynamic";
+
+const CRON_NAME = "expire_foster_proposals";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
@@ -22,7 +25,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const start = Date.now();
   try {
-    const stats = await expireFosterProposals();
+    const stats = await withCronRun(
+      CRON_NAME,
+      () => expireFosterProposals(),
+      (s) => ({
+        itemsProcessed: s.expired,
+        details: { candidates: s.candidates, expired: s.expired, errors: s.errors },
+      }),
+    );
     return NextResponse.json({
       ok: true,
       ...stats,

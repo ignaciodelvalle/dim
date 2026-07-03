@@ -10,10 +10,13 @@
 // is not a public endpoint.
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { withCronRun } from "@/lib/infra/case-cron";
 import { runPostAdoptionCheckinScan } from "@/lib/infra/notifications";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+
+const CRON_NAME = "post_adoption_checkin";
 
 export async function GET(request: NextRequest) {
   const authError = authorizeCronRequest(request);
@@ -22,7 +25,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await runPostAdoptionCheckinScan();
+    const result = await withCronRun(
+      CRON_NAME,
+      () => runPostAdoptionCheckinScan(),
+      (r) => ({
+        itemsProcessed: r.proactiveInsertedIds.length + r.missedInsertedIds.length,
+        details: {
+          proactiveInsertedCount: r.proactiveInsertedIds.length,
+          missedInsertedCount: r.missedInsertedIds.length,
+        },
+      }),
+    );
     return NextResponse.json({
       ok: true,
       scanned_at: result.scannedAt.toISOString(),

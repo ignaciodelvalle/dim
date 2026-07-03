@@ -24,7 +24,10 @@ import { MAX_ATTEMPTS, computeNextRetryAt, deliverOutboxRow } from "@/lib/infra/
 export const dynamic = "force-dynamic";
 
 const BATCH_SIZE = 50;
-const CRON_NAME = "drain-outbox";
+// Canonical name: snake_case of the route directory (cron-registry SSOT rule,
+// projection-cron audit 2026-07-03 B2) — was mismatched with the registry, so
+// cron-health reported this cron never_ran while telemetry accrued elsewhere.
+const CRON_NAME = "drain_outbox";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   // ---------------------------------------------------------------------------

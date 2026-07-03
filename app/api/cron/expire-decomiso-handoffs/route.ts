@@ -16,7 +16,10 @@ import { checkCronSecret, runCaseCron } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
 
-const CRON_NAME = "escalate_stale_decomiso_handoffs";
+// Canonical name: snake_case of the route directory (cron-registry SSOT rule,
+// projection-cron audit 2026-07-03 B2) — was mismatched with the registry, so
+// cron-health reported this cron never_ran while telemetry accrued elsewhere.
+const CRON_NAME = "expire_decomiso_handoffs";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = checkCronSecret(req);

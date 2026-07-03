@@ -27,110 +27,25 @@ import { desc, eq } from "drizzle-orm";
 
 import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { CRON_REGISTRY } from "@/lib/infra/cron-registry";
 
 export const dynamic = "force-dynamic";
 
 const CRON_NAME = "cron_health";
 
-// ---------------------------------------------------------------------------
-// Staleness registry — one entry per cron path registered in vercel.json.
-// max_staleness_ms is the maximum acceptable age of the last successful run.
-// All crons in vercel.json are daily (0 H * * *) — 26h gives a full day plus
-// 2h buffer for scheduling jitter and brief infra disruptions.
-// ---------------------------------------------------------------------------
-const DAILY_STALENESS_MS = 26 * 60 * 60 * 1000; // 26 hours
-
-type CronEntry = {
-  /** cron_name value written by the route handler (matches CRON_NAME const in each route). */
-  cronName: string;
-  /** Max acceptable age of the last successful (status='ok') run. */
-  maxStalenessMs: number;
-  /** Human-readable schedule description for display in admin surface. */
-  schedule: string;
-};
-
-// Maps every cron in vercel.json to its expected health parameters.
-// Names must match the CRON_NAME constants used by each route handler.
-const CRON_REGISTRY: CronEntry[] = [
-  { cronName: "vaccine_due", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 12 * * *" },
-  {
-    cronName: "post_adoption_checkin",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 13 * * *",
-  },
-  {
-    cronName: "expire_foster_proposals",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 3 * * *",
-  },
-  {
-    cronName: "auto_expire_approvals",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
-  },
-  {
-    cronName: "close_rabies_observations",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 0 * * *",
-  },
-  {
-    cronName: "close_stale_lost_episodes",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
-  },
-  {
-    cronName: "close_followup_expired_adoptions",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
-  },
-  {
-    cronName: "escalate_stale_welfare_cases",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
-  },
-  {
-    cronName: "escalate_stale_disputes",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
-  },
-  {
-    cronName: "expire_cross_org_transfers",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
-  },
-  { cronName: "drain_outbox", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 6 * * *" },
-  { cronName: "process_eno_queue", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 7 * * *" },
-  {
-    cronName: "expire_pet_transfers",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 4 * * *",
-  },
-  {
-    cronName: "expire_decomiso_handoffs",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 0 * * *",
-  },
-  { cronName: "materialize_slots", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 2 * * *" },
-  {
-    cronName: "business_rules_reeval",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 5 * * *",
-  },
-  { cronName: "data_lifecycle", maxStalenessMs: DAILY_STALENESS_MS, schedule: "30 3 * * *" },
-  { cronName: "purge_scan_events", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 1 * * *" },
-  { cronName: "evaluate_alerts", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 8 * * *" },
-  {
-    cronName: "reconcile_pet_status",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 9 * * *",
-  },
-];
+// The fleet registry moved to lib/infra/cron-registry.ts (SSOT — projection-
+// cron audit 2026-07-03 B2): it had drifted from the routes' CRON_NAME
+// constants here, so healthy crons were reported "never_ran" while their
+// telemetry accumulated under an unregistered name. The parity fitness test
+// (__tests__/cron-registry-parity.test.ts) keeps vercel.json ⇄ registry ⇄
+// route constants in lock-step. This meta-cron checks itself too (its own
+// previous run is subject to the same staleness rule).
 
 type CronHealthResult = {
   cronName: string;
   schedule: string;
   healthy: boolean;
-  reason: "ok" | "never_ran" | "stale" | "last_failed";
+  reason: "ok" | "never_ran" | "stale" | "last_failed" | "drift";
   lastRunAt: Date | null;
   lastStatus: string | null;
   lastItemsProcessed: number | null;
@@ -172,6 +87,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           finishedAt: cronRuns.finishedAt,
           status: cronRuns.status,
           itemsProcessed: cronRuns.itemsProcessed,
+          details: cronRuns.details,
         })
         .from(cronRuns)
         .where(eq(cronRuns.cronName, entry.cronName))
@@ -220,6 +136,29 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           ageMs,
         });
         continue;
+      }
+
+      // Drift gate (projection-cron audit 2026-07-03 B3): reconcile-pet-status
+      // DETECTED cache↔events divergence and logged it, but a clean exit code
+      // meant nobody was alerted. divergent > 0 is an unhealthy state — the
+      // pet-status cache disagrees with the event log somewhere.
+      if (entry.cronName === "reconcile_pet_status") {
+        const divergent = Number(
+          (latest.details as Record<string, unknown> | null)?.divergent ?? 0,
+        );
+        if (Number.isFinite(divergent) && divergent > 0) {
+          results.push({
+            cronName: entry.cronName,
+            schedule: entry.schedule,
+            healthy: false,
+            reason: "drift",
+            lastRunAt: latest.startedAt,
+            lastStatus: latest.status,
+            lastItemsProcessed: latest.itemsProcessed,
+            ageMs,
+          });
+          continue;
+        }
       }
 
       results.push({

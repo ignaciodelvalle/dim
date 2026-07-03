@@ -18,7 +18,10 @@ export const dynamic = "force-dynamic";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXPIRY_DAYS = 60;
-const CRON_NAME = "approval_requests_auto_expiry";
+// Canonical name: snake_case of the route directory (cron-registry SSOT rule,
+// projection-cron audit 2026-07-03 B2) — was mismatched with the registry, so
+// cron-health reported this cron never_ran while telemetry accrued elsewhere.
+const CRON_NAME = "auto_expire_approvals";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
