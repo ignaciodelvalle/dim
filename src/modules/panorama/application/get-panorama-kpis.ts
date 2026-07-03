@@ -250,6 +250,11 @@ export async function getPanoramaKpis(
     lastIngestAt(ctx),
   ]);
 
+  // Display order (legal-analysis intake 2026-07-03, metric reorientation):
+  // the two legally-grounded compliance coverages lead — antirrábica
+  // (Ley 22.953, near-universal) and esterilización (mandated in 5 provinces)
+  // are the flagship public-health KPIs; risk signals follow; the population
+  // denominator ("mascotas en cobertura") closes the strip as context.
   const kpis: PanoramaKpi[] = [
     {
       id: "cobertura",
@@ -265,7 +270,7 @@ export async function getPanoramaKpis(
       delta: deltaOf(coverage.current, priorCoverage.current),
       info: {
         definition:
-          "Porcentaje de perros activos en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. Meta de salud pública: 80%.",
+          "Porcentaje de perros activos en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. Obligación legal: Ley 22.953 (vacunación antirrábica obligatoria, vigente en casi todas las jurisdicciones). Meta de salud pública: 80%.",
         formula:
           "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros activos",
         caveat:
@@ -273,18 +278,21 @@ export async function getPanoramaKpis(
       },
     },
     {
-      id: "mascotas",
-      label: "Mascotas en cobertura",
-      value: n(analytics.totalPets),
-      sub: "activas o perdidas",
-      tone: "blue",
-      href: "/gob/analytics",
-      source: "govt-dashboards.fetchAnalyticsMetrics",
+      id: "esterilizacion",
+      label: "Cobertura de esterilización",
+      value: `${sterilization.rate}%`,
+      sub: `meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`,
+      bar: sterilization.rate,
+      tone: sterilization.rate >= TARGETS.STERILIZATION_COVERAGE_PCT ? "ok" : "warn",
+      href: "/gob/poblacion",
+      source: "metrics.fetchSterilizationCoverage",
       info: {
         definition:
-          "Total de mascotas con estado 'active' o 'lost' en la jurisdicción seleccionada. Es el denominador de las tasas de cobertura.",
-        formula: "COUNT(pets donde status IN ('active', 'lost')) en alcance",
-        caveat: "Excluye mascotas fallecidas (status='deceased').",
+          "Porcentaje de mascotas activas en la jurisdicción con al menos un evento sterilization_performed registrado. Meta programática: 70% (indicador de control poblacional).",
+        formula:
+          "COUNT DISTINCT mascotas con sterilization_performed / COUNT DISTINCT mascotas activas en alcance",
+        caveat:
+          "Obligatoria por ley provincial en Santa Fe, Mendoza, La Rioja, Chubut y San Juan; programática en el resto. Solo se cuentan esterilizaciones registradas en MiMAR.",
       },
     },
     {
@@ -357,21 +365,18 @@ export async function getPanoramaKpis(
       },
     },
     {
-      id: "esterilizacion",
-      label: "Cobertura de esterilización",
-      value: `${sterilization.rate}%`,
-      sub: `meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`,
-      bar: sterilization.rate,
-      tone: sterilization.rate >= TARGETS.STERILIZATION_COVERAGE_PCT ? "ok" : "warn",
-      href: "/gob/poblacion",
-      source: "metrics.fetchSterilizationCoverage",
+      id: "mascotas",
+      label: "Mascotas en cobertura",
+      value: n(analytics.totalPets),
+      sub: "activas o perdidas",
+      tone: "blue",
+      href: "/gob/analytics",
+      source: "govt-dashboards.fetchAnalyticsMetrics",
       info: {
         definition:
-          "Porcentaje de mascotas activas en la jurisdicción con al menos un evento sterilization_performed registrado. Meta programática: 70% (indicador de control poblacional).",
-        formula:
-          "COUNT DISTINCT mascotas con sterilization_performed / COUNT DISTINCT mascotas activas en alcance",
-        caveat:
-          "Solo se cuentan esterilizaciones registradas en MiMAR. La cobertura real puede ser mayor si hay esterilizaciones fuera del sistema.",
+          "Total de mascotas con estado 'active' o 'lost' en la jurisdicción seleccionada. Es el denominador de las tasas de cobertura.",
+        formula: "COUNT(pets donde status IN ('active', 'lost')) en alcance",
+        caveat: "Excluye mascotas fallecidas (status='deceased').",
       },
     },
   ];

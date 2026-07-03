@@ -89,24 +89,26 @@ beforeEach(() => {
 describe("getPanoramaKpis", () => {
   it("returns 7 KPIs in display order, each backed by a named dashboard fetcher", async () => {
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    // Legal-analysis reorientation (2026-07-03): the two legally-grounded
+    // compliance coverages lead; the population denominator closes the strip.
     expect(kpis.map((k) => k.id)).toEqual([
       "cobertura",
-      "mascotas",
+      "esterilizacion",
       "perdidas",
       "mordeduras",
       "zoonosis",
       "denuncias",
-      "esterilizacion",
+      "mascotas",
     ]);
     // Parity proof: every KPI names the fetcher that produced it.
     expect(kpis.map((k) => k.source)).toEqual([
       "govt-home-kpis.fetchRabiesCoverage",
-      "govt-dashboards.fetchAnalyticsMetrics",
+      "metrics.fetchSterilizationCoverage",
       "govt-dashboards.fetchPerdidasMetrics",
       "govt-home-kpis.fetchBitesPer10k",
       "govt-home-kpis.fetchActiveZoonosis",
       "govt-home-kpis.fetchOpenWelfareReportsCount",
-      "metrics.fetchSterilizationCoverage",
+      "govt-dashboards.fetchAnalyticsMetrics",
     ]);
   });
 
