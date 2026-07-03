@@ -15,7 +15,7 @@
 //
 // Shape: fetchPetHealthNudges(ownerId) → one PetHealthStatus per active pet the
 // owner owns (role='owner'), each carrying the derived flags + a per-pet nudge
-// list + a rollup summary ("Al día" vs "N pendientes"). Like the rest of
+// list + a rollup summary ("Sin pendientes" vs "N pendientes"). Like the rest of
 // lib/owner-dashboard.ts, this function MUST NOT throw — it returns an empty
 // array when the owner has nothing.
 
@@ -81,7 +81,7 @@ export type PetHealthStatus = {
   nudges: Nudge[];
   /** Count of action-required nudges (the "pendientes" rollup). */
   pendingCount: number;
-  /** Human rollup: "Al día" when nothing pending, "N pendientes" otherwise. */
+  /** Human rollup: "Sin pendientes" when nothing pending, "N pendientes" otherwise. */
   summary: string;
 };
 
@@ -217,7 +217,10 @@ export function derivePetHealthStatus(
   // pendingCount = nudges that ask the owner to DO something. The neutral
   // scan-activity nudge is informational and does not count as "pendiente".
   const pendingCount = nudges.filter((n) => n.tone === "attention").length;
-  const summary = pendingCount === 0 ? "Al día" : `${pendingCount} pendientes`;
+  // "Sin pendientes", not "Al día" — AL DÍA is a compliance claim owned by
+  // deriveComplianceState (QA round 2 2026-07-03 #4); this rollup only says
+  // no actionable nudges remain.
+  const summary = pendingCount === 0 ? "Sin pendientes" : `${pendingCount} pendientes`;
 
   return {
     petId: pet.petId,

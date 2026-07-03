@@ -73,7 +73,7 @@ export function Tier2MedicalView({
       ? `${vaccineSummary.expired} vencida${vaccineSummary.expired === 1 ? "" : "s"}`
       : vaccineSummary.missing > 0
         ? `${vaccineSummary.missing} faltante${vaccineSummary.missing === 1 ? "" : "s"}`
-        : `${vaccineSummary.active} al día`;
+        : `${vaccineSummary.active} vigente${vaccineSummary.active === 1 ? "" : "s"}`;
 
   return (
     <section aria-labelledby="tier2-h" className="px-[16px] py-[13px]">

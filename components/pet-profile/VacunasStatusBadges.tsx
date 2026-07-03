@@ -15,7 +15,12 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
     text: string;
   }> = [
     {
-      label: "Al día",
+      // "Vigente", not "Al día" — this panel classifies dose recency (same
+      // vocabulary as LnVstamp: VIGENTE / POR VENCER / VENCIDA). "Al día" is
+      // the compliance panel's claim, which additionally requires professional
+      // verification; using it here made the two panels contradict each other
+      // for an owner-declared dose (QA round 2 2026-07-03 finding A).
+      label: "Vigente",
       count: summary.active,
       bg: "var(--color-ln-ok-050)",
       border: "var(--color-ln-ok-100)",

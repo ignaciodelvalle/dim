@@ -359,7 +359,7 @@ describe("fetchPetHealthNudges — sterilization (informational)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// T6: rollup summary — "Al día" when nothing pending, count when there is
+// T6: rollup summary — "Sin pendientes" when nothing pending, count when there is
 // ---------------------------------------------------------------------------
 
 describe("fetchPetHealthNudges — rollup summary", () => {
@@ -390,11 +390,13 @@ describe("fetchPetHealthNudges — rollup summary", () => {
 
   afterAll(() => cleanupUser(userId));
 
-  it("compliant pet rolls up to 'Al día' with 0 pending", async () => {
+  it("pet without pending nudges rolls up to 'Sin pendientes'", async () => {
     const result = await fetchPetHealthNudges(userId);
     const pet = petByToken(result, `TDY-${userId.slice(0, 4)}`);
     expect(pet?.pendingCount).toBe(0);
-    expect(pet?.summary).toBe("Al día");
+    // Not "Al día": that's a compliance claim owned by deriveComplianceState
+    // (QA round 2 2026-07-03 #4).
+    expect(pet?.summary).toBe("Sin pendientes");
   });
 
   it("non-compliant pet rolls up to a pending count", async () => {

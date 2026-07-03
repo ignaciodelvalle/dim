@@ -4,7 +4,7 @@
 //
 // Presentational / dumb: receives already-derived PetHealthStatus[] from the
 // server component (lib/owner-nudges.ts) and renders one row per pet — a status
-// badge ("Al día" / "N pendientes") plus its supportive nudges, each a direct
+// badge ("Sin pendientes" / "N pendientes") plus its supportive nudges, each a direct
 // owner action link. Encouraging, never alarming (spec D4). It surfaces ONLY
 // the owner's own derived signals — no surveillance/authority data ever reaches
 // this component (umbrella §6).
@@ -24,7 +24,10 @@ function StatusBadge({ pending }: { pending: number }) {
     <span
       className={`inline-flex flex-shrink-0 items-center rounded-full border px-[8px] py-[1px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.05em] ${cls}`}
     >
-      {ok ? "Al día" : `${pending} pendiente${pending !== 1 ? "s" : ""}`}
+      {/* "Sin pendientes", not "Al día" — AL DÍA is a compliance claim owned by
+          deriveComplianceState; this badge only says no nudges are pending
+          (QA round 2 2026-07-03 #4: three status truths for one pet). */}
+      {ok ? "Sin pendientes" : `${pending} pendiente${pending !== 1 ? "s" : ""}`}
     </span>
   );
 }
@@ -97,7 +100,7 @@ export function PetHealthStatusStrip({ pets }: { pets: PetHealthStatus[] }) {
         // and actionable. Pluralization still uses the real total.
         label={
           pendingTotal === 0
-            ? "todo al día"
+            ? "sin pendientes"
             : `${capCount(pendingTotal)} pendiente${pendingTotal !== 1 ? "s" : ""}`
         }
       />
