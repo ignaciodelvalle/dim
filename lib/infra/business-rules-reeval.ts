@@ -188,11 +188,15 @@ function notificationCopyFor(
 ): { notificationType: string; body: string } {
   if (breedLabel.length > 0) {
     return {
+      // no-cta: copy fragment only — the caller's insert attaches
+      // ctaLabel/ctaUrl ("Ver requisitos" → the pet profile).
       notificationType: "ppp_breed_list_updated_now_applies",
       body: `La raza de ${petName} (${breedLabel}) ahora figura en la lista de Animales Potencialmente Peligrosos de tu jurisdicción. Conocé los requisitos legales y, si corresponde, registrá la atestación.`,
     };
   }
   return {
+    // no-cta: copy fragment only — the caller's insert attaches
+    // ctaLabel/ctaUrl ("Ver requisitos" → the pet profile).
     notificationType: "ppp_weight_threshold_updated_now_applies",
     body: `El peso de ${petName} ahora supera el umbral de peso PPP de tu jurisdicción. Conocé los requisitos legales y, si corresponde, registrá la atestación.`,
   };
