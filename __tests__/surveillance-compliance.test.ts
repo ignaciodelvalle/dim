@@ -501,7 +501,11 @@ describe("fetchReportableIncidence", () => {
 
   it("k-anonymity: a disease cell with count < 5 is suppressed", async () => {
     const prov = "Santa Cruz";
-    const loc = "Río Gallegos";
+    // Synthetic locality: scope matching is by literal (province, locality)
+    // pair, so a locality no seed will ever use keeps this cell isolated.
+    // The original "Río Gallegos" broke when the panorama storyline seeds
+    // (PANO-*) populated every real locality with reportable events.
+    const loc = "Fixture K-Anonimato";
     const pet = await insertFixturePet({ name: "SmallCellPet", province: prov, locality: loc });
     // Only 2 hidatidosis reports → below k=5 → suppressed.
     await seedDiseaseReport(pet, "hidatidosis", true);
