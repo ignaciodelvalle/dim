@@ -35,6 +35,8 @@
 // fetch respects the same privacy rules as the repository (denuncias: kind/
 // severity only, no coordinates; govt scope always intersected server-side).
 
+import { usePathname } from "next/navigation";
+import type React from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import type { LayerId } from "@/src/modules/panorama/domain/types";
@@ -166,6 +168,25 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 const DRILL_CLS =
   "inline-flex items-center gap-1 rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white no-underline hover:bg-ln-op-azul-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul";
 
+/**
+ * map-QOL no-silent-crossing: drill links to /gob/* surfaces get an explicit
+ * "abre en portal Gobierno" suffix when the drawer is mounted on the ADMIN
+ * portal (/admin/panorama) — the operator must never cross portals silently.
+ * On the Gobierno portal the link is same-portal and renders unchanged.
+ */
+function DrillLink({ href, children }: { href: string; children: React.ReactNode }) {
+  const pathname = usePathname();
+  const crossesPortal = href.startsWith("/gob/") && (pathname?.startsWith("/admin") ?? false);
+  return (
+    <a href={href} className={DRILL_CLS}>
+      {children}
+      {crossesPortal && (
+        <span className="text-xs font-normal opacity-90">· abre en portal Gobierno ↗</span>
+      )}
+    </a>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Per-layer body (individual-feature detail; no unit history)
 // ---------------------------------------------------------------------------
@@ -215,9 +236,7 @@ function FeatureBody({
             <Row label="Gravedad" value={severity ? (SEVERITY_LABEL[severity] ?? severity) : "—"} />
             <Row label="Ingreso" value={shortDate(str(properties, "createdAt"))} />
           </dl>
-          <a href="/gob/maltrato" className={DRILL_CLS}>
-            Ver bandeja de denuncias →
-          </a>
+          <DrillLink href="/gob/maltrato">Ver bandeja de denuncias →</DrillLink>
         </>
       );
     }
@@ -233,9 +252,7 @@ function FeatureBody({
             <Row label="Estado" value={status ? (PET_STATUS_LABEL[status] ?? status) : "—"} />
             <Row label="Visto por última vez" value={shortDate(str(properties, "lastSeenAt"))} />
           </dl>
-          <a href="/gob/perdidas" className={DRILL_CLS}>
-            Ver pérdidas →
-          </a>
+          <DrillLink href="/gob/perdidas">Ver pérdidas →</DrillLink>
         </>
       );
     }
@@ -253,9 +270,7 @@ function FeatureBody({
             <Row label="Gravedad" value={severity ? (SEVERITY_LABEL[severity] ?? severity) : "—"} />
             <Row label="Fecha" value={shortDate(str(properties, "occurredAt"))} />
           </dl>
-          <a href="/gob/vigilancia" className={DRILL_CLS}>
-            Ver vigilancia →
-          </a>
+          <DrillLink href="/gob/vigilancia">Ver vigilancia →</DrillLink>
         </>
       );
     }
@@ -270,9 +285,7 @@ function FeatureBody({
             />
             <Row label="Detectado" value={shortDate(str(properties, "occurredAt"))} />
           </dl>
-          <a href="/gob/vigilancia" className={DRILL_CLS}>
-            Ver vigilancia →
-          </a>
+          <DrillLink href="/gob/vigilancia">Ver vigilancia →</DrillLink>
         </>
       );
     }
@@ -285,9 +298,7 @@ function FeatureBody({
             <Row label="Refugio" value={str(properties, "name") ?? "—"} />
             <Row label="Verificación" value={verified ? "Verificado" : "Sin verificar"} />
           </dl>
-          <a href="/gob/organizaciones" className={DRILL_CLS}>
-            Ver organizaciones →
-          </a>
+          <DrillLink href="/gob/organizaciones">Ver organizaciones →</DrillLink>
         </>
       );
     }
@@ -317,9 +328,7 @@ function FeatureBody({
               }
             />
           </dl>
-          <a href="/gob/analytics" className={DRILL_CLS}>
-            Ver analítica →
-          </a>
+          <DrillLink href="/gob/analytics">Ver analítica →</DrillLink>
         </>
       );
     }

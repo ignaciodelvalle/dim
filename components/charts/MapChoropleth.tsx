@@ -432,6 +432,33 @@ export function MapChoropleth({
               paint: { "line-color": "#ffffff", "line-width": 1 },
             });
 
+            // map-QOL: diagonal hatching over SUPPRESSED cells — suppression is
+            // encoded by pattern + tooltip text, never by color alone.
+            const hatchSize = 8;
+            const hatchCanvas = document.createElement("canvas");
+            hatchCanvas.width = hatchSize;
+            hatchCanvas.height = hatchSize;
+            const hatchCtx = hatchCanvas.getContext("2d");
+            if (hatchCtx) {
+              hatchCtx.strokeStyle = "rgba(71, 85, 105, 0.9)";
+              hatchCtx.lineWidth = 1.5;
+              hatchCtx.beginPath();
+              hatchCtx.moveTo(0, hatchSize);
+              hatchCtx.lineTo(hatchSize, 0);
+              hatchCtx.stroke();
+              const hatchImage = hatchCtx.getImageData(0, 0, hatchSize, hatchSize);
+              if (!map.hasImage("suppressed-hatch")) {
+                map.addImage("suppressed-hatch", hatchImage, { pixelRatio: 1 });
+              }
+              map.addLayer({
+                id: "regions-suppressed-hatch",
+                type: "fill",
+                source: "regions",
+                filter: ["==", ["get", "choropleth_suppressed"], "yes"],
+                paint: { "fill-pattern": "suppressed-hatch", "fill-opacity": 0.75 },
+              });
+            }
+
             // Selection highlight layer (starts with no-match filter)
             map.addLayer({
               id: "regions-selected",
@@ -439,6 +466,16 @@ export function MapChoropleth({
               source: "regions",
               filter: ["==", ["get", "code"], "__none__"],
               paint: { "line-color": "#1d4ed8", "line-width": 3 },
+            });
+
+            // map-QOL: legend-bin highlight layer (outlines every region whose
+            // value falls in the clicked legend bin; no-match filter initially).
+            map.addLayer({
+              id: "regions-bin-highlight",
+              type: "line",
+              source: "regions",
+              filter: ["==", ["get", "code"], "__none__"],
+              paint: { "line-color": "#0e7490", "line-width": 2.5 },
             });
 
             // Auto-fit bounds
@@ -499,8 +536,10 @@ export function MapChoropleth({
               const isMissing = props.choropleth_missing === "yes";
               const drillable = allowDrill && curLevel !== "barrio";
 
+              // map-QOL: suppressed cells state DATOS INSUFICIENTES explicitly —
+              // the operator learns WHY there is no number, not just that it's absent.
               const valStr = isSuppressed
-                ? "Dato suprimido (privacidad k-anonimato)"
+                ? "Datos insuficientes (protegidos por privacidad · k-anonimato)"
                 : isMissing
                   ? "Sin datos"
                   : String(props.choropleth_value ?? "—");
@@ -590,6 +629,63 @@ export function MapChoropleth({
   }, [data]);
 
   // ---------------------------------------------------------------------------
+  // map-QOL: legend bins — clicking one outlines every region in that range.
+  // Sequential: 4 equal intervals; divergent: below/above the compliance target.
+  // ---------------------------------------------------------------------------
+
+  const [activeBin, setActiveBin] = useState<number | null>(null);
+
+  const legendBins = useMemo(() => {
+    if (!scaleBounds || scaleBounds.min === scaleBounds.max) return [];
+    const { min, max } = scaleBounds;
+    if (scaleMode === "divergent" && typeof target === "number") {
+      return [
+        { label: `bajo meta (< ${target.toLocaleString("es-AR")})`, lo: min, hi: target },
+        { label: `sobre meta (≥ ${target.toLocaleString("es-AR")})`, lo: target, hi: max },
+      ];
+    }
+    const stepSize = (max - min) / 4;
+    return Array.from({ length: 4 }, (_, i) => {
+      const lo = min + i * stepSize;
+      const hi = i === 3 ? max : min + (i + 1) * stepSize;
+      return {
+        label: `${Math.round(lo).toLocaleString("es-AR")}–${Math.round(hi).toLocaleString("es-AR")}`,
+        lo,
+        hi,
+      };
+    });
+  }, [scaleBounds, scaleMode, target]);
+
+  // A drill re-init rebuilds the map with the no-match filter — reset the bin.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the drill identity is the intended trigger.
+  useEffect(() => {
+    setActiveBin(null);
+  }, [drillState.level, drillState.geojsonUrl]);
+
+  const onBinClick = (index: number) => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer("regions-bin-highlight")) return;
+    const next = activeBin === index ? null : index;
+    setActiveBin(next);
+    if (next === null) {
+      map.setFilter("regions-bin-highlight", ["==", ["get", "code"], "__none__"]);
+      return;
+    }
+    const bin = legendBins[next];
+    map.setFilter("regions-bin-highlight", [
+      "all",
+      ["has", "choropleth_value"],
+      ["!=", ["get", "choropleth_suppressed"], "yes"],
+      [">=", ["get", "choropleth_value"], bin.lo],
+      ["<=", ["get", "choropleth_value"], bin.hi],
+    ]);
+  };
+
+  // map-QOL empty states — the note says WHY the map is empty, not just that it is.
+  const isEmpty = data.length === 0;
+  const allSuppressed = data.length > 0 && data.every((d) => d.suppressed);
+
+  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
@@ -631,6 +727,18 @@ export function MapChoropleth({
         aria-label={fallbackTableLabel}
         role="img"
       />
+
+      {/* map-QOL empty state — states the REASON, not just the absence. */}
+      {(isEmpty || allSuppressed) && (
+        <p
+          role="note"
+          className="mt-2 rounded-[var(--radius-sm)] border border-ln-line bg-ln-stripe px-3 py-2 text-xs text-ln-ink-2"
+        >
+          {isEmpty
+            ? "Sin datos para el filtro seleccionado: no hay valores que mostrar en este alcance y período."
+            : "Todos los valores del filtro están protegidos por privacidad (k-anonimato): las regiones se muestran con trama, sin números."}
+        </p>
+      )}
 
       {/* Leyenda del mapa */}
       <figure
@@ -696,6 +804,33 @@ export function MapChoropleth({
           </div>
         )}
 
+        {/* map-QOL: clickable legend bins — outline the regions in a range. */}
+        {legendBins.length > 0 && (
+          <fieldset
+            aria-label="Resaltar regiones por rango de valores"
+            className="flex flex-wrap items-center gap-1.5 border-0 p-0"
+          >
+            {legendBins.map((bin, i) => (
+              <button
+                key={bin.label}
+                type="button"
+                aria-pressed={activeBin === i}
+                onClick={() => onBinClick(i)}
+                className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                  activeBin === i
+                    ? "border-ln-azul bg-ln-azul/10 font-medium text-ln-azul"
+                    : "border-ln-line text-ln-ink-3 hover:border-ln-azul/40"
+                }`}
+              >
+                {bin.label}
+              </button>
+            ))}
+            {activeBin !== null && (
+              <span className="text-xs text-ln-ink-3">resaltando el rango en el mapa</span>
+            )}
+          </fieldset>
+        )}
+
         {/* Discrete swatches: no-data + suppressed */}
         <ul
           className="flex items-center gap-3 list-none m-0 p-0 text-xs text-ln-ink-3"
@@ -710,12 +845,16 @@ export function MapChoropleth({
             Sin datos
           </li>
           <li className="flex items-center gap-1">
+            {/* Hatched swatch mirrors the on-map fill-pattern — the suppressed
+                state is encoded by texture + text, never color alone. */}
             <span
               className="inline-block w-3 h-3 rounded-sm border border-ln-line"
-              style={{ background: COLOR_SUPPRESSED }}
+              style={{
+                background: `repeating-linear-gradient(45deg, ${COLOR_SUPPRESSED}, ${COLOR_SUPPRESSED} 3px, rgba(71, 85, 105, 0.9) 3px, rgba(71, 85, 105, 0.9) 4px)`,
+              }}
               aria-hidden="true"
             />
-            Suprimido (privacidad)
+            Datos insuficientes (privacidad)
           </li>
         </ul>
       </figure>
