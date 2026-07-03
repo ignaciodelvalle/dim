@@ -212,7 +212,7 @@ export default async function GobAnalyticsPage({
           }}
         />
         <OpKpi
-          label="Cobertura antirrábica"
+          label="Cobertura antirrábica (mascotas)"
           value={`${metrics.rabiesVaccinationRate}%`}
           tone={toneForTarget(metrics.rabiesVaccinationRate, TARGETS.RABIES_COVERAGE_PCT)}
           bar={metrics.rabiesVaccinationRate}

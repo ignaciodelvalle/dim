@@ -255,7 +255,7 @@ export default async function GobiernoDashboardPage({
         className="grid grid-cols-2 gap-3 sm:grid-cols-4"
       >
         <OpKpi
-          label="Cobertura antirrábica"
+          label="Cobertura antirrábica (perros, 12m)"
           value={rabiesCoverage.hasData ? `${rabiesCoverage.current}%` : "—"}
           tone={
             !rabiesCoverage.hasData

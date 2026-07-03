@@ -54,6 +54,7 @@ export function LnPetPhoto({ src, alt, status, size = 56, radius = "full" }: LnP
           className={[
             "absolute bottom-[2px] right-[2px] h-[12px] w-[12px] rounded-full border-2 border-[var(--color-ln-card)]",
             status === "ok" && "bg-[var(--color-ln-ok)]",
+            status === "registered" && "bg-[var(--color-ln-mute)]",
             status === "sick" && "rounded-[2px] bg-[var(--color-ln-warn)]",
             status === "lost" && "rounded-[1px] bg-[var(--color-ln-err)]",
             status === "pregnant" && "bg-[var(--color-ln-rosa)]",

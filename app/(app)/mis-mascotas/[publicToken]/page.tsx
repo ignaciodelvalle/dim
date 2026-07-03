@@ -409,19 +409,6 @@ export default async function PetDetailPage({
 
   const age = ageFromDateOfBirth(pet.dateOfBirth);
 
-  // Build LnHero data from pet fields.
-  // pet.status is "active" here, EXCEPT when the owner opened the full profile
-  // of a lost pet via ?fromLost=1 (D9) — the lost early-return is bypassed but
-  // the pet is still lost, so reflect that honestly in the hero ring. A
-  // deceased pet still resolves to "ok" here (LnHero has no memorial ring
-  // state) — the memorial skin lives entirely in CredentialFace's `memorial`
-  // prop below (ribbon + sepia tone), which is a stronger signal anyway.
-  const lnPetStatus: "ok" | "sick" | "lost" | "pregnant" = (() => {
-    if (pet.status === "lost") return "lost";
-    if (pet.pregnancyStatus === "in_progress") return "pregnant";
-    return "ok";
-  })();
-
   const heroTags: Array<{ key: string; label: string; variant?: "celeste" | "gray" }> = [];
   if (canonicalIds.microchip) heroTags.push({ key: "chip", label: "Microchip verificado" });
   if (pet.jurisdictionLocality)
@@ -460,6 +447,25 @@ export default async function PetDetailPage({
     microchipCode: canonicalIds.microchip?.code ?? null,
     pppApplies: Boolean(pet.potentiallyDangerousBreed),
   });
+
+  // Build the LnHero status from pet fields + compliance.
+  // pet.status is "active" here, EXCEPT when the owner opened the full profile
+  // of a lost pet via ?fromLost=1 (D9) — the lost early-return is bypassed but
+  // the pet is still lost, so reflect that honestly in the hero ring. A
+  // deceased pet still resolves to a non-lost state here (LnHero has no
+  // memorial ring state) — the memorial skin lives entirely in CredentialFace's
+  // `memorial` prop below (ribbon + sepia tone), which is a stronger signal.
+  //
+  // AL DÍA ("ok") is a compliance claim, not an aliveness claim: the header
+  // chip must agree with the compliance panel on the same screen (QA
+  // 2026-07-03 caught AL DÍA next to "0 de 3 al día"). Only claim it when
+  // every tracked obligation is satisfied; otherwise the credential is
+  // simply REGISTRADA.
+  const lnPetStatus: "ok" | "registered" | "sick" | "lost" | "pregnant" = (() => {
+    if (pet.status === "lost") return "lost";
+    if (pet.pregnancyStatus === "in_progress") return "pregnant";
+    return complianceState.summary.ok === complianceState.summary.total ? "ok" : "registered";
+  })();
 
   // QR for the credential's Face 1 — same absolute-URL + inline-SVG pattern
   // as /mis-mascotas/nueva/[publicToken]/credencial and /cartel (no separate

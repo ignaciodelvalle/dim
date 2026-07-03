@@ -112,7 +112,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   },
   {
     id: "cobertura",
-    label: "Cobertura antirrábica",
+    label: "Cobertura antirrábica (perros, 12m)",
     geomType: "choropleth",
     source: "metrics:rabies-coverage",
     color: "#59a14f",

@@ -53,7 +53,7 @@ function RankingHalf({
             Provincia
           </th>
           <th scope="col" className="text-left py-1.5 font-semibold text-ln-op-mute">
-            Cobertura antirrábica
+            Cobertura antirrábica (mascotas)
           </th>
         </tr>
       </thead>

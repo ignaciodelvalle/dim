@@ -14,10 +14,16 @@ import type { ReactNode } from "react";
 
 // ---------- Status dot ----------------------------------------------------
 
-export type LnPetStatus = "ok" | "sick" | "lost" | "pregnant";
+// "ok" (AL DÍA) is a COMPLIANCE claim — callers may only pass it when the
+// pet's tracked obligations are all satisfied (deriveComplianceState).
+// "registered" is the neutral resting state for an active pet that hasn't
+// earned the compliance claim (QA 2026-07-03: header said AL DÍA while the
+// compliance panel said 0 de 3 al día).
+export type LnPetStatus = "ok" | "registered" | "sick" | "lost" | "pregnant";
 
 const statusDotColors: Record<LnPetStatus, string> = {
   ok: "bg-[var(--color-ln-ok)]",
+  registered: "bg-[var(--color-ln-mute)]",
   sick: "bg-[var(--color-ln-warn)] rounded-[2px]",
   lost: "bg-[var(--color-ln-err)] rounded-[1px]",
   pregnant: "bg-[var(--color-ln-rosa)]",

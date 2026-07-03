@@ -19,6 +19,12 @@ const flagConfig: Record<LnPetStatus, { label: string; bg: string; text: string;
       text: "text-[var(--color-ln-ok)]",
       border: "border-[var(--color-ln-ok-100)]",
     },
+    registered: {
+      label: "REGISTRADA",
+      bg: "bg-[var(--color-ln-card)]",
+      text: "text-[var(--color-ln-ink-2)]",
+      border: "border-[var(--color-ln-line-strong)]",
+    },
     sick: {
       label: "EN TRATAMIENTO",
       bg: "bg-[var(--color-ln-warn-050)]",

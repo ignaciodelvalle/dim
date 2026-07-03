@@ -253,7 +253,7 @@ export async function getPanoramaKpis(
   const kpis: PanoramaKpi[] = [
     {
       id: "cobertura",
-      label: "Cobertura antirrábica",
+      label: "Cobertura antirrábica (perros, 12m)",
       value: `${coverage.current}%`,
       sub: `meta ${coverage.target}% · ${coverage.partidos} ${
         coverage.partidos === 1 ? "partido" : "partidos"
