@@ -38,6 +38,17 @@ jobs:
         # and the autofix codemods.
         run: pnpm lint:tokens
 
+      - name: Lint (authorization + RLS guards)
+        # CRITICAL: these enforce the impersonation-export guard, RLS coverage,
+        # and server-action guard discipline. They run in `pnpm verify` (the
+        # Definition of Done) but were previously absent from CI — a PR could
+        # merge green while introducing an unguarded action or an RLS-less
+        # table. Keep CI in parity with `pnpm verify`.
+        run: pnpm lint:authz && pnpm lint:rls
+
+      - name: Lint (actions, UI, deps, guardrails)
+        run: pnpm lint:ui && pnpm lint:actions && pnpm lint:deps && pnpm lint:lib-root && pnpm lint:mocks && pnpm lint:buttons
+
       - name: Typecheck (tsc)
         run: pnpm typecheck
 
