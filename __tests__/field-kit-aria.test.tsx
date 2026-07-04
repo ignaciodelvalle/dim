@@ -6,7 +6,8 @@
  *  - set aria-describedby on the control pointing at the rendered error element
  *  - set aria-invalid on the control when an error is present
  *  - do NOT set aria-invalid or aria-describedby (error) when there is no error
- *  - show the required asterisk and the caller can wire `required` to the control
+ *  - show the required asterisk and (LnField only) auto-inject aria-required
+ *    onto the render-prop's control, so callers don't have to wire it by hand
  *
  * Pattern: renderToStaticMarkup — repo convention; no jsdom required.
  */
@@ -131,6 +132,35 @@ describe("LnField — aria linkage", () => {
     );
     // The asterisk span should not be present (optional label may render "opcional" text)
     expect(html).not.toContain('class="text-[var(--color-ln-seal)]"');
+  });
+
+  it("sets aria-required on the control when required=true (WCAG 3.3.2)", () => {
+    const html = renderToStaticMarkup(
+      <LnField label="Contraseña" required>
+        {({ id }) => <LnInput id={id} />}
+      </LnField>,
+    );
+    expect(html).toContain('aria-required="true"');
+  });
+
+  it("does NOT set aria-required when required is not set", () => {
+    const html = renderToStaticMarkup(
+      <LnField label="DNI">{({ id }) => <LnInput id={id} />}</LnField>,
+    );
+    expect(html).not.toContain("aria-required");
+  });
+
+  it("sets aria-required on LnSelect too, without the caller wiring it by hand", () => {
+    const html = renderToStaticMarkup(
+      <LnField label="Severidad" required>
+        {({ id }) => (
+          <LnSelect id={id}>
+            <option value="minor">Leve</option>
+          </LnSelect>
+        )}
+      </LnField>,
+    );
+    expect(html).toContain('aria-required="true"');
   });
 
   it("LnField works the same with LnSelect", () => {

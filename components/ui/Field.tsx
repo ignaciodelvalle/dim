@@ -6,7 +6,14 @@
  *  - min-height 44px on interactive controls (WCAG 2.5.5 touch-target)
  *  - inputMode / enterKeyHint forwarded from callers via standard HTML attrs
  */
-import { type InputHTMLAttributes, type ReactNode, useId } from "react";
+import {
+  type InputHTMLAttributes,
+  type ReactElement,
+  type ReactNode,
+  cloneElement,
+  isValidElement,
+  useId,
+} from "react";
 
 /**
  * Libreta Nacional Field / Input / Select / Textarea primitives.
@@ -63,6 +70,17 @@ export function LnField({
   const invalid = Boolean(error);
   const showOptional = optional ?? !required;
 
+  // The visual `*` alone doesn't reach assistive tech (WCAG 3.3.2). Inject
+  // aria-required onto whatever control the render-prop returns so every
+  // LnField caller gets it automatically, without having to wire it by hand.
+  const renderedControl = children({ id, describedBy, invalid });
+  const control =
+    required && isValidElement(renderedControl)
+      ? cloneElement(renderedControl as ReactElement<{ "aria-required"?: boolean }>, {
+          "aria-required": true,
+        })
+      : renderedControl;
+
   return (
     <div className={["flex flex-col", className].filter(Boolean).join(" ")}>
       {/* mono uppercase label */}
@@ -83,7 +101,7 @@ export function LnField({
         )}
       </label>
 
-      {children({ id, describedBy, invalid })}
+      {control}
 
       {hint && !error && (
         <p
