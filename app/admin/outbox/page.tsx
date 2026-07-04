@@ -10,56 +10,22 @@ import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/key
 import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpBreach, OpButton, OpCard, OpPill } from "@/components/ui/dashboard";
+import { OpBreach, OpButton, OpCard } from "@/components/ui/dashboard";
+import {
+  OUTBOX_STATUS_VALUES,
+  OUTBOX_TARGET_KIND_LABEL,
+  OUTBOX_TARGET_KIND_VALUES,
+  OutboxTable,
+  buildStatusLabel,
+} from "@/components/ui/dashboard/OutboxTable";
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import type { OutboxStatus, OutboxTargetKind } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { buildBreachCue, buildStatusLabel } from "@/lib/infra/outbox-list";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 
 // Set of canonical province names for filter validation.
 const VALID_PROVINCE_NAMES = new Set<string>(PROVINCES.map((p) => p.name));
-
-// Tone map per breach cue value.
-type BreachCue = ReturnType<typeof buildBreachCue>;
-const BREACH_CUE_SYMBOL: Record<BreachCue, string> = {
-  delivered: "ok",
-  ok: "ok",
-  breach: "breach",
-  failed: "failed",
-};
-
-type PillTone = "ok" | "neutral" | "danger" | "escalated";
-const BREACH_PILL_TONE: Record<BreachCue, PillTone> = {
-  delivered: "ok",
-  ok: "neutral",
-  breach: "danger",
-  failed: "escalated",
-};
-
-const BREACH_PILL_LABEL: Record<BreachCue, string> = {
-  delivered: "Entregado",
-  ok: "En SLA",
-  breach: "Incumplimiento",
-  failed: "Fallido",
-};
-
-const TARGET_KIND_LABEL: Record<string, string> = {
-  govt_webhook: "Webhook govt",
-  eno_authority: "Autoridad ENO",
-  audit_export: "Exportación auditoría",
-  internal_dashboard: "Dashboard interno",
-};
-
-const TARGET_KIND_VALUES = [
-  "govt_webhook",
-  "eno_authority",
-  "audit_export",
-  "internal_dashboard",
-] as const;
-
-const STATUS_VALUES = ["pending", "delivered", "failed"] as const;
 
 const OUTBOX_PAGE_LIMIT = 200;
 
@@ -213,7 +179,7 @@ export default async function AdminOutboxPage({
           className="text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         >
           <option value="">Todos los estados</option>
-          {STATUS_VALUES.map((s) => (
+          {OUTBOX_STATUS_VALUES.map((s) => (
             <option key={s} value={s}>
               {buildStatusLabel(s as OutboxStatus)}
             </option>
@@ -226,9 +192,9 @@ export default async function AdminOutboxPage({
           className="text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         >
           <option value="">Todos los destinos</option>
-          {TARGET_KIND_VALUES.map((k) => (
+          {OUTBOX_TARGET_KIND_VALUES.map((k) => (
             <option key={k} value={k}>
-              {TARGET_KIND_LABEL[k]}
+              {OUTBOX_TARGET_KIND_LABEL[k]}
             </option>
           ))}
         </select>
@@ -276,132 +242,12 @@ export default async function AdminOutboxPage({
         </p>
       ) : (
         <OpCard>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <caption className="sr-only">
-                Cola de notificaciones salientes con estado SLA, destino y acciones
-              </caption>
-              <thead>
-                <tr className="border-b border-ln-op-line">
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                  >
-                    SLA
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                  >
-                    Destino
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                  >
-                    Jurisdicción
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                  >
-                    Evento origen
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                  >
-                    Intentos
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                  >
-                    Creado
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                  >
-                    SLA vence
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
-                  >
-                    Acción
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const cue = buildBreachCue(row.status, row.slaDueAt);
-                  const jurisdiction = [
-                    row.targetJurisdictionLocality,
-                    row.targetJurisdictionProvince,
-                  ]
-                    .filter(Boolean)
-                    .join(", ");
-
-                  return (
-                    <tr
-                      key={row.id}
-                      className={`border-t border-ln-op-line ${cue === "breach" ? "bg-ln-op-danger-bg" : "hover:bg-ln-op-stripe"}`}
-                    >
-                      <td className="py-2 px-3 whitespace-nowrap">
-                        <OpPill tone={BREACH_PILL_TONE[cue]}>{BREACH_PILL_LABEL[cue]}</OpPill>
-                      </td>
-                      <td className="py-2 px-3 whitespace-nowrap text-sm text-ln-op-ink-2">
-                        {TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind}
-                      </td>
-                      <td className="py-2 px-3 text-[11px] text-ln-op-ink-2">
-                        {jurisdiction || "—"}
-                      </td>
-                      <td className="py-2 px-3">
-                        {sourceEventPetTokenMap.has(row.sourceEventId) ? (
-                          <Link
-                            href={`/p/${sourceEventPetTokenMap.get(row.sourceEventId)}`}
-                            className="font-mono text-[11px] text-ln-op-azul underline underline-offset-2 hover:opacity-80 whitespace-nowrap"
-                          >
-                            {row.sourceEventId.slice(0, 8)}
-                            {"…"}
-                          </Link>
-                        ) : (
-                          <span className="font-mono text-[11px] text-ln-op-mute">
-                            {row.sourceEventId.slice(0, 8)}
-                            {"…"}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-sm text-ln-op-ink-2 text-center">
-                        {row.attempts}
-                      </td>
-                      <td className="py-2 px-3 text-[11px] text-ln-op-mute whitespace-nowrap">
-                        {new Date(row.createdAt).toLocaleString("es-AR", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })}
-                      </td>
-                      <td className="py-2 px-3 text-[11px] text-ln-op-mute whitespace-nowrap">
-                        {new Date(row.slaDueAt).toLocaleString("es-AR", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })}
-                      </td>
-                      <td className="py-2 px-3">
-                        <Link
-                          href={`/admin/outbox/${row.id}`}
-                          className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-2 hover:underline whitespace-nowrap"
-                        >
-                          {"Detalle ->"}
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <OutboxTable
+            rows={rows}
+            caption="Cola de notificaciones salientes con estado SLA, destino y acciones"
+            petTokenBySourceEventId={sourceEventPetTokenMap}
+            detailHrefFor={(row) => `/admin/outbox/${row.id}`}
+          />
         </OpCard>
       )}
 
