@@ -79,7 +79,7 @@ Before writing a new event type, walk through `docs/event-design-checklist.md`. 
 | Legal framework | [#legal-framework](#legal-framework) | Compliance, SENASA, Ley 25.326 |
 | Data model | [#data-model](#data-model) | Schema, new tables, migrations |
 | Libreta sanitaria | [#libreta-sanitaria](#libreta-sanitaria) | Medical events, UI surfaces |
-| Event catalog — 47 types | [#event-catalog--47-types](#event-catalog--47-types) | New event types, payload design |
+| Event catalog — 48 types | [#event-catalog--48-types](#event-catalog--48-types) | New event types, payload design |
 | Privacy tiers | [#privacy-tiers-the-public-surface](#privacy-tiers-the-public-surface) | Public credential, Tier 0/1/2 |
 | Dashboards & projections | [#dashboards--projections-the-consumers](#dashboards--projections-the-consumers) | Govt / analyst / welfare views |
 | Aggregation & privacy policy | [#aggregation--privacy-policy](#aggregation--privacy-policy) | k-anonymity, opt-in, PII rules |
@@ -581,7 +581,7 @@ The two never conflate. A leaked `publicToken` exposes Tier-0 (minimal). A leake
 
 The naming is not cosmetic. It is the conceptual surface that makes DIM legible to non-technical dueños, which is precisely what the North Star ("the data-collection layer must be valuable on its own to drive adoption") requires. Renaming this later would mean retraining users we already onboarded. Lock it now, before scale.
 
-## Event catalog — 47 types
+## Event catalog — 48 types
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
 
@@ -652,11 +652,17 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | `outbreak_signal`             | system | `{ source_symptom_event_id, disease_code, disease_label, match_strength: {high_count, medium_count, low_count, matched_symptom_codes}, pet_jurisdiction_country, pet_jurisdiction_province?, pet_jurisdiction_locality?, pet_species }` — emitted when `symptom_observed` triggers a reportable-disease match. Owner does not see this in the libreta |
 | `disease_reported`            | govt   | `{ disease: lepto\|hidatidosis\|other, confirmed_by_lab, date_of_onset, clinical_notes? }` — govt-side surveillance entry that feeds zoonosis KPIs and the ENO fanout. Not part of the libreta (handoff P4-3) |
 
+**Jurisdictional mobility (movilidad-jurisdiccional Fase 1)**
+
+| Type | UI | Payload |
+| --- | -- | --- |
+| `movement_recorded` | v1 | `z.discriminatedUnion` on `sub_kind` (deliberate divergence from `clinical_info_logged`'s flat+superRefine — the three faces share NO fields). `jurisdiction_changed`: `{ from_country, from_province?, from_locality?, to_country, to_province?, to_locality?, effective_date, reason? }` — no-op moves rejected at schema level; ONLY this sub_kind denormalizes `pets.jurisdiction*` (single tx, event-first — `recordMovementWriter`). `cvi_issued`: `{ origin_country, cvi_number, issuing_authority, issued_date, chip_iso_country_code? }` — records the FACT of a foreign CVI; DIM never issues. `transport_recorded`: `{ corridor_id: chile\|uruguay\|brasil\|ue_espana\|usa, direction: outbound_from_ar, travel_date, mode?, purpose? }` — 6th corridor rejected at schema level (5-corridor hard bound in `lib/reference/cross-border-corridors.ts`). Amendable. Powers `/mis-mascotas/[publicToken]/viaje` (semáforo + checklist + PDF export). |
+
 **Correction**
 
 | Type            | UI | Payload                                                                                                                                                                                                                                   |
 | --------------- | -- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `event_amended` | v1 | `{ target_event_id, reason: string\|null, changes: [{field, old, new}], actor_role: owner\|vet\|admin\|govt, actor_user_id? }` — **Principle #2 (built 2026-06-19, Wave 2 Item 15).** Immutable correction: references the original event, never mutates it. `changes` shape calcs `pet_profile_updated`; `actor_role/reason` calcs `microchip_replaced`. Amendable allowlist (D4): `vaccination_administered`, `deworming_administered`, `weight_recorded`, `vet_visit_logged`, `clinical_info_logged`, `medication_started`, `note_added`, `sterilization_performed`. NOT amendable: death, incidents, legal/forensic events (D4 in spec). Admin/govt amendments: `reason` mandatory ≥5 chars, `audit_log` row, owner notified (`notification_type='admin_event_amended'`). Amendment-of-amendment allowed — always references the ORIGINAL `target_event_id`. Projection: libreta applies latest amendment at render; original remains in `/historial`. NOT part of the libreta (pointer/audit artifact, not clinical entry). |
+| `event_amended` | v1 | `{ target_event_id, reason: string\|null, changes: [{field, old, new}], actor_role: owner\|vet\|admin\|govt, actor_user_id? }` — **Principle #2 (built 2026-06-19, Wave 2 Item 15).** Immutable correction: references the original event, never mutates it. `changes` shape calcs `pet_profile_updated`; `actor_role/reason` calcs `microchip_replaced`. Amendable allowlist (D4): `vaccination_administered`, `deworming_administered`, `weight_recorded`, `vet_visit_logged`, `clinical_info_logged`, `medication_started`, `note_added`, `sterilization_performed`, `movement_recorded`. NOT amendable: death, incidents, legal/forensic events (D4 in spec). Admin/govt amendments: `reason` mandatory ≥5 chars, `audit_log` row, owner notified (`notification_type='admin_event_amended'`). Amendment-of-amendment allowed — always references the ORIGINAL `target_event_id`. Projection: libreta applies latest amendment at render; original remains in `/historial`. NOT part of the libreta (pointer/audit artifact, not clinical entry). |
 
 **Schema-ready, requires non-owner reporting flow**
 
@@ -1016,6 +1022,7 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Captura rápida (URL-prefill + matcher local sin LLM) | `/mis-mascotas/[publicToken]/anotar` + `lib/event-capture-registry.ts` |
 | ✅ | Dashboard `/inicio` (greeting, captura, mascotas, vencimientos, turnos, casos) | `/inicio` + `lib/owner-dashboard.ts` |
 | ✅ | Estado sanitario — nudges per-pet derivados de eventos propios (vacuna vencida, sin microchip, próximo recordatorio, scans de credencial, esterilización) | `/inicio` (card "Estado sanitario") + `lib/owner-nudges.ts` (Item 5, owner-data only — sin señales de vigilancia) |
+| ✅ | Movilidad jurisdiccional Fase 1 — semáforo + checklist de requisitos de viaje + export PDF (5 corredores, valores regulatorios citation-pending) | `/mis-mascotas/[publicToken]/viaje` + `lib/projections/travel-compliance.ts` + `lib/reference/cross-border-corridors.ts` |
 | 🟢 | Adoption listing público con filtros + postulación | `/adoptar` (spec v1.2, plan pendiente) |
 | 🟢 | Foster volunteers pool (pool global owner→refugio) | `/cuenta/ofrecerme-como-tránsito` + `/cuenta/transitos/*` (spec v1.4, plan listo) |
 
