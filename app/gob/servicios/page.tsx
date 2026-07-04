@@ -4,13 +4,14 @@
 // current govt user covers (via govt_assignments). Admins see all pending
 // offerings (no jurisdiction filter — universal scope).
 
-import { eq } from "drizzle-orm";
+import { type SQL, and, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { portalBase } from "@/lib/ui/portal-base";
 
@@ -18,72 +19,53 @@ export default async function GobServiciosPage() {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const base = await portalBase();
 
-  // Build the filter: govt sees only their localities; admin sees all pending.
-  const baseCondition = eq(serviceOfferings.status, "pending_approval");
-
-  // biome-ignore lint/suspicious/noImplicitAnyLet: both branches assign the same drizzle query result shape.
-  let pendingOfferings;
-
-  if (profile.role === "admin") {
-    pendingOfferings = await db
-      .select({
-        offering: serviceOfferings,
-        org: { displayName: organizations.displayName, publicToken: organizations.publicToken },
-        provider: { displayName: profiles.displayName, matriculaNumber: profiles.matriculaNumber },
-      })
-      .from(serviceOfferings)
-      .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
-      .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
-      .where(baseCondition)
-      .orderBy(serviceOfferings.submittedAt);
-  } else {
-    // Govt: scope to assigned localities (requireAdminOrGovtOrRedirect already
-    // filters to non-revoked assignments, so jurisdictions is already active).
-    if (jurisdictions.length === 0) {
-      return (
-        <div className="space-y-4">
-          <header className="space-y-1">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-              MiMAR Gobierno · Servicios
-            </p>
-            <h1 className="text-[22px] font-semibold text-ln-op-ink">Servicios pendientes</h1>
-          </header>
-          <LnEmptyState
-            icon="usuarios"
-            title="Sin localidades asignadas"
-            description="No tenés localidades asignadas. Contactá a un administrador para recibir cobertura jurisdiccional."
-          />
-        </div>
-      );
-    }
-
-    // Fetch offerings where locality+province match any of the govt's assignments.
-    // Done in JS after a broader query to avoid complex OR conditions.
-    const localityPairs = jurisdictions.map((j) => ({
-      province: j.province,
-      locality: j.locality,
-    }));
-
-    const candidates = await db
-      .select({
-        offering: serviceOfferings,
-        org: { displayName: organizations.displayName, publicToken: organizations.publicToken },
-        provider: { displayName: profiles.displayName, matriculaNumber: profiles.matriculaNumber },
-      })
-      .from(serviceOfferings)
-      .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
-      .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
-      .where(baseCondition)
-      .orderBy(serviceOfferings.submittedAt);
-
-    pendingOfferings = candidates.filter((r) =>
-      localityPairs.some(
-        (lp) =>
-          lp.province === r.offering.jurisdictionProvince &&
-          lp.locality === r.offering.jurisdictionLocality,
-      ),
+  // Govt with no assignments: nothing to review. Early-return keeps the query
+  // out of the picture entirely (and avoids a sql`false` scan).
+  if (profile.role !== "admin" && jurisdictions.length === 0) {
+    return (
+      <div className="space-y-4">
+        <header className="space-y-1">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            MiMAR Gobierno · Servicios
+          </p>
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Servicios pendientes</h1>
+        </header>
+        <LnEmptyState
+          icon="usuarios"
+          title="Sin localidades asignadas"
+          description="No tenés localidades asignadas. Contactá a un administrador para recibir cobertura jurisdiccional."
+        />
+      </div>
     );
   }
+
+  // Jurisdiction scope is enforced as a SQL predicate, NOT a JS post-filter —
+  // a govt operator must never READ provider PII rows outside their coverage at
+  // the DB level (AGENTS.md). Admin = universal (no scope clause); govt = OR of
+  // (province,locality) pairs pushed into the WHERE.
+  const baseCondition = eq(serviceOfferings.status, "pending_approval");
+  const scopeFilter: SQL | undefined =
+    profile.role === "admin"
+      ? undefined
+      : (jurisdictionPairClause(
+          jurisdictions,
+          sql`${serviceOfferings.jurisdictionProvince}`,
+          sql`${serviceOfferings.jurisdictionLocality}`,
+        ) ?? sql`false`);
+
+  const whereClause = scopeFilter ? and(baseCondition, scopeFilter) : baseCondition;
+
+  const pendingOfferings = await db
+    .select({
+      offering: serviceOfferings,
+      org: { displayName: organizations.displayName, publicToken: organizations.publicToken },
+      provider: { displayName: profiles.displayName, matriculaNumber: profiles.matriculaNumber },
+    })
+    .from(serviceOfferings)
+    .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
+    .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
+    .where(whereClause)
+    .orderBy(serviceOfferings.submittedAt);
 
   const subtitle =
     pendingOfferings.length === 0

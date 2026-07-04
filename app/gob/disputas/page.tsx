@@ -9,7 +9,8 @@ import { Suspense } from "react";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { custodyDisputes, db, pets } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { desc, eq, ne } from "drizzle-orm";
+import { jurisdictionPairClause } from "@/lib/metrics/scope";
+import { type SQL, and, desc, eq, ne, sql } from "drizzle-orm";
 
 function parseStatus(raw: string | undefined): "open" | "closed" | null {
   if (raw === "open") return "open";
@@ -35,25 +36,28 @@ export default async function GobDisputasPage({
         ? ne(custodyDisputes.status, "open")
         : undefined;
 
+  // Jurisdiction scope is a SQL predicate, NOT a JS post-filter — a CABA
+  // operator must never READ a Córdoba row at the DB level (AGENTS.md). Admin =
+  // no restriction; govt = OR of (province,locality) pairs; govt with no
+  // assignments = sql`false` (matches nothing).
+  const scopeFilter: SQL | undefined =
+    profile.role === "admin"
+      ? undefined
+      : (jurisdictionPairClause(
+          jurisdictions,
+          sql`${custodyDisputes.jurisdictionProvince}`,
+          sql`${custodyDisputes.jurisdictionLocality}`,
+        ) ?? sql`false`);
+
+  const conditions = [statusFilter, scopeFilter].filter((c): c is SQL => c !== undefined);
+
   const query = db
     .select({ dispute: custodyDisputes, pet: pets })
     .from(custodyDisputes)
     .innerJoin(pets, eq(pets.id, custodyDisputes.petId))
     .orderBy(desc(custodyDisputes.createdAt));
 
-  const rows = statusFilter ? await query.where(statusFilter) : await query;
-
-  // Admin sees all; govt is filtered to their jurisdiction tuples.
-  const scoped =
-    profile.role === "admin"
-      ? rows
-      : rows.filter((row) =>
-          jurisdictions.some(
-            (j) =>
-              j.province === row.dispute.jurisdictionProvince &&
-              j.locality === row.dispute.jurisdictionLocality,
-          ),
-        );
+  const scoped = conditions.length > 0 ? await query.where(and(...conditions)) : await query;
 
   // Map dispute rows → CaseQueueRow (CaseQueue's expected shape).
   // custody_dispute status: "open" → CaseStatus "open"; others → "closed".
