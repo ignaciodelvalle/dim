@@ -97,6 +97,10 @@ export const NON_LIBRETA_EVENT_TYPES = [
   // PROJECTION (libreta view) applies the latest amendment to the original
   // event's display value; this event_type itself is an admin/audit artifact.
   "event_amended",
+  // Jurisdictional mobility (movilidad Fase 1) — administrative movement
+  // context (jurisdiction change / foreign CVI fact / trip), not pet medical
+  // history. Powers /viaje, not the libreta.
+  "movement_recorded",
 ] as const satisfies readonly EventType[];
 
 const LIBRETA_SET: ReadonlySet<string> = new Set(LIBRETA_SANITARIA_EVENT_TYPES);

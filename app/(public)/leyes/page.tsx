@@ -29,7 +29,7 @@ function LegalEntryFicha({ entry }: { entry: LegalKnowledgeEntry }) {
     >
       <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3 select-none marker:content-none [&::-webkit-details-marker]:hidden">
         <span className="min-w-0">
-          <span className="block text-[15px] font-semibold text-[var(--color-ln-ink)]">
+          <span className="block text-[var(--text-base)] font-semibold text-[var(--color-ln-ink)]">
             {entry.lawLabel}
           </span>
           <span className="mt-0.5 block text-sm leading-snug text-[var(--color-ln-mute)]">
@@ -38,7 +38,7 @@ function LegalEntryFicha({ entry }: { entry: LegalKnowledgeEntry }) {
         </span>
         <span className="flex shrink-0 items-center gap-2 pt-0.5">
           <span
-            className={`rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${JURISDICTION_BADGE_STYLES[entry.jurisdictionBadge]}`}
+            className={`rounded-full border px-2 py-0.5 text-[var(--text-sm)] font-medium whitespace-nowrap ${JURISDICTION_BADGE_STYLES[entry.jurisdictionBadge]}`}
           >
             {entry.jurisdictionBadge}
           </span>
@@ -96,7 +96,7 @@ function LegalGroupSection({ group }: { group: LegalKnowledgeGroup }) {
       <div className="space-y-1">
         <h2
           id={`${group.id}-heading`}
-          className="text-[19px] font-semibold text-[var(--color-ln-ink)]"
+          className="text-[var(--text-xl)] font-semibold text-[var(--color-ln-ink)]"
         >
           {group.title}
         </h2>
@@ -117,7 +117,7 @@ export default function LeyesPage() {
       <div className="mx-auto max-w-2xl space-y-10 px-6 py-16">
         <header className="space-y-3">
           <h1
-            className="text-[30px] font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
+            className="text-[var(--text-2xl)] font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
             style={{ fontFamily: "var(--font-ln-serif)" }}
           >
             Marco legal
@@ -176,7 +176,7 @@ export default function LeyesPage() {
 
         <Link
           href="/"
-          className="inline-block text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="inline-block text-[var(--text-md)] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al inicio
         </Link>

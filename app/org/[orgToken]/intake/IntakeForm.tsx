@@ -327,7 +327,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </div>
 
         <label className="block space-y-1 sm:w-1/2">
-          <span className="text-[13px] text-ln-op-ink">Peso estimado (kg)</span>
+          <span className="text-[var(--text-md)] text-ln-op-ink">Peso estimado (kg)</span>
           <input
             type="number"
             step="0.1"
