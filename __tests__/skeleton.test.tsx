@@ -22,8 +22,11 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { OpCardSkeleton } from "@/components/ui/dashboard/OpCardSkeleton";
 import { OpKpiSkeleton } from "@/components/ui/dashboard/OpKpiSkeleton";
 
+import CuentaLoading from "@/app/(app)/cuenta/loading";
 import InicioLoading from "@/app/(app)/inicio/loading";
+import EventCaptureFormLoading from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/loading";
 import PetProfileLoading from "@/app/(app)/mis-mascotas/[publicToken]/loading";
+import MisMascotasLoading from "@/app/(app)/mis-mascotas/loading";
 import AdoptarLoading from "@/app/(public)/adoptar/loading";
 import CasoLoading from "@/app/(public)/casos/[publicCode]/loading";
 import PublicPetLoading from "@/app/(public)/p/[publicToken]/loading";
@@ -32,6 +35,7 @@ import AdminLoading from "@/app/admin/loading";
 // Loading pages
 import GobLoading from "@/app/gob/loading";
 import VigilanciaLoading from "@/app/gob/vigilancia/loading";
+import LibretaCompartirLoading from "@/app/libreta/compartir/[shareToken]/loading";
 import OrgLoading from "@/app/org/[orgToken]/loading";
 
 function render(node: React.ReactElement): string {
@@ -149,6 +153,10 @@ const loadingPages: [string, () => React.ReactElement][] = [
   ["AdoptarLoading", () => <AdoptarLoading />],
   ["RefugioLoading", () => <RefugioLoading />],
   ["CasoLoading", () => <CasoLoading />],
+  ["MisMascotasLoading", () => <MisMascotasLoading />],
+  ["CuentaLoading", () => <CuentaLoading />],
+  ["LibretaCompartirLoading", () => <LibretaCompartirLoading />],
+  ["EventCaptureFormLoading", () => <EventCaptureFormLoading />],
 ];
 
 describe.each(loadingPages)("%s", (_name, factory) => {

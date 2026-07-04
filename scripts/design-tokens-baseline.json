@@ -2617,6 +2617,34 @@
       "shadow": 0,
       "hexStyle": 0
     },
+    "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/loading.tsx": {
+      "text": 0,
+      "space": 8,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/(app)/mis-mascotas/loading.tsx": {
+      "text": 0,
+      "space": 9,
+      "rounded": 1,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/(app)/cuenta/loading.tsx": {
+      "text": 0,
+      "space": 16,
+      "rounded": 2,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/libreta/compartir/[shareToken]/loading.tsx": {
+      "text": 0,
+      "space": 7,
+      "rounded": 1,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "app/(app)/mis-mascotas/[publicToken]/LostCockpit.tsx": {
       "text": 10,
       "space": 20,
