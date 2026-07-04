@@ -1,0 +1,118 @@
+"use client";
+
+// CitizenTabBar — fixed bottom tab bar for the citizen PWA on mobile
+// (native-mobile audit 2026-07-04 §1, TOP-5 #2).
+//
+// The single strongest "website vs app" signal: primary navigation moves from
+// the hamburger drawer (2 taps) to persistent bottom tabs (1 tap), matching
+// the native iOS/Android pattern. OWNER_NAV's 3 items map 1:1 onto tabs.
+//
+//   - Renders < md only; the masthead's inline nav owns md+ (desktop).
+//   - Fixed to the viewport bottom with pb-safe so the tabs clear the iOS
+//     home indicator (viewport-fit=cover).
+//   - AppShell's citizen variant reserves matching bottom padding so content
+//     and footer are never hidden behind the bar.
+//   - aria-label matches the masthead nav ("Navegación principal") on purpose:
+//     the two are never in the accessibility tree at the same time (this bar
+//     is display:none on md+, the inline nav is display:none below md).
+//
+// Client component for the same reason as the masthead: usePathname() drives
+// the active-tab highlight. No data fetching, no side effects.
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+import type { NavItem } from "@/components/layout/HeaderNav";
+import { isNavItemActive } from "@/components/layout/nav-active";
+
+// Stroke icons in the masthead bell's style (24 viewBox, strokeWidth 2).
+// Mapped by href prefix; items without a mapping fall back to a neutral dot
+// so a future nav item never renders a broken tab.
+function TabIcon({ href }: { href: string }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    className: "h-6 w-6",
+  };
+  if (href.startsWith("/inicio")) {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M3 9.5 12 3l9 6.5" />
+        <path d="M5 8.5V21h14V8.5" />
+        <path d="M9 21v-6h6v6" />
+      </svg>
+    );
+  }
+  if (href.startsWith("/mis-mascotas")) {
+    return (
+      <svg {...common} aria-hidden="true">
+        <circle cx="5.5" cy="10.5" r="1.6" />
+        <circle cx="9.4" cy="6.5" r="1.6" />
+        <circle cx="14.6" cy="6.5" r="1.6" />
+        <circle cx="18.5" cy="10.5" r="1.6" />
+        <path d="M12 12c-2.9 0-5.5 2.4-5.5 5.1 0 1.7 1.3 2.9 3 2.9 1 0 1.7-.4 2.5-.4s1.5.4 2.5.4c1.7 0 3-1.2 3-2.9 0-2.7-2.6-5.1-5.5-5.1z" />
+      </svg>
+    );
+  }
+  if (href.startsWith("/denuncias")) {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+        <path d="M4 22v-7" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common} aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+export function CitizenTabBar({ nav }: { nav: NavItem[] }) {
+  const pathname = usePathname();
+
+  if (nav.length === 0) return null;
+
+  return (
+    <nav
+      aria-label="Navegación principal"
+      className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-ln-line)] bg-[var(--color-ln-card)] md:hidden"
+    >
+      <ul className="flex">
+        {nav.map((item) => {
+          const active = isNavItemActive(item, pathname);
+          return (
+            <li key={item.href} className="min-w-0 flex-1">
+              <Link
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={[
+                  "flex min-h-12 flex-col items-center justify-center gap-0.5 px-1 pt-1.5 pb-1 no-underline",
+                  "transition-colors active:opacity-70",
+                  active
+                    ? "text-[var(--color-ln-azul)]"
+                    : "text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink)]",
+                ].join(" ")}
+              >
+                <TabIcon href={item.href} />
+                <span
+                  className={[
+                    "w-full truncate text-center text-xs",
+                    active ? "font-semibold" : "font-medium",
+                  ].join(" ")}
+                >
+                  {item.label}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}

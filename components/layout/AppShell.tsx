@@ -42,6 +42,13 @@ type CitizenProps = CommonProps & {
   footer?: ReactNode;
   /** Optional max-width for the main content wrapper. */
   maxWidth?: string;
+  /**
+   * Optional fixed bottom tab bar (CitizenTabBar) — mobile primary nav for
+   * the logged-in citizen (native-mobile audit §1). When present, the shell
+   * reserves matching bottom padding below md so content and footer are never
+   * hidden behind the fixed bar. Anonymous/public surfaces pass nothing.
+   */
+  tabBar?: ReactNode;
 };
 
 type OperatorProps = CommonProps & {
@@ -87,9 +94,20 @@ export function AppShell(props: AppShellProps) {
 // citizen — top masthead + institutional stripe + minimal footer
 // ---------------------------------------------------------------------------
 
-function CitizenShell({ masthead, footer, maxWidth, children }: CitizenProps) {
+function CitizenShell({ masthead, footer, maxWidth, tabBar, children }: CitizenProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--color-ln-paper)] text-[var(--color-ln-ink)]">
+    // min-h-dvh (not 100vh): tracks the dynamic mobile viewport so the fixed
+    // tab bar never floats above a stale browser-chrome offset. When the tab
+    // bar is present, reserve its height below md: 3rem of tab content plus
+    // the same max(0.75rem, safe-area-inset-bottom) the bar itself pads with.
+    <div
+      className={[
+        "flex min-h-dvh flex-col bg-[var(--color-ln-paper)] text-[var(--color-ln-ink)]",
+        tabBar ? "pb-[calc(3rem+max(0.75rem,env(safe-area-inset-bottom)))] md:pb-0" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       {/* Skip-link: visually hidden until focused; first focusable element (a11y). */}
       <a
         href="#main-content"
@@ -107,6 +125,7 @@ function CitizenShell({ masthead, footer, maxWidth, children }: CitizenProps) {
         {maxWidth ? <div className={`${maxWidth} mx-auto`}>{children}</div> : children}
       </main>
       {footer ?? <AppFooter />}
+      {tabBar}
     </div>
   );
 }

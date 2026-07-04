@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 import { Drawer } from "vaul";
 
 import type { NavItem } from "@/components/layout/HeaderNav";
+import { isNavItemActive } from "@/components/layout/nav-active";
 import { BRANDING } from "@/lib/ui/branding";
 import type { SwitcherTarget } from "@/lib/ui/shell-nav";
 
@@ -50,16 +51,15 @@ type Props = {
   returnHref?: string;
   /** Entitlement-filtered context-switcher destinations (D6). */
   switcher?: SwitcherTarget[];
+  /**
+   * True when the layout also renders CitizenTabBar (native-mobile audit §1):
+   * primary nav lives in the bottom tabs on mobile, so the drawer drops the
+   * primary items and only opens for secondary content (switcher / return).
+   * With no secondary content the hamburger disappears entirely and the
+   * masthead shrinks to brand + bell + avatar. Desktop (md+) is unchanged.
+   */
+  primaryNavInTabBar?: boolean;
 };
-
-function isActive(item: NavItem, pathname: string | null): boolean {
-  if (!pathname) return false;
-  const prefixes = item.matchPrefixes ?? (item.matchPrefix ? [item.matchPrefix] : []);
-  if (prefixes.length > 0) {
-    return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-  }
-  return pathname === item.href;
-}
 
 function HamburgerIcon() {
   return (
@@ -89,21 +89,32 @@ export function AppCitizenMasthead({
   showReturn = false,
   returnHref,
   switcher = [],
+  primaryNavInTabBar = false,
 }: Props) {
   const pathname = usePathname();
+
+  // With the tab bar owning primary nav on mobile, the drawer only carries
+  // secondary content — and disappears when there is none.
+  const drawerNav = primaryNavInTabBar ? [] : nav;
+  const hasDrawerContent =
+    drawerNav.length > 0 || switcher.length > 0 || (showReturn && Boolean(returnHref));
 
   return (
     // pt-safe: with viewport-fit=cover the installed PWA draws under the iOS
     // status bar — max(0.75rem, safe-area-inset-top) keeps the row clear of it
     // while staying at the design's 12px everywhere else.
     <header className="pt-safe flex flex-shrink-0 items-center gap-[18px] bg-[var(--color-ln-azul-900)] px-[16px] py-[12px] text-white md:px-[32px]">
-      {/* Mobile hamburger — hidden on md+ where the inline nav shows. */}
-      <CitizenMobileDrawer
-        nav={nav}
-        switcher={switcher}
-        showReturn={showReturn}
-        returnHref={returnHref}
-      />
+      {/* Mobile hamburger — hidden on md+ where the inline nav shows, and
+          omitted entirely when the tab bar owns primary nav and there is no
+          secondary content left for the drawer. */}
+      {hasDrawerContent && (
+        <CitizenMobileDrawer
+          nav={drawerNav}
+          switcher={switcher}
+          showReturn={showReturn}
+          returnHref={returnHref}
+        />
+      )}
 
       {/* Brand/wordmark → public landing `/` (D5: distinct from the role Inicio). */}
       <Link
@@ -135,7 +146,7 @@ export function AppCitizenMasthead({
           className="ml-[24px] hidden items-center gap-[4px] md:flex"
         >
           {nav.map((item) => {
-            const active = isActive(item, pathname);
+            const active = isNavItemActive(item, pathname);
             return (
               <Link
                 key={item.href}
@@ -359,31 +370,36 @@ function CitizenMobileDrawer({
             </Drawer.Close>
           </div>
 
-          {/* Nav items */}
-          <nav
-            aria-label="Navegación principal"
-            className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-3"
-          >
-            {nav.map((item) => {
-              const active = isActive(item, pathname);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  className={[
-                    "flex min-h-10 items-center gap-2.5 rounded-[5px] px-3 py-2",
-                    "text-[13px] no-underline transition-colors",
-                    active
-                      ? "border-l-2 border-[var(--color-ln-celeste)] bg-white/10 font-semibold text-white"
-                      : "border-l-2 border-transparent text-white/75 hover:bg-white/5 hover:text-white",
-                  ].join(" ")}
-                >
-                  <span className="flex-1 truncate">{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+          {/* Nav items — omitted (spacer keeps the foot pinned) when the
+              bottom tab bar owns primary nav and the drawer only carries the
+              switcher/return foot. */}
+          {nav.length === 0 && <div className="flex-1" aria-hidden="true" />}
+          {nav.length > 0 && (
+            <nav
+              aria-label="Navegación principal"
+              className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-3"
+            >
+              {nav.map((item) => {
+                const active = isNavItemActive(item, pathname);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={[
+                      "flex min-h-10 items-center gap-2.5 rounded-[5px] px-3 py-2",
+                      "text-[13px] no-underline transition-colors",
+                      active
+                        ? "border-l-2 border-[var(--color-ln-celeste)] bg-white/10 font-semibold text-white"
+                        : "border-l-2 border-transparent text-white/75 hover:bg-white/5 hover:text-white",
+                    ].join(" ")}
+                  >
+                    <span className="flex-1 truncate">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          )}
 
           {/* Switcher + return at the foot of the drawer. */}
           {(switcher.length > 0 || (showReturn && returnHref)) && (

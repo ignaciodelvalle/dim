@@ -17,6 +17,7 @@ import { redirect } from "next/navigation";
 
 import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
 import { AppShell } from "@/components/layout/AppShell";
+import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   getOrgMembershipsCached,
@@ -78,8 +79,13 @@ export default async function AuthenticatedLayout({
           showReturn={shell.showReturn}
           returnHref={shell.returnHref}
           switcher={shell.switcher}
+          primaryNavInTabBar
         />
       }
+      // Mobile bottom tabs own primary nav for the logged-in citizen
+      // (native-mobile audit §1); the masthead drawer keeps only
+      // secondary/overflow content.
+      tabBar={<CitizenTabBar nav={shell.nav} />}
     >
       {children}
     </AppShell>

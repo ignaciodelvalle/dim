@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 
 import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
 import { AppShell } from "@/components/layout/AppShell";
+import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { PUBLIC_NAV } from "@/components/layout/nav-presets";
 import {
   getOrgMembershipsCached,
@@ -90,6 +91,12 @@ export default async function PublicLayout({ children }: { children: React.React
   // the resolver's guaranteed return to their operator/citizen home (D4).
   const mastheadNav = shell.variant === "citizen" ? shell.nav : PUBLIC_NAV;
 
+  // Bottom tabs follow the logged-in citizen onto public surfaces (their nav
+  // here is still OWNER_NAV, so the tabs stay consistent). Anonymous visitors
+  // and wandering operators keep the masthead-only chrome — PUBLIC_NAV's
+  // browse destinations stay in the drawer, not in tabs.
+  const showTabBar = Boolean(user) && shell.variant === "citizen";
+
   return (
     <AppShell
       variant="citizen"
@@ -101,8 +108,10 @@ export default async function PublicLayout({ children }: { children: React.React
           showReturn={shell.showReturn}
           returnHref={shell.returnHref}
           switcher={shell.switcher}
+          primaryNavInTabBar={showTabBar}
         />
       }
+      tabBar={showTabBar ? <CitizenTabBar nav={mastheadNav} /> : undefined}
     >
       {children}
     </AppShell>
