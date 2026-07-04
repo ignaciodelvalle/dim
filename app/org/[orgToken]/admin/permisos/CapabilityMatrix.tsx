@@ -134,7 +134,7 @@ function GrantCell({
         <span
           title="Permiso concedido — para revocarlo, volvé a entrar a esta página"
           aria-label="Permiso concedido"
-          className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok-bg text-ln-op-ok"
+          className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] bg-ln-op-ok-bg text-ln-op-ok"
         >
           <span aria-hidden className="text-md leading-none">
             ✓

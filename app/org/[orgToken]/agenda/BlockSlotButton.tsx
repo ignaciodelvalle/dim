@@ -37,7 +37,7 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
 
   if (blocked) {
     return (
-      <span className="inline-flex items-center rounded-[4px] border border-ln-op-line bg-ln-op-stripe px-3 py-[5px] text-sm font-medium text-ln-op-mute">
+      <span className="inline-flex items-center rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe px-3 py-1 text-sm font-medium text-ln-op-mute">
         Bloqueado
       </span>
     );
