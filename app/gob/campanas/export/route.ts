@@ -1,0 +1,111 @@
+// GET /gob/campanas/export — CSV download for the Campañas dashboard
+// (Wave C, gob-audit-inventory item 2). See app/gob/poblacion/export/route.ts
+// for the shared rationale (aggregate-only export, no Storage round-trip).
+
+import { type NextRequest, NextResponse } from "next/server";
+
+import { fetchCampaignDashboard } from "@/lib/analytics/campaign-metrics";
+import {
+  buildSectionedCsv,
+  csvDownloadResponse,
+  logGobDashboardExport,
+} from "@/lib/analytics/govt-dashboard-export";
+import type { DashboardJurisdiction } from "@/lib/analytics/govt-dashboards";
+import { localityByName } from "@/lib/infra/ar-localidades";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { buildProjectionContext, resolveAnalyticsPeriod, windows } from "@/lib/metrics";
+import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import { findServiceKind } from "@/lib/reference/service-kinds";
+
+export async function GET(request: NextRequest): Promise<Response> {
+  let profile: Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>["profile"];
+  let jurisdictions: Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>["jurisdictions"];
+  let user: Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>["user"];
+
+  try {
+    ({ profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect());
+  } catch {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  const hasAccess =
+    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+  if (!hasAccess) {
+    return new NextResponse("Acceso denegado", { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const sp = {
+    period: searchParams.get("period") ?? undefined,
+    from: searchParams.get("from") ?? undefined,
+    to: searchParams.get("to") ?? undefined,
+  };
+
+  // Jurisdiction filter — identical logic to app/gob/campanas/page.tsx.
+  const selectedProvinceIso = searchParams.get("province");
+  const selectedLocalitySlug = searchParams.get("locality");
+  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
+
+  const selectedLocalityRow =
+    selectedProvinceObj && selectedLocalitySlug
+      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
+      : null;
+
+  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
+  if (selectedProvinceObj && profile.role !== "admin") {
+    const provinceName = selectedProvinceObj.name;
+    filteredJurisdictions = selectedLocalityRow
+      ? jurisdictions.filter(
+          (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
+        )
+      : jurisdictions.filter((j) => j.province === provinceName);
+  }
+
+  // Same default-window quirk as the page: campañas defaults to trailing 30d
+  // (not the 12m dashboard default) when no period/from param is present.
+  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
+  const actor = { role: profile.role };
+  const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
+
+  const dashboard = await fetchCampaignDashboard(ctx);
+
+  const summaryRows = [
+    {
+      inscripciones: dashboard.totals.enrollment,
+      completitud_pct: dashboard.totals.completionRate ?? "",
+      asistencias: dashboard.totals.completion,
+      ausencias: dashboard.totals.noShow,
+    },
+  ];
+
+  const offeringRows = dashboard.offerings.map((o) => ({
+    servicio: o.displayName,
+    tipo: findServiceKind(o.serviceKind)?.label ?? o.serviceKind,
+    provincia: o.jurisdictionProvince ?? "",
+    localidad: o.jurisdictionLocality ?? "",
+    inscripciones: o.enrollment,
+    completitud_pct: o.completionRate ?? "",
+    ausencias: o.noShow,
+  }));
+
+  const geoReachRows = dashboard.geoReach.map((r) => ({
+    localidad: r.locality,
+    provincia: r.province ?? "",
+    asistencias: r.attendedCount,
+  }));
+
+  const csvContent = buildSectionedCsv([
+    { title: "resumen", rows: summaryRows },
+    { title: "performance_por_servicio", rows: offeringRows },
+    { title: "alcance_geografico", rows: geoReachRows },
+  ]);
+
+  await logGobDashboardExport(user.id, "campanas", {
+    resumen: summaryRows.length,
+    performance_por_servicio: offeringRows.length,
+    alcance_geografico: geoReachRows.length,
+  });
+
+  const filename = `campanas-${new Date().toISOString().slice(0, 10)}.csv`;
+  return csvDownloadResponse(csvContent, filename);
+}

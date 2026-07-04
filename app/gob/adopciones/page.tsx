@@ -73,6 +73,16 @@ export default async function GobAdopcionesPage({
 
   const sp = await searchParams;
 
+  // "Exportar CSV" always mirrors the active period + jurisdiction filters —
+  // the export route re-derives filteredJurisdictions from the same params.
+  const exportParams = new URLSearchParams();
+  if (sp.period) exportParams.set("period", sp.period);
+  if (sp.from) exportParams.set("from", sp.from);
+  if (sp.to) exportParams.set("to", sp.to);
+  if (sp.province) exportParams.set("province", sp.province);
+  if (sp.locality) exportParams.set("locality", sp.locality);
+  const exportHref = `/gob/adopciones/export${exportParams.size > 0 ? `?${exportParams}` : ""}`;
+
   const selectedProvinceIso = sp.province ?? null;
   const selectedLocalitySlug = sp.locality ?? null;
   const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
@@ -148,9 +158,14 @@ export default async function GobAdopcionesPage({
       </header>
 
       {/* Filters row */}
-      <div className="grid md:grid-cols-2 gap-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="trailing12m" />
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="grid flex-1 gap-3 md:grid-cols-2">
+          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
+          <PeriodPicker defaultPreset="trailing12m" />
+        </div>
+        <a href={exportHref} className="shrink-0 text-[var(--text-md)] text-ln-azul hover:underline">
+          Exportar CSV →
+        </a>
       </div>
 
       {/* KPI row */}
