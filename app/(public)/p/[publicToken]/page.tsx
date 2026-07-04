@@ -39,6 +39,7 @@ import {
   permanentConditionShortLabel,
 } from "@/lib/reference/permanent-conditions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { BRANDING } from "@/lib/ui/branding";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -60,6 +61,12 @@ export const dynamic = "force-dynamic";
  *
  * Privacy: name, species and photo only — the same Tier 0 subset the page
  * itself shows to anyone. No owner PII, no location.
+ *
+ * og:image is NOT set here — deliberately. `opengraph-image.tsx` (sibling
+ * file in this route segment) generates the branded SE BUSCA / credencial
+ * card automatically via Next's file convention. Setting `openGraph.images`
+ * in this config-based metadata would take precedence over that file and
+ * silently disable it, so this only carries the non-image OG fields.
  */
 export async function generateMetadata({
   params,
@@ -72,10 +79,8 @@ export async function generateMetadata({
       name: pets.name,
       species: pets.species,
       status: pets.status,
-      photoPath: attachments.storagePath,
     })
     .from(pets)
-    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
     .where(eq(pets.publicToken, publicToken))
     .limit(1);
   if (!row) return { title: "Credencial | MiMAR" };
@@ -85,7 +90,6 @@ export async function generateMetadata({
   const description = isLost
     ? `${row.name} (${speciesLabel(row.species)}) está perdida. Si la viste, tocá para avisarle a su familia.`
     : `Credencial pública de ${row.name} (${speciesLabel(row.species)}), verificable por QR.`;
-  const photoUrl = petPhotoUrl(row.photoPath ?? undefined);
 
   return {
     title,
@@ -94,13 +98,15 @@ export async function generateMetadata({
       title,
       description,
       type: "website",
-      ...(photoUrl ? { images: [{ url: photoUrl }] } : {}),
+      url: `/p/${publicToken}`,
+      siteName: BRANDING.appName,
     },
     twitter: {
-      card: photoUrl ? "summary_large_image" : "summary",
+      // opengraph-image.tsx always produces an image now (branded fallback
+      // even without a real photo), so this is unconditional.
+      card: "summary_large_image",
       title,
       description,
-      ...(photoUrl ? { images: [photoUrl] } : {}),
     },
   };
 }

@@ -65,8 +65,18 @@ const lnFontVars = [
 
 // --------------------------------------------------------------------------
 
+// Single source of truth for the app's public origin (task #43 share-first
+// lost flow). Same env var app/sitemap.ts and /p's generateMetadata resolve
+// against — see docs/ops/production-deploy-plan.md "Site URL consistency".
+// metadataBase only resolves relative metadata URLs (og:url, canonical
+// links); it never touches the DB, so — unlike sitemap.ts's per-request
+// resolveSiteUrl() — it's safe to read at module scope for every route's
+// static metadata. Falls back to localhost for local dev/CI only; production
+// must set NEXT_PUBLIC_SITE_URL.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
 export const metadata: Metadata = {
-  // metadataBase: set by landing task
+  metadataBase: new URL(SITE_URL),
   title: `${BRANDING.appName} — ${BRANDING.appNameLong}`,
   description:
     "La libreta sanitaria digital de tu mascota. Para encontrarse, para cuidarse, para ayudarnos a cuidar a todas.",

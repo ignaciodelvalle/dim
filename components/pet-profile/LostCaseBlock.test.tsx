@@ -106,26 +106,29 @@ describe("<LostCaseBlock> — owner variant (all capabilities)", () => {
     expect(html).toContain("Credencial pública");
   });
 
-  it("renders Marcar encontrada (capability 2)", () => {
-    expect(html).toContain("Marcar encontrado");
-  });
+  // Capability 2 (Marcar encontrada) is intentionally NOT asserted here
+  // anymore — task #43 dedupe: the header no longer renders it, since
+  // PetActionRow's identical always-visible icon (same
+  // ?sheet=marcar-encontrada target) is the single surviving affordance.
+  // Its 44px touch-target coverage lives in
+  // __tests__/a11y-touch-targets.test.tsx's "PetActionRow" describe block.
 
   it("renders the actualizar last-seen link (capability 3 / 7)", () => {
     expect(html).toContain("actualizar");
     expect(html).toContain("/mis-mascotas/abc123/perdida");
   });
 
-  it("renders the scans/sightings feed (capability 4)", () => {
+  it("renders the scans/sightings feed (capability 4, inside Más opciones)", () => {
     expect(html).toContain("Avistamientos y escaneos");
   });
 
-  it("renders the disclosure toggles (capability 5)", () => {
-    expect(html).toContain("Datos visibles");
+  it("renders the disclosure toggles (capability 5, inside Más opciones)", () => {
+    expect(html).toContain("Qué se muestra al público");
     expect(html).toContain("Tu nombre");
   });
 
-  it("renders share + poster (capability 6)", () => {
-    expect(html).toContain("Compartir credencial");
+  it("renders share + poster (capability 6, share-first hero)", () => {
+    expect(html).toContain("Compartir por WhatsApp");
     expect(html).toContain("/mis-mascotas/abc123/cartel");
   });
 });
@@ -158,11 +161,11 @@ describe("<LostCaseBlock> — org read-only variant (REQ-5.3)", () => {
   });
 
   it("does NOT render share/poster affordances", () => {
-    expect(html).not.toContain("Compartir credencial");
+    expect(html).not.toContain("Compartir por WhatsApp");
     expect(html).not.toContain("/cartel");
   });
 
   it("does NOT render the disclosure toggles", () => {
-    expect(html).not.toContain("Datos visibles");
+    expect(html).not.toContain("Qué se muestra al público");
   });
 });

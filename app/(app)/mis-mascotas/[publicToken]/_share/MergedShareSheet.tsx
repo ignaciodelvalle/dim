@@ -40,6 +40,14 @@ type Props = {
   tier2: Tier2Props;
   /** Owner-only: SharesManager never renders for org viewers (ADR-14). */
   isOwner: boolean;
+  /**
+   * Task #43 (share-first lost flow): surfaces a WhatsApp shortcut when the
+   * pet is currently lost. This generic "Compartir" sheet has no access to
+   * the owner's disclosure prefs (unlike LostShareCard's server-templated
+   * shareText in LostCaseBlock), so its copy stays deliberately generic —
+   * it never names the owner or mentions contact details.
+   */
+  isLost: boolean;
 };
 
 function SectionHeading({ children }: { children: string }) {
@@ -56,6 +64,7 @@ export function MergedShareSheet({
   createShareAction,
   tier2,
   isOwner,
+  isLost,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [shares, setShares] = useState<LibretaShareToken[] | null>(null);
@@ -80,6 +89,15 @@ export function MergedShareSheet({
     });
   }
 
+  function handleShareWhatsApp() {
+    const url = `${window.location.origin}/p/${petPublicToken}`;
+    // Generic copy on purpose — see the `isLost` prop doc comment: this
+    // sheet has no disclosure prefs to gate on, unlike LostShareCard.
+    const text = `🚨 ${petName} está perdida. Mirá su credencial y avisanos si la viste:`;
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`;
+    window.open(waUrl, "_blank", "noopener");
+  }
+
   return (
     <div className="space-y-6">
       <section className="space-y-2">
@@ -87,6 +105,18 @@ export function MergedShareSheet({
         <p className="text-sm text-[var(--color-ln-ink-2)]">
           Cualquiera con este link ve la credencial pública de {petName}.
         </p>
+        {/* Task #43: WhatsApp shortcut when the pet is lost — the channel
+            that actually moves finder tips, ahead of the plain copy-link. */}
+        {isLost && (
+          <button
+            type="button"
+            onClick={handleShareWhatsApp}
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--color-ln-ok)] px-3 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90"
+          >
+            <span aria-hidden>💬</span>
+            Compartir por WhatsApp
+          </button>
+        )}
         <button
           type="button"
           onClick={handleCopyPublicLink}

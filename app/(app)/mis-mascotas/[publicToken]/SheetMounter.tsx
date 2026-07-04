@@ -316,6 +316,7 @@ export function SheetMounter({
             revokeAction: revoke,
           }}
           isOwner={accessPath === "owner"}
+          isLost={petStatus === "lost"}
         />
       </Sheet>
     );

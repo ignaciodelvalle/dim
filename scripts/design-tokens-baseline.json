@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-06-26",
     "branch": "integration/session-review",
-    "totalViolations": 4944,
+    "totalViolations": 4947,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -3393,6 +3393,13 @@
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
+    },
+    "app/(public)/p/[publicToken]/opengraph-image.tsx": {
+      "text": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 3
     }
   }
 }

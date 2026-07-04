@@ -1,6 +1,11 @@
 // Lost-pet broadcast — fans out in-app notifications to verified org members
 // whose coverage matches the pet's jurisdiction when a pet is marked lost.
 //
+// This is the REAL org-coordination layer, not a mock or placeholder — task
+// #43 audit (Cursor #735) confirmed no owner-facing "broadcast mock" UI
+// exists anywhere; this backend fanout to verified orgs IS the intended
+// coordination mechanism (strategy triage), so it stays live/ungated.
+//
 // Design decisions:
 //   D4 — broadcast targets verified orgs only, severity = 'warning'
 //   D5 — notification body is PII-free; the CTA links to the public credential

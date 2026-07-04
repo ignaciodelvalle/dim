@@ -6,19 +6,41 @@
 // Libreta, action row, Anotar sheet) stays reachable at the same time
 // (cap 8 — enforced simply by NOT early-returning; see page.tsx).
 //
-// All 9 capabilities:
+// Lean pass (task #43, 2026-07-04, Cursor audit #735): the owner body was a
+// 5-section/9-capability grid with share buried in a 4-up button row and
+// double card chrome (LnCardHead title + the child's own <section> heading).
+// Now: a SHARE-FIRST strip (WhatsApp hero CTA, one-line last-seen summary)
+// with everything else — the 5 disclosure toggles, the full last-seen card
+// (map), the scan/sightings feed — behind a native "Más opciones" <details>.
+// Native details/summary (not a client Sheet) because this stays a plain
+// Server Component (see DEVIATION note below) — no client state needed to
+// disclose it, and prefers-reduced-motion is handled globally already
+// (app/globals.css collapses all transition-duration to 0.01ms).
+//
+// All 9 capabilities (unchanged, just regrouped):
 //   1. Urgent-treatment header — publicCode + /casos/[publicCode] link +
 //      public /p/{token} link.
-//   2. Marcar encontrada — owner-only, opens the ?sheet=marcar-encontrada
-//      confirmation sheet (SheetTriggerLink, same path as the action row).
-//   3. Last-seen card + update — owner: LostLastSeenCard with "actualizar"
-//      (→ /perdida → MarkLostWizard); org: plain read-only summary, no edit
+//   2. Marcar encontrada — owner-only. DEDUPE (task #43): this used to be a
+//      second "✓ Marcar encontrada" affordance in this header, alongside the
+//      identical always-visible icon in PetActionRow (same
+//      ?sheet=marcar-encontrada target). PetActionRow's is the persistent
+//      one ("never buried", per its own doc comment) — this header no
+//      longer duplicates it.
+//   3. Last-seen + update — owner: a one-line summary (place · locality ·
+//      date) with a single "actualizar" link in the primary strip; the full
+//      LostLastSeenCard (map, sightings count, its own copy-link) moved
+//      into "Más opciones". Org: plain read-only summary, no edit
 //      affordance (LostLastSeenCard always renders an edit link, so org gets
 //      a simpler custom summary instead of that component — the component
 //      itself stays byte-for-byte unchanged per design).
-//   4. Scans/sightings/finder feed — LostScanFeed, visible to both roles.
-//   5. 5 disclosure toggles + public preview — LostDisclosureCard, owner-only.
-//   6. Share + poster — LostShareCard + /cartel link, owner-only.
+//   4. Scans/sightings/finder feed — LostScanFeed, visible to both roles;
+//      owner: inside "Más opciones"; org: always visible (no toggle to hide
+//      behind for a role that has no share/toggle content anyway).
+//   5. 5 disclosure toggles + public preview — LostDisclosureCard, owner-only,
+//      inside "Más opciones".
+//   6. Share + poster — LostShareCard (WhatsApp hero + copy-link + Afiche),
+//      owner-only, in the primary strip. Rendered directly — no LnCard
+//      wrapper — since LostShareCard already renders its own <section>.
 //   7. MarkLostWizard capture (update) — reachable via cap 3's "actualizar"
 //      link; unchanged wizard.
 //   8. Rest of profile usable simultaneously — satisfied structurally (no
@@ -59,7 +81,6 @@ import {
 import { LostLastSeenCard } from "@/components/pet-profile/LostLastSeenCard";
 import { LostScanFeed, type ScanFeedItem } from "@/components/pet-profile/LostScanFeed";
 import { LostShareCard } from "@/components/pet-profile/LostShareCard";
-import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { LnAlert } from "@/components/ui/Alert";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { LostEpisode } from "@/lib/infra/lost-mode";
@@ -110,8 +131,19 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
     allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
   };
 
-  const publicUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.ar"}/p/${pet.publicToken}`;
-  const shareText = `🚨 ${pet.name} ${lostThirdPersonPhrase(pet.sex)}. Si la ves, por favor escanea su QR o contactanos.`;
+  // Single source of truth for the public origin (task #43 audit #735: this
+  // used to hardcode "https://mimar.ar", diverging from other pages' guesses
+  // like "https://www.mimar.gob.ar" — see app/layout.tsx's metadataBase for
+  // the same NEXT_PUBLIC_SITE_URL resolution). Localhost fallback is for
+  // local dev only; do not invent a production domain here.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const publicUrl = `${siteUrl}/p/${pet.publicToken}`;
+  // Disclosure-aware (fixes audit #735: the prior text claimed to honour
+  // disclosure prefs but never actually varied on them) — only names the
+  // owner when discloseFirstNameWhenLost is on.
+  const shareText = pet.discloseFirstNameWhenLost
+    ? `🚨 ${pet.name} ${lostThirdPersonPhrase(pet.sex)}. Lo busca ${ownerFirstName}. Si la ves, escaneá el QR o avisanos.`
+    : `🚨 ${pet.name} ${lostThirdPersonPhrase(pet.sex)}. Si la ves, escaneá el QR o avisanos.`;
   const posterHref = `/mis-mascotas/${pet.publicToken}/cartel`;
   const publicHref = `/p/${pet.publicToken}`;
   const editLastSeenHref = `/mis-mascotas/${pet.publicToken}/perdida`;
@@ -167,51 +199,130 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
               {sightingsCount > 0 && ` · ${sightingsCount} avistamientos`}
             </p>
           </div>
-
-          {/* Opens the marcar-encontrada confirmation sheet (same one the
-              action row triggers) instead of a native window.confirm — the
-              blocking dialog froze input dispatch during QA and duplicated
-              the confirmation path (QA round 2, 2026-07-03 finding #2). */}
-          {isOwner && (
-            <SheetTriggerLink
-              href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-encontrada`}
-              className="inline-flex min-h-11 flex-shrink-0 cursor-pointer items-center justify-center rounded-sm border border-white bg-white px-4 py-2 font-[var(--font-ln-sans)] text-[var(--text-sm)] font-semibold text-[var(--color-ln-seal)] no-underline transition-colors hover:bg-white/90"
-            >
-              ✓ Marcar {foundParticiple(pet.sex)}
-            </SheetTriggerLink>
-          )}
+          {/* No "Marcar encontrada" button here — DEDUPE (task #43): it lived
+              here AND as the always-visible icon in PetActionRow (identical
+              ?sheet=marcar-encontrada target, same SheetTriggerLink
+              mechanism). PetActionRow's is the one kept — that bar is
+              already mounted directly below this block on every render. */}
         </div>
       </div>
 
-      {/* Body — owner gets the full grid; org gets an informational-only read. */}
-      <div className="grid gap-4 p-4 lg:grid-cols-2" style={{ background: "var(--color-ln-card)" }}>
-        {/* Última vez visto — capability 3 (+7 via editLastSeenHref) */}
-        {isOwner ? (
-          <LnCard>
-            <LnCardHead
-              title="Última vez visto"
-              label={
-                <Link
-                  href={editLastSeenHref}
-                  className="text-[var(--color-ln-azul)] no-underline hover:underline"
-                >
-                  actualizar
-                </Link>
-              }
-            />
-            <LostLastSeenCard
-              placeName={episode.placeName ?? "Ubicación no especificada"}
-              localityLabel={episode.jurisdictionLocality ?? "—"}
-              at={episode.openedAt}
-              note={episode.ownerNote}
-              editHref={editLastSeenHref}
-              publicUrl={publicUrl}
-              sightingsCount={episode.sightingsCount}
-              lastSeenLat={episode.lastSeenLat}
-              lastSeenLng={episode.lastSeenLng}
-            />
-          </LnCard>
-        ) : (
+      {/* Body — owner gets the lean share-first strip; org gets the
+          unchanged informational-only read (REQ-5.3). */}
+      {isOwner ? (
+        <div className="p-4" style={{ background: "var(--color-ln-card)" }}>
+          {/* Share-first hero — capability 6. Rendered directly (no LnCard
+              wrapper): LostShareCard already renders its own <section>, so
+              wrapping it in LnCardHead too was the double-chrome the lean
+              pass targeted (two headings for one card). */}
+          <LostShareCard publicUrl={publicUrl} shareText={shareText} posterHref={posterHref} />
+
+          {/* One-line last-seen summary — capability 3. The rich
+              LostLastSeenCard (map, its own copy-link, sightings count)
+              moved into "Más opciones" below; this keeps the primary strip
+              to a single glanceable line + one edit affordance. */}
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-[var(--color-ln-line)] pt-3">
+            <p
+              className="m-0 min-w-0 truncate text-[var(--text-sm)]"
+              style={{ color: "var(--color-ln-ink-2)" }}
+            >
+              <span className="font-semibold">
+                {episode.placeName ?? "Ubicación no especificada"}
+              </span>
+              <span style={{ color: "var(--color-ln-mute)" }}>
+                {" "}
+                · {episode.jurisdictionLocality ?? "—"} ·{" "}
+                {episode.openedAt.toLocaleDateString("es-AR")}
+              </span>
+            </p>
+            <Link
+              href={editLastSeenHref}
+              className="flex-shrink-0 text-[var(--text-sm)] font-medium text-[var(--color-ln-azul)] no-underline hover:underline"
+            >
+              actualizar
+            </Link>
+          </div>
+
+          {/* "Más opciones" — capabilities 4 (full scan/sightings feed), 5
+              (disclosure toggles), and the rich last-seen card (map).
+              Native <details>, not a client Sheet: this component stays a
+              Server Component (see DEVIATION note above), and a disclosure
+              widget needs no client state to open/close. Reduced-motion is
+              handled globally (app/globals.css collapses all
+              transition-duration to 0.01ms), so the arrow rotation is safe
+              as-is. */}
+          <details className="group mt-3">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[var(--text-sm)] font-medium text-[var(--color-ln-azul)]">
+              <span
+                aria-hidden="true"
+                className="inline-block transition-transform group-open:rotate-90"
+              >
+                ›
+              </span>
+              Más opciones
+            </summary>
+
+            <div className="mt-3 flex flex-col gap-4">
+              <LnCard>
+                <LnCardHead
+                  title="Última vez visto"
+                  label={
+                    <Link
+                      href={editLastSeenHref}
+                      className="text-[var(--color-ln-azul)] no-underline hover:underline"
+                    >
+                      actualizar
+                    </Link>
+                  }
+                />
+                <LostLastSeenCard
+                  placeName={episode.placeName ?? "Ubicación no especificada"}
+                  localityLabel={episode.jurisdictionLocality ?? "—"}
+                  at={episode.openedAt}
+                  note={episode.ownerNote}
+                  editHref={editLastSeenHref}
+                  publicUrl={publicUrl}
+                  sightingsCount={episode.sightingsCount}
+                  lastSeenLat={episode.lastSeenLat}
+                  lastSeenLng={episode.lastSeenLng}
+                />
+              </LnCard>
+
+              <LnCard>
+                <LnCardHead
+                  title="Avistamientos y escaneos"
+                  label={
+                    <span style={{ color: "var(--color-ln-seal)" }}>
+                      {sightingsCount + scanCount} total
+                    </span>
+                  }
+                />
+                <LnCardBody>
+                  <LostScanFeed
+                    items={scans}
+                    totalScans={scanCount}
+                    totalSightings={sightingsCount}
+                    caseHref={caseHref}
+                  />
+                </LnCardBody>
+              </LnCard>
+
+              {/* LostDisclosureCard already renders its own <section> —
+                  same no-nested-chrome treatment as LostShareCard above. */}
+              <LostDisclosureCard
+                prefs={prefs}
+                toggleAction={toggleAction}
+                publicHref={publicHref}
+                ownerFirstName={ownerFirstName}
+              />
+            </div>
+          </details>
+        </div>
+      ) : (
+        <div
+          className="grid gap-4 p-4 lg:grid-cols-2"
+          style={{ background: "var(--color-ln-card)" }}
+        >
           <LnCard>
             <LnCardHead title="Última vez visto" />
             <LnCardBody>
@@ -235,56 +346,28 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
               )}
             </LnCardBody>
           </LnCard>
-        )}
 
-        {/* Avistamientos y escaneos — capability 4, visible to both roles */}
-        <LnCard>
-          <LnCardHead
-            title="Avistamientos y escaneos"
-            label={
-              <span style={{ color: "var(--color-ln-seal)" }}>
-                {sightingsCount + scanCount} total
-              </span>
-            }
-          />
-          <LnCardBody>
-            <LostScanFeed
-              items={scans}
-              totalScans={scanCount}
-              totalSightings={sightingsCount}
-              caseHref={caseHref}
+          {/* Avistamientos y escaneos — capability 4, visible to both roles */}
+          <LnCard>
+            <LnCardHead
+              title="Avistamientos y escaneos"
+              label={
+                <span style={{ color: "var(--color-ln-seal)" }}>
+                  {sightingsCount + scanCount} total
+                </span>
+              }
             />
-          </LnCardBody>
-        </LnCard>
-
-        {/* Owner-only: share/poster (capability 6) + disclosure toggles (capability 5) */}
-        {isOwner && (
-          <>
-            <LnCard>
-              <LnCardHead title="Compartir credencial" />
-              <LnCardBody>
-                <LostShareCard
-                  publicUrl={publicUrl}
-                  shareText={shareText}
-                  posterHref={posterHref}
-                />
-              </LnCardBody>
-            </LnCard>
-
-            <LnCard>
-              <LnCardHead title="Datos visibles" />
-              <LnCardBody>
-                <LostDisclosureCard
-                  prefs={prefs}
-                  toggleAction={toggleAction}
-                  publicHref={publicHref}
-                  ownerFirstName={ownerFirstName}
-                />
-              </LnCardBody>
-            </LnCard>
-          </>
-        )}
-      </div>
+            <LnCardBody>
+              <LostScanFeed
+                items={scans}
+                totalScans={scanCount}
+                totalSightings={sightingsCount}
+                caseHref={caseHref}
+              />
+            </LnCardBody>
+          </LnCard>
+        </div>
+      )}
     </div>
   );
 }
