@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -7,6 +7,7 @@ import { LibretaSanitariaView } from "@/app/(app)/mis-mascotas/[publicToken]/lib
 import { LnCallout } from "@/components/ui/DocElements";
 import { attachments, db, libretaShareTokens, petEvents, pets, profiles } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events/events";
+import { overlayAmendments } from "@/lib/infra/amendment";
 import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/infra/libreta-sanitaria";
 import { validateShareToken } from "@/lib/infra/libreta-share-token";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
@@ -107,12 +108,25 @@ export default async function PublicLibretaPage({
       // full row deliberate: payload is rendered by LibretaSanitariaView per event type
       .select()
       .from(petEvents)
-      .where(and(eq(petEvents.petId, pet.id), excludeSelfScansClause(), libretaSanitariaClause()))
+      .where(
+        and(
+          eq(petEvents.petId, pet.id),
+          excludeSelfScansClause(),
+          // event_amended rows are fetched alongside libreta entries so
+          // overlayAmendments can project corrections below. They never render:
+          // groupLibretaEvents drops them (no libreta group).
+          or(libretaSanitariaClause(), eq(petEvents.eventType, "event_amended")),
+        ),
+      )
       .orderBy(desc(petEvents.occurredAt)),
     fetchActiveIdentifications(pet.id),
   ]);
 
-  const grouped = groupLibretaEvents(events);
+  // Project corrections BEFORE grouping (D2 at the read boundary — same
+  // pattern as get-libreta-face-data.ts). Without this, the vet-facing shared
+  // libreta showed RAW pre-correction payloads (event-sourcing integrity
+  // review 2026-07-04 item 1).
+  const grouped = groupLibretaEvents(overlayAmendments(events));
 
   return (
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.
