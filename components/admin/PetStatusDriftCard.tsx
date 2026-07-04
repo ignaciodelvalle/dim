@@ -37,7 +37,7 @@ export function PetStatusDriftCard({ data }: { data: PetStatusDrift }) {
       />
       <OpCardBody>
         {reconcile === null ? (
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-[var(--text-md)] text-ln-op-mute">
             El cron reconcile_pet_status todavía no registró corridas.
           </p>
         ) : (
@@ -64,7 +64,7 @@ export function PetStatusDriftCard({ data }: { data: PetStatusDrift }) {
                   {reconcile.sample.slice(0, 5).map((s) => (
                     <li
                       key={s.publicToken}
-                      className="flex items-baseline justify-between gap-3 text-[12px]"
+                      className="flex items-baseline justify-between gap-3 text-[var(--text-sm)]"
                     >
                       <span className="font-mono text-ln-op-ink">{s.publicToken}</span>
                       <span className="text-ln-op-mute">
@@ -79,9 +79,9 @@ export function PetStatusDriftCard({ data }: { data: PetStatusDrift }) {
             <div className="flex items-baseline justify-between gap-3 border-t border-ln-op-line pt-2">
               <span className="text-sm text-ln-op-mute">Chequeo semántico (cron-health)</span>
               {metaCheck === null ? (
-                <span className="text-[12px] text-ln-op-mute">Sin datos</span>
+                <span className="text-[var(--text-sm)] text-ln-op-mute">Sin datos</span>
               ) : (
-                <span className="flex items-center gap-1.5 text-[11px] tabular-nums">
+                <span className="flex items-center gap-1.5 text-[var(--text-sm)] tabular-nums">
                   {formatDate(metaCheck.checkedAt)}
                   <OpPill tone={metaCheck.healthy ? "ok" : "danger"}>
                     {metaCheck.healthy
@@ -94,7 +94,7 @@ export function PetStatusDriftCard({ data }: { data: PetStatusDrift }) {
               )}
             </div>
 
-            <p className="text-[11px] text-ln-op-mute">
+            <p className="text-[var(--text-sm)] text-ln-op-mute">
               Solo detección: la reparación de la caché es manual y auditada (no hay auto-repair).
             </p>
           </div>
@@ -108,7 +108,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <span className="text-sm text-ln-op-mute">{label}</span>
-      <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">{value}</span>
+      <span className="text-[var(--text-md)] font-medium tabular-nums text-ln-op-ink">{value}</span>
     </div>
   );
 }

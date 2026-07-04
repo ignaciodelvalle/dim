@@ -270,7 +270,7 @@ describe("fetchRabiesCoverage — event_amended corrections project into the agg
           publicToken: token,
           name: `AmendKpiDog-${token.slice(-2)}`,
           species: "dog",
-          status: "active",
+          status: "active" as const,
           jurisdictionProvince: AMEND_PROVINCE,
           jurisdictionLocality: AMEND_LOCALITY,
         })),
