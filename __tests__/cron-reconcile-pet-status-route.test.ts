@@ -7,13 +7,36 @@
 //   4. Auth success + one pet drifted → 200 { ok: true, divergent: 1, sample contains entry }
 //   5. Auth success + rederive throws for one pet → error captured in details, run stays ok
 //   6. Auth success + Authorization: Bearer header variant
+//   7. Cursor persistence: earlyStop persists `nextCursor`; a later run reads
+//      the previous run's `nextCursor` from cron_runs and resumes from it,
+//      wrapping back to null once it reaches the end of the table.
 //
 // Mocks: @/db (cronRuns, pets, db) + @/lib/infra/rederive-pet-cache (rederivePetCache, hasDrift, driftedColumns)
+//   + drizzle-orm's `gt` (spied, passthrough disabled) so we can assert the
+//     exact cursor value the pets query was built with, without needing a
+//     real column/SQL builder.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("drizzle-orm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  return {
+    ...actual,
+    // Replace with a spy that returns an inspectable marker instead of a real
+    // SQL fragment — the mocked `pets`/`cronRuns` table objects have no real
+    // columns, so the marker just needs to carry the cursor value through.
+    gt: vi.fn((column: unknown, value: unknown) => ({ __gt: true, column, value })),
+  };
+});
+
 const ORIGINAL_CRON_SECRET = process.env.CRON_SECRET;
 const FAKE_RUN_ID = "reconcile-run-id-1234";
+
+// Identity markers for the mocked tables — used so the `@/db` mock's
+// `db.select(...).from(table)` can branch on WHICH table is being queried
+// (pets batch scan vs. the cron_runs "read last finished run" lookup).
+const PETS_TABLE = { __table: "pets" };
+const CRON_RUNS_TABLE = { __table: "cron_runs" };
 
 // ---------------------------------------------------------------------------
 // Minimal pet rows
@@ -43,9 +66,17 @@ describe("GET /api/cron/reconcile-pet-status", () => {
    * Build a Drizzle-style db mock that:
    *   - INSERT cronRuns → returns [{ id: FAKE_RUN_ID }]
    *   - UPDATE cronRuns → no-op
+   *   - SELECT cronRuns (last finished run lookup) → resolves to
+   *     `lastRunDetails` wrapped in a row, or [] when omitted (no prior run)
    *   - SELECT pets (keyset query) → returns the provided batches in order
+   *
+   * `lastRunDetails`, when provided, simulates a previously FINISHED cron_runs
+   * row for this cron whose `details.nextCursor` the route should resume from.
    */
-  function buildDbMock(petBatches: (typeof PET_CLEAN)[][]) {
+  function buildDbMock(
+    petBatches: (typeof PET_CLEAN)[][],
+    lastRunDetails?: Record<string, unknown>,
+  ) {
     // cronRuns INSERT
     const returningMock = vi.fn().mockResolvedValue([{ id: FAKE_RUN_ID }]);
     const insertValuesMock = vi.fn().mockReturnValue({ returning: returningMock });
@@ -56,7 +87,15 @@ describe("GET /api/cron/reconcile-pet-status", () => {
     const updateSetMock = vi.fn().mockReturnValue({ where: updateWhereMock });
     const updateMock = vi.fn().mockReturnValue({ set: updateSetMock });
 
-    // SELECT pets — the route calls db.select(...).from(pets).$dynamic() then chains
+    // cronRuns SELECT — "read last finished run" lookup used to resume the
+    // cursor. Chain: db.select({details}).from(cronRuns).where(...).orderBy(...).limit(1)
+    const cronRunsLimitMock = vi
+      .fn()
+      .mockResolvedValue(lastRunDetails !== undefined ? [{ details: lastRunDetails }] : []);
+    const cronRunsOrderByMock = vi.fn().mockReturnValue({ limit: cronRunsLimitMock });
+    const cronRunsWhereMock = vi.fn().mockReturnValue({ orderBy: cronRunsOrderByMock });
+
+    // pets SELECT — the route calls db.select(...).from(pets).$dynamic() then chains
     // .where().orderBy().limit(). We must mock each step of the builder chain.
     // The route first calls $dynamic() to get a chainable query, then conditionally
     // adds .where(gt(...)) for cursor pagination, then .orderBy().limit() to execute.
@@ -68,15 +107,23 @@ describe("GET /api/cron/reconcile-pet-status", () => {
       return batch;
     });
     const orderByMock = vi.fn().mockReturnValue({ limit: limitMock });
-    const whereMock = vi.fn().mockReturnValue({ orderBy: orderByMock });
+    const petsWhereMock = vi.fn().mockReturnValue({ orderBy: orderByMock });
 
     // $dynamic() returns a chainable object that supports both .where() and
     // .orderBy() directly (used when cursor is null) and via .where() chaining.
     const dynamicMock = vi.fn().mockReturnValue({
-      where: whereMock,
+      where: petsWhereMock,
       orderBy: orderByMock,
     });
-    const fromMock = vi.fn().mockReturnValue({ $dynamic: dynamicMock });
+
+    // .from(table) branches on WHICH table is being queried — pets (batch
+    // scan, uses $dynamic()) vs cron_runs (resume-cursor lookup, plain chain).
+    const fromMock = vi.fn().mockImplementation((table: unknown) => {
+      if (table === CRON_RUNS_TABLE) {
+        return { where: cronRunsWhereMock };
+      }
+      return { $dynamic: dynamicMock };
+    });
     const selectMock = vi.fn().mockReturnValue({ from: fromMock });
 
     const dbMock = {
@@ -85,16 +132,19 @@ describe("GET /api/cron/reconcile-pet-status", () => {
       select: selectMock,
     };
 
-    return { dbMock, updateSetMock };
+    return { dbMock, updateSetMock, petsWhereMock };
   }
 
-  function mockCleanRun(petBatches: (typeof PET_CLEAN)[][]) {
-    const { dbMock, updateSetMock } = buildDbMock(petBatches);
+  function mockCleanRun(
+    petBatches: (typeof PET_CLEAN)[][],
+    lastRunDetails?: Record<string, unknown>,
+  ) {
+    const { dbMock, updateSetMock, petsWhereMock } = buildDbMock(petBatches, lastRunDetails);
 
     vi.doMock("@/db", () => ({
       db: dbMock,
-      cronRuns: {},
-      pets: {},
+      cronRuns: CRON_RUNS_TABLE,
+      pets: PETS_TABLE,
     }));
 
     // No drift for any pet
@@ -106,16 +156,16 @@ describe("GET /api/cron/reconcile-pet-status", () => {
       driftedColumns: vi.fn().mockReturnValue({}),
     }));
 
-    return { updateSetMock };
+    return { updateSetMock, petsWhereMock };
   }
 
   function mockDriftedRun(petBatches: (typeof PET_CLEAN)[][], driftedPetId: string) {
-    const { dbMock, updateSetMock } = buildDbMock(petBatches);
+    const { dbMock, updateSetMock, petsWhereMock } = buildDbMock(petBatches);
 
     vi.doMock("@/db", () => ({
       db: dbMock,
-      cronRuns: {},
-      pets: {},
+      cronRuns: CRON_RUNS_TABLE,
+      pets: PETS_TABLE,
     }));
 
     vi.doMock("@/lib/infra/rederive-pet-cache", () => ({
@@ -140,16 +190,16 @@ describe("GET /api/cron/reconcile-pet-status", () => {
         ),
     }));
 
-    return { updateSetMock };
+    return { updateSetMock, petsWhereMock };
   }
 
   function mockRederiveThrows(petBatches: (typeof PET_CLEAN)[][]) {
-    const { dbMock, updateSetMock } = buildDbMock(petBatches);
+    const { dbMock, updateSetMock, petsWhereMock } = buildDbMock(petBatches);
 
     vi.doMock("@/db", () => ({
       db: dbMock,
-      cronRuns: {},
-      pets: {},
+      cronRuns: CRON_RUNS_TABLE,
+      pets: PETS_TABLE,
     }));
 
     vi.doMock("@/lib/infra/rederive-pet-cache", () => ({
@@ -158,7 +208,7 @@ describe("GET /api/cron/reconcile-pet-status", () => {
       driftedColumns: vi.fn().mockReturnValue({}),
     }));
 
-    return { updateSetMock };
+    return { updateSetMock, petsWhereMock };
   }
 
   async function callRoute(headers: Record<string, string>) {
@@ -276,5 +326,76 @@ describe("GET /api/cron/reconcile-pet-status", () => {
     expect(body.scanned).toBe(1);
     expect(body.divergent).toBe(0);
     errSpy.mockRestore();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Cursor persistence — the fix under test. Run 1 processes batch A and
+  // stops early (time budget exhausted), persisting `nextCursor`. Run 2
+  // reads that persisted cursor from the last finished cron_runs row, uses
+  // it to resume the pets query, processes batch B, and — having reached the
+  // true end of the table — wraps `nextCursor` back to null.
+  // ---------------------------------------------------------------------------
+
+  it("run 1: persists nextCursor when the run stops early on the time budget", async () => {
+    // No previous finished run → fresh sweep, cursor starts at null.
+    const { updateSetMock, petsWhereMock } = mockCleanRun([[PET_CLEAN], []]);
+
+    // Force the time-budget check to trip immediately AFTER the first pet is
+    // processed: call 1 = `start`, call 2 = pre-fetch budget check (still
+    // under budget), call 3 = post-pet budget check (over budget).
+    let calls = 0;
+    const dateSpy = vi.spyOn(Date, "now").mockImplementation(() => (calls++ < 2 ? 0 : 999_999_999));
+
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.scanned).toBe(1);
+
+    // Fresh sweep — no cursor to resume from, so the pets query was never
+    // filtered with .where(gt(...)).
+    expect(petsWhereMock).not.toHaveBeenCalled();
+
+    // The persisted cron_runs row must record the cursor to resume from —
+    // NOT null — so a later run doesn't restart from the top.
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({ earlyStop: true, nextCursor: PET_CLEAN.id }),
+      }),
+    );
+
+    dateSpy.mockRestore();
+  });
+
+  it("run 2: resumes from the previous run's persisted cursor and wraps to null at the end of the table", async () => {
+    const PET_B = { id: "pet-uuid-9", publicToken: "DIM-DDDD-9999", status: "active" };
+
+    // Simulate the previous (finished) cron_runs row for this cron whose
+    // nextCursor is batch A's last pet id (PET_CLEAN.id, from "run 1" above).
+    const { updateSetMock, petsWhereMock } = mockCleanRun([[PET_B], []], {
+      scanned: 1,
+      divergent: 0,
+      earlyStop: true,
+      nextCursor: PET_CLEAN.id,
+    });
+
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Batch B (a pet the earlier run hadn't reached yet) got processed.
+    expect(body.scanned).toBe(1);
+
+    // The pets query WAS filtered — resumed from the persisted cursor, not
+    // restarted from the top of the table.
+    expect(petsWhereMock).toHaveBeenCalledWith(
+      expect.objectContaining({ __gt: true, value: PET_CLEAN.id }),
+    );
+
+    // This run reached the true end of the table (no earlyStop) → the
+    // cursor wraps back to null so the NEXT run starts a fresh full sweep.
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({ earlyStop: false, nextCursor: null }),
+      }),
+    );
   });
 });

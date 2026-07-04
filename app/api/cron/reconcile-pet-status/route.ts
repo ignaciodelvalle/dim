@@ -31,13 +31,22 @@
 //   - Keyset pagination over pets.id — same approach as the ops script.
 //   - Time-guarded: stops after MAX_DURATION_MS to stay within Vercel's
 //     cron timeout budget (30 s on the Hobby plan default).
+//   - The keyset cursor IS persisted across invocations (fixed 2026-07-04 —
+//     without this, drift detection capped at the first MAX_PETS_PER_RUN
+//     pets FOREVER on any registry larger than that). No new table/migration
+//     needed: we piggy-back on the existing cron_runs telemetry row for this
+//     cron name (see migration 0024_cron_runs.sql) — the finished run's
+//     `details.nextCursor` is read at the start of the next run and written
+//     again at the end. When a run reaches the true end of the table (no
+//     more rows past the cursor) `nextCursor` resets to null so the next
+//     run wraps around and starts a fresh full sweep.
 //
 // Returns: { ok, scanned, divergent, sample, durationMs }
 // cronRuns.details includes divergence summary + sample for /admin/sistema.
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { asc, eq, gt } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNotNull } from "drizzle-orm";
 
 import { cronRuns, db, pets } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
@@ -49,8 +58,8 @@ const CRON_NAME = "reconcile_pet_status";
 
 // Maximum number of pets to process per run. Keeps the wall-clock cost
 // predictable regardless of registry size; the next nightly run picks up
-// where this one left off (keyset cursor is NOT persisted — full scan each
-// night is fine for a drift check, and any divergence surfaces within 24 h).
+// where this one left off via the persisted keyset cursor (see header
+// comment) and the sweep wraps around once it reaches the end of the table.
 const MAX_PETS_PER_RUN = 2000;
 
 // Absolute wall-clock budget per invocation (ms). Stops the batch loop before
@@ -100,12 +109,31 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   let cronStatus: "ok" | "failed" = "ok";
   const errors: { petId: string; reason: string }[] = [];
   let earlyStop = false;
+  let nextCursor: string | null = null;
 
   try {
     // -------------------------------------------------------------------------
+    // Resume from the last persisted cursor (see header comment). We look at
+    // the most recently FINISHED run for this cron name and read its
+    // `details.nextCursor` — null means "start a fresh sweep from the top".
+    // -------------------------------------------------------------------------
+    const [lastRun] = await db
+      .select({ details: cronRuns.details })
+      .from(cronRuns)
+      .where(and(eq(cronRuns.cronName, CRON_NAME), isNotNull(cronRuns.finishedAt)))
+      .orderBy(desc(cronRuns.startedAt))
+      .limit(1);
+
+    const resumeCursor =
+      lastRun?.details && typeof lastRun.details === "object"
+        ? (((lastRun.details as Record<string, unknown>).nextCursor as string | null | undefined) ??
+          null)
+        : null;
+
+    // -------------------------------------------------------------------------
     // Keyset-paginated scan over pets
     // -------------------------------------------------------------------------
-    let cursor: string | null = null;
+    let cursor: string | null = resumeCursor;
     const BATCH_SIZE = 100;
 
     outer: for (;;) {
@@ -156,15 +184,24 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           });
         }
 
+        // Advance the cursor to this pet even if the budget check below stops
+        // the run mid-batch — the next run must resume AFTER this pet, not
+        // re-scan it or fall back to the previous batch's cursor.
+        cursor = pet.id;
+
         if (scanned >= MAX_PETS_PER_RUN || Date.now() - start >= MAX_DURATION_MS) {
           earlyStop = true;
           break outer;
         }
       }
 
-      cursor = batch[batch.length - 1].id;
       if (batch.length < BATCH_SIZE) break;
     }
+
+    // Persist the resume point: if we stopped early (budget exhausted) the
+    // next run must continue from `cursor`; if we reached the true end of
+    // the table (no earlyStop), wrap around — next run starts a fresh sweep.
+    nextCursor = earlyStop ? cursor : null;
 
     if (divergent > 0) {
       // Prominent log line — surfaces in Vercel function logs and any log
@@ -200,6 +237,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         scanned,
         divergent,
         earlyStop,
+        nextCursor,
         ...(sample.length > 0 && { sample }),
         ...(errors.length > 0 && { errors }),
       },
