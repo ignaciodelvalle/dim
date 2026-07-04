@@ -21,7 +21,7 @@
 
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
-import { db, ownerships, petEvents, pets, reminders } from "@/db";
+import { db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { replayPetMicrochip } from "@/lib/projections/pet-microchip";
 import type { ProjectionEvent } from "@/lib/projections/types";
@@ -163,6 +163,17 @@ export function derivePetHealthStatus(
   events: ProjectionEvent[],
   openReminders: OpenReminderRow[],
   now: Date,
+  opts?: {
+    /**
+     * True when the owner already has an ACTIVE (non-archived) `vaccine_due`
+     * inbox notification for this pet. The overdue-vaccine NUDGE is then
+     * suppressed — the cron notification is the alert for that obligation, and
+     * a second alert on /inicio is the triple-signal the audit flagged
+     * (projection-cron audit 2026-07-03 C3, PO decision). `vaccineStatus`
+     * itself is NOT touched: the compliance card reads state, not alerts.
+     */
+    hasActiveVaccineInboxNotification?: boolean;
+  },
 ): PetHealthStatus {
   const vaccineStatus = deriveVaccineStatus(events, now);
   // replayPetMicrochip returns a non-null microchipId only when an
@@ -173,7 +184,11 @@ export function derivePetHealthStatus(
 
   const nudges: Nudge[] = [];
 
-  if (vaccineStatus === "overdue") {
+  // Cross-surface dedupe (C3): one obligation, one alert. When an active
+  // vaccine_due inbox notification already covers this pet's vaccine
+  // obligation, the nudge stays silent; it reappears once the notification
+  // is archived without the obligation being resolved.
+  if (vaccineStatus === "overdue" && !opts?.hasActiveVaccineInboxNotification) {
     nudges.push({
       kind: "vaccine_overdue",
       label: "Vacuna vencida — agendá un turno",
@@ -325,6 +340,27 @@ export async function fetchPetHealthNudges(ownerId: string): Promise<PetHealthSt
       ),
     );
 
+  // 4. Active vaccine_due inbox notifications for these pets — the C3
+  //    cross-surface dedupe key is (owner, pet, vaccine obligation). Both the
+  //    nudge and the cron notification are per-pet vaccine signals, so
+  //    (userId, relatedPetId, notificationType='vaccine_due') identifies the
+  //    same obligation. Archived rows don't suppress: the inbox alert is gone,
+  //    so the nudge becomes the remaining (single) signal again.
+  const activeVaccineNotifRows = await db
+    .select({ petId: notifications.relatedPetId })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.userId, ownerId),
+        eq(notifications.notificationType, "vaccine_due"),
+        isNull(notifications.archivedAt),
+        inArray(notifications.relatedPetId, petIds),
+      ),
+    );
+  const petsWithActiveVaccineNotif = new Set(
+    activeVaccineNotifRows.map((r) => r.petId).filter((id): id is string => id !== null),
+  );
+
   // Project corrections, then group events + reminders by pet (D2 at the
   // read boundary — projection-cron audit 2026-07-03 A).
   const eventsByPet = new Map<string, ProjectionEvent[]>();
@@ -354,6 +390,7 @@ export async function fetchPetHealthNudges(ownerId: string): Promise<PetHealthSt
       eventsByPet.get(pet.petId) ?? [],
       remindersByPet.get(pet.petId) ?? [],
       now,
+      { hasActiveVaccineInboxNotification: petsWithActiveVaccineNotif.has(pet.petId) },
     ),
   );
 }

@@ -21,7 +21,7 @@ import { createClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { db, ownerships, petEvents, pets, reminders } from "@/db";
+import { db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
 import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -531,6 +531,89 @@ describe("fetchPetHealthNudges — event_amended corrections project into the de
 
     const result = await fetchPetHealthNudges(userId);
     const pet = petByToken(result, `AMD-${userId.slice(0, 4)}`);
+    expect(pet?.vaccineStatus).toBe("overdue");
+    expect(pet?.nudges.some((n) => n.kind === "vaccine_overdue")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T9: cross-surface dedupe — an ACTIVE vaccine_due inbox notification for the
+// same obligation suppresses the /inicio nudge; archiving it brings the nudge
+// back (projection-cron audit 2026-07-03 C3, PO decision). The compliance
+// STATE (vaccineStatus) is never suppressed — it's state, not an alert.
+// ---------------------------------------------------------------------------
+
+describe("fetchPetHealthNudges — vaccine_due inbox notification suppresses the nudge", () => {
+  const EMAIL = "nudge-dedupe@dim-test.local";
+  const PASS = "NudgeDedupe_2026!";
+  let userId: string;
+  let notificationId: string;
+
+  beforeAll(async () => {
+    await ensureUserDeleted(EMAIL);
+    userId = await createUser(EMAIL, PASS);
+    const now = new Date();
+    const pet = await createPetForUser(userId, `DDP-${userId.slice(0, 4)}`);
+    await insertMicrochip(pet.id, now); // silence chip nudge
+    // Overdue vaccine → without an inbox notification the nudge would show (T1).
+    await insertVaccination(
+      pet.id,
+      new Date(now.getTime() - 30 * MS_PER_DAY),
+      new Date(now.getTime() - 395 * MS_PER_DAY),
+    );
+    // ACTIVE inbox notification for the SAME obligation (same pet, vaccine_due).
+    const [inserted] = await db
+      .insert(notifications)
+      .values({
+        userId,
+        notificationType: "vaccine_due",
+        category: "health",
+        title: "Antirrábica",
+        body: "Vacuna vencida",
+        severity: "urgent",
+        relatedPetId: pet.id,
+      })
+      .returning({ id: notifications.id });
+    notificationId = inserted.id;
+  });
+
+  afterAll(async () => {
+    await db.delete(notifications).where(eq(notifications.userId, userId));
+    await cleanupUser(userId);
+  });
+
+  it("suppresses the nudge while the inbox notification is active, keeping the state", async () => {
+    const result = await fetchPetHealthNudges(userId);
+    const pet = petByToken(result, `DDP-${userId.slice(0, 4)}`);
+    // State survives (feeds the compliance card)…
+    expect(pet?.vaccineStatus).toBe("overdue");
+    // …but the duplicate alert does not.
+    expect(pet?.nudges.some((n) => n.kind === "vaccine_overdue")).toBe(false);
+  });
+
+  it("does NOT suppress nudges of other pets of the same owner", async () => {
+    const now = new Date();
+    const other = await createPetForUser(userId, `DDX-${userId.slice(0, 4)}`);
+    await insertMicrochip(other.id, now);
+    await insertVaccination(
+      other.id,
+      new Date(now.getTime() - 10 * MS_PER_DAY),
+      new Date(now.getTime() - 380 * MS_PER_DAY),
+    );
+
+    const result = await fetchPetHealthNudges(userId);
+    const otherPet = petByToken(result, `DDX-${userId.slice(0, 4)}`);
+    expect(otherPet?.nudges.some((n) => n.kind === "vaccine_overdue")).toBe(true);
+  });
+
+  it("shows the nudge again once the notification is archived", async () => {
+    await db
+      .update(notifications)
+      .set({ archivedAt: new Date() })
+      .where(eq(notifications.id, notificationId));
+
+    const result = await fetchPetHealthNudges(userId);
+    const pet = petByToken(result, `DDP-${userId.slice(0, 4)}`);
     expect(pet?.vaccineStatus).toBe("overdue");
     expect(pet?.nudges.some((n) => n.kind === "vaccine_overdue")).toBe(true);
   });
