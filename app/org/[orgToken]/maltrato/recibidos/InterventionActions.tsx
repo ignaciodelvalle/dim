@@ -13,8 +13,9 @@
 // (which buttons render) matches the DB (router.refresh() is banned; see
 // lib/ui/full-page-action-nav.ts).
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   addInterventionNoteAction,
@@ -39,11 +40,17 @@ export function InterventionActions({
   const [mode, setMode] = useState<Mode>("none");
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // "Devolver" is terminal and legally consequential (org gives up the case
+  // back to the government) — #815 audit finding #9 flagged it as a
+  // destructive action with no confirmation gate.
+  const [confirmReturnOpen, setConfirmReturnOpen] = useState(false);
+  const returnTriggerRef = useRef<HTMLButtonElement>(null);
 
   function reset() {
     setMode("none");
     setText("");
     setError(null);
+    setConfirmReturnOpen(false);
   }
 
   function run(actionFn: () => Promise<{ ok: true } | { ok: false; error: string }>) {
@@ -144,7 +151,8 @@ export function InterventionActions({
       <div className="flex gap-2">
         <button
           type="button"
-          onClick={isReturn ? submitReturn : submitNote}
+          ref={isReturn ? returnTriggerRef : undefined}
+          onClick={isReturn ? () => setConfirmReturnOpen(true) : submitNote}
           disabled={pending || text.trim().length < minLen}
           className="px-4 py-2 rounded-[4px] bg-ln-op-azul text-white text-sm font-medium disabled:opacity-50 hover:bg-ln-op-azul-700 transition-colors"
         >
@@ -159,6 +167,23 @@ export function InterventionActions({
           Cancelar
         </button>
       </div>
+
+      {isReturn && (
+        <ConfirmDialog
+          open={confirmReturnOpen}
+          onClose={() => setConfirmReturnOpen(false)}
+          onConfirm={() => {
+            setConfirmReturnOpen(false);
+            submitReturn();
+          }}
+          title="¿Devolver esta denuncia al gobierno?"
+          description="La organización deja de ser responsable de esta denuncia — la autoridad sanitaria retoma el caso. Esta acción no se puede deshacer desde acá."
+          confirmLabel="Devolver"
+          tone="danger"
+          pending={pending}
+          triggerRef={returnTriggerRef}
+        />
+      )}
     </div>
   );
 }

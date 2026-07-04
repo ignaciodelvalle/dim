@@ -15,6 +15,7 @@ import { findServiceKind } from "@/lib/reference/service-kinds";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { AgendaRuleForm } from "./AgendaRuleForm";
+import { DeleteRuleButton } from "./DeleteRuleButton";
 import { MaterializeNowButton } from "./MaterializeNowButton";
 
 const WEEKDAY_LABELS: Record<number, string> = {
@@ -167,19 +168,12 @@ export default async function AgendaPage({
                         </td>
                         {canManage && (
                           <td className="px-4 py-3 text-right">
-                            <form
-                              action={async () => {
-                                "use server";
-                                await deleteScheduleRuleAction(rule.id, orgToken, offeringToken);
-                              }}
-                            >
-                              <button
-                                type="submit"
-                                className="text-sm text-ln-op-danger hover:underline"
-                              >
-                                Eliminar
-                              </button>
-                            </form>
+                            <DeleteRuleButton
+                              ruleId={rule.id}
+                              orgToken={orgToken}
+                              offeringToken={offeringToken}
+                              deleteAction={deleteScheduleRuleAction}
+                            />
                           </td>
                         )}
                       </tr>
