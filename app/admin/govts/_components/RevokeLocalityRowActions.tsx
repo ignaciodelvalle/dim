@@ -11,13 +11,13 @@
 // Evidence (C23): files are held in state and uploaded on SUBMIT, namespaced by
 // the TARGET assignment id. Cancelling never uploads — no orphaned objects.
 
-import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { revokeGovtLocalityAction } from "@/app/actions/admin-revocations";
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { useEvidenceUpload } from "@/lib/ui/use-evidence-upload";
 
 type Mode = "idle" | "confirming" | "done";
@@ -70,7 +70,6 @@ function RevokeLocalityForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [motivo, setMotivo] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -108,7 +107,10 @@ function RevokeLocalityForm({
       if ("error" in result) {
         setError(result.error);
       } else {
-        router.refresh();
+        // Full document reload so the SSR institutional list reflects the
+        // change immediately (router.refresh() is banned - see
+        // lib/ui/full-page-action-nav.ts).
+        navigateAfterActionSuccess(window.location.href);
         onDone();
       }
     });

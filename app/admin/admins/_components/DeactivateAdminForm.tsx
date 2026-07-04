@@ -15,7 +15,6 @@
 // Client-side canDeactivateAdmin hides/disables the button when the actor
 // clearly has no scope (defense-in-depth; server is authoritative).
 
-import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { deactivateAdminAction } from "@/app/actions/admin-institutional";
@@ -24,6 +23,7 @@ import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import { canDeactivateAdmin } from "@/lib/domain/institutional-scope";
 import type { ActorProfile } from "@/lib/domain/institutional-scope";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { useEvidenceUpload } from "@/lib/ui/use-evidence-upload";
 
 type Target = {
@@ -98,7 +98,6 @@ function DeactivateAdminForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [motivo, setMotivo] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -137,7 +136,10 @@ function DeactivateAdminForm({
       if ("error" in result) {
         setError(result.error);
       } else {
-        router.refresh();
+        // Full document reload so the SSR institutional list reflects the
+        // change immediately (router.refresh() is banned - see
+        // lib/ui/full-page-action-nav.ts).
+        navigateAfterActionSuccess(window.location.href);
         onDone();
       }
     });

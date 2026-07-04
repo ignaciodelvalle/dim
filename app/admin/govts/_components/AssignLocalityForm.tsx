@@ -6,12 +6,12 @@
 // Inline form (no modal wrapper) — designed to sit inside the govts detail page
 // below the active-localities table, mirroring the RevokeLocalityRowActions pattern.
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { assignGovtLocalityAction } from "@/app/actions/admin-institutional";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Mode = "idle" | "confirming" | "done";
 
@@ -24,7 +24,6 @@ export function AssignLocalityForm({
   targetUserId: string;
   onAssigned?: (locality: AssignedLocality) => void;
 }) {
-  const router = useRouter();
   const [mode, setMode] = useState<Mode>("idle");
   // provinceName is the canonical display name from ar_provincias, resolved
   // by LocalityPickerAcross when the user picks a result.
@@ -138,7 +137,10 @@ export function AssignLocalityForm({
 
       const assigned = { province: provinceName, locality: localityTrimmed };
       setLastAssigned(assigned);
-      router.refresh();
+      // Full document reload so the SSR institutional list reflects the
+      // change immediately (router.refresh() is banned - see
+      // lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
       setMode("done");
       onAssigned?.(assigned);
     });

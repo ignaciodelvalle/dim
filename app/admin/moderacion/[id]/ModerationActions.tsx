@@ -1,11 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import { canSubmitModeration } from "@/lib/domain/destructive-confirmation";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   confirmWelfareAsSpamAction,
   passWelfareToTriageAction,
@@ -14,7 +14,6 @@ import {
 type Mode = "none" | "pass" | "spam";
 
 export function ModerationActions({ welfareReportId }: { welfareReportId: string }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("none");
   const [notes, setNotes] = useState("");
@@ -41,8 +40,10 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
         return;
       }
       reset();
-      router.push("/admin/moderacion");
-      router.refresh();
+      // The cross-route push + refresh pair was a classic silent-drop vector
+      // (double transition). One full document navigation back to the queue
+      // is immune and lands on fresh SSR — see lib/ui/full-page-action-nav.ts.
+      navigateAfterActionSuccess("/admin/moderacion");
     });
   }
 
