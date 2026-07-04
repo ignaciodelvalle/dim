@@ -23,7 +23,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, organizationMemberships, organizations, profiles } from "@/db";
 import { generatePublicToken } from "@/lib/infra/publicToken";
-import { resolveUserLanding } from "@/lib/infra/role-landing";
+import { isDeactivatedInstitutional, resolveUserLanding } from "@/lib/infra/role-landing";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -205,5 +205,42 @@ describe("resolveUserLanding", () => {
   it("(e) admin role → /admin", async () => {
     const path = await resolveUserLanding(adminUserId);
     expect(path).toBe("/admin");
+  });
+
+  // Task #39 regression: a deactivated institutional account must never be
+  // auto-redirected into its portal — the guard bounces it back to `/` and the
+  // two redirects loop forever (ERR_TOO_MANY_REDIRECTS). /login renders the
+  // deactivated notice + logout instead.
+  it("(f) deactivated institutional admin → /login (never the portal)", async () => {
+    await db
+      .update(profiles)
+      .set({ deactivatedAt: new Date() })
+      .where(eq(profiles.id, adminUserId));
+    try {
+      const path = await resolveUserLanding(adminUserId);
+      expect(path).toBe("/login");
+    } finally {
+      await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, adminUserId));
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isDeactivatedInstitutional (pure predicate behind the loop guard)
+// ---------------------------------------------------------------------------
+
+describe("isDeactivatedInstitutional", () => {
+  it("true only for institutional accounts with deactivatedAt set", () => {
+    expect(
+      isDeactivatedInstitutional({ accountType: "institutional", deactivatedAt: new Date() }),
+    ).toBe(true);
+    expect(isDeactivatedInstitutional({ accountType: "institutional", deactivatedAt: null })).toBe(
+      false,
+    );
+    expect(isDeactivatedInstitutional({ accountType: "personal", deactivatedAt: new Date() })).toBe(
+      false,
+    );
+    expect(isDeactivatedInstitutional(null)).toBe(false);
+    expect(isDeactivatedInstitutional(undefined)).toBe(false);
   });
 });

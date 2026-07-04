@@ -2,9 +2,16 @@ import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { db, organizationMemberships, profiles } from "@/db";
+import { logoutAction } from "@/app/actions/auth";
+import { db, organizationMemberships } from "@/db";
 import { getIntentCopy } from "@/lib/domain/auth-intent-copy";
-import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/infra/role-landing";
+import { getProfileCached } from "@/lib/infra/request-cache";
+import {
+  isDeactivatedInstitutional,
+  pathForRole,
+  resolveVetLanding,
+  safeReturnTo,
+} from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
 
 import { LoginForm } from "./LoginForm";
@@ -31,13 +38,15 @@ export default async function LoginPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) {
+  // Deactivated institutional session (task #39): do NOT redirect by role —
+  // the portal guard bounces it back and the redirects loop until the browser
+  // gives up (ERR_TOO_MANY_REDIRECTS), leaving the account with no logout
+  // surface at all. Render the login page with a notice + "Cerrar sesión".
+  const profile = user ? await getProfileCached(user.id) : null;
+  const deactivatedSession = isDeactivatedInstitutional(profile);
+
+  if (user && !deactivatedSession) {
     if (returnTo) redirect(returnTo);
-    const [profile] = await db
-      .select({ role: profiles.role })
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1);
 
     const role = profile?.role ?? "owner";
     if (role === "vet") {
@@ -100,6 +109,30 @@ export default async function LoginPage({
             {intentCopy ? intentCopy.subcopy : "Bienvenido de vuelta a MiMAR"}
           </p>
         </div>
+        {/* Deactivated institutional account: clear notice + a guaranteed
+            logout surface (server-action form works even without JS). */}
+        {deactivatedSession && (
+          <div
+            role="alert"
+            className="space-y-2 rounded-[3px] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-bg)] px-4 py-3 text-sm text-[var(--color-ln-ink)]"
+          >
+            <p className="font-medium text-[var(--color-ln-err)]">
+              Tu cuenta institucional está desactivada.
+            </p>
+            <p>
+              No podés acceder al portal. Si creés que se trata de un error, contactá al equipo de
+              MiMAR.
+            </p>
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                className="cursor-pointer border-0 bg-transparent p-0 text-sm font-medium text-[var(--color-ln-azul)] underline underline-offset-2 hover:text-[var(--color-ln-azul-700)]"
+              >
+                Cerrar sesión
+              </button>
+            </form>
+          </div>
+        )}
         <LoginForm returnTo={returnTo} />
         <p className="text-center text-sm text-[var(--color-ln-ink-2)]">
           ¿No tenés cuenta?{" "}

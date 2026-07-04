@@ -8,6 +8,36 @@ const initialState: AuthFormState = { error: null };
 
 export function LoginForm({ returnTo }: { returnTo: string | null }) {
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
+  return (
+    <LoginFormView
+      state={state}
+      formAction={formAction}
+      isPending={isPending}
+      returnTo={returnTo}
+    />
+  );
+}
+
+// Presentational form, split from the useActionState wiring so tests can
+// assert every submit state (idle / pending / error) without mocking React.
+//
+// Submission contract (task #39): the submit button MUST stay a plain
+// type="submit" inside the <form action={…}> — React/Next serialize that
+// form into a progressively-enhanced POST (action="" method="POST" +
+// $ACTION hidden inputs), so a click works even before hydration or with
+// JS disabled. Never move the submit out of the form or replace it with an
+// onClick handler: that reintroduces the silently-dropped click.
+export function LoginFormView({
+  state,
+  formAction,
+  isPending,
+  returnTo,
+}: {
+  state: AuthFormState;
+  formAction: (formData: FormData) => void;
+  isPending: boolean;
+  returnTo: string | null;
+}) {
   const [email, setEmail] = useState("");
 
   return (
@@ -18,7 +48,7 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
       <div className="flex flex-col gap-5">
         <form action={formAction} className="space-y-4">
           {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
-          <LnField label="Correo electrónico" required error={state.error ?? undefined}>
+          <LnField label="Correo electrónico" required>
             {({ id, describedBy, invalid }) => (
               <LnInput
                 id={id}
@@ -27,7 +57,7 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
                 autoComplete="email"
                 required
                 aria-describedby={describedBy}
-                invalid={invalid}
+                invalid={invalid || Boolean(state.error)}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -56,9 +86,22 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
             </a>
           </div>
 
+          {/* Form-level error surface (task #39): a failed submit must never be
+              silent. The credentials error belongs to the email+password PAIR,
+              not to the email field, so it renders as its own alert block. */}
+          {state.error && (
+            <div
+              role="alert"
+              className="rounded-[3px] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-bg)] px-3 py-2 text-sm text-[var(--color-ln-err)]"
+            >
+              {state.error}
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isPending}
+            aria-busy={isPending || undefined}
             className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? "Ingresando..." : "Iniciar sesión"}

@@ -29,6 +29,32 @@ export type RoleOptions = {
   vetHasAnyMembership?: boolean;
 };
 
+// ---------------------------------------------------------------------------
+// Deactivated institutional accounts — redirect-loop guard (task #39)
+// ---------------------------------------------------------------------------
+//
+// Every institutional guard (requireAdminOrRedirect, requireAdminOrGovtOr-
+// Redirect) bounces a deactivated institutional account to `/`. If any
+// role-landing call site (root page, /login page, loginAction, auth callback)
+// redirects that same account back into its portal by role, the two redirects
+// chase each other forever: /admin → / → /admin → … and the browser dies with
+// ERR_TOO_MANY_REDIRECTS — no app surface, no logout, no feedback (observed
+// live 2026-07-04 with a deactivated admin@dim.test). Every auto-redirect by
+// role MUST consult this predicate first and fall through to a real page
+// (landing or login) when it returns true.
+
+export type InstitutionalStatusFields = {
+  accountType: string | null;
+  deactivatedAt: Date | null;
+};
+
+/** True when the profile is an institutional account that has been deactivated. */
+export function isDeactivatedInstitutional(
+  profile: InstitutionalStatusFields | null | undefined,
+): boolean {
+  return !!profile && profile.accountType === "institutional" && profile.deactivatedAt !== null;
+}
+
 export function pathForRole(role: string, options: RoleOptions | boolean): string {
   const opts: RoleOptions =
     typeof options === "boolean" ? { hasOrgAdminMembership: options } : options;
@@ -91,10 +117,18 @@ export async function resolveVetLanding(userId: string): Promise<string> {
 //          a new picker page is explicitly out of scope for this fix)
 export async function resolveUserLanding(userId: string): Promise<string> {
   const [profile] = await db
-    .select({ role: profiles.role })
+    .select({
+      role: profiles.role,
+      accountType: profiles.accountType,
+      deactivatedAt: profiles.deactivatedAt,
+    })
     .from(profiles)
     .where(eq(profiles.id, userId))
     .limit(1);
+
+  // Deactivated institutional → never into a portal (guards bounce it back
+  // to `/` and the redirects loop). /login renders the deactivated notice.
+  if (isDeactivatedInstitutional(profile)) return "/login";
 
   const role = profile?.role ?? "owner";
 

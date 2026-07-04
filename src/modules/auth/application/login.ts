@@ -5,7 +5,12 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, organizationMemberships, profiles } from "@/db";
-import { pathForRole, resolveVetLanding, safeReturnTo } from "@/lib/infra/role-landing";
+import {
+  isDeactivatedInstitutional,
+  pathForRole,
+  resolveVetLanding,
+  safeReturnTo,
+} from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -37,12 +42,28 @@ export async function loginAction(
   // would bounce them off anyway, this just shortens the loop.
   const returnTo = safeReturnTo(String(formData.get("returnTo") ?? ""));
 
-  // Fetch role for landing-page resolution.
+  // Fetch role for landing-page resolution (+ deactivation status, task #39).
   const [profile] = await db
-    .select({ role: profiles.role })
+    .select({
+      role: profiles.role,
+      accountType: profiles.accountType,
+      deactivatedAt: profiles.deactivatedAt,
+    })
     .from(profiles)
     .where(eq(profiles.id, userId))
     .limit(1);
+
+  // A deactivated institutional account must not hold a session: every portal
+  // guard bounces it to `/`, whose role-redirect would send it back — an
+  // infinite 307 loop that ends in a browser error page with no feedback and
+  // no logout surface (observed live 2026-07-04). Sign the session back out
+  // and surface a real error on the form instead.
+  if (isDeactivatedInstitutional(profile)) {
+    await supabase.auth.signOut();
+    return {
+      error: "Tu cuenta institucional está desactivada. Contactá al equipo de MiMAR.",
+    };
+  }
 
   const role = profile?.role ?? "owner";
   if (returnTo && role !== "admin" && role !== "govt") redirect(returnTo);
