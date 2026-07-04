@@ -24,13 +24,18 @@ export default async function VoluntariosPage({
       ? filters.species
       : undefined;
 
+  // #815 audit finding #15: previously requested a bare limit: 50 with no
+  // truncation signal. Fetch one extra row (51) and slice back to 50 so a
+  // pool larger than the page size gets a visible notice instead of a
+  // silent cutoff (same fetch-N+1 pattern as adopciones/page.tsx).
+  const VOLUNTEER_PAGE_SIZE = 50;
   const result = await searchFosterVolunteers({
     orgToken,
     species,
     province: filters.province ?? null,
     locality: filters.locality ?? null,
     petPublicToken: filters.pet ?? null,
-    limit: 50,
+    limit: VOLUNTEER_PAGE_SIZE + 1,
   });
 
   // Pets currently in shelter_custody by this org — used for the "propose" pet picker.
@@ -53,6 +58,9 @@ export default async function VoluntariosPage({
       </div>
     );
   }
+
+  const truncated = result.rows.length > VOLUNTEER_PAGE_SIZE;
+  const visibleRows = truncated ? result.rows.slice(0, VOLUNTEER_PAGE_SIZE) : result.rows;
 
   return (
     <div className="space-y-6">
@@ -141,12 +149,12 @@ export default async function VoluntariosPage({
         </button>
       </form>
 
-      {result.rows.length === 0 && (
+      {visibleRows.length === 0 && (
         <LnEmptyState icon="usuarios" title="No hay voluntarios que coincidan." />
       )}
 
       <ul className="space-y-2">
-        {result.rows.map((row) => (
+        {visibleRows.map((row) => (
           <VolunteerRow
             key={row.userId}
             row={row}
@@ -156,6 +164,13 @@ export default async function VoluntariosPage({
           />
         ))}
       </ul>
+
+      {truncated && (
+        <p className="text-sm text-ln-op-mute">
+          Mostrando los primeros {VOLUNTEER_PAGE_SIZE}. Hay más — usá los filtros de arriba para
+          acotar la búsqueda.
+        </p>
+      )}
     </div>
   );
 }
