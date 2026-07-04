@@ -242,6 +242,10 @@ describe("/p/[publicToken] — landing-shell structure (Item 7, Phase C2)", () =
     expect(countMainContentIds(html)).toBe(0);
     // Sanity: the credential actually rendered (active content present).
     expect(html).toContain("Credencial pública");
+    // The most-scanned public page in the product must expose a page-level
+    // heading (WCAG 1.3.1 / 2.4.6) — exactly one <h1>, carrying the pet name.
+    expect((html.match(/<h1(\s|>)/g) ?? []).length).toBe(1);
+    expect(html).toMatch(/<h1[^>]*>[\s\S]*Firulais/);
   });
 
   it("THROTTLE (rate-limited) render path emits NO page-owned <main> / #main-content", async () => {

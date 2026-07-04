@@ -743,14 +743,16 @@ export default async function PublicCredentialPage({
 
           {/* Name bar */}
           <div className="px-[16px] pt-[15px] pb-[12px]">
-            <div className="flex items-center gap-[9px] font-[var(--font-ln-serif)] text-[27px] font-semibold leading-none tracking-[-0.02em] text-ln-ink">
+            {/* h1: this is the most-scanned public page in the product (QR landing) —
+                it must expose a page-level heading (WCAG 1.3.1 / 2.4.6). */}
+            <h1 className="flex items-center gap-[9px] font-[var(--font-ln-serif)] text-[27px] font-semibold leading-none tracking-[-0.02em] text-ln-ink">
               {pet.name}
               {/* Status dot */}
               <span
                 aria-hidden="true"
                 className="inline-block h-[11px] w-[11px] flex-shrink-0 rounded-full bg-ln-ok shadow-[0_0_0_3px_#e8f3ec]"
               />
-            </div>
+            </h1>
             <p className="mt-[5px] text-[13px] text-ln-ink-2">
               {breedLine}
               {ageLabel && ` · ${ageLabel}`}
