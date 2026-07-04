@@ -1,0 +1,48 @@
+// FAQ de objeciones (benchmark L7, NZ DIA pattern) + trust row (L4).
+// Beta disclosure = subtle chip in the trust row (PO-locked decision #3 —
+// NOT a full-width banner).
+
+import { Icon } from "@/components/Icon";
+import { FAQS } from "@/components/landing/landing-content";
+import { LnBadge } from "@/components/ui/Badge";
+
+export function FaqSection() {
+  return (
+    <section className="lp-section lp-section--paper" id="faq" data-section="faq">
+      <div className="lp-wrap">
+        <div className="lp-maxw-sec mx-auto text-center">
+          <p className="lp-eyebrow lp-eyebrow--blue lp-reveal">Preguntas frecuentes</p>
+          <h2 className="lp-display lp-h-sec lp-reveal mt-3.5" data-d="1">
+            Las dudas de siempre
+          </h2>
+        </div>
+        <div className="lp-faq lp-reveal mt-[clamp(30px,4vw,48px)]">
+          {FAQS.map(([q, a]) => (
+            <details key={q}>
+              <summary>{q}</summary>
+              <p className="lp-faq-a">{a}</p>
+            </details>
+          ))}
+        </div>
+        <div className="lp-trust-row lp-reveal" data-section="trust-row">
+          <span>
+            <Icon name="edificio" size="sm" decorative /> Operado por la autoridad sanitaria
+            nacional
+          </span>
+          <span>
+            <Icon name="candado" size="sm" decorative /> Datos protegidos · Ley 25.326
+          </span>
+          <span>
+            <Icon name="laptop" size="sm" decorative /> Código abierto
+          </span>
+          <span>
+            <Icon name="check-circle" size="sm" decorative /> Gratis para siempre
+          </span>
+          <span>
+            <LnBadge variant="info">beta</LnBadge>
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
