@@ -49,6 +49,14 @@ jobs:
       - name: Lint (actions, UI, deps, guardrails)
         run: pnpm lint:ui && pnpm lint:actions && pnpm lint:deps && pnpm lint:lib-root && pnpm lint:mocks && pnpm lint:buttons
 
+      - name: Lint (notifications single write path)
+        # Bans NEW direct db.insert(notifications). Every notification must go
+        # through createNotification()/createNotificationsBulk() in
+        # lib/infra/notification-service.ts (idempotent + dead-lettered).
+        # See scripts/check-notifications-service.ts and the 2026-07-04
+        # notifications consistency review.
+        run: pnpm lint:notifications
+
       - name: Lint (router.refresh ban)
         # Nav burn-down N2 (2026-07-04): router.refresh() rides the App
         # Router transition machinery with the production silent-drop defect
