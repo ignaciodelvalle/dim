@@ -115,6 +115,28 @@ current ones are tasteful placeholders but read as placeholders in close-ups;
 (2) NEXT_PUBLIC_DEMO_MODE banner on/off (rebuild needed if on); (3)
 CRON_SECRET in .env.local only if the manual cron gates are wanted.
 
+### Final GO pass (CC, 2026-07-03 late — all PO calls resolved)
+
+- **Server rebuilt @ `bf765974`** with `NEXT_PUBLIC_DEMO_MODE=true` baked in —
+  the "Datos de demostración" banner shows ONCE per screen (global on
+  /admin/*, panorama-local under /gob). CRON_SECRET set; all 21 cron routes
+  triggered once with it (all 200) — /admin/sistema/crons now shows a full
+  telemetry baseline instead of 21× "never_ran".
+- **Real photos wired for 3 of owner@'s 4 pets** (Firulais + Rocco = the two
+  border collies, breed/color updated to match; Atún = the siamese; the
+  IG-sticker band was cropped off Rocco's photo). Michi keeps a generated
+  placeholder — no cat photo left; fine for the lost-pet beat.
+- **Project logo** saved at `public/logo-dim.png` — NOT wired into any
+  surface (no existing logo slot; placement is a post-demo design decision).
+- **Drift beat**: reconcile-pet-status went from `divergent: 320` (synthetic
+  seed inconsistencies: 3.3k PANO deceased-with-active-status, 4.3k chip
+  code mismatches between panorama events and coverage identifications,
+  6k missing implantation sites, lost/found same-day ties) to
+  **`divergent: 2`** after events-win reconciliation of the synthetic data.
+  cron-health flags reason 'drift' for those 2 stragglers
+  (PANO-018587 rabiesObservationStatus, PANO-022681 deceasedAt) — expected;
+  if the drift card shows 2, that is the detection system working, not a bug.
+
 ---
 
 ## Fase 1 — Gates (Cowork)

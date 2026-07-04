@@ -524,7 +524,7 @@ async function main(): Promise<void> {
     SELECT p.id, 'weight_recorded', now() - interval '30 days', now() - interval '30 days', 'owner',
            jsonb_build_object('payload_version', 1, 'kg', p.estimated_weight_kg::text, 'source', 'demo-polish')
     FROM pets p
-    WHERE p.public_token LIKE 'DIM-%' AND p.estimated_weight_kg IS NOT NULL
+    WHERE (p.public_token LIKE 'DIM-%' OR p.public_token LIKE 'DEMO-%') AND p.estimated_weight_kg IS NOT NULL
       AND NOT EXISTS (
         SELECT 1 FROM pet_events e WHERE e.pet_id = p.id AND e.event_type = 'weight_recorded'
       )
