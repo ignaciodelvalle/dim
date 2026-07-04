@@ -1125,6 +1125,31 @@ If you find yourself making a decision that breaks Mi Argentina alignment for sh
 
 The trilogy-unification design critiques (2026-05-27) codified the first four cross-cutting UI conventions; convention 5 (pet profile order) was added by the v2.1 reorder (2026-06-18). They apply to every new form, surface, or copy edit. The trilogy migration completed with the handoff-fixes series (#455–#479); the originating plan lives at `docs/superpowers/plans/archive/2026-05-27-trilogy-unification-handoff.md`.
 
+### 0. Navigation & perceived performance (2026-07-04, nav-QOL audit N1)
+
+Next 15.5's soft router silently drops navigations under load (fetch 200,
+screen frozen). The repo carries three CURED navigation families — do not
+choose by taste; classify the interaction and use its row:
+
+| Interaction | Mechanism | Canonical file |
+|---|---|---|
+| Same route, query-only (`?sheet=`, `?tab=` with same SSR) | History API shallow: `pushSheetUrl` / `pushTabUrl` | `lib/ui/sheet-nav.ts` |
+| Tab/filter whose SSR output differs | `UrlTabs` → `window.location.assign` | `components/ui/UrlTabs.tsx` |
+| Post-mutation redirect from a server action | action returns `{ redirectTo }`; client calls `navigateAfterActionSuccess` | `lib/ui/full-page-action-nav.ts` |
+| Ordinary cross-route link | `<Link>` (with `loading.tsx` on the target segment) | — |
+
+Prohibitions: no `router.push`/`router.replace` for query-only state (drops);
+no `router.refresh()` as post-mutation feedback on hot paths (same dropped
+machinery — 53 files still do this; burn-down tracked, don't add more); no
+raw `redirect()` in new server actions (use the `redirectTo` contract).
+Print destinations (cartel, chapita) are full PAGES by design —
+`window.print` needs a whole document, not a sheet.
+
+Checklist for any navigable UI change: pending state within 100ms on async
+controls; target segment has `loading.tsx` (or Suspense fallback) with the
+final layout's footprint (`Ln*` vs `Op*` skeletons); scroll containers carry
+`data-scroll-reset`; trámites end in `SuccessScreen`, never a mute redirect.
+
 ### 1. Two levels of location capture (L1 / L2)
 
 - **L1 — jurisdiction only** (province + locality, derived from a single locality autocomplete against `ar_localities`). Used when downstream queries are jurisdiction-bounded but the exact point doesn't matter — e.g. owner upgrades to org, vet/clinical events, foster-volunteer availability. Component: `<LocationFields mode="l1">`.
