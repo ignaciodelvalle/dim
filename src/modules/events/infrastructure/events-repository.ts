@@ -30,6 +30,7 @@ import {
 import type { NewAuditLogRow, NewPetEvent, NewPetIdentification, PetEvent } from "@/db/schema";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { enqueueOutboxForEvent } from "@/lib/events/event-outbox-enqueue";
+import { validatedEventValues } from "@/lib/events/validated-event-values";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -63,21 +64,34 @@ export class EventsRepository {
   /**
    * Insert an event with idempotency-key deduplication.
    * Returns { event, wasNoop } — callers check wasNoop to skip side-effects.
+   *
+   * The payload is validated against the per-type Zod schema at this boundary
+   * (event-sourcing integrity review 2026-07-04 item 2) via
+   * validatedEventValues. Use-case-level validateEventPayload calls remain
+   * valid: re-parsing an already-parsed payload is a no-op.
    */
   async insertEventIdempotent(
     values: NewPetEvent,
     executor: DbOrTx = db,
   ): Promise<{ event: PetEvent; wasNoop: boolean }> {
-    return insertEventIdempotent(values, executor as Parameters<typeof insertEventIdempotent>[1]);
+    return insertEventIdempotent(
+      validatedEventValues(values),
+      executor as Parameters<typeof insertEventIdempotent>[1],
+    );
   }
 
   /**
    * Insert an event without idempotency (plain insert).
    * Used for non-idempotent events: dangerousBreed, doseTaken, cascade events,
    * outbreak_signal, symptom-writer path.
+   *
+   * The payload is validated against the per-type Zod schema at this boundary
+   * — an invalid payload throws EventPayloadValidationError before any row is
+   * written (event-sourcing integrity review 2026-07-04 item 2).
    */
   async insertEvent(values: NewPetEvent, executor: DbOrTx = db): Promise<PetEvent> {
-    const [row] = await executor.insert(petEvents).values(values).returning();
+    const validated = validatedEventValues(values);
+    const [row] = await executor.insert(petEvents).values(validated).returning();
     if (!row) throw new Error("EventsRepository.insertEvent: insert returned no rows");
     return row;
   }

@@ -1638,7 +1638,10 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
  *   missing. Callers should use the returned value (not the original) when
  *   storing the row.
  *
- * Called from every `insert(petEvents)` site in app/actions/*.
+ * Called at the use-case edge by writers in app/actions/* and src/modules/*,
+ * AND enforced at the repository insert boundary via
+ * lib/events/validated-event-values.ts (EventsRepository / WelfareRepository) —
+ * so a writer that skips the edge call still cannot append an invalid payload.
  */
 export function validateEventPayload(eventType: EventType, payload: unknown): unknown {
   const schema = PayloadSchemas[eventType];

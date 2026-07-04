@@ -36,6 +36,7 @@ import type {
   WelfareReportAttachment,
 } from "@/db/schema";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
+import { validatedEventValues } from "@/lib/events/validated-event-values";
 import { isUniqueViolation } from "@/lib/infra/db-errors";
 
 // ---------------------------------------------------------------------------
@@ -495,12 +496,17 @@ export class WelfareRepository {
    * Used by create-welfare-report and create-org-welfare-report for the
    * pet-event bridge (abandonment_reported, maltreatment_reported,
    * symptom_observed, note_added).
+   *
+   * The payload is validated against the per-type Zod schema at this boundary
+   * — an invalid payload throws EventPayloadValidationError before any row is
+   * written (event-sourcing integrity review 2026-07-04 item 2).
    */
   async insertPetEvent(
     values: typeof petEvents.$inferInsert,
     executor: DbOrTx = db,
   ): Promise<void> {
-    await executor.insert(petEvents).values(values);
+    const validated = validatedEventValues(values);
+    await executor.insert(petEvents).values(validated);
   }
 
   /**
@@ -508,13 +514,16 @@ export class WelfareRepository {
    * Routes through insertEventIdempotent from lib/event-idempotency.
    * When clientIdempotencyKey is null/undefined, falls back to a plain insert.
    * Returns { wasNoop: true } when a conflict was detected (duplicate submission).
+   *
+   * The payload is validated at this boundary via validatedEventValues — same
+   * contract as insertPetEvent above.
    */
   async insertPetEventIdempotent(
     values: typeof petEvents.$inferInsert,
     executor: DbOrTx = db,
   ): Promise<{ wasNoop: boolean }> {
     const { wasNoop } = await insertEventIdempotent(
-      values,
+      validatedEventValues(values),
       executor as Parameters<typeof insertEventIdempotent>[1],
     );
     return { wasNoop };
