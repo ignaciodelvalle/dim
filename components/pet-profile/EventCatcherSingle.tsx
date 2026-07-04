@@ -27,6 +27,7 @@ import { quickCaptureAction } from "@/app/actions/quick-capture";
 import { LnButton } from "@/components/ui/Button";
 import { LnCard } from "@/components/ui/Card";
 import { LnTextarea } from "@/components/ui/Field";
+import { CAPTURE_INPUT_MAX_LENGTH } from "@/lib/events/event-capture-matcher";
 import { isSameRouteUrl, pushSheetUrl } from "@/lib/ui/sheet-nav";
 
 type Props = {
@@ -66,6 +67,7 @@ export function EventCatcherSingle({ petPublicToken, petName }: Props) {
           <h2 className="sr-only">Anotar un evento para {petName}</h2>
           <LnTextarea
             value={text}
+            maxLength={CAPTURE_INPUT_MAX_LENGTH}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if ((e.ctrlKey || e.metaKey) && e.key === "Enter") onSubmit();

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
 import type { EventType } from "@/db/schema";
-import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
+import { matchCaptureIntent, matchToCaptureUrl } from "@/lib/events/event-capture-matcher";
 import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 import { QUICK_ACTIONS, buildKindDeeplink, findQuickAction, getNoteSlotKey } from "./handoff";
 
@@ -60,19 +60,7 @@ export function CaptureBox({
         setUnmatched(true);
         return;
       }
-      let url: string | null;
-      if (match.routeOverride) {
-        const base = `/mis-mascotas/${petPublicToken}${match.routeOverride}`;
-        const sep = match.routeOverride.includes("?") ? "&" : "?";
-        const slotParams = new URLSearchParams();
-        for (const [k, v] of Object.entries(match.slots)) {
-          if (v !== "" && v !== undefined) slotParams.set(k, v);
-        }
-        const qs = slotParams.toString();
-        url = qs ? `${base}${sep}${qs}` : base;
-      } else {
-        url = buildCaptureDeeplink(match.eventType, petPublicToken, match.slots);
-      }
+      const url = matchToCaptureUrl(petPublicToken, match, buildCaptureDeeplink);
       if (url) {
         startTransition(() => {
           router.push(url);
@@ -100,19 +88,7 @@ export function CaptureBox({
     // clinical_info_logged) opt into a routeOverride. When present, build
     // the URL by appending slots as querystring; otherwise fall back to
     // the registry deeplink.
-    let url: string | null;
-    if (match.routeOverride) {
-      const base = `/mis-mascotas/${petPublicToken}${match.routeOverride}`;
-      const sep = match.routeOverride.includes("?") ? "&" : "?";
-      const slotParams = new URLSearchParams();
-      for (const [k, v] of Object.entries(match.slots)) {
-        if (v !== "" && v !== undefined) slotParams.set(k, v);
-      }
-      const qs = slotParams.toString();
-      url = qs ? `${base}${sep}${qs}` : base;
-    } else {
-      url = buildCaptureDeeplink(match.eventType, petPublicToken, match.slots);
-    }
+    const url = matchToCaptureUrl(petPublicToken, match, buildCaptureDeeplink);
     if (!url) {
       // Registry entry missing for the matched event type. Shouldn't
       // happen because the matcher only emits types that we registered,

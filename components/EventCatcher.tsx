@@ -28,6 +28,7 @@ import { useRef, useState, useTransition } from "react";
 import { quickCaptureAction } from "@/app/actions/quick-capture";
 import { LnButton } from "@/components/ui/Button";
 import type { EventType } from "@/db/schema";
+import { CAPTURE_INPUT_MAX_LENGTH } from "@/lib/events/event-capture-matcher";
 
 /**
  * Pet state used to drive the avatar frame color in the chip row.
@@ -193,6 +194,7 @@ export function EventCatcher({ pets }: { pets: EventCatcherPet[] }) {
       <textarea
         ref={taRef}
         value={text}
+        maxLength={CAPTURE_INPUT_MAX_LENGTH}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if ((e.ctrlKey || e.metaKey) && e.key === "Enter") onSubmit();
@@ -311,15 +313,31 @@ function PetChip({
   buttonRef?: (el: HTMLButtonElement | null) => void;
 }) {
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A fired long-press must swallow the click that the same pointer-up
+  // produces — without this the chip navigated AND re-selected (deep review
+  // 2026-07-04: latent double-navigation on slow devices).
+  const longPressFired = useRef(false);
 
   function startPress() {
-    pressTimer.current = setTimeout(onLongPress, LONG_PRESS_MS);
+    longPressFired.current = false;
+    pressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      onLongPress();
+    }, LONG_PRESS_MS);
   }
   function cancelPress() {
     if (pressTimer.current) {
       clearTimeout(pressTimer.current);
       pressTimer.current = null;
     }
+  }
+
+  function onClickGuarded() {
+    if (longPressFired.current) {
+      longPressFired.current = false;
+      return;
+    }
+    onSelect();
   }
 
   return (
@@ -329,7 +347,7 @@ function PetChip({
         type="button"
         aria-pressed={active}
         tabIndex={active ? 0 : -1}
-        onClick={onSelect}
+        onClick={onClickGuarded}
         onPointerDown={startPress}
         onPointerUp={cancelPress}
         onPointerLeave={cancelPress}

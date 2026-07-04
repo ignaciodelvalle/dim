@@ -12,7 +12,7 @@
 //   { url: null }    — no match; caller falls back to /anotar?text=... so the
 //                      CaptureBox page can surface the "no reconocemos eso" UI.
 
-import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
+import { matchCaptureIntent, matchToCaptureUrl } from "@/lib/events/event-capture-matcher";
 import { buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 
 import type { QuickCaptureResult } from "./types";
@@ -35,22 +35,5 @@ export async function quickCapture(publicToken: string, text: string): Promise<Q
   const match = matchCaptureIntent(trimmed);
   if (!match) return { url: null };
 
-  let url: string | null;
-
-  if (match.routeOverride) {
-    // Sub-flows of a shared eventType (e.g. pregnancy started/ended) use a
-    // dedicated route with query params. Mirror the logic in CaptureBox.tsx.
-    const base = `/mis-mascotas/${publicToken}${match.routeOverride}`;
-    const sep = match.routeOverride.includes("?") ? "&" : "?";
-    const slotParams = new URLSearchParams();
-    for (const [k, v] of Object.entries(match.slots)) {
-      if (v !== "" && v !== undefined) slotParams.set(k, v);
-    }
-    const qs = slotParams.toString();
-    url = qs ? `${base}${sep}${qs}` : base;
-  } else {
-    url = buildCaptureDeeplink(match.eventType, publicToken, match.slots);
-  }
-
-  return { url };
+  return { url: matchToCaptureUrl(publicToken, match, buildCaptureDeeplink) };
 }

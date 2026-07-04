@@ -51,6 +51,14 @@ type Pattern = {
   confidence?: ConfidenceLabel;
   /** Static route override appended to `/mis-mascotas/{publicToken}`. */
   routeOverride?: string;
+  /**
+   * Slots a routeOverride target actually consumes. Registry routes filter
+   * via prefillSlots; override routes had NO filter, so every extracted slot
+   * (incl. the shared occurredAt) leaked onto sheet URLs that never read
+   * them (deep review 2026-07-04). Overrides now default to NO slots unless
+   * they declare them here.
+   */
+  allowedSlots?: string[];
 };
 
 // IMPORTANT: order matters. More specific patterns must come BEFORE
@@ -248,6 +256,7 @@ const PATTERNS: Pattern[] = [
     ],
     confidence: "high",
     routeOverride: "/eventos/nuevo/embarazo?phase=ended&outcome=live_birth",
+    allowedSlots: ["liveBirthsCount", "occurredAt"],
   },
   {
     eventType: "clinical_info_logged",
@@ -305,6 +314,16 @@ const PATTERNS: Pattern[] = [
     eventType: "death_recorded",
     triggers: [/falleci[óo]/i, /muri[óo]/i, /se\s+fue\s+al\s+arcoiris/i, /cruz[óo]\s+el\s+puente/i],
     confidence: "high",
+  },
+
+  // Checkin post-adopción — BEFORE vet_visit: its trigger
+  // /control.*post.?adopci[óo]n/ was unreachable behind vet's greedy
+  // control (deep review 2026-07-04: "control post adopción" routed
+  // to vet_visit_logged).
+  {
+    eventType: "post_adoption_checkin",
+    triggers: [/check[\s-]?in/i, /seguimient.*adopci[óo]n/i, /control.*post.?adopci[óo]n/i],
+    confidence: "medium",
   },
 
   // Visita al vet.
@@ -370,13 +389,6 @@ const PATTERNS: Pattern[] = [
       /\bradiograf/i,
     ],
     confidence: "low",
-  },
-
-  // Checkin post-adopción — explicit phrase.
-  {
-    eventType: "post_adoption_checkin",
-    triggers: [/check[\s-]?in/i, /seguimient.*adopci[óo]n/i, /control.*post.?adopci[óo]n/i],
-    confidence: "medium",
   },
 
   // Management flows — WP-5. These are profile-action sheets, not event-log
@@ -476,7 +488,9 @@ export function extractDateFromText(text: string, now: Date = new Date()): strin
   }
 
   // DD/MM/AAAA or DD-MM-AAAA
-  const slash = lower.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
+  // Lookbehind rejects IDs glued to words/dashes ("cas-12-06" parsed as a
+  // date and prefilled occurredAt=2026-06-12 — deep review 2026-07-04).
+  const slash = lower.match(/(?<![a-z0-9-])(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
   if (slash) {
     const d = Number.parseInt(slash[1], 10);
     const m = Number.parseInt(slash[2], 10);
@@ -560,6 +574,15 @@ export function matchCaptureIntent(text: string): MatchResult | null {
     const date = extractDateFromText(trimmed);
     if (date) slots.occurredAt = date;
 
+    // Override routes get ONLY their declared slots (none by default) — the
+    // registry filter never sees them, so the filter lives here.
+    if (pattern.routeOverride) {
+      const allowed = new Set(pattern.allowedSlots ?? []);
+      for (const key of Object.keys(slots)) {
+        if (!allowed.has(key)) delete slots[key];
+      }
+    }
+
     return {
       eventType: pattern.eventType,
       confidence: pattern.confidence ?? "medium",
@@ -570,6 +593,44 @@ export function matchCaptureIntent(text: string): MatchResult | null {
   }
 
   return null;
+}
+
+/**
+ * THE single match-to-URL assembler. Before 2026-07-04 this logic existed in
+ * FOUR copies (quick-capture use-case, resolveCaptureIntentUrl, and twice
+ * inside CaptureBox) — the override-slot bug lived in all four. Override
+ * slots are already filtered by matchCaptureIntent, so assembly is pure.
+ */
+export function matchToCaptureUrl(
+  publicToken: string,
+  match: MatchResult,
+  buildRegistryDeeplink: (
+    eventType: EventType,
+    publicToken: string,
+    slots: Record<string, string>,
+  ) => string | null,
+): string | null {
+  if (match.routeOverride) {
+    const base = `/mis-mascotas/${publicToken}${match.routeOverride}`;
+    const sep = match.routeOverride.includes("?") ? "&" : "?";
+    const slotParams = new URLSearchParams();
+    for (const [k, v] of Object.entries(match.slots)) {
+      if (v !== "" && v !== undefined) slotParams.set(k, v);
+    }
+    const qs = slotParams.toString();
+    return qs ? `${base}${sep}${qs}` : base;
+  }
+  return buildRegistryDeeplink(match.eventType, publicToken, match.slots);
+}
+
+/**
+ * LOCAL calendar date as YYYY-MM-DD. Exported because quick-chip prefill
+ * used `toISOString().slice(0, 10)` (UTC): from 21:00 ART to midnight that
+ * stamps TOMORROW's date (deep review 2026-07-04). One clock for all
+ * capture-date logic.
+ */
+export function ymdLocal(d: Date = new Date()): string {
+  return formatYMD(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }
 
 // --- date helpers ----------------------------------------------------

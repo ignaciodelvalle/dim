@@ -376,3 +376,58 @@ describe("matchCaptureIntent — adversarial inputs", () => {
     expect(matchCaptureIntent(input)).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Deep-review regressions (2026-07-04) — each case was a confirmed-by-execution
+// bug before the fix landed.
+// ---------------------------------------------------------------------------
+
+import { buildKindDeeplink as _kindLink } from "@/app/(app)/mis-mascotas/[publicToken]/anotar/handoff";
+import {
+  matchCaptureIntent as _match,
+  matchToCaptureUrl,
+  ymdLocal,
+} from "@/lib/events/event-capture-matcher";
+import { buildCaptureDeeplink as _deeplink } from "@/lib/events/event-capture-registry";
+
+describe("deep-review regressions (2026-07-04)", () => {
+  it("'control post adopción' routes to post_adoption_checkin, not vet_visit", () => {
+    const r = _match("control post adopción de Toby");
+    expect(r?.eventType).toBe("post_adoption_checkin");
+  });
+
+  it("'seguimiento de la adopción' routes to post_adoption_checkin", () => {
+    const r = _match("seguimiento de la adopción");
+    expect(r?.eventType).toBe("post_adoption_checkin");
+  });
+
+  it("override routes drop undeclared slots (no occurredAt on marcar-perdida)", () => {
+    const r = _match("ayer se me perdió la perra");
+    expect(r?.routeOverride).toBe("?sheet=marcar-perdida");
+    expect(r?.slots).toEqual({});
+    const url = matchToCaptureUrl("DIM-TEST-0001", r!, _deeplink);
+    expect(url).toBe("/mis-mascotas/DIM-TEST-0001?sheet=marcar-perdida");
+  });
+
+  it("pregnancy live-birth override KEEPS its declared slots", () => {
+    const r = _match("parió 4 cachorros ayer");
+    expect(r?.routeOverride).toContain("/eventos/nuevo/embarazo");
+    expect(r?.slots.liveBirthsCount).toBe("4");
+    expect(r?.slots.occurredAt).toBeDefined();
+  });
+
+  it("dash-glued IDs are not parsed as dates (cas-12-06)", () => {
+    const r = _match("anotar revisión del caso cas-12-06 pendiente");
+    expect(r?.slots.occurredAt).toBeUndefined();
+  });
+
+  it("plain date phrases still extract ('el 12/06')", () => {
+    const r = _match("anotar control del 12/06");
+    expect(r?.slots.occurredAt).toMatch(/-06-12$/);
+  });
+
+  it("quick-chip prefill stamps the LOCAL date, not UTC", () => {
+    const url = _kindLink("weight_recorded", "DIM-TEST-0001") ?? "";
+    expect(url).toContain(`occurredAt=${ymdLocal()}`);
+  });
+});

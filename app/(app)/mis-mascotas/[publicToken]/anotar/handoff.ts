@@ -4,7 +4,11 @@
 // plugin can't handle).
 
 import type { EventType } from "@/db/schema";
-import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
+import {
+  matchCaptureIntent,
+  matchToCaptureUrl,
+  ymdLocal,
+} from "@/lib/events/event-capture-matcher";
 import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 
 // Builds the URL EventCatcher / EventCatcherSingle use to hand off typed
@@ -154,7 +158,8 @@ export function buildKindDeeplink(
   if (!entry) return null;
   const slots: Record<string, string> = {};
   if (entry.prefillSlots.includes("occurredAt")) {
-    slots.occurredAt = new Date().toISOString().slice(0, 10);
+    // ymdLocal, not toISOString: UTC stamped TOMORROW for taps after 21:00 ART.
+    slots.occurredAt = ymdLocal();
   }
   const noteKey = getNoteSlotKey(eventType);
   if (text && noteKey) {
@@ -191,15 +196,5 @@ export function resolveCaptureIntentUrl(
   if (!trimmed) return null;
   const match = matchCaptureIntent(trimmed);
   if (!match) return null;
-  if (match.routeOverride) {
-    const base = `/mis-mascotas/${publicToken}${match.routeOverride}`;
-    const sep = match.routeOverride.includes("?") ? "&" : "?";
-    const slotParams = new URLSearchParams();
-    for (const [k, v] of Object.entries(match.slots)) {
-      if (v !== "" && v !== undefined) slotParams.set(k, v);
-    }
-    const qs = slotParams.toString();
-    return qs ? `${base}${sep}${qs}` : base;
-  }
-  return buildCaptureDeeplink(match.eventType, publicToken, match.slots);
+  return matchToCaptureUrl(publicToken, match, buildCaptureDeeplink);
 }
