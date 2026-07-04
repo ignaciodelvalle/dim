@@ -1,0 +1,35 @@
+"use client";
+
+// PanoramaCaption — the plain-language per-view caption (panorama-ia-v2 §2.4).
+//
+// The vehicle of the "context switch": when the VISTA (preset), scope, or period
+// change, this line re-states — in plain es-AR — what a mark on the map means at
+// the current level ("Cada área es una provincia. Relleno = cobertura antirrábica,
+// estado actual. Meta 80%."). Thin presentational wrapper over the pure domain
+// builder captionFor; it derives NOTHING from data — no query, no cell value —
+// so it can never leak a k-anon-suppressed number.
+
+import { captionFor } from "@/src/modules/panorama/domain/caption";
+import type {
+  AggregationLevel,
+  PanoramaLayer,
+  PanoramaPeriod,
+} from "@/src/modules/panorama/domain/types";
+
+type Props = {
+  /** The primary (captionable) layer of the active board, or null when none. */
+  layer: PanoramaLayer | null;
+  /** The derived aggregation level the map is currently rendering. */
+  level: AggregationLevel;
+  /** The active period window (feeds the "últimos N días" phrase for windowed layers). */
+  period: PanoramaPeriod;
+};
+
+export function PanoramaCaption({ layer, level, period }: Props) {
+  if (layer === null) return null;
+  return (
+    <p className="text-sm leading-snug text-ln-op-mute" aria-live="polite">
+      {captionFor(layer, level, period)}
+    </p>
+  );
+}

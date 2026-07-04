@@ -6,7 +6,41 @@
 // the Vitest environment.
 
 import type { PresetFraming } from "@/src/modules/panorama/domain/presets";
-import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
+import type {
+  AggregationLevel,
+  FeatureCollection,
+  PanoramaScope,
+} from "@/src/modules/panorama/domain/types";
+
+// ---------------------------------------------------------------------------
+// panorama-ia-v2 §1.1 — derived aggregation level (replaces AggregationToggle)
+// ---------------------------------------------------------------------------
+
+/** Camera zoom at/above which the national view drills to the locality mark. */
+export const Z_LOCALITY = 5;
+
+/**
+ * Derive the aggregation level from (scope, zoom) — the level is no longer a
+ * manual control (design §1.1). PO decision #1: BOTH a scope selection AND
+ * zooming in trigger the locality mark, preferring the finer precision whenever
+ * it renders. A selected province/locality scope WINS over zoom (you asked to
+ * look inside a jurisdiction, so you see its localities even zoomed far out);
+ * otherwise the national view stays at `province` until the camera crosses
+ * `belowZoom` (Z_LOCALITY), which is what kills the national "green blob".
+ *
+ * Pure — no map, no DOM. `zoom` is the current camera zoom (SituationalMap
+ * reads it from maplibre); `belowZoom` is the layer's autoLevel threshold.
+ */
+export function derivedLevel(
+  scope: PanoramaScope,
+  zoom: number,
+  belowZoom: number = Z_LOCALITY,
+): AggregationLevel {
+  // Scope wins: any province/locality selection means "look inside" → locality.
+  if (scope.province != null || scope.locality != null) return "locality";
+  // National scope: the camera decides. At/above the threshold → locality.
+  return zoom >= belowZoom ? "locality" : "province";
+}
 
 // ---------------------------------------------------------------------------
 // Empty-state helpers (PR-6)

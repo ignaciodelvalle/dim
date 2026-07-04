@@ -24,6 +24,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { AggregationToggle } from "@/components/panorama/AggregationToggle";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPanel";
+import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaKpiStrip } from "@/components/panorama/PanoramaKpiStrip";
 import { PanoramaReading } from "@/components/panorama/PanoramaReading";
 import { PanoramaSuppressionNotice } from "@/components/panorama/PanoramaSuppressionNotice";
@@ -58,6 +59,7 @@ import type {
   AggregationLevel,
   FeatureCollection,
   LayerId,
+  PanoramaPeriod,
 } from "@/src/modules/panorama/domain/types";
 
 const EMPTY_FC: FeatureCollection = { type: "FeatureCollection", features: [] };
@@ -1284,6 +1286,29 @@ export function PanoramaConsole({
     return names.length > 0 ? `Mapa: ${names.join(", ")}` : "Mapa situacional";
   }, [activeLayers]);
 
+  // panorama-ia-v2 §2.4: the plain-language caption re-states what a map mark
+  // means at the current VISTA + level. Caption the PRIMARY (base) layer of the
+  // active board: the preset's base when a preset is active, else the first
+  // active non-reference layer (rate/density/signal — the ones the caption verb
+  // "Relleno/Tamaño" describes). Reference pins carry no per-view narrative.
+  const captionLayer = useMemo(() => {
+    if (activePresetId !== null) {
+      const base = getPreset(activePresetId)?.base;
+      if (base) return getLayer(base) ?? null;
+    }
+    for (const l of PANORAMA_LAYERS) {
+      if (states[l.id]?.active && l.dataType !== "reference") return l;
+    }
+    return null;
+  }, [activePresetId, states]);
+
+  // The active period as a PanoramaPeriod (ISO dates) for the caption's
+  // "últimos N días" phrase. since/until already resolve the active window.
+  const captionPeriod = useMemo<PanoramaPeriod>(
+    () => ({ from: since.toISOString().slice(0, 10), to: until.toISOString().slice(0, 10) }),
+    [since, until],
+  );
+
   const onScrub = useCallback((next: Date | null) => setAsOf(next), []);
 
   // map-QOL selective refresh (freshness chip's "Actualizar"): refetch the
@@ -1359,6 +1384,10 @@ export function PanoramaConsole({
         onPreset={onPreset}
         layout="row"
       />
+      {/* panorama-ia-v2 §2.4: plain-language caption — re-states what a map mark
+          means at the active VISTA + derived level. Recomputes on preset/scope/
+          period change (the "context switch"). Pure: never a data-derived value. */}
+      <PanoramaCaption layer={captionLayer} level={level} period={captionPeriod} />
       {/* k-anon disclosure promoted out of "Personalizar": suppression is
           visible without any click (same envelope counts LayerPanel shows). */}
       <PanoramaSuppressionNotice states={states} />
