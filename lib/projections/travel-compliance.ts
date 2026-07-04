@@ -90,6 +90,52 @@ export type TravelComplianceState = {
 };
 
 // ---------------------------------------------------------------------------
+// Movement context extraction — movement_recorded payloads → aggregation
+// inputs. Shared by the /viaje RSC and the travel export use-case so both
+// surfaces derive the SAME context from the same events (invariant #3).
+// ---------------------------------------------------------------------------
+
+/** A transport stays part of the "current movement context" for 30 days
+ * after its travel_date (R4.1: future or recent trips). */
+export const RECENT_TRAVEL_WINDOW_MS = 30 * 86400000;
+
+export type TravelContext = {
+  destinations: TravelJurisdiction[];
+  /** Unique corridor ids from non-stale transport_recorded events. */
+  corridorIds: string[];
+  /** Earliest relevant travel date — drives deadline evaluation. */
+  travelDate: Date | null;
+};
+
+export function deriveTravelContext(
+  movementPayloads: Array<Record<string, unknown>>,
+  now: Date,
+): TravelContext {
+  const destinations: TravelJurisdiction[] = [];
+  const corridorIds = new Set<string>();
+  let travelDate: Date | null = null;
+
+  for (const p of movementPayloads) {
+    if (p.sub_kind === "jurisdiction_changed") {
+      destinations.push({
+        country: typeof p.to_country === "string" ? p.to_country : "AR",
+        province: typeof p.to_province === "string" ? p.to_province : null,
+        locality: typeof p.to_locality === "string" ? p.to_locality : null,
+      });
+    }
+    if (p.sub_kind === "transport_recorded" && typeof p.travel_date === "string") {
+      const date = new Date(p.travel_date);
+      if (!Number.isFinite(date.getTime())) continue;
+      if (date.getTime() < now.getTime() - RECENT_TRAVEL_WINDOW_MS) continue; // stale trip
+      if (typeof p.corridor_id === "string") corridorIds.add(p.corridor_id);
+      if (!travelDate || date < travelDate) travelDate = date;
+    }
+  }
+
+  return { destinations, corridorIds: [...corridorIds], travelDate };
+}
+
+// ---------------------------------------------------------------------------
 // requirementLevel mapping (R2.6) — derived purely from tone + deadline
 // lapse, never hand-set per corridor.
 // ---------------------------------------------------------------------------
@@ -199,10 +245,7 @@ function footnoteFor(contributors: string[]): string {
 
 type Evaluation = { tone: ComplianceTone; deadlineLapsed: boolean; state: string; detail: string };
 
-function evaluateRabiesWait(
-  waitDays: number,
-  input: TravelComplianceInput,
-): Evaluation {
+function evaluateRabiesWait(waitDays: number, input: TravelComplianceInput): Evaluation {
   const doseAt = latestRabiesDoseAt(input.events);
   const base = `Mínimo ${waitDays} días entre la vacuna antirrábica y el viaje`;
   if (!input.travelDate) {

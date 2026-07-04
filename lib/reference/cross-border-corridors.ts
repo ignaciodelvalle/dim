@@ -23,6 +23,12 @@
 
 import type { TravelRuleType, TravelRuleValueByType } from "@/lib/domain/travel-strictness";
 
+// R3.5 staleness disclaimer — rendered on ALL THREE surfaces (checklist,
+// semáforo, exported PDF). es-AR wording pending PO sign-off (design open
+// question); the SENASA + consular-authority framing comes from the spec.
+export const TRAVEL_DISCLAIMER =
+  "Verificá con SENASA y la autoridad consular del destino antes de viajar — esta información puede desactualizarse.";
+
 export const CORRIDOR_IDS = ["chile", "uruguay", "brasil", "ue_espana", "usa"] as const;
 export type CorridorId = (typeof CORRIDOR_IDS)[number];
 

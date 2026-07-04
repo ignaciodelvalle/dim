@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   type TravelComplianceInput,
   deriveTravelCompliance,
+  deriveTravelContext,
   requirementLevelFor,
 } from "@/lib/projections/travel-compliance";
 import type { Corridor, CorridorRules } from "@/lib/reference/cross-border-corridors";
@@ -320,5 +321,60 @@ describe("deriveTravelCompliance — semáforo and disclosure", () => {
     expect(state.obligations).toHaveLength(0);
     expect(state.corridorsShown).toHaveLength(0);
     expect(state.semaforo).toBe("verde");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deriveTravelContext — movement events → aggregation inputs
+// (shared by the /viaje RSC and the travel export use-case)
+// ---------------------------------------------------------------------------
+
+describe("deriveTravelContext", () => {
+  it("collects destinations from jurisdiction_changed history", () => {
+    const ctx = deriveTravelContext(
+      [
+        {
+          sub_kind: "jurisdiction_changed",
+          to_country: "AR",
+          to_province: "Buenos Aires",
+          to_locality: "La Plata",
+        },
+      ],
+      NOW,
+    );
+    expect(ctx.destinations).toEqual([
+      { country: "AR", province: "Buenos Aires", locality: "La Plata" },
+    ]);
+    expect(ctx.corridorIds).toEqual([]);
+    expect(ctx.travelDate).toBeNull();
+  });
+
+  it("collects corridor ids and the EARLIEST upcoming travel date from transports", () => {
+    const ctx = deriveTravelContext(
+      [
+        { sub_kind: "transport_recorded", corridor_id: "chile", travel_date: "2026-09-01" },
+        { sub_kind: "transport_recorded", corridor_id: "uruguay", travel_date: "2026-08-01" },
+      ],
+      NOW,
+    );
+    expect([...ctx.corridorIds].sort()).toEqual(["chile", "uruguay"]);
+    expect(ctx.travelDate?.toISOString().slice(0, 10)).toBe("2026-08-01");
+  });
+
+  it("ignores stale trips (travel_date older than the recency window)", () => {
+    const ctx = deriveTravelContext(
+      [{ sub_kind: "transport_recorded", corridor_id: "chile", travel_date: "2025-01-01" }],
+      NOW,
+    );
+    expect(ctx.corridorIds).toEqual([]);
+    expect(ctx.travelDate).toBeNull();
+  });
+
+  it("keeps a recent past trip (within the 30-day window)", () => {
+    const ctx = deriveTravelContext(
+      [{ sub_kind: "transport_recorded", corridor_id: "brasil", travel_date: "2026-06-20" }],
+      NOW, // 2026-07-04 — 14 days later
+    );
+    expect(ctx.corridorIds).toEqual(["brasil"]);
   });
 });

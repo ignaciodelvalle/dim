@@ -15,11 +15,7 @@ import type {
   CorridorDisclosure,
   TravelSemaforo as Semaforo,
 } from "@/lib/projections/travel-compliance";
-
-// es-AR disclaimer wording — PO sign-off pending (design open question).
-// Keep the SENASA + consular-authority framing from spec R3.5.
-export const TRAVEL_DISCLAIMER =
-  "Verificá con SENASA y la autoridad consular del destino antes de viajar — esta información puede desactualizarse.";
+import { TRAVEL_DISCLAIMER } from "@/lib/reference/cross-border-corridors";
 
 const SEMAFORO_STYLES: Record<Semaforo, { label: string; className: string }> = {
   rojo: {

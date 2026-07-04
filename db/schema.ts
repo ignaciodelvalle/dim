@@ -1978,6 +1978,9 @@ export const AUDIT_LOG_ACTIONS = [
   // PPP export — RUPPPA CABA registration PDF for potentially dangerous breed owners.
   // Payload: { petId, petPublicToken, targetJurisdiction, breed, schemaVersion }.
   "ppp_export_generated",
+  // Travel doc bundle export (movilidad-jurisdiccional Fase 1, R5.3).
+  // Payload: { petId, petPublicToken, corridorIds, semaforo, schemaVersion }.
+  "travel_export_generated",
   // ENO (Enfermedades de Notificación Obligatoria) — govt notification fanout.
   // Spec: 2026-05-21-eno-pipeline-design.md (ENO-D2, ENO-D3, ENO-D4, ENO-D5).
   // Payload: { disease_code, disease_severity, pet_id, targets_count,

@@ -17,21 +17,11 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, petEvents } from "@/db";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
-import {
-  type TravelJurisdiction,
-  deriveTravelCompliance,
-} from "@/lib/projections/travel-compliance";
-import {
-  type Corridor,
-  type CorridorId,
-  getCorridor,
-} from "@/lib/reference/cross-border-corridors";
+import { deriveTravelCompliance, deriveTravelContext } from "@/lib/projections/travel-compliance";
+import { type CorridorId, getCorridor } from "@/lib/reference/cross-border-corridors";
+import { TravelExportButton } from "./TravelExportButton";
 import { TravelObligationsPanel } from "./TravelObligationsPanel";
 import { TravelSemaforo } from "./TravelSemaforo";
-
-// A transport event stays part of the "current movement context" for 30 days
-// after its travel_date (R4.1: future or recent trips).
-const RECENT_TRAVEL_WINDOW_MS = 30 * 86400000;
 
 export default async function ViajePage({
   params,
@@ -87,32 +77,13 @@ export default async function ViajePage({
     );
   }
 
-  // Movement context → aggregation inputs.
+  // Movement context → aggregation inputs (shared with the export use-case).
   const now = new Date();
-  const destinations: TravelJurisdiction[] = [];
-  const corridorIds = new Set<CorridorId>();
-  let travelDate: Date | null = null;
-
-  for (const event of movementEvents) {
-    const p = (event.payload ?? {}) as Record<string, unknown>;
-    if (p.sub_kind === "jurisdiction_changed") {
-      destinations.push({
-        country: typeof p.to_country === "string" ? p.to_country : "AR",
-        province: typeof p.to_province === "string" ? p.to_province : null,
-        locality: typeof p.to_locality === "string" ? p.to_locality : null,
-      });
-    }
-    if (p.sub_kind === "transport_recorded" && typeof p.travel_date === "string") {
-      const date = new Date(p.travel_date);
-      if (!Number.isFinite(date.getTime())) continue;
-      if (date.getTime() < now.getTime() - RECENT_TRAVEL_WINDOW_MS) continue; // stale trip
-      if (typeof p.corridor_id === "string") corridorIds.add(p.corridor_id as CorridorId);
-      // Earliest relevant travel date drives deadline evaluation.
-      if (!travelDate || date < travelDate) travelDate = date;
-    }
-  }
-
-  const corridors: Corridor[] = [...corridorIds].map((id) => getCorridor(id));
+  const context = deriveTravelContext(
+    movementEvents.map((e) => (e.payload ?? {}) as Record<string, unknown>),
+    now,
+  );
+  const corridors = context.corridorIds.map((id) => getCorridor(id as CorridorId));
 
   const state = deriveTravelCompliance({
     now,
@@ -121,9 +92,9 @@ export default async function ViajePage({
       province: pet.jurisdictionProvince,
       locality: pet.jurisdictionLocality,
     },
-    destinations,
+    destinations: context.destinations,
     corridors,
-    travelDate,
+    travelDate: context.travelDate,
     events: events
       .filter((e) => e.eventType === "vaccination_administered")
       .map((e) => ({ eventType: e.eventType, payload: e.payload, occurredAt: e.occurredAt })),
@@ -146,6 +117,8 @@ export default async function ViajePage({
         </h2>
         <TravelObligationsPanel obligations={state.obligations} />
       </section>
+
+      <TravelExportButton petPublicToken={pet.publicToken} />
 
       <p className="text-xs text-[var(--color-ln-mute)]">
         <Link href={`/mis-mascotas/${pet.publicToken}`} className="underline">
