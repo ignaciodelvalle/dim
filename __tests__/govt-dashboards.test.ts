@@ -498,29 +498,26 @@ describe("jurisdiction drift — export & analytics fetchers fitness sweep (task
     expect(r.find((row) => row.cause === "accident")).toBeUndefined();
   });
 
-  it(
-    "fetchEventsForExport: govt export excludes events from a pet that moved OUT of scope (pets-current-jurisdiction guard, matching its sibling fetchers)",
-    async () => {
-      const movedId = await insertFixturePet({
-        name: "DriftSweepEventsExpMoved",
-        species: "dog",
-        province: "Buenos Aires",
-        locality: "La Plata",
-      });
-      await emitOutbreakSignal({
-        petId: movedId,
-        diseaseCode: "drift_sweep_export_disease",
-        province: SWEEP_PROV,
-        locality: SWEEP_LOC,
-        hoursAgo: 1,
-      });
-      const movedToken = await petPublicTokenOf(movedId);
+  it("fetchEventsForExport: govt export excludes events from a pet that moved OUT of scope (pets-current-jurisdiction guard, matching its sibling fetchers)", async () => {
+    const movedId = await insertFixturePet({
+      name: "DriftSweepEventsExpMoved",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    await emitOutbreakSignal({
+      petId: movedId,
+      diseaseCode: "drift_sweep_export_disease",
+      province: SWEEP_PROV,
+      locality: SWEEP_LOC,
+      hoursAgo: 1,
+    });
+    const movedToken = await petPublicTokenOf(movedId);
 
-      const r = await fetchEventsForExport({ role: "govt" }, SWEEP_SCOPE);
-      const tokens = r.map((row) => row.petPublicToken);
-      expect(tokens).not.toContain(movedToken);
-    },
-  );
+    const r = await fetchEventsForExport({ role: "govt" }, SWEEP_SCOPE);
+    const tokens = r.map((row) => row.petPublicToken);
+    expect(tokens).not.toContain(movedToken);
+  });
 });
 
 describe("fetchDiseaseSummary", () => {
