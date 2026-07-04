@@ -91,6 +91,17 @@ async function insertTestDog(ownerUid: string, breed: string, suffix: string) {
 }
 
 beforeAll(async () => {
+  // Self-heal: a prior run that died mid-test (e.g. timeout under parallel
+  // load, 2026-07-04) leaves the province-scoped fixture rule behind —
+  // afterAll only knows ids pushed AFTER a successful create. Delete any
+  // leftover before asserting creation succeeds.
+  await db.execute(sql`
+    delete from govt_business_rules
+    where rule_type = 'ppp_breed_list'
+      and jurisdiction_province = ${TEST_PROVINCE}
+      and jurisdiction_locality is null
+      and notes = 'test rule'
+  `);
   adminUserId = await ensureUser(ADMIN_EMAIL);
   await db
     .update(profiles)

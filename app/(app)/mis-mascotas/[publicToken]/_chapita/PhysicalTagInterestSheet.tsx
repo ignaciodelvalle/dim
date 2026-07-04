@@ -123,8 +123,14 @@ export function PhysicalTagInterestSheet({
             </p>
             {channels.printable_qr && (
               <p className="text-sm text-[var(--color-ln-ink-2)]">
-                QR imprimible en casa — descargá el código de {petName} y pegalo en cualquier
-                chapita física propia.
+                QR imprimible en casa —{" "}
+                <a
+                  href={`/mis-mascotas/${petPublicToken}/chapita`}
+                  className="font-medium text-[var(--color-ln-azul)] underline underline-offset-2"
+                >
+                  imprimí la chapita de {petName}
+                </a>{" "}
+                y pegala en cualquier chapita física propia.
               </p>
             )}
             {channels.engraved_plate.enabled && (

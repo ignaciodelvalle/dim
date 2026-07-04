@@ -24,6 +24,9 @@
 
 import { describe, expect, it } from "vitest";
 
+import { sql } from "drizzle-orm";
+
+import { db } from "@/db";
 import type { DashboardActor } from "@/lib/metrics";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 
@@ -71,14 +74,53 @@ describe("U5 rollup — province total equals the sum of its localities (mortali
       }
     }
 
+    // Pets counted at province level but INVISIBLE at locality level: the
+    // locality rollup filters `jurisdiction_locality IS NOT NULL` (it can only
+    // paint geocodable cells), while the province rollup counts every pet in
+    // the province. Deceased pets with a NULL locality (e.g. the 2026-07-04
+    // drift reconciliation marked ~3.3k PANO pets deceased, many without
+    // locality) are a legitimate residual, not a projection bug — so the
+    // accounting identity must include it:
+    //   provTotal == visibleSum + hiddenSuppressed + nullLocality
+    // Surfacing this residual in the UI ("X sin localidad asignada") is
+    // tracked in the gob data-quality slice (task #44).
+    const nullLocRows = await db.execute<{ province: string; n: string }>(sql`
+      SELECT jurisdiction_province AS province, COUNT(*) AS n
+      FROM pets
+      WHERE status = 'deceased'
+        AND jurisdiction_province IS NOT NULL
+        AND jurisdiction_locality IS NULL
+      GROUP BY jurisdiction_province
+    `);
+    const nullLocByCode = new Map<string, number>();
+    for (const r of nullLocRows) {
+      const code = NAME_TO_CODE.get(r.province);
+      if (code) nullLocByCode.set(code, Number(r.n));
+    }
+
+    // Under PER_LAYER_CAP truncation the locality layer legitimately DROPS
+    // whole tail provinces (the 2026-07-04 drift reconciliation pushed the
+    // deceased locality rollup past the cap for the first time). The exact
+    // identity only holds untruncated; when truncated, only the lower bound
+    // survives (visible cells can never exceed the province total).
     let provincesChecked = 0;
     for (const [code, provTotal] of provTotalByCode) {
+      if (loc.truncated) {
+        const visibleSumT = visibleSumByCode.get(code) ?? 0;
+        const suppressedT = suppressedCountByCode.get(code) ?? 0;
+        // Strict lower bound: truncation only REMOVES cells, so the cells
+        // that survive can never sum past the province total.
+        expect(provTotal).toBeGreaterThanOrEqual(visibleSumT + suppressedT);
+        provincesChecked += 1;
+        continue;
+      }
       const visibleSum = visibleSumByCode.get(code) ?? 0;
       const suppressed = suppressedCountByCode.get(code) ?? 0;
-      expect(provTotal).toBeGreaterThanOrEqual(visibleSum + suppressed);
-      expect(provTotal).toBeLessThanOrEqual(visibleSum + suppressed * 4);
+      const nullLoc = nullLocByCode.get(code) ?? 0;
+      expect(provTotal).toBeGreaterThanOrEqual(visibleSum + suppressed + nullLoc);
+      expect(provTotal).toBeLessThanOrEqual(visibleSum + suppressed * 4 + nullLoc);
       // Exact equality where there is nothing suppressed to hide.
-      if (suppressed === 0) expect(provTotal).toBe(visibleSum);
+      if (suppressed === 0) expect(provTotal).toBe(visibleSum + nullLoc);
       provincesChecked += 1;
     }
 

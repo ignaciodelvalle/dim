@@ -1,0 +1,66 @@
+/* Print styles for the self-print chapita sheet (task #43).
+ *
+ * Real-world millimetre sizing: the cut-outs must match physical tag
+ * holders when printed at 100% scale (no fit-to-page). Screen shows a
+ * paper-like preview; print strips the chrome and keeps only the sheet.
+ */
+
+@media print {
+  /* Hide the app shell + on-screen controls. */
+  header,
+  nav,
+  aside,
+  .chapita-no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  .chapita-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 10mm !important;
+    max-width: none !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+}
+
+/* Cut-out formats — mm units so 100%-scale printing is true to size. */
+.chapita-circle {
+  width: 30mm;
+  height: 30mm;
+  border-radius: 50%;
+}
+
+.chapita-tag {
+  width: 50mm;
+  height: 30mm;
+  border-radius: 3mm;
+}
+
+.chapita-card {
+  width: 85.6mm;
+  height: 54mm;
+  border-radius: 3mm;
+}
+
+.chapita-cut {
+  border: 0.4mm dashed var(--color-ln-line-strong);
+  background: white;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.chapita-qr svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

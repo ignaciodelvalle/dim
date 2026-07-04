@@ -52,6 +52,59 @@ import { Tier2MedicalView } from "./Tier2MedicalView";
 // sighting pages that also carry this export).
 export const dynamic = "force-dynamic";
 
+/**
+ * Open Graph metadata for share previews (task #43, share-first lost flow).
+ * When a lost-pet link lands in a WhatsApp chat or a barrio Facebook group,
+ * this preview card — photo, urgent title — is what carries the message; a
+ * bare URL gets scrolled past.
+ *
+ * Privacy: name, species and photo only — the same Tier 0 subset the page
+ * itself shows to anyone. No owner PII, no location.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ publicToken: string }>;
+}) {
+  const { publicToken } = await params;
+  const [row] = await db
+    .select({
+      name: pets.name,
+      species: pets.species,
+      status: pets.status,
+      photoPath: attachments.storagePath,
+    })
+    .from(pets)
+    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+    .where(eq(pets.publicToken, publicToken))
+    .limit(1);
+  if (!row) return { title: "Credencial | MiMAR" };
+
+  const isLost = row.status === "lost";
+  const title = isLost ? `SE BUSCA: ${row.name} | MiMAR` : `${row.name} | Credencial MiMAR`;
+  const description = isLost
+    ? `${row.name} (${speciesLabel(row.species)}) está perdida. Si la viste, tocá para avisarle a su familia.`
+    : `Credencial pública de ${row.name} (${speciesLabel(row.species)}), verificable por QR.`;
+  const photoUrl = petPhotoUrl(row.photoPath ?? undefined);
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      ...(photoUrl ? { images: [{ url: photoUrl }] } : {}),
+    },
+    twitter: {
+      card: photoUrl ? "summary_large_image" : "summary",
+      title,
+      description,
+      ...(photoUrl ? { images: [photoUrl] } : {}),
+    },
+  };
+}
+
 // Per-IP limit for the public credential read path.
 // 60/min: generous enough for a legitimate user refreshing in a noisy carrier-
 //   grade NAT environment (many users behind one IP) or a viral lost-pet post

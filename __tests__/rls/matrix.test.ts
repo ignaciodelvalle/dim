@@ -19,7 +19,15 @@ import { type SupabaseClient, createClient } from "@supabase/supabase-js";
 import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, db, ownerships, petAchievementViews, petEvents, pets } from "@/db";
+import {
+  cases,
+  db,
+  ownerships,
+  petAchievementViews,
+  petEvents,
+  petIdentifications,
+  pets,
+} from "@/db";
 import { generateUniqueCasePublicCode } from "@/lib/infra/case-helpers";
 import { withMutationOverride } from "../_helpers/db-overrides";
 import { RLS_MATRIX, type RlsOperation, type RlsRole } from "./matrix.data";
@@ -62,6 +70,7 @@ let ownerPetId: string | null = null;
 let setupError: string | null = null;
 let fixtureCaseId: string | null = null;
 let fixtureAchievementViewId: string | null = null;
+let fixtureIdentificationId: string | null = null;
 // pet-document-redesign REQ-1.2/1.3 (migration 0115) fixtures. Uses a
 // DEDICATED second pet (not `ownerPetId`) so its case-attached pet_events
 // don't leak into the generic `table: pet_events` probes above, which grant
@@ -181,6 +190,29 @@ beforeAll(async () => {
     fixtureAchievementViewId = avRow?.id ?? null;
   }
 
+  // Fixture pet_identifications row — the probe used to rely on SEEDED
+  // identifications for the owner pet, and the S002 cache-integrity cleanup
+  // (task #36) legitimately deleted cache rows without microchip events,
+  // silently flipping the owner/admin allow probes to deny. Self-provision
+  // instead (service role bypasses RLS; bare cache row is fine here — this
+  // table probes POLICIES, not projection integrity). Cleaned up in afterAll.
+  if (ownerPetId) {
+    const [idRow] = await db
+      .insert(petIdentifications)
+      .values({
+        petId: ownerPetId,
+        // collar_tag: exempt from chip_requires_iso_fields — we probe POLICIES,
+        // not chip semantics.
+        kind: "collar_tag",
+        code: "RLS-MATRIX-FIXTURE-CHIP",
+        status: "active",
+        recordedAt: new Date().toISOString().slice(0, 10),
+      })
+      .onConflictDoNothing()
+      .returning({ id: petIdentifications.id });
+    fixtureIdentificationId = idRow?.id ?? null;
+  }
+
   // Fixture welfare_denuncia case + bridge pet_event, tied to a DEDICATED
   // second owner pet — needed so the pet_events welfare-bridge probes
   // (migration 0115, REQ-1.2/1.3) have something to (de)authorize against
@@ -257,6 +289,9 @@ beforeAll(async () => {
 afterAll(async () => {
   for (const ctx of contexts.values()) {
     await ctx.client.auth.signOut().catch(() => {});
+  }
+  if (fixtureIdentificationId) {
+    await db.delete(petIdentifications).where(eq(petIdentifications.id, fixtureIdentificationId));
   }
   if (fixtureCaseId) {
     await db
