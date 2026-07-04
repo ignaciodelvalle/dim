@@ -53,6 +53,22 @@ function casesScopeClause(ctx: ProjectionContext) {
   return sql.join(pairs, sql` OR `);
 }
 
+// Pets-table jurisdiction guard for govt scope (scope-security review
+// 2026-07-04 Part A2). The payload's pet_jurisdiction_* fields are a snapshot
+// taken at event time; when a pet moves (or seed data drifts) they diverge
+// from the pet's CURRENT pets.jurisdiction_*, and a payload-only scope counts
+// out-of-jurisdiction pets into govt aggregates. This guard requires the pet's
+// current jurisdiction to be in scope too, via an EXISTS subquery so callers
+// that don't join pets stay join-free. Admin (global scope, including the
+// province drill-down) keeps its existing payload-based behavior — the guard
+// applies ONLY to the govt branch.
+function petsCurrentJurisdictionGuard(ctx: ProjectionContext) {
+  if (ctx.scope.kind !== "jurisdictions") return null;
+  const scope = petsScopeClause(ctx);
+  if (!scope) return null;
+  return sql`EXISTS (SELECT 1 FROM ${pets} WHERE ${pets.id} = ${petEvents.petId} AND (${scope}))`;
+}
+
 // Scope clause for welfare_reports rows.
 function welfareReportsScopeClause(ctx: ProjectionContext) {
   if (ctx.scope.kind === "global") {
@@ -286,6 +302,10 @@ export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise
 
   const baseConditions = [eq(petEvents.eventType, "sterilization_performed")];
   if (scope) baseConditions.push(sql`(${scope})`);
+  // Payload jurisdiction is an event-time snapshot — also require the pet's
+  // CURRENT jurisdiction in scope (scope-security review 2026-07-04 A2).
+  const petsGuard = petsCurrentJurisdictionGuard(ctx);
+  if (petsGuard) baseConditions.push(petsGuard);
 
   const currentConditions = [...baseConditions, gte(petEvents.occurredAt, since30d)];
   const prevConditions = [
@@ -395,6 +415,10 @@ export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer
     sql`(${petEvents.payload}->>'incident_type') = ${"bite_inflicted"}`,
   ];
   if (scope) baseConditions.push(sql`(${scope})`);
+  // Payload jurisdiction is an event-time snapshot — also require the pet's
+  // CURRENT jurisdiction in scope (scope-security review 2026-07-04 A2).
+  const petsGuard = petsCurrentJurisdictionGuard(ctx);
+  if (petsGuard) baseConditions.push(petsGuard);
 
   const currentConditions = [...baseConditions, gte(petEvents.occurredAt, since12m)];
   const prevConditions = [
@@ -472,13 +496,19 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
   const casesScope = casesScopeClause(ctx);
 
   // Disease reports (handoff P4-3) — scoped + last 30 days, split by
-  // the payload.disease discriminator.
+  // the payload.disease discriminator. The disease_reported arms carry no pets
+  // join (unlike the rabies/bite arms, which scope on pets/cases columns), so
+  // they need the pets-table guard against payload-jurisdiction drift
+  // (scope-security review 2026-07-04 A2).
+  const petsGuard = petsCurrentJurisdictionGuard(ctx);
+
   const leptoConditions = [
     eq(petEvents.eventType, "disease_reported"),
     sql`(${petEvents.payload}->>'disease') = ${"lepto"}`,
     gte(petEvents.occurredAt, since30d),
   ];
   if (eventsScope) leptoConditions.push(sql`(${eventsScope})`);
+  if (petsGuard) leptoConditions.push(petsGuard);
 
   const hidatConditions = [
     eq(petEvents.eventType, "disease_reported"),
@@ -486,6 +516,7 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
     gte(petEvents.occurredAt, since30d),
   ];
   if (eventsScope) hidatConditions.push(sql`(${eventsScope})`);
+  if (petsGuard) hidatConditions.push(petsGuard);
 
   // 1. Pets with active rabies observation (status column on pets table).
   //    Returned separately for the sub-label in the KPI tile ("X rabia").

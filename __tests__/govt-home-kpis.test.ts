@@ -10,9 +10,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, jurisdictionsCensus, petEvents, pets } from "@/db";
 import {
+  fetchActiveZoonosis,
   fetchBitesPer10k,
   fetchRabiesCoverage,
   fetchRabiesCoverageByProvince,
+  fetchSterilizationMetrics,
 } from "@/lib/analytics/govt-home-kpis";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
@@ -169,6 +171,125 @@ describe("fetchBitesPer10k — census denominator", () => {
     // Mainly asserting it doesn't throw and returns a non-negative number.
     expect(kpi.rate).toBeGreaterThanOrEqual(0);
     expect(kpi.reports).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Payload/pets jurisdiction drift (scope-security review 2026-07-04 A2)
+// ---------------------------------------------------------------------------
+//
+// Event payloads carry pet_jurisdiction_* as an event-time snapshot. When the
+// pet later moves, the payload and pets.jurisdiction_* diverge; payload-only
+// scoping would count the (moved-away) pet into the OLD jurisdiction's govt
+// aggregates. Fixtures: one pet that moved out of scope (payload in scope,
+// current jurisdiction elsewhere) and one resident pet (both in scope), in a
+// unique locality so scoped counts are exactly ours.
+
+describe("govt KPI aggregates — payload/pets jurisdiction drift", () => {
+  const DRIFT_PROVINCE = "Santa Fe";
+  const DRIFT_LOCALITY = "DriftKpiVille"; // unique to this suite
+  const TOKEN_MOVED = "HK-DRIFT-KPI-01";
+  const TOKEN_RESIDENT = "HK-DRIFT-KPI-02";
+
+  let movedPetId: string;
+  let residentPetId: string;
+
+  const driftCtx = () =>
+    buildProjectionContext(
+      { role: "govt" },
+      [{ province: DRIFT_PROVINCE, locality: DRIFT_LOCALITY }],
+      windows.trailing12m(),
+    );
+
+  async function cleanupDriftFixtures() {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        DELETE FROM pet_events
+        WHERE pet_id IN (
+          SELECT id FROM pets WHERE public_token IN (${TOKEN_MOVED}, ${TOKEN_RESIDENT})
+        )
+      `);
+      await tx.execute(sql`
+        DELETE FROM pets WHERE public_token IN (${TOKEN_MOVED}, ${TOKEN_RESIDENT})
+      `);
+    });
+  }
+
+  async function insertDriftEvent(
+    petId: string,
+    eventType: string,
+    extraPayload: Record<string, unknown>,
+  ) {
+    await db.insert(petEvents).values({
+      petId,
+      eventType,
+      occurredAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      payload: {
+        payload_version: 1,
+        ...extraPayload,
+        // Payload snapshot claims the DRIFT jurisdiction for BOTH pets; only
+        // the resident pet's CURRENT pets.jurisdiction_* matches it.
+        pet_jurisdiction_province: DRIFT_PROVINCE,
+        pet_jurisdiction_locality: DRIFT_LOCALITY,
+      },
+      authorRole: "vet",
+      recordedByUserId: null,
+    });
+  }
+
+  beforeAll(async () => {
+    await cleanupDriftFixtures();
+
+    const inserted = await db
+      .insert(pets)
+      .values([
+        {
+          publicToken: TOKEN_MOVED,
+          name: "DriftMovedKpiDog",
+          species: "dog",
+          // Moved away: current jurisdiction differs from the event payloads.
+          jurisdictionProvince: "Córdoba",
+          jurisdictionLocality: "Córdoba",
+        },
+        {
+          publicToken: TOKEN_RESIDENT,
+          name: "DriftResidentKpiDog",
+          species: "dog",
+          jurisdictionProvince: DRIFT_PROVINCE,
+          jurisdictionLocality: DRIFT_LOCALITY,
+        },
+      ])
+      .returning({ id: pets.id, publicToken: pets.publicToken });
+    movedPetId = inserted.find((p) => p.publicToken === TOKEN_MOVED)?.id as string;
+    residentPetId = inserted.find((p) => p.publicToken === TOKEN_RESIDENT)?.id as string;
+
+    for (const petId of [movedPetId, residentPetId]) {
+      await insertDriftEvent(petId, "incident_reported", {
+        incident_type: "bite_inflicted",
+        severity: "minor",
+        victim_species: "human",
+      });
+      await insertDriftEvent(petId, "sterilization_performed", {});
+      await insertDriftEvent(petId, "disease_reported", { disease: "lepto" });
+    }
+  });
+
+  afterAll(cleanupDriftFixtures);
+
+  it("fetchBitesPer10k counts only the resident pet's bite", async () => {
+    const kpi = await fetchBitesPer10k(driftCtx());
+    expect(kpi.reports).toBe(1);
+  });
+
+  it("fetchSterilizationMetrics counts only the resident pet's sterilization", async () => {
+    const kpi = await fetchSterilizationMetrics(driftCtx());
+    expect(kpi.count).toBe(1);
+  });
+
+  it("fetchActiveZoonosis disease arms count only the resident pet's report", async () => {
+    const kpi = await fetchActiveZoonosis(driftCtx());
+    expect(kpi.lepto).toBe(1);
+    expect(kpi.hidat).toBe(0);
   });
 });
 
