@@ -5,9 +5,13 @@
 // Business logic moved to:
 //   src/modules/service-offerings/application/schedule-rules/
 //
-// This file re-exports all writer functions (used by integration tests)
-// and provides thin Action wrappers (used by UI components) that add
-// the auth guard + revalidatePath.
+// This file provides thin Action wrappers (used by UI components) that add
+// the auth guard + revalidatePath. The bare ForOrg writers are NOT exported
+// here (authz triage 2026-07-04): every export of a "use server" file is an
+// independently-addressable server action, so a bare writer taking a
+// caller-supplied actorUserId/orgId would let any client edit another org's
+// schedule. Callers import the writers from
+// src/modules/service-offerings/application/schedule-rules/ directly.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -18,10 +22,7 @@ import { requireCapability } from "@/src/modules/organizations/infrastructure/au
 
 import { createScheduleRuleForOrg as _createScheduleRuleForOrg } from "@/src/modules/service-offerings/application/schedule-rules/create-schedule-rule";
 import { deleteScheduleRuleForOrg as _deleteScheduleRuleForOrg } from "@/src/modules/service-offerings/application/schedule-rules/delete-schedule-rule";
-import type {
-  ScheduleRuleFormState,
-  ScheduleRuleResult,
-} from "@/src/modules/service-offerings/application/schedule-rules/types";
+import type { ScheduleRuleFormState } from "@/src/modules/service-offerings/application/schedule-rules/types";
 import { updateScheduleRuleForOrg as _updateScheduleRuleForOrg } from "@/src/modules/service-offerings/application/schedule-rules/update-schedule-rule";
 
 // ---------------------------------------------------------------------------
@@ -32,48 +33,6 @@ export type {
   ScheduleRuleFormState,
   ScheduleRuleResult,
 } from "@/src/modules/service-offerings/application/schedule-rules/types";
-
-// ---------------------------------------------------------------------------
-// Writer re-exports — async wrappers (identical signatures, used by tests)
-// ---------------------------------------------------------------------------
-
-export async function createScheduleRuleForOrg(
-  actorUserId: string,
-  orgId: string,
-  input: {
-    serviceOfferingId: string;
-    daysOfWeek: number[];
-    startTimeLocal: string;
-    endTimeLocal: string;
-    effectiveFrom: string;
-    effectiveUntil: string | null;
-  },
-): Promise<ScheduleRuleResult> {
-  return _createScheduleRuleForOrg(actorUserId, orgId, input);
-}
-
-export async function updateScheduleRuleForOrg(
-  actorUserId: string,
-  ruleId: string,
-  orgId: string,
-  input: {
-    daysOfWeek?: number[];
-    startTimeLocal?: string;
-    endTimeLocal?: string;
-    effectiveFrom?: string;
-    effectiveUntil?: string | null;
-  },
-): Promise<ScheduleRuleResult> {
-  return _updateScheduleRuleForOrg(actorUserId, ruleId, orgId, input);
-}
-
-export async function deleteScheduleRuleForOrg(
-  actorUserId: string,
-  ruleId: string,
-  orgId: string,
-): Promise<ScheduleRuleResult> {
-  return _deleteScheduleRuleForOrg(actorUserId, ruleId, orgId);
-}
 
 // ---------------------------------------------------------------------------
 // Form-shaped wrappers — gate auth + capability, delegate to inner writers
@@ -100,7 +59,7 @@ export async function createScheduleRuleAction(
   const effectiveUntilRaw = String(formData.get("effectiveUntil") ?? "").trim();
   const effectiveUntil = effectiveUntilRaw || null;
 
-  const result = await createScheduleRuleForOrg(user.id, organization.id, {
+  const result = await _createScheduleRuleForOrg(user.id, organization.id, {
     serviceOfferingId,
     daysOfWeek: daysRaw.filter((d) => !Number.isNaN(d)),
     startTimeLocal,
@@ -141,7 +100,7 @@ export async function updateScheduleRuleAction(
   const effectiveUntil =
     effectiveUntilRaw !== null ? String(effectiveUntilRaw).trim() || null : undefined;
 
-  const result = await updateScheduleRuleForOrg(user.id, ruleId, organization.id, {
+  const result = await _updateScheduleRuleForOrg(user.id, ruleId, organization.id, {
     daysOfWeek: daysRaw.length > 0 ? daysRaw.filter((d) => !Number.isNaN(d)) : undefined,
     startTimeLocal,
     endTimeLocal,
@@ -172,7 +131,7 @@ export async function deleteScheduleRuleAction(
   // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const organization = auth.organization!;
 
-  const result = await deleteScheduleRuleForOrg(user.id, ruleId, organization.id);
+  const result = await _deleteScheduleRuleForOrg(user.id, ruleId, organization.id);
   if ("error" in result) return { error: result.error };
 
   revalidatePath(`/org/${orgToken}/servicios/${offeringToken}/agenda`);

@@ -21,7 +21,6 @@ import { and, eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { recordPregnancyStartedWriter } from "@/app/actions/pregnancy";
-import { createTattooForUser } from "@/app/actions/tattoo";
 import {
   custodyDisputes,
   db,
@@ -34,6 +33,7 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { CHECKED_COLUMN_NAMES, hasDrift, rederivePetCache } from "@/lib/infra/rederive-pet-cache";
+import { createTattooForUser } from "@/src/modules/pets/application/tattoo/create-tattoo";
 import { sql } from "drizzle-orm";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

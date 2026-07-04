@@ -12,8 +12,9 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { logPiiQueryForAuthority, logPiiReadSafely } from "@/app/actions/admin-proposals";
+import { logPiiReadSafely } from "@/app/actions/admin-proposals";
 import { auditLog, db, profiles } from "@/db";
+import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

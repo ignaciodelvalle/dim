@@ -14,12 +14,6 @@ import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  logPiiQueryForAuthority,
-  proposeOrgVerificationForOrg,
-  proposeVetUpgradeForUser,
-} from "@/app/actions/admin-proposals";
-import { createOrganizationForUser } from "@/app/actions/upgrade";
-import {
   approvalRequests,
   auditLog,
   db,
@@ -31,6 +25,10 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
+import { proposeOrgVerificationForOrg } from "@/src/modules/organizations/application/admin-proposals/propose-org-verification";
+import { proposeVetUpgradeForUser } from "@/src/modules/organizations/application/admin-proposals/propose-vet-upgrade";
+import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

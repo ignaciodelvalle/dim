@@ -8,14 +8,12 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  createLibretaShareForUser,
-  logLibretaShareViewForToken,
-  revokeLibretaShareForUser,
-} from "@/app/actions/libreta-share";
+import { logLibretaShareViewForToken } from "@/app/actions/libreta-share";
 import { db, libretaShareTokens, ownerships, pets, profiles, shareTelemetry } from "@/db";
 import { generateLibretaShareToken } from "@/lib/infra/publicToken";
+import { createLibretaShareForUser } from "@/src/modules/pets/application/libreta-share/create-libreta-share";
 import { getActiveLibretaShares } from "@/src/modules/pets/application/libreta-share/get-active-libreta-shares";
+import { revokeLibretaShareForUser } from "@/src/modules/pets/application/libreta-share/revoke-libreta-share";
 import { findPetPublicTokenForShare } from "@/src/modules/pets/application/libreta-share/revoke-libreta-share";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

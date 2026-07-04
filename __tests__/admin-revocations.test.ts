@@ -13,12 +13,6 @@ import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  revokeGovtLocalityForAuthority,
-  revokeOrgVerificationForAuthority,
-  revokeVetRoleForAuthority,
-} from "@/app/actions/admin-revocations";
-import { createOrganizationForUser } from "@/app/actions/upgrade";
-import {
   attachments,
   auditLog,
   db,
@@ -30,7 +24,11 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { revokeGovtLocalityForAuthority } from "@/src/modules/organizations/application/revocations/revoke-govt-locality";
+import { revokeOrgVerificationForAuthority } from "@/src/modules/organizations/application/revocations/revoke-org-verification";
+import { revokeVetRoleForAuthority } from "@/src/modules/organizations/application/revocations/revoke-vet-role";
 import { uploadRevocationEvidence } from "@/src/modules/organizations/application/revocations/upload-evidence";
+import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

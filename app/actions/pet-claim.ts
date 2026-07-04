@@ -5,9 +5,13 @@
 // Business logic moved to:
 //   src/modules/pets/application/claim/
 //
-// This file re-exports all ForUser writers (used by integration tests)
-// and provides thin Action wrappers (used by UI components) that add
-// the auth guard + revalidatePath.
+// This file provides thin Action wrappers (used by UI components) that add
+// the auth guard + revalidatePath. The bare ForUser writers are NOT exported
+// here (authz triage 2026-07-04): every export of a "use server" file is an
+// independently-addressable server action, so a bare writer taking a
+// caller-supplied userId would let any client claim/dispute pets as any
+// user. Callers import the writers from
+// src/modules/pets/application/claim/ directly.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -31,22 +35,6 @@ export type {
   ClaimDisputeResult,
   FreeClaimResult,
 } from "@/src/modules/pets/application/claim/types";
-
-// ---------------------------------------------------------------------------
-// ForUser re-exports — async wrappers (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function lookupForClaimForUser(...args: Parameters<typeof _lookupForClaim>) {
-  return _lookupForClaim(...args);
-}
-
-export async function submitClaimDisputeForUser(...args: Parameters<typeof _submitClaimDispute>) {
-  return _submitClaimDispute(...args);
-}
-
-export async function submitFreeClaimForUser(...args: Parameters<typeof _submitFreeClaim>) {
-  return _submitFreeClaim(...args);
-}
 
 // ---------------------------------------------------------------------------
 // Action wrappers — thin controllers for UI components

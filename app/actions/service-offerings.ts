@@ -5,10 +5,14 @@
 // Business logic lives in src/modules/service-offerings/application/.
 // This file: parse input · AUTH guard · delegate to use-case · revalidate/redirect.
 //
-// Writer/wrapper split (preserved):
-//   - createServiceOfferingForOrg / approveServiceOfferingForAuthority /
-//     rejectServiceOfferingForAuthority / updateOfferingCapacityWriter are
-//     re-exported from their use-case modules so existing callers keep working.
+// Writer/wrapper split (authz triage 2026-07-04): the bare ForOrg /
+// ForAuthority writers are NOT exported here — every export of a "use
+// server" file is an independently-addressable server action, so a bare
+// writer taking a caller-supplied actorUserId/orgId would let any client
+// create or approve offerings as any org/authority. Callers import them
+// from src/modules/service-offerings/application/ directly.
+// updateOfferingCapacityWriter (id-scoped, no actor param) remains exported
+// for the capacity-sync test surface.
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -43,56 +47,9 @@ export type { UpdateCapacityResult } from "@/src/modules/service-offerings/domai
 export type { ServiceOfferingFormState } from "@/src/modules/service-offerings/domain/types";
 
 // ============================================================================
-// Inner writers — thin pass-through wrappers so callers (tests, other actions)
-// can import from this path unchanged. These are async functions, satisfying
-// the "use server" constraint ("use server" only allows async function exports).
-// No auth logic — callers are trusted (server-side only).
+// Inner writer — id-scoped, no actor parameter; kept for the capacity-sync
+// test surface. The impersonation-class writers were removed (see header).
 // ============================================================================
-
-export async function createServiceOfferingForOrg(
-  actorUserId: string,
-  orgId: string,
-  orgToken: string,
-  orgDisplayName: string,
-  orgProvince: string | null,
-  orgLocality: string | null,
-  input: {
-    serviceKind: string;
-    displayName: string;
-    description: string | null;
-    durationMinutes: number;
-    slotCapacity: number;
-    priceArs: number | null;
-    eligibilitySpecies: ("dog" | "cat")[] | null;
-    eligibilityAgeMinMonths: number | null;
-    eligibilityAgeMaxMonths: number | null;
-  },
-): Promise<ServiceOfferingResult> {
-  return createServiceOfferingForOrgUC(
-    actorUserId,
-    orgId,
-    orgToken,
-    orgDisplayName,
-    orgProvince,
-    orgLocality,
-    input,
-  );
-}
-
-export async function approveServiceOfferingForAuthority(
-  actorUserId: string,
-  publicToken: string,
-): Promise<ServiceOfferingResult> {
-  return approveServiceOfferingForAuthorityUC(actorUserId, publicToken);
-}
-
-export async function rejectServiceOfferingForAuthority(
-  actorUserId: string,
-  publicToken: string,
-  rejectionReason: string,
-): Promise<ServiceOfferingResult> {
-  return rejectServiceOfferingForAuthorityUC(actorUserId, publicToken, rejectionReason);
-}
 
 export async function updateOfferingCapacityWriter(
   offeringId: string,

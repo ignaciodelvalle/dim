@@ -5,9 +5,12 @@
 // Business logic moved to:
 //   src/modules/organizations/application/admin-institutional/
 //
-// This file re-exports the ForAuthority writers (used by integration tests
-// and other server actions) and provides thin Action wrappers (used by UI
-// components) that add the auth guard + revalidatePath.
+// This file provides thin Action wrappers (used by UI components) that add
+// the auth guard + revalidatePath. The ForAuthority writers are NOT exported
+// here (authz triage 2026-07-04): every export of a "use server" file is an
+// independently-addressable server action, so a bare writer taking a
+// caller-supplied actorUserId would let any client act as any admin. Callers
+// that need a writer import it from its application module directly.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -29,50 +32,6 @@ export type { AssignGovtLocalityResult } from "@/src/modules/organizations/appli
 export type { CreateInstitutionalResult } from "@/src/modules/organizations/application/admin-institutional/types";
 export type { DeactivateResult } from "@/src/modules/organizations/application/admin-institutional/types";
 export type { ResetCredentialsResult } from "@/src/modules/organizations/application/admin-institutional/types";
-
-// ---------------------------------------------------------------------------
-// ForAuthority re-exports — async wrappers (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function createInstitutionalAccountForAuthority(
-  actorUserId: string,
-  input: {
-    role: "govt" | "admin";
-    email: string;
-    displayName: string;
-    initialLocalities: { province: string; locality: string }[];
-  },
-) {
-  return _createInstitutional(actorUserId, input);
-}
-
-export async function deactivateAdminForAuthority(
-  actorUserId: string,
-  input: { targetAdminUserId: string; motivo: string; attachmentIds: string[] },
-) {
-  return _deactivateAdmin(actorUserId, input);
-}
-
-export async function deactivateGovtForAuthority(
-  actorUserId: string,
-  input: { targetGovtUserId: string; motivo: string; attachmentIds: string[] },
-) {
-  return _deactivateGovt(actorUserId, input);
-}
-
-export async function resetInstitutionalCredentialsForAuthority(
-  actorUserId: string,
-  input: { targetUserId: string; reason: string },
-) {
-  return _resetCredentials(actorUserId, input);
-}
-
-export async function assignGovtLocalityForAuthority(
-  actorUserId: string,
-  input: { targetUserId: string; province: string; locality: string },
-) {
-  return _assignGovtLocality(actorUserId, input);
-}
 
 // ---------------------------------------------------------------------------
 // Action wrappers — thin controllers for UI components

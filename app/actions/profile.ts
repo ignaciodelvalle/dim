@@ -4,9 +4,13 @@
 //
 // Business logic moved to: src/modules/pets/application/profile/
 //
-// This file re-exports updateProfileForUser and uploadAvatarForUser (used by
-// integration tests and UI importers) and provides thin Action wrappers that
-// add the auth guard + revalidatePath.
+// This file provides thin Action wrappers that add the auth guard +
+// revalidatePath. The bare ForUser writers (updateProfileForUser,
+// uploadAvatarForUser) are NOT exported here (authz triage 2026-07-04):
+// every export of a "use server" file is an independently-addressable server
+// action, so a bare writer taking a caller-supplied userId would let any
+// client update ANY user's profile by UUID. Callers import the writers from
+// src/modules/pets/application/profile/ directly.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -30,18 +34,6 @@ export type {
   UploadAvatarResult,
 } from "@/src/modules/pets/application/profile/types";
 export type { UpdateEmergencyContactsInput } from "@/src/modules/pets/application/profile/update-emergency-contacts";
-
-// ---------------------------------------------------------------------------
-// Writer re-exports — async wrappers (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function updateProfileForUser(...args: Parameters<typeof _updateProfileForUser>) {
-  return _updateProfileForUser(...args);
-}
-
-export async function uploadAvatarForUser(...args: Parameters<typeof _uploadAvatarForUser>) {
-  return _uploadAvatarForUser(...args);
-}
 
 // ---------------------------------------------------------------------------
 // Action wrappers — thin controllers for UI components

@@ -5,9 +5,13 @@
 // Business logic moved to:
 //   src/modules/organizations/application/revocations/
 //
-// This file re-exports all ForAuthority writers (used by integration tests
-// and bulk-actions.ts) and provides thin Action wrappers (used by UI
-// components) that add the auth guard + revalidatePath.
+// This file provides thin Action wrappers (used by UI components) that add
+// the auth guard + revalidatePath. The ForAuthority writers are NOT exported
+// here (authz triage 2026-07-04): every export of a "use server" file is an
+// independently-addressable server action, so a bare writer taking a
+// caller-supplied actorUserId would let any client act as any authority.
+// Callers import the writers from
+// src/modules/organizations/application/revocations/ directly.
 //
 // claimAttachmentsForAudit: authoritative source is now revocations/helpers.ts.
 // admin-institutional/deactivate-admin and deactivate-govt import directly
@@ -39,46 +43,6 @@ export async function claimAttachmentsForAudit(
   ...args: Parameters<typeof _claimAttachments>
 ): Promise<void> {
   return _claimAttachments(...args);
-}
-
-// ---------------------------------------------------------------------------
-// ForAuthority re-exports — async wrappers (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function revokeVetRoleForAuthority(
-  actorUserId: string,
-  input: {
-    targetUserId: string;
-    motivo: string;
-    attachmentIds: string[];
-    bulkActionId?: string | null;
-  },
-) {
-  return _revokeVetRole(actorUserId, input);
-}
-
-export async function revokeOrgVerificationForAuthority(
-  actorUserId: string,
-  input: {
-    organizationId: string;
-    motivo: string;
-    attachmentIds: string[];
-    bulkActionId?: string | null;
-  },
-) {
-  return _revokeOrgVerification(actorUserId, input);
-}
-
-export async function revokeGovtLocalityForAuthority(
-  actorUserId: string,
-  input: {
-    govtAssignmentId: string;
-    motivo: string;
-    attachmentIds: string[];
-    bulkActionId?: string | null;
-  },
-) {
-  return _revokeGovtLocality(actorUserId, input);
 }
 
 // ---------------------------------------------------------------------------

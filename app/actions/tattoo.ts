@@ -5,32 +5,27 @@
 // Business logic moved to:
 //   src/modules/pets/application/tattoo/
 //
-// This file re-exports createTattooForUser (used by integration tests
-// and 2 UI importers) and provides createTattooAction
-// (outer auth-guarded server action used by UI components).
+// This file provides createTattooAction (outer auth-guarded server action
+// used by UI components). The bare createTattooForUser writer is NOT
+// exported here (authz triage 2026-07-04): every export of a "use server"
+// file is an independently-addressable server action, so a bare writer
+// taking caller-supplied petId/userId would let any client forge tattoo
+// events. Callers import it from
+// src/modules/pets/application/tattoo/create-tattoo directly.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
 import { redirect } from "next/navigation";
 
-import {
-  type PetEventAuthorship,
-  type SupabaseServerClient,
-  requireAlivePetAccess,
-} from "@/lib/infra/pet-access";
+import { type SupabaseServerClient, requireAlivePetAccess } from "@/lib/infra/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { parseDateInput } from "@/lib/utils/format";
 import {
   VALID_LOCATIONS,
   createTattooForUser as _createTattooForUser,
 } from "@/src/modules/pets/application/tattoo/create-tattoo";
-import type {
-  CreateTattooResult,
-  EventFormState,
-  TattooInput,
-  TattooLocation,
-} from "@/src/modules/pets/application/tattoo/types";
+import type { EventFormState, TattooLocation } from "@/src/modules/pets/application/tattoo/types";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
@@ -42,19 +37,6 @@ export type {
   TattooInput,
   TattooLocation,
 } from "@/src/modules/pets/application/tattoo/types";
-
-// ---------------------------------------------------------------------------
-// Writer re-export — async wrapper (used by integration tests and route actions)
-// ---------------------------------------------------------------------------
-
-export async function createTattooForUser(
-  petId: string,
-  userId: string,
-  eventAuthorship: PetEventAuthorship,
-  input: TattooInput,
-): Promise<CreateTattooResult> {
-  return _createTattooForUser(petId, userId, eventAuthorship, input);
-}
 
 // ---------------------------------------------------------------------------
 // Private helper — cleanup on failed insert (stays in shim: uses SupabaseServerClient).

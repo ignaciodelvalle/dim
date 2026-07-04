@@ -10,12 +10,6 @@ import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  approveRequestForAuthority,
-  logRequestViewedForAuthority,
-  rejectRequestForAuthority,
-} from "@/app/actions/admin-decisions";
-import { createOrganizationForUser, requestVetUpgradeForUser } from "@/app/actions/upgrade";
-import {
   approvalRequests,
   auditLog,
   db,
@@ -28,6 +22,11 @@ import {
   profiles,
 } from "@/db";
 import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
+import { approveRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/approve-request";
+import { logRequestViewedForAuthority } from "@/src/modules/organizations/application/admin-decisions/log-request-viewed";
+import { rejectRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/reject-request";
+import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
+import { requestVetUpgradeForUser } from "@/src/modules/organizations/application/upgrade/request-vet-upgrade";
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { expectDbError } from "./_helpers/expect-db-error";
 

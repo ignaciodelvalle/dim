@@ -21,7 +21,7 @@ describe("selfDeactivatePersonalAccountForUser input validation", () => {
   it("rejects reason shorter than 5 chars with REASON_TOO_SHORT", async () => {
     // Dynamic import so vitest doesn't try to execute the db import at parse time.
     const { selfDeactivatePersonalAccountForUser } = await import(
-      "@/app/actions/profile-self-service"
+      "@/src/modules/pets/application/profile/self-deactivate-personal-account"
     );
     // Pass a made-up userId that won't exist in the test DB — the guard
     // on reason length fires before the DB read.
@@ -34,7 +34,7 @@ describe("selfDeactivatePersonalAccountForUser input validation", () => {
 
   it("accepts a reason with exactly 5 chars (guard passes, DB read follows)", async () => {
     const { selfDeactivatePersonalAccountForUser } = await import(
-      "@/app/actions/profile-self-service"
+      "@/src/modules/pets/application/profile/self-deactivate-personal-account"
     );
     // The guard passes but the DB will return NOT_FOUND for a fake UUID.
     const result = await selfDeactivatePersonalAccountForUser(

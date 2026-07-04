@@ -81,9 +81,14 @@ if (!isLocal && ALLOW_REMOTE) {
 // ---------------------------------------------------------------------------
 
 const { and, eq, isNull } = await import("drizzle-orm");
-const { approveRequestForAuthority } = await import("../app/actions/admin-decisions");
-const { createOrganizationForUser, requestVetUpgradeForUser } = await import(
-  "../app/actions/upgrade"
+const { approveRequestForAuthority } = await import(
+  "../src/modules/organizations/application/admin-decisions/approve-request"
+);
+const { createOrganizationForUser } = await import(
+  "../src/modules/organizations/application/upgrade/create-organization"
+);
+const { requestVetUpgradeForUser } = await import(
+  "../src/modules/organizations/application/upgrade/request-vet-upgrade"
 );
 // NOTE: we deliberately do NOT import `createInstitutionalAccountForAuthority`
 // from `app/actions/admin-institutional.ts`. That writer transitively imports

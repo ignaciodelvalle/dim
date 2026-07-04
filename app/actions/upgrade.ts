@@ -5,9 +5,13 @@
 // Business logic moved to:
 //   src/modules/organizations/application/upgrade/
 //
-// This file re-exports the ForUser writers (used by integration tests and
-// other server actions) and provides thin Action wrappers (used by UI
-// components) that add the auth guard + revalidatePath/redirect.
+// This file provides thin Action wrappers (used by UI components) that add
+// the auth guard + revalidatePath/redirect. The bare ForUser writers are NOT
+// exported here (authz triage 2026-07-04): every export of a "use server"
+// file is an independently-addressable server action, so a bare writer
+// taking a caller-supplied userId would let any client create orgs or
+// request vet upgrades as any user. Callers import the writers from
+// src/modules/organizations/application/upgrade/ directly.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -24,7 +28,6 @@ import { requestVetUpgradeForUser as _requestVetUpgrade } from "@/src/modules/or
 import type {
   CreateOrganizationInput,
   UpgradeFormState,
-  VetUpgradeInput,
 } from "@/src/modules/organizations/application/upgrade/types";
 
 // ---------------------------------------------------------------------------
@@ -36,24 +39,6 @@ export type {
   CreateOrganizationInput,
   UpgradeFormState,
 } from "@/src/modules/organizations/application/upgrade/types";
-
-// ---------------------------------------------------------------------------
-// ForUser re-exports — async wrappers (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function requestVetUpgradeForUser(
-  userId: string,
-  input: VetUpgradeInput,
-): Promise<UpgradeFormState> {
-  return _requestVetUpgrade(userId, input);
-}
-
-export async function createOrganizationForUser(
-  userId: string,
-  input: CreateOrganizationInput,
-): Promise<UpgradeFormState> {
-  return _createOrg(userId, input);
-}
 
 // ---------------------------------------------------------------------------
 // Action wrappers — thin controllers for UI components

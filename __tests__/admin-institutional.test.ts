@@ -13,14 +13,12 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  assignGovtLocalityForAuthority,
-  createInstitutionalAccountForAuthority,
-  deactivateAdminForAuthority,
-  deactivateGovtForAuthority,
-  resetInstitutionalCredentialsForAuthority,
-} from "@/app/actions/admin-institutional";
 import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
+import { assignGovtLocalityForAuthority } from "@/src/modules/organizations/application/admin-institutional/assign-govt-locality";
+import { createInstitutionalAccountForAuthority } from "@/src/modules/organizations/application/admin-institutional/create-institutional-account";
+import { deactivateAdminForAuthority } from "@/src/modules/organizations/application/admin-institutional/deactivate-admin";
+import { deactivateGovtForAuthority } from "@/src/modules/organizations/application/admin-institutional/deactivate-govt";
+import { resetInstitutionalCredentialsForAuthority } from "@/src/modules/organizations/application/admin-institutional/reset-institutional-credentials";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

@@ -30,9 +30,9 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, inArray, notInArray, or, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createInstitutionalAccountForAuthority } from "@/app/actions/admin-institutional";
-import { vetSelfResignForUser } from "@/app/actions/profile-self-service";
 import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
+import { createInstitutionalAccountForAuthority } from "@/src/modules/organizations/application/admin-institutional/create-institutional-account";
+import { vetSelfResignForUser } from "@/src/modules/pets/application/profile/vet-self-resign";
 
 // ---------------------------------------------------------------------------
 // Client + constants

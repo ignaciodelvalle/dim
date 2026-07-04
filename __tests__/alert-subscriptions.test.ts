@@ -15,12 +15,10 @@
 
 import { describe, it } from "vitest";
 
-import type {
-  createAlertSubscriptionForUser,
-  deleteAlertSubscriptionForUser,
-} from "@/app/actions/alert-subscriptions";
 import type { CreateAlertSubscriptionInput } from "@/app/actions/alert-subscriptions";
 import type { AlertSubscription } from "@/db";
+import type { createAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/create-alert-subscription";
+import type { deleteAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/delete-alert-subscription";
 
 // ---------------------------------------------------------------------------
 // Compile-time shape assertions (always run)

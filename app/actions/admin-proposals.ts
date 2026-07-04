@@ -5,13 +5,15 @@
 // Business logic moved to:
 //   src/modules/organizations/application/admin-proposals/
 //
-// This file re-exports all writers (logPiiQueryForAuthority, logPiiReadSafely,
-// proposeVetUpgradeForUser, proposeOrgVerificationForOrg) and provides thin
-// Action wrappers (proposeVetUpgradeAction, proposeOrgVerificationAction,
-// logPiiQueryAction) that add the auth guard + revalidatePath.
-//
-// app/actions/omnibox-search.ts imports logPiiQueryForAuthority from this shim
-// — that import is preserved unchanged.
+// This file provides thin Action wrappers (proposeVetUpgradeAction,
+// proposeOrgVerificationAction, logPiiQueryAction) plus logPiiReadSafely.
+// The bare writers (logPiiQueryForAuthority, proposeVetUpgradeForUser,
+// proposeOrgVerificationForOrg) are NOT exported here (authz triage
+// 2026-07-04): every export of a "use server" file is an independently-
+// addressable server action, so a bare writer taking a caller-supplied
+// actorUserId would allow PII-audit forgery / proposal spam as any user.
+// Callers import the writers from
+// src/modules/organizations/application/admin-proposals/ directly.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -32,19 +34,6 @@ import { proposeVetUpgradeForUser as _proposeVetUpgradeForUser } from "@/src/mod
 
 export type { ProposalResult } from "@/src/modules/organizations/application/admin-proposals/types";
 
-// ---------------------------------------------------------------------------
-// Writer re-exports — async wrappers (used by integration tests + UI)
-// ---------------------------------------------------------------------------
-
-export async function logPiiQueryForAuthority(
-  actorUserId: string,
-  query: string,
-  resultCount: number,
-  surface: "users" | "organizations" | "omnibox",
-): Promise<void> {
-  return _logPiiQueryForAuthority(actorUserId, query, resultCount, surface);
-}
-
 // @no-auth-required: thin wrapper over logPiiQueryForAuthority (an inner writer).
 // Only callers are /gob list pages already gated by the /gob layout guard, which
 // supplies the authenticated actorUserId; this function adds no new capability
@@ -56,28 +45,6 @@ export async function logPiiReadSafely(
   surface: "users" | "organizations",
 ): Promise<boolean> {
   return _logPiiReadSafely(actorUserId, query, resultCount, surface);
-}
-
-export async function proposeVetUpgradeForUser(
-  actorUserId: string,
-  input: {
-    targetUserId: string;
-    matriculaNumber: string;
-    matriculaJurisdiccion: string;
-    operationalProvince: string;
-    operationalLocality: string;
-    especialidad?: string | null;
-    anosExperiencia?: number | null;
-  },
-) {
-  return _proposeVetUpgradeForUser(actorUserId, input);
-}
-
-export async function proposeOrgVerificationForOrg(
-  actorUserId: string,
-  input: { organizationId: string },
-) {
-  return _proposeOrgVerificationForOrg(actorUserId, input);
 }
 
 // ---------------------------------------------------------------------------

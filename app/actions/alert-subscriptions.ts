@@ -5,9 +5,13 @@
 // Business logic moved to:
 //   src/modules/alerts/application/subscriptions/
 //
-// This file re-exports all writers + the input type (used by form components
-// and tests) and provides thin action wrappers (used by /admin/programa) that
-// add the auth guard + revalidatePath.
+// This file provides thin action wrappers (used by /admin/programa and
+// /gob/programa) that add the auth guard + revalidatePath, plus the input
+// type. The bare ForUser writers are NOT exported here (authz triage
+// 2026-07-04): every export of a "use server" file is an independently-
+// addressable server action, so a bare writer taking a caller-supplied
+// userId would let any client manage another user's subscriptions. Callers
+// import the writers from src/modules/alerts/application/subscriptions/.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -26,28 +30,6 @@ import { toggleAlertSubscriptionForUser as _toggleAlertSubscriptionForUser } fro
 // ---------------------------------------------------------------------------
 
 export type { CreateAlertSubscriptionInput } from "@/src/modules/alerts/application/subscriptions/types";
-
-// ---------------------------------------------------------------------------
-// Writer re-exports — used by form components + tests
-// ---------------------------------------------------------------------------
-
-export async function createAlertSubscriptionForUser(
-  ...args: Parameters<typeof _createAlertSubscriptionForUser>
-) {
-  return _createAlertSubscriptionForUser(...args);
-}
-
-export async function deleteAlertSubscriptionForUser(
-  ...args: Parameters<typeof _deleteAlertSubscriptionForUser>
-) {
-  return _deleteAlertSubscriptionForUser(...args);
-}
-
-export async function toggleAlertSubscriptionForUser(
-  ...args: Parameters<typeof _toggleAlertSubscriptionForUser>
-) {
-  return _toggleAlertSubscriptionForUser(...args);
-}
 
 // ---------------------------------------------------------------------------
 // Auth helper (admin-only) — stays in the shim, never in use-cases

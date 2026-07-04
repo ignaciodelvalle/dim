@@ -5,10 +5,14 @@
 // Business logic moved to:
 //   src/modules/pets/application/libreta-share/
 //
-// This file re-exports the 3 writers (createLibretaShareForUser,
-// revokeLibretaShareForUser, logLibretaShareViewForToken), the 3 action
-// wrappers used by UI components, and the 3 public types — so all existing
-// importers (UI components + integration test) keep working unchanged.
+// This file provides the action wrappers used by UI components plus
+// logLibretaShareViewForToken (token-credentialed telemetry) and the public
+// types. The bare ForUser writers (createLibretaShareForUser,
+// revokeLibretaShareForUser) are NOT exported here (authz triage 2026-07-04):
+// every export of a "use server" file is an independently-addressable server
+// action, so a bare writer taking a caller-supplied userId would let any
+// client mint a Tier-2 MEDICAL share as the victim. Callers import the
+// writers from src/modules/pets/application/libreta-share/ directly.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -42,22 +46,9 @@ export type {
 } from "@/src/modules/pets/application/libreta-share/types";
 
 // ---------------------------------------------------------------------------
-// Writer re-exports — async wrappers (used by integration tests and route actions)
+// Token-credentialed telemetry writer — the share token itself is the
+// credential (validated inside the module writer before any DB write).
 // ---------------------------------------------------------------------------
-
-export async function createLibretaShareForUser(
-  userId: string,
-  input: CreateShareInput,
-): Promise<CreateShareResult> {
-  return _createLibretaShareForUser(userId, input);
-}
-
-export async function revokeLibretaShareForUser(
-  userId: string,
-  shareTokenRowId: string,
-): Promise<RevokeShareResult> {
-  return _revokeLibretaShareForUser(userId, shareTokenRowId);
-}
 
 export async function logLibretaShareViewForToken(input: {
   shareToken: string;

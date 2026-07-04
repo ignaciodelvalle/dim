@@ -5,9 +5,13 @@
 // Business logic moved to:
 //   src/modules/organizations/application/admin-org-verification/
 //
-// This file re-exports all ForAuthority writers (used by integration tests)
-// and provides thin Action wrappers (used by UI components) that add the
-// auth guard + revalidatePath.
+// This file provides thin Action wrappers (used by UI components) that add
+// the auth guard + revalidatePath. The ForAuthority writers are NOT exported
+// here (authz triage 2026-07-04): every export of a "use server" file is an
+// independently-addressable server action, so a bare writer taking a
+// caller-supplied actorUserId would let any client act as any authority.
+// Callers import the writers from
+// src/modules/organizations/application/admin-org-verification/ directly.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -23,24 +27,6 @@ import { verifyOrgForAuthority as _verifyOrg } from "@/src/modules/organizations
 // ---------------------------------------------------------------------------
 
 export type { VerifyOrgResult } from "@/src/modules/organizations/application/admin-org-verification/types";
-
-// ---------------------------------------------------------------------------
-// ForAuthority re-exports — async wrappers (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function verifyOrgForAuthority(
-  actorUserId: string,
-  input: { organizationId: string },
-) {
-  return _verifyOrg(actorUserId, input);
-}
-
-export async function unverifyOrgForAuthority(
-  actorUserId: string,
-  input: { organizationId: string; reason?: string },
-) {
-  return _unverifyOrg(actorUserId, input);
-}
 
 // ---------------------------------------------------------------------------
 // Action wrappers — thin controllers for UI components

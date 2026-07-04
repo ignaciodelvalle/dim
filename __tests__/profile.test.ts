@@ -29,13 +29,11 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import {
-  updateEmergencyContactsAction,
-  updateProfileForUser,
-  uploadAvatarForUser,
-} from "@/app/actions/profile";
+import { updateEmergencyContactsAction } from "@/app/actions/profile";
 import { auditLog, db, notifications, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { updateProfileForUser } from "@/src/modules/pets/application/profile/update-profile";
+import { uploadAvatarForUser } from "@/src/modules/pets/application/profile/upload-avatar";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

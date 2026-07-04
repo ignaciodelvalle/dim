@@ -5,9 +5,13 @@
 // Business logic moved to:
 //   src/modules/pets/application/profile/
 //
-// This file re-exports all ForUser writers (used by integration tests)
-// and provides thin Action wrappers (used by UI components) that add
-// the auth guard + revalidatePath.
+// This file provides thin Action wrappers (used by UI components) that add
+// the auth guard + revalidatePath. The bare ForUser writers are NOT exported
+// here (authz triage 2026-07-04): every export of a "use server" file is an
+// independently-addressable server action, so a bare writer taking a
+// caller-supplied userId would let any client resign/deactivate/toggle
+// privacy prefs for any user. Callers import the writers from
+// src/modules/pets/application/profile/ directly.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -31,28 +35,6 @@ export type {
   UpdatePrivacyPrefResult,
   VetSelfResignResult,
 } from "@/src/modules/pets/application/profile/types";
-
-// ---------------------------------------------------------------------------
-// ForUser re-exports — async wrappers (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function vetSelfResignForUser(...args: Parameters<typeof _vetSelfResign>) {
-  return _vetSelfResign(...args);
-}
-
-export async function govtSelfDeactivateForUser(...args: Parameters<typeof _govtSelfDeactivate>) {
-  return _govtSelfDeactivate(...args);
-}
-
-export async function updatePrivacyPrefForUser(...args: Parameters<typeof _updatePrivacyPref>) {
-  return _updatePrivacyPref(...args);
-}
-
-export async function selfDeactivatePersonalAccountForUser(
-  ...args: Parameters<typeof _selfDeactivatePersonal>
-) {
-  return _selfDeactivatePersonal(...args);
-}
 
 // ---------------------------------------------------------------------------
 // Action wrappers — thin controllers for UI components
