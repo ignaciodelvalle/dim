@@ -6,6 +6,7 @@
 
 import { db, reminders } from "@/db";
 import { parseDateInput } from "@/lib/utils/format";
+import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import type { ReminderFormState } from "./types";
@@ -28,14 +29,35 @@ export async function createVaccineReminder(
   if (!dueAt) return { error: "Fecha inválida." };
 
   try {
-    await db.insert(reminders).values({
-      petId,
-      userId,
-      reminderType: "vaccine",
-      dueAt,
-      title: vaccineName,
-      description,
-    });
+    // Idempotency guard (projection-writes audit §6): a double-submit posts
+    // the identical reminder twice. If an open (not completed) reminder with
+    // the same vaccine + due date already exists for this pet and user, the
+    // second submit is a no-op — redirect to the same success surface.
+    const [existing] = await db
+      .select({ id: reminders.id })
+      .from(reminders)
+      .where(
+        and(
+          eq(reminders.petId, petId),
+          eq(reminders.userId, userId),
+          eq(reminders.reminderType, "vaccine"),
+          eq(reminders.title, vaccineName),
+          eq(reminders.dueAt, dueAt),
+          isNull(reminders.completedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!existing) {
+      await db.insert(reminders).values({
+        petId,
+        userId,
+        reminderType: "vaccine",
+        dueAt,
+        title: vaccineName,
+        description,
+      });
+    }
   } catch (err) {
     return {
       error: `No se pudo crear el recordatorio: ${

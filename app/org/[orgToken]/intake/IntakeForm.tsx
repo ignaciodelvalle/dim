@@ -22,6 +22,7 @@
 import { useState, useTransition } from "react";
 
 import { type IntakeFormState, createIntakeAction } from "@/app/actions/intake";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { LnRadio } from "@/components/ui/Field";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
@@ -47,6 +48,12 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
   const [step, setStep] = useState(1);
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<IntakeFormState>({ error: null });
+
+  // Stable per-animal idempotency key: a double-tap on "Crear ingreso" (or a
+  // retry after a network hiccup) re-sends the same key, so the server returns
+  // the already-created pet instead of registering a duplicate. Reset when the
+  // operator starts loading another animal.
+  const { key: idempotencyKey, reset: resetIdempotencyKey } = useIdempotencyKey();
 
   // Controlled state for every field. Strings throughout; the action
   // does its own parsing and coercion.
@@ -88,6 +95,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     if (intakeCondition) fd.set("intakeCondition", intakeCondition);
     if (rescueJurisdiction) fd.set("rescueJurisdiction", rescueJurisdiction);
     fd.set("noRedirect", "1");
+    fd.set("clientIdempotencyKey", idempotencyKey);
     // Thread bypass tokens from previous server responses so re-submits skip
     // already-acknowledged warnings (chip force, tattoo ack).
     if (state.forceToken) fd.set("forceToken", state.forceToken);
@@ -115,6 +123,8 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     setTattooCode("");
     setIntakeCondition("");
     setState({ error: null });
+    // Next animal = a distinct intake — it must get its own idempotency key.
+    resetIdempotencyKey();
     setStep(1);
   }
 

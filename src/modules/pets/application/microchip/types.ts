@@ -22,6 +22,10 @@ export const replaceMicrochipSchema = z.object({
   replacedBy: z.string().nullable().optional(),
   replacedAt: z.string(),
   notes: z.string().nullable().optional(),
+  // Idempotency guard (projection-writes audit §6): stable UUID per form
+  // session. When present, a re-submit returns the original event instead of
+  // emitting a second microchip_replaced + flipping canonical rows again.
+  clientIdempotencyKey: z.string().uuid().nullable().optional(),
   actorContext: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("owner") }),
     z.object({ kind: z.literal("vet_in_org"), organizationId: z.string().uuid() }),

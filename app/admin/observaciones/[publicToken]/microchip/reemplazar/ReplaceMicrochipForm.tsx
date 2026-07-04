@@ -2,6 +2,7 @@
 
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 
@@ -42,11 +43,13 @@ export function ReplaceMicrochipForm({
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const [selectedReason, setSelectedReason] = useState<string>("");
+  const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
   const isFraud = selectedReason === "fraud_detected";
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       {/* Current chip info row */}
       <div className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-sm text-ln-op-ink-2">
         Chip actual: <span className="font-mono font-semibold text-ln-op-ink">{currentChip}</span>

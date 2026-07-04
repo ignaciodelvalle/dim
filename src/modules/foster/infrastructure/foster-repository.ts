@@ -715,6 +715,26 @@ export const FosterRepository = {
     },
     tx: Tx,
   ): Promise<{ ownershipId: string; caseId: string }> {
+    // Idempotency guard (projection-writes audit §6): the use-case checks
+    // "one foster at a time" OUTSIDE the tx, so a double-submit could pass
+    // that check twice. Serialize on the pet (same advisory-lock pattern as
+    // the return-to-owner writers) and re-verify inside the tx.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${args.petId}))`);
+    const [activeFoster] = await tx
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, args.petId),
+          eq(ownerships.role, "foster"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    if (activeFoster) {
+      throw new Error("Este animal ya tiene un tránsito activo. Finalizalo antes de asignar otro.");
+    }
+
     const [ownership] = await tx
       .insert(ownerships)
       .values({

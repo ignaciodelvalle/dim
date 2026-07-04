@@ -26,6 +26,7 @@
 // and are inserted AFTER the transaction commits (best-effort, logged on failure).
 
 import { db, notifications, ownerships, petEvents, petIdentifications, pets } from "@/db";
+import { and, eq, sql } from "drizzle-orm";
 import {
   CoordError,
   JurisdictionValidationError,
@@ -114,6 +115,10 @@ function parseIntakeForm(formData: FormData) {
   const tattooCodeRaw = String(formData.get("tattooCode") ?? "").trim();
   const tattooCode = tattooCodeRaw ? normalizeTattooCode(tattooCodeRaw) : null;
 
+  // Idempotency guard (projection-writes audit §6): the wizard posts a stable
+  // UUID per form session so a double-submit doesn't create a second pet.
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
   return {
     parsed: {
       name,
@@ -129,6 +134,7 @@ function parseIntakeForm(formData: FormData) {
         ? String(formData.get("microchipCountryCode") ?? "").trim() || null
         : null,
       tattooCode,
+      clientIdempotencyKey,
       jurisdictionProvince: provinceByCode(loc.provinceCode ?? "")?.name ?? null,
       jurisdictionLocality: loc.locality,
       intakeReason,
@@ -289,8 +295,38 @@ export async function createIntake(
   type PendingNotification = typeof notifications.$inferInsert;
   const pendingNotifications: PendingNotification[] = [];
 
+  // Set when a duplicate submit is detected inside the tx — the intake already
+  // succeeded once, so we short-circuit to the same success surface.
+  let duplicateOf: { publicToken: string; name: string } | null = null;
+
   try {
     await db.transaction(async (tx) => {
+      // Idempotency guard (projection-writes audit §6): a double-submit of the
+      // intake wizard must not create a second pet + idents. The wizard sends a
+      // stable clientIdempotencyKey per form session; the pet_registered event
+      // anchors it. The advisory lock serializes concurrent same-key submits so
+      // the second one always sees the first one's committed row.
+      if (parsed.clientIdempotencyKey) {
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${parsed.clientIdempotencyKey}))`,
+        );
+        const [existing] = await tx
+          .select({ publicToken: pets.publicToken, name: pets.name })
+          .from(petEvents)
+          .innerJoin(pets, eq(pets.id, petEvents.petId))
+          .where(
+            and(
+              eq(petEvents.eventType, "pet_registered"),
+              eq(petEvents.clientIdempotencyKey, parsed.clientIdempotencyKey),
+            ),
+          )
+          .limit(1);
+        if (existing) {
+          duplicateOf = existing;
+          return;
+        }
+      }
+
       const [newPet] = await tx
         .insert(pets)
         .values({
@@ -355,6 +391,7 @@ export async function createIntake(
         authorOrganizationId: organization.id,
         authorVerified,
         payload: registeredPayload,
+        clientIdempotencyKey: parsed.clientIdempotencyKey,
       });
 
       // Cases system: open a custody_episode for every org intake so the
@@ -483,6 +520,21 @@ export async function createIntake(
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
+  }
+
+  // Duplicate submit — the first submit already created the pet. Surface the
+  // original result (no second pet, no second notifications).
+  if (duplicateOf !== null) {
+    const original = duplicateOf as { publicToken: string; name: string };
+    if (String(formData.get("noRedirect") ?? "") === "1") {
+      return {
+        error: null,
+        ok: true,
+        createdPetToken: original.publicToken,
+        createdPetName: original.name,
+      };
+    }
+    redirect(`/org/${orgToken}/mascotas?nueva=${original.publicToken}`);
   }
 
   if (pendingNotifications.length > 0) {

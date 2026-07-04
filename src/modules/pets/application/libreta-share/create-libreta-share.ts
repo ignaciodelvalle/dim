@@ -46,15 +46,44 @@ export async function createLibretaShareForUser(
     };
   }
 
+  const expiresAt =
+    input.expiresInDays === null
+      ? null
+      : new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000);
+
+  // Idempotency guard (projection-writes audit §6): a double-submit of the
+  // share form posts the same label + expiry twice within moments. Instead of
+  // minting a second token (burning through the 5-active cap), reuse the
+  // existing active token when one matches the same label and an equivalent
+  // expiry (both permanent, or expiring within a minute of the requested
+  // window — the double-click delta). A deliberate second share with a
+  // different label or duration still creates a fresh token.
+  const activeShares = await db
+    .select({
+      shareToken: libretaShareTokens.shareToken,
+      label: libretaShareTokens.label,
+      expiresAt: libretaShareTokens.expiresAt,
+    })
+    .from(libretaShareTokens)
+    .where(
+      and(
+        eq(libretaShareTokens.petId, petRow.id),
+        eq(libretaShareTokens.createdByUserId, userId),
+        isNull(libretaShareTokens.revokedAt),
+      ),
+    );
+  const duplicate = activeShares.find((s) => {
+    if ((s.label ?? null) !== (input.label ?? null)) return false;
+    if (s.expiresAt === null || expiresAt === null) return s.expiresAt === expiresAt;
+    return Math.abs(s.expiresAt.getTime() - expiresAt.getTime()) < 60_000;
+  });
+  if (duplicate) return { shareToken: duplicate.shareToken };
+
   const shareToken = await generateUniqueToken(
     libretaShareTokens,
     libretaShareTokens.shareToken,
     generateLibretaShareToken,
   );
-  const expiresAt =
-    input.expiresInDays === null
-      ? null
-      : new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000);
 
   await db.insert(libretaShareTokens).values({
     shareToken,

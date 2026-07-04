@@ -31,6 +31,10 @@ export async function enableTier2Public(
   const duration = String(formData?.get("duration") ?? "24h");
 
   if (duration === "siempre") {
+    // Desired-state guard (projection-writes audit §6): already permanent →
+    // a re-submit is a no-op, not a fresh write.
+    if (pet.tier2PublicPermanent) return;
+
     // Permanent — no expiry timestamp; activate via the dedicated boolean flag.
     await db
       .update(pets)
@@ -39,6 +43,18 @@ export async function enableTier2Public(
   } else {
     const windowMs = DURATION_MS[duration] ?? DAY_MS;
     const until = new Date(Date.now() + windowMs);
+
+    // Desired-state guard (projection-writes audit §6): a double-submit posts
+    // the same duration twice within moments — the second request would only
+    // re-window by the seconds elapsed between clicks. If the pet already has
+    // a window ending within a minute of the requested one, treat the submit
+    // as a duplicate no-op. A deliberate re-window (minutes/hours later, or a
+    // different duration) still extends or shortens as requested.
+    const existingUntil = pet.tier2PublicPermanent ? null : pet.tier2PublicEnabledUntil;
+    if (existingUntil && Math.abs(existingUntil.getTime() - until.getTime()) < 60_000) {
+      return;
+    }
+
     await db
       .update(pets)
       .set({ tier2PublicPermanent: false, tier2PublicEnabledUntil: until, updatedAt: new Date() })

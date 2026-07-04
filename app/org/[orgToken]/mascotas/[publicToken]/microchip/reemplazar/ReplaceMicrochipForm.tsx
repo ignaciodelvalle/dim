@@ -1,6 +1,7 @@
 "use client";
 
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
 
@@ -35,10 +36,12 @@ export function ReplaceMicrochipForm({
   currentChip: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-[13px] text-ln-op-ink-2">
         Chip actual: <span className="font-mono font-medium text-ln-op-ink">{currentChip}</span>
       </div>

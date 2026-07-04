@@ -14,7 +14,7 @@
 
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import type { ConfirmChipMatchResult } from "./types";
 
@@ -64,6 +64,24 @@ export async function confirmChipMatchAsVecinoWriter({
     };
   }
 
+  // Idempotency guard (projection-writes audit §6): confirming the match does
+  // NOT flip the pet's status, so the state check above cannot block a
+  // double-submit. If this vecino already holds active shelter_custody on the
+  // matched pet, the confirmation already happened — no-op.
+  const [existingCustody] = await db
+    .select({ id: ownerships.id })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.petId, matchedPet.id),
+        eq(ownerships.ownerUserId, userId),
+        eq(ownerships.role, "shelter_custody"),
+        isNull(ownerships.endedAt),
+      ),
+    )
+    .limit(1);
+  if (existingCustody) return { ok: true };
+
   const [ownerOwnership] = await db
     .select({ ownerUserId: ownerships.ownerUserId })
     .from(ownerships)
@@ -82,6 +100,24 @@ export async function confirmChipMatchAsVecinoWriter({
   const pendingNotifications: PendingNotification[] = [];
 
   await db.transaction(async (tx) => {
+    // TOCTOU guard: serialize concurrent confirmations on the same pet (same
+    // advisory-lock pattern as the return-to-owner writers), then re-verify
+    // custody inside the tx so a double-click cannot insert twice.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${matchedPet.id}))`);
+    const [custodyInTx] = await tx
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, matchedPet.id),
+          eq(ownerships.ownerUserId, userId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    if (custodyInTx) return;
+
     // 1. Insert shelter_custody for the vecino.
     await tx.insert(ownerships).values({
       petId: matchedPet.id,

@@ -6,7 +6,7 @@
 // The outer shim (app/actions/microchip.ts) gates via the Supabase session.
 // Tests call replaceMicrochipForUser directly with a known userId.
 
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import {
   auditLog,
@@ -151,6 +151,30 @@ export async function replaceMicrochipForUser(
         }
       }
 
+      // Idempotency guard (projection-writes audit §6): a double-submit of the
+      // replace form must not emit a second microchip_replaced event, open a
+      // second remediation case, or flip canonical rows twice. The advisory
+      // lock serializes concurrent same-key submits; the lookup then returns
+      // the original event for the retry. Must run BEFORE openCase below.
+      const idemKey = parsed.clientIdempotencyKey ?? null;
+      if (idemKey) {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${idemKey}))`);
+        const [existingEvent] = await tx
+          .select({ id: petEvents.id, caseId: petEvents.caseId })
+          .from(petEvents)
+          .where(
+            and(
+              eq(petEvents.petId, pet.id),
+              eq(petEvents.eventType, "microchip_replaced"),
+              eq(petEvents.clientIdempotencyKey, idemKey),
+            ),
+          )
+          .limit(1);
+        if (existingEvent) {
+          return { ok: true, eventId: existingEvent.id, caseId: existingEvent.caseId };
+        }
+      }
+
       // Cross-pet duplicate scan — only for duplicate_detected.
       // Reads from canonical pet_identifications (legacy pets.microchipId
       // writes removed in ARCH-R — scanning the legacy column would miss
@@ -244,6 +268,9 @@ export async function replaceMicrochipForUser(
           authorVerified,
           payload: eventPayload,
           caseId,
+          // DB-level backstop: pet_events_idempotency_idx (partial unique on
+          // pet_id + event_type + key) rejects a concurrent duplicate insert.
+          clientIdempotencyKey: idemKey,
         })
         .returning();
 

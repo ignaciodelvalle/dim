@@ -46,6 +46,7 @@ export async function replaceMicrochipAdminAction(
   const replacedBy = String(formData.get("replacedBy") ?? "").trim() || null;
   const replacedAtRaw = String(formData.get("replacedAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!ADMIN_REASONS.has(reason)) {
     return { error: "Motivo inválido." };
@@ -86,6 +87,7 @@ export async function replaceMicrochipAdminAction(
     replacedBy,
     replacedAt: replacedAtDate.toISOString(),
     notes,
+    clientIdempotencyKey,
     actorContext: { kind: "admin" },
   });
 

@@ -90,6 +90,7 @@ export async function createTattooAction(
   const description = String(formData.get("description") ?? "").trim() || null;
   const recordedBy = String(formData.get("recordedBy") ?? "").trim() || null;
   const recordedAtRaw = String(formData.get("recordedAt") ?? "").trim();
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!code) return { error: "Falta el código del tatuaje." };
 
@@ -127,11 +128,18 @@ export async function createTattooAction(
       mimeType: upload.mimeType ?? "image/jpeg",
       size: upload.size ?? 0,
     },
+    clientIdempotencyKey,
   });
 
   if ("error" in result) {
     await cleanupAttachment(supabase, upload.uploadedPath);
     return { error: result.error };
+  }
+
+  // Duplicate submit deduped by idempotency key — the original attachment is
+  // already linked to the event; remove the redundant upload.
+  if (result.wasNoop) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
   }
 
   redirect(`/mis-mascotas/${publicToken}`);

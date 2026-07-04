@@ -4,6 +4,7 @@ import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 
@@ -28,6 +29,7 @@ export function ReplaceMicrochipForm({
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
+  const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
 
   // Controlled field state — preserves typed input on validation error.
@@ -46,6 +48,7 @@ export function ReplaceMicrochipForm({
       />
       <LnSheetBody>
         <form id={FORM_ID} action={formAction} className="contents">
+          <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
           {/* Current chip display */}
           <LnSubCard>
             <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">

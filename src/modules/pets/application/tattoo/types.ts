@@ -16,6 +16,13 @@ export type TattooInput = {
   recordedAt: Date | null;
   recordedBy: string | null;
   uploadedAttachment: { path: string; mimeType: string; size: number };
+  // Idempotency guard (projection-writes audit §6): stable UUID per form
+  // session. When present, a re-submit is a no-op (no second event + ident).
+  clientIdempotencyKey?: string | null;
 };
 
-export type CreateTattooResult = { ok: true; eventId: string } | { error: string };
+// wasNoop=true → duplicate submit deduped by clientIdempotencyKey; the caller
+// should clean up any attachment uploaded for the redundant submission.
+export type CreateTattooResult =
+  | { ok: true; eventId: string; wasNoop?: boolean }
+  | { error: string };

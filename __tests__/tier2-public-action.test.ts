@@ -223,6 +223,68 @@ describe("enableTier2PublicAction", () => {
     expect(until.getTime()).toBeGreaterThanOrEqual(before + DAY_MS - 5_000);
     expect(until.getTime()).toBeLessThanOrEqual(after + DAY_MS + 5_000);
   });
+
+  // ── Idempotency guards (projection-writes audit §6) ────────────────────────
+
+  it("double-submit no-op: already permanent + 'siempre' again → no write", async () => {
+    vi.resetModules();
+    const access = makePetAccessSuccess();
+    (access.pet as Record<string, unknown>).tier2PublicPermanent = true;
+    (access.pet as Record<string, unknown>).tier2PublicEnabledUntil = null;
+    mockRequirePetAccess.mockResolvedValue(access);
+
+    const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
+    await enableTier2PublicAction(PUBLIC_TOKEN, makeFormData("siempre"));
+
+    expect(mockDb.update).not.toHaveBeenCalled();
+  });
+
+  it("double-submit no-op: existing 24h window within the duplicate tolerance → no re-window", async () => {
+    vi.resetModules();
+    const access = makePetAccessSuccess();
+    // First click landed 5 seconds ago: window ends at now + 24h - 5s.
+    (access.pet as Record<string, unknown>).tier2PublicPermanent = false;
+    (access.pet as Record<string, unknown>).tier2PublicEnabledUntil = new Date(
+      Date.now() + DAY_MS - 5_000,
+    );
+    mockRequirePetAccess.mockResolvedValue(access);
+
+    const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
+    await enableTier2PublicAction(PUBLIC_TOKEN, makeFormData("24h"));
+
+    expect(mockDb.update).not.toHaveBeenCalled();
+  });
+
+  it("NOT a no-op: deliberate re-window hours later still extends", async () => {
+    vi.resetModules();
+    const access = makePetAccessSuccess();
+    // Existing window ends in 1 hour — re-enabling 24h is a real extension.
+    (access.pet as Record<string, unknown>).tier2PublicPermanent = false;
+    (access.pet as Record<string, unknown>).tier2PublicEnabledUntil = new Date(
+      Date.now() + 60 * 60 * 1000,
+    );
+    mockRequirePetAccess.mockResolvedValue(access);
+
+    const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
+    await enableTier2PublicAction(PUBLIC_TOKEN, makeFormData("24h"));
+
+    expect(mockDb.update).toHaveBeenCalledOnce();
+    expect(capturedSetPayload!.tier2PublicPermanent).toBe(false);
+  });
+
+  it("NOT a no-op: permanent pet downgrading to a bounded window still writes", async () => {
+    vi.resetModules();
+    const access = makePetAccessSuccess();
+    (access.pet as Record<string, unknown>).tier2PublicPermanent = true;
+    (access.pet as Record<string, unknown>).tier2PublicEnabledUntil = null;
+    mockRequirePetAccess.mockResolvedValue(access);
+
+    const { enableTier2PublicAction } = await import("@/app/actions/tier2-public");
+    await enableTier2PublicAction(PUBLIC_TOKEN, makeFormData("24h"));
+
+    expect(mockDb.update).toHaveBeenCalledOnce();
+    expect(capturedSetPayload!.tier2PublicPermanent).toBe(false);
+  });
 });
 
 describe("revokeTier2PublicAction", () => {

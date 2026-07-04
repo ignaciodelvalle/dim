@@ -30,6 +30,7 @@ export async function replaceMicrochipOwnerAction(
   const replacedBy = String(formData.get("replacedBy") ?? "").trim() || null;
   const replacedAtRaw = String(formData.get("replacedAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!OWNER_REASONS.has(reason)) {
     return { error: "Motivo inválido para el rol de dueño/a." };
@@ -62,6 +63,7 @@ export async function replaceMicrochipOwnerAction(
     replacedBy,
     replacedAt: replacedAtDate.toISOString(),
     notes,
+    clientIdempotencyKey,
     actorContext: { kind: "owner" },
   });
 

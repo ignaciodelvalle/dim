@@ -7,6 +7,7 @@
 // Tests call createTattooForUser directly with a known userId.
 
 import { attachments, db, petEvents, petIdentifications } from "@/db";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import type { PetEventAuthorship } from "@/lib/infra/pet-access";
 import { normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
@@ -52,9 +53,12 @@ export async function createTattooForUser(
         tattoo_date_known: input.recordedAt !== null,
       });
 
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
+      // Idempotency guard (projection-writes audit §6): a double-submit of the
+      // tattoo form must not emit a second tattoo_recorded event + a second
+      // pet_identifications row. insertEventIdempotent dedupes on the partial
+      // unique index (pet_id, event_type, client_idempotency_key).
+      const { event, wasNoop } = await insertEventIdempotent(
+        {
           petId,
           eventType: "tattoo_recorded",
           occurredAt: input.recordedAt ?? now,
@@ -62,8 +66,14 @@ export async function createTattooForUser(
           recordedByUserId: userId,
           ...eventAuthorship,
           payload: eventPayload,
-        })
-        .returning();
+          clientIdempotencyKey: input.clientIdempotencyKey ?? null,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
+
+      // Duplicate submit — the original event (and its attachment + canonical
+      // ident row) already exist. Skip ALL side-effects.
+      if (wasNoop) return { ok: true as const, eventId: event.id, wasNoop: true };
 
       const [attachment] = await tx
         .insert(attachments)

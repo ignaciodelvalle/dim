@@ -524,3 +524,65 @@ describe("findPetPublicTokenForShare", () => {
     expect(publicToken).toBeNull();
   });
 });
+
+describe("createLibretaShareForUser — idempotency guard (projection-writes audit §6)", () => {
+  it("double-submit (same label + expiry) reuses the active token instead of minting a second one", async () => {
+    await revokeAllShares();
+
+    const input = {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "Doble click",
+    };
+
+    const first = await createLibretaShareForUser(userId, input);
+    expect(first).toHaveProperty("shareToken");
+    if (!("shareToken" in first)) return;
+
+    const second = await createLibretaShareForUser(userId, input);
+    expect(second).toHaveProperty("shareToken");
+    if (!("shareToken" in second)) return;
+
+    // Same token returned — no second row minted.
+    expect(second.shareToken).toBe(first.shareToken);
+
+    const rows = await db
+      .select({ id: libretaShareTokens.id })
+      .from(libretaShareTokens)
+      .where(
+        and(eq(libretaShareTokens.petId, petId), isNull(libretaShareTokens.revokedAt)),
+      );
+    expect(rows.length).toBe(1);
+  });
+
+  it("permanent shares (expiresInDays=null) also dedupe on double-submit", async () => {
+    await revokeAllShares();
+
+    const input = { petPublicToken: PET_TOKEN, expiresInDays: null, label: null };
+    const first = await createLibretaShareForUser(userId, input);
+    const second = await createLibretaShareForUser(userId, input);
+    if (!("shareToken" in first) || !("shareToken" in second)) {
+      throw new Error("Expected shareToken");
+    }
+    expect(second.shareToken).toBe(first.shareToken);
+  });
+
+  it("a deliberate second share with a different label still creates a fresh token", async () => {
+    await revokeAllShares();
+
+    const first = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "Veterinaria",
+    });
+    const second = await createLibretaShareForUser(userId, {
+      petPublicToken: PET_TOKEN,
+      expiresInDays: 30,
+      label: "Guardería",
+    });
+    if (!("shareToken" in first) || !("shareToken" in second)) {
+      throw new Error("Expected shareToken");
+    }
+    expect(second.shareToken).not.toBe(first.shareToken);
+  });
+});

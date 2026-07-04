@@ -69,6 +69,7 @@ export async function replaceMicrochipVetAction(
   const replacedBy = String(formData.get("replacedBy") ?? "").trim() || null;
   const replacedAtRaw = String(formData.get("replacedAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!VET_REASONS.has(reason)) {
     return { error: "Motivo inválido." };
@@ -101,6 +102,7 @@ export async function replaceMicrochipVetAction(
     replacedBy,
     replacedAt: replacedAtDate.toISOString(),
     notes,
+    clientIdempotencyKey,
     actorContext: { kind: "vet_in_org", organizationId: organization.id },
   });
 

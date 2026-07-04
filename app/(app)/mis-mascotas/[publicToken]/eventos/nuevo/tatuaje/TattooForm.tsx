@@ -6,6 +6,7 @@ import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -16,6 +17,7 @@ const FORM_ID = "tattoo-form";
 export function TattooForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
+  const { key: idempotencyKey } = useIdempotencyKey();
   const today = new Date().toISOString().slice(0, 10);
   const [tattooCode, setTattooCode] = useState("");
   const [locationOnBody, setLocationOnBody] = useState("");
@@ -33,6 +35,7 @@ export function TattooForm({ action }: { action: FormAction }) {
       />
       <LnSheetBody>
         <form id={FORM_ID} action={formAction} className="contents">
+          <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
           <LnField label="Código del tatuaje" required>
             {({ id, describedBy, invalid }) => (
               <LnInput
