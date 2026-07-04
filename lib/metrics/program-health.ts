@@ -428,7 +428,10 @@ export async function fetchPiiOversight(ctx: ProjectionContext): Promise<PiiOver
       action: auditLog.action,
       surface: sql<string | null>`${auditLog.payload}->>'surface'`,
       count: sql<number>`COUNT(*)::int`,
-      lastAt: sql<Date>`MAX(${auditLog.performedAt})`,
+      // Raw-sql aggregates arrive as strings at runtime (see admin-metrics.ts,
+      // digest 1282362471) — coerced in the map below so the declared Date
+      // shape is actually true.
+      lastAt: sql<string | Date>`MAX(${auditLog.performedAt})`,
     })
     .from(auditLog)
     .where(
@@ -449,6 +452,6 @@ export async function fetchPiiOversight(ctx: ProjectionContext): Promise<PiiOver
     action: r.action,
     surface: r.surface,
     count: Number(r.count),
-    lastAt: r.lastAt,
+    lastAt: r.lastAt instanceof Date ? r.lastAt : new Date(r.lastAt),
   }));
 }

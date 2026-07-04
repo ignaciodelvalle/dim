@@ -229,13 +229,24 @@ export async function fetchGovtActivity(): Promise<GovtActivityRow[]> {
   const lastRows = await db
     .select({
       actorUserId: auditLog.actorUserId,
-      lastAt: sql<Date>`max(${auditLog.performedAt})`,
+      // NOT sql<Date>: raw-sql aggregates bypass drizzle's column mapping and
+      // arrive as STRINGS at runtime — the type param is a compile-time claim
+      // only. Trusting it crashed /admin/sistema (digest 1282362471) as soon
+      // as a govt had audit rows: sortGovtActivityByActivity called .getTime()
+      // on a string. Coerce at this boundary so the declared GovtActivityRow
+      // shape (Date | null) is actually true.
+      lastAt: sql<string | null>`max(${auditLog.performedAt})`,
     })
     .from(auditLog)
     .where(inArray(auditLog.actorUserId, govtIds))
     .groupBy(auditLog.actorUserId);
   for (const r of lastRows) {
-    if (r.actorUserId) lastActionByGovt.set(r.actorUserId, r.lastAt);
+    if (r.actorUserId && r.lastAt != null) {
+      // new Date() accepts both the string postgres-js actually returns and a
+      // Date if a future driver maps it.
+      const d = new Date(r.lastAt);
+      if (!Number.isNaN(d.getTime())) lastActionByGovt.set(r.actorUserId, d);
+    }
   }
 
   return govts.map((g) => ({

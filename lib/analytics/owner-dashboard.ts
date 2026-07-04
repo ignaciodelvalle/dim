@@ -51,6 +51,7 @@ import {
   getReminderVariant,
   isVaccineReportable,
 } from "@/lib/domain/vaccine-reminder-state";
+import { excludeAuthorityOnlyClause } from "@/lib/events/events";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import {
   type ComplianceEvent,
@@ -1517,7 +1518,8 @@ export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProf
         ),
       )
       .orderBy(asc(petEvents.occurredAt)),
-    // Query B — last 5 events, metadata only.
+    // Query B — last 5 events, metadata only. Authority-only surveillance
+    // signals are excluded like every owner surface (§6).
     db
       .select({
         id: petEvents.id,
@@ -1526,7 +1528,7 @@ export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProf
         payload: petEvents.payload,
       })
       .from(petEvents)
-      .where(eq(petEvents.petId, petId))
+      .where(and(eq(petEvents.petId, petId), excludeAuthorityOnlyClause()))
       .orderBy(desc(petEvents.occurredAt))
       .limit(5),
   ]);

@@ -32,7 +32,7 @@ import {
 } from "@/db";
 import { fetchActiveRemindersForPet, fetchPetWeightHistory } from "@/lib/analytics/owner-dashboard";
 import { computeVaccinationSummary } from "@/lib/domain/libreta-health-status";
-import { excludeSelfScansClause } from "@/lib/events/events";
+import { excludeAuthorityOnlyClause, excludeSelfScansClause } from "@/lib/events/events";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { HIDDEN_FROM_SUBJECT_CASE_KINDS } from "@/lib/infra/case-access";
@@ -90,6 +90,10 @@ export async function getLibretaFaceData(context: {
         and(
           eq(petEvents.petId, pet.id),
           excludeSelfScansClause(),
+          // Authority-only surveillance signals never reach owner OR org
+          // libreta views (§6) — clickthrough audit 2026-07-03 caught an
+          // outbreak_signal row rendered in the owner timeline.
+          excludeAuthorityOnlyClause(),
           // Owner-path only — org/vet viewers are never the investigation
           // subject, so the hidden-case filter doesn't apply to them.
           accessPath === "owner" ? notHiddenCaseClause() : undefined,

@@ -21,6 +21,23 @@ export function excludeSelfScansClause() {
   return sql`NOT (event_type = 'credential_scanned' AND payload->>'is_self_scan' = 'true')`;
 }
 
+/**
+ * Authority-only surveillance signals — never rendered on owner/org pet
+ * surfaces (umbrella §6 privacy contract). These are govt intel about the
+ * pet's surroundings, not facts about the pet's own health record:
+ * clickthrough audit 2026-07-03 caught an `outbreak_signal` row rendered in
+ * an owner's libreta timeline. `symptom_observed` is deliberately NOT here —
+ * it is an owner-visible health observation by design (see the hidden-case
+ * note in get-libreta-face-data.ts).
+ *
+ * Use as: `where(and(eq(petEvents.petId, pet.id), excludeAuthorityOnlyClause()))`.
+ */
+export const AUTHORITY_ONLY_EVENT_TYPES = ["outbreak_signal", "disease_reported"] as const;
+
+export function excludeAuthorityOnlyClause() {
+  return sql`event_type NOT IN ('outbreak_signal', 'disease_reported')`;
+}
+
 export type EventPayloadSummary = {
   primary: string | null;
   secondary: string | null;
