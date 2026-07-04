@@ -22,10 +22,10 @@
 import { useState, useTransition } from "react";
 
 import { type IntakeFormState, createIntakeAction } from "@/app/actions/intake";
-import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { LnRadio } from "@/components/ui/Field";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 
 // "seizure" is intentionally absent: a decomiso is a State act (DC1),
 // not something a refugio self-records through this form. Seizures go

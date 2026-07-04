@@ -26,7 +26,6 @@
 // and are inserted AFTER the transaction commits (best-effort, logged on failure).
 
 import { db, notifications, ownerships, petEvents, petIdentifications, pets } from "@/db";
-import { and, eq, sql } from "drizzle-orm";
 import {
   CoordError,
   JurisdictionValidationError,
@@ -46,6 +45,7 @@ import { generateUniqueToken } from "@/lib/infra/unique-token";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { parseDateInput } from "@/lib/utils/format";
 import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
+import { and, eq, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import type { IntakeFormState } from "./types";

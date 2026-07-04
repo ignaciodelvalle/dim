@@ -208,10 +208,7 @@ describe("createIntake — idempotency guard", () => {
       .select({ id: petEvents.id })
       .from(petEvents)
       .where(
-        and(
-          eq(petEvents.eventType, "pet_registered"),
-          eq(petEvents.clientIdempotencyKey, idemKey),
-        ),
+        and(eq(petEvents.eventType, "pet_registered"), eq(petEvents.clientIdempotencyKey, idemKey)),
       );
     expect(events.length).toBe(1);
 
@@ -220,10 +217,7 @@ describe("createIntake — idempotency guard", () => {
       .select({ id: petEvents.id })
       .from(petEvents)
       .where(
-        and(
-          eq(petEvents.petId, createdPet.id),
-          eq(petEvents.eventType, "shelter_intake_recorded"),
-        ),
+        and(eq(petEvents.petId, createdPet.id), eq(petEvents.eventType, "shelter_intake_recorded")),
       );
     expect(intakeEvents.length).toBe(1);
 
@@ -392,7 +386,11 @@ describe("FosterRepository.insertAssignFoster — idempotency guard", () => {
       .select({ id: ownerships.id })
       .from(ownerships)
       .where(
-        and(eq(ownerships.petId, pet.id), eq(ownerships.role, "foster"), isNull(ownerships.endedAt)),
+        and(
+          eq(ownerships.petId, pet.id),
+          eq(ownerships.role, "foster"),
+          isNull(ownerships.endedAt),
+        ),
       );
     expect(fosterRows.length).toBe(1);
 
@@ -446,9 +444,7 @@ describe("confirmChipMatchAsRefugioWriter — idempotency guard", () => {
     const events = await db
       .select({ id: petEvents.id })
       .from(petEvents)
-      .where(
-        and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "shelter_intake_recorded")),
-      );
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "shelter_intake_recorded")));
     expect(events.length).toBe(1);
   });
 });
@@ -487,9 +483,7 @@ describe("confirmChipMatchAsVecinoWriter — idempotency guard", () => {
     const events = await db
       .select({ id: petEvents.id })
       .from(petEvents)
-      .where(
-        and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "shelter_intake_recorded")),
-      );
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "shelter_intake_recorded")));
     expect(events.length).toBe(1);
   });
 });

@@ -549,9 +549,7 @@ describe("createLibretaShareForUser — idempotency guard (projection-writes aud
     const rows = await db
       .select({ id: libretaShareTokens.id })
       .from(libretaShareTokens)
-      .where(
-        and(eq(libretaShareTokens.petId, petId), isNull(libretaShareTokens.revokedAt)),
-      );
+      .where(and(eq(libretaShareTokens.petId, petId), isNull(libretaShareTokens.revokedAt)));
     expect(rows.length).toBe(1);
   });
 
