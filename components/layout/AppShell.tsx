@@ -108,13 +108,6 @@ function CitizenShell({ masthead, footer, maxWidth, tabBar, children }: CitizenP
         .filter(Boolean)
         .join(" ")}
     >
-      {/* Skip-link: visually hidden until focused; first focusable element (a11y). */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:rounded focus:bg-ln-azul focus:px-4 focus:py-2 focus:text-white focus:shadow-lg focus:outline-none"
-      >
-        Skip to main content
-      </a>
       {/* Thin Argentina institutional stripe (D7). */}
       <GobStripe />
       {masthead}
@@ -143,13 +136,6 @@ function OperatorShell({ rail, topbar, banner, maxWidth, children }: OperatorPro
     // Optional banner on top; the rail+main row fills the rest (min-h-0 so the
     // inner scroll area — not the document — scrolls).
     <div className="op-surface fixed inset-0 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink text-[13px] leading-[1.45] [&_*]:box-border">
-      {/* Skip-link: visually hidden until focused; first focusable element (a11y). */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:rounded focus:bg-ln-azul focus:px-4 focus:py-2 focus:text-white focus:shadow-lg focus:outline-none"
-      >
-        Skip to main content
-      </a>
       {banner}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {rail}
@@ -172,13 +158,6 @@ function OperatorShell({ rail, topbar, banner, maxWidth, children }: OperatorPro
 function LandingShell({ returnSlot, children }: LandingProps) {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--color-ln-paper)] text-[var(--color-ln-ink)]">
-      {/* Skip-link: visually hidden until focused; first focusable element (a11y). */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:rounded focus:bg-ln-azul focus:px-4 focus:py-2 focus:text-white focus:shadow-lg focus:outline-none"
-      >
-        Skip to main content
-      </a>
       <GobStripe />
       {/* pt-safe: QR-scan landings open full-screen in the installed PWA too —
           keep the trust header clear of the notch/status bar. */}
