@@ -187,6 +187,69 @@ export function findOffenders(relPath: string, src: string): string[] {
   return offenders;
 }
 
+// Authz triage 2026-07-04 — impersonation-export rule (pattern-based).
+//
+// A "use server" module must NEVER export a `*ForUser` / `*ForAuthority` /
+// `*ForOrg` function. Every export of a "use server" file is an
+// independently-addressable server action, and these writers take their
+// acting identity (userId / actorUserId / orgId) as a caller-supplied
+// parameter — exporting one hands impersonation-as-anyone to any client.
+// RLS is NOT a backstop: db/index.ts connects with postgres-js (no Supabase
+// JWT), so the app-layer guard is the only defense. This rule is a suffix
+// pattern, not an allowlist — any new export with one of these suffixes
+// fails CI immediately, so the class cannot regress.
+//
+// The writers themselves live on in plain application modules
+// (src/modules/**/application/**), where they are not client-addressable;
+// guarded `*Action` wrappers derive the actor from the session and delegate.
+export const IMPERSONATION_SUFFIXES = ["ForUser", "ForAuthority", "ForOrg"] as const;
+
+const IMPERSONATION_SUFFIX_RE = new RegExp(`(?:${IMPERSONATION_SUFFIXES.join("|")})$`);
+
+function lineOfIndex(src: string, index: number): number {
+  return src.slice(0, index).split("\n").length;
+}
+
+// Returns one offender line per impersonation-suffixed export in a
+// "use server" module. Covers declared exports (`export async function
+// xForUser`), plain function exports, and runtime re-export lists
+// (`export { x }`, `export { y as xForUser }`). `export type { ... }` is
+// erased at runtime and allowed. Empty array = file is clean.
+export function findImpersonationExports(relPath: string, src: string): string[] {
+  if (!src.startsWith('"use server"') && !src.startsWith("'use server'")) return [];
+  const offenders: string[] = [];
+  const offend = (name: string, line: number) =>
+    offenders.push(
+      `${relPath}:${line} exports ${name} — a "use server" module must not export a *${IMPERSONATION_SUFFIXES.join(
+        "/*",
+      )} writer (caller-supplied identity = impersonation surface; RLS does not backstop). Keep the writer in a plain application module and export only a session-guarded *Action wrapper.`,
+    );
+
+  // Declared exports: `export [async] function nameForUser(`.
+  const declRe = /export\s+(?:async\s+)?function\s+(\w+)\s*[(<]/g;
+  for (const m of src.matchAll(declRe)) {
+    if (IMPERSONATION_SUFFIX_RE.test(m[1])) offend(m[1], lineOfIndex(src, m.index));
+  }
+
+  // Runtime re-export lists: `export { a, b as c } [from "..."]`.
+  // (`export type { ... }` and inline `type x` entries are type-only.)
+  const reExportRe = /export\s*(type\s*)?\{([^}]*)\}/g;
+  for (const m of src.matchAll(reExportRe)) {
+    if (m[1]) continue; // export type { ... } — erased at runtime
+    for (const rawEntry of m[2].split(",")) {
+      const entry = rawEntry.trim();
+      if (entry === "" || entry.startsWith("type ")) continue;
+      const parts = entry.split(/\s+as\s+/);
+      const exportedName = (parts[1] ?? parts[0]).trim();
+      if (IMPERSONATION_SUFFIX_RE.test(exportedName)) {
+        offend(exportedName, lineOfIndex(src, m.index));
+      }
+    }
+  }
+
+  return offenders;
+}
+
 function bodyCallsAnyOf(src: string, guards: readonly string[]): boolean {
   return guards.some((g) => new RegExp(`\\b${g.replace(/\./g, "\\.")}\\s*\\(`).test(src));
 }
@@ -248,10 +311,15 @@ function runScan(): void {
   }
 
   // Rule 1.2 — every server action must call a guard.
+  // Impersonation rule (2026-07-04) — no *ForUser/*ForAuthority/*ForOrg export
+  // from a "use server" module, pattern-based.
   const coverageOffenders: string[] = [];
+  const impersonationOffenders: string[] = [];
   for (const file of actionFiles) {
     const relPath = file.replaceAll("\\", "/");
-    coverageOffenders.push(...findOffenders(relPath, readFileSync(file, "utf8")));
+    const src = readFileSync(file, "utf8");
+    coverageOffenders.push(...findOffenders(relPath, src));
+    impersonationOffenders.push(...findImpersonationExports(relPath, src));
   }
 
   // Rule 1.3 — no operator route gated by a personal-tier guard alone.
@@ -261,11 +329,18 @@ function runScan(): void {
     routeOffenders.push(...findRouteGuardViolations(relPath, readFileSync(file, "utf8")));
   }
 
-  const offenders = [...coverageOffenders, ...routeOffenders];
+  const offenders = [...coverageOffenders, ...impersonationOffenders, ...routeOffenders];
   if (offenders.length > 0) {
     console.error(offenders.join("\n"));
     if (coverageOffenders.length > 0) {
       console.error(`\n✗ ${coverageOffenders.length} server action(s) without an auth guard.`);
+    }
+    if (impersonationOffenders.length > 0) {
+      console.error(
+        `✗ ${impersonationOffenders.length} impersonation-class export(s) (*${IMPERSONATION_SUFFIXES.join(
+          "/*",
+        )}) from "use server" module(s).`,
+      );
     }
     if (routeOffenders.length > 0) {
       console.error(
@@ -276,7 +351,7 @@ function runScan(): void {
   }
 
   console.log(
-    `✓ authz coverage clean — ${actionFiles.length} action files guarded; operator routes (app/admin, app/gob) institutionally gated.`,
+    `✓ authz coverage clean — ${actionFiles.length} action files guarded, no impersonation-class exports; operator routes (app/admin, app/gob) institutionally gated.`,
   );
 }
 

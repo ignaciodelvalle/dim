@@ -17,6 +17,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import {
+  IMPERSONATION_SUFFIXES,
+  findImpersonationExports,
+  listActionFiles,
+} from "../scripts/check-authz-guards";
+
 const ROOT = resolve(__dirname, "..");
 
 function source(relPath: string): string {
@@ -31,7 +37,54 @@ function exportRegex(name: string): RegExp {
   );
 }
 
+// ---------------------------------------------------------------------------
+// PATTERN GUARD (authz triage 2026-07-04) — not an allowlist.
+//
+// Sweeps the ENTIRE server-action surface (app/actions/*.ts +
+// src/modules/**/actions.ts, via the same listActionFiles the lint:authz
+// script uses) and fails if ANY "use server" module exports a function whose
+// name ends in ForUser / ForAuthority / ForOrg — declared exports and
+// runtime re-export lists alike. A new bare writer export anywhere in the
+// surface fails this test without anyone editing FORBIDDEN_EXPORTS below.
+// ---------------------------------------------------------------------------
+
+describe(`pattern guard — no "use server" module exports *${IMPERSONATION_SUFFIXES.join(" / *")}`, () => {
+  const files = listActionFiles();
+
+  it("scans a non-empty server-action surface", () => {
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  for (const file of files) {
+    const relPath = file.replaceAll("\\", "/");
+    it(`${relPath} has no impersonation-class export`, () => {
+      expect(findImpersonationExports(relPath, source(relPath))).toEqual([]);
+    });
+  }
+
+  // Negative cases — prove the detector actually fires (a broken regex would
+  // otherwise make the whole sweep vacuously green).
+  it("flags a declared impersonation export", () => {
+    const src = '"use server";\nexport async function updateProfileForUser(id: string) {}\n';
+    expect(findImpersonationExports("x.ts", src)).toHaveLength(1);
+  });
+
+  it("flags a runtime re-export (including `as` renames)", () => {
+    const src = '"use server";\nexport { inner as approveRequestForAuthority };\n';
+    expect(findImpersonationExports("x.ts", src)).toHaveLength(1);
+  });
+
+  it("ignores type-only re-exports and non-'use server' modules", () => {
+    const typeOnly = '"use server";\nexport type { CreateShareForUser } from "./types";\n';
+    expect(findImpersonationExports("x.ts", typeOnly)).toEqual([]);
+    const plainModule = "export async function updateProfileForUser(id: string) {}\n";
+    expect(findImpersonationExports("x.ts", plainModule)).toEqual([]);
+  });
+});
+
 // file → writer names that must NOT be exported from that "use server" file.
+// (Legacy explicit list — still valuable for suffixes the pattern guard does
+// not cover: Writer, ForOwner, ForOffering, ForEvents, loadProposalContext.)
 const FORBIDDEN_EXPORTS: Record<string, string[]> = {
   "app/actions/approval-requests.ts": ["withdrawApprovalRequestForUser"],
   "app/actions/microchip.ts": ["replaceMicrochipForUser"],
