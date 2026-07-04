@@ -74,6 +74,7 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   "physical_tag_interest",
   "eno_processing_queue",
   "event_notification_outbox",
+  "notification_dead_letter", // deny-all, migration 0125 (PII payload recovery surface)
   "share_telemetry",
   // Alert inbox + triage — deny-all backstop in migration 0111 (Paquete K).
   // Carries jurisdiction + actor FKs (acknowledged_by / contacted / resolved);
