@@ -1,6 +1,7 @@
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, fosterProposals, organizations, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { capRows } from "@/lib/utils/list-pagination";
 import { and, desc, eq } from "drizzle-orm";
 
 import { CancelProposalButton } from "./CancelProposalButton";
@@ -67,8 +68,7 @@ export default async function OrgPropuestasPage({
     .orderBy(desc(fosterProposals.proposedAt))
     .limit(201);
 
-  const truncated = rows.length > 200;
-  const filtered = rows.slice(0, 200);
+  const { rows: filtered, truncated } = capRows(rows, 200);
 
   return (
     <div className="space-y-6">

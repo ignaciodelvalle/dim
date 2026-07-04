@@ -3,6 +3,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { speciesLabel } from "@/lib/utils/format";
+import { capRows } from "@/lib/utils/list-pagination";
 import { searchFosterVolunteers } from "@/src/modules/foster/actions";
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -59,8 +60,7 @@ export default async function VoluntariosPage({
     );
   }
 
-  const truncated = result.rows.length > VOLUNTEER_PAGE_SIZE;
-  const visibleRows = truncated ? result.rows.slice(0, VOLUNTEER_PAGE_SIZE) : result.rows;
+  const { rows: visibleRows, truncated } = capRows(result.rows, VOLUNTEER_PAGE_SIZE);
 
   return (
     <div className="space-y-6">

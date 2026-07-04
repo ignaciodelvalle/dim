@@ -16,6 +16,8 @@ import {
 } from "@/db";
 import type { OrganizationMembership } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+// Aliased — this file already has a local `capRows` (capability grant rows).
+import { capRows as capListRows } from "@/lib/utils/list-pagination";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ChangeRoleSelect } from "./ChangeRoleSelect";
@@ -73,8 +75,7 @@ export default async function MiembrosPage({
     .orderBy(desc(organizationMemberships.joinedAt))
     .limit(MEMBERS_PAGE_SIZE + 1);
 
-  const membersTruncated = memberRows.length > MEMBERS_PAGE_SIZE;
-  const members = membersTruncated ? memberRows.slice(0, MEMBERS_PAGE_SIZE) : memberRows;
+  const { rows: members, truncated: membersTruncated } = capListRows(memberRows, MEMBERS_PAGE_SIZE);
 
   // Resolve which memberships have an active `event.write` capability grant.
   // This is the authoritative enforcement state — the legacy canWritePetEvents

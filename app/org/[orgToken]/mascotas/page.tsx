@@ -9,6 +9,7 @@
 
 import { db, ownerships, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { capRows } from "@/lib/utils/list-pagination";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, ilike, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import Link from "next/link";
@@ -126,8 +127,7 @@ export default async function OrgMascotasPage({
   // Stopgap cap (see CUSTODY_LIST_CAP doc comment above) — bounds what gets
   // rendered/queried-against below even when the filters above still leave a
   // very large result set.
-  const truncated = allCards.length > CUSTODY_LIST_CAP;
-  const cards = truncated ? allCards.slice(0, CUSTODY_LIST_CAP) : allCards;
+  const { rows: cards, truncated } = capRows(allCards, CUSTODY_LIST_CAP);
 
   // Which of these pets already have an active foster row? Foster rows have
   // owner_user_id set (NOT owner_organization_id), so they don't show up in
@@ -292,8 +292,8 @@ export default async function OrgMascotasPage({
 
         {truncated && (
           <p className="text-sm text-ln-op-mute">
-            Mostrando las primeras {CUSTODY_LIST_CAP} de {allCards.length}. Hay más — usá el buscador
-            o el filtro de especie para acotar la lista.
+            Mostrando las primeras {CUSTODY_LIST_CAP} de {allCards.length}. Hay más — usá el
+            buscador o el filtro de especie para acotar la lista.
           </p>
         )}
 

@@ -16,6 +16,7 @@ import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/u
 import { cases, db, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { formatDate } from "@/lib/utils/format";
+import { capRows } from "@/lib/utils/list-pagination";
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Esperando respuesta",
@@ -71,8 +72,7 @@ export default async function OrgTransferenciasSalientesPage({
     // bare limit(200) that silently drops older rows with no indication.
     .limit(201);
 
-  const truncated = rows.length > 200;
-  const handshakeRows = rows.slice(0, 200);
+  const { rows: handshakeRows, truncated } = capRows(rows, 200);
 
   return (
     <div className="space-y-6">

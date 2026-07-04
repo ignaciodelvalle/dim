@@ -10,6 +10,7 @@ import { OpCallout, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/
 import { db, serviceOfferings } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { capRows } from "@/lib/utils/list-pagination";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 type StatusTone = "open" | "ok" | "danger" | "neutral";
@@ -42,8 +43,10 @@ export default async function ServiciosPage({
     .orderBy(desc(serviceOfferings.submittedAt))
     .limit(SERVICES_PAGE_SIZE + 1);
 
-  const offeringsTruncated = offeringRows.length > SERVICES_PAGE_SIZE;
-  const offerings = offeringsTruncated ? offeringRows.slice(0, SERVICES_PAGE_SIZE) : offeringRows;
+  const { rows: offerings, truncated: offeringsTruncated } = capRows(
+    offeringRows,
+    SERVICES_PAGE_SIZE,
+  );
 
   return (
     <div className="space-y-6">

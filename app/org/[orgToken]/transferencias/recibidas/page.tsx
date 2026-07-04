@@ -25,6 +25,7 @@ import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/
 import { cases, db, organizations, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { formatDate } from "@/lib/utils/format";
+import { capRows } from "@/lib/utils/list-pagination";
 
 import { DecomisoHandoffActions } from "./DecomisoHandoffActions";
 import { IncomingTransferActions } from "./IncomingTransferActions";
@@ -167,8 +168,7 @@ export default async function OrgTransferenciasEntrantesPage({
   const mergedRows = [...handshakeRows, ...decommissaRows].sort(
     (a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime(),
   );
-  const truncated = mergedRows.length > 200;
-  const allRows = mergedRows.slice(0, 200);
+  const { rows: allRows, truncated } = capRows(mergedRows, 200);
 
   return (
     <div className="space-y-6">
