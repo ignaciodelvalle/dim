@@ -43,7 +43,7 @@ export function TravelExportButton({ petPublicToken }: { petPublicToken: string 
         type="button"
         onClick={handleExport}
         disabled={isPending}
-        className="rounded-[4px] border border-[var(--color-ln-line-strong)] px-4 py-2 text-sm font-semibold disabled:opacity-60"
+        className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] px-4 py-2 text-sm font-semibold disabled:opacity-60"
       >
         {isPending ? "Generando PDF…" : "Descargar documentación de viaje (PDF)"}
       </button>

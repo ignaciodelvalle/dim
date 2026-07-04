@@ -38,7 +38,7 @@ export function TravelObligationsPanel({ obligations }: TravelObligationsPanelPr
         return (
           <li
             key={obligation.key}
-            className="rounded-[4px] border border-[var(--color-ln-line-strong)] p-3"
+            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] p-3"
           >
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-semibold">{obligation.label}</p>
