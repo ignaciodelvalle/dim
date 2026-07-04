@@ -1151,6 +1151,13 @@ export const petEvents = pgTable(
   (table) => ({
     petTimelineIdx: index("pet_events_pet_id_occurred_at_idx").on(table.petId, table.occurredAt),
     eventTypeIdx: index("pet_events_event_type_idx").on(table.eventType),
+    // Composite for province-scale analytics scans that filter by event_type +
+    // a time window WITHOUT pet_id (govt-home-kpis.ts rabies coverage KPI) —
+    // perf/scale review 2026-07-04, migration 0122.
+    eventTypeOccurredAtIdx: index("pet_events_event_type_occurred_at_idx").on(
+      table.eventType,
+      table.occurredAt,
+    ),
     authorRoleIdx: index("pet_events_author_role_idx").on(table.authorRole),
     locationIdx: index("pet_events_location_idx").on(table.locationLat, table.locationLng),
     // Partial unique index for client-side idempotency keys (migration 0047).
