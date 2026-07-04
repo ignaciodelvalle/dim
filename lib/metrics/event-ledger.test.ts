@@ -48,6 +48,8 @@ const TEST_SURFACE = "event_ledger_test";
 
 let petAId = "";
 let petBId = "";
+let petMovedId = "";
+let driftEventId = "";
 let createdPetIds: string[] = [];
 let createdEventIds: string[] = [];
 
@@ -186,6 +188,19 @@ beforeAll(async () => {
     locality: LOC_A,
     amendsEventId: amendedTargetId,
   });
+
+  // Drift fixture (scope-security review 2026-07-04 A1): the event payload
+  // says PROV_A (snapshot at event time), but the pet has since MOVED — its
+  // CURRENT pets.jurisdiction_* is PROV_B. A govt viewer scoped to PROV_A must
+  // NOT see this pet's public token.
+  petMovedId = await insertPet(`${PREFIX}PET-MOVED`, { province: PROV_B, locality: LOC_B });
+  driftEventId = await insertEvent({
+    petId: petMovedId,
+    eventType: "weight_recorded",
+    occurredAt: new Date(BASE + 6 * HOUR),
+    province: PROV_A,
+    locality: LOC_A,
+  });
 });
 
 afterAll(cleanup);
@@ -230,6 +245,28 @@ describe("fetchEventLedger — scope", () => {
     const ctx = buildProjectionContext({ role: "govt" }, [], period);
     const { rows } = await fetchEventLedger(ctx, { from: FROM, to: TO });
     expect(onlyFixtures(rows)).toHaveLength(0);
+  });
+
+  it("govt does NOT see an event whose payload claims its jurisdiction but whose pet moved away (payload/pets drift)", async () => {
+    const ctx = buildProjectionContext(
+      { role: "govt" },
+      [{ province: PROV_A, locality: LOC_A }],
+      period,
+    );
+    const { rows } = await fetchEventLedger(ctx, { from: FROM, to: TO });
+    const fixture = onlyFixtures(rows);
+    // The drifted event's payload says PROV_A, so it WOULD match a payload-only
+    // scope — but the pet now lives in PROV_B, so it must be excluded.
+    expect(fixture.map((r) => r.id)).not.toContain(driftEventId);
+    expect(fixture.map((r) => r.petPublicToken)).not.toContain(`${PREFIX}PET-MOVED`);
+    // Pets that CURRENTLY live in PROV_A are still visible (no over-restriction).
+    expect(fixture.length).toBeGreaterThan(0);
+  });
+
+  it("admin still sees the drifted event (universal scope preserved)", async () => {
+    const ctx = buildProjectionContext({ role: "admin" }, [], period);
+    const { rows } = await fetchEventLedger(ctx, { from: FROM, to: TO });
+    expect(onlyFixtures(rows).map((r) => r.id)).toContain(driftEventId);
   });
 });
 

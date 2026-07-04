@@ -294,6 +294,104 @@ describe("fetchSurveillanceSignals", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Payload/pets jurisdiction drift (scope-security review 2026-07-04 A1/A2).
+//
+// The outbreak_signal payload carries pet_jurisdiction_* as a snapshot at
+// event time. When the pet later moves, the payload and pets.jurisdiction_*
+// diverge; a payload-only scope would leak the (moved-away) pet to the govt
+// viewer of the OLD jurisdiction. Each fetcher must also require the pet's
+// CURRENT jurisdiction to be in scope. Fixtures use a unique locality so no
+// other dev-DB rows can match the scoped queries.
+// ---------------------------------------------------------------------------
+
+describe("jurisdiction drift — payload vs pets.jurisdiction", () => {
+  const DRIFT_PROV = "CABA";
+  const DRIFT_LOC = "GD-DriftVille"; // unique to this suite
+  const DRIFT_SCOPE = [{ province: DRIFT_PROV, locality: DRIFT_LOC }];
+  const DISEASE = "drift_test_disease";
+  const since = () => new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  /** Pet that MOVED AWAY: current jurisdiction elsewhere, payload in scope. */
+  async function insertMovedPetWithSignal(): Promise<string> {
+    const petId = await insertFixturePet({
+      name: "DriftMovedPet",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    await emitOutbreakSignal({
+      petId,
+      diseaseCode: DISEASE,
+      province: DRIFT_PROV,
+      locality: DRIFT_LOC,
+      hoursAgo: 1,
+    });
+    return petId;
+  }
+
+  /** Resident pet: current jurisdiction AND payload both in scope. */
+  async function insertResidentPetWithSignal(): Promise<string> {
+    const petId = await insertFixturePet({
+      name: "DriftResidentPet",
+      species: "dog",
+      province: DRIFT_PROV,
+      locality: DRIFT_LOC,
+    });
+    await emitOutbreakSignal({
+      petId,
+      diseaseCode: DISEASE,
+      province: DRIFT_PROV,
+      locality: DRIFT_LOC,
+      hoursAgo: 1,
+    });
+    return petId;
+  }
+
+  it("fetchSurveillanceSignals: govt does not see a signal whose pet moved out of scope; resident pet still visible", async () => {
+    await insertMovedPetWithSignal();
+    await insertResidentPetWithSignal();
+
+    const r = await fetchSurveillanceSignals({ role: "govt" }, DRIFT_SCOPE, { since: since() });
+    const names = r.map((s) => s.petName);
+    expect(names).not.toContain("DriftMovedPet");
+    expect(names).toContain("DriftResidentPet");
+  });
+
+  it("fetchSurveillanceSignals: admin still sees the drifted signal (universal scope preserved)", async () => {
+    await insertMovedPetWithSignal();
+
+    const r = await fetchSurveillanceSignals({ role: "admin" }, [], { since: since() });
+    expect(r.map((s) => s.petName)).toContain("DriftMovedPet");
+  });
+
+  it("fetchZoonosisTrend: govt counts exclude signals from pets that moved out of scope", async () => {
+    await insertMovedPetWithSignal();
+    await insertResidentPetWithSignal();
+
+    const trend = await fetchZoonosisTrend({ role: "govt" }, DRIFT_SCOPE);
+    // Only the resident pet's signal may count within this unique locality.
+    const total = trend.reduce((s, p) => s + p.y, 0);
+    expect(total).toBe(1);
+  });
+
+  it("fetchOutbreakHistory: govt history excludes signals from pets that moved out of scope", async () => {
+    await insertMovedPetWithSignal();
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, DRIFT_SCOPE);
+    expect(r.filter((row) => row.diseaseCode === DISEASE)).toEqual([]);
+  });
+
+  it("fetchOutbreakHistory: resident pet's signals still appear for govt", async () => {
+    await insertResidentPetWithSignal();
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, DRIFT_SCOPE);
+    const group = r.find((row) => row.diseaseCode === DISEASE);
+    expect(group).toBeDefined();
+    expect(group?.totalSignals).toBe(1);
+  });
+});
+
 describe("fetchDiseaseSummary", () => {
   it("aggregates counts into 30d / 7d / 24h buckets", async () => {
     const pet = await insertFixturePet({

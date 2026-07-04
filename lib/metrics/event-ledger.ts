@@ -36,7 +36,7 @@ import { auditLog, db, petEvents, pets } from "@/db";
 import type { EventType } from "@/db/schema";
 
 import type { ProjectionContext } from "./context";
-import { petEventsScopeClause } from "./scope";
+import { petEventsScopeClause, petsScopeClause } from "./scope";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -118,6 +118,16 @@ export async function fetchEventLedger(
   // 1. Jurisdiction scope (admin → null → omitted).
   const scope = petEventsScopeClause(ctx);
   if (scope) conditions.push(sql`(${scope})`);
+
+  // 1b. Pets-table jurisdiction guard for govt viewers (scope-security review
+  //     2026-07-04 A1): the payload's pet_jurisdiction_* is an event-time
+  //     snapshot; rows return the pet's PUBLIC token, so the pet's CURRENT
+  //     pets.jurisdiction_* must also be in scope (pets is inner-joined below).
+  //     Admin keeps its payload-based behavior (universal scope / drill-down).
+  if (ctx.scope.kind === "jurisdictions") {
+    const petsScope = petsScopeClause(ctx);
+    if (petsScope) conditions.push(sql`(${petsScope})`);
+  }
 
   // 2. Filters.
   if (filters.eventTypes && filters.eventTypes.length > 0) {

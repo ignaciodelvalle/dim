@@ -109,6 +109,38 @@ function outbreakSignalScopeClause(actor: DashboardActor, jurisdictions: Dashboa
   );
 }
 
+// Scope-security review 2026-07-04 (Part A1/A2): the payload's
+// pet_jurisdiction_* fields are a snapshot taken at event time. When a pet
+// moves (or seed data drifts), the payload and the pet's CURRENT
+// pets.jurisdiction_* diverge, and a payload-only scope lets a govt viewer see
+// out-of-jurisdiction pets. Govt fetchers must ALSO require the pet's current
+// jurisdiction to be inside the viewer's scope. Admin keeps universal scope
+// (returns null; the payload-based drill-down behavior is unchanged).
+function petsCurrentJurisdictionClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): SQL | null {
+  if (actor.role === "admin") return null;
+  return (
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`${pets.jurisdictionProvince}`,
+      sql`${pets.jurisdictionLocality}`,
+    ) ?? sql`false`
+  );
+}
+
+// Same guard as petsCurrentJurisdictionClause, wrapped in an EXISTS subquery
+// for pet_events queries that do NOT already join the pets table.
+function petsCurrentJurisdictionExists(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): SQL | null {
+  const clause = petsCurrentJurisdictionClause(actor, jurisdictions);
+  if (!clause) return null;
+  return sql`EXISTS (SELECT 1 FROM ${pets} WHERE ${pets.id} = ${petEvents.petId} AND (${clause}))`;
+}
+
 export async function fetchSurveillanceSignals(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
@@ -123,6 +155,10 @@ export async function fetchSurveillanceSignals(
   }
   const scope = outbreakSignalScopeClause(actor, jurisdictions);
   if (scope) conditions.push(sql`(${scope})`);
+  // Rows return pet identifiers (name + public token) — require the pet's
+  // CURRENT jurisdiction to be in scope too (pets is inner-joined below).
+  const petsScope = petsCurrentJurisdictionClause(actor, jurisdictions);
+  if (petsScope) conditions.push(sql`(${petsScope})`);
 
   const rows = await db
     .select({
@@ -1079,6 +1115,10 @@ export async function fetchZoonosisTrend(
   ];
   const scope = outbreakSignalScopeClause(actor, jurisdictions);
   if (scope) conditions.push(sql`(${scope})`);
+  // Payload jurisdiction is an event-time snapshot — also require the pet's
+  // CURRENT jurisdiction in scope (scope-security review 2026-07-04 A2).
+  const petsGuard = petsCurrentJurisdictionExists(actor, jurisdictions);
+  if (petsGuard) conditions.push(petsGuard);
 
   const rows = await db
     .select({
@@ -2008,9 +2048,15 @@ export async function fetchOutbreakHistory(
 ): Promise<OutbreakHistoryRow[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
-  // Build the jurisdiction scope clause once; reused in both CTEs.
+  // Build the jurisdiction scope clause once; reused in both CTEs. The pets
+  // guard (EXISTS on the pet's CURRENT jurisdiction) closes the payload-drift
+  // hole for govt viewers (scope-security review 2026-07-04 A2).
   const scope = outbreakSignalScopeClause(actor, jurisdictions);
-  const scopeFragment = scope ? sql` AND (${scope})` : sql``;
+  const petsGuard = petsCurrentJurisdictionExists(actor, jurisdictions);
+  const scopeFragment = sql.join(
+    [scope ? sql` AND (${scope})` : sql``, petsGuard ? sql` AND ${petsGuard}` : sql``],
+    sql``,
+  );
 
   type RawRow = {
     disease_code: string;
