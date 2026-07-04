@@ -106,6 +106,13 @@ function parseIntakeForm(formData: FormData) {
   }
 
   const breed = String(formData.get("breed") ?? "").trim() || null;
+  // Config-theater fix (handoff 2026-07-03 #3): the intake form previously had
+  // no weight field at all, so ppp_weight_threshold could never fire for
+  // shelter-intaken dogs (PPP classification degraded to breed-only). Kept as
+  // a string here — same shape as pets.estimatedWeightKg (numeric column) and
+  // the pet_registered event payload; parsed to a number only where the PPP
+  // classifier needs it (see resolvePppClassificationForJurisdiction call below).
+  const estimatedWeightKg = String(formData.get("estimatedWeightKg") ?? "").trim() || null;
   const microchipId = String(formData.get("microchipId") ?? "").trim() || null;
 
   // Tattoo code — stored normalized (trim + uppercase + collapse whitespace).
@@ -129,6 +136,7 @@ function parseIntakeForm(formData: FormData) {
       birthDateIsEstimated,
       color: String(formData.get("color") ?? "").trim() || null,
       distinguishingFeatures: String(formData.get("distinguishingFeatures") ?? "").trim() || null,
+      estimatedWeightKg,
       microchipId,
       microchipCountryCode: microchipId
         ? String(formData.get("microchipCountryCode") ?? "").trim() || null
@@ -276,15 +284,18 @@ export async function createIntake(
   const authorVerified = organization.verified;
 
   // Jurisdiction-aware PPP evaluation (spec govt-business-rules-poc §4;
-  // weight-threshold enforcement admin-rules-console ADR-3). The intake form
-  // has no weight field (unlike owner register/update), so estimatedWeightKg
-  // is always null here — the composed resolver degrades to breed-only for
-  // shelter intake, identical to the pre-weight-enforcement behavior. Wiring
-  // a weight field into the intake form is a follow-up, not this change.
+  // weight-threshold enforcement admin-rules-console ADR-3). Config-theater
+  // fix (handoff 2026-07-03 #3): the intake form now carries an optional
+  // weight field, so shelter-intaken dogs can be weight-flagged the same way
+  // owner register/update pets are. NaN-guards a malformed string down to
+  // null (treated as "no weight data"), mirroring parseEstimatedWeightKg in
+  // src/modules/pets/actions.ts.
+  const parsedEstimatedWeightKg =
+    parsed.estimatedWeightKg === null ? null : Number.parseFloat(parsed.estimatedWeightKg);
   const potentiallyDangerousBreed = await resolvePppClassificationForJurisdiction(
     parsed.species,
     parsed.breed,
-    null,
+    Number.isNaN(parsedEstimatedWeightKg) ? null : parsedEstimatedWeightKg,
     {
       country: "AR",
       province: parsed.jurisdictionProvince,
@@ -339,6 +350,7 @@ export async function createIntake(
           birthDateIsEstimated: parsed.birthDateIsEstimated,
           color: parsed.color,
           distinguishingFeatures: parsed.distinguishingFeatures,
+          estimatedWeightKg: parsed.estimatedWeightKg,
           // ARCH-S: microchipId, microchipCountryCode, tattooCode columns dropped
           // from pets — canonical rows written to pet_identifications below.
           jurisdictionProvince: parsed.jurisdictionProvince,
@@ -367,7 +379,7 @@ export async function createIntake(
         microchip_implanted_at: null,
         microchip_implanted_by: null,
         microchip_location: null,
-        estimated_weight_kg: null,
+        estimated_weight_kg: parsed.estimatedWeightKg,
         favourite_foods: [],
         known_allergies: [],
         training_level: null,

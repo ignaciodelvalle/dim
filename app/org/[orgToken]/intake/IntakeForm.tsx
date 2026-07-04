@@ -64,6 +64,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
   const [ageYears, setAgeYears] = useState("");
   const [ageMonths, setAgeMonths] = useState("");
   const [breed, setBreed] = useState("");
+  const [estimatedWeightKg, setEstimatedWeightKg] = useState("");
   const [color, setColor] = useState("");
   const [distinguishingFeatures, setDistinguishingFeatures] = useState("");
   const [microchipId, setMicrochipId] = useState("");
@@ -84,6 +85,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     if (ageYears) fd.set("ageYears", ageYears);
     if (ageMonths) fd.set("ageMonths", ageMonths);
     if (breed) fd.set("breed", breed);
+    if (estimatedWeightKg) fd.set("estimatedWeightKg", estimatedWeightKg);
     if (color) fd.set("color", color);
     if (distinguishingFeatures) fd.set("distinguishingFeatures", distinguishingFeatures);
     if (microchipId) fd.set("microchipId", microchipId);
@@ -117,6 +119,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     setAgeYears("");
     setAgeMonths("");
     setBreed("");
+    setEstimatedWeightKg("");
     setColor("");
     setDistinguishingFeatures("");
     setMicrochipId("");
@@ -323,6 +326,22 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           </label>
         </div>
 
+        <label className="block space-y-1 sm:w-1/2">
+          <span className="text-[13px] text-ln-op-ink">Peso estimado (kg)</span>
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            value={estimatedWeightKg}
+            onChange={(e) => setEstimatedWeightKg(e.target.value)}
+            placeholder="Ej: 24.5"
+            className={inputCls}
+          />
+          <span className="text-sm text-ln-op-mute">
+            Ayuda a evaluar razas potencialmente peligrosas (PPP) por peso.
+          </span>
+        </label>
+
         <label className="block space-y-1">
           <span className="text-[13px] text-ln-op-ink">Señas particulares</span>
           <textarea
@@ -451,6 +470,10 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             <dd className="col-span-2 text-ln-op-ink">{name || "—"}</dd>
             <dt className="text-ln-op-mute">Especie</dt>
             <dd className="col-span-2 text-ln-op-ink">{species || "—"}</dd>
+            <dt className="text-ln-op-mute">Peso</dt>
+            <dd className="col-span-2 text-ln-op-ink">
+              {estimatedWeightKg ? `${estimatedWeightKg} kg` : "—"}
+            </dd>
             <dt className="text-ln-op-mute">Microchip</dt>
             <dd className="col-span-2 font-mono text-ln-op-ink">{microchipId || "(sin chip)"}</dd>
             <dt className="text-ln-op-mute">Tatuaje</dt>
