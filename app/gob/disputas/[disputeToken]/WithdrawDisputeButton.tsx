@@ -1,13 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { withdrawDisputeAction } from "@/app/actions/custody-disputes";
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -30,7 +29,9 @@ export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }
         setError(result.error);
         return;
       }
-      router.refresh();
+      // Full document reload so the SSR page reflects the mutation
+      // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

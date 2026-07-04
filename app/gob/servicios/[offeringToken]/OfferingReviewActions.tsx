@@ -3,7 +3,6 @@
 // Client component for approve/reject actions on a service offering (Fase 9).
 // Mirrors the pattern used in /gob/cola/[publicToken]/ReviewActions.tsx.
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
@@ -11,11 +10,11 @@ import {
   rejectServiceOfferingAction,
 } from "@/app/actions/service-offerings";
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Mode = "idle" | "approving" | "rejecting";
 
 export function OfferingReviewActions({ publicToken }: { publicToken: string }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("idle");
   const [reason, setReason] = useState("");
@@ -28,7 +27,9 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
       if (result.error) setError(result.error);
       else {
         setMode("idle");
-        router.refresh();
+        // Full document reload so the SSR page reflects the mutation
+        // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+        navigateAfterActionSuccess(window.location.href);
       }
     });
   }
@@ -41,7 +42,9 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
       else {
         setMode("idle");
         setReason("");
-        router.refresh();
+        // Full document reload so the SSR page reflects the mutation
+        // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+        navigateAfterActionSuccess(window.location.href);
       }
     });
   }

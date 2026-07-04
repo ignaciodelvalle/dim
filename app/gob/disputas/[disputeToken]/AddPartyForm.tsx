@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { addDisputePartyAction } from "@/app/actions/custody-disputes";
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 const ROLE_OPTIONS = [
   { value: "current_owner", label: "Dueño actual" },
@@ -17,7 +17,6 @@ const ROLE_OPTIONS = [
 type RoleValue = (typeof ROLE_OPTIONS)[number]["value"];
 
 export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [partyKind, setPartyKind] = useState<"user" | "org">("user");
@@ -50,7 +49,9 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
       setPartyUserId("");
       setPartyOrgId("");
       setPositionSummary("");
-      router.refresh();
+      // Full document reload so the SSR page reflects the mutation
+      // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

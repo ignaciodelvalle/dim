@@ -1,9 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   closeWelfareReportAction,
   startWelfareReportAction,
@@ -20,7 +20,6 @@ export function TriageActions({
   welfareReportId: string;
   currentStatus: WelfareReportStatus;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("none");
   const [notes, setNotes] = useState("");
@@ -41,7 +40,9 @@ export function TriageActions({
         return;
       }
       reset();
-      router.refresh();
+      // Full document reload so the SSR page reflects the mutation
+      // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

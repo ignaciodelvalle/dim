@@ -1,13 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { escalateDisputeAction } from "@/app/actions/custody-disputes";
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 export function EscalateDisputeForm({ disputeToken }: { disputeToken: string }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState("");
@@ -32,7 +31,9 @@ export function EscalateDisputeForm({ disputeToken }: { disputeToken: string }) 
       setOkMessage("Escalada registrada. La disputa sigue abierta.");
       setOpen(false);
       setNotes("");
-      router.refresh();
+      // Full document reload so the SSR page reflects the mutation
+      // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

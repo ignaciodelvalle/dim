@@ -7,11 +7,11 @@
 // reassign proactively, this button opens a mini-form to select a new
 // receiver and optionally enter a reason.
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { reassignDecomisoToAnotherReceiverAction } from "@/app/actions/decomiso";
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type ReasignarButtonProps = {
   casePublicCode: string;
@@ -19,7 +19,6 @@ type ReasignarButtonProps = {
 };
 
 export function ReasignarButton({ casePublicCode, currentReceiverName }: ReasignarButtonProps) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [newReceiverId, setNewReceiverId] = useState("");
   const [reason, setReason] = useState("");
@@ -45,7 +44,9 @@ export function ReasignarButton({ casePublicCode, currentReceiverName }: Reasign
       setOpen(false);
       setNewReceiverId("");
       setReason("");
-      router.refresh();
+      // Full document reload so the SSR page reflects the mutation
+      // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { lookupTransferTargetAction, resolveDisputeAction } from "@/app/actions/custody-disputes";
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 const OUTCOMES = [
   { value: "ownership_confirmed", label: "Confirma al dueño actual" },
@@ -22,7 +22,6 @@ type VerifyState =
   | { status: "error"; message: string };
 
 export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [outcome, setOutcome] = useState<Outcome>("ownership_confirmed");
   const [transferKind, setTransferKind] = useState<"user" | "org">("user");
@@ -102,7 +101,9 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
         return;
       }
       setOkMessage("Disputa resuelta.");
-      router.refresh();
+      // Full document reload so the SSR page reflects the mutation
+      // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

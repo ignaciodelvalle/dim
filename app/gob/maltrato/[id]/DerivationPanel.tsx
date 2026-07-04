@@ -1,9 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { deriveWelfareToOrgAction } from "@/src/modules/welfare/actions";
 
 type OrgOption = {
@@ -23,7 +23,6 @@ export function DerivationPanel({
   availableOrgs,
   alreadyDerivedTo,
 }: DerivationPanelProps) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [selectedOrgId, setSelectedOrgId] = useState("");
@@ -43,7 +42,9 @@ export function DerivationPanel({
       }
       setOpen(false);
       setSelectedOrgId("");
-      router.refresh();
+      // Full document reload so the SSR page reflects the mutation
+      // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

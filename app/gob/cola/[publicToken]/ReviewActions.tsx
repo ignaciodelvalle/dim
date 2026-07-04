@@ -1,15 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { approveRequestAction, rejectRequestAction } from "@/app/actions/admin-decisions";
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Mode = "idle" | "approving" | "rejecting";
 
 export function ReviewActions({ publicToken }: { publicToken: string }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("idle");
   const [notes, setNotes] = useState("");
@@ -24,7 +23,9 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
       else {
         setMode("idle");
         setNotes("");
-        router.refresh();
+        // Full document reload so the SSR page reflects the mutation
+        // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+        navigateAfterActionSuccess(window.location.href);
       }
     });
   }
@@ -37,7 +38,9 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
       else {
         setMode("idle");
         setReason("");
-        router.refresh();
+        // Full document reload so the SSR page reflects the mutation
+        // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+        navigateAfterActionSuccess(window.location.href);
       }
     });
   }
