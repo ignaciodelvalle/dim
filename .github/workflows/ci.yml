@@ -49,6 +49,15 @@ jobs:
       - name: Lint (actions, UI, deps, guardrails)
         run: pnpm lint:ui && pnpm lint:actions && pnpm lint:deps && pnpm lint:lib-root && pnpm lint:mocks && pnpm lint:buttons
 
+      - name: Lint (router.refresh ban)
+        # Nav burn-down N2 (2026-07-04): router.refresh() rides the App
+        # Router transition machinery with the production silent-drop defect
+        # (engram #621/#622). Post-mutation UI truth comes from full document
+        # navigation or optimistic local state — never router.refresh().
+        # See scripts/check-router-refresh.ts and
+        # docs/design/handoffs/2026-07-04-router-refresh-tiers.md.
+        run: pnpm lint:nav
+
       - name: Typecheck (tsc)
         run: pnpm typecheck
 
