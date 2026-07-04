@@ -386,3 +386,15 @@ Cada una: qué se ve · copy es-AR · encoding (dataviz) + nota de paleta · hoo
 | Caption component | `PanoramaCaption.tsx` (nuevo), montado en `PanoramaConsole.tsx:1361` |
 </content>
 </invoke>
+
+---
+
+## Decisiones del PO (resueltas 2026-07-04)
+
+1. **Disparador del nivel localidad: AMBOS — zoom Y alcance.** Principio rector: *no agrupar perdiendo precisión si la visualización lo banca correctamente*. Al hacer zoom (aun en alcance nacional) se muestra el detalle de localidad; seleccionar un alcance también. Se prefiere la mayor precisión que renderice bien.
+2. **Worst-N = 10.**
+3. **Polígonos de localidad: la fuente más confiable / de mejores polígonos** (decisión de implementación — priorizar calidad de geometría; INDEC u otra fuente oficial abierta).
+4. **NO capa "¿dónde actuar?" / NO score derivado / NO bivariado-a-ranking.** Postura de producto: *solo data útil y honesta; no inventamos métricas ni recomendamos next-actions todavía*. → Se ELIMINAN del scope: la priority-layer, el bivariado colapsado a rank, y cualquier recomendación prescriptiva. El panorama muestra datos crudos/agregados honestos, nada de composites opacos.
+5. **"Personalizar": simple por ahora**, a criterio del diseño (default recomendado).
+
+**Efecto en el phasing:** P0 sin cambios (IA reframe + render-policy + Worst-N + tabla accesible + hatch de supresión + dominio [0,100] + click-provincia + copiar-vista/PNG). Fase 2 pierde la priority-layer y el bivariado (cortados por decisión de producto); queda choropleth real por localidad + modo Δ.
