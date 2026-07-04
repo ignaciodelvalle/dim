@@ -2,14 +2,7 @@
 // Lists pending capability requests, recent approvals, and a full matrix of
 // who has what (implicit via role vs explicit grant). Layout gates on capability.grant.
 
-import {
-  OpCard,
-  OpCardBody,
-  OpCardHead,
-  OpCodeBadge,
-  OpCrumbs,
-  OpPill,
-} from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { db, organizationCapabilityGrants, organizationMemberships, profiles } from "@/db";
 import { ORGANIZATION_CAPABILITIES } from "@/db/schema";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
@@ -158,13 +151,9 @@ export default async function PermisosPage({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <OpCrumbs
-          items={[
-            { label: "Panel", href: `/org/${orgToken}` },
-            { label: "Administración" },
-            { label: "Permisos" },
-          ]}
-        />
+        {/* No page-level OpCrumbs here — the topbar (OrgBreadcrumbs) already
+            renders "Panel > Permisos" for this route (#815 audit finding #4:
+            the two used to disagree, showing 3 conflicting labels at once). */}
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Solicitudes de permisos</h1>
         <p className="text-[13px] text-ln-op-mute">
           Aprobá o denegá pedidos pendientes. También podés revocar un permiso ya concedido.
