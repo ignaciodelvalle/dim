@@ -196,7 +196,7 @@ export default async function GobPerdidasPage({
           }}
         />
         <OpKpi
-          label="Antiguedad media (dias)"
+          label="Antigüedad media (días)"
           value={String(metrics.avgDaysActive)}
           info={{
             definition:

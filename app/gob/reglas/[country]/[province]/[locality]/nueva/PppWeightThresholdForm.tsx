@@ -93,7 +93,7 @@ export function PppWeightThresholdForm({
         vacio para no aplicar threshold (solo regla de razas).
       </p>
 
-      <LnField label="Peso minimo (kg)">
+      <LnField label="Peso mínimo (kg)">
         {({ id, describedBy, invalid }) => (
           <LnInput
             id={id}

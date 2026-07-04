@@ -57,7 +57,7 @@ export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
         </nav>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Ejecutar decomiso</h1>
         <p className="text-[13px] text-ln-op-mute">
-          {"Ley 14.346 — incautacion de animal por autoridad sanitaria. Requiere minimo 2 adjuntos"}
+          {"Ley 14.346 — incautación de animal por autoridad sanitaria. Requiere mínimo 2 adjuntos"}
           {" (foto del animal + acta administrativa)."}
         </p>
       </header>

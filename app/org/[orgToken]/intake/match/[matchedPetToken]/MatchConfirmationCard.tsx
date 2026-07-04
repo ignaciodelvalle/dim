@@ -116,7 +116,7 @@ export function MatchConfirmationCard({
 
           {lastLocationText && (
             <p className="text-[13px] text-ln-op-ink">
-              <span className="text-ln-op-mute">Ultima ubicacion conocida: </span>
+              <span className="text-ln-op-mute">Última ubicación conocida: </span>
               <span>{lastLocationText}</span>
               {lastLocationDate && (
                 <span className="text-ln-op-mute ml-1">

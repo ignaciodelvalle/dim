@@ -17,9 +17,9 @@ type Props = {
 };
 
 const DURATION_OPTIONS = [
-  { label: "7 dias", days: 7 },
-  { label: "30 dias", days: 30 },
-  { label: "90 dias", days: 90 },
+  { label: "7 días", days: 7 },
+  { label: "30 días", days: 30 },
+  { label: "90 días", days: 90 },
   { label: "Sin vencimiento", days: null },
 ] as const;
 

@@ -217,7 +217,7 @@ export default async function DecomisosDashboardPage() {
                       {/* Days elapsed */}
                       <div className="text-right flex-shrink-0">
                         <p className="text-lg font-bold text-ln-op-ink tabular-nums">{days}</p>
-                        <p className="text-sm text-ln-op-mute">{days === 1 ? "dia" : "dias"}</p>
+                        <p className="text-sm text-ln-op-mute">{days === 1 ? "día" : "días"}</p>
                       </div>
                     </div>
 

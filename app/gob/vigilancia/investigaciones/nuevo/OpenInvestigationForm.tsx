@@ -56,7 +56,7 @@ export function OpenInvestigationForm({
           <option value="">Seleccionar enfermedad...</option>
           {diseases.map((d) => (
             <option key={d.code} value={d.code}>
-              {d.label} â€" {d.severity === "critical" ? "critica" : "alta"} ({d.notifyHours}h)
+              {d.label} — {d.severity === "critical" ? "crítica" : "alta"} ({d.notifyHours}h)
             </option>
           ))}
         </select>
@@ -64,7 +64,7 @@ export function OpenInvestigationForm({
 
       <div className="space-y-1.5">
         <label htmlFor="reason" className="block text-[13px] font-medium text-ln-op-ink">
-          Motivo de apertura (minimo 10 caracteres)
+          Motivo de apertura (mínimo 10 caracteres)
         </label>
         <textarea
           id="reason"

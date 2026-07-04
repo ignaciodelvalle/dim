@@ -16,7 +16,7 @@ import { portalBase } from "@/lib/ui/portal-base";
 import { OfferingReviewActions } from "./OfferingReviewActions";
 
 const STATUS_LABELS: Record<string, string> = {
-  pending_approval: "Pendiente de revision",
+  pending_approval: "Pendiente de revisión",
   approved: "Aprobado",
   rejected: "Rechazado",
 };

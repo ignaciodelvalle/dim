@@ -236,7 +236,7 @@ export function InvestigationActions({
             ? "Detalle (mínimo 5 caracteres)"
             : mode === "external_notification"
               ? "Detalle de la notificación (mínimo 5 caracteres)"
-              : "Motivo (minimo 10 caracteres)"}
+              : "Motivo (mínimo 10 caracteres)"}
         </label>
         <textarea
           id="notes"

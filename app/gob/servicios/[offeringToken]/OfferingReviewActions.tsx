@@ -80,7 +80,7 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
         <textarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="Motivo del rechazo (minimo 10 caracteres). Se envia al proveedor."
+          placeholder="Motivo del rechazo (mínimo 10 caracteres). Se envía al proveedor."
           rows={3}
           className="w-full text-sm rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
