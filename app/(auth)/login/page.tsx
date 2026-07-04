@@ -114,7 +114,7 @@ export default async function LoginPage({
         {deactivatedSession && (
           <div
             role="alert"
-            className="space-y-2 rounded-[3px] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-bg)] px-4 py-3 text-sm text-[var(--color-ln-ink)]"
+            className="space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-bg)] px-4 py-3 text-sm text-[var(--color-ln-ink)]"
           >
             <p className="font-medium text-[var(--color-ln-err)]">
               Tu cuenta institucional está desactivada.

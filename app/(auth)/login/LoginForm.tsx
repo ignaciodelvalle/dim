@@ -92,7 +92,7 @@ export function LoginFormView({
           {state.error && (
             <div
               role="alert"
-              className="rounded-[3px] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-bg)] px-3 py-2 text-sm text-[var(--color-ln-err)]"
+              className="rounded-[var(--radius-sm)] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-bg)] px-3 py-2 text-sm text-[var(--color-ln-err)]"
             >
               {state.error}
             </div>
@@ -102,7 +102,7 @@ export function LoginFormView({
             type="submit"
             disabled={isPending}
             aria-busy={isPending || undefined}
-            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? "Ingresando..." : "Iniciar sesión"}
           </button>
@@ -120,7 +120,7 @@ export function LoginFormView({
           disabled
           tabIndex={-1}
           title="Próximamente: integración con Mi Argentina"
-          className="w-full px-4 py-3 rounded-[3px] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)] cursor-not-allowed"
+          className="w-full px-4 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)] cursor-not-allowed"
         >
           Conectar con Mi Argentina (próximamente)
         </button>
