@@ -136,6 +136,4 @@ test("segmento 04 — veterinaria", async ({ page }) => {
   await showScreen(page, `${root}/miembros`);
   await showScreen(page, `${root}/configuracion`);
   await showScreen(page, `${root}/cobertura`);
-
-  await expect(page.locator("body")).toBeVisible();
 });

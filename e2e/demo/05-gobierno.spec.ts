@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { ACCOUNTS, fullScroll, loginAs, panoramaMapBeat, showScreen, visit } from "./_helpers";
+import {
+  ACCOUNTS,
+  fullScroll,
+  loginAs,
+  panoramaMapBeat,
+  showScreen,
+  submitAndWait,
+  visit,
+} from "./_helpers";
 
 // SEGMENT 05 — GOBIERNO (govt@dim.test). READ-MOSTLY by PO decision: these
 // consoles act on real citizen data, so the recording NAVIGATES queues and
@@ -28,22 +36,37 @@ test("segmento 05 — gobierno", async ({ page }) => {
   // which doubles as the /investigaciones/[caseCode] shot.
   await visit(page, "/gob/vigilancia/investigaciones/nuevo");
   await fullScroll(page);
-  await page.locator("select#diseaseCode").selectOption({ index: 1 });
   await page
     .locator("textarea#reason")
     .fill(
-      "Aumento sostenido de notificaciones de mordeduras con sospecha de rabia en la zona sur durante las últimas dos semanas. Se abre investigación para confirmar nexo epidemiológico.",
+      "Aumento sostenido de notificaciones con nexo epidemiológico en la zona sur durante las últimas dos semanas. Se abre investigación para confirmar el vínculo.",
     );
-  await page.waitForTimeout(500);
-  const openBtn = page.getByRole("button", { name: /abrir investigaci/i });
-  await expect(openBtn, "open-investigation submit button").toBeEnabled();
-  await openBtn.click();
-  await page.waitForURL(
-    (url) =>
-      url.pathname.startsWith("/gob/vigilancia/investigaciones/") &&
-      !url.pathname.endsWith("/nuevo"),
-    { timeout: 30_000 },
-  );
+  // Idempotent across re-records: one open investigation per disease per
+  // jurisdiction is allowed, so walk the disease list until one submits
+  // ("Ya existe una investigación abierta…" → try the next one).
+  const investigationUrl = (url: URL) =>
+    url.pathname.startsWith("/gob/vigilancia/investigaciones/") && !url.pathname.endsWith("/nuevo");
+  const diseaseCount = await page.locator("select#diseaseCode option").count();
+  let opened = false;
+  for (let i = 1; i < diseaseCount && !opened; i++) {
+    await page.locator("select#diseaseCode").selectOption({ index: i });
+    await page.waitForTimeout(400);
+    const openBtn = page.getByRole("button", { name: /abrir investigaci/i });
+    try {
+      await submitAndWait(page, openBtn, investigationUrl, 12_000);
+      opened = true;
+    } catch {
+      const dup = await page
+        .locator("output", { hasText: /ya existe/i })
+        .count()
+        .catch(() => 0);
+      if (!dup)
+        throw new Error(
+          `investigation submit failed on disease index ${i} without a duplicate notice`,
+        );
+    }
+  }
+  expect(opened, "an investigation was opened for some disease").toBe(true);
   await page.waitForLoadState("networkidle").catch(() => {});
   await fullScroll(page); // investigation detail page
 
@@ -90,6 +113,4 @@ test("segmento 05 — gobierno", async ({ page }) => {
   // 6. REFERENCIA
   await showScreen(page, "/gob/servicios");
   await showScreen(page, "/gob/historial");
-
-  await expect(page.locator("body")).toBeVisible();
 });

@@ -333,6 +333,4 @@ test("segmento 03 — refugio", async ({ page }) => {
   await showScreen(page, `${root}/cobertura`);
   await showScreen(page, `${root}/admin/permisos`);
   await showScreen(page, `${root}/configuracion`);
-
-  await expect(page.locator("body")).toBeVisible();
 });

@@ -128,6 +128,4 @@ test("segmento 06 — admin", async ({ page }) => {
 
   // 7. Mi Argentina integration explainer.
   await showScreen(page, "/admin/acerca/integracion-miarg");
-
-  await expect(page.locator("body")).toBeVisible();
 });

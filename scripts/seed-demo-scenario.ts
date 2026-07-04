@@ -337,7 +337,12 @@ const DEMO_PET_IDENTITY: Record<
   "DEMO-PET-004": { name: "Tango", breed: "Galgo", color: "gris", sex: "male" },
   "DEMO-PET-005": { name: "Frida", breed: "Salchicha", color: "marrón", sex: "female" },
   "DEMO-PET-006": { name: "Camilo", breed: "Beagle", color: "tricolor", sex: "male" },
-  "DEMO-PET-007": { name: "Renata", breed: "Border collie", color: "blanco y negro", sex: "female" },
+  "DEMO-PET-007": {
+    name: "Renata",
+    breed: "Border collie",
+    color: "blanco y negro",
+    sex: "female",
+  },
   "DEMO-PET-008": { name: "Bianca", breed: "Caniche toy", color: "blanco", sex: "female" },
   "DEMO-PET-009": { name: "Morocho", breed: "Mestizo", color: "negro", sex: "male" },
   "DEMO-PET-010": { name: "Pipa", breed: "Golden retriever", color: "dorado", sex: "female" },

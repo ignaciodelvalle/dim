@@ -113,6 +113,32 @@ export async function tryFill(page: Page, label: RegExp, value: string): Promise
   }
 }
 
+/**
+ * Click a submit button and wait for the URL to change; when the click is
+ * silently dropped (hydration race, task #39 — handlers not yet attached),
+ * fall back to submitting the button's form programmatically. Fail-loud if
+ * neither attempt navigates.
+ */
+export async function submitAndWait(
+  page: Page,
+  button: ReturnType<Page["getByRole"]>,
+  urlPredicate: (url: URL) => boolean,
+  timeoutMs = 30_000,
+): Promise<void> {
+  await expect(button, "submit button").toBeEnabled();
+  await button.click();
+  try {
+    await page.waitForURL(urlPredicate, { timeout: 10_000 });
+    return;
+  } catch {
+    // Dropped click — submit the owning form directly (#39 workaround).
+    await button.evaluate((el) => {
+      (el as HTMLButtonElement).form?.requestSubmit();
+    });
+    await page.waitForURL(urlPredicate, { timeout: timeoutMs });
+  }
+}
+
 /** Assert we are not on an error/404 boundary — a light sanity gate per screen. */
 export async function notErrored(page: Page): Promise<void> {
   await expect(page.locator("body")).toBeVisible();
