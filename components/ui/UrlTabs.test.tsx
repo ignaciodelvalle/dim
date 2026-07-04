@@ -99,3 +99,74 @@ describe("UrlTabs — full navigation on change (router-drop fix)", () => {
     expect(routerRefresh).not.toHaveBeenCalled();
   });
 });
+
+describe("UrlTabs — keyboard (APG Tabs pattern, a11y audit 2026-07-04 #1)", () => {
+  it("only the active tab is in the Tab order (roving tabindex)", () => {
+    render(
+      <UrlTabs paramKey="queue" defaultValue="abierto" tabs={TABS} aria-label="Cola de casos">
+        <div />
+      </UrlTabs>,
+    );
+
+    expect(screen.getByRole("tab", { name: "Abierto" })).toHaveAttribute("tabIndex", "0");
+    expect(screen.getByRole("tab", { name: "Cerrado" })).toHaveAttribute("tabIndex", "-1");
+  });
+
+  it("ArrowRight moves to and activates the next tab, wrapping at the end", () => {
+    setUrl("/gob/maltrato?queue=cerrado");
+    render(
+      <UrlTabs paramKey="queue" defaultValue="cerrado" tabs={TABS} aria-label="Cola de casos">
+        <div />
+      </UrlTabs>,
+    );
+
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Cerrado" }), { key: "ArrowRight" });
+
+    expect(mockAssign).toHaveBeenCalledTimes(1);
+    const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost/gob/maltrato");
+    expect(url.searchParams.get("queue")).toBe("abierto");
+  });
+
+  it("ArrowLeft moves to and activates the previous tab, wrapping at the start", () => {
+    render(
+      <UrlTabs paramKey="queue" defaultValue="abierto" tabs={TABS} aria-label="Cola de casos">
+        <div />
+      </UrlTabs>,
+    );
+
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Abierto" }), { key: "ArrowLeft" });
+
+    expect(mockAssign).toHaveBeenCalledTimes(1);
+    const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost/gob/maltrato");
+    expect(url.searchParams.get("queue")).toBe("cerrado");
+  });
+
+  it("Home activates the first tab; End activates the last tab", () => {
+    setUrl("/gob/maltrato?queue=cerrado");
+    render(
+      <UrlTabs paramKey="queue" defaultValue="cerrado" tabs={TABS} aria-label="Cola de casos">
+        <div />
+      </UrlTabs>,
+    );
+
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Cerrado" }), { key: "Home" });
+    const homeUrl = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost/gob/maltrato");
+    expect(homeUrl.searchParams.get("queue")).toBe("abierto");
+
+    mockAssign.mockClear();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Cerrado" }), { key: "End" });
+    const endUrl = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost/gob/maltrato");
+    expect(endUrl.searchParams.get("queue")).toBe("cerrado");
+  });
+
+  it("ignores unrelated keys (no navigation on Enter/Space — click already handles activation)", () => {
+    render(
+      <UrlTabs paramKey="queue" defaultValue="abierto" tabs={TABS} aria-label="Cola de casos">
+        <div />
+      </UrlTabs>,
+    );
+
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Abierto" }), { key: "Enter" });
+    expect(mockAssign).not.toHaveBeenCalled();
+  });
+});

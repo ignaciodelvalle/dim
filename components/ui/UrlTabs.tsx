@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { type ReactNode, createContext, useContext } from "react";
+import { type KeyboardEvent, type ReactNode, createContext, useContext, useRef } from "react";
 
 import { Icon, type IconName } from "@/components/Icon";
 
@@ -65,11 +65,41 @@ export function UrlTabs({
 }: UrlTabsProps) {
   const searchParams = useSearchParams();
   const activeTab = searchParams.get(paramKey) ?? defaultValue;
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   function handleTabClick(value: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set(paramKey, value);
     window.location.assign(`?${params.toString()}`);
+  }
+
+  // APG Tabs keyboard pattern (automatic activation): Arrow Left/Right move
+  // between tabs (wrapping), Home/End jump to the first/last tab, and the
+  // moved-to tab activates immediately — same navigation `handleTabClick`
+  // already performs on click. Roving tabindex (below) keeps Tab/Shift+Tab
+  // landing on the single active tab instead of stepping through every tab.
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const currentIndex = tabs.findIndex((tab) => tab.value === activeTab);
+    let nextIndex: number;
+    switch (event.key) {
+      case "ArrowRight":
+        nextIndex = (currentIndex + 1) % tabs.length;
+        break;
+      case "ArrowLeft":
+        nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = tabs.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    tabRefs.current[nextIndex]?.focus();
+    handleTabClick(tabs[nextIndex].value);
   }
 
   return (
@@ -78,18 +108,23 @@ export function UrlTabs({
         <div
           role="tablist"
           aria-label={ariaLabel}
+          onKeyDown={handleKeyDown}
           className="flex border-b border-[var(--color-ln-line)]"
         >
-          {tabs.map((tab) => {
+          {tabs.map((tab, index) => {
             const isActive = tab.value === activeTab;
             return (
               <button
                 key={tab.value}
+                ref={(el) => {
+                  tabRefs.current[index] = el;
+                }}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
                 aria-controls={`tabpanel-${tab.value}`}
                 id={`tab-${tab.value}`}
+                tabIndex={isActive ? 0 : -1}
                 onClick={() => handleTabClick(tab.value)}
                 className={[
                   "inline-flex items-center gap-[7px] min-h-11 px-[18px] text-[13px] font-semibold",
