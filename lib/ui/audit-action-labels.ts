@@ -108,6 +108,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   pet_transfer_expired: "Transferencia de mascota vencida",
   // Exports
   analytics_export_generated: "Exportación analytics generada",
+  gob_dashboard_export_generated: "Exportación CSV de dashboard",
   ppp_export_generated: "Exportación PPP generada",
   // Pet events override
   pet_events_mutation_override: "Mutación forzada de evento de mascota (override)",
