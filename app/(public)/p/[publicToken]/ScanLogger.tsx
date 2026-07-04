@@ -67,9 +67,14 @@ export function ScanLogger({
         aria-label="Compartir ubicación"
         className="mx-auto max-w-md rounded-2xl border border-ln-line bg-ln-card p-4 shadow-lg"
       >
+        {/* Consent copy contract (privacy hardening 2026-07-04): today the
+            consented coords are STORED on the scan event but no read path
+            surfaces them to the family yet — so the copy promises recording,
+            not delivery. If/when the owner feed renders scan locations,
+            revisit this copy together with a read-path privacy review. */}
         {consent === "shared" ? (
           <output className="block text-sm font-medium text-ln-ok">
-            ¡Gracias! Le avisamos a su familia dónde fue vista.
+            ¡Gracias! Tu ubicación quedó registrada en el aviso de búsqueda.
           </output>
         ) : (
           <>
@@ -77,8 +82,8 @@ export function ScanLogger({
               Compartí tu ubicación para ayudar a encontrar a {name}
             </p>
             <p className="mt-1 text-xs text-ln-mute">
-              Se comparte una sola vez con su familia para saber por dónde fue vista. No guardamos
-              quién sos.
+              Se registra una sola vez junto al aviso de búsqueda, para orientar dónde buscar. No
+              guardamos quién sos.
             </p>
             <div className="mt-3 flex gap-2">
               <button

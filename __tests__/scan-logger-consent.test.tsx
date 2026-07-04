@@ -35,6 +35,10 @@ describe("ScanLogger — location-consent prompt", () => {
     expect(html).toContain("Ahora no");
     // Transparency copy: anonymity promise is shown to the finder.
     expect(html).toContain("No guardamos quién sos");
+    // Consent-copy contract (privacy hardening 2026-07-04): promise recording,
+    // not delivery — no read path surfaces scan coords to the family today.
+    expect(html).toContain("Se registra una sola vez junto al aviso de búsqueda");
+    expect(html).not.toContain("Le avisamos a su familia");
   });
 
   it("falls back to generic copy when the pet name is missing", () => {
