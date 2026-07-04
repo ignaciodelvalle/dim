@@ -179,3 +179,57 @@ drop trigger if exists pet_events_no_delete on public.pet_events;
 create trigger pet_events_no_delete
   before delete on public.pet_events
   for each row execute function public.enforce_pet_events_append_only();
+
+-- Enforce append-only case_events (migration 0121 — event-sourcing integrity
+-- review 2026-07-04 item 3). Mirrors enforce_pet_events_append_only and
+-- REUSES the same override GUCs (app.allow_event_mutation +
+-- app.allow_event_mutation_actor) so one accountable override session covers
+-- both append-only event tables. Every override writes an audit_log row
+-- (action='case_events_mutation_override'). No scan-purge path — case_events
+-- has no retention-purged entry kind.
+
+create or replace function public.enforce_case_events_append_only()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  override_actor uuid;
+begin
+  if current_setting('app.allow_event_mutation', true) = 'true' then
+    override_actor := nullif(current_setting('app.allow_event_mutation_actor', true), '')::uuid;
+    if override_actor is null then
+      raise exception 'case_events mutation override requires app.allow_event_mutation_actor (uuid) to be set in the same session'
+        using errcode = 'restrict_violation';
+    end if;
+
+    insert into public.audit_log (actor_user_id, action, payload)
+    values (
+      override_actor,
+      'case_events_mutation_override',
+      jsonb_build_object(
+        'operation',     tg_op,
+        'case_event_id', coalesce(new.id,          old.id),
+        'case_id',       coalesce(new.case_id,     old.case_id),
+        'entry_type',    coalesce(new.entry_type,  old.entry_type),
+        'occurred_at',   coalesce(new.occurred_at, old.occurred_at)
+      )
+    );
+
+    return coalesce(new, old);
+  end if;
+
+  raise exception 'case_events is append-only (AGENTS.md). % blocked.', tg_op
+    using errcode = 'restrict_violation';
+end;
+$$;
+
+drop trigger if exists case_events_no_update on public.case_events;
+create trigger case_events_no_update
+  before update on public.case_events
+  for each row execute function public.enforce_case_events_append_only();
+
+drop trigger if exists case_events_no_delete on public.case_events;
+create trigger case_events_no_delete
+  before delete on public.case_events
+  for each row execute function public.enforce_case_events_append_only();
