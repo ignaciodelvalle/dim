@@ -110,7 +110,7 @@ export default async function OrgTransferenciasEntrantesPage({
       ),
     )
     .orderBy(desc(cases.openedAt))
-    .limit(200);
+    .limit(201);
 
   // -------------------------------------------------------------------------
   // 2. Decomiso handoff proposals (custody_episode opened by sanitary_authority)
@@ -155,12 +155,20 @@ export default async function OrgTransferenciasEntrantesPage({
       and(eq(cases.caseKind, "custody_episode"), eq(cases.receiverOrganizationId, organization.id)),
     )
     .orderBy(desc(cases.openedAt))
-    .limit(200);
+    .limit(201);
 
   // Merge and sort by openedAt desc.
-  const allRows = [...handshakeRows, ...decommissaRows].sort(
+  //
+  // #815 audit finding #7: previously both queries used a bare limit(200)
+  // with no truncation signal — a network with >200 historical transfers
+  // silently lost visibility into the oldest ones. Each query now fetches
+  // one extra row (limit 201, same pattern as adopciones/page.tsx) so the
+  // merged+sorted list can detect truncation before capping at 200.
+  const mergedRows = [...handshakeRows, ...decommissaRows].sort(
     (a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime(),
   );
+  const truncated = mergedRows.length > 200;
+  const allRows = mergedRows.slice(0, 200);
 
   return (
     <div className="space-y-6">
@@ -195,95 +203,102 @@ export default async function OrgTransferenciasEntrantesPage({
           title="No tenés propuestas de transferencia entrantes."
         />
       ) : (
-        <OpCard>
-          <OpCardBody className="p-0">
-            <ul className="divide-y divide-ln-op-line">
-              {allRows.map((r) => {
-                const isDecomiso =
-                  r.caseKind === "custody_episode" && r.senderOrgType === "sanitary_authority";
+        <>
+          <OpCard>
+            <OpCardBody className="p-0">
+              <ul className="divide-y divide-ln-op-line">
+                {allRows.map((r) => {
+                  const isDecomiso =
+                    r.caseKind === "custody_episode" && r.senderOrgType === "sanitary_authority";
 
-                const statusLabel =
-                  r.status === "closed" && r.closedReason
-                    ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
-                    : (STATUS_LABEL[r.status] ?? r.status);
+                  const statusLabel =
+                    r.status === "closed" && r.closedReason
+                      ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
+                      : (STATUS_LABEL[r.status] ?? r.status);
 
-                return (
-                  <li key={r.caseId} className="px-4 py-3 space-y-2">
-                    {isDecomiso && (
-                      <OpBreach
-                        title="DECOMISO — Custodia estatal · Ley 14.346"
-                        detail={
-                          r.status === "open"
-                            ? "Tenés 7 días para aceptar o rechazar esta custodia estatal."
-                            : undefined
-                        }
-                      />
-                    )}
+                  return (
+                    <li key={r.caseId} className="px-4 py-3 space-y-2">
+                      {isDecomiso && (
+                        <OpBreach
+                          title="DECOMISO — Custodia estatal · Ley 14.346"
+                          detail={
+                            r.status === "open"
+                              ? "Tenés 7 días para aceptar o rechazar esta custodia estatal."
+                              : undefined
+                          }
+                        />
+                      )}
 
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-[13px] font-medium text-ln-op-ink">
-                          {r.petName ?? "(sin pet)"}
-                        </p>
-                        <p className="text-sm text-ln-op-mute">
-                          {isDecomiso ? (
-                            <>
-                              Autoridad sanitaria: <strong>{r.senderOrgName ?? "—"}</strong>
-                              {r.seizureMotive
-                                ? ` · Motivo: ${SEIZURE_MOTIVE_LABEL[r.seizureMotive] ?? r.seizureMotive}`
-                                : ""}
-                            </>
-                          ) : (
-                            <>
-                              De <strong>{r.senderOrgName ?? "—"}</strong>
-                              {r.reason ? ` · ${REASON_LABEL[r.reason] ?? r.reason}` : ""}
-                            </>
-                          )}
-                        </p>
-                        <p className="text-sm text-ln-op-mute">
-                          Recibida el {formatDate(r.openedAt)}
-                          {r.closedAt ? ` · Resuelta el ${formatDate(r.closedAt)}` : ""}
-                        </p>
-                        {!isDecomiso && r.notes ? (
-                          <p className="text-sm italic text-ln-op-ink-2">"{r.notes}"</p>
-                        ) : null}
-                        <Link
-                          href={`/casos/${r.publicCode}`}
-                          className="inline-block text-sm text-ln-op-azul hover:underline no-underline"
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <p className="text-[13px] font-medium text-ln-op-ink">
+                            {r.petName ?? "(sin pet)"}
+                          </p>
+                          <p className="text-sm text-ln-op-mute">
+                            {isDecomiso ? (
+                              <>
+                                Autoridad sanitaria: <strong>{r.senderOrgName ?? "—"}</strong>
+                                {r.seizureMotive
+                                  ? ` · Motivo: ${SEIZURE_MOTIVE_LABEL[r.seizureMotive] ?? r.seizureMotive}`
+                                  : ""}
+                              </>
+                            ) : (
+                              <>
+                                De <strong>{r.senderOrgName ?? "—"}</strong>
+                                {r.reason ? ` · ${REASON_LABEL[r.reason] ?? r.reason}` : ""}
+                              </>
+                            )}
+                          </p>
+                          <p className="text-sm text-ln-op-mute">
+                            Recibida el {formatDate(r.openedAt)}
+                            {r.closedAt ? ` · Resuelta el ${formatDate(r.closedAt)}` : ""}
+                          </p>
+                          {!isDecomiso && r.notes ? (
+                            <p className="text-sm italic text-ln-op-ink-2">"{r.notes}"</p>
+                          ) : null}
+                          <Link
+                            href={`/casos/${r.publicCode}`}
+                            className="inline-block text-sm text-ln-op-azul hover:underline no-underline"
+                          >
+                            Ver caso →
+                          </Link>
+                        </div>
+                        <OpPill
+                          tone={r.status === "open" ? (isDecomiso ? "danger" : "open") : "neutral"}
                         >
-                          Ver caso →
-                        </Link>
+                          {statusLabel}
+                        </OpPill>
                       </div>
-                      <OpPill
-                        tone={r.status === "open" ? (isDecomiso ? "danger" : "open") : "neutral"}
-                      >
-                        {statusLabel}
-                      </OpPill>
-                    </div>
 
-                    {/* Accept / reject actions — only for open handshake rows */}
-                    {r.status === "open" && !isDecomiso && (
-                      <IncomingTransferActions
-                        receiverOrgToken={orgToken}
-                        casePublicCode={r.publicCode}
-                        petName={r.petName ?? "(sin pet)"}
-                      />
-                    )}
+                      {/* Accept / reject actions — only for open handshake rows */}
+                      {r.status === "open" && !isDecomiso && (
+                        <IncomingTransferActions
+                          receiverOrgToken={orgToken}
+                          casePublicCode={r.publicCode}
+                          petName={r.petName ?? "(sin pet)"}
+                        />
+                      )}
 
-                    {/* Accept / reject custody — only for open decomiso rows */}
-                    {r.status === "open" && isDecomiso && (
-                      <DecomisoHandoffActions
-                        receiverOrgToken={orgToken}
-                        casePublicCode={r.publicCode}
-                        petName={r.petName ?? "(sin pet)"}
-                      />
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </OpCardBody>
-        </OpCard>
+                      {/* Accept / reject custody — only for open decomiso rows */}
+                      {r.status === "open" && isDecomiso && (
+                        <DecomisoHandoffActions
+                          receiverOrgToken={orgToken}
+                          casePublicCode={r.publicCode}
+                          petName={r.petName ?? "(sin pet)"}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </OpCardBody>
+          </OpCard>
+          {truncated && (
+            <p className="text-sm text-ln-op-mute">
+              Mostrando las primeras 200. Hay más — este listado todavía no tiene filtros.
+            </p>
+          )}
+        </>
       )}
     </div>
   );

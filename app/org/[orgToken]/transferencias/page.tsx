@@ -66,9 +66,13 @@ export default async function OrgTransferenciasSalientesPage({
       ),
     )
     .orderBy(desc(cases.openedAt))
-    .limit(200);
+    // UX 3.6 (d) / #815 audit finding #7: fetch one extra row past the cap to
+    // detect truncation (same pattern as adopciones/page.tsx), instead of a
+    // bare limit(200) that silently drops older rows with no indication.
+    .limit(201);
 
-  const handshakeRows = rows;
+  const truncated = rows.length > 200;
+  const handshakeRows = rows.slice(0, 200);
 
   return (
     <div className="space-y-6">
@@ -107,39 +111,48 @@ export default async function OrgTransferenciasSalientesPage({
       {handshakeRows.length === 0 ? (
         <LnEmptyState icon="transferencia" title="Todavía no propusiste ninguna transferencia." />
       ) : (
-        <OpCard>
-          <OpCardBody className="p-0">
-            <ul className="divide-y divide-ln-op-line">
-              {handshakeRows.map((r) => {
-                const statusLabel =
-                  r.status === "closed" && r.closedReason
-                    ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
-                    : (STATUS_LABEL[r.status] ?? r.status);
-                return (
-                  <li key={r.caseId} className="flex items-start justify-between gap-3 px-4 py-3">
-                    <div className="min-w-0 space-y-1">
-                      <p className="text-[13px] font-medium text-ln-op-ink">
-                        {r.petName ?? "(sin pet)"}{" "}
-                        <span className="font-mono text-sm text-ln-op-mute">· {r.publicCode}</span>
-                      </p>
-                      <p className="text-sm text-ln-op-mute">
-                        Abierta el {formatDate(r.openedAt)}
-                        {r.closedAt ? ` · Cerrada el ${formatDate(r.closedAt)}` : ""}
-                      </p>
-                      <Link
-                        href={`/casos/${r.publicCode}`}
-                        className="inline-block text-sm text-ln-op-azul hover:underline no-underline"
-                      >
-                        Ver caso →
-                      </Link>
-                    </div>
-                    <OpPill tone={STATUS_PILL_TONE[r.status] ?? "neutral"}>{statusLabel}</OpPill>
-                  </li>
-                );
-              })}
-            </ul>
-          </OpCardBody>
-        </OpCard>
+        <>
+          <OpCard>
+            <OpCardBody className="p-0">
+              <ul className="divide-y divide-ln-op-line">
+                {handshakeRows.map((r) => {
+                  const statusLabel =
+                    r.status === "closed" && r.closedReason
+                      ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
+                      : (STATUS_LABEL[r.status] ?? r.status);
+                  return (
+                    <li key={r.caseId} className="flex items-start justify-between gap-3 px-4 py-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-[13px] font-medium text-ln-op-ink">
+                          {r.petName ?? "(sin pet)"}{" "}
+                          <span className="font-mono text-sm text-ln-op-mute">
+                            · {r.publicCode}
+                          </span>
+                        </p>
+                        <p className="text-sm text-ln-op-mute">
+                          Abierta el {formatDate(r.openedAt)}
+                          {r.closedAt ? ` · Cerrada el ${formatDate(r.closedAt)}` : ""}
+                        </p>
+                        <Link
+                          href={`/casos/${r.publicCode}`}
+                          className="inline-block text-sm text-ln-op-azul hover:underline no-underline"
+                        >
+                          Ver caso →
+                        </Link>
+                      </div>
+                      <OpPill tone={STATUS_PILL_TONE[r.status] ?? "neutral"}>{statusLabel}</OpPill>
+                    </li>
+                  );
+                })}
+              </ul>
+            </OpCardBody>
+          </OpCard>
+          {truncated && (
+            <p className="text-sm text-ln-op-mute">
+              Mostrando las primeras 200. Hay más — este listado todavía no tiene filtros.
+            </p>
+          )}
+        </>
       )}
     </div>
   );
