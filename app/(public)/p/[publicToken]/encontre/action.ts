@@ -29,7 +29,6 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 export type FinderInPossessionState = {
   ok: boolean;
@@ -232,22 +231,12 @@ export async function reportFinderInPossessionAction(
     )
     .limit(1);
 
-  // Optionally resolve logged-in user identity (no redirect — public route).
-  // Used to set recordedByUserId + authorVerified when the finder is logged in.
-  let recordedByUserId: string | null = null;
-  let authorVerified = false;
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user?.id) {
-      recordedByUserId = user.id;
-      authorVerified = true;
-    }
-  } catch {
-    // Non-fatal: anonymous path — proceed without user context.
-  }
+  // Finder anonymity invariant (privacy hardening 2026-07-04): public finder
+  // flows NEVER link the report to a DIM account, even when the finder happens
+  // to be logged in — mirroring the sighting (report-pet-sighting.ts) and scan
+  // (log-scan.ts) contracts. recordedByUserId stays NULL and authorVerified
+  // stays false; the finder's identity lives ONLY in the payload fields they
+  // typed themselves (finderName / finderContact).
 
   // Build and validate the full payload in one pass through the strict Zod schema.
   // The schema now includes the possession-specific fields (location, petCondition,
@@ -285,9 +274,10 @@ export async function reportFinderInPossessionAction(
       eventType: "note_added",
       occurredAt: new Date(),
       recordedAt: new Date(),
-      recordedByUserId,
+      // Hard-anonymized: never link a public finder report to a user account.
+      recordedByUserId: null,
       authorRole: "finder",
-      authorVerified,
+      authorVerified: false,
       payload,
       locationLat: lat.toString(),
       locationLng: lng.toString(),
@@ -297,13 +287,12 @@ export async function reportFinderInPossessionAction(
 
   // P0g: also insert into the attachments table so the historial/eventos/EventTimeline
   // surfaces render the photo for free (they read attachments, not the payload JSONB).
-  // uploadedByUserId: use recordedByUserId when the finder is logged in, null for anon.
-  // Mirror pattern from app/actions/events.ts (checkin, vaccination, etc.).
+  // uploadedByUserId is always null — same finder-anonymity invariant as the event row.
   if (photoStoragePath && insertedEvent) {
     await db.insert(attachments).values({
       petId: pet.id,
       eventId: insertedEvent.id,
-      uploadedByUserId: recordedByUserId,
+      uploadedByUserId: null,
       storagePath: photoStoragePath,
       mimeType: photoMimeType ?? "image/jpeg",
       fileSize: photoSize ?? 0,

@@ -137,7 +137,7 @@ describe("<FinderInPossessionForm> — initial state (form render)", () => {
 
   it("does NOT render the logged-in banner when loggedIn=false (default)", () => {
     const html = render(<FinderInPossessionForm {...BASE_PROPS} />);
-    expect(html).not.toContain("Estás enviando como");
+    expect(html).not.toContain("Completamos el formulario con tus datos");
   });
 });
 
@@ -160,7 +160,9 @@ describe("<FinderInPossessionForm> — logged-in prefill", () => {
         }}
       />,
     );
-    expect(html).toContain("Estás enviando como");
+    expect(html).toContain("Completamos el formulario con tus datos");
+    // Anonymity copy: the banner must state the report is NOT account-linked.
+    expect(html).toContain("no queda vinculado a tu cuenta");
     expect(html).toContain("María García");
   });
 

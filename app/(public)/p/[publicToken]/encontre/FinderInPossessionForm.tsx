@@ -114,7 +114,9 @@ export function FinderInPossessionForm({
           and the main form's onSubmit validation would block the logout submit. */}
       {loggedIn && prefill?.displayName && (
         <div className="mb-5 rounded-lg border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-4 py-3 text-sm text-[var(--color-ln-azul)]">
-          Estás enviando como <span className="font-medium">{prefill.displayName}</span>.{" "}
+          Completamos el formulario con tus datos,{" "}
+          <span className="font-medium">{prefill.displayName}</span>. El aviso no queda vinculado a
+          tu cuenta: el dueño solo ve lo que escribas acá.{" "}
           <form
             action={logoutAndReturnAction.bind(null, `/p/${publicToken}/encontre`)}
             className="inline"

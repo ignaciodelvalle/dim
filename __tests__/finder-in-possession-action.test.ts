@@ -2,7 +2,8 @@
 //
 // Tests verify:
 //   1. Anon happy path → petEvents (kind=finder_in_possession) + notification created.
-//   2. Logged-in path → recordedByUserId set, authorVerified=true.
+//   2. Logged-in path → recordedByUserId stays NULL, authorVerified=false
+//      (finder anonymity invariant — privacy hardening 2026-07-04).
 //   3. Pet not lost → ok:false.
 //   4. Rate limit → ok:false.
 //   5. Idempotency guard → ok:true without second insert.
@@ -102,7 +103,9 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
 });
 
 // ---------------------------------------------------------------------------
-// Mock: @/lib/supabase/server — no logged-in user by default.
+// Mock: @/lib/supabase/server — simulates the browser session. The action must
+// NOT read it (finder anonymity invariant): even when getUser would return a
+// logged-in user, the persisted event must carry recordedByUserId=null.
 // ---------------------------------------------------------------------------
 
 const mockGetUser = vi.fn(async () => ({
@@ -319,11 +322,12 @@ describe("reportFinderInPossessionAction — P0e", () => {
     expect(payload.photoStoragePath == null).toBe(true);
   });
 
-  // --- Logged-in path ---
+  // --- Logged-in path: finder anonymity invariant ---
 
-  it("logged-in user: sets recordedByUserId and authorVerified=true", async () => {
+  it("logged-in finder: recordedByUserId stays NULL and authorVerified=false (anonymity invariant)", async () => {
     vi.resetModules();
     buildMockDb("lost");
+    // Simulate a logged-in session — the action must ignore it entirely.
     mockGetUser.mockResolvedValue({
       data: { user: { id: FINDER_USER_ID, email: "ana@test.com" } },
       error: null,
@@ -337,8 +341,12 @@ describe("reportFinderInPossessionAction — P0e", () => {
     const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
     expect(result.ok).toBe(true);
-    expect(capturedPetEventInsert?.recordedByUserId).toBe(FINDER_USER_ID);
-    expect(capturedPetEventInsert?.authorVerified).toBe(true);
+    // The report must NOT link the finder's DIM account: identity lives only
+    // in the typed payload fields (finderName / finderContact).
+    expect(capturedPetEventInsert?.recordedByUserId).toBeNull();
+    expect(capturedPetEventInsert?.authorVerified).toBe(false);
+    const payload = capturedPetEventInsert?.payload as Record<string, unknown>;
+    expect(payload.finderName).toBe("Ana González");
   });
 
   // --- Validation failures ---
@@ -560,10 +568,11 @@ describe("reportFinderInPossessionAction — P0e", () => {
     expect(att.uploadedByUserId).toBeNull();
   });
 
-  it("P0g: sets uploadedByUserId on attachment when finder is logged in", async () => {
+  it("P0g: uploadedByUserId stays NULL on attachment even when finder is logged in", async () => {
     vi.resetModules();
     buildMockDb("lost");
     capturedAttachmentInsert = null;
+    // Simulate a logged-in session — the attachment must NOT link the account.
     mockGetUser.mockResolvedValue({
       data: { user: { id: FINDER_USER_ID, email: "ana@test.com" } },
       error: null,
@@ -583,9 +592,9 @@ describe("reportFinderInPossessionAction — P0e", () => {
 
     await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
-    expect((capturedAttachmentInsert as unknown as Record<string, unknown>).uploadedByUserId).toBe(
-      FINDER_USER_ID,
-    );
+    expect(
+      (capturedAttachmentInsert as unknown as Record<string, unknown>).uploadedByUserId,
+    ).toBeNull();
   });
 
   it("P0g: does NOT insert an attachments row when no photo is provided", async () => {
