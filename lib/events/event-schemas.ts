@@ -472,6 +472,104 @@ const clinicalInfoLogged = z
   });
 
 // ---------------------------------------------------------------------------
+// Jurisdictional mobility (movilidad-jurisdiccional Fase 1)
+// ---------------------------------------------------------------------------
+//
+// DELIBERATE PRECEDENT DIVERGENCE (design D1): movementRecorded uses
+// z.discriminatedUnion("sub_kind", ...) instead of the flat-object +
+// superRefine pattern that clinicalInfoLogged uses above. The clinical
+// sub_kinds SHARE most fields (title/details/performed_by), so a flat object
+// with conditional refinement is natural there. The three movement sub_kinds
+// share NO fields — a union gives each face its own strict shape and typed
+// narrowing for projections (invariant #3), while a flat object would force
+// ~15 optional fields with a large superRefine matrix.
+//
+// Cross-sub_kind refinements (the S2 no-op-move check and the S1 wrong-face
+// field checks) come for free: each union member is .strict(), so a
+// cvi_issued payload carrying jurisdiction_changed keys is rejected by
+// strictness, not by hand-written refinement.
+
+// Fase 1 corridor ids (spec R3.2). Kept as a literal enum here — NOT imported
+// from lib/reference/cross-border-corridors — so the immutable event schema
+// never changes meaning if the corridor registry evolves; the registry's
+// coverage test pins both to the same 5 ids.
+const corridorIdEnum = z.enum(["chile", "uruguay", "brasil", "ue_espana", "usa"]);
+
+const movementJurisdictionChanged = z
+  .object(
+    withVersion({
+      sub_kind: z.literal("jurisdiction_changed"),
+      from_country: z.string().min(1),
+      from_province: z.string().nullable(),
+      from_locality: z.string().nullable(),
+      to_country: z.string().min(1),
+      to_province: z.string().nullable(),
+      to_locality: z.string().nullable(),
+      // ISO date the move takes effect (may differ from occurred_at).
+      effective_date: z.string(),
+      reason: z.string().nullable(),
+    }),
+  )
+  .strict()
+  // S2: a no-op move is rejected at the schema level — write nothing rather
+  // than record a non-event (spec R1.2).
+  .superRefine((p, ctx) => {
+    if (
+      p.from_country === p.to_country &&
+      p.from_province === p.to_province &&
+      p.from_locality === p.to_locality
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "jurisdiction_changed requires to_* to differ from from_* — a no-op move is not an event",
+        path: ["to_country"],
+      });
+    }
+  });
+
+const movementCviIssued = z
+  .object(
+    withVersion({
+      sub_kind: z.literal("cvi_issued"),
+      // ISO 3166-1 alpha-2 of the CVI's issuing country.
+      origin_country: z.string().length(2),
+      // Both-or-nothing (spec R1.2): a CVI fact without its issuing reference
+      // is not recordable — min(1) rejects empty strings, .strict() rejects
+      // omission via required keys.
+      cvi_number: z.string().min(1),
+      issuing_authority: z.string().min(1),
+      issued_date: z.string(),
+      // Cross-references petIdentifications.isoCountryCode when known.
+      chip_iso_country_code: z.string().nullable(),
+    }),
+  )
+  .strict();
+
+const movementTransportRecorded = z
+  .object(
+    withVersion({
+      sub_kind: z.literal("transport_recorded"),
+      // S3: a 6th corridor is rejected at schema validation, before ever
+      // reaching the aggregation (spec R1.2).
+      corridor_id: corridorIdEnum,
+      // Fixed literal in Fase 1 — inbound-to-AR computation is out of scope
+      // (spec R3.4).
+      direction: z.literal("outbound_from_ar"),
+      travel_date: z.string(),
+      mode: z.enum(["air", "land", "sea"]).nullable(),
+      purpose: z.string().nullable(),
+    }),
+  )
+  .strict();
+
+const movementRecorded = z.discriminatedUnion("sub_kind", [
+  movementJurisdictionChanged,
+  movementCviIssued,
+  movementTransportRecorded,
+]);
+
+// ---------------------------------------------------------------------------
 // Identification & legal
 // ---------------------------------------------------------------------------
 
@@ -1525,6 +1623,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   foster_proposal_resolved: fosterProposalResolved,
   foster_co_foster_allowed: fosterCoFosterAllowed,
   adoption_eligibility_set: adoptionEligibilitySet,
+  movement_recorded: movementRecorded,
   event_amended: eventAmended,
 };
 

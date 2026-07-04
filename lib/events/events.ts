@@ -43,6 +43,22 @@ export type EventPayloadSummary = {
   secondary: string | null;
 };
 
+// es-AR display labels for the 5 Fase 1 corridors (movilidad-jurisdiccional).
+// Mirrors lib/reference/cross-border-corridors.ts labels without importing the
+// registry — timeline rendering must stay total over historical rows even if
+// the registry evolves.
+const CORRIDOR_DISPLAY_LABELS: Record<string, string> = {
+  chile: "Chile",
+  uruguay: "Uruguay",
+  brasil: "Brasil",
+  ue_espana: "Unión Europea (España)",
+  usa: "Estados Unidos",
+};
+
+function corridorDisplayLabel(corridorId: string): string {
+  return CORRIDOR_DISPLAY_LABELS[corridorId] ?? corridorId;
+}
+
 // Curated, whitelisted es-AR key→value view of an event payload for the owner
 // timeline (H3, 2026-07-01). Replaces a raw JSON dump on a citizen surface: only
 // safe, human fields are emitted — never internal identifiers (*_id), hashes
@@ -126,6 +142,30 @@ export function eventPayloadDetails(
               : v,
       );
       break;
+    case "movement_recorded": {
+      // Whitelisted per sub_kind — never internal ids, never raw enum codes.
+      const subKind = typeof p.sub_kind === "string" ? p.sub_kind : null;
+      if (subKind === "jurisdiction_changed") {
+        push("País de destino", "to_country");
+        push("Provincia de destino", "to_province");
+        push("Localidad de destino", "to_locality");
+        pushDate("Fecha efectiva", "effective_date");
+        push("Motivo", "reason");
+      } else if (subKind === "cvi_issued") {
+        push("Nº de CVI", "cvi_number");
+        push("Autoridad emisora", "issuing_authority");
+        push("País de origen", "origin_country");
+        pushDate("Fecha de emisión", "issued_date");
+      } else if (subKind === "transport_recorded") {
+        push("Corredor", "corridor_id", corridorDisplayLabel);
+        pushDate("Fecha de viaje", "travel_date");
+        push("Medio", "mode", (v) =>
+          v === "air" ? "aéreo" : v === "land" ? "terrestre" : v === "sea" ? "marítimo" : v,
+        );
+        push("Motivo", "purpose");
+      }
+      break;
+    }
     default:
       return [];
   }
@@ -445,6 +485,37 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
     }
     case "ownership_claimed":
       return { primary: "Mascota reclamada", secondary: null };
+    case "movement_recorded": {
+      const subKind = str("sub_kind");
+      if (subKind === "jurisdiction_changed") {
+        const fromParts = [str("from_locality"), str("from_province")].filter(Boolean);
+        const toParts = [str("to_locality"), str("to_province")].filter(Boolean);
+        const from = fromParts.join(", ") || str("from_country");
+        const to = toParts.join(", ") || str("to_country");
+        return {
+          primary: "Cambio de jurisdicción",
+          secondary: from && to ? `${from} → ${to}` : (to ?? null),
+        };
+      }
+      if (subKind === "cvi_issued") {
+        const number = str("cvi_number");
+        const authority = str("issuing_authority");
+        return {
+          primary: "CVI internacional registrado",
+          secondary: [number, authority].filter(Boolean).join(" · ") || null,
+        };
+      }
+      if (subKind === "transport_recorded") {
+        const corridorId = str("corridor_id");
+        const travelDate = str("travel_date");
+        const corridorLabel = corridorId ? corridorDisplayLabel(corridorId) : null;
+        return {
+          primary: "Viaje registrado",
+          secondary: [corridorLabel, travelDate].filter(Boolean).join(" · ") || null,
+        };
+      }
+      return { primary: "Movilidad registrada", secondary: null };
+    }
     case "custody_transfer_cancelled": {
       const cancelledBy = str("cancelled_by");
       const reason = str("reason");

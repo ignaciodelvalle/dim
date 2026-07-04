@@ -962,6 +962,18 @@ function buildShowcaseEvents(
       date_of_onset: new Date(BASE_MS + 24 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10),
       clinical_notes: "Zoonosis reportable (showcase demo — no enfermedad real)",
     }),
+    // movement_recorded — showcase a jurisdiction change (movilidad Fase 1).
+    movement_recorded: () => ({
+      sub_kind: "jurisdiction_changed",
+      from_country: "AR",
+      from_province: "Ciudad Autónoma de Buenos Aires",
+      from_locality: null,
+      to_country: "AR",
+      to_province: "Buenos Aires",
+      to_locality: "La Plata",
+      effective_date: new Date(BASE_MS + 25 * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+      reason: "Mudanza (showcase demo)",
+    }),
     // event_amended — seed a correction of the first event (vaccination_administered).
     // Uses a deterministic placeholder target_event_id for the seed script.
     event_amended: () => ({

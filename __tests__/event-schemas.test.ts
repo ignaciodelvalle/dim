@@ -78,20 +78,35 @@ describe("PayloadSchemas — coverage", () => {
 // the head of the shape. This test catches a future contributor adding a
 // schema that forgets `withVersion(...)`.
 describe("PayloadSchemas — payload_version coverage", () => {
+  // Most schemas are z.object(withVersion({...})).strict(). movement_recorded
+  // is intentionally a z.discriminatedUnion (design D1, movilidad Fase 1) —
+  // for unions we walk into each variant and require payload_version on ALL
+  // of them.
+  const shapesOf = (schema: unknown): Array<Record<string, unknown>> => {
+    const direct = (schema as { shape?: Record<string, unknown> }).shape;
+    if (direct) return [direct];
+    const options = (schema as { options?: unknown[] }).options;
+    if (Array.isArray(options)) {
+      return options
+        .map((o) => (o as { shape?: Record<string, unknown> }).shape)
+        .filter((s): s is Record<string, unknown> => s !== undefined);
+    }
+    return [];
+  };
+
   for (const [eventType, schema] of Object.entries(PayloadSchemas)) {
     it(`${eventType} schema includes payload_version`, () => {
-      // All schemas in the registry are z.object(...).strict() today. If a
-      // future schema is intentionally a discriminated union or similar,
-      // update this test to walk into each variant.
-      const shape = (schema as { shape?: Record<string, unknown> }).shape;
+      const shapes = shapesOf(schema);
       expect(
-        shape,
-        `Schema for ${eventType} is not a ZodObject (no .shape getter). The convention is z.object(withVersion({...})).strict(); update this test if you intentionally introduced a different schema kind.`,
-      ).toBeDefined();
-      expect(
-        Object.keys(shape ?? {}),
-        `Schema for ${eventType} is missing payload_version. Wrap the shape with withVersion(...) — see lib/event-schemas.ts.`,
-      ).toContain("payload_version");
+        shapes.length,
+        `Schema for ${eventType} is neither a ZodObject nor a union of ZodObjects. The convention is z.object(withVersion({...})).strict() (or a discriminatedUnion of such objects); update this test if you intentionally introduced a different schema kind.`,
+      ).toBeGreaterThan(0);
+      for (const shape of shapes) {
+        expect(
+          Object.keys(shape),
+          `Schema (or a union variant) for ${eventType} is missing payload_version. Wrap the shape with withVersion(...) — see lib/event-schemas.ts.`,
+        ).toContain("payload_version");
+      }
     });
   }
 });

@@ -366,6 +366,12 @@ export const EVENT_TYPES = [
   // (lepto | hidatidosis | other) so new zoonoses don't need a new
   // event_type entry. Powers /gob/* KPI tiles (handoff P4-3).
   "disease_reported",
+  // Jurisdictional mobility (movilidad-jurisdiccional Fase 1, 2026-07-04).
+  // ONE event type with a `sub_kind` discriminator for its three faces:
+  //   jurisdiction_changed — multi-locality move (denormalizes pets.jurisdiction*)
+  //   cvi_issued           — records the FACT of a foreign CVI (DIM never issues)
+  //   transport_recorded   — outbound trip on one of the 5 registered corridors
+  "movement_recorded",
   // Correction by amendment — core principle #2 (2026-06-19).
   // Immutable correction: references the original event, never edits it.
   // Only events in AMENDABLE_EVENT_TYPES may be amended (D4).

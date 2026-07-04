@@ -33,6 +33,10 @@ export const AMENDABLE_EVENT_TYPES: ReadonlyArray<EventType> = [
   "medication_started",
   "note_added",
   "sterilization_performed",
+  // Movilidad jurisdiccional (R1.5): a wrong jurisdiction, CVI number, or
+  // travel date is regulatory-stakes and correctable by amendment — never by
+  // editing or deleting the original row.
+  "movement_recorded",
 ] as const;
 
 const AMENDABLE_SET: ReadonlySet<string> = new Set(AMENDABLE_EVENT_TYPES);

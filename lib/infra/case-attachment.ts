@@ -356,6 +356,8 @@ export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
   // event_amended is a correction pointer — not a clinical event and not
   // a case event. It never opens or attaches to any case.
   event_amended: { mode: "never", compatibleWith: [] },
+  // Jurisdictional mobility — libreta/travel projection only, never a case.
+  movement_recorded: { mode: "never", compatibleWith: [] },
 };
 
 // ---------------------------------------------------------------------------

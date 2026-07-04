@@ -30,6 +30,7 @@ export const DEFAULT_FILTER_CHIPS: ReadonlyArray<{ type: string; label: string }
   { type: "maltreatment_reported", label: "Maltrato" },
   { type: "abandonment_reported", label: "Abandono" },
   { type: "symptom_observed", label: "Síntomas" },
+  { type: "movement_recorded", label: "Movilidad" },
 ];
 
 export type EventTimelineEvent = {
