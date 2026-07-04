@@ -18,6 +18,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,
@@ -25,7 +26,7 @@ import {
   type WelfareReportKind,
   type WelfareReportSeverity,
 } from "@/src/modules/welfare/domain/types";
-import { count, desc } from "drizzle-orm";
+import { and, count, desc } from "drizzle-orm";
 
 import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
 
@@ -56,12 +57,6 @@ function parseStatus(raw: string | undefined): string | null {
   return (WELFARE_REPORT_STATUSES as readonly string[]).includes(raw) ? raw : null;
 }
 
-function parsePage(raw: string | undefined): number {
-  const n = Number(raw);
-  // Cap at 10_000 to prevent astronomical OFFSET values that would cause DB errors.
-  return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 10_000) : 1;
-}
-
 export default async function GobMaltratoPage({
   searchParams,
 }: {
@@ -74,7 +69,7 @@ export default async function GobMaltratoPage({
     severity?: string;
     province?: string;
     locality?: string;
-    page?: string;
+    cursor?: string;
     status?: string;
   }>;
 }) {
@@ -86,7 +81,6 @@ export default async function GobMaltratoPage({
   const activeKind = parseKind(sp.kind);
   const activeSeverity = parseSeverity(sp.severity);
   const activeStatus = parseStatus(sp.status);
-  const currentPage = parsePage(sp.page);
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
@@ -156,38 +150,61 @@ export default async function GobMaltratoPage({
   // Build a ctx for the freshness footer (jurisdiction-scoped, trailing 30d window).
   const freshnessCtx = buildProjectionContext(actor, filteredJurisdictions, windows.trailing30d());
 
-  // Fetch metrics and paginated report list in parallel.
-  const offset = (currentPage - 1) * PAGE_SIZE;
+  // Keyset (seek) pagination — perf/scale review 2026-07-04 P1 "Operator lists
+  // without real pagination": OFFSET-based paging (`.limit(PAGE_SIZE).offset(offset)`)
+  // costs O(offset) per page — a province-scale denuncia queue with a growing
+  // page number re-scans and discards everything before it on every request.
+  // Reuses the shared ts+id cursor pattern (lib/utils/keyset-pagination.ts,
+  // same contract as /gob/casos, /admin/auditoria, /gob/cola): DESC order on
+  // (createdAt, id), cursor encodes the last row of the current page, "next"
+  // fetches strictly older rows via (createdAt, id) < (cursorTs, cursorId).
+  const cursorClause = keysetWhere(
+    welfareReports.createdAt,
+    welfareReports.id,
+    decodeCursor(sp.cursor),
+  );
+  const rowsWhereCondition = cursorClause ? and(whereCondition, cursorClause) : whereCondition;
 
-  const [metrics, rows, [totalRow]] = await Promise.all([
+  // Fetch metrics and paginated report list in parallel.
+  const [metrics, rawRows, [totalRow]] = await Promise.all([
     fetchWelfareMetrics(actor, filteredJurisdictions, user.id),
     db
       .select()
       .from(welfareReports)
-      .where(whereCondition)
-      // Deterministic ORDER BY ensures stable pagination (no skip/repeat across pages).
+      .where(rowsWhereCondition)
+      // Deterministic ORDER BY matches the keyset column pair above.
       .orderBy(desc(welfareReports.createdAt), desc(welfareReports.id))
-      .limit(PAGE_SIZE)
-      .offset(offset),
-    db.select({ n: count() }).from(welfareReports).where(whereCondition),
+      // limit+1 probe row detects hasMore without a second query.
+      .limit(PAGE_SIZE + 1),
+    // Total count still reflects ALL filtered rows (not just this page) —
+    // unrelated to the OFFSET cost this migration removes, kept for the
+    // "(N denuncias)" header.
+    db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(whereCondition),
   ]);
 
   const totalCount = totalRow?.n ?? 0;
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const hasMore = currentPage < totalPages;
+  const hasMore = rawRows.length > PAGE_SIZE;
+  const rows = hasMore ? rawRows.slice(0, PAGE_SIZE) : rawRows;
 
-  // Build a URL that preserves all current query params but overrides ?page=.
-  function pageUrl(p: number): string {
-    const params = new URLSearchParams();
-    if (sp.queue) params.set("queue", sp.queue);
-    if (sp.kind) params.set("kind", sp.kind);
-    if (sp.severity) params.set("severity", sp.severity);
-    if (sp.status) params.set("status", sp.status);
-    if (sp.province) params.set("province", sp.province);
-    if (sp.locality) params.set("locality", sp.locality);
-    params.set("page", String(p));
-    return `/gob/maltrato?${params.toString()}`;
-  }
+  // Filter params preserved across cursor links — never includes `cursor`
+  // itself, which olderHref/newerHref set/strip.
+  const filterParams: Record<string, string | undefined> = {
+    queue: sp.queue,
+    kind: sp.kind,
+    severity: sp.severity,
+    status: sp.status,
+    province: sp.province,
+    locality: sp.locality,
+  };
+  const lastRow = rows.at(-1);
+  const olderLink =
+    hasMore && lastRow
+      ? olderHref("/gob/maltrato", filterParams, { ts: lastRow.createdAt, id: lastRow.id })
+      : null;
+  const newerLink = sp.cursor ? newerHref("/gob/maltrato", filterParams) : null;
 
   const TABS = [
     { value: "urgent" as const, label: "Urgentes" },
@@ -292,44 +309,28 @@ export default async function GobMaltratoPage({
                         ))}
                       </ul>
                     )}
-                    {totalPages > 1 && (
+                    {(newerLink || olderLink) && (
                       <nav
                         aria-label="Paginación de denuncias"
                         className="mt-4 flex items-center justify-between gap-2 text-sm"
                       >
-                        <span className="text-ln-op-mute">
-                          Página {currentPage} de {totalPages} ({totalCount} denuncias)
-                        </span>
+                        <span className="text-ln-op-mute">{totalCount} denuncias en total</span>
                         <div className="flex gap-2">
-                          {currentPage > 1 ? (
+                          {newerLink && (
                             <a
-                              href={pageUrl(currentPage - 1)}
+                              href={newerLink}
                               className="rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe"
                             >
-                              Anterior
+                              ← Volver al inicio
                             </a>
-                          ) : (
-                            <span
-                              aria-disabled="true"
-                              className="rounded border border-ln-op-line px-3 py-1 text-ln-op-mute opacity-50 cursor-not-allowed"
-                            >
-                              Anterior
-                            </span>
                           )}
-                          {hasMore ? (
+                          {olderLink && (
                             <a
-                              href={pageUrl(currentPage + 1)}
+                              href={olderLink}
                               className="rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe"
                             >
-                              Siguiente
+                              Ver más antiguas →
                             </a>
-                          ) : (
-                            <span
-                              aria-disabled="true"
-                              className="rounded border border-ln-op-line px-3 py-1 text-ln-op-mute opacity-50 cursor-not-allowed"
-                            >
-                              Siguiente
-                            </span>
                           )}
                         </div>
                       </nav>
