@@ -19,6 +19,18 @@ export type PresetId =
   | "bienestar"
   | "control-poblacional";
 
+/**
+ * Optional map framing a preset applies on activation (panorama-redesign Fase 1).
+ * CAMERA-ONLY — data scope is untouched (server-side scoping unchanged): a
+ * national frame over a scoped operator shows their data on a wider canvas.
+ *
+ *  - `national` — fit the map to the national bbox (province-level overview).
+ *  - `bbox` — fit to an explicit [[minLng,minLat],[maxLng,maxLat]] box.
+ */
+export type PresetFraming =
+  | { kind: "national" }
+  | { kind: "bbox"; bounds: [[number, number], [number, number]] };
+
 export type PanoramaPreset = {
   id: PresetId;
   /** es-AR short label (shown on the preset button). */
@@ -47,6 +59,12 @@ export type PanoramaPreset = {
   level: AggregationLevel;
   /** Period window the preset activates (maps to the ?period searchParam). */
   periodPreset: "30d" | "90d";
+  /**
+   * Optional map framing applied via onPreset when present. Absent = today's
+   * behavior (the camera stays where it is). Fase 1 ships ONE demonstrator
+   * (brotes-activos → national); more presets pend a PO decision.
+   */
+  framing?: PresetFraming;
 };
 
 // ---------------------------------------------------------------------------
@@ -64,6 +82,9 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     signal: "zoonosis",
     level: "province",
     periodPreset: "90d",
+    // Fase 1 framing demonstrator: an outbreak overview is a national question —
+    // frame the whole country so cross-province patterns are visible at once.
+    framing: { kind: "national" },
   },
   {
     id: "sintomas",

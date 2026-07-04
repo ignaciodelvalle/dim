@@ -5,6 +5,7 @@
 // from this module to avoid pulling in maplibre-gl which is unavailable in
 // the Vitest environment.
 
+import type { PresetFraming } from "@/src/modules/panorama/domain/presets";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 // ---------------------------------------------------------------------------
@@ -167,4 +168,33 @@ export function computeJurisdictionViewport(
 
   // No selection (or province not in basemap) → national bbox.
   return { kind: "fitBounds", bbox: nationalBbox };
+}
+
+// ---------------------------------------------------------------------------
+// panorama-redesign Fase 1 — preset frame viewport helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the viewport for a preset's optional map framing (camera-only —
+ * data scope is untouched). Mirrors computeJurisdictionViewport so the frame
+ * effect in SituationalMap stays a thin apply step.
+ *
+ *  - `{ kind: "national" }` → fitBounds to the captured national bbox, or the
+ *    AR fallback when the first-load fit hasn't resolved yet.
+ *  - `{ kind: "bbox" }` → fitBounds to the explicit bounds.
+ *  - absent (null/undefined) → null: the camera MUST NOT move (backward-
+ *    compatible presets keep today's behavior).
+ *
+ * @param framing  The preset's framing field, if any.
+ * @param nationalBbox  The bbox captured after the map's initial fit, or null.
+ * @param fallbackBbox  The static AR bbox used when no national bbox exists.
+ */
+export function computePresetFrameViewport(
+  framing: PresetFraming | null | undefined,
+  nationalBbox: [[number, number], [number, number]] | null,
+  fallbackBbox: [[number, number], [number, number]],
+): ViewportDescriptor | null {
+  if (framing == null) return null;
+  if (framing.kind === "bbox") return { kind: "fitBounds", bbox: framing.bounds };
+  return { kind: "fitBounds", bbox: nationalBbox ?? fallbackBbox };
 }

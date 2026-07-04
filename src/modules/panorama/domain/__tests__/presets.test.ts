@@ -233,6 +233,40 @@ describe("presetLayerIds()", () => {
 });
 
 // ---------------------------------------------------------------------------
+// framing (panorama-redesign Fase 1) — optional map-framing field
+// ---------------------------------------------------------------------------
+
+describe("PANORAMA_PRESETS — optional framing field", () => {
+  it("brotes-activos carries the national framing (Fase 1 demonstrator)", () => {
+    const p = getPreset("brotes-activos")!;
+    expect(p.framing).toEqual({ kind: "national" });
+  });
+
+  it("every other preset omits framing (backward-compatible: map behavior unchanged)", () => {
+    for (const p of PANORAMA_PRESETS) {
+      if (p.id === "brotes-activos") continue;
+      expect(p.framing).toBeUndefined();
+    }
+  });
+
+  it("at least one shipped preset carries a non-null framing value (spec scenario)", () => {
+    expect(PANORAMA_PRESETS.some((p) => p.framing != null)).toBe(true);
+  });
+
+  it("a framing value, when present, is a valid PresetFraming shape", () => {
+    for (const p of PANORAMA_PRESETS) {
+      if (p.framing === undefined) continue;
+      if (p.framing.kind === "national") continue;
+      // bbox framing must carry [[minLng,minLat],[maxLng,maxLat]].
+      expect(p.framing.kind).toBe("bbox");
+      expect(p.framing.bounds).toHaveLength(2);
+      expect(p.framing.bounds[0]).toHaveLength(2);
+      expect(p.framing.bounds[1]).toHaveLength(2);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getPreset()
 // ---------------------------------------------------------------------------
 
