@@ -1,9 +1,9 @@
 # Remote Supabase Bootstrap Runbook (staging / prod)
 
 Tested procedure for standing up a **fresh remote Supabase environment** (Supabase
-Cloud). This supersedes the one-line command in
-`production-deploy-plan-2026-06.md` §1.2, which omits three prerequisites that
-make the bootstrap silently target the wrong database or fail mid-run.
+Cloud). `docs/ops/production-deploy-plan.md` §1 summarizes this runbook's order
+for a production cutover and defers to it for the full mechanical steps and
+their gotchas.
 
 > First executed: 2026-06-14, staging (project `DIM`, ref `mardurkdicugnzmpirjd`,
 > region `sa-east-1`). Result: 95 migrations, 44 functions, 7 triggers,

@@ -53,6 +53,6 @@ as a hard gate before the prod deploy command.
 
 ## Production
 
-Production deploy stays deliberate (see `production-deploy-plan-2026-06.md`):
+Production deploy stays deliberate (see `production-deploy-plan.md`):
 apply migrations as a reviewed step, run `pnpm db:migrate:check` to confirm zero
 pending, then deploy. Do **not** wire prod to auto-apply on deploy.
