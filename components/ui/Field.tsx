@@ -161,6 +161,37 @@ function withLocalizedValidity<E extends ValidatableControl>(rest: {
   };
 }
 
+// ---------- Mobile keyboard focus scroll ------------------------------------
+//
+// On phones the software keyboard can cover the focused control, especially
+// under sticky sheet footers (native-mobile audit §8). Scroll the control to
+// the center of the viewport shortly after focus — the delay lets the keyboard
+// finish resizing the visual viewport first. Mobile-width only: desktop
+// keyboards never cover inputs, and mid-page jumps there would be noise.
+
+function scrollControlIntoView(el: ValidatableControl) {
+  if (typeof window === "undefined") return;
+  if (!window.matchMedia("(max-width: 767px)").matches) return;
+  const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "auto"
+    : "smooth";
+  window.setTimeout(() => {
+    if (el.isConnected) el.scrollIntoView({ block: "center", behavior });
+  }, 250);
+}
+
+/** Compose the caller's onFocus with the mobile keyboard-avoidance scroll. */
+function withMobileFocusScroll<E extends ValidatableControl>(rest: {
+  onFocus?: React.FocusEventHandler<E>;
+}): { onFocus: React.FocusEventHandler<E> } {
+  return {
+    onFocus: (e) => {
+      rest.onFocus?.(e);
+      scrollControlIntoView(e.currentTarget);
+    },
+  };
+}
+
 // ---------- Shared control base classes -----------------------------------
 
 // Wave 2 Item 9: text-base on mobile prevents iOS Safari auto-zoom on focus;
@@ -191,6 +222,7 @@ export function LnInput({ invalid = false, mono = false, className = "", ...rest
         .join(" ")}
       {...rest}
       {...withLocalizedValidity<HTMLInputElement>(rest)}
+      {...withMobileFocusScroll<HTMLInputElement>(rest)}
     />
   );
 }
@@ -237,6 +269,7 @@ export function LnTextarea({ invalid = false, className = "", ...rest }: LnTexta
       className={[controlBase, "resize-y leading-[1.5]", className].filter(Boolean).join(" ")}
       {...rest}
       {...withLocalizedValidity<HTMLTextAreaElement>(rest)}
+      {...withMobileFocusScroll<HTMLTextAreaElement>(rest)}
     />
   );
 }
