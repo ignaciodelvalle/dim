@@ -1106,12 +1106,9 @@ export function SituationalMap({
       {viewMeta && (
         <div className="absolute right-3 bottom-3 flex items-center gap-2">
           {copied && (
-            <span
-              role="status"
-              className="rounded-[var(--radius-sm)] bg-black/70 px-2 py-1 text-xs text-white/90"
-            >
+            <output className="rounded-[var(--radius-sm)] bg-black/70 px-2 py-1 text-xs text-white/90">
               Vista copiada
-            </span>
+            </output>
           )}
           <button
             type="button"

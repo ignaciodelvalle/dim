@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { FeatureCollection } from "../types";
 import { rankWorstUnits } from "../ranking";
+import type { FeatureCollection } from "../types";
 
 // Helper: a value-carrying feature (province choropleth shape).
 function rateFeature(

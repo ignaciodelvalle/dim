@@ -83,7 +83,7 @@ export function PanoramaDataTable({ rows, kind, measureLabel, onSelect }: Props)
   }
 
   return (
-    <table role="table" className="w-full border-collapse text-sm">
+    <table className="w-full border-collapse text-sm">
       <caption className="sr-only">
         Datos de {measureLabel} por jurisdicción (vista accesible, ordenable).
       </caption>

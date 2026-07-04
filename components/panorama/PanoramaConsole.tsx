@@ -32,19 +32,14 @@ import { PresetPanel } from "@/components/panorama/PresetPanel";
 import { RankedUnitsPanel } from "@/components/panorama/RankedUnitsPanel";
 import type { ActiveLayer, PointRenderMode } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
-import { Z_LOCALITY, derivedLevel } from "@/components/panorama/situational-map-utils";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
+import { Z_LOCALITY, derivedLevel } from "@/components/panorama/situational-map-utils";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import { pushMapStateUrl, replaceMapStateUrl } from "@/lib/ui/map-layer-nav";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
-import {
-  type RankedUnit,
-  type RankingKind,
-  rankWorstUnits,
-} from "@/src/modules/panorama/domain/ranking";
 import {
   AGGREGATED_POINT_IDS,
   AGGREGATED_POINT_LAYERS,
@@ -62,6 +57,11 @@ import {
   getPreset,
   presetLayerIds,
 } from "@/src/modules/panorama/domain/presets";
+import {
+  type RankedUnit,
+  type RankingKind,
+  rankWorstUnits,
+} from "@/src/modules/panorama/domain/ranking";
 import type {
   AggregationLevel,
   FeatureCollection,
