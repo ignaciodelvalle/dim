@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { openOutbreakInvestigationAction } from "@/src/modules/surveillance/actions";
 import type { EnoDisease } from "@/src/modules/surveillance/domain/eno-catalog";
 
@@ -18,6 +19,7 @@ export function OpenInvestigationForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [submitted, setSubmitted] = useState(false);
   const [diseaseCode, setDiseaseCode] = useState(prefillDiseaseCode ?? "");
   const [reason, setReason] = useState("");
   const [signalId, setSignalId] = useState(prefillSignalId ?? "");
@@ -25,6 +27,7 @@ export function OpenInvestigationForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (pending || submitted) return; // guard against double-submit
     setError(null);
     startTransition(async () => {
       const result = await openOutbreakInvestigationAction({
@@ -36,7 +39,11 @@ export function OpenInvestigationForm({
         setError(result.error);
         return;
       }
-      router.push(`/gob/vigilancia/investigaciones/${result.publicCode}`);
+      // Full-document navigation (redirectTo contract) — immune to the Next.js
+      // 15.5 router-drop defect that silently no-ops router.push and lets the
+      // officer re-submit into a duplicate investigation (nav #46 burn-down).
+      setSubmitted(true);
+      navigateAfterActionSuccess(`/gob/vigilancia/investigaciones/${result.publicCode}`);
     });
   }
 
@@ -98,11 +105,11 @@ export function OpenInvestigationForm({
       <div className="flex gap-3">
         <OpButton
           type="submit"
-          disabled={pending || !diseaseCode || reason.trim().length < 10}
+          disabled={pending || submitted || !diseaseCode || reason.trim().length < 10}
           variant="primary"
           className="px-4 py-2"
         >
-          {pending ? "Abriendo..." : "Abrir investigacion"}
+          {pending || submitted ? "Abriendo..." : "Abrir investigacion"}
         </OpButton>
         <OpButton
           type="button"
