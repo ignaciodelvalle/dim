@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
@@ -19,38 +18,44 @@ export function AssignmentActions({
   currentUserId,
   isAdmin,
 }: AssignmentActionsProps) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Tier B optimistic assignment: the Tomar/Liberar button swap happens
+  // immediately from local state (seeded from the SSR prop) and reverts on
+  // error. No router.refresh() (banned, silent-drop defect; see
+  // lib/ui/full-page-action-nav.ts).
+  const [assignedTo, setAssignedTo] = useState(assignedToUserId);
 
-  const isAssignedToMe = assignedToUserId === currentUserId;
+  const isAssignedToMe = assignedTo === currentUserId;
   const canUnassign = isAssignedToMe || isAdmin;
 
   function handleAssign() {
     setError(null);
+    const previous = assignedTo;
+    setAssignedTo(currentUserId);
     startTransition(async () => {
       const result = await assignWelfareToMeAction(reportId);
       if ("error" in result) {
+        setAssignedTo(previous);
         setError(result.error);
-        return;
       }
-      router.refresh();
     });
   }
 
   function handleUnassign() {
     setError(null);
+    const previous = assignedTo;
+    setAssignedTo(null);
     startTransition(async () => {
       const result = await unassignWelfareAction(reportId);
       if ("error" in result) {
+        setAssignedTo(previous);
         setError(result.error);
-        return;
       }
-      router.refresh();
     });
   }
 
-  if (!assignedToUserId) {
+  if (!assignedTo) {
     return (
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">

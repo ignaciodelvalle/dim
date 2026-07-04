@@ -3,7 +3,6 @@
 // Inline-confirm controls for pause (toggle) and archive (soft-delete).
 // Mirrors the LeaveOrgButton pattern: two-step confirm, no modal dependency.
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
@@ -11,6 +10,7 @@ import {
   pauseServiceOfferingAction,
   unpauseServiceOfferingAction,
 } from "@/app/actions/service-offerings";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Props = {
   orgToken: string;
@@ -21,16 +21,23 @@ type Props = {
 type ActionKey = "pause" | "unpause" | "archive" | null;
 
 export function OfferingActions({ orgToken, offeringToken, status }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState<ActionKey>(null);
   const [error, setError] = useState<string | null>(null);
+  // Tier B optimistic status: pause/unpause flip the local label immediately
+  // and revert on error — no router.refresh() (banned, silent-drop defect;
+  // see lib/ui/full-page-action-nav.ts). Seeded from the SSR prop.
+  const [localStatus, setLocalStatus] = useState(status);
 
-  const isPaused = status === "paused";
-  const isArchived = status === "archived";
+  const isPaused = localStatus === "paused";
+  const isArchived = localStatus === "archived";
 
   function run(action: NonNullable<ActionKey>) {
     setError(null);
+    const previousStatus = localStatus;
+    if (action === "pause") setLocalStatus("paused");
+    if (action === "unpause") setLocalStatus("active");
+    setConfirming(null);
     startTransition(async () => {
       let result: { ok: true } | { error: string };
       if (action === "pause") {
@@ -42,16 +49,16 @@ export function OfferingActions({ orgToken, offeringToken, status }: Props) {
       }
 
       if ("error" in result) {
+        setLocalStatus(previousStatus);
         setError(result.error);
-        setConfirming(null);
         return;
       }
 
       if (action === "archive") {
-        router.push(`/org/${orgToken}/servicios`);
-      } else {
-        router.refresh();
-        setConfirming(null);
+        // Full document navigation back to the list — a soft router.push
+        // after a mutation is the same drop-prone transition machinery
+        // (see lib/ui/full-page-action-nav.ts).
+        navigateAfterActionSuccess(`/org/${orgToken}/servicios`);
       }
     });
   }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
@@ -24,7 +23,6 @@ export function OwnerReturnProposalCard({
   proposedAt: string;
   proposalNotes: string | null;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -56,7 +54,9 @@ export function OwnerReturnProposalCard({
       }
       setDoneMode("accept");
       setDone(true);
-      router.refresh();
+      // Tier B: the local `done` card is the terminal UI for this proposal;
+      // the rest of the page re-derives on next SSR visit. router.refresh()
+      // is banned (silent-drop defect — see lib/ui/full-page-action-nav.ts).
     });
   }
 
@@ -78,7 +78,7 @@ export function OwnerReturnProposalCard({
       }
       setDoneMode("reject");
       setDone(true);
-      router.refresh();
+      // Tier B: same as accept — local done card is terminal.
     });
   }
 

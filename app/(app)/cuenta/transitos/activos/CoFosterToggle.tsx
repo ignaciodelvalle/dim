@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { setCoFosterAllowedAction } from "@/src/modules/foster/actions";
@@ -12,24 +11,27 @@ export function CoFosterToggle({
   fosterOwnershipId: string;
   initial: boolean;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [current, setCurrent] = useState(initial);
   const [error, setError] = useState<string | null>(null);
 
   function toggle(value: boolean) {
     setError(null);
+    // Tier B optimistic toggle: local state is the source of truth for this
+    // control; revert on error. No navigation — router.refresh() is banned
+    // (silent-drop defect, see lib/ui/full-page-action-nav.ts) and nothing
+    // else on the page derives from this flag.
+    const previous = current;
+    setCurrent(value);
     startTransition(async () => {
       const result = await setCoFosterAllowedAction({
         fosterOwnershipId,
         allowCoFoster: value,
       });
       if ("error" in result) {
+        setCurrent(previous);
         setError(result.error);
-        return;
       }
-      setCurrent(value);
-      router.refresh();
     });
   }
 

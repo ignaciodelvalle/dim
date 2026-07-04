@@ -11,7 +11,6 @@ import {
   decideCapabilityAction,
   grantCapabilityAction,
 } from "@/src/modules/organizations/actions";
-import { useRouter } from "next/navigation";
 import React, { useActionState, useTransition } from "react";
 
 // ---------------------------------------------------------------------------
@@ -120,10 +119,30 @@ function GrantCell({
   capabilityLabel: string;
   isSelf: boolean;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = React.useState<string | null>(null);
   const [confirming, setConfirming] = React.useState(false);
+  // Tier B optimistic cell: + flips to ✓ on grant, reverts on error. No
+  // router.refresh() (banned — silent-drop defect, see
+  // lib/ui/full-page-action-nav.ts); the revoke affordance for the new grant
+  // appears on the next SSR visit, which needs the fresh grant id anyway.
+  const [granted, setGranted] = React.useState(false);
+
+  if (granted) {
+    return (
+      <div className="flex items-center justify-center">
+        <span
+          title="Permiso concedido — para revocarlo, volvé a entrar a esta página"
+          aria-label="Permiso concedido"
+          className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok-bg text-ln-op-ok"
+        >
+          <span aria-hidden className="text-md leading-none">
+            ✓
+          </span>
+        </span>
+      </div>
+    );
+  }
 
   if (isSelf) {
     return (
@@ -141,14 +160,13 @@ function GrantCell({
 
   function handleGrant() {
     setError(null);
+    setConfirming(false);
+    setGranted(true);
     startTransition(async () => {
       const result = await grantCapabilityAction({ organizationId, membershipId, capability });
       if (result.error) {
+        setGranted(false);
         setError(result.error);
-        setConfirming(false);
-      } else {
-        setConfirming(false);
-        router.refresh();
       }
     });
   }

@@ -2,7 +2,6 @@
 
 // ChangeRoleSelect — inline role selector wired to changeMemberRoleAction.
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { changeMemberRoleAction } from "@/src/modules/organizations/actions";
@@ -20,7 +19,6 @@ export function ChangeRoleSelect({
   currentRole,
   settableRoles,
 }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState(currentRole);
@@ -39,9 +37,10 @@ export function ChangeRoleSelect({
       if ("error" in result) {
         setError(result.error);
         setSelectedRole(currentRole);
-        return;
       }
-      router.refresh();
+      // Tier B: the optimistic selectedRole (with revert above) is the
+      // terminal UI state — no router.refresh(); it is banned (silent-drop
+      // defect, see lib/ui/full-page-action-nav.ts).
     });
   }
 
