@@ -20,6 +20,11 @@ const REQUIRED_BOUNDARIES: Array<{ segment: string; expectedHome: string | null 
   { segment: "app/gob/error.tsx", expectedHome: "/gob" },
   { segment: "app/admin/error.tsx", expectedHome: "/admin" },
   { segment: "app/(public)/p/[publicToken]/error.tsx", expectedHome: "/" },
+  // Added nav-QOL/error-path audit 2026-07-04 N5/E2:
+  { segment: "app/(app)/mis-mascotas/[publicToken]/error.tsx", expectedHome: "/mis-mascotas" },
+  // Vet-facing surface — no portal-specific escape, uses ErrorBoundary's
+  // generic default (homeHref="/"), so no explicit override to assert here.
+  { segment: "app/libreta/compartir/[shareToken]/error.tsx", expectedHome: null },
 ];
 
 describe("error-boundary presence (audit E1/E7)", () => {
