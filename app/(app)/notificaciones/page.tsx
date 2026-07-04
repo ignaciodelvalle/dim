@@ -10,7 +10,10 @@ import { NotificationCard } from "@/components/NotificationCard";
 import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { type Notification, type Pet, db, notifications, pets } from "@/db";
-import { fetchNotificationCategoryCounts } from "@/lib/analytics/owner-dashboard";
+import {
+  fetchNotificationCategoryCounts,
+  fetchUnreadNotificationCount,
+} from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   decodeCursor,
@@ -176,7 +179,20 @@ export default async function NotificacionesPage({
   // "Back to page 1" link — only shown when we're not already on page 1.
   const newerLink = rawCursor ? newerHref("/notificaciones", filterParams) : null;
 
-  const unreadCount = rows.filter((r) => r.notification.readAt === null).length;
+  // Unread count MUST span ALL non-archived rows for the active view, not just
+  // the current page (review C.3). The old `rows.filter(...)` counted over the
+  // ≤100-row page, so an owner with more than a page of unread notifications
+  // (e.g. an org admin after a lost-pet broadcast fan-out) saw an understated
+  // "N sin leer" — a first-hand "notifications say fewer than there are"
+  // symptom. The helper aggregates with the same predicate the category counts
+  // use.
+  const unreadCount = await fetchUnreadNotificationCount(
+    user.id,
+    activeCat !== "all" ? activeCat : undefined,
+  );
+  // "en total" pairs with the unread figure, so it must also be the view-wide
+  // total (not the current page's row count) or the two would be incoherent.
+  const totalCount = activeCat === "all" ? counts.all : countByCategory[activeCat];
   const groups = groupNotifications(rows);
 
   return (
@@ -199,8 +215,8 @@ export default async function NotificacionesPage({
             {counts.all === 0
               ? "Sin notificaciones."
               : unreadCount > 0
-                ? `${unreadCount} sin leer · ${rows.length} en total`
-                : `${rows.length} en total`}
+                ? `${unreadCount} sin leer · ${totalCount} en total`
+                : `${totalCount} en total`}
           </p>
         </div>
         {unreadCount > 0 && (

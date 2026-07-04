@@ -1301,6 +1301,30 @@ export type NotificationCategoryCounts = {
 };
 
 /**
+ * Count UNREAD (read_at IS NULL), non-archived notifications for a user,
+ * optionally scoped to a category. Spans ALL rows — not a single page.
+ *
+ * The /notificaciones header used to derive its "N sin leer" figure by
+ * filtering the current ≤100-row page in memory, so an owner with more than a
+ * page of unread notifications saw an understated count (consistency review
+ * 2026-07-04 C.3). This aggregate is the authoritative count.
+ */
+export async function fetchUnreadNotificationCount(
+  userId: string,
+  category?: string,
+): Promise<number> {
+  const rows = await db.execute<{ n: string }>(sql`
+    SELECT COUNT(*)::text AS n
+    FROM notifications
+    WHERE user_id = ${userId}
+      AND archived_at IS NULL
+      AND read_at IS NULL
+      ${category ? sql`AND category = ${category}` : sql``}
+  `);
+  return Number(rows[0]?.n ?? "0");
+}
+
+/**
  * Returns per-category counts for non-archived notifications scoped to a user.
  * Notifications without a category are counted in 'all' only.
  */
