@@ -33,8 +33,15 @@ async function purgeUserByEmail(email: string) {
   const { data } = await supabase.auth.admin.listUsers();
   const found = data?.users.find((u) => u.email === email);
   if (!found) return;
-  await db.delete(notifications).where(eq(notifications.userId, found.id));
-  await db.delete(profiles).where(eq(profiles.id, found.id));
+  // Deleting a profile cascades a SET NULL onto pet_events.recorded_by_user_id
+  // (an UPDATE), which the pet_events append-only trigger blocks unless the
+  // mutation-override GUC is set. Leftover events from a prior run can
+  // reference this user, so the purge must run under the override to stay
+  // hermetic against a polluted local DB (mirrors the afterAll cleanup).
+  await withMutationOverride(async (tx) => {
+    await tx.delete(notifications).where(eq(notifications.userId, found.id));
+    await tx.delete(profiles).where(eq(profiles.id, found.id));
+  });
   await supabase.auth.admin.deleteUser(found.id);
 }
 
