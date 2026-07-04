@@ -1377,6 +1377,26 @@ export function PanoramaConsole({
     [captionLayer, rankedActiveLayer, onFeatureClick],
   );
 
+  // panorama-ia-v2 §3.6: metadata for the map's "Exportar PNG" footer
+  // (auditable provenance). Scope + period in plain es-AR; suppressed-cell
+  // count summed across the active layers (audit trail).
+  const viewMeta = useMemo(() => {
+    const province = searchParams.get("province");
+    const locality = searchParams.get("locality");
+    const scopeLabel = locality
+      ? "Localidad seleccionada"
+      : province
+        ? "Provincia seleccionada"
+        : "Nacional";
+    const days = Math.max(1, Math.round((until.getTime() - since.getTime()) / 86_400_000));
+    const periodLabel = `últimos ${days} días`;
+    const suppressedCount = PANORAMA_LAYERS.reduce(
+      (sum, l) => sum + (states[l.id]?.active ? (states[l.id]?.suppressedCount ?? 0) : 0),
+      0,
+    );
+    return { asOf, scopeLabel, periodLabel, suppressedCount };
+  }, [searchParams, since, until, states, asOf]);
+
   const onScrub = useCallback((next: Date | null) => setAsOf(next), []);
 
   // map-QOL selective refresh (freshness chip's "Actualizar"): refetch the
@@ -1490,6 +1510,7 @@ export function PanoramaConsole({
           onZoom={onMapZoom}
           highlightedUnitKey={highlightedUnitKey}
           onUnitHover={setHighlightedUnitKey}
+          viewMeta={viewMeta}
         />
         <div className="space-y-3">
           {/* panorama-ia-v2 §3.3: "Peores N" ranking — the map collapsed to an

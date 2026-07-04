@@ -1,7 +1,9 @@
 "use client";
 
 import type maplibregl from "maplibre-gl";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { buildExportFooter } from "@/components/panorama/panorama-export";
 
 import {
   computeJurisdictionViewport,
@@ -171,6 +173,16 @@ type Props = {
    * matching ranked row (map → row sync). null on leave.
    */
   onUnitHover?: (key: string | null) => void;
+  /**
+   * panorama-ia-v2 §3.6: metadata for the "Exportar PNG" footer (auditable
+   * provenance). Absent → the export/copy chrome is hidden.
+   */
+  viewMeta?: {
+    asOf: Date | null;
+    scopeLabel: string;
+    periodLabel: string;
+    suppressedCount: number;
+  };
 };
 
 // Continental Argentina centroid + a zoom that frames the mainland.
@@ -240,6 +252,7 @@ export function SituationalMap({
   onZoom,
   highlightedUnitKey = null,
   onUnitHover,
+  viewMeta,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -306,6 +319,9 @@ export function SituationalMap({
         // a meaningless world view.
         maxBounds: AR_MAX_BOUNDS,
         minZoom: MIN_ZOOM,
+        // panorama-ia-v2 §3.6: keep the drawing buffer so getCanvas().toDataURL()
+        // returns the rendered map for the PNG export (blank otherwise).
+        canvasContextAttributes: { preserveDrawingBuffer: true },
       });
       mapRef.current = map;
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -1016,6 +1032,49 @@ export function SituationalMap({
     { r: 32, label: "500+" },
   ];
 
+  // panorama-ia-v2 §3.6: copy the canonical view URL (deep-link) to clipboard.
+  const [copied, setCopied] = useState(false);
+  function copyView() {
+    if (typeof window === "undefined" || !navigator.clipboard) return;
+    navigator.clipboard.writeText(window.location.href).then(
+      () => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1800);
+      },
+      () => {
+        /* clipboard denied — no-op (the URL is still shareable from the bar) */
+      },
+    );
+  }
+
+  // panorama-ia-v2 §3.6: export the map as a PNG with an auditable metadata
+  // footer (data-as-of · source · scope · period · suppressed cells). Composes
+  // the map canvas onto a taller canvas and appends the footer strip.
+  function exportPng() {
+    const map = mapRef.current;
+    if (!map || !viewMeta) return;
+    const mapCanvas = map.getCanvas();
+    const footer = buildExportFooter(viewMeta);
+    const stripH = 34;
+    const out = document.createElement("canvas");
+    out.width = mapCanvas.width;
+    out.height = mapCanvas.height + stripH;
+    const ctx = out.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(mapCanvas, 0, 0);
+    ctx.fillStyle = COLOR_CANVAS;
+    ctx.fillRect(0, mapCanvas.height, out.width, stripH);
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = "13px system-ui, sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.fillText(footer, 12, mapCanvas.height + stripH / 2);
+    const url = out.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "panorama-mimar.png";
+    a.click();
+  }
+
   // map-QOL "Mi alcance": snap the camera back to the operator's scope — the
   // server-computed jurisdiction bbox (govt) or the national/data extent.
   function fitToScope() {
@@ -1042,6 +1101,34 @@ export function SituationalMap({
       >
         Mi alcance
       </button>
+      {/* panorama-ia-v2 §3.6: briefing chrome — copy the deep-link + export a
+          PNG with an auditable metadata footer. */}
+      {viewMeta && (
+        <div className="absolute right-3 bottom-3 flex items-center gap-2">
+          {copied && (
+            <span
+              role="status"
+              className="rounded-[var(--radius-sm)] bg-black/70 px-2 py-1 text-xs text-white/90"
+            >
+              Vista copiada
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={copyView}
+            className="rounded-[var(--radius-sm)] border border-white/20 bg-black/55 px-2.5 py-1 text-xs font-medium text-white/90 hover:bg-black/70"
+          >
+            Copiar vista
+          </button>
+          <button
+            type="button"
+            onClick={exportPng}
+            className="rounded-[var(--radius-sm)] border border-white/20 bg-black/55 px-2.5 py-1 text-xs font-medium text-white/90 hover:bg-black/70"
+          >
+            Exportar PNG
+          </button>
+        </div>
+      )}
       {renderableCount === 0 && !hasProvChoro && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="rounded-[6px] bg-black/40 px-4 py-2 text-[13px] text-white/80">
