@@ -85,5 +85,10 @@
       "path": "/api/cron/cron-health",
       "schedule": "0 10 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "app/api/cron/*/route.ts": {
+      "maxDuration": 60
+    }
+  }
 }

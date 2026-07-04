@@ -21,7 +21,19 @@ import { createHmac } from "node:crypto";
 const DEV_TEST_PEPPER = "dim-test-pepper-v1";
 
 function getPepper(): string {
-  return process.env.DNI_HASH_PEPPER ?? DEV_TEST_PEPPER;
+  const pepper = process.env.DNI_HASH_PEPPER;
+  if (pepper) return pepper;
+  // Fail closed in production (deploy-readiness audit 2026-07-04 B1): the dev
+  // pepper is PUBLIC (committed above), and the Argentine DNI space is small
+  // enough (7-8 digits) that a known pepper makes every stored hash reversible
+  // by rainbow table. Silently falling back would poison every hash written
+  // until someone noticed — better to refuse to boot the identity path.
+  if (process.env.NODE_ENV === "production" && process.env.VERCEL) {
+    throw new Error(
+      "DNI_HASH_PEPPER is not set. Refusing to hash DNIs with the public dev pepper in production.",
+    );
+  }
+  return DEV_TEST_PEPPER;
 }
 
 /**
