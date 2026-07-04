@@ -89,9 +89,9 @@ export default async function MarkPetLostPage({
           Marcar como perdida
         </h1>
         <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
-          Al marcar a {pet.name} como perdida, su credencial pública mostrará el aviso con tus datos
-          de contacto habituales. Vas a poder ajustar qué se ve, o revertir el estado, desde su
-          perfil.
+          Al marcar a {pet.name} como perdida, su credencial pública mostrará el aviso de búsqueda.
+          En el último paso elegís qué datos tuyos compartir. Vas a poder ajustar qué se ve, o
+          revertir el estado, desde su perfil.
         </p>
       </div>
 

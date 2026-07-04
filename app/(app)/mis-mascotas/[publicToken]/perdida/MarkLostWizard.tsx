@@ -2,14 +2,16 @@
 
 // MarkLostWizard — Libreta Nacional redesign (seal/red tone, §10 handoff).
 //
-// Collects location + reconocimiento detail only. Disclosure preferences
-// (name/phone/email/location/finder-form) are NOT set here anymore (lean
-// audit 2026-07-03 dedup): they lived here AND in LostDisclosureCard, so the
-// same 5 toggles had two editors. Marking a pet lost now applies the pet's
-// existing (privacy-sensible default) disclosure prefs — setPetLostAction's
-// parseDisclosurePrefsFromForm falls back to petDefaults when the form
-// carries no disclosure fields — and LostDisclosureCard (always rendered in
-// the lost block post-mark) is the single place to tune them.
+// Collects location + reconocimiento detail, then a MANDATORY affirmative
+// disclosure step (privacy hardening 2026-07-04, Ley 25.326 consent gap):
+// the DB defaults for disclose_*_when_lost are permissive (first name,
+// phone, last location = true), so relying on them meant owner PII went
+// public without an explicit consent moment. The wizard now presents the 5
+// disclosure choices with PII toggles OFF by default — the owner actively
+// picks what to share — and always submits explicit true/false values via
+// hidden inputs, so setPetLostAction writes exactly what the owner chose
+// instead of falling back to petDefaults. LostDisclosureCard (rendered in
+// the lost block post-mark) remains the place to tune prefs afterwards.
 
 import { useRef, useState, useTransition } from "react";
 
@@ -26,10 +28,56 @@ import {
   LnSubCard,
 } from "@/components/ui/Sheet";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
+import { LnToggleGroup } from "@/components/ui/Toggle";
 import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
 import type { EventFormState } from "@/src/modules/events/actions";
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
+
+// Affirmative-consent defaults: every owner-PII toggle starts OFF — the owner
+// must actively opt in. The finder form starts ON because it exposes no owner
+// data (it lets a finder send a message without seeing any contact info).
+const DISCLOSURE_DEFAULTS = {
+  disclose_first_name_when_lost: false,
+  disclose_phone_when_lost: false,
+  disclose_email_when_lost: false,
+  disclose_last_location_when_lost: false,
+  allow_finder_form_when_lost: true,
+} as const;
+
+type DisclosureFieldName = keyof typeof DISCLOSURE_DEFAULTS;
+
+const DISCLOSURE_ROWS: Array<{
+  key: DisclosureFieldName;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "disclose_first_name_when_lost",
+    label: "Tu nombre",
+    description: "El público ve quién busca a la mascota.",
+  },
+  {
+    key: "disclose_phone_when_lost",
+    label: "Tu teléfono",
+    description: "Aparece un botón directo de llamada.",
+  },
+  {
+    key: "disclose_email_when_lost",
+    label: "Tu email",
+    description: "Link de email en la credencial pública.",
+  },
+  {
+    key: "disclose_last_location_when_lost",
+    label: "Última ubicación",
+    description: "Muestra el mapa con el pin donde se perdió.",
+  },
+  {
+    key: "allow_finder_form_when_lost",
+    label: "Formulario para avisarte",
+    description: "Quien la encuentre puede avisarte sin ver tus datos.",
+  },
+];
 
 export function MarkLostWizard({
   action,
@@ -52,15 +100,19 @@ export function MarkLostWizard({
   petJurisdictionProvince: string | null;
   petJurisdictionLocality: string | null;
 }) {
-  // Detail step is conditional — pets with chip or tattoo skip it, leaving a
-  // single-step location form.
+  // Detail step is conditional — pets with chip or tattoo skip it. The
+  // disclosure (affirmative consent) step is ALWAYS the final step.
   const showDetailsStep = !petHasMicrochip && !petHasTattoo;
-  const totalSteps = showDetailsStep ? 2 : 1;
+  const totalSteps = showDetailsStep ? 3 : 2;
   const stepLabels = showDetailsStep
-    ? ["¿Dónde la viste?", "Datos para reconocerla"]
-    : ["¿Dónde la viste?"];
+    ? ["¿Dónde la viste?", "Datos para reconocerla", "Qué se muestra al público"]
+    : ["¿Dónde la viste?", "Qué se muestra al público"];
+  const disclosureStep = totalSteps;
 
   const [step, setStep] = useState(1);
+  const [disclosurePrefs, setDisclosurePrefs] = useState<Record<DisclosureFieldName, boolean>>({
+    ...DISCLOSURE_DEFAULTS,
+  });
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -79,8 +131,9 @@ export function MarkLostWizard({
   function handleSubmit() {
     setErrorMessage(null);
     const formData = formRef.current ? new FormData(formRef.current) : new FormData();
-    // No disclosure fields are submitted — setPetLostAction applies the pet's
-    // existing (default) prefs, and LostDisclosureCard edits them afterward.
+    // Disclosure fields are ALWAYS submitted (hidden inputs carry explicit
+    // "true"/"false") so setPetLostAction persists the owner's affirmative
+    // choices instead of falling back to the permissive petDefaults.
     // Signal to setPetLostAction to skip the redirect.
     formData.set("noRedirect", "1");
     startTransition(async () => {
@@ -105,7 +158,7 @@ export function MarkLostWizard({
     return (
       <LnSuccessScreen
         title={`Activamos la búsqueda de ${petName}`}
-        description="Su perfil público ya muestra el aviso con tus datos de contacto habituales. En su perfil podés ajustar qué información se ve (teléfono, ubicación, email)."
+        description="Su perfil público ya muestra el aviso con la información que elegiste compartir. Podés ajustar qué se ve (teléfono, ubicación, email) desde su perfil cuando quieras."
         next={[
           { label: "Compartir por WhatsApp", href: shareUrl },
           { label: "Imprimir cartel A4", href: printHref, variant: "secondary" },
@@ -312,6 +365,56 @@ export function MarkLostWizard({
               </LnSubCard>
             </section>
           )}
+
+          {/* Final step — affirmative disclosure consent. The owner actively
+              picks what personal data the public credential shows while the
+              pet is lost. PII toggles start OFF (opt-in, not opt-out). */}
+          <section
+            data-section="step-disclosure"
+            className={step === disclosureStep ? "flex flex-col gap-[14px]" : "sr-only"}
+            aria-hidden={step !== disclosureStep}
+          >
+            <p className="text-[var(--text-sm)] text-[var(--color-ln-mute)]">
+              Elegí qué información tuya se muestra en la credencial pública mientras {petName} esté
+              perdida. No se comparte nada que no actives acá, y podés cambiarlo desde su perfil en
+              cualquier momento.
+            </p>
+
+            <LnToggleGroup
+              items={DISCLOSURE_ROWS.map((row) => ({
+                key: row.key,
+                label: row.label,
+                description: row.description,
+                checked: disclosurePrefs[row.key],
+                variant: "amber" as const,
+              }))}
+              onChange={(key, next) => {
+                setDisclosurePrefs((prev) => ({ ...prev, [key]: next }));
+              }}
+            />
+
+            {!disclosurePrefs.disclose_phone_when_lost &&
+              !disclosurePrefs.disclose_email_when_lost &&
+              !disclosurePrefs.allow_finder_form_when_lost && (
+                <LnCallout tone="warn" title="Nadie va a poder contactarte">
+                  Sin teléfono, email ni formulario habilitados, quien encuentre a {petName} no
+                  tiene forma de avisarte. Te recomendamos habilitar al menos el formulario: no
+                  muestra ninguno de tus datos.
+                </LnCallout>
+              )}
+          </section>
+
+          {/* Hidden mirrors of the disclosure toggles. Always present so
+              parseDisclosurePrefsFromForm detects the section and persists the
+              explicit choices ("true"/"false" both parse via checkboxOn). */}
+          {DISCLOSURE_ROWS.map((row) => (
+            <input
+              key={row.key}
+              type="hidden"
+              name={row.key}
+              value={disclosurePrefs[row.key] ? "true" : "false"}
+            />
+          ))}
 
           {errorMessage && (
             <p
