@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
-import { CaseBadge } from "@/components/CaseBadge";
 import { OpButton } from "@/components/ui/dashboard";
+import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { OpSelect } from "@/components/ui/dashboard/OpField";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { listCasesForAdmin } from "@/lib/infra/case-queries";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
-import { formatDate } from "@/lib/utils/format";
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
-const ADMIN_CASOS_PAGE_LIMIT = 500;
+const ADMIN_CASOS_PAGE_LIMIT = 50;
 
 // Status options for the filter form.
 // "all" is a UI sentinel that maps to statusFilter=null (no SQL filter).
@@ -93,6 +93,24 @@ export default async function AdminCasosPage({
       : null;
   const newerLink = rawCursor ? newerHref("/admin/casos", filterParams) : null;
 
+  // Map CaseListItem → CaseQueueRow for the shared queue table. The rich
+  // status/kind/province filter form above owns filtering, so the queue's
+  // built-in status chips are suppressed (showStatusChips={false}) to avoid a
+  // duplicate status control. Cases are reachable via /casos/[publicCode].
+  const queueRows: CaseQueueRow[] = items.map((c) => ({
+    id: c.id,
+    publicCode: c.publicCode,
+    caseKind: c.caseKind,
+    status: c.status,
+    primaryPetName: c.primaryPetName,
+    primaryPetPublicToken: c.primaryPetPublicToken,
+    jurisdictionProvince: c.jurisdictionProvince,
+    jurisdictionLocality: c.jurisdictionLocality,
+    openedAt: c.openedAt,
+    closedAt: c.closedAt,
+    detailHref: `/casos/${c.publicCode}`,
+  }));
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -167,46 +185,15 @@ export default async function AdminCasosPage({
         )}
       </form>
 
-      {items.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          Sin casos registrados para los filtros aplicados.
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {items.map((c) => (
-            <li
-              key={c.id}
-              className="flex min-h-[44px] flex-col gap-2 rounded-[6px] border border-ln-op-line bg-ln-op-card p-3 md:min-h-0 md:flex-row md:items-center md:justify-between md:py-2"
-            >
-              <div className="flex flex-col gap-1">
-                <CaseBadge
-                  publicCode={c.publicCode}
-                  caseKind={c.caseKind}
-                  status={c.status}
-                  size="sm"
-                />
-                <span className="text-sm text-ln-op-mute">
-                  {c.jurisdictionLocality && c.jurisdictionProvince
-                    ? `${c.jurisdictionLocality}, ${c.jurisdictionProvince} · `
-                    : ""}
-                  Abierto el {formatDate(c.openedAt)}
-                  {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
-                </span>
-              </div>
-              {c.primaryPetPublicToken && c.primaryPetName ? (
-                <Link
-                  href={`/p/${c.primaryPetPublicToken}`}
-                  className="inline-flex items-center rounded-full bg-ln-op-stripe px-3 py-1.5 text-[13px] text-ln-op-ink-2 no-underline transition-colors hover:bg-ln-op-line"
-                >
-                  &#128062; {c.primaryPetName}
-                </Link>
-              ) : (
-                <span className="text-[13px] text-ln-op-mute">Caso sin mascota registrada</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      <Suspense>
+        <CaseQueue
+          rows={queueRows}
+          filters={{ status: statusFilter, kind: kindFilter }}
+          showStatusChips={false}
+          caption="Cola de casos — vista universal admin"
+          emptyMessage="Sin casos registrados para los filtros aplicados."
+        />
+      </Suspense>
 
       {/* Pagination footer */}
       {(newerLink || olderLink) && (

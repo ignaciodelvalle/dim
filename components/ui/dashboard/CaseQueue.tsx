@@ -98,6 +98,13 @@ export interface CaseQueueProps {
   truncated?: boolean;
   /** Empty-state message. */
   emptyMessage?: string;
+  /**
+   * When false, the built-in status filter chips (Todos / Abiertos / Cerrados)
+   * are not rendered. Use this on surfaces that own a richer external filter
+   * form (e.g. /admin/casos, which filters status alongside kind + province)
+   * to avoid a duplicate status control. Defaults to true.
+   */
+  showStatusChips?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +145,7 @@ export function CaseQueue({
   caption = "Cola de casos",
   truncated = false,
   emptyMessage = "No hay casos en esta cola.",
+  showStatusChips = true,
 }: CaseQueueProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -165,26 +173,28 @@ export function CaseQueue({
   return (
     <div className="space-y-4">
       {/* Filter chips */}
-      <nav aria-label="Filtros de estado" className="flex flex-wrap gap-2">
-        {STATUS_OPTIONS.map((opt) => {
-          const isActive = activeStatus === opt.value;
-          return (
-            <Link
-              key={opt.value ?? "all"}
-              href={buildFilterHref(filterBase, activeKind, opt.value)}
-              aria-pressed={isActive}
-              className={[
-                "rounded-full border px-3 py-1 text-sm font-medium no-underline transition-colors",
-                isActive
-                  ? "border-ln-op-azul bg-ln-op-azul text-white"
-                  : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe",
-              ].join(" ")}
-            >
-              {opt.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {showStatusChips && (
+        <nav aria-label="Filtros de estado" className="flex flex-wrap gap-2">
+          {STATUS_OPTIONS.map((opt) => {
+            const isActive = activeStatus === opt.value;
+            return (
+              <Link
+                key={opt.value ?? "all"}
+                href={buildFilterHref(filterBase, activeKind, opt.value)}
+                aria-pressed={isActive}
+                className={[
+                  "rounded-full border px-3 py-1 text-sm font-medium no-underline transition-colors",
+                  isActive
+                    ? "border-ln-op-azul bg-ln-op-azul text-white"
+                    : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe",
+                ].join(" ")}
+              >
+                {opt.label}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
 
       {/* Row count */}
       <p aria-live="polite" className="text-sm text-ln-op-mute">

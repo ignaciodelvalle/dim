@@ -1,44 +1,87 @@
 // Govt-scope case index. Lists every case whose jurisdiction matches
 // the govt's active assignments (province + locality). Admins see the
 // same view but redirected via /admin/casos.
+//
+// Migrated to the shared CaseQueue (Wave B systemic — master-detail /
+// shared-component adoption). Previously this surface hand-rolled a divergent
+// list with ZERO filters; it now shares the canonical queue table, per-row
+// SLA/age badge, a11y semantics, and status filter chips with /org/…/casos
+// and /admin/casos. Keyset pagination (PERF-5) is preserved via the footer
+// below — CaseQueue renders the table + chips; the page owns cursor links.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
-import { CaseBadge } from "@/components/CaseBadge";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { listCasesForGovt } from "@/lib/infra/case-queries";
-import { formatDate } from "@/lib/utils/format";
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
-const GOVT_CASOS_PAGE_LIMIT = 300;
+const GOVT_CASOS_PAGE_LIMIT = 50;
+
+function parseStatus(raw: string | undefined): "open" | "closed" | null {
+  if (raw === "open") return "open";
+  if (raw === "closed") return "closed";
+  return null;
+}
 
 export default async function GovtCasosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cursor?: string }>;
+  searchParams: Promise<{ cursor?: string; status?: string }>;
 }) {
   const session = await requireAdminOrGovtOrRedirect();
   if (session.profile.role === "admin") redirect("/admin/casos");
 
-  const { cursor: rawCursor } = await searchParams;
+  const sp = await searchParams;
+  const rawCursor = sp.cursor;
+  const activeStatus = parseStatus(sp.status);
 
   // Fetch limit+1 to detect hasMore.
   const rawItems = await listCasesForGovt(session.jurisdictions, {
     limit: GOVT_CASOS_PAGE_LIMIT + 1,
     cursor: rawCursor,
+    filters: { status: activeStatus },
   });
   const hasMore = rawItems.length > GOVT_CASOS_PAGE_LIMIT;
   const items = hasMore ? rawItems.slice(0, GOVT_CASOS_PAGE_LIMIT) : rawItems;
 
+  // Preserve the active status filter across cursor links.
+  const filterParams: Record<string, string | undefined> = {
+    ...(activeStatus ? { status: activeStatus } : {}),
+  };
   const lastItem = items.at(-1);
   const olderLink =
     hasMore && lastItem
-      ? olderHref("/gob/casos", {}, { ts: lastItem.openedAt, id: lastItem.id })
+      ? olderHref("/gob/casos", filterParams, { ts: lastItem.openedAt, id: lastItem.id })
       : null;
-  const newerLink = rawCursor ? newerHref("/gob/casos", {}) : null;
+  const newerLink = rawCursor ? newerHref("/gob/casos", filterParams) : null;
+
+  // Map CaseListItem → CaseQueueRow (shapes are identical except detailHref).
+  // Cases are cross-org public records reachable via the canonical
+  // /casos/[publicCode] route (canReadCase gates govt-in-scope access there).
+  const queueRows: CaseQueueRow[] = items.map((c) => ({
+    id: c.id,
+    publicCode: c.publicCode,
+    caseKind: c.caseKind,
+    status: c.status,
+    primaryPetName: c.primaryPetName,
+    primaryPetPublicToken: c.primaryPetPublicToken,
+    jurisdictionProvince: c.jurisdictionProvince,
+    jurisdictionLocality: c.jurisdictionLocality,
+    openedAt: c.openedAt,
+    closedAt: c.closedAt,
+    detailHref: `/casos/${c.publicCode}`,
+  }));
+
+  const emptyMessage =
+    activeStatus === "open"
+      ? "No hay casos abiertos en tu jurisdicción."
+      : activeStatus === "closed"
+        ? "No hay casos cerrados en tu jurisdicción."
+        : "Sin casos en tu jurisdicción por ahora.";
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
@@ -56,55 +99,23 @@ export default async function GovtCasosPage({
           title="No tenés jurisdicciones asignadas todavía."
           description="Pedile a un administrador que te asigne una jurisdicción."
         />
-      ) : items.length === 0 ? (
-        <LnEmptyState icon="solicitud" title="Sin casos en tu jurisdicción por ahora." />
       ) : (
-        <OpCard>
-          <OpCardHead title={`${items.length} caso${items.length === 1 ? "" : "s"}`} />
-          <OpCardBody className="p-0">
-            <ul className="divide-y divide-ln-op-line-2">
-              {items.map((c) => (
-                <li
-                  key={c.id}
-                  className="flex flex-col gap-3 px-4 py-3 odd:bg-ln-op-stripe md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="flex flex-col gap-1">
-                    <CaseBadge
-                      publicCode={c.publicCode}
-                      caseKind={c.caseKind}
-                      status={c.status}
-                      size="sm"
-                    />
-                    <span className="text-sm text-ln-op-mute">
-                      {c.jurisdictionLocality && c.jurisdictionProvince
-                        ? `${c.jurisdictionLocality}, ${c.jurisdictionProvince} · `
-                        : ""}
-                      Abierto el {formatDate(c.openedAt)}
-                      {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
-                    </span>
-                  </div>
-                  {c.primaryPetPublicToken && c.primaryPetName ? (
-                    <Link
-                      href={`/mis-mascotas/${c.primaryPetPublicToken}`}
-                      className="inline-flex items-center rounded-full bg-ln-op-stripe border border-ln-op-line px-3 py-1.5 text-[13px] text-ln-op-ink transition hover:bg-ln-op-line no-underline"
-                    >
-                      🐾 {c.primaryPetName}
-                    </Link>
-                  ) : (
-                    <span className="text-[13px] text-ln-op-mute">Caso sin mascota registrada</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </OpCardBody>
-        </OpCard>
+        <Suspense>
+          <CaseQueue
+            rows={queueRows}
+            filters={{ status: activeStatus }}
+            filterBase="/gob/casos"
+            caption="Cola de casos de tu jurisdicción"
+            emptyMessage={emptyMessage}
+          />
+        </Suspense>
       )}
 
-      {/* Pagination footer */}
+      {/* Keyset pagination footer — preserves the active status filter. */}
       {(newerLink || olderLink) && (
         <nav
           aria-label="Paginación de casos"
-          className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+          className="mt-6 flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
         >
           <div>
             {newerLink && (

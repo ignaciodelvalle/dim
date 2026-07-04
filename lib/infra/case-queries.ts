@@ -526,9 +526,15 @@ export async function listCaseKindDistributionForOrg(orgId: string): Promise<Cas
 // opts.cursor enables keyset pagination (PERF-5): when provided, only rows
 // OLDER than the cursor are returned — (openedAt, id) < (cursorTs, cursorId).
 // Callers should fetch limit+1 to detect hasMore; render limit rows only.
+// opts.filters.status narrows by open (closedAt IS NULL) / closed
+// (closedAt IS NOT NULL) so the shared CaseQueue status chips resolve in SQL.
 export async function listCasesForGovt(
   jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
-  opts?: { limit?: number; cursor?: KeysetCursor },
+  opts?: {
+    limit?: number;
+    cursor?: KeysetCursor;
+    filters?: { status?: "open" | "closed" | null };
+  },
 ): Promise<CaseListItem[]> {
   if (jurisdictions.length === 0) return [];
   const jurisdictionFilter = or(
@@ -536,8 +542,14 @@ export async function listCasesForGovt(
       and(eq(cases.jurisdictionProvince, j.province), eq(cases.jurisdictionLocality, j.locality)),
     ),
   );
+  const statusClause =
+    opts?.filters?.status === "open"
+      ? isNull(cases.closedAt)
+      : opts?.filters?.status === "closed"
+        ? isNotNull(cases.closedAt)
+        : undefined;
   const cursorClause = keysetWhere(cases.openedAt, cases.id, decodeCursor(opts?.cursor));
-  const whereClause = cursorClause ? and(jurisdictionFilter, cursorClause) : jurisdictionFilter;
+  const whereClause = and(jurisdictionFilter, statusClause, cursorClause);
   const limit = opts?.limit ?? 300;
   const rows = await db
     .select({
