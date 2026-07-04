@@ -10,18 +10,63 @@
 // etc.) already re-evals inline after each successful write, so this cron
 // is for safety nets — recovering from a writer-time crash, applying a
 // breeds.ts edit that changed the AR default, etc. Idempotent.
+//
+// Boundedness (fixed 2026-07-04 — capstone perf-scale finding): this sweep
+// used to process EVERY configured jurisdiction scope in a single
+// invocation, with no time/count budget. On a fleet with many jurisdiction
+// overrides that risked exceeding the function's maxDuration:60 budget
+// (vercel.json) and getting killed mid-sweep with no persisted progress.
+//
+// Fix: bound the OUTER scope loop with a resumable cursor — same pattern as
+// reconcile-pet-status (piggy-backs on the existing cron_runs telemetry row;
+// no new table/migration). Each run processes at most MAX_SCOPES_PER_RUN
+// scopes, or fewer if MAX_DURATION_MS elapses first, then persists
+// `nextScopeIndex` so the next run resumes with the next unprocessed scope.
+// Once every scope has been covered in a cycle the cursor wraps back to 0.
+// This does NOT change reEvaluatePppClassificationChange itself (the
+// business-rule sweep logic) — only how many jurisdiction scopes the route
+// asks it to process per invocation. Residual risk: a SINGLE scope with an
+// unusually large matching population could still be slow (the AR
+// country-level default is always scope 0 and runs every invocation); if
+// that becomes a real problem, the next step is row-level pagination INSIDE
+// reEvaluatePppClassificationChange (out of scope for this fix).
+//
+// Correctness: every jurisdiction's rules are still re-evaluated — just
+// spread across successive daily runs when the scope list is large, instead
+// of always crammed into one. reEvaluatePppClassificationChange is already
+// idempotent, so partial/repeated coverage across runs is safe.
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { db, govtBusinessRules } from "@/db";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
+
+import { cronRuns, db, govtBusinessRules } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import { reEvaluatePppClassificationChange } from "@/lib/infra/business-rules-reeval";
+import {
+  type JurisdictionScope,
+  reEvaluatePppClassificationChange,
+} from "@/lib/infra/business-rules-reeval";
 import { withCronRun } from "@/lib/infra/case-cron";
-import { inArray } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
 const CRON_NAME = "business_rules_reeval";
+
+// Hard cap on scopes processed per run, independent of the time budget below
+// — keeps worst-case work predictable even if every scope call is fast.
+const MAX_SCOPES_PER_RUN = 25;
+
+// Wall-clock budget per invocation (ms), checked BETWEEN scope calls (a
+// single scope's internal work cannot be interrupted mid-call — see header
+// comment). Vercel Hobby cron functions time out at 60 s; 45 s leaves margin
+// to still finalize the cronRuns row.
+const MAX_DURATION_MS = 45_000;
+
+type Scope = { country: string; province: string | null; locality: string | null };
+
+function scopeKey(s: Scope): string {
+  return `${s.country}|${s.province ?? ""}|${s.locality ?? ""}`;
+}
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
@@ -31,6 +76,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const start = Date.now();
   try {
+    // -----------------------------------------------------------------------
+    // Resume cursor: index into the deterministically-ordered scope list,
+    // read from the last FINISHED run for this cron (see header comment).
+    // -----------------------------------------------------------------------
+    const [lastRun] = await db
+      .select({ details: cronRuns.details })
+      .from(cronRuns)
+      .where(and(eq(cronRuns.cronName, CRON_NAME), isNotNull(cronRuns.finishedAt)))
+      .orderBy(desc(cronRuns.startedAt))
+      .limit(1);
+
+    const resumeIndexRaw =
+      lastRun?.details && typeof lastRun.details === "object"
+        ? (lastRun.details as Record<string, unknown>).nextScopeIndex
+        : undefined;
+    const resumeIndex =
+      typeof resumeIndexRaw === "number" && Number.isInteger(resumeIndexRaw) && resumeIndexRaw >= 0
+        ? resumeIndexRaw
+        : 0;
+
     const totals = await withCronRun(
       CRON_NAME,
       async () => {
@@ -48,31 +113,56 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           .from(govtBusinessRules)
           .where(inArray(govtBusinessRules.ruleType, ["ppp_breed_list", "ppp_weight_threshold"]));
 
+        // Deduplicate + sort for a stable order — the resume index must mean
+        // the same scope across runs even as govtBusinessRules rows change.
+        const byKey = new Map<string, Scope>();
+        byKey.set(scopeKey({ country: "AR", province: null, locality: null }), {
+          country: "AR",
+          province: null,
+          locality: null,
+        });
+        for (const r of rows) {
+          const scope: Scope = { country: r.country, province: r.province, locality: r.locality };
+          byKey.set(scopeKey(scope), scope);
+        }
+        const scopes = Array.from(byKey.values()).sort((a, b) =>
+          scopeKey(a).localeCompare(scopeKey(b)),
+        );
+
         let totalScanned = 0;
         let totalFlippedToPpp = 0;
         let totalFlippedToNonPpp = 0;
         let totalNotified = 0;
+        let processedCount = 0;
+        let earlyStop = false;
+        let index = resumeIndex < scopes.length ? resumeIndex : 0;
 
-        // Always include the country-level default scan first.
-        const scopes: { country: string; province: string | null; locality: string | null }[] = [
-          { country: "AR", province: null, locality: null },
-          ...rows.map((r) => ({
-            country: r.country,
-            province: r.province,
-            locality: r.locality,
-          })),
-        ];
+        while (processedCount < scopes.length) {
+          if (processedCount >= MAX_SCOPES_PER_RUN || Date.now() - start >= MAX_DURATION_MS) {
+            earlyStop = true;
+            break;
+          }
 
-        for (const scope of scopes) {
+          const scope: JurisdictionScope = scopes[index];
           const result = await reEvaluatePppClassificationChange(scope);
           totalScanned += result.scanned;
           totalFlippedToPpp += result.flippedToPpp;
           totalFlippedToNonPpp += result.flippedToNonPpp;
           totalNotified += result.notified;
+
+          processedCount += 1;
+          index = (index + 1) % scopes.length;
         }
 
+        // earlyStop → resume at `index` next run. Otherwise every scope in
+        // this cycle was covered → wrap back to the top for the next cycle.
+        const nextScopeIndex = earlyStop ? index : 0;
+
         return {
-          scopes: scopes.length,
+          scopesTotal: scopes.length,
+          scopes: processedCount,
+          earlyStop,
+          nextScopeIndex,
           scanned: totalScanned,
           flippedToPpp: totalFlippedToPpp,
           flippedToNonPpp: totalFlippedToNonPpp,
@@ -82,7 +172,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       (r) => ({
         itemsProcessed: r.scanned,
         details: {
-          scopes: r.scopes,
+          scopesTotal: r.scopesTotal,
+          scopesProcessed: r.scopes,
+          earlyStop: r.earlyStop,
+          nextScopeIndex: r.nextScopeIndex,
           flippedToPpp: r.flippedToPpp,
           flippedToNonPpp: r.flippedToNonPpp,
           notified: r.notified,
