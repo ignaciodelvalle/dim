@@ -66,17 +66,18 @@ export const rabiesObservationWindowSchema = z
 
 export const dueSoonWindowSchema = z.object({ days: z.number().int().min(1).max(365) }).strict();
 
-const reminderWindowCadenceSchema = z
-  .object({
-    vaccineType: z.string().min(1).max(80),
-    aheadDays: z.number().int().min(1).max(365),
-  })
-  .strict();
-
+// Config-theater fix (handoff 2026-07-03 #2): the per-vaccine `cadences`
+// override was removed rather than wired. It was never read by any consumer
+// (runVaccineDueScan's throttle is a hardcoded per-variant cadence, unrelated
+// to this field) and had no write UI — the console form always round-tripped
+// it as []. There is also no structured vaccineType concept on `reminders`
+// (only a free-text `title`), so making it real would mean inventing a
+// vaccine taxonomy + matching heuristic in a hot cron path — out of scope for
+// a config-theater fix. Reintroduce alongside its consumer + console UI if a
+// per-vaccine window becomes a real requirement.
 export const reminderWindowsSchema = z
   .object({
     aheadDays: z.number().int().min(1).max(90),
-    cadences: z.array(reminderWindowCadenceSchema).max(50),
   })
   .strict();
 

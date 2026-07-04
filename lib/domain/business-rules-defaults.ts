@@ -58,21 +58,9 @@ export interface DueSoonWindow {
   days: number;
 }
 
-export interface ReminderWindowCadence {
-  vaccineType: string;
-  aheadDays: number;
-}
-
 export interface ReminderWindows {
   /** Global reminder lookahead, in days. Was WINDOW_AHEAD_DAYS. */
   aheadDays: number;
-  /**
-   * Per-vaccine cadence overrides (R4.7) — validated independently, but not
-   * yet editable from the console UI (no per-vaccine cadence concept exists
-   * in the current consumer). Defaults to empty; extensible without a schema
-   * change once a UI/consumer for it ships.
-   */
-  cadences: ReminderWindowCadence[];
 }
 
 export interface LongStayDays {
@@ -114,6 +102,6 @@ export const BUSINESS_RULES_DEFAULTS: {
   },
   rabies_observation_window: { days: 10 },
   due_soon_window: { days: 30 },
-  reminder_windows: { aheadDays: 14, cadences: [] },
+  reminder_windows: { aheadDays: 14 },
   long_stay_days: { days: 60 },
 };

@@ -104,12 +104,11 @@ describe("parseFromForm (zero behavior diff vs pre-registry parseRulePayloadFrom
     expect(getRuleTypeDef(ruleType).parseFromForm(empty)).toEqual({ [fieldName]: 0 });
   });
 
-  it("reminder_windows: parses aheadDays, cadences always round-trips as []", () => {
+  it("reminder_windows: parses aheadDays", () => {
     const fd = new FormData();
     fd.append("aheadDays", "7");
     expect(getRuleTypeDef("reminder_windows").parseFromForm(fd)).toEqual({
       aheadDays: 7,
-      cadences: [],
     });
   });
 });
@@ -131,26 +130,8 @@ describe("promoted rule types — validator strictness (R4.1)", () => {
   it("rejects unknown fields (strict mode) on reminder_windows", () => {
     const r = RULE_TYPE_REGISTRY.reminder_windows.schema.safeParse({
       aheadDays: 14,
-      cadences: [],
       extra: true,
     });
     expect(r.success).toBe(false);
-  });
-
-  it("validates each reminder_windows cadence entry independently (R4.7)", () => {
-    const badCadence = RULE_TYPE_REGISTRY.reminder_windows.schema.safeParse({
-      aheadDays: 14,
-      cadences: [
-        { vaccineType: "rabia", aheadDays: 10 },
-        { vaccineType: "", aheadDays: 5 },
-      ],
-    });
-    expect(badCadence.success).toBe(false);
-
-    const goodCadence = RULE_TYPE_REGISTRY.reminder_windows.schema.safeParse({
-      aheadDays: 14,
-      cadences: [{ vaccineType: "rabia", aheadDays: 10 }],
-    });
-    expect(goodCadence.success).toBe(true);
   });
 });

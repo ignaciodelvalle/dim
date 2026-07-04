@@ -191,7 +191,7 @@ describe("resolveBusinessRule — promoted rule types (migration 0116)", () => {
     expect(longStay.payload).toEqual({ days: 60 });
 
     const reminders = await resolveBusinessRule("reminder_windows", { country: "AR" });
-    expect(reminders.payload).toEqual({ aheadDays: 14, cadences: [] });
+    expect(reminders.payload).toEqual({ aheadDays: 14 });
   });
 
   it("long_stay_days: locality override wins over a province override (full cascade)", async () => {

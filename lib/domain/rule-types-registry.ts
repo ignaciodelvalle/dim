@@ -166,10 +166,7 @@ export const RULE_TYPE_REGISTRY: { [K in GovtBusinessRuleType]: RuleTypeDef<K> }
     parseFromForm: (formData) => {
       const raw = (formData.get("aheadDays") as string | null)?.trim();
       const aheadDays = raw && raw !== "" ? Number.parseInt(raw, 10) : Number.NaN;
-      // Per-vaccine cadence editing is not exposed in this pass (R4.7 keeps
-      // the shape valid/extensible); the console only edits the global
-      // aheadDays field today. cadences round-trips as [] (matches default).
-      return { aheadDays: Number.isNaN(aheadDays) ? 0 : aheadDays, cadences: [] };
+      return { aheadDays: Number.isNaN(aheadDays) ? 0 : aheadDays };
     },
   },
   long_stay_days: {
