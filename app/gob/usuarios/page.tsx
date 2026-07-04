@@ -189,7 +189,6 @@ export default async function UsuariosPage({
           ),
         }))}
         targetKind="vet"
-        actorUserId={user.id}
       />
 
       <p className="text-sm text-ln-op-mute">

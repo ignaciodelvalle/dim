@@ -25,11 +25,9 @@ type Mode = "idle" | "confirming" | "done";
 export function RevokeLocalityRowActions({
   assignmentId,
   localityLabel,
-  actorUserId,
 }: {
   assignmentId: string;
   localityLabel: string;
-  actorUserId: string;
 }) {
   const [mode, setMode] = useState<Mode>("idle");
 
@@ -44,7 +42,6 @@ export function RevokeLocalityRowActions({
       <RevokeLocalityForm
         assignmentId={assignmentId}
         localityLabel={localityLabel}
-        actorUserId={actorUserId}
         onDone={() => setMode("done")}
         onCancel={() => setMode("idle")}
       />
@@ -65,13 +62,11 @@ export function RevokeLocalityRowActions({
 function RevokeLocalityForm({
   assignmentId,
   localityLabel,
-  actorUserId,
   onDone,
   onCancel,
 }: {
   assignmentId: string;
   localityLabel: string;
-  actorUserId: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -99,7 +94,7 @@ function RevokeLocalityForm({
     setError(null);
     startTransition(async () => {
       // C23: upload on submit, namespaced by the TARGET assignment id.
-      const uploaded = await uploadAll(assignmentId, actorUserId);
+      const uploaded = await uploadAll(assignmentId);
       if ("error" in uploaded) {
         setError(uploaded.error);
         return;

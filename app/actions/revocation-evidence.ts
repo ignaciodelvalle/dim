@@ -4,7 +4,18 @@
 //
 // Business logic moved to:
 //   src/modules/organizations/application/revocations/upload-evidence.ts
+//
+// The actor is derived from the Supabase session HERE — never accepted from
+// the client (authz triage 2026-07-04: the old signature took a
+// caller-supplied actorUserId, letting any authenticated caller act as any
+// admin/govt whose UUID was known). The admin|govt role check runs inside the
+// delegated use-case against the session-derived id.
 
+import { createClient } from "@/lib/supabase/server";
+import type {
+  UploadEvidenceInput,
+  UploadEvidenceResult,
+} from "@/src/modules/organizations/application/revocations/upload-evidence";
 import { uploadRevocationEvidence as _uploadEvidence } from "@/src/modules/organizations/application/revocations/upload-evidence";
 
 export type {
@@ -12,12 +23,14 @@ export type {
   UploadEvidenceResult,
 } from "@/src/modules/organizations/application/revocations/upload-evidence";
 
-// @no-auth-required: caller passes actorUserId; the role check (admin | govt)
-// runs inside the delegated use-case and IS the auth gate. Matches the
-// inner-writer contract but the name doesn't end in ForUser/ForAuthority —
-// renaming is a follow-up.
 export async function uploadRevocationEvidence(
-  ...args: Parameters<typeof _uploadEvidence>
-): Promise<Awaited<ReturnType<typeof _uploadEvidence>>> {
-  return _uploadEvidence(...args);
+  input: UploadEvidenceInput,
+): Promise<UploadEvidenceResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sesión expirada." };
+
+  return _uploadEvidence(user.id, input);
 }

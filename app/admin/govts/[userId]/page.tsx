@@ -17,7 +17,7 @@ import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
 // Safe at v1 institutional volume. See ADR-8.
 
 export default async function GovtDetailPage({ params }: { params: Promise<{ userId: string }> }) {
-  const { user: actorUser } = await requireAdminOrRedirect();
+  await requireAdminOrRedirect();
   const { userId } = await params;
 
   // Load govt profile
@@ -146,11 +146,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
                       <OpCardBody className="flex items-center justify-between gap-3">
                         <span className="text-[13px] text-ln-op-ink">{label}</span>
                         {isActive && (
-                          <RevokeLocalityRowActions
-                            assignmentId={a.id}
-                            localityLabel={label}
-                            actorUserId={actorUser.id}
-                          />
+                          <RevokeLocalityRowActions assignmentId={a.id} localityLabel={label} />
                         )}
                       </OpCardBody>
                     </OpCard>
@@ -207,7 +203,6 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
                   displayName: govt.displayName,
                   activeLocalityCount: activeAssignments.length,
                 }}
-                actorUserId={actorUser.id}
               />
               <ResetCredentialsButton
                 targetUserId={govt.id}

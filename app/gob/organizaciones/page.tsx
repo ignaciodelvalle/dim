@@ -117,7 +117,6 @@ export default async function OrganizacionesPage({
           ),
         }))}
         targetKind="org"
-        actorUserId={user.id}
       />
 
       <p className="text-sm text-ln-op-mute">

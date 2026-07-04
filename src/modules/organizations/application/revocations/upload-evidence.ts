@@ -23,15 +23,16 @@ export type UploadEvidenceResult = { attachmentId: string } | { error: string };
 // Validates that the caller is an admin or govt user, then inserts an
 // attachments row with all FKs NULL. Returns the new attachment id.
 //
-// Note: this action deliberately does NOT call requireAdminOrGovtOrRedirect
+// Note: this use-case deliberately does NOT call requireAdminOrGovtOrRedirect
 // (which redirects) — it returns a typed error so the caller can handle it
 // without a page redirect (the upload is triggered from a form, not a page
 // navigation).
 //
-// @no-auth-required: caller passes `actorUserId`; the role check below
-// (admin | govt) IS the auth gate. Matches the inner-writer contract but
-// the name doesn't end in `ForUser`/`ForAuthority` — renaming is a
-// follow-up. The role check stays inline for the typed-error return shape.
+// `actorUserId` MUST be session-derived by the caller. The only server-action
+// entry point (app/actions/revocation-evidence.ts) resolves it from
+// supabase.auth.getUser() — it is never accepted from the client
+// (authz triage 2026-07-04). The role check below (admin | govt) then gates
+// the write against that session identity.
 export async function uploadRevocationEvidence(
   actorUserId: string,
   input: UploadEvidenceInput,

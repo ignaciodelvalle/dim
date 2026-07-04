@@ -17,7 +17,6 @@ import {
   revokeOrgVerificationForAuthority,
   revokeVetRoleForAuthority,
 } from "@/app/actions/admin-revocations";
-import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { createOrganizationForUser } from "@/app/actions/upgrade";
 import {
   attachments,
@@ -31,6 +30,7 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { uploadRevocationEvidence } from "@/src/modules/organizations/application/revocations/upload-evidence";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

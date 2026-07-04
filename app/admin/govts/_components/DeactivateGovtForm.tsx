@@ -34,10 +34,8 @@ type Mode = "idle" | "confirming" | "done";
 
 export function DeactivateGovtActions({
   target,
-  actorUserId,
 }: {
   target: Target;
-  actorUserId: string;
 }) {
   const [mode, setMode] = useState<Mode>("idle");
 
@@ -53,7 +51,6 @@ export function DeactivateGovtActions({
     return (
       <DeactivateGovtForm
         target={target}
-        actorUserId={actorUserId}
         onDone={() => setMode("done")}
         onCancel={() => setMode("idle")}
       />
@@ -73,12 +70,10 @@ export function DeactivateGovtActions({
 
 function DeactivateGovtForm({
   target,
-  actorUserId,
   onDone,
   onCancel,
 }: {
   target: Target;
-  actorUserId: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -106,7 +101,7 @@ function DeactivateGovtForm({
     setError(null);
     startTransition(async () => {
       // C23: upload on submit, namespaced by the TARGET govt id.
-      const uploaded = await uploadAll(target.id, actorUserId);
+      const uploaded = await uploadAll(target.id);
       if ("error" in uploaded) {
         setError(uploaded.error);
         return;

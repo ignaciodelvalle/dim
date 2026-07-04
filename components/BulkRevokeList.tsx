@@ -39,10 +39,9 @@ type UploadedFile = { name: string; attachmentId: string };
 interface Props {
   items: BulkRevokableItem[];
   targetKind: BulkRevokeKind;
-  actorUserId: string;
 }
 
-export function BulkRevokeList({ items, targetKind, actorUserId }: Props) {
+export function BulkRevokeList({ items, targetKind }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -114,7 +113,6 @@ export function BulkRevokeList({ items, targetKind, actorUserId }: Props) {
         <BulkRevokeModal
           selectedItems={selectedItems}
           targetKind={targetKind}
-          actorUserId={actorUserId}
           onClose={() => setModalOpen(false)}
           onDone={() => {
             setModalOpen(false);
@@ -133,12 +131,11 @@ export function BulkRevokeList({ items, targetKind, actorUserId }: Props) {
 interface ModalProps {
   selectedItems: BulkRevokableItem[];
   targetKind: BulkRevokeKind;
-  actorUserId: string;
   onClose: () => void;
   onDone: () => void;
 }
 
-function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDone }: ModalProps) {
+function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalProps) {
   const [pending, startTransition] = useTransition();
   const [motivo, setMotivo] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -165,12 +162,25 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
     setUploading(true);
 
     const supabase = createClient();
+
+    // Storage-path namespace: the viewer's own uid from the client session.
+    // The server action re-derives the actor from ITS session — this value
+    // never feeds authorization (authz triage 2026-07-04).
+    const {
+      data: { user: sessionUser },
+    } = await supabase.auth.getUser();
+    if (!sessionUser) {
+      setError("Sesión expirada.");
+      setUploading(false);
+      return;
+    }
+
     const newFiles: UploadedFile[] = [];
 
     for (const file of files) {
       try {
         const ext = file.name.split(".").pop() ?? "bin";
-        const path = `${actorUserId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const path = `${sessionUser.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: storageError } = await supabase.storage
           .from("revocations")
           .upload(path, file, { contentType: file.type });
@@ -179,7 +189,7 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
           setUploading(false);
           return;
         }
-        const r = await uploadRevocationEvidence(actorUserId, {
+        const r = await uploadRevocationEvidence({
           storagePath: path,
           mimeType: file.type,
           fileSize: file.size,

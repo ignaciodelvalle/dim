@@ -143,7 +143,7 @@ function RevokeOrgForm({
           return;
         }
 
-        const result = await uploadRevocationEvidence(actorUserId, {
+        const result = await uploadRevocationEvidence({
           storagePath: path,
           mimeType: file.type,
           fileSize: file.size,

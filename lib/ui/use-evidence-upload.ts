@@ -43,8 +43,10 @@ export interface UseEvidenceUpload {
    * Upload every pending file to the `revocations` bucket under the TARGET's
    * namespace and register each via uploadRevocationEvidence. Returns the new
    * attachment ids, or a typed error (no partial registration is surfaced).
+   * The acting user is derived server-side from the session — never passed in
+   * (authz triage 2026-07-04).
    */
-  uploadAll: (targetId: string, actorUserId: string) => Promise<UploadAllResult>;
+  uploadAll: (targetId: string) => Promise<UploadAllResult>;
 }
 
 let keySeq = 0;
@@ -69,7 +71,7 @@ export function useEvidenceUpload(): UseEvidenceUpload {
   const reset = useCallback(() => setSelectedFiles([]), []);
 
   const uploadAll = useCallback(
-    async (targetId: string, actorUserId: string): Promise<UploadAllResult> => {
+    async (targetId: string): Promise<UploadAllResult> => {
       const pending = selectedFiles;
       if (pending.length === 0) return { error: "EVIDENCE_REQUIRED" };
 
@@ -89,7 +91,7 @@ export function useEvidenceUpload(): UseEvidenceUpload {
             return { error: `Error al subir ${file.name}: ${storageError.message}` };
           }
 
-          const result = await uploadRevocationEvidence(actorUserId, {
+          const result = await uploadRevocationEvidence({
             storagePath: path,
             mimeType: file.type,
             fileSize: file.size,

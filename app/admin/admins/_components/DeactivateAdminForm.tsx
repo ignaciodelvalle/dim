@@ -72,7 +72,6 @@ export function DeactivateAdminActions({
     return (
       <DeactivateAdminForm
         target={target}
-        actorUserId={actor.id}
         onDone={() => setMode("done")}
         onCancel={() => setMode("idle")}
       />
@@ -92,12 +91,10 @@ export function DeactivateAdminActions({
 
 function DeactivateAdminForm({
   target,
-  actorUserId,
   onDone,
   onCancel,
 }: {
   target: Target;
-  actorUserId: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -126,7 +123,7 @@ function DeactivateAdminForm({
     setError(null);
     startTransition(async () => {
       // C23: upload on submit, namespaced by the TARGET admin id.
-      const uploaded = await uploadAll(target.id, actorUserId);
+      const uploaded = await uploadAll(target.id);
       if ("error" in uploaded) {
         setError(uploaded.error);
         return;
