@@ -1,5 +1,6 @@
 "use client";
 
+import { choroplethColorStops, choroplethDomain } from "@/components/charts/choropleth-stops";
 import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
@@ -8,7 +9,6 @@ import {
   COLOR_SUPPRESSED,
   type ColorRamp,
   RAMP_BLUE,
-  divergentStops,
 } from "@/lib/analytics/viz-scales";
 import {
   type GeoLevel,
@@ -352,12 +352,12 @@ export function MapChoropleth({
             const values = joinedFeatures
               .filter((f) => !f.missingData && !f.suppressed)
               .map((f) => f.value ?? 0);
-            const minVal = values.length > 0 ? Math.min(...values) : 0;
-            // Interpolate stops must be strictly ascending — when every region
-            // carries the same value (Math.max === Math.min) widen the range,
-            // or MapLibre rejects the whole fill-color expression.
-            const rawMax = values.length > 0 ? Math.max(...values) : 0;
-            const maxVal = rawMax > minVal ? rawMax : minVal + 1;
+            // Interpolate stops must be strictly ascending or MapLibre rejects
+            // the whole fill-color expression (QA round 2 #3). Domain + stop
+            // construction live in choropleth-stops.ts, which guarantees a
+            // finite, widened domain and sorted/deduped stops for every
+            // degenerate input (uniform values, single region, NaN, empty).
+            const { minVal, maxVal } = choroplethDomain(values);
 
             // Enrich GeoJSON features with choropleth metadata
             const enriched: GeoJSON.FeatureCollection = {
@@ -384,31 +384,22 @@ export function MapChoropleth({
             // MapLibre color expression:
             // - suppressed: COLOR_SUPPRESSED
             // - no data:    COLOR_NO_DATA
-            // - has data:   interpolation (sequential or divergent)
-            const isDivergent = scaleMode === "divergent" && typeof target === "number";
+            // - has data:   interpolation (sequential or divergent — divergent
+            //   anchors at `target`: orange=below, neutral=at, teal=above,
+            //   reusing divergentStops via choroplethColorStops).
+            const flatStops = choroplethColorStops({
+              domain: { minVal, maxVal },
+              colorScale,
+              scaleMode,
+              target,
+            }).flat();
 
-            const dataInterpolateExpr: maplibregl.ExpressionSpecification = isDivergent
-              ? (() => {
-                  // Divergent: anchor at `target`, orange=below, neutral=at, teal=above.
-                  // Reuses divergentStops from lib/viz-scales — same helper as SituationalMap.
-                  const stops = divergentStops(target as number, minVal, maxVal);
-                  const flatStops = stops.flat();
-                  return [
-                    "interpolate",
-                    ["linear"],
-                    ["get", "choropleth_value"],
-                    ...flatStops,
-                  ] as maplibregl.ExpressionSpecification;
-                })()
-              : ([
-                  "interpolate",
-                  ["linear"],
-                  ["get", "choropleth_value"],
-                  minVal,
-                  colorScale[0],
-                  maxVal,
-                  colorScale[1],
-                ] as maplibregl.ExpressionSpecification);
+            const dataInterpolateExpr = [
+              "interpolate",
+              ["linear"],
+              ["get", "choropleth_value"],
+              ...flatStops,
+            ] as maplibregl.ExpressionSpecification;
 
             const colorExpr: maplibregl.ExpressionSpecification = [
               "case",
