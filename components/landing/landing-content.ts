@@ -448,6 +448,7 @@ export const FOOTER_NAV: Array<[string, Array<[string, string]>]> = [
     "Institucional",
     [
       ["Acerca de miMAR", "/acerca"],
+      ["Marco legal", "/leyes"],
       ["Privacidad", "/privacidad"],
       ["Términos", "/terminos"],
       ["Accesibilidad", "/accesibilidad"],

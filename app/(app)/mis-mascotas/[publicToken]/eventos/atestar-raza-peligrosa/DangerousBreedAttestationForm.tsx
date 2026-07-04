@@ -11,7 +11,14 @@ const initialState: EventFormState = { error: null };
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
 const FORM_ID = "dangerous-breed-attestation-form";
 
-const REGISTRY_OPTIONS: Array<{ value: string; label: string; help: string }> = [
+type RegistryOption = { value: string; label: string; help: string };
+
+// Static fallback — used only when the jurisdiction has no
+// ppp_attestation_required_registries rule configured (admin-rules-console
+// config-theater fix, handoff 2026-07-03 #1). Once a jurisdiction sets its
+// own registries, this list is replaced by the resolved rule so an admin
+// edit actually changes what the owner sees.
+const FALLBACK_REGISTRY_OPTIONS: RegistryOption[] = [
   {
     value: "caba_4078",
     label: "CABA · Ley 4078",
@@ -22,12 +29,30 @@ const REGISTRY_OPTIONS: Array<{ value: string; label: string; help: string }> = 
     label: "Provincia de Buenos Aires · Ley 14.107",
     help: "Registro provincial bonaerense.",
   },
-  {
-    value: "other",
-    label: "Otro registro",
-    help: "Si la mascota está en otra provincia, indicalo en las notas.",
-  },
 ];
+
+const OTHER_OPTION: RegistryOption = {
+  value: "other",
+  label: "Otro registro",
+  help: "Si la mascota está en otra provincia, indicalo en las notas.",
+};
+
+/** Resolved rule registry shape (lib/domain/rule-types-registry.ts). */
+export type ResolvedAttestationRegistry = { id: string; label: string; required: boolean };
+
+function buildRegistryOptions(resolvedRegistries: ResolvedAttestationRegistry[]): RegistryOption[] {
+  const base =
+    resolvedRegistries.length > 0
+      ? resolvedRegistries.map((r) => ({
+          value: r.id,
+          label: r.label,
+          help: r.required
+            ? "Registro requerido en esta jurisdicción."
+            : "Registro opcional en esta jurisdicción.",
+        }))
+      : FALLBACK_REGISTRY_OPTIONS;
+  return [...base, OTHER_OPTION];
+}
 
 // ---------------------------------------------------------------------------
 // Step 1 — Legal information and acknowledgements
@@ -135,9 +160,11 @@ function Step1({ onContinue }: { onContinue: () => void }) {
 function Step2({
   action,
   onBack,
+  registryOptions,
 }: {
   action: FormAction;
   onBack: () => void;
+  registryOptions: RegistryOption[];
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const [registry, setRegistry] = useState("");
@@ -167,7 +194,7 @@ function Step2({
               </span>
             </p>
             <div className="flex flex-col gap-[6px]">
-              {REGISTRY_OPTIONS.map((opt) => (
+              {registryOptions.map((opt) => (
                 <LnRadio
                   key={opt.value}
                   name="registry"
@@ -266,11 +293,19 @@ function Step2({
 // Wizard root — orchestrates the 2-step flow
 // ---------------------------------------------------------------------------
 
-export function DangerousBreedAttestationForm({ action }: { action: FormAction }) {
+export function DangerousBreedAttestationForm({
+  action,
+  resolvedRegistries,
+}: {
+  action: FormAction;
+  /** Resolved ppp_attestation_required_registries payload for the pet's jurisdiction. */
+  resolvedRegistries: ResolvedAttestationRegistry[];
+}) {
   const [step, setStep] = useState<1 | 2>(1);
+  const registryOptions = buildRegistryOptions(resolvedRegistries);
 
   if (step === 1) {
     return <Step1 onContinue={() => setStep(2)} />;
   }
-  return <Step2 action={action} onBack={() => setStep(1)} />;
+  return <Step2 action={action} onBack={() => setStep(1)} registryOptions={registryOptions} />;
 }
