@@ -53,7 +53,9 @@ export function choroplethColorStops(args: {
 }): Array<[number, string]> {
   const { minVal, maxVal } = args.domain;
   const isDivergent =
-    args.scaleMode === "divergent" && typeof args.target === "number" && Number.isFinite(args.target);
+    args.scaleMode === "divergent" &&
+    typeof args.target === "number" &&
+    Number.isFinite(args.target);
 
   const stops: Array<[number, string]> = isDivergent
     ? divergentStops(args.target as number, minVal, maxVal)
@@ -75,9 +77,7 @@ export function sanitizeStops(
   stops: Array<[number, string]>,
   colorScale: readonly [string, string],
 ): Array<[number, string]> {
-  const sorted = stops
-    .filter(([value]) => Number.isFinite(value))
-    .sort((a, b) => a[0] - b[0]);
+  const sorted = stops.filter(([value]) => Number.isFinite(value)).sort((a, b) => a[0] - b[0]);
 
   const out: Array<[number, string]> = [];
   for (const stop of sorted) {

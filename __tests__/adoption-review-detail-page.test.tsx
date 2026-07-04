@@ -79,7 +79,10 @@ let uuidNoProfileAppEventId: string;
 beforeAll(async () => {
   // Clean leftovers from a previous crashed run (hardcoded tokens).
   await withMutationOverride(async (tx) => {
-    const stale = await tx.select({ id: pets.id }).from(pets).where(eq(pets.publicToken, PET_TOKEN));
+    const stale = await tx
+      .select({ id: pets.id })
+      .from(pets)
+      .where(eq(pets.publicToken, PET_TOKEN));
     for (const { id } of stale) {
       await tx.delete(ownerships).where(eq(ownerships.petId, id));
       await tx.delete(petEvents).where(eq(petEvents.petId, id));

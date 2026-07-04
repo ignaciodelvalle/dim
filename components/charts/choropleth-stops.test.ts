@@ -163,7 +163,13 @@ describe("sanitizeStops", () => {
   });
 
   it("drops non-finite inputs and synthesizes a second stop if needed", () => {
-    const stops = sanitizeStops([[Number.NaN, "#a"], [5, "#b"]], RAMP_BLUE);
+    const stops = sanitizeStops(
+      [
+        [Number.NaN, "#a"],
+        [5, "#b"],
+      ],
+      RAMP_BLUE,
+    );
     expect(stops).toEqual([
       [5, "#b"],
       [6, RAMP_BLUE[1]],
