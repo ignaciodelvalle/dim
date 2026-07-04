@@ -12,9 +12,8 @@ import { and, desc, eq, gte } from "drizzle-orm";
 import Link from "next/link";
 
 import { CaseBadge } from "@/components/CaseBadge";
-import { JurisdictionFilterBar } from "@/components/JurisdictionFilterBar";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
-import { readFilterParams } from "@/components/jurisdiction-filter-params";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { auditLog, db } from "@/db";
@@ -22,6 +21,7 @@ import {
   fetchDangerousBreedCompliance,
   fetchMicrochipPenetration,
 } from "@/lib/analytics/compliance-metrics";
+import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
 import {
   fetchActiveZoonosis,
   fetchBitesPer10k,
@@ -31,7 +31,7 @@ import {
 } from "@/lib/analytics/govt-home-kpis";
 import { fetchMortalityDisposition } from "@/lib/analytics/mortality-metrics";
 import { fetchVisiblePendingRequests } from "@/lib/infra/approval-scope";
-import { listLocalitiesByProvince } from "@/lib/infra/ar-localidades";
+import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   listOpenCasesForAdminPreview,
@@ -46,7 +46,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
-import { PROVINCES, type ProvinceCode } from "@/lib/reference/ar-provincias";
+import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { formatDate } from "@/lib/utils/format";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -66,55 +66,48 @@ export default async function GobiernoDashboardPage({
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
   const sp = await searchParams;
-  const params = readFilterParams(toURLSearchParams(sp));
 
   // --- Jurisdiction filter resolution -------------------------------------
-  // Resolve selected province slug (from the filter bar) to a Province object
-  // so we can load its localities and narrow the KPI queries.
+  // Uses the SAME URL contract as every /gob sub-page (JurisdictionSwitcher):
+  // province = ISO 3166-2 code, locality = slug. This is what closed the
+  // scope-reset-on-drill-down bug — the home previously wrote province=slug,
+  // which every sub-page (reading province=ISO) silently dropped.
+  const selectedProvinceIso = typeof sp.province === "string" ? sp.province : null;
+  const selectedLocalitySlug = typeof sp.locality === "string" ? sp.locality : null;
+  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
 
-  const selectedProvinceObj = params.province
-    ? (PROVINCES.find((p) => p.slug === params.province) ?? null)
-    : null;
-
-  const selectedLocalitySlug = params.locality || null;
-
-  // Load localities for the selected province (for the filter bar dropdown).
-  const rawLocalities = selectedProvinceObj
+  // Load localities for the selected province (for the switcher dropdown).
+  const localities = selectedProvinceObj
     ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
     : [];
 
-  // localitiesByProvince returns { slug, name }; JurisdictionFilterBar expects { value, label }.
-  const localityOptions = rawLocalities.map((l) => ({ value: l.slug, label: l.name }));
+  const selectedLocalityRow =
+    selectedProvinceObj && selectedLocalitySlug
+      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
+      : null;
 
   // Narrow jurisdictions for KPI queries when a province/locality filter is active.
   // Intersect with the user's real assignments so a govt user can't widen scope.
   let filteredJurisdictions = jurisdictions;
   if (selectedProvinceObj && profile.role !== "admin") {
     const provinceName = selectedProvinceObj.name;
-    if (selectedLocalitySlug) {
-      // Match the locality by slug → canonical name via rawLocalities.
-      const localityRow = rawLocalities.find((l) => l.slug === selectedLocalitySlug);
-      if (localityRow) {
-        filteredJurisdictions = jurisdictions.filter(
-          (j) => j.province === provinceName && j.locality === localityRow.name,
-        );
-      } else {
-        filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
-      }
+    if (selectedLocalityRow) {
+      filteredJurisdictions = jurisdictions.filter(
+        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
+      );
     } else {
       filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
     }
   }
 
-  // Build province options for the filter bar.
-  // Admin: all 24 provinces. Govt: provinces the user has assignments in.
-  const provinceOptions: Array<{ value: string; label: string }> =
+  // Provinces the switcher offers. Admin: all 24 (ISO codes). Govt: the
+  // provinces the user has assignments in, as ISO codes.
+  const allowedProvinces =
     profile.role === "admin"
-      ? PROVINCES.map((p) => ({ value: p.slug as string, label: p.name as string }))
-      : Array.from(new Set(jurisdictions.map((j) => j.province))).flatMap((name) => {
-          const p = PROVINCES.find((pr) => pr.name === name);
-          return p ? [{ value: p.slug as string, label: p.name as string }] : [];
-        });
+      ? GOB_ALL_PROVINCES
+      : Array.from(new Set(jurisdictions.map((j) => j.province)))
+          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
+          .filter((p) => p.code !== "");
 
   // --- Scope label --------------------------------------------------------
 
@@ -238,16 +231,9 @@ export default async function GobiernoDashboardPage({
         </div>
       </header>
 
-      {/* Jurisdiction filter bar */}
-      <JurisdictionFilterBar
-        range={params.range}
-        province={params.province}
-        locality={params.locality}
-        orgType={params.orgType}
-        provinces={provinceOptions}
-        localities={localityOptions}
-        orgTypes={[]}
-      />
+      {/* Jurisdiction filter — same URL contract (province=ISO, locality=slug)
+          as every /gob sub-page, so scope carries across drill-downs. */}
+      <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
 
       {/* KPI strip */}
       <section
@@ -665,17 +651,6 @@ export default async function GobiernoDashboardPage({
       <DashboardFreshnessFooter ctx={ctx12m} />
     </div>
   );
-}
-
-// Converts Next.js searchParams (Record) to URLSearchParams so readFilterParams
-// (which expects URLSearchParams) can parse it on the server.
-function toURLSearchParams(sp: Record<string, string | string[] | undefined>): URLSearchParams {
-  const p = new URLSearchParams();
-  for (const [k, v] of Object.entries(sp)) {
-    if (typeof v === "string") p.set(k, v);
-    else if (Array.isArray(v) && v.length > 0) p.set(k, v[0]);
-  }
-  return p;
 }
 
 export const dynamic = "force-dynamic";
