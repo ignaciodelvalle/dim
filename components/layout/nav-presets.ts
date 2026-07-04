@@ -322,6 +322,9 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       { href: "/admin/censo", label: "Censo", matchPrefix: "/admin/censo" },
       { href: "/admin/adopciones", label: "Adopciones", matchPrefix: "/admin/adopciones" },
       { href: "/admin/poblacion", label: "Población", matchPrefix: "/admin/poblacion" },
+      // Task #44 — territorial operational intelligence (composite index,
+      // policy→outcome loop, per-province data quality).
+      { href: "/admin/inteligencia", label: "Inteligencia", matchPrefix: "/admin/inteligencia" },
     ],
   },
   {
