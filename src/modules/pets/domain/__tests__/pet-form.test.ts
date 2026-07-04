@@ -293,6 +293,62 @@ describe("parsePetForm — permanentConditionsOther normalize", () => {
 });
 
 // ---------------------------------------------------------------------------
+// permanentConditionsOther — PII guard (privacy hardening 2026-07-04)
+// The free text can render on the public credential; phone/email must be
+// rejected on save.
+// ---------------------------------------------------------------------------
+
+describe("parsePetForm — permanentConditionsOther PII guard", () => {
+  function parseWithOther(text: string) {
+    return parsePetForm(
+      makeFormData({
+        ...BASE_VALID,
+        permanentConditions: "otra",
+        permanentConditionsOther: text,
+      }),
+    );
+  }
+
+  it("rejects an email address in the free text", () => {
+    const result = parseWithOther("Condición rara, escribime a maria@example.com");
+    expect(result.parsed).toBeNull();
+    expect(result.error).toContain("teléfonos ni emails");
+  });
+
+  it("rejects a phone number with separators in the free text", () => {
+    const result = parseWithOther("Diabetes, llamar al 11-5555-1234");
+    expect(result.parsed).toBeNull();
+    expect(result.error).toContain("teléfonos ni emails");
+  });
+
+  it("rejects an international-format phone number", () => {
+    const result = parseWithOther("Urgencias: +54 9 11 5555 1234");
+    expect(result.parsed).toBeNull();
+    expect(result.error).toContain("teléfonos ni emails");
+  });
+
+  it("accepts medical free text with small numbers and dates", () => {
+    const result = parseWithOther("Toma 2 pastillas cada 8 horas desde el 01/02/2020");
+    expect(result.error).toBeNull();
+    expect(result.parsed?.permanentConditionsOther).toBe(
+      "Toma 2 pastillas cada 8 horas desde el 01/02/2020",
+    );
+  });
+
+  it("does not run the guard when 'otra' is not selected (text is dropped)", () => {
+    const result = parsePetForm(
+      makeFormData({
+        ...BASE_VALID,
+        permanentConditions: "ciego",
+        permanentConditionsOther: "llamar al 11-5555-1234",
+      }),
+    );
+    expect(result.error).toBeNull();
+    expect(result.parsed?.permanentConditionsOther).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // custodyKind
 // ---------------------------------------------------------------------------
 

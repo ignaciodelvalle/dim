@@ -68,6 +68,32 @@ export function normalizeConditionsOther(parsed: ParsedPet): string | null {
   return parsed.permanentConditionsOther;
 }
 
+// Email: anything shaped like local@domain.tld.
+const EMAIL_PATTERN = /[^\s@]+@[^\s@]+\.[^\s@]{2,}/;
+// Phone candidate: a run of digits with common separators. Flagged only when
+// the run contains 9+ digits — AR numbers have 10 (or 8 local + area handled
+// by the +9 threshold), while dates ("01/02/2020" splits on "/") and dosage
+// counts stay well below it.
+const PHONE_CANDIDATE_PATTERN = /\+?\d[\d\s().-]*\d/g;
+
+/**
+ * Privacy guard for owner free text that can render on PUBLIC surfaces
+ * (permanentConditionsOther shows on /p/[publicToken] via
+ * discloseConditionsPublicly and the Tier-2 medical view). Detects contact
+ * info an owner may have pasted by accident so the save path can reject it
+ * instead of publishing PII (Ley 25.326 hardening, 2026-07-04).
+ *
+ * Pure function — conservative heuristics, no external imports.
+ */
+export function detectContactInfoInFreeText(text: string): "email" | "phone" | null {
+  if (EMAIL_PATTERN.test(text)) return "email";
+  for (const candidate of text.match(PHONE_CANDIDATE_PATTERN) ?? []) {
+    const digits = candidate.replace(/\D/g, "");
+    if (digits.length >= 9) return "phone";
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -206,6 +232,22 @@ export function parsePetForm(
     discloseConditionsPublicly: normalizeDisclose(draft),
     permanentConditionsOther: normalizeConditionsOther(draft),
   };
+
+  // PII guard: the "otra condición" free text can render on the public
+  // credential (discloseConditionsPublicly / Tier-2 público). Reject saves
+  // that contain phone/email so contact data never reaches a public surface
+  // by accident — regardless of the current disclose flag, which the owner
+  // can flip later without re-editing the text.
+  if (parsed.permanentConditionsOther) {
+    const contactKind = detectContactInfoInFreeText(parsed.permanentConditionsOther);
+    if (contactKind) {
+      return {
+        parsed: null,
+        error:
+          "La descripción de la condición no puede incluir teléfonos ni emails: puede mostrarse en la credencial pública. Escribila sin datos de contacto.",
+      };
+    }
+  }
 
   return { parsed, error: null };
 }
