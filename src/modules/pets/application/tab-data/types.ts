@@ -55,8 +55,14 @@ export type LibretaFaceData = {
   };
   /** Ascending by dueAt — reminders, appointments, and pending medication doses merged. */
   future: FutureLedgerItem[];
-  /** Descending by occurredAt — carries provenance + amendedAt (H3/WS-3). */
+  /**
+   * Descending by occurredAt — carries provenance + amendedAt (H3/WS-3).
+   * Bounded to PAST_EVENTS_WINDOW most-recent events (perf/scale review
+   * 2026-07-04 — unbounded libreta event loads); see `pastTruncated`.
+   */
   past: HistorialEventRow[];
+  /** True when `past` was cut off by PAST_EVENTS_WINDOW — older events exist. */
+  pastTruncated: boolean;
   summary: VaccinationSummary;
   weightSamples: Array<{ date: Date; kg: number }>;
   activeShares: LibretaShareToken[];

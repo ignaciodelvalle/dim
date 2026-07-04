@@ -173,3 +173,120 @@ describe("getLibretaFaceData — owner-path hidden-case event exclusion", () => 
     expect(pastIds).toContain(symptomEventId);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Pagination boundary (perf/scale review 2026-07-04 P0 — unbounded libreta
+// event loads). The rendered `past` list is capped at PAST_EVENTS_WINDOW
+// (250) most-recent events, but the vaccination summary reads a SEPARATE
+// uncapped/type-narrow query, so a dose that falls OUTSIDE the rendered
+// window must still be counted. These tests lock both halves of that boundary.
+// ---------------------------------------------------------------------------
+
+const PAGINATION_TOKEN = "DIM-PDR-S1-LIBPAGE";
+// Mirror of the (unexported) PAST_EVENTS_WINDOW constant in the use-case.
+const PAST_EVENTS_WINDOW = 250;
+// Enough recent events to overflow the window and force truncation.
+const RECENT_NOTE_COUNT = PAST_EVENTS_WINDOW + 30;
+
+describe("getLibretaFaceData — pagination boundary (PAST_EVENTS_WINDOW)", () => {
+  let pagePetId: string;
+  let pagePet: Pet;
+  let oldVaccinationEventId: string;
+
+  beforeAll(async () => {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM ownerships WHERE pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${PAGINATION_TOKEN}
+      )`);
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${PAGINATION_TOKEN}
+      )`);
+      await tx.execute(sql`DELETE FROM pets WHERE public_token = ${PAGINATION_TOKEN}`);
+    });
+
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: PAGINATION_TOKEN,
+        name: "PDR S1 Libreta Pagination Pet",
+        species: "dog",
+        sex: "male",
+        potentiallyDangerousBreed: false,
+      })
+      .returning();
+    pagePetId = pet.id;
+    pagePet = pet;
+
+    await db.insert(ownerships).values({ petId: pagePetId, ownerUserId, role: "owner" });
+
+    // 1) One OLD free-text vaccination, dated far in the past so it lands
+    //    OUTSIDE the 250 most-recent window. Free-text (off-catalog) name so it
+    //    lands in summary.otherCount — an unambiguous "the uncapped vaccination
+    //    query saw it" signal.
+    const [oldVax] = await db
+      .execute(
+        sql`insert into public.pet_events (pet_id, event_type, occurred_at, author_role, payload)
+            values (
+              ${pagePetId}::uuid,
+              'vaccination_administered',
+              now() - interval '10 years',
+              'owner',
+              ${sql.raw('\'{"vaccine_name": "BoundaryTestSerum XYZ"}\'::jsonb')}
+            )
+            returning id::text as id`,
+      )
+      .then((rows) => rows as unknown as Array<{ id: string }>);
+    oldVaccinationEventId = oldVax.id;
+
+    // 2) RECENT_NOTE_COUNT note_added events, each newer than the old vax and
+    //    with strictly increasing occurred_at so DESC ordering is deterministic.
+    await db.execute(sql`
+      insert into public.pet_events (pet_id, event_type, occurred_at, author_role, payload)
+      select
+        ${pagePetId}::uuid,
+        'note_added',
+        now() - (make_interval(secs => (${RECENT_NOTE_COUNT} - g))),
+        'owner',
+        '{}'::jsonb
+      from generate_series(1, ${RECENT_NOTE_COUNT}) as g
+    `);
+  });
+
+  afterAll(async () => {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${pagePetId}::uuid`);
+      await tx.execute(sql`DELETE FROM ownerships WHERE pet_id = ${pagePetId}::uuid`);
+      await tx.execute(sql`DELETE FROM pets WHERE id = ${pagePetId}::uuid`);
+    });
+  });
+
+  it("caps the rendered timeline at PAST_EVENTS_WINDOW and flags truncation", async () => {
+    const result = await getLibretaFaceData({
+      user: { id: ownerUserId },
+      pet: pagePet,
+      accessPath: "owner",
+      organization: null,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.past.length).toBe(PAST_EVENTS_WINDOW);
+    expect(result.data.pastTruncated).toBe(true);
+    // The old vaccination is older than every note, so it is NOT in the window.
+    const pastIds = result.data.past.map((e) => e.id);
+    expect(pastIds).not.toContain(oldVaccinationEventId);
+  });
+
+  it("counts a vaccination that falls OUTSIDE the rendered window (summary is uncapped)", async () => {
+    const result = await getLibretaFaceData({
+      user: { id: ownerUserId },
+      pet: pagePet,
+      accessPath: "owner",
+      organization: null,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // The off-catalog dose is not rendered in `past`, yet the summary — read
+    // from the separate uncapped query — still reflects it.
+    expect(result.data.summary.otherCount).toBe(1);
+  });
+});

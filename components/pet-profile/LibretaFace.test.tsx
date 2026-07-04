@@ -62,6 +62,7 @@ function faceData(overrides: Partial<LibretaFaceData> = {}): LibretaFaceData {
     },
     future: [],
     past: [pastEvent()],
+    pastTruncated: false,
     summary: { active: 0, dueSoon: 0, expired: 0, missing: 0, otherCount: 0, perVaccine: [] },
     weightSamples: [],
     activeShares: [],

@@ -65,6 +65,29 @@ function notHiddenCaseClause() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Bounded reads (perf/scale review 2026-07-04, P0 "Unbounded libreta event
+// loads" — get-libreta-face-data.ts:86-102 had no LIMIT at all).
+// ---------------------------------------------------------------------------
+
+// Rendered-timeline window. A 10+ year pet can carry thousands of pet_events
+// rows; loading all of them (with full JSONB payloads) on every profile view
+// risks the 60s serverless budget at province scale. LIMIT+1 lets us detect
+// truncation without a second COUNT query (same probe pattern as
+// app/admin/govts/page.tsx's `LIMIT 50+1`).
+const PAST_EVENTS_WINDOW = 250;
+
+// Whitelist for vaccination-summary correctness. computeVaccinationSummary
+// needs the pet's COMPLETE vaccination history — a dose from years ago still
+// determines "already has core vaccine X, next due <date>" — so this second
+// query is intentionally UNCAPPED. It stays cheap at scale because it's
+// bounded by event TYPE, not a row limit (mirrors the whitelist pattern in
+// fetchPetEventsForProfileV2, lib/analytics/owner-dashboard.ts:1500-1520).
+// `event_amended` rows are included so overlayAmendments can correct a
+// vaccination event's name/date even when the original dose falls outside
+// the PAST_EVENTS_WINDOW above.
+const VACCINATION_SUMMARY_EVENT_TYPES = ["vaccination_administered", "event_amended"] as const;
+
 export async function getLibretaFaceData(context: {
   user: { id: string };
   pet: Pet;
@@ -74,7 +97,8 @@ export async function getLibretaFaceData(context: {
   const { user, pet, accessPath } = context;
 
   const [
-    pastEvents,
+    rawWindowEvents,
+    vaccinationSummaryEvents,
     activeReminders,
     pendingMedicationReminders,
     upcomingAppointments,
@@ -83,6 +107,7 @@ export async function getLibretaFaceData(context: {
     activeShares,
     dueSoonWindowRule,
   ] = await Promise.all([
+    // Rendered timeline — bounded window (PAST_EVENTS_WINDOW + 1 probe row).
     db
       .select()
       .from(petEvents)
@@ -99,7 +124,25 @@ export async function getLibretaFaceData(context: {
           accessPath === "owner" ? notHiddenCaseClause() : undefined,
         ),
       )
-      .orderBy(desc(petEvents.occurredAt)),
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(PAST_EVENTS_WINDOW + 1),
+    // Vaccination-summary source — UNCAPPED but type-narrow (see
+    // VACCINATION_SUMMARY_EVENT_TYPES docblock above). Same privacy filters as
+    // the timeline query so a hidden-case or authority-only event can never
+    // leak into the vaccination summary either.
+    db
+      .select()
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, pet.id),
+          inArray(petEvents.eventType, [...VACCINATION_SUMMARY_EVENT_TYPES]),
+          excludeSelfScansClause(),
+          excludeAuthorityOnlyClause(),
+          accessPath === "owner" ? notHiddenCaseClause() : undefined,
+        ),
+      )
+      .orderBy(asc(petEvents.occurredAt)),
     accessPath === "owner" ? fetchActiveRemindersForPet(user.id, pet.id) : Promise.resolve([]),
     db
       .select()
@@ -147,7 +190,12 @@ export async function getLibretaFaceData(context: {
     }),
   ]);
 
-  // Signed attachment URLs — one batched Storage round-trip.
+  // PAST_EVENTS_WINDOW + 1 probe: strip the probe row and flag truncation.
+  const pastTruncated = rawWindowEvents.length > PAST_EVENTS_WINDOW;
+  const pastEvents = pastTruncated ? rawWindowEvents.slice(0, PAST_EVENTS_WINDOW) : rawWindowEvents;
+
+  // Signed attachment URLs — one batched Storage round-trip. Only the
+  // rendered window needs signing (vaccinationSummaryEvents never render).
   const eventIds = pastEvents.map((e) => e.id);
   const attachmentRows =
     eventIds.length > 0
@@ -163,9 +211,16 @@ export async function getLibretaFaceData(context: {
     }),
   );
 
-  // Project amendments ONCE over the fetched stream (module docblock) —
-  // timeline payloads, the Corregido badge (amendedAt) and the vaccination
-  // summary all read corrected values.
+  // Project amendments over the rendered window (module docblock) — timeline
+  // payloads and the Corregido badge (amendedAt) read corrected values.
+  // Correct across the page boundary WITHOUT re-fetching the full history:
+  // an event_amended row's occurredAt is always "now" (the moment the
+  // correction was made), so it is always among the most-recent rows and
+  // therefore always inside this DESC-ordered window — a correction can
+  // never be silently dropped by the LIMIT. The only thing that can fall
+  // outside the window is the ORIGINAL event being corrected; when that
+  // happens the original isn't rendered anyway, so there's no stale/
+  // half-corrected row on screen — nothing to project it onto.
   const projectedEvents = overlayAmendments(pastEvents);
 
   const past: HistorialEventRow[] = projectedEvents.map((e) => ({
@@ -175,8 +230,12 @@ export async function getLibretaFaceData(context: {
       e.amendedAt instanceof Date ? e.amendedAt : e.amendedAt ? new Date(e.amendedAt) : null,
   }));
 
+  // Vaccination summary is computed from the SEPARATE uncapped/type-narrow
+  // query (VACCINATION_SUMMARY_EVENT_TYPES docblock) — NOT from the bounded
+  // `past` window above — so "already has core vaccine X" stays correct even
+  // when the pet's timeline is longer than PAST_EVENTS_WINDOW.
   const summary = computeVaccinationSummary(
-    projectedEvents,
+    overlayAmendments(vaccinationSummaryEvents),
     pet.species,
     new Date(),
     dueSoonWindowRule.payload.days,
@@ -212,6 +271,7 @@ export async function getLibretaFaceData(context: {
       },
       future,
       past,
+      pastTruncated,
       summary,
       weightSamples,
       activeShares,

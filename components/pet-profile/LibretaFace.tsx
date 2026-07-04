@@ -84,6 +84,16 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
             publicToken={petPublicToken}
             weightSamples={data.weightSamples}
           />
+
+          {data.pastTruncated && (
+            // perf/scale review 2026-07-04 — `past` is bounded (PAST_EVENTS_WINDOW)
+            // for long-lived pets; this note keeps that cap honest instead of
+            // silently hiding older history.
+            <p className="text-xs text-[var(--color-ln-mute)]">
+              Mostrando los eventos más recientes. Imprimí la libreta completa para ver todo el
+              historial.
+            </p>
+          )}
         </>
       )}
 
