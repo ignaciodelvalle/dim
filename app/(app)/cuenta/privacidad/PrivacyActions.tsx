@@ -1,12 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { eraseMySubjectDataAction, exportMySubjectDataAction } from "@/app/actions/subject-rights";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 export function PrivacyActions() {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [exported, setExported] = useState(false);
@@ -45,8 +44,12 @@ export function PrivacyActions() {
         setError(result.error);
         return;
       }
-      router.push("/");
-      router.refresh();
+      // Post-erase the session is dead: a soft push("/") + router.refresh()
+      // races the auth teardown (and router.refresh() is banned anyway — it
+      // rides the same client-router transition machinery as the silent-drop
+      // defect; see lib/ui/full-page-action-nav.ts). One full document
+      // navigation lands on "/" with a fresh, unauthenticated SSR pass.
+      navigateAfterActionSuccess("/");
     });
   }
 

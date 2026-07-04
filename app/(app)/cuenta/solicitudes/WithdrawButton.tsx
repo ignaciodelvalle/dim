@@ -1,9 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { withdrawApprovalRequestAction } from "@/app/actions/approval-requests";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Props = {
   requestId: string;
@@ -11,7 +11,6 @@ type Props = {
 
 export function WithdrawButton({ requestId }: Props) {
   const [pending, startTransition] = useTransition();
-  const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +23,9 @@ export function WithdrawButton({ requestId }: Props) {
         setConfirming(false);
         return;
       }
-      router.refresh();
+      // Full document reload so the SSR request list drops the withdrawn row
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

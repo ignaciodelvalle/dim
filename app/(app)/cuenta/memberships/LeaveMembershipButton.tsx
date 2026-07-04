@@ -2,11 +2,11 @@
 
 // LeaveMembershipButton — self-leave an organization from the owner account
 // page. Same flow as org/miembros/LeaveOrgButton but styled for the warm
-// (ln-*) owner tier and refreshes the list in place instead of navigating.
+// (ln-*) owner tier; reloads the page in place instead of navigating away.
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { leaveOrganizationAction } from "@/src/modules/organizations/actions";
 
 type Props = {
@@ -15,7 +15,6 @@ type Props = {
 };
 
 export function LeaveMembershipButton({ organizationId, isLastAdmin }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -29,7 +28,9 @@ export function LeaveMembershipButton({ organizationId, isLastAdmin }: Props) {
         setConfirming(false);
         return;
       }
-      router.refresh();
+      // Full document reload so the SSR memberships list drops the row
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

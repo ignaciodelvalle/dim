@@ -19,13 +19,13 @@
 // around; keeping them all here is simpler than the controlled-uncontrolled
 // hybrid that DenunciaWizard / MarkLostWizard use.
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnCheckbox } from "@/components/ui/Field";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { provinceByName } from "@/lib/reference/ar-provincias";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   upsertFosterVolunteerAction,
   withdrawFosterVolunteerAction,
@@ -57,7 +57,6 @@ const TOTAL_STEPS = 3;
 const STEP_LABELS = ["Tu disponibilidad", "Qué podés recibir", "Contexto del hogar"];
 
 export function FosterVolunteerWizard({ initial }: { initial: InitialState | null }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
@@ -128,7 +127,11 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
         return;
       }
       setOkMessage(`Listo. Tenés ${result.availableSlots} slot(s) disponible(s).`);
-      router.refresh();
+      // Full document reload: the status banner + slot count above the wizard
+      // are SSR (pool matching reads the volunteer snapshot), and a partial
+      // refresh can leave wizard step state inconsistent with DB status.
+      // router.refresh() is banned — see lib/ui/full-page-action-nav.ts.
+      navigateAfterActionSuccess(window.location.pathname);
     });
   }
 
@@ -144,7 +147,8 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
       }
       setConfirmWithdraw(false);
       setOkMessage("Saliste del pool. Podés volver a inscribirte cuando quieras.");
-      router.refresh();
+      // Same full-reload rationale as submit() above.
+      navigateAfterActionSuccess(window.location.pathname);
     });
   }
 

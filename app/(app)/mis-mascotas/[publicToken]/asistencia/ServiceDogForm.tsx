@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
@@ -10,6 +9,7 @@ import {
   upsertServiceDogAction,
 } from "@/app/actions/service-dog";
 import type { PetServiceDog, ServiceDogType } from "@/db";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 const SERVICE_TYPE_OPTIONS: { value: ServiceDogType; label: string; bannerEligible: boolean }[] = [
   { value: "guia", label: "Guía (discapacidad visual)", bannerEligible: true },
@@ -31,10 +31,16 @@ export function ServiceDogForm({
   petPublicToken: string;
   initial: PetServiceDog | null;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
+
+  // Full document reload after every successful mutation: this form drives
+  // the Tier-0 public access banner on /p/{token} and the SSR credential
+  // status on this page — stale SSR shows/hides the wrong legal banner.
+  // router.refresh() is banned (silent-drop defect — see
+  // lib/ui/full-page-action-nav.ts).
+  const reloadCurrentPage = () => navigateAfterActionSuccess(window.location.href);
 
   const [confirmRetire, setConfirmRetire] = useState(false);
   const [serviceType, setServiceType] = useState<ServiceDogType>(initial?.serviceType ?? "guia");
@@ -75,7 +81,7 @@ export function ServiceDogForm({
         return;
       }
       setOkMessage("Datos guardados.");
-      router.refresh();
+      reloadCurrentPage();
     });
   }
 
@@ -91,7 +97,7 @@ export function ServiceDogForm({
       setOkMessage(
         `Solicitud enviada (${result.approvalRequestPublicToken}). La autoridad va a revisarla.`,
       );
-      router.refresh();
+      reloadCurrentPage();
     });
   }
 
@@ -107,7 +113,7 @@ export function ServiceDogForm({
         setError(result.error);
         return;
       }
-      router.refresh();
+      reloadCurrentPage();
     });
   }
 
@@ -122,7 +128,7 @@ export function ServiceDogForm({
         return;
       }
       setConfirmRetire(false);
-      router.refresh();
+      reloadCurrentPage();
     });
   }
 

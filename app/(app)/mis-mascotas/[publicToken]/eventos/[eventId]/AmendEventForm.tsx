@@ -17,7 +17,7 @@
 import { amendEventAction } from "@/app/actions/amendment";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
-import { useRouter } from "next/navigation";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 export type AmendEventFormProps = {
@@ -56,7 +56,6 @@ export function AmendEventForm({
   onClose,
   triggerRef,
 }: AmendEventFormProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -133,8 +132,11 @@ export function AmendEventForm({
       });
       setConfirmOpen(false);
       if (result.ok) {
-        router.refresh();
-        onClose();
+        // Full document reload of the event page: the libreta projection and
+        // amendment chain are server-derived, and router.refresh() is banned
+        // (silent-drop defect — see lib/ui/full-page-action-nav.ts). The
+        // reload also closes this dialog, so no onClose() needed.
+        navigateAfterActionSuccess(window.location.href);
       } else {
         setError(result.error);
       }

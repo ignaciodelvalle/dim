@@ -2,11 +2,11 @@
 
 // WithdrawApplicationButton — applicant retracts a still-pending adoption
 // application. Inline 2-step confirm (same pattern as LeaveMembershipButton);
-// router.refresh() on success so the row re-derives out of "pending".
+// full page reload on success so the row re-derives out of "pending".
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { withdrawAdoptionApplicationAction } from "@/src/modules/adoption/actions";
 
 type Props = {
@@ -14,7 +14,6 @@ type Props = {
 };
 
 export function WithdrawApplicationButton({ applicationEventId }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -28,7 +27,9 @@ export function WithdrawApplicationButton({ applicationEventId }: Props) {
         setConfirming(false);
         return;
       }
-      router.refresh();
+      // Full document reload so the SSR list re-derives the row's status
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   acceptPetTransferAction,
   cancelPetTransferAction,
@@ -20,7 +20,6 @@ export function AcceptTransferActions({
   isSender: boolean;
   petToken: string;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showRejectReason, setShowRejectReason] = useState(false);
@@ -72,7 +71,10 @@ export function AcceptTransferActions({
                       setError(result.error);
                       return;
                     }
-                    router.refresh();
+                    // Full reload so the SSR transfer page shows the rejected
+                    // state (router.refresh() is banned — see
+                    // lib/ui/full-page-action-nav.ts).
+                    navigateAfterActionSuccess(window.location.href);
                   });
                 }}
                 className="flex-1 rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
@@ -101,8 +103,11 @@ export function AcceptTransferActions({
                     setError(result.error);
                     return;
                   }
-                  router.push(`/mis-mascotas/${petToken}`);
-                  router.refresh();
+                  // Ownership just changed (custody event emitted) — land on
+                  // the pet profile with one full document navigation so its
+                  // SSR ownership badges match the DB (soft push + refresh is
+                  // banned — see lib/ui/full-page-action-nav.ts).
+                  navigateAfterActionSuccess(`/mis-mascotas/${petToken}`);
                 });
               }}
               className="flex-1 rounded-[3px] bg-[var(--color-ln-ok)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
@@ -141,7 +146,10 @@ export function AcceptTransferActions({
                       setConfirmCancel(false);
                       return;
                     }
-                    router.refresh();
+                    // Full reload so the SSR transfer page shows the cancelled
+                    // state (router.refresh() is banned — see
+                    // lib/ui/full-page-action-nav.ts).
+                    navigateAfterActionSuccess(window.location.href);
                   });
                 }}
                 className="flex-1 rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"

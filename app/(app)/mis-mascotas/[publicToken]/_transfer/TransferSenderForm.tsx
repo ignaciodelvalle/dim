@@ -2,10 +2,10 @@
 
 // Owner→owner transfer sender form — opens inside SheetMounter (P3-2).
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   type InitiatePetTransferInput as InitiateTransferInput,
   initiatePetTransferAction,
@@ -25,7 +25,6 @@ export function TransferSenderForm({
   petName: string;
   petToken: string;
 }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [reason, setReason] = useState<InitiateTransferInput["reason"]>("gift");
   const [note, setNote] = useState("");
@@ -48,8 +47,11 @@ export function TransferSenderForm({
             setError(result.error);
             return;
           }
-          router.push(`/transferencias/${result.transferToken}`);
-          router.refresh();
+          // Full document navigation to the transfer detail page — the soft
+          // push + router.refresh() pair rides the client-router transition
+          // machinery with the silent-drop defect (see
+          // lib/ui/full-page-action-nav.ts).
+          navigateAfterActionSuccess(`/transferencias/${result.transferToken}`);
         });
       }}
       className="space-y-4"

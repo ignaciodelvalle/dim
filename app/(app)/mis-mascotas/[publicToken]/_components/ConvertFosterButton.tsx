@@ -4,8 +4,9 @@
 // Shows a confirm dialog before calling convertFosterToOwnerAction.
 // On success, hard-navigates to the pet profile (now owned).
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Props = {
   petPublicToken: string;
@@ -13,7 +14,6 @@ type Props = {
 };
 
 export function ConvertFosterButton({ petPublicToken, petName }: Props) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,8 +27,11 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
         setError(result.error);
         setConfirming(false);
       } else {
-        router.push(result.redirectPath);
-        router.refresh();
+        // Ownership just changed (custody event emitted) — the pet profile's
+        // SSR ownership badges and action availability must match the DB, so
+        // do one full document navigation instead of the soft push +
+        // router.refresh() pair (banned — see lib/ui/full-page-action-nav.ts).
+        navigateAfterActionSuccess(result.redirectPath);
       }
     });
   }

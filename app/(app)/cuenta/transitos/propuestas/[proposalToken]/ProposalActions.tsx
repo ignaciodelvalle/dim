@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { LnCheckbox } from "@/components/ui/Field";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   acceptFosterProposalAction,
   rejectFosterProposalAction,
@@ -30,7 +30,6 @@ export function ProposalActions({
   petName: string;
   orgName: string;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
@@ -63,7 +62,10 @@ export function ProposalActions({
           `${result.cascadeCancelledProposals.length} propuesta(s) pendiente(s) se cancelaron por falta de capacity.`,
         );
       }
-      router.refresh();
+      // No navigation: the LnSuccessScreen below is local UI, and a refresh
+      // here could silently drop while it renders (router.refresh() is banned
+      // anyway — see lib/ui/full-page-action-nav.ts). The success screen's
+      // links do full navigations to fresh SSR pages.
     });
   }
 
@@ -80,7 +82,9 @@ export function ProposalActions({
         return;
       }
       setOkMessage(`Rechazaste la propuesta de ${orgName}.`);
-      router.refresh();
+      // Full document reload so the SSR proposal page reflects the rejected
+      // state (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 
