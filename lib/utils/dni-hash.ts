@@ -22,18 +22,25 @@ const DEV_TEST_PEPPER = "dim-test-pepper-v1";
 
 function getPepper(): string {
   const pepper = process.env.DNI_HASH_PEPPER;
-  if (pepper) return pepper;
-  // Fail closed in production (deploy-readiness audit 2026-07-04 B1): the dev
-  // pepper is PUBLIC (committed above), and the Argentine DNI space is small
-  // enough (7-8 digits) that a known pepper makes every stored hash reversible
-  // by rainbow table. Silently falling back would poison every hash written
-  // until someone noticed — better to refuse to boot the identity path.
-  if (process.env.NODE_ENV === "production" && process.env.VERCEL) {
+  // Fail closed in production (deploy-readiness audit 2026-07-04 B1; residual
+  // closed 2026-07-04): the dev pepper is PUBLIC (committed above), and the
+  // Argentine DNI space is small enough (7-8 digits) that a known pepper makes
+  // every stored hash reversible by rainbow table. Silently falling back would
+  // poison every hash written until someone noticed — better to refuse to boot
+  // the identity path.
+  //
+  // The gate is NODE_ENV === "production" REGARDLESS of the host. The previous
+  // `&& process.env.VERCEL` clause meant a non-Vercel prod deploy (self-hosted
+  // Node, a container, a preview box promoted to prod) silently hashed DNIs
+  // with the public dev pepper. Fail closed on any prod, and also reject the
+  // dev default being set EXPLICITLY in prod (same reversible-pepper hazard).
+  if (process.env.NODE_ENV === "production" && (!pepper || pepper === DEV_TEST_PEPPER)) {
     throw new Error(
-      "DNI_HASH_PEPPER is not set. Refusing to hash DNIs with the public dev pepper in production.",
+      "DNI_HASH_PEPPER must be set to a non-default secret in production. " +
+        "Refusing to hash DNIs with the public dev pepper.",
     );
   }
-  return DEV_TEST_PEPPER;
+  return pepper ?? DEV_TEST_PEPPER;
 }
 
 /**
