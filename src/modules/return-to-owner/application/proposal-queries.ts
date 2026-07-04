@@ -173,6 +173,35 @@ export async function fetchPendingOwnerReturnProposalForOrg(
 }
 
 // ---------------------------------------------------------------------------
+// fetchPendingReturnProposalForOwner
+// ---------------------------------------------------------------------------
+//
+// Returns true when there is a pending return proposal for this pet ADDRESSED
+// to the given owner. Callers must have pre-authorized the owner context —
+// this is an internal query, never exported from a "use server" file.
+export async function fetchPendingReturnProposalForOwner(
+  petId: string,
+  ownerUserId: string,
+  exec: DbOrTx,
+): Promise<boolean> {
+  const pending = await hasPendingProposal(petId, exec);
+  if (!pending) return false;
+
+  const [latestProposal] = await exec
+    .select({ payload: petEvents.payload })
+    .from(petEvents)
+    .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_proposed")))
+    .orderBy(desc(petEvents.occurredAt))
+    .limit(1);
+
+  if (!latestProposal) return false;
+
+  const payload = latestProposal.payload as Record<string, unknown>;
+  const toUserId = (payload.to_user_id as string | null) ?? null;
+  return toUserId === ownerUserId;
+}
+
+// ---------------------------------------------------------------------------
 // autoCancelBody
 // ---------------------------------------------------------------------------
 export function autoCancelBody(reason: string, petName: string): string {

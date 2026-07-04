@@ -13,7 +13,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
-import { resolveGovtOrgForUser } from "@/app/actions/decomiso";
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { cases, db, organizations, pets } from "@/db";
@@ -22,6 +21,7 @@ import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { formatDate, speciesLabel } from "@/lib/utils/format";
+import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
 
 import { ReasignarButton } from "./_components/ReasignarButton";
 

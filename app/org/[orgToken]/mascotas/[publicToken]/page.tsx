@@ -9,11 +9,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { fetchPendingOwnerReturnProposalForOrg } from "@/app/actions/return-to-owner";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { fetchPendingOwnerReturnProposalForOrg } from "@/src/modules/return-to-owner/application/proposal-queries";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 
 import {
@@ -128,7 +128,7 @@ export default async function OrgPetDetailPage({
   } | null = null;
 
   if (granted.has("custody.transfer")) {
-    const pending = await fetchPendingOwnerReturnProposalForOrg(pet.id, organization.id);
+    const pending = await fetchPendingOwnerReturnProposalForOrg(pet.id, organization.id, db);
     if (pending) {
       const proposalPayload = pending.proposal.payload as Record<string, unknown>;
       const notes = (proposalPayload.notes as string | null) ?? null;

@@ -5,9 +5,13 @@
 // Business logic moved to:
 //   src/modules/auth/application/dni-verification/
 //
-// This file re-exports verifyDniForUser (used by integration tests and
-// DniVerifyForm.tsx) and verifyDniAction (the outer auth-guarded server
-// action consumed by useActionState).
+// This file provides verifyDniAction (the outer auth-guarded server action
+// consumed by useActionState). The inner writer lives in the application
+// module and is deliberately NOT exported from this "use server" file —
+// exporting it would make it an independently-addressable server action that
+// accepts an attacker-supplied userId for a PII write (authz triage
+// 2026-07-04). Tests import it from
+// src/modules/auth/application/dni-verification/verify-dni.
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -16,10 +20,7 @@ import { revalidatePath } from "next/cache";
 
 import { sanitizeNext } from "@/lib/domain/dni-next";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import type {
-  DniVerifyFormState,
-  DniVerifyResult,
-} from "@/src/modules/auth/application/dni-verification/types";
+import type { DniVerifyFormState } from "@/src/modules/auth/application/dni-verification/types";
 import { verifyDniForUser as _verifyDniForUser } from "@/src/modules/auth/application/dni-verification/verify-dni";
 
 // ---------------------------------------------------------------------------
@@ -30,14 +31,6 @@ export type {
   DniVerifyFormState,
   DniVerifyResult,
 } from "@/src/modules/auth/application/dni-verification/types";
-
-// ---------------------------------------------------------------------------
-// Writer re-export — async wrapper (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function verifyDniForUser(userId: string, rawDni: string): Promise<DniVerifyResult> {
-  return _verifyDniForUser(userId, rawDni);
-}
 
 // ---------------------------------------------------------------------------
 // Outer server action — gates via auth guard, then delegates to writer.

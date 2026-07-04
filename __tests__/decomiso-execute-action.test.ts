@@ -36,7 +36,6 @@ import { randomUUID } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { resolveGovtOrgForUser } from "@/app/actions/decomiso";
 import {
   auditLog,
   cases,
@@ -51,6 +50,7 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
+import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

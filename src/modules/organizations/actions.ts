@@ -168,52 +168,9 @@ export async function updateOrganizationAction(
   return { error: null, ok: true };
 }
 
-// ---------------------------------------------------------------------------
-// updateOrganizationForUser — testable inner writer (preserved for shim compat)
-// ---------------------------------------------------------------------------
-
-export type UpdateOrgInput = {
-  orgToken: string;
-  displayName: string;
-  legalName?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  website?: string | null;
-  description?: string | null;
-  personeriaJuridicaNumber?: string | null;
-  tier0ShowOriginOrg?: boolean;
-};
-
-export async function updateOrganizationForUser(
-  userId: string,
-  orgToken: string,
-  input: UpdateOrgInput,
-): Promise<UpdateOrgFormState> {
-  const result = await updateOrganization(
-    {
-      userId,
-      orgToken,
-      fields: {
-        displayName: input.displayName,
-        legalName: input.legalName,
-        email: input.email,
-        phone: input.phone,
-        website: input.website,
-        description: input.description,
-        personeriaJuridicaNumber: input.personeriaJuridicaNumber,
-        tier0ShowOriginOrg: input.tier0ShowOriginOrg,
-      },
-    },
-    { repo },
-  );
-
-  if (!result.ok) return { error: result.error };
-
-  revalidatePath(`/org/${orgToken}/configuracion`);
-  revalidatePath(`/org/${orgToken}`);
-
-  return { error: null, ok: true };
-}
+// updateOrganizationForUser lives in ./actions.internal.ts — it accepts a
+// caller-supplied userId, so it must never be exported from this "use server"
+// file (authz triage 2026-07-04; it had no live caller here — shim compat only).
 
 // ---------------------------------------------------------------------------
 // removeMemberAction

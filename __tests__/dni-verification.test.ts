@@ -6,8 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { verifyDniForUser } from "@/app/actions/dni-verification";
 import { auditLog, db, notifications, profiles } from "@/db";
+import { verifyDniForUser } from "@/src/modules/auth/application/dni-verification/verify-dni";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

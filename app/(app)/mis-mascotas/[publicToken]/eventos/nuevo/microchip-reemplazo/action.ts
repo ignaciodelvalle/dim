@@ -1,10 +1,10 @@
 "use server";
 
-import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { parseDateInput } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
+import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import { redirect } from "next/navigation";
 
 const OWNER_REASONS = new Set([

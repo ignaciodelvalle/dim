@@ -5,9 +5,11 @@
 // Business logic moved to:
 //   src/modules/organizations/application/approval-requests/
 //
-// This file re-exports withdrawApprovalRequestForUser (used by integration tests)
-// and provides withdrawApprovalRequestAction (outer auth-guarded server action
-// used by UI components).
+// This file provides withdrawApprovalRequestAction (outer auth-guarded server
+// action used by UI components). The inner writer lives in the application
+// module and is deliberately NOT exported from this "use server" file —
+// exporting it would make it an independently-addressable server action that
+// accepts an attacker-supplied userId (authz triage 2026-07-04).
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -25,17 +27,6 @@ import { withdrawApprovalRequestForUser as _withdrawApprovalRequestForUser } fro
 export type { WithdrawApprovalRequestResult } from "@/src/modules/organizations/application/approval-requests/types";
 
 // ---------------------------------------------------------------------------
-// Writer re-export — async wrapper (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function withdrawApprovalRequestForUser(
-  userId: string,
-  requestId: string,
-): Promise<WithdrawApprovalRequestResult> {
-  return _withdrawApprovalRequestForUser(userId, requestId);
-}
-
-// ---------------------------------------------------------------------------
 // Public wrapper: withdrawApprovalRequestAction
 // ---------------------------------------------------------------------------
 
@@ -43,7 +34,7 @@ export async function withdrawApprovalRequestAction(
   requestId: string,
 ): Promise<WithdrawApprovalRequestResult> {
   const { user } = await requireUserOrRedirect();
-  const result = await withdrawApprovalRequestForUser(user.id, requestId);
+  const result = await _withdrawApprovalRequestForUser(user.id, requestId);
   if ("ok" in result) {
     revalidatePath("/cuenta/solicitudes");
   }

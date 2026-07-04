@@ -8,7 +8,6 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import {
   auditLog,
   cases,
@@ -22,6 +21,7 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

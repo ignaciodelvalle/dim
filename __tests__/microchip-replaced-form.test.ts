@@ -29,7 +29,7 @@ const TODAY = new Date().toISOString().slice(0, 10);
 // ---------------------------------------------------------------------------
 
 const mockReplaceMicrochipForUser = vi.fn();
-vi.mock("@/app/actions/microchip", () => ({
+vi.mock("@/src/modules/pets/application/microchip/replace-microchip", () => ({
   replaceMicrochipForUser: (...args: unknown[]) => mockReplaceMicrochipForUser(...args),
 }));
 

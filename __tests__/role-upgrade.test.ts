@@ -12,7 +12,6 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { verifyDniForUser } from "@/app/actions/dni-verification";
 import { createOrganizationForUser, requestVetUpgradeForUser } from "@/app/actions/upgrade";
 import {
   approvalRequests,
@@ -23,6 +22,7 @@ import {
   organizations,
   profiles,
 } from "@/db";
+import { verifyDniForUser } from "@/src/modules/auth/application/dni-verification/verify-dni";
 import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

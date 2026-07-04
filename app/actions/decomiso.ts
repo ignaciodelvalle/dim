@@ -8,14 +8,16 @@
 // Spec: docs/superpowers/specs/2026-05-19-decomiso-welfare-authority-design.md §5.1–5.3.
 
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { db, notifications, organizationMemberships, organizations, pets } from "@/db";
+import { db, notifications, organizations, pets } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+
+import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
 
 import {
   acceptDecomisoHandoffInTx,
@@ -70,41 +72,6 @@ export interface ExecuteDecomisoInput {
   intendedReceiverOrganizationId: string;
   intakeCondition?: string | null;
   attachmentFiles: File[];
-}
-
-// ---------------------------------------------------------------------------
-// resolveGovtOrgForUser — re-exported for callers (e.g. tests, UI helpers)
-// ---------------------------------------------------------------------------
-
-/**
- * Returns the sanitary_authority organization where `userId` holds an active
- * membership. Returns null when no such org exists.
- */
-export async function resolveGovtOrgForUser(userId: string): Promise<{
-  id: string;
-  displayName: string;
-  jurisdictionProvince: string | null;
-  jurisdictionLocality: string | null;
-} | null> {
-  const [row] = await db
-    .select({
-      id: organizations.id,
-      displayName: organizations.displayName,
-      jurisdictionProvince: organizations.jurisdictionProvince,
-      jurisdictionLocality: organizations.jurisdictionLocality,
-    })
-    .from(organizationMemberships)
-    .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
-    .where(
-      and(
-        eq(organizationMemberships.userId, userId),
-        eq(organizations.orgType, "sanitary_authority"),
-        eq(organizations.status, "active"),
-        isNull(organizationMemberships.leftAt),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
 }
 
 // ---------------------------------------------------------------------------

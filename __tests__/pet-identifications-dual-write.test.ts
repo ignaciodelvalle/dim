@@ -15,10 +15,10 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import { db, ownerships, petIdentifications, pets } from "@/db";
 import { setPetLostWriter } from "@/src/modules/events/application/lifecycle/set-pet-lost-use-case";
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
+import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import { PetsRepository } from "@/src/modules/pets/infrastructure/pets-repository";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

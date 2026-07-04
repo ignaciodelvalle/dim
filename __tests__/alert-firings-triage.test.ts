@@ -49,11 +49,11 @@ import {
   contactAuthorityFiringAction,
   dismissFiringAction,
   openInvestigationFiringAction,
-  recordFiringsForUser,
   registerFollowupFiringAction,
   resolveFiringAction,
 } from "@/app/actions/alert-firings";
 import { alertFirings, alertSubscriptions, db, notifications, profiles } from "@/db";
+import { recordFiringsForUser } from "@/src/modules/alerts/application/firings/record-firings";
 
 // ---------------------------------------------------------------------------
 // Fixtures

@@ -16,7 +16,6 @@
 import { requireAlivePetAccess } from "@/lib/infra/pet-access";
 
 import { amendEvent as _amendEvent } from "@/src/modules/events/application/amendment/amend-event";
-import { fetchLatestAmendmentsForEvents as _fetchLatestAmendmentsForEvents } from "@/src/modules/events/application/amendment/fetch-latest-amendments";
 import type {
   AmendEventInput,
   AmendEventResult,
@@ -47,13 +46,8 @@ export async function amendEventAction(input: AmendEventInput): Promise<AmendEve
   return _amendEvent(user, pet, access.eventAuthorship, input);
 }
 
-// ---------------------------------------------------------------------------
-// Pure query re-export — passthrough wrapper (used by libreta + historial)
-// ---------------------------------------------------------------------------
-
-// @no-auth-required: pure projection query; caller must scope to pet.id from an already-authenticated context.
-export async function fetchLatestAmendmentsForEvents(
-  ...args: Parameters<typeof _fetchLatestAmendmentsForEvents>
-): Promise<Awaited<ReturnType<typeof _fetchLatestAmendmentsForEvents>>> {
-  return _fetchLatestAmendmentsForEvents(...args);
-}
+// fetchLatestAmendmentsForEvents is intentionally NOT re-exported here: it is
+// an unguarded projection query, so exporting it from a "use server" file
+// would make it an independently-addressable server action (read leak — authz
+// triage 2026-07-04). Server components import it from
+// src/modules/events/application/amendment/fetch-latest-amendments.

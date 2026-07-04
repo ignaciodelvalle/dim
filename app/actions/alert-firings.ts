@@ -17,10 +17,7 @@ import { revalidatePath } from "next/cache";
 
 import { db, profiles } from "@/db";
 import { createClient } from "@/lib/supabase/server";
-import {
-  evaluateAndRecordFiringsForAllAdmins as _evaluateAndRecordFiringsForAllAdmins,
-  recordFiringsForUser as _recordFiringsForUser,
-} from "@/src/modules/alerts/application/firings/record-firings";
+import { evaluateAndRecordFiringsForAllAdmins as _evaluateAndRecordFiringsForAllAdmins } from "@/src/modules/alerts/application/firings/record-firings";
 import {
   acknowledgeFiring,
   contactAuthorityFiring,
@@ -38,18 +35,21 @@ export type { FiringActionResult } from "@/src/modules/alerts/application/firing
 export type { RecordFiringsResult } from "@/src/modules/alerts/application/firings/types";
 
 // ---------------------------------------------------------------------------
-// Writer re-exports — used by cron route + tests
+// Writer re-export — used by the cron route
 // ---------------------------------------------------------------------------
+//
+// recordFiringsForUser is intentionally NOT re-exported here: it accepts a
+// caller-supplied userId, so exporting it from a "use server" file would make
+// it an independently-addressable action (authz triage 2026-07-04). Tests
+// import it from src/modules/alerts/application/firings/record-firings.
 
-// @no-auth-required: cron/internal writer — invoked by the CRON_SECRET-gated /api/cron/evaluate-alerts route (not a user-facing action)
+// @no-auth-required: cron/internal writer — invoked by /api/cron/evaluate-alerts,
+// which is gated by authorizeCronRequest (CRON_SECRET) before calling this
+// (verified 2026-07-04). Takes no user-scoping argument.
 export async function evaluateAndRecordFiringsForAllAdmins(
   ...args: Parameters<typeof _evaluateAndRecordFiringsForAllAdmins>
 ) {
   return _evaluateAndRecordFiringsForAllAdmins(...args);
-}
-
-export async function recordFiringsForUser(...args: Parameters<typeof _recordFiringsForUser>) {
-  return _recordFiringsForUser(...args);
 }
 
 // ---------------------------------------------------------------------------

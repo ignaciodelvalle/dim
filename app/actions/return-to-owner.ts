@@ -10,23 +10,18 @@
 // session) and an inner writer (exported for direct test access, no session
 // required). Existing callers and tests import these names unchanged.
 
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
-import { type PetEvent, db, ownerships, petEvents, pets } from "@/db";
+import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { actorCancelProposalUseCase } from "@/src/modules/return-to-owner/application/actor-cancel-proposal";
-import { loadProposalContextUseCase } from "@/src/modules/return-to-owner/application/load-proposal-context";
 import { orgAcceptOwnerReturnUseCase } from "@/src/modules/return-to-owner/application/org-accept-owner-return";
 import { orgRejectOwnerReturnUseCase } from "@/src/modules/return-to-owner/application/org-reject-owner-return";
 import { ownerAcceptReturnUseCase } from "@/src/modules/return-to-owner/application/owner-accept-return";
 import { ownerProposeReturnToOrgUseCase } from "@/src/modules/return-to-owner/application/owner-propose-return-to-org";
 import { ownerRejectReturnUseCase } from "@/src/modules/return-to-owner/application/owner-reject-return";
-import {
-  fetchPendingOwnerReturnProposalForOrg as fetchPendingOwnerReturnProposalForOrgQuery,
-  hasPendingProposal,
-} from "@/src/modules/return-to-owner/application/proposal-queries";
 import { proposeReturnAsRefugioUseCase } from "@/src/modules/return-to-owner/application/propose-return-as-refugio";
 import { proposeReturnAsVecinoUseCase } from "@/src/modules/return-to-owner/application/propose-return-as-vecino";
 
@@ -190,41 +185,13 @@ export async function actorCancelProposalWriter(args: {
 }
 
 // ---------------------------------------------------------------------------
-// Read helpers
+// Read helpers — intentionally NOT exported from this "use server" file.
+// fetchPendingReturnProposalForOwner / fetchPendingOwnerReturnProposalForOrg /
+// loadProposalContext are unguarded projection queries; exporting them here
+// made each an independently-addressable server action (read leak — authz
+// triage 2026-07-04). Server components import them from
+// src/modules/return-to-owner/application/{proposal-queries,load-proposal-context}.
 // ---------------------------------------------------------------------------
-
-// Returns true when there is a pending return proposal for this pet ADDRESSED
-// to the given owner. @no-auth-required: callers must have pre-authorized the
-// owner context.
-export async function fetchPendingReturnProposalForOwner(
-  petId: string,
-  ownerUserId: string,
-): Promise<boolean> {
-  const pending = await hasPendingProposal(petId, db);
-  if (!pending) return false;
-
-  const [latestProposal] = await db
-    .select({ payload: petEvents.payload })
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transfer_proposed")))
-    .orderBy(desc(petEvents.occurredAt))
-    .limit(1);
-
-  if (!latestProposal) return false;
-
-  const payload = latestProposal.payload as Record<string, unknown>;
-  const toUserId = (payload.to_user_id as string | null) ?? null;
-  return toUserId === ownerUserId;
-}
-
-// Fetch the latest pending owner-initiated return proposal for a pet to a
-// specific org. @no-auth-required: callers must have pre-authorized org context.
-export async function fetchPendingOwnerReturnProposalForOrg(
-  petId: string,
-  orgId: string,
-): Promise<{ proposal: PetEvent; ownerUserId: string } | null> {
-  return fetchPendingOwnerReturnProposalForOrgQuery(petId, orgId, db);
-}
 
 // ---------------------------------------------------------------------------
 // Public action — ownerProposeReturnToOrgAction
@@ -365,18 +332,4 @@ export async function orgRejectOwnerReturnWriter(args: {
   reason: string;
 }) {
   return orgRejectOwnerReturnUseCase(args);
-}
-
-// ---------------------------------------------------------------------------
-// Org-member lookup helper — used by UI pages to build the proposal context.
-// ---------------------------------------------------------------------------
-
-// @no-auth-required: read-only context loader. The calling page must auth-gate
-// via requireOrgAccessByToken / pet-access helpers before calling this.
-export async function loadProposalContext(petId: string): Promise<{
-  latestProposal: PetEvent | null;
-  actorDisplayName: string | null;
-  actorOrgName: string | null;
-}> {
-  return loadProposalContextUseCase(petId);
 }

@@ -26,7 +26,6 @@ vi.mock("next/cache", () => ({
 
 import {
   addDisputePartyAction,
-  openDisputeFromEvent,
   resolveDisputeAction,
   withdrawDisputeAction,
 } from "@/app/actions/custody-disputes";
@@ -44,6 +43,7 @@ import {
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { openCase } from "@/lib/infra/case-helpers";
 import { createClient } from "@/lib/supabase/server";
+import { openDisputeFromEvent } from "@/src/modules/custody-disputes/application/open-dispute";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
