@@ -10,6 +10,7 @@ import { LnField, LnInput, LnRow, LnSelect, LnTextarea } from "@/components/ui/F
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { type DrugDef, drugsForSpecies, findDrugByLabel } from "@/lib/reference/drugs";
 import { FREQUENCY_LABELS } from "@/lib/reference/medication-schedule";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
@@ -34,6 +35,9 @@ export function MedicationStartForm({
   defaultOccurredAt?: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3 redirect contract: the action returns `redirectTo` on success and the
+  // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
+  useActionRedirect(state.redirectTo);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
 

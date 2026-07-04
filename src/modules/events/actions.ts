@@ -44,7 +44,6 @@ import { createClient } from "@/lib/supabase/server";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { parseDateInput } from "@/lib/utils/format";
 import { and, eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 
 import { enqueueEnoTrigger } from "@/src/modules/surveillance/application/enqueue-eno-trigger";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
@@ -78,6 +77,15 @@ import { EventsRepository } from "./infrastructure/events-repository";
 export type EventFormState = {
   error: string | null;
   ok?: boolean;
+  /**
+   * On success, the URL the calling form must navigate to via a FULL
+   * document navigation (lib/ui/use-action-redirect.ts). Actions in this
+   * module never call next/navigation's redirect(): its post-action
+   * transition is silently dropped by the client router in production
+   * (engram #621/#622, verify-report #650 WARNING-1 — see
+   * lib/ui/full-page-action-nav.ts for the mechanism).
+   */
+  redirectTo?: string;
 };
 
 async function cleanupAttachment(supabase: SupabaseServerClient, path: string | null) {
@@ -190,7 +198,7 @@ export async function createVaccinationAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +266,7 @@ export async function createWeightAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -331,7 +339,7 @@ export async function createDewormingAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -399,7 +407,7 @@ export async function createSterilizationAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -504,7 +512,7 @@ export async function createMedicationStartAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -570,7 +578,7 @@ export async function createMedicationEndAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -580,15 +588,18 @@ export async function createMedicationEndAction(
 // Note: this action does NOT follow the useActionState(_previous, formData) pattern
 // because it is invoked from a server-component form (no client-side state). It redirects
 // on success and throws on hard errors (same pattern as deleteVaccineReminderAction).
-export async function markMedicationDoseTakenAction(formData: FormData): Promise<void> {
+export async function markMedicationDoseTakenAction(
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
   const reminderId = String(formData.get("reminderId") ?? "").trim();
-  if (!reminderId) throw new Error("Falta el identificador del recordatorio.");
+  if (!reminderId) return { error: "Falta el identificador del recordatorio." };
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) throw new Error("Sesión expirada.");
+  if (!user) return { error: "Sesión expirada." };
 
   const repo = new EventsRepository();
 
@@ -598,10 +609,10 @@ export async function markMedicationDoseTakenAction(formData: FormData): Promise
   );
 
   if (!result.ok) {
-    throw new Error(result.error);
+    return { error: result.error };
   }
 
-  redirect(`/mis-mascotas/${result.value.petPublicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${result.value.petPublicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -675,7 +686,7 @@ export async function createMicrochipAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -740,7 +751,7 @@ export async function createDangerousBreedAttestationAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -809,7 +820,7 @@ export async function createNoteAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -894,7 +905,7 @@ export async function createVetVisitAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -983,7 +994,7 @@ export async function createClinicalInfoAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -1161,6 +1172,8 @@ export type {
 export type SymptomFormState = {
   error: string | null;
   ok?: boolean;
+  /** Same `redirectTo` contract as EventFormState (see its docblock). */
+  redirectTo?: string;
 };
 
 export async function createSymptomObservedAction(
@@ -1222,7 +1235,11 @@ export async function createSymptomObservedAction(
 
   const { revalidatePath } = await import("next/cache");
   revalidatePath(`/mis-mascotas/${publicToken}`);
-  redirect(`/mis-mascotas/${publicToken}?evento=sintoma_registrado`);
+  return {
+    error: null,
+    ok: true,
+    redirectTo: `/mis-mascotas/${publicToken}?evento=sintoma_registrado`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1321,7 +1338,7 @@ export async function setPetLostAction(
     return { error: null, ok: true };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -1390,17 +1407,21 @@ export async function updateLostLastSeenAction(
 
   if (result.error) return { error: result.error };
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
 // Set pet found (WU-6 lifecycle)
 // ---------------------------------------------------------------------------
 
-export async function setPetFoundAction(publicToken: string): Promise<void> {
+export async function setPetFoundAction(
+  publicToken: string,
+  _previous: EventFormState,
+  _formData: FormData,
+): Promise<EventFormState> {
   // AUTH: requirePetAccess (accepts non-alive).
   const access = await requirePetAccess(publicToken);
-  if (!access.ok) throw new Error(access.error);
+  if (!access.ok) return { error: access.error };
   const { user, pet, eventAuthorship } = access;
 
   const repo = new EventsRepository();
@@ -1456,7 +1477,7 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
     },
   );
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -1602,5 +1623,5 @@ export async function createDeathRecordAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }

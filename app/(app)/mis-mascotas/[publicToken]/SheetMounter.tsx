@@ -40,8 +40,9 @@ import { LnButton } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { closeSheetNav, closeSheetNavWithFullReload } from "@/lib/ui/sheet-nav";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { useActionState, useCallback } from "react";
 
 import { CaptureBox } from "./anotar/CaptureBox";
 import { CaptureOptionsList } from "./anotar/CaptureOptionsList";
@@ -58,6 +59,7 @@ import { PetForm } from "@/components/PetForm";
 import type { Pet } from "@/db";
 import type { PhysicalCredentialChannels } from "@/lib/domain/business-rules-defaults";
 import {
+  type EventFormState,
   createMedicationStartAction,
   createNoteAction,
   createSymptomObservedAction,
@@ -469,21 +471,33 @@ function MarkFoundConfirmation({
   petName,
   onCancel,
 }: {
-  action: () => Promise<void>;
+  action: (previous: EventFormState, formData: FormData) => Promise<EventFormState>;
   petName: string;
   onCancel: () => void;
 }) {
+  // N3 redirect contract: setPetFoundAction returns `redirectTo` on success
+  // and this form performs the full document navigation (see
+  // lib/ui/use-action-redirect.ts) — which also closes this sheet by loading
+  // the profile URL without the ?sheet= param.
+  const [state, formAction, isPending] = useActionState(action, { error: null });
+  useActionRedirect(state.redirectTo);
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-[var(--color-ln-ink-2)]">
         Vas a marcar a <strong>{petName}</strong> como encontrada. La credencial pública vuelve al
         modo identidad básica (Tier 0). Podés volver a marcarla como perdida si hace falta.
       </p>
-      <form action={action} className="flex gap-2">
-        <LnButton type="submit" variant="ok">
-          Confirmar
+      {state.error && (
+        <p role="alert" className="text-sm text-[var(--color-ln-err)]">
+          {state.error}
+        </p>
+      )}
+      <form action={formAction} className="flex gap-2">
+        <LnButton type="submit" variant="ok" disabled={isPending}>
+          {isPending ? "Guardando…" : "Confirmar"}
         </LnButton>
-        <LnButton type="button" variant="ghost" onClick={onCancel}>
+        <LnButton type="button" variant="ghost" onClick={onCancel} disabled={isPending}>
           Cancelar
         </LnButton>
       </form>

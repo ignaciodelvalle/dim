@@ -81,11 +81,11 @@ import {
 import { LostLastSeenCard } from "@/components/pet-profile/LostLastSeenCard";
 import { LostScanFeed, type ScanFeedItem } from "@/components/pet-profile/LostScanFeed";
 import { LostShareCard } from "@/components/pet-profile/LostShareCard";
+import { MarkFoundInlineForm } from "@/components/pet-profile/MarkFoundInlineForm";
 import { LnAlert } from "@/components/ui/Alert";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { LostEpisode } from "@/lib/infra/lost-mode";
 import { foundParticiple, lostThirdPersonPhrase } from "@/lib/utils/format";
-import { setPetFoundAction } from "@/src/modules/events/actions";
 
 export type LostCaseBlockPet = {
   id: string;
@@ -389,7 +389,6 @@ function StaleLostCaseBanner({
   isOwner: boolean;
 }) {
   const reactivateAction = reactivateLostSearchAction.bind(null, petPublicToken);
-  const markFoundAction = setPetFoundAction.bind(null, petPublicToken);
 
   return (
     <div data-section="lost-case-block" data-lost-case-variant="stale">
@@ -408,14 +407,10 @@ function StaleLostCaseBanner({
                 Reactivar búsqueda
               </button>
             </form>
-            <form action={markFoundAction}>
-              <button
-                type="submit"
-                className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-ok px-4 text-[var(--text-sm)] font-semibold text-white transition-colors hover:opacity-90"
-              >
-                Apareció · marcar {foundParticiple(petSex)}
-              </button>
-            </form>
+            <MarkFoundInlineForm
+              petPublicToken={petPublicToken}
+              label={`Apareció · marcar ${foundParticiple(petSex)}`}
+            />
           </div>
         )}
       </LnAlert>

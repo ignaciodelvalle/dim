@@ -7,8 +7,10 @@
 // (appointment), or "Programar turno" (a due/over rabies reminder).
 
 import { LnLinkButton } from "@/components/ui/LinkButton";
-import { markMedicationDoseTakenAction } from "@/src/modules/events/actions";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { type EventFormState, markMedicationDoseTakenAction } from "@/src/modules/events/actions";
 import Link from "next/link";
+import { useActionState } from "react";
 import type { FutureLedgerItem } from "./libreta-future.helpers";
 
 const KIND_ICON: Record<FutureLedgerItem["kind"], string> = {
@@ -21,6 +23,36 @@ function formatDueAt(date: Date): string {
   return date.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
 }
 
+// MarkDoseForm — "Marcar dada" per medication row. The action returns
+// `redirectTo` on success (N3 contract) and the form performs the full
+// document navigation; errors render inline under the button.
+function MarkDoseForm({ reminderId }: { reminderId: string }) {
+  const initialState: EventFormState = { error: null };
+  const [state, formAction, isPending] = useActionState(
+    markMedicationDoseTakenAction,
+    initialState,
+  );
+  useActionRedirect(state.redirectTo);
+
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="reminderId" value={reminderId} />
+      <button
+        type="submit"
+        disabled={isPending}
+        className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-2.5 py-1.5 font-[var(--font-ln-sans)] text-sm font-medium text-[var(--color-ln-azul)] transition-opacity hover:opacity-80 disabled:opacity-50"
+      >
+        {isPending ? "Guardando…" : "Marcar dada"}
+      </button>
+      {state.error && (
+        <p role="alert" className="mt-1 text-xs text-[var(--color-ln-err)]">
+          {state.error}
+        </p>
+      )}
+    </form>
+  );
+}
+
 function FutureLedgerRowAction({
   item,
   petPublicToken,
@@ -31,18 +63,7 @@ function FutureLedgerRowAction({
   if (!item.action) return null;
 
   if (item.action.type === "mark-dose") {
-    const reminderId = item.action.reminderId;
-    return (
-      <form action={markMedicationDoseTakenAction}>
-        <input type="hidden" name="reminderId" value={reminderId} />
-        <button
-          type="submit"
-          className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-2.5 py-1.5 font-[var(--font-ln-sans)] text-sm font-medium text-[var(--color-ln-azul)] transition-opacity hover:opacity-80"
-        >
-          Marcar dada
-        </button>
-      </form>
-    );
+    return <MarkDoseForm reminderId={item.action.reminderId} />;
   }
 
   if (item.action.type === "reschedule") {
