@@ -16,17 +16,24 @@ type Props = {
   activePresetId?: PresetId | null;
   /** Called when the operator clicks a preset button. */
   onPreset: (id: PresetId) => void;
+  /**
+   * panorama-redesign Fase 1: layout mode. "stack" (default) keeps the
+   * original vertical list (side-column usage); "row" lays the presets out
+   * horizontally on lg screens for the promoted full-width placement above
+   * the map. Purely presentational — behavior is identical.
+   */
+  layout?: "stack" | "row";
 };
 
-export function PresetPanel({ presets, activePresetId, onPreset }: Props) {
+export function PresetPanel({ presets, activePresetId, onPreset, layout = "stack" }: Props) {
   return (
     <div className="space-y-1.5">
       <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Vista</p>
-      <ul className="space-y-1">
+      <ul className={layout === "row" ? "space-y-1 lg:flex lg:gap-2 lg:space-y-0" : "space-y-1"}>
         {presets.map((preset) => {
           const isActive = activePresetId === preset.id;
           return (
-            <li key={preset.id}>
+            <li key={preset.id} className={layout === "row" ? "lg:min-w-0 lg:flex-1" : undefined}>
               <button
                 type="button"
                 aria-pressed={isActive}

@@ -5,9 +5,11 @@ import { useEffect, useRef } from "react";
 
 import {
   computeJurisdictionViewport,
+  computePresetFrameViewport,
   countRenderableFeatures,
   hasProvinceChoroplethLayer,
 } from "@/components/panorama/situational-map-utils";
+import type { PresetFraming } from "@/src/modules/panorama/domain/presets";
 import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 // maplibre-gl ships its own CSS (popups, controls, canvas). It is imported
@@ -141,6 +143,14 @@ type Props = {
    * at zoom 9.5 (locality takes precedence over province autozoom).
    */
   selectedLocalityCenter?: [number, number] | null;
+  /**
+   * panorama-redesign Fase 1: preset map framing. Set by PanoramaConsole when
+   * the operator activates a preset that carries a `framing` field. `token`
+   * is a monotonic counter so re-clicking the same preset re-frames. CAMERA
+   * ONLY — data scope is untouched. null/undefined = no framing (behavior
+   * identical to pre-change).
+   */
+  frame?: { framing: PresetFraming; token: number } | null;
 };
 
 // Continental Argentina centroid + a zoom that frames the mainland.
@@ -206,6 +216,7 @@ export function SituationalMap({
   initialBounds,
   selectedProvinceCode = null,
   selectedLocalityCenter = null,
+  frame = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -378,6 +389,29 @@ export function SituationalMap({
       cancelled = true;
     };
   }, [selectedProvinceCode, selectedLocalityCenter]);
+
+  // --- panorama-redesign Fase 1: preset frame (camera-only). ----------------
+  // Mirrors the A1 PR-7 autozoom effect above: when the operator activates a
+  // preset carrying a `framing` field, fit the camera to the resolved bbox.
+  // The `token` in the frame object makes re-clicking the same preset re-frame
+  // (new object identity re-fires the effect). Data scope is NEVER touched —
+  // a national frame over a scoped operator shows their data on a wider
+  // canvas. The camera stays clamped by AR_MAX_BOUNDS (map maxBounds).
+  useEffect(() => {
+    if (frame == null) return;
+    if (!loadedRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const viewport = computePresetFrameViewport(frame.framing, nationalBboxRef.current, AR_BBOX);
+    if (viewport === null || viewport.kind !== "fitBounds") return;
+
+    map.fitBounds(viewport.bbox, { padding: 56, animate: !prefersReducedMotion, maxZoom: 11 });
+  }, [frame]);
 
   // Add/update/remove maplibre sources+layers to match `layersRef.current`.
   function syncLayers() {
@@ -710,7 +744,7 @@ export function SituationalMap({
       };
       const place = p.place ?? "—";
       const valueLine = p.suppressed
-        ? `<span style="color:#94a3b8">Suprimido (privacidad)</span>`
+        ? `<span style="color:#94a3b8">Datos insuficientes (protegidos por privacidad · k-anonimato)</span>`
         : `<strong>${(p.count ?? 0).toLocaleString("es-AR")}</strong>`;
       popup
         .setLngLat(e.lngLat)
@@ -825,7 +859,7 @@ export function SituationalMap({
       const place = [p.locality, p.province].filter(Boolean).join(", ") || "—";
       // Suppressed cells NEVER show a number — privacy (k-anon).
       const valueLine = p.suppressed
-        ? `<span style="color:#94a3b8">Suprimido (privacidad)</span>`
+        ? `<span style="color:#94a3b8">Datos insuficientes (protegidos por privacidad · k-anonimato)</span>`
         : `<strong>${p.value ?? 0}</strong>`;
       popup
         .setLngLat(e.lngLat)
