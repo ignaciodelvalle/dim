@@ -71,7 +71,10 @@ const PET_STATE_RING: Record<PetState, string> = {
 
 const PET_STATE_LABEL: Record<PetState, string> = {
   ok: "text-ln-mute",
-  info: "text-ln-celeste",
+  // ln-azul (not ln-celeste): celeste is ~3.3:1 on paper at this normal text
+  // size, below WCAG 1.4.3's 4.5:1 (a11y audit 2026-07-04 §4). Azul keeps the
+  // "info" blue semantic while passing AA.
+  info: "text-ln-azul",
   attention: "text-ln-warn",
   urgent: "text-ln-err",
 };
@@ -382,7 +385,7 @@ function PetChip({
         ) : (
           <span
             aria-hidden
-            className={`text-xs font-medium leading-tight text-ln-celeste transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
+            className={`text-xs font-medium leading-tight text-ln-azul transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
           >
             ↗ Abrir perfil
           </span>

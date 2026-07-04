@@ -133,7 +133,10 @@ export function AppCitizenMasthead({
               line ~150px wide, which forces the header row past 320px viewports
               and causes document-level horizontal scroll. Same hidden/md:block
               pattern already used below for the user name. */}
-          <span className="hidden font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.22em] text-[var(--color-ln-celeste)] md:block">
+          {/* celeste-100 (not celeste): on the azul-900 band, base celeste
+              is ~4.0:1 at this 9.5px size — below WCAG 1.4.3's 4.5:1 (a11y
+              audit 2026-07-04 §4). celeste-100 clears ~10:1 on the same bg. */}
+          <span className="hidden font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.22em] text-[var(--color-ln-celeste-100)] md:block">
             MI MASCOTA ARGENTINA
           </span>
         </span>
@@ -359,7 +362,7 @@ function CitizenMobileDrawer({
               <span className="font-[var(--font-ln-serif)] text-[15px] font-semibold">
                 {BRANDING.appName}
               </span>
-              <span className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[0.2em] text-[var(--color-ln-celeste)]">
+              <span className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[0.2em] text-[var(--color-ln-celeste-100)]">
                 MI MASCOTA ARGENTINA
               </span>
             </span>

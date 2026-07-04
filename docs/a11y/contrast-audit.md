@@ -2,54 +2,68 @@
 
 **Norma:** Ley 26.653 (Accesibilidad de la Información en las Páginas Web) + Disp. ONTI 6/2019 (adopta WCAG 2.1 AA).
 
-**Fecha de auditoría:** 2026-05-28 (compliance handoff PR 2).
+**Fecha de auditoría:** 2026-05-28 (compliance handoff PR 2). **Realineado a la paleta LN vigente:** 2026-07-04 (a11y audit sweep — ver `docs/design/handoffs/2026-07-04-wcag-a11y-audit.md`).
 
 ## Resumen ejecutivo
 
-Las 11 combinaciones canónicas de texto sobre superficie en uso en MiMAR fueron auditadas con la fórmula WCAG 2.1 ([Relative luminance + contrast ratio](https://www.w3.org/WAI/GL/wiki/Contrast_ratio)). **10 de 11 pasan AA** (≥ 4.5:1 texto normal, ≥ 3:1 texto grande/UI). La combinación restante es el `--color-ring` celeste sobre `--color-background` blanco, que no cumple AA como indicador de color *único* pero satisface WCAG 2.1 SC 1.4.11 (Non-text Contrast) gracias al ancho de borde (3px) y el offset visual (2px) — el ojo discrimina por geometría, no por color.
+Las combinaciones canónicas de texto sobre superficie en uso en MiMAR (tokens Libreta Nacional, `app/globals.css` `@theme`) fueron auditadas con la fórmula WCAG 2.1 ([Relative luminance + contrast ratio](https://www.w3.org/WAI/GL/wiki/Contrast_ratio)). Los semánticos de texto (`ln-ink`, `ln-ink-2`, `ln-mute`, `ln-faint`, `ln-azul`, `ln-ok`, `ln-err`, `ln-warn`, `ln-seal`) pasan AA o mejor. El único token que fallaba como texto normal era `--color-ln-celeste` — usado en dos sitios de cuerpo de texto (`EventCatcher.tsx`) y en el subtítulo del masthead sobre banda navy (`AppCitizenMasthead.tsx`); los tres se corrigieron el 2026-07-04 (ver tabla de abajo). El focus ring vigente (`:focus-visible` azul 3px) cumple WCAG 2.1 SC 1.4.11 (Non-text Contrast) por geometría — ancho de borde (3px) + offset — no por ratio de color.
 
 ## Tokens auditados
 
-Definidos en `app/globals.css` `@theme`:
+> **Nota (actualización 2026-07-04):** la tabla original de este documento
+> auditaba la paleta Poncho v1 pre-LN (`--color-foreground: #000000`,
+> `--color-ring: #ffce1c`, etc.), que ya no está en uso — la migración a la
+> paleta Libreta Nacional (LN) la reemplazó por completo. La tabla de abajo
+> refleja los tokens LN vigentes en `app/globals.css` `@theme` (líneas 41-65).
+> El focus ring vigente es `:focus-visible` azul 3px (`app/globals.css:368-372`),
+> no el amarillo maíz Poncho v1 — su nota de "cumple por geometría" ya no aplica
+> a ese token específico, aunque el principio (ancho + offset suple ratio de
+> color) se mantiene documentado en Reglas operativas.
+
+Definidos en `app/globals.css` `@theme` (líneas 41-65):
 
 | Token | Valor | Uso |
 | --- | --- | --- |
-| `--color-foreground` | `#000000` | Texto cuerpo principal |
-| `--color-muted-foreground` | `#444444` | Texto secundario / labels |
-| `--color-muted` | `#555555` | Help text / captions |
-| `--color-background` | `#ffffff` | Bg superficie |
-| `--color-accent` | `#242c4f` | Bg de CTAs primary, marca |
-| `--color-primary` | `#242c4f` | Idem accent |
-| `--color-success` | `#2e7d33` | Confirmaciones / éxito |
-| `--color-danger` | `#c62828` | Errores / destructivo |
-| `--color-warning` | `#e7ba61` | Advertencias |
-| `--color-info` | `#2897d4` | Banners informativos |
-| `--color-border` | `#dddddd` | Borders default |
-| `--color-ring` | `#ffce1c` | Focus ring (Poncho v2 amarillo maíz, no es texto) |
+| `--color-ln-ink` | `#1b2a33` | Texto cuerpo principal |
+| `--color-ln-ink-2` | `#3c4b55` | Texto secundario (breed line, subtítulos) |
+| `--color-ln-mute` | `#616e77` | Help text / labels mono |
+| `--color-ln-faint` | `#67747d` | Texto terciario ("opcional", hints) |
+| `--color-ln-paper` | `#fbfaf5` | Bg superficie (papel) |
+| `--color-ln-card` | `#ffffff` | Bg tarjeta |
+| `--color-ln-azul` | `#0e5a99` | CTAs, links, tabs activos, texto "info" normal |
+| `--color-ln-azul-900` | `#0a3556` | Bg masthead / drawer (banda navy) |
+| `--color-ln-celeste` | `#4e97d1` | Chrome / iconos / rings / **texto grande únicamente** |
+| `--color-ln-celeste-100` | `#dcebf7` | Texto claro sobre bandas navy (azul-900) |
+| `--color-ln-ok` | `#2e7d4f` | Confirmaciones / éxito |
+| `--color-ln-err` | `#c0392b` | Errores / destructivo |
+| `--color-ln-warn` | `#96600e` | Advertencias (ver actualización 2026-06-11) |
+| `--color-ln-seal` | `#a23a2c` | Asterisco requerido, acentos seal |
 
 ## Combinaciones canónicas
 
 | Combinación | Ratio | Veredicto WCAG |
 | --- | --- | --- |
-| `#000000` sobre `#ffffff` (cuerpo principal) | **21.0 : 1** | ✅ AAA |
-| `#444444` sobre `#ffffff` (texto secundario) | **9.7 : 1** | ✅ AAA |
-| `#555555` sobre `#ffffff` (help / muted) | **7.5 : 1** | ✅ AAA |
-| `#ffffff` sobre `#242c4f` (CTA primary text) | **13.7 : 1** | ✅ AAA |
-| `#2e7d33` sobre `#ffffff` (success inline) | **5.7 : 1** | ✅ AA |
-| `#ffffff` sobre `#2e7d33` (success bg + text) | **5.7 : 1** | ✅ AA |
-| `#c62828` sobre `#ffffff` (danger inline / error msg) | **6.7 : 1** | ✅ AA |
-| `#ffffff` sobre `#c62828` (danger bg + text) | **6.7 : 1** | ✅ AA |
-| `#000000` sobre `#e7ba61` (warning bg + text) | **11.7 : 1** | ✅ AAA |
-| `#2897d4` sobre `#ffffff` (info inline) | **3.5 : 1** | ⚠️ AA grande (≥ 18pt) o UI components solo. NO usar para texto normal. |
-| `#ffce1c` outline sobre `#ffffff` (focus ring Poncho v2) | **1.5 : 1** | 🛡 Color contrast sub-AA. Cumple SC 1.4.11 (Non-text Contrast) por **geometría** — 3px outline + 2px offset es indicador no-color suficiente. El amarillo maíz es el focus oficial gob.ar. |
+| `#1b2a33` (ink) sobre `#fbfaf5` (paper) — cuerpo principal | **14.1 : 1** | ✅ AAA |
+| `#3c4b55` (ink-2) sobre `#fbfaf5` (paper) — texto secundario | **8.6 : 1** | ✅ AAA |
+| `#616e77` (mute) sobre `#fbfaf5` (paper) — help / labels | **5.0 : 1** | ✅ AA |
+| `#67747d` (faint) sobre `#fbfaf5` (paper) — terciario | **4.6 : 1** | ✅ AA |
+| `#0e5a99` (azul) sobre `#fbfaf5` (paper) — CTA / link / tab activo | **6.8 : 1** | ✅ AA |
+| `#2e7d4f` (ok) sobre `#fbfaf5` (paper) — éxito | **4.8 : 1** | ✅ AA |
+| `#c0392b` (err) sobre `#fbfaf5` (paper) — error | **5.2 : 1** | ✅ AA |
+| `#a23a2c` (seal) sobre `#fbfaf5` (paper) — asterisco requerido | **6.3 : 1** | ✅ AA |
+| `#96600e` (warn) sobre `#ffffff` — advertencia | **5.28 : 1** | ✅ AA (ver 2026-06-11) |
+| `#4e97d1` (celeste) sobre `#fbfaf5` (paper) — **texto normal** | **~3.1 : 1** | ❌ Falla AA. Reservado a texto grande (≥18pt), iconos, o chrome — nunca cuerpo de texto. (Corregido 2026-07-04: `EventCatcher.tsx` pasó a `ln-azul`.) |
+| `#4e97d1` (celeste) sobre `#0a3556` (azul-900) — subtítulo masthead 9-9.5px | **~4.0 : 1** | ❌ Falla AA en texto de ese tamaño. (Corregido 2026-07-04: `AppCitizenMasthead.tsx` pasó a `celeste-100`.) |
+| `#dcebf7` (celeste-100) sobre `#0a3556` (azul-900) — subtítulo masthead | **~10.4 : 1** | ✅ AAA — reemplazo vigente |
+| `:focus-visible` azul 3px outline (`app/globals.css:368-372`) | n/a (geometría) | ✅ Cumple SC 1.4.11 por ancho (3px) + offset — no requiere ratio de color |
 
 ## Reglas operativas
 
-1. **Texto normal (< 18pt regular o < 14pt bold) sobre fondo blanco**: usar `--color-foreground`, `--color-muted-foreground`, o `--color-muted`. Todos AAA.
-2. **Texto grande sobre blanco**: cualquiera de los semánticos (success/danger/warning) si la jerarquía visual lo justifica.
-3. **`--color-info` (#2897d4) NO se usa para texto normal sobre blanco**. Reservado para iconos / bordes / texto grande de banners.
-4. **Focus ring (`--color-ring` = `#ffce1c`, Poncho v2 amarillo maíz)** no requiere ratio AA porque el indicador es geométrico (3px solid outline + 2px offset). El color contrast por sí solo es 1.5:1, sub-AA — la suficiencia viene del ancho + offset. Si se reduce el ancho de outline, el cumplimiento de SC 1.4.11 cae; mantener ≥3px.
-5. **Warning text sobre fondo blanco**: usar `--color-foreground` (negro) sobre `--color-warning` bg, NO el amarillo solo. Banner pattern: `bg-gob-warning text-gob-text`.
+1. **Texto normal (< 18pt regular o < 14pt bold) sobre `ln-paper`/`ln-card`**: usar `--color-ln-ink`, `--color-ln-ink-2`, `--color-ln-mute`, o `--color-ln-faint`. Todos ≥ AA.
+2. **Texto grande sobre paper**: cualquiera de los semánticos (`ln-ok`/`ln-err`/`ln-warn`) si la jerarquía visual lo justifica.
+3. **`--color-ln-celeste` (#4e97d1) NO se usa para texto normal**, sea sobre `ln-paper` (~3.1:1) o sobre la banda navy `ln-azul-900` a tamaños chicos (~4.0:1 a 9-9.5px). Reservado para iconos / bordes / rings / texto grande. Sobre paper, usar `--color-ln-azul` o `--color-ln-ink-2` para cuerpo de texto; sobre `ln-azul-900`, usar `--color-ln-celeste-100` (10.4:1) o `text-white/80`.
+4. **Focus ring vigente**: `:focus-visible` 3px azul (`app/globals.css:368-372`), no el amarillo maíz Poncho v1 (retirado con la migración a LN). El principio de "cumplimiento por geometría" (SC 1.4.11: ancho ≥3px + offset compensan un color-contrast bajo) sigue aplicando a cualquier indicador de foco no basado en texto — mantener ≥3px si se ajusta el estilo.
+5. **Warning text sobre paper**: usar `--color-ln-warn` (#96600e, ya oscurecido a 5.28:1) — nunca un amarillo/dorado sin oscurecer.
 
 ## Cómo se midió
 
