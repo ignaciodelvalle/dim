@@ -66,10 +66,19 @@ const lnFontVars = [
 // --------------------------------------------------------------------------
 
 export const metadata: Metadata = {
+  // metadataBase: set by landing task
   title: `${BRANDING.appName} — ${BRANDING.appNameLong}`,
   description:
     "La libreta sanitaria digital de tu mascota. Para encontrarse, para cuidarse, para ayudarnos a cuidar a todas.",
   applicationName: BRANDING.appName,
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: BRANDING.appName,
+  },
+  icons: {
+    apple: "/icons/icon-192.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -77,6 +86,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   // maximumScale intentionally omitted — disabling zoom violates WCAG 1.4.4 (Resize Text).
   // Ley 26.653 / Disp. ONTI 6/2019 mandates WCAG 2.1 AA for Argentine gov-adjacent systems.
+  // Single value only (no dark variant): dark mode is explicitly disabled in this
+  // redesign — the app is light-only (see "Dark mode desactivado" note in globals.css).
   themeColor: "#ffffff",
 };
 
