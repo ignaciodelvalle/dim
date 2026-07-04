@@ -114,3 +114,36 @@ export const PERMANENT_CONDITION_GROUPS = [
 export function sanitizeConditionCodes(input: ReadonlyArray<string>): PermanentCondition[] {
   return input.filter(isPermanentCondition);
 }
+
+/**
+ * Resolve which permanent conditions should reach the LOST Tier-1 public
+ * credential. A finder handling a lost blind, deaf, or medicated pet needs to
+ * know before they act — this is a welfare-safety disclosure, not a cosmetic
+ * one, so it's gated ONLY by `discloseConditionsPublicly` (the owner's
+ * explicit "let people know" choice), same gate the active-credential banner
+ * and the Tier-2 medical view already use for this field.
+ *
+ * Uses the full label (`permanentConditionLabel`), matching Tier2MedicalView's
+ * rendering, so e.g. "ciego" reads as "Ciego/a" identically in both places —
+ * the active-credential chip banner uses the short label instead, which is a
+ * deliberate difference for that denser layout, not something to mirror here.
+ *
+ * Returns null when disclosure is off or there is nothing disclosable — the
+ * caller (page.tsx) passes that straight through as the `specialConditions`
+ * prop, and the component renders no section at all in that case.
+ */
+export function resolveLostSpecialConditions(
+  codes: ReadonlyArray<string>,
+  other: string | null,
+  discloseConditionsPublicly: boolean,
+): { labels: string[]; other: string | null } | null {
+  if (!discloseConditionsPublicly) return null;
+  const safe = codes.filter(isPermanentCondition);
+  if (safe.length === 0) return null;
+
+  const labels = safe.filter((code) => code !== "otra").map(permanentConditionLabel);
+  const hasOther = safe.includes("otra") && !!other;
+
+  if (labels.length === 0 && !hasOther) return null;
+  return { labels, other: hasOther ? other : null };
+}

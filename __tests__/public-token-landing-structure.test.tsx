@@ -141,6 +141,8 @@ vi.mock("@/lib/infra/origin-org", () => ({
 vi.mock("@/lib/reference/permanent-conditions", () => ({
   isPermanentCondition: vi.fn(() => false),
   permanentConditionShortLabel: vi.fn(() => ""),
+  permanentConditionLabel: vi.fn(() => ""),
+  resolveLostSpecialConditions: vi.fn(() => null),
 }));
 vi.mock("@/lib/infra/pet-identifiers", () => ({
   fetchActiveIdentifications: vi.fn(async () => ({ microchip: null, tattoo: null })),

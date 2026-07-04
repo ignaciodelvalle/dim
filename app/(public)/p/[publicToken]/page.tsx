@@ -37,6 +37,7 @@ import {
   type PermanentCondition,
   isPermanentCondition,
   permanentConditionShortLabel,
+  resolveLostSpecialConditions,
 } from "@/lib/reference/permanent-conditions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BRANDING } from "@/lib/ui/branding";
@@ -551,6 +552,16 @@ export default async function PublicCredentialPage({
       tattooPhotoUrl = petPhotoUrl(tattooPhoto?.storagePath);
     }
 
+    // Welfare-safety disclosure: permanent conditions (blind, deaf, medicated,
+    // etc.) on the LOST credential. Gated ONLY by discloseConditionsPublicly —
+    // same gate the active-credential banner and Tier-2 medical view use for
+    // this field; a finder handling a special-needs pet must be told.
+    const specialConditions = resolveLostSpecialConditions(
+      pet.permanentConditions,
+      pet.permanentConditionsOther,
+      pet.discloseConditionsPublicly,
+    );
+
     return (
       <>
         {/* Lost mode: also renders the visible location-consent prompt so a
@@ -579,6 +590,7 @@ export default async function PublicCredentialPage({
           tattooDescription={canonicalIds.tattoo?.tattooDescription ?? null}
           tattooPhotoUrl={tattooPhotoUrl}
           lostDescription={lostContext.lostDescription}
+          specialConditions={specialConditions}
         />
       </>
     );

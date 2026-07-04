@@ -75,6 +75,11 @@ interface Props {
     behaviorNotes: string | null;
     lastSeenContext: string | null;
   } | null;
+  /** Permanent conditions (e.g. blind, deaf) disclosed for the LOST credential —
+   * welfare-safety info a finder needs. Server-resolved: null unless the owner
+   * opted into `discloseConditionsPublicly` AND the pet has at least one
+   * condition. See lib/reference/permanent-conditions.ts `resolveLostSpecialConditions`. */
+  specialConditions?: { labels: string[]; other: string | null } | null;
 }
 
 export function LostPublicCredential({
@@ -97,6 +102,7 @@ export function LostPublicCredential({
   lastSeenLat = null,
   lastSeenLng = null,
   lostDescription = null,
+  specialConditions = null,
 }: Props) {
   const tattooLocLabel = tattooLocationLabel(tattooLocation);
   const hasLastSeenCoords =
@@ -191,6 +197,41 @@ export function LostPublicCredential({
             </p>
           )}
         </section>
+
+        {/* Special-conditions disclosure (welfare safety) — a finder handling a
+            blind, deaf, or medicated pet needs to know before they act. Only
+            rendered when the owner opted in (discloseConditionsPublicly) AND
+            there's at least one disclosable condition. Placed right after the
+            identity/CTA section so it's one of the first things a finder sees. */}
+        {specialConditions &&
+          (specialConditions.labels.length > 0 || specialConditions.other) && (
+            <section
+              role="note"
+              aria-label="Necesita cuidados especiales"
+              data-section="special-conditions"
+              className="rounded-2xl border-l-4 border-l-ln-warn bg-[var(--color-ln-warn-050)] p-4 shadow-sm "
+            >
+              <p className="flex items-center gap-2 text-sm font-bold text-ln-warn ">
+                <Icon name="alert-triangle" size="sm" decorative />
+                Necesita cuidados especiales
+              </p>
+              {specialConditions.labels.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {specialConditions.labels.map((label) => (
+                    <span
+                      key={label}
+                      className="inline-flex rounded-full bg-ln-warn px-3 py-1 text-xs font-semibold text-white"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {specialConditions.other && (
+                <p className="mt-2 text-sm text-ln-ink-2 ">{specialConditions.other}</p>
+              )}
+            </section>
+          )}
 
         {(lastSeenPlaceName || lastSeenLocality || hasLastSeenCoords) && (
           <section className="rounded-2xl bg-ln-card p-4 shadow-sm ">

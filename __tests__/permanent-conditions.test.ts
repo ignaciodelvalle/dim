@@ -7,6 +7,7 @@ import {
   permanentConditionGroup,
   permanentConditionLabel,
   permanentConditionShortLabel,
+  resolveLostSpecialConditions,
   sanitizeConditionCodes,
 } from "@/lib/reference/permanent-conditions";
 
@@ -43,5 +44,40 @@ describe("permanent-conditions catalog", () => {
 
   it("'otra' is in the catalog so callers can rely on the escape hatch", () => {
     expect(PERMANENT_CONDITIONS).toContain("otra");
+  });
+});
+
+// resolveLostSpecialConditions — gates the LOST Tier-1 credential's
+// welfare-safety disclosure. QA regression: a blind pet's condition was
+// silently dropped on the lost credential even though the owner disclosed it.
+describe("resolveLostSpecialConditions (lost credential welfare-safety disclosure)", () => {
+  it("returns full labels when disclosed — matches Tier2MedicalView's label choice", () => {
+    const result = resolveLostSpecialConditions(["ciego", "sordo"], null, true);
+    expect(result).toEqual({ labels: ["Ciego/a", "Sordo/a"], other: null });
+  });
+
+  it("returns null when discloseConditionsPublicly is false, even with real conditions on the pet", () => {
+    const result = resolveLostSpecialConditions(["ciego"], null, false);
+    expect(result).toBeNull();
+  });
+
+  it("returns null when the pet has no conditions, even when disclosure is on", () => {
+    const result = resolveLostSpecialConditions([], null, true);
+    expect(result).toBeNull();
+  });
+
+  it("surfaces the free-text 'otra' condition alongside catalog labels", () => {
+    const result = resolveLostSpecialConditions(["ciego", "otra"], "Necesita jeringa 2x/día", true);
+    expect(result).toEqual({ labels: ["Ciego/a"], other: "Necesita jeringa 2x/día" });
+  });
+
+  it("drops 'otra' silently when its free-text is missing (defensive — CHECK constraint should prevent this)", () => {
+    const result = resolveLostSpecialConditions(["otra"], null, true);
+    expect(result).toBeNull();
+  });
+
+  it("filters out unknown/stale codes before mapping to labels", () => {
+    const result = resolveLostSpecialConditions(["ciego", "invented_condition"], null, true);
+    expect(result).toEqual({ labels: ["Ciego/a"], other: null });
   });
 });
