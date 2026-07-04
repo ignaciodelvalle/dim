@@ -306,6 +306,106 @@ export async function fetchCronRuns(): Promise<CronRunRow[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Pet-status cache drift (projection-cron audit 2026-07-03 B3)
+// ---------------------------------------------------------------------------
+//
+// reconcile-pet-status detects pets.status ↔ event-log divergence and records
+// it in cronRuns.details, and cron-health (the meta-cron) flags divergent > 0
+// as an unhealthy 'drift' state — but neither signal was visible in the admin
+// UI. This loader surfaces both for the /admin/sistema drift card. Detect-only:
+// repair stays human-gated (scripts/rebuild-projections.ts --apply).
+
+export type PetStatusDriftSample = {
+  publicToken: string;
+  /** pets.status stored at scan time. */
+  cached: string | null;
+  /** Status derived from the event log at scan time. */
+  derived: string | null;
+};
+
+export type PetStatusDrift = {
+  /** Latest reconcile_pet_status run, or null when that cron never ran. */
+  reconcile: {
+    lastRunAt: Date;
+    status: "running" | "ok" | "failed";
+    scanned: number;
+    divergent: number;
+    /** True when the scan stopped early (MAX_PETS_PER_RUN / time budget). */
+    earlyStop: boolean;
+    sample: PetStatusDriftSample[];
+  } | null;
+  /**
+   * Latest cron_health verdict about reconcile_pet_status — the meta-cron
+   * semantic check that verifies drift detection is running AND clean.
+   * null when cron_health never ran or has no entry for the reconcile cron.
+   */
+  metaCheck: {
+    checkedAt: Date;
+    healthy: boolean;
+    /** 'ok' | 'drift' | 'stale' | 'never_ran' | 'last_failed' (cron-health reasons). */
+    reason: string;
+  } | null;
+};
+
+export async function fetchPetStatusDrift(): Promise<PetStatusDrift> {
+  const [[reconcileRun], [healthRun]] = await Promise.all([
+    db
+      .select({
+        startedAt: cronRuns.startedAt,
+        status: cronRuns.status,
+        details: cronRuns.details,
+      })
+      .from(cronRuns)
+      .where(eq(cronRuns.cronName, "reconcile_pet_status"))
+      .orderBy(desc(cronRuns.startedAt))
+      .limit(1),
+    db
+      .select({
+        startedAt: cronRuns.startedAt,
+        details: cronRuns.details,
+      })
+      .from(cronRuns)
+      .where(eq(cronRuns.cronName, "cron_health"))
+      .orderBy(desc(cronRuns.startedAt))
+      .limit(1),
+  ]);
+
+  let reconcile: PetStatusDrift["reconcile"] = null;
+  if (reconcileRun) {
+    const d = (reconcileRun.details ?? {}) as Record<string, unknown>;
+    const rawSample = Array.isArray(d.sample) ? (d.sample as Record<string, unknown>[]) : [];
+    reconcile = {
+      lastRunAt: reconcileRun.startedAt,
+      status: reconcileRun.status,
+      scanned: Number(d.scanned ?? 0),
+      divergent: Number(d.divergent ?? 0),
+      earlyStop: d.earlyStop === true,
+      sample: rawSample.map((s) => ({
+        publicToken: typeof s.publicToken === "string" ? s.publicToken : "—",
+        cached: typeof s.cached === "string" ? s.cached : null,
+        derived: typeof s.derived === "string" ? s.derived : null,
+      })),
+    };
+  }
+
+  let metaCheck: PetStatusDrift["metaCheck"] = null;
+  if (healthRun) {
+    const d = (healthRun.details ?? {}) as Record<string, unknown>;
+    const all = Array.isArray(d.all) ? (d.all as Record<string, unknown>[]) : [];
+    const entry = all.find((r) => r.cronName === "reconcile_pet_status");
+    if (entry) {
+      metaCheck = {
+        checkedAt: healthRun.startedAt,
+        healthy: entry.healthy === true,
+        reason: typeof entry.reason === "string" ? entry.reason : "unknown",
+      };
+    }
+  }
+
+  return { reconcile, metaCheck };
+}
+
+// ---------------------------------------------------------------------------
 // Cron health detail — used by /admin/sistema/crons.
 //
 // Returns one row per cron in the registry (including ones that never ran).

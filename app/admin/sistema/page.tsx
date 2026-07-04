@@ -1,12 +1,14 @@
 import Link from "next/link";
 
 import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
+import { PetStatusDriftCard } from "@/components/admin/PetStatusDriftCard";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import {
   fetchCronRuns,
   fetchDecisionsMetrics,
   fetchGovtActivity,
+  fetchPetStatusDrift,
   fetchQueueHealth,
   fetchUserMetrics,
   sortGovtActivityByActivity,
@@ -39,13 +41,14 @@ export default async function AdminSistemaPage() {
   // Used for DashboardFreshnessFooter (lastIngestAt) — admin sees all pet_events.
   const adminCtx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
 
-  const [users, queue, decisions, govts, crons, enoSla] = await Promise.all([
+  const [users, queue, decisions, govts, crons, enoSla, drift] = await Promise.all([
     fetchUserMetrics(),
     fetchQueueHealth(),
     fetchDecisionsMetrics(),
     fetchGovtActivity(),
     fetchCronRuns(),
     fetchEnoSla(adminCtx),
+    fetchPetStatusDrift(),
   ]);
 
   // deltaV2 for decisions 7d — compare vs prior 7d approximated from the 30d
@@ -224,6 +227,10 @@ export default async function AdminSistemaPage() {
             )}
           </OpCardBody>
         </OpCard>
+
+        {/* Deriva de caché pets.status ↔ event log — projection-cron audit
+            2026-07-03 B3. Detección solamente; la reparación es manual. */}
+        <PetStatusDriftCard data={drift} />
       </section>
 
       <section className="space-y-3">
