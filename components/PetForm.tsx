@@ -145,6 +145,16 @@ export function PetForm({
   }
 
   const breedOptions = useMemo(() => breedsForSpecies(species), [species]);
+  // NOTE (config-theater audit 2026-07-03 #4): this inline warning checks the
+  // static country-wide breed list, not the jurisdiction-resolved
+  // ppp_breed_list rule — a locality that ADDS a breed via the admin console
+  // shows no inline warning here (the server-side classification at submit
+  // time IS jurisdiction-correct; this is display-only). Low impact, sync
+  // client shim by design (PetForm has no server round-trip per keystroke).
+  // Proper fix: thread the jurisdiction-resolved breed list down as a prop
+  // from the page server component (same pattern as
+  // DangerousBreedAttestationForm's resolvedRegistries) — left as a follow-up
+  // since it's a client-only display nuance, not a behavior/compliance gap.
   const breedIsDangerous = isPotentiallyDangerousBreed(species, breed);
 
   const initialAge = useMemo(
