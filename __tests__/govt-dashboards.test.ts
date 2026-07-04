@@ -12,9 +12,11 @@ import {
   fetchCasesPerLocality,
   fetchDeathCauses,
   fetchDiseaseSummary,
+  fetchEventsForExport,
   fetchLostPets,
   fetchOutbreakHistory,
   fetchPerdidasMetrics,
+  fetchPetsForExport,
   fetchSurveillanceSignals,
   fetchVigilanciaMetrics,
   fetchWelfareMetrics,
@@ -390,6 +392,140 @@ describe("jurisdiction drift — payload vs pets.jurisdiction", () => {
     expect(group).toBeDefined();
     expect(group?.totalSignals).toBe(1);
   });
+});
+
+// ---------------------------------------------------------------------------
+// Jurisdiction drift — fitness sweep across the REMAINING govt fetchers
+// (task #33 / test-coverage-review TOP-5 gap #3). fetchSurveillanceSignals,
+// fetchZoonosisTrend, and fetchOutbreakHistory already got moved-pet drift
+// coverage above (scope-security review 2026-07-04 A1/A2). This block closes
+// the "verify the OTHERS" gap for the export tail + fetchAnalyticsMetrics /
+// fetchDeathCauses (lib/analytics/govt-dashboards.ts:2163+).
+//
+// fetchPetsForExport / fetchAnalyticsMetrics / fetchDeathCauses scope on the
+// pet's CURRENT jurisdiction (pets.jurisdiction_province/locality, either
+// directly or via an inner join) — they never read the payload snapshot, so
+// they are drift-safe BY CONSTRUCTION. These tests assert that and lock it
+// in as a regression control.
+//
+// fetchEventsForExport is DIFFERENT: it scopes via petEventsScopeClause,
+// which (lib/metrics/scope.ts) matches on the EVENT PAYLOAD's
+// pet_jurisdiction_province/locality snapshot only — it has none of the
+// `petsCurrentJurisdictionExists` guard that fetchZoonosisTrend and
+// fetchOutbreakHistory got. The test below is a genuine RED: a pet that
+// moved out of govt scope still has its event exported to the OLD
+// jurisdiction's CSV, because the export scope trusts the event-time
+// snapshot instead of the pet's current jurisdiction. Marked `.fails()` so
+// the gap is tracked (and CI stays green) rather than silently passing an
+// assertion that doesn't hold — this must flip back to a plain `it()` once
+// fetchEventsForExport gets the same pets-guard as its siblings.
+// ---------------------------------------------------------------------------
+
+describe("jurisdiction drift — export & analytics fetchers fitness sweep (task #33)", () => {
+  const SWEEP_PROV = "CABA";
+  const SWEEP_LOC = "GD-DriftSweepVille"; // unique to this suite
+  const SWEEP_SCOPE = [{ province: SWEEP_PROV, locality: SWEEP_LOC }];
+
+  async function petPublicTokenOf(petId: string): Promise<string> {
+    const [row] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, petId));
+    return row.publicToken;
+  }
+
+  it("fetchPetsForExport: excludes a pet whose CURRENT jurisdiction is outside govt scope (drift-safe by construction)", async () => {
+    const movedId = await insertFixturePet({
+      name: "DriftSweepPetsExpMoved",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    const residentId = await insertFixturePet({
+      name: "DriftSweepPetsExpResident",
+      species: "dog",
+      province: SWEEP_PROV,
+      locality: SWEEP_LOC,
+    });
+    const movedToken = await petPublicTokenOf(movedId);
+    const residentToken = await petPublicTokenOf(residentId);
+
+    const r = await fetchPetsForExport({ role: "govt" }, SWEEP_SCOPE);
+    const tokens = r.map((row) => row.publicToken);
+    expect(tokens).not.toContain(movedToken);
+    expect(tokens).toContain(residentToken);
+  });
+
+  it("fetchAnalyticsMetrics: rabiesVaccinationRate never counts a vaccination event whose pet moved OUT of govt scope, even though the payload still carries the old jurisdiction", async () => {
+    const movedId = await insertFixturePet({
+      name: "DriftSweepAnalyticsMoved",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    await insertFixturePet({
+      name: "DriftSweepAnalyticsResident",
+      species: "dog",
+      province: SWEEP_PROV,
+      locality: SWEEP_LOC,
+    });
+    // Moved pet's vaccination payload claims the govt's scope (stale
+    // event-time snapshot) — but the pet's CURRENT jurisdiction is elsewhere.
+    await emitVaccinationWithName({
+      petId: movedId,
+      vaccineName: "Antirrábica",
+      province: SWEEP_PROV,
+      locality: SWEEP_LOC,
+    });
+    // Resident pet has no vaccination — if the moved pet's event leaked in
+    // via the payload, the rate would be > 0.
+
+    const m = await fetchAnalyticsMetrics({ role: "govt" }, SWEEP_SCOPE);
+    expect(m.totalPets).toBeGreaterThanOrEqual(1);
+    expect(m.rabiesVaccinationRate).toBe(0);
+  });
+
+  it("fetchDeathCauses: excludes a death event whose pet moved OUT of govt scope, even though the payload still carries the old jurisdiction", async () => {
+    const movedId = await insertFixturePet({
+      name: "DriftSweepDeathMoved",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    await emitDeathEvent({
+      petId: movedId,
+      cause: "accident",
+      province: SWEEP_PROV,
+      locality: SWEEP_LOC,
+    });
+
+    const r = await fetchDeathCauses({ role: "govt" }, SWEEP_SCOPE);
+    expect(r.find((row) => row.cause === "accident")).toBeUndefined();
+  });
+
+  it.fails(
+    "[KNOWN GAP] fetchEventsForExport: govt export should exclude events from a pet that moved OUT of scope — currently LEAKS because petEventsScopeClause has no pets-current-jurisdiction guard (unlike fetchZoonosisTrend/fetchOutbreakHistory)",
+    async () => {
+      const movedId = await insertFixturePet({
+        name: "DriftSweepEventsExpMoved",
+        species: "dog",
+        province: "Buenos Aires",
+        locality: "La Plata",
+      });
+      await emitOutbreakSignal({
+        petId: movedId,
+        diseaseCode: "drift_sweep_export_disease",
+        province: SWEEP_PROV,
+        locality: SWEEP_LOC,
+        hoursAgo: 1,
+      });
+      const movedToken = await petPublicTokenOf(movedId);
+
+      const r = await fetchEventsForExport({ role: "govt" }, SWEEP_SCOPE);
+      const tokens = r.map((row) => row.petPublicToken);
+      expect(tokens).not.toContain(movedToken);
+    },
+  );
 });
 
 describe("fetchDiseaseSummary", () => {
