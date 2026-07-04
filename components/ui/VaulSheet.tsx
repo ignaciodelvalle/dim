@@ -104,8 +104,9 @@ export function Sheet({ id, title, open, onClose, size = "md", triggerRef, child
             </Drawer.Close>
           </div>
 
-          {/* Body — scrollable */}
-          <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+          {/* Body — scrollable. pb-safe keeps the last row clear of the iOS
+              home indicator when the bottom sheet sits at the viewport edge. */}
+          <div className="pb-safe flex-1 overflow-y-auto px-5 py-4">{children}</div>
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>

@@ -293,7 +293,9 @@ export function LnSheetFooter({
   return (
     // Wave 2 Item 9: sticky footer so the primary CTA stays reachable with the
     // thumb on mobile even with long forms.
-    <div className="sticky bottom-0 z-10 flex items-center gap-[10px] border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
+    // pb-safe keeps the CTA above the iOS home indicator in the installed PWA
+    // (viewport-fit=cover; see globals.css safe-area utilities).
+    <div className="pb-safe sticky bottom-0 z-10 flex items-center gap-[10px] border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
       {onCancel && (
         <button
           type="button"

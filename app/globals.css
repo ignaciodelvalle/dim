@@ -434,6 +434,19 @@ h6 {
   }
 }
 
+/* ---- Safe-area utilities (native-mobile audit 2026-07-04) ------------------ *
+ * Extend the one existing exemplar (adoptar ApplyButton's
+ * `pb-[max(0.75rem,env(safe-area-inset-bottom))]`) into reusable utilities for
+ * the masthead, sticky sheet footers and the bottom tab bar. Declared OUTSIDE
+ * any @layer on purpose: unlayered author styles beat Tailwind's layered
+ * utilities, so `pb-safe` can override the bottom half of a py-* utility. */
+.pt-safe {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+.pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
 /* ---- Operator rail scrollbar (PR-1 V2) ------------------------------------ */
 /* Thin, translucent scrollbar that reads against the navy rail instead of the
    OS default light track. Applied to the rail nav + the mobile drawers. */

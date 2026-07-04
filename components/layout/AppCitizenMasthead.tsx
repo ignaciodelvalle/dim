@@ -93,7 +93,10 @@ export function AppCitizenMasthead({
   const pathname = usePathname();
 
   return (
-    <header className="flex flex-shrink-0 items-center gap-[18px] bg-[var(--color-ln-azul-900)] px-[16px] py-[12px] text-white md:px-[32px]">
+    // pt-safe: with viewport-fit=cover the installed PWA draws under the iOS
+    // status bar — max(0.75rem, safe-area-inset-top) keeps the row clear of it
+    // while staying at the design's 12px everywhere else.
+    <header className="pt-safe flex flex-shrink-0 items-center gap-[18px] bg-[var(--color-ln-azul-900)] px-[16px] py-[12px] text-white md:px-[32px]">
       {/* Mobile hamburger — hidden on md+ where the inline nav shows. */}
       <CitizenMobileDrawer
         nav={nav}

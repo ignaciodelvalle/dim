@@ -100,7 +100,9 @@ function CitizenShell({ masthead, footer, maxWidth, children }: CitizenProps) {
       {/* Thin Argentina institutional stripe (D7). */}
       <GobStripe />
       {masthead}
-      <main id="main-content" data-scroll-reset className="flex-1 overflow-auto">
+      {/* pb-safe: keep the last content row clear of the iOS home indicator
+          now that viewport-fit=cover lets the PWA draw under it. */}
+      <main id="main-content" data-scroll-reset className="pb-safe flex-1 overflow-auto">
         <ScrollReset />
         {maxWidth ? <div className={`${maxWidth} mx-auto`}>{children}</div> : children}
       </main>
@@ -159,7 +161,9 @@ function LandingShell({ returnSlot, children }: LandingProps) {
         Skip to main content
       </a>
       <GobStripe />
-      <header className="flex items-center gap-3 border-b border-ln-line bg-white px-4 py-3 md:px-6">
+      {/* pt-safe: QR-scan landings open full-screen in the installed PWA too —
+          keep the trust header clear of the notch/status bar. */}
+      <header className="pt-safe flex items-center gap-3 border-b border-ln-line bg-white px-4 py-3 md:px-6">
         <span className="text-lg font-bold text-ln-azul">MiMAR</span>
         <span className="hidden text-xs text-ln-mute sm:inline">
           Credencial verificada por MiMAR
@@ -167,7 +171,7 @@ function LandingShell({ returnSlot, children }: LandingProps) {
         {/* Discreet "back to my app" — present only for logged-in viewers (D13). */}
         {returnSlot && <div className="ml-auto">{returnSlot}</div>}
       </header>
-      <main id="main-content" data-scroll-reset className="flex-1 overflow-auto">
+      <main id="main-content" data-scroll-reset className="pb-safe flex-1 overflow-auto">
         <ScrollReset />
         {children}
       </main>

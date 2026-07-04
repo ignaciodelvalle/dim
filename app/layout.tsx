@@ -96,9 +96,15 @@ export const viewport: Viewport = {
   initialScale: 1,
   // maximumScale intentionally omitted — disabling zoom violates WCAG 1.4.4 (Resize Text).
   // Ley 26.653 / Disp. ONTI 6/2019 mandates WCAG 2.1 AA for Argentine gov-adjacent systems.
+  // cover: let the installed PWA draw into the notch / home-indicator areas;
+  // the pt-safe/pb-safe utilities in globals.css pad content back out of them
+  // (native-mobile audit 2026-07-04 §2).
+  viewportFit: "cover",
   // Single value only (no dark variant): dark mode is explicitly disabled in this
   // redesign — the app is light-only (see "Dark mode desactivado" note in globals.css).
-  themeColor: "#ffffff",
+  // #0e5a99 matches app/manifest.ts theme_color and the navy masthead so the
+  // status bar doesn't flash white over the chrome (audit §6).
+  themeColor: "#0e5a99",
 };
 
 export default function RootLayout({
