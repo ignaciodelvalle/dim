@@ -27,6 +27,7 @@ Stack: Next.js 15 (App Router) + React 19 + TypeScript, Supabase (Postgres + RLS
 
 ## Working norms
 
+- **Every agent gets a one-page contract** — `docs/agents/README.md` is the hub (read-only auditors, mutating QA agents, subagents). Briefing ANY agent? Point it at its page. Delegating via the Agent tool? The call carries an explicit `model` (mechanical → sonnet).
 - **spec → plan → PR** — code descends from documents (`docs/superpowers/README.md` is the index). If a change feels in tension with what's written, raise it before coding around it.
 - **Engram is the SDD artifact store** — topic keys `sdd/{change}/*`; session summaries are mandatory.
 - **Sub-agents that spawn background children must poll within their own turn** — do not end the turn "waiting for a notification"; that stalls the pipeline until manually resumed (recurring failure mode).
