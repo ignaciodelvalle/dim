@@ -481,6 +481,13 @@ export async function finalizeAdoptionAction(
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
+  // Defense-in-depth: the orgToken URL param must match the capability-resolved
+  // org — same cross-check as approve/reject/requestInfo siblings (authz triage
+  // 2026-07-04).
+  if (organization.publicToken !== orgToken) {
+    return { error: "No tenés acceso a esta organización." };
+  }
+
   // Parse formData.
   const adopterUserIdInput = String(formData.get("adopterUserId") ?? "").trim() || null;
   const dniRaw = String(formData.get("adopterDni") ?? "");
