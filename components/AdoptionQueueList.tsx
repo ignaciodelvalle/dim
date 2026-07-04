@@ -16,7 +16,6 @@
 // The parent (server component) fetches data and passes it as props.
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useTransition } from "react";
 
 import type { BulkResult } from "@/app/actions/bulk-actions";
@@ -29,6 +28,7 @@ import type { OpBulkAction } from "@/components/ui/dashboard/OpBulkBar";
 import { OpBulkBar } from "@/components/ui/dashboard/OpBulkBar";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
 import { toggleSelection } from "@/lib/domain/bulk-select";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 // ---------------------------------------------------------------------------
 // SLA constant
@@ -148,7 +148,6 @@ function ResultPanel({ result, onDismiss }: { result: BulkResult; onDismiss: () 
 // ---------------------------------------------------------------------------
 
 export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueueListProps) {
-  const router = useRouter();
   const [, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
@@ -195,6 +194,35 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
   const allSelected = rows.length > 0 && selected.size === rows.length;
   const someSelected = selected.size > 0 && !allSelected;
 
+  // Post-bulk navigation (router.refresh() is banned — it rides the same
+  // client-router transition machinery as the silent-drop defect; see
+  // lib/ui/full-page-action-nav.ts). Clean success → immediate full reload
+  // so the SSR list reflects the new state. Partial failure → keep the
+  // ResultPanel visible (its whole purpose is making partial failure
+  // legible) and do the full reload when the operator dismisses it.
+  const settleBulkResult = useCallback(
+    (result: BulkResult) => {
+      if (result.failed.length === 0) {
+        navigateAfterActionSuccess(window.location.href);
+        return;
+      }
+      setLastResult(result);
+      clearSelection();
+    },
+    [clearSelection],
+  );
+
+  const dismissResult = useCallback(() => {
+    setLastResult((prev) => {
+      if (prev && prev.succeeded.length > 0) {
+        // Some rows DID change server-side — the list is stale; reload it.
+        navigateAfterActionSuccess(window.location.href);
+        return prev;
+      }
+      return null;
+    });
+  }, []);
+
   // Build bulk actions for OpBulkBar.
   const bulkActions: OpBulkAction[] = [
     {
@@ -209,9 +237,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
             orgToken,
             applicationEventIds: ids,
           });
-          setLastResult(result);
-          clearSelection();
-          router.refresh();
+          settleBulkResult(result);
         });
       },
     },
@@ -233,9 +259,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
             applicationEventIds: ids,
             reason,
           });
-          setLastResult(result);
-          clearSelection();
-          router.refresh();
+          settleBulkResult(result);
         });
       },
     },
@@ -367,7 +391,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
       )}
 
       {/* Partial-failure result panel */}
-      {lastResult && <ResultPanel result={lastResult} onDismiss={() => setLastResult(null)} />}
+      {lastResult && <ResultPanel result={lastResult} onDismiss={dismissResult} />}
 
       {/* Bulk bar — only active when pending rows are selected */}
       {activeStatus === "pending" && (

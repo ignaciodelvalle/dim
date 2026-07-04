@@ -8,7 +8,6 @@
 // govt's scope) is legible.
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { type ReactNode, useState, useTransition } from "react";
 
 import {
@@ -23,6 +22,7 @@ import {
   computeApprovalTypeBreakdown,
   selectionHasRupga,
 } from "@/lib/infra/approval-queue-breakdown";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 export type QueueItem = {
   publicToken: string;
@@ -41,7 +41,6 @@ export function BulkApprovalQueueList({
   items: QueueItem[];
   detailUrlPrefix: string;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<"none" | "approve" | "reject">("none");
@@ -68,6 +67,29 @@ export function BulkApprovalQueueList({
     setDecisionNotes("");
   }
 
+  // Post-bulk navigation (router.refresh() is banned — it rides the same
+  // client-router transition machinery as the silent-drop defect; see
+  // lib/ui/full-page-action-nav.ts). Clean success → immediate full reload
+  // so the SSR queue reflects the new state. Partial failure → keep the
+  // ResultPanel visible (its whole purpose is making partial failure
+  // legible) and do the full reload when the operator dismisses it.
+  function settleBulkResult(result: BulkResult) {
+    if (result.failed.length === 0) {
+      navigateAfterActionSuccess(window.location.href);
+      return;
+    }
+    setLastResult(result);
+  }
+
+  function dismissResult() {
+    if (lastResult && lastResult.succeeded.length > 0) {
+      // Some rows DID change server-side — the list is stale; reload it.
+      navigateAfterActionSuccess(window.location.href);
+      return;
+    }
+    setLastResult(null);
+  }
+
   function runApprove() {
     const tokens = Array.from(selected);
     setLastResult(null);
@@ -76,8 +98,7 @@ export function BulkApprovalQueueList({
         requestPublicTokens: tokens,
         decisionNotes: decisionNotes.trim() || null,
       });
-      setLastResult(result);
-      router.refresh();
+      settleBulkResult(result);
     });
   }
 
@@ -89,8 +110,7 @@ export function BulkApprovalQueueList({
         requestPublicTokens: tokens,
         reason: decisionNotes,
       });
-      setLastResult(result);
-      router.refresh();
+      settleBulkResult(result);
     });
   }
 
@@ -154,7 +174,7 @@ export function BulkApprovalQueueList({
         })}
       </ul>
 
-      {lastResult && <ResultPanel result={lastResult} onDismiss={() => setLastResult(null)} />}
+      {lastResult && <ResultPanel result={lastResult} onDismiss={dismissResult} />}
 
       {someSelected && (
         <div className="fixed bottom-0 left-0 right-0 border-t border-ln-op-line bg-ln-op-card z-50">
