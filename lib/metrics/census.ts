@@ -192,6 +192,26 @@ function isEmptyScope(ctx: ProjectionContext): boolean {
  * @param ctx            - ProjectionContext (actor + scope + period).
  * @param dormantMonths  - Inactivity threshold in months. Default: DORMANT_MONTHS_DEFAULT (12).
  */
+/**
+ * KPI: not yet in lib/metrics/kpi-catalog.ts (composite registry-health
+ * counts — no cross-surface label ambiguity reported).
+ *
+ * NUMERATOR:   total = active/lost pets; active = status='active'; dormant =
+ *              active/lost pets with NO qualifying owner event (any type
+ *              except credential_scanned) after the dormancy cutoff;
+ *              incomplete = active/lost pets missing chip OR unknown sex OR
+ *              no locality; byLocality = per-locality counts.
+ * DENOMINATOR: n/a — absolute counts (dormant/incomplete are subsets of total,
+ *              not separately-denominated rates).
+ * SOURCE:      pets, pet_events (any type except credential_scanned), pet_identifications.
+ * CADENCE:     point-in-time snapshot; dormancy cutoff is dormantMonths back
+ *              from ctx.period.until.
+ * SUPPRESSION: byLocality is k-anon suppressed (k=5) via suppressedMetric;
+ *              the other counts are unsuppressed.
+ *
+ * @param ctx            - ProjectionContext (actor + scope + period).
+ * @param dormantMonths  - Inactivity threshold in months. Default: DORMANT_MONTHS_DEFAULT (12).
+ */
 export async function registryCounts(
   ctx: ProjectionContext,
   dormantMonths: number = DORMANT_MONTHS_DEFAULT,
@@ -303,6 +323,10 @@ export async function registryCounts(
  * Buckets pets.created_at (NOT pet_events) so this is a true "altas nuevas"
  * series. Scope is petsScopeClause (jurisdiction filter on the pets table).
  * k-anonymity applied via suppressSmallBuckets (k=5).
+ *
+ * KPI tags: NUMERATOR = COUNT pets.created_at per bucket (in period, in
+ * scope, status IN active/lost). DENOMINATOR = n/a (a count series). SOURCE =
+ * pets. CADENCE = ctx.period, bucketed weekly/monthly. SUPPRESSION = k=5.
  */
 export async function registrationTrend(ctx: ProjectionContext): Promise<SingleSeriesTrend> {
   const granularity = bucketGranularityFor(ctx.period);
@@ -347,6 +371,28 @@ export async function registrationTrend(ctx: ProjectionContext): Promise<SingleS
  * Monotonicity is asserted before return.
  *
  * See FunnelStages for the `scanned` period-bounded caveat.
+ */
+/**
+ * KPI: not yet in lib/metrics/kpi-catalog.ts (a 4-stage funnel — related to,
+ * but NOT the same fetcher as, microchip_penetration in compliance-metrics.ts;
+ * `chipped` here shares that KPI's exact numerator/denominator by construction).
+ *
+ * NUMERATOR:   total = active/lost pets; chipped = active pets with an active
+ *              microchip_iso identification; isoValid = chipped pets whose
+ *              ISO country/manufacturer/national-id fields pass the 3-4-8-char
+ *              structural check; scanned = DISTINCT pets with a
+ *              credential_scanned event IN THE CTX PERIOD (period-bounded —
+ *              see module-level FunnelStages doc).
+ * DENOMINATOR: n/a — a monotonic funnel (each stage a subset of the last for
+ *              chip→isoValid; scanned is an independent, non-nested signal).
+ * SOURCE:      pets, pet_identifications, pet_events (credential_scanned).
+ * CADENCE:     total/chipped/isoValid are point-in-time; scanned is bounded
+ *              to ctx.period.
+ * SUPPRESSION: none (assertFunnelMonotonic throws if the chip→isoValid
+ *              invariant is violated, but that is a data-integrity guard, not
+ *              privacy suppression).
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
  */
 export async function identificationFunnel(ctx: ProjectionContext): Promise<FunnelStages> {
   if (isEmptyScope(ctx)) return { total: 0, chipped: 0, isoValid: 0, scanned: 0 };
@@ -438,6 +484,10 @@ export type ProvinceRegistryRow = {
  *
  * Used for the cross-jurisdiction choropleth and ranked table in /admin/censo.
  * Does NOT extend Panorama's ChoroplethMetric — it's a standalone projection.
+ *
+ * KPI tags: NUMERATOR = COUNT DISTINCT active/lost pets per province.
+ * DENOMINATOR = n/a (absolute count per province). SOURCE = pets. CADENCE =
+ * point-in-time. SUPPRESSION = none (province cells are never small).
  */
 export async function registryByProvince(ctx: ProjectionContext): Promise<ProvinceRegistryRow[]> {
   if (isEmptyScope(ctx)) return [];

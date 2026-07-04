@@ -145,6 +145,18 @@ export type SterilizationCoverageResult = {
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
+/**
+ * KPI: sterilization_coverage_population (see lib/metrics/kpi-catalog.ts)
+ *
+ * NUMERATOR:   COUNT DISTINCT active/lost pets with ≥1 sterilization_performed
+ *              event, ever (no time window on the event itself).
+ * DENOMINATOR: COUNT active/lost pets in scope.
+ * SOURCE:      pets, pet_events (sterilization_performed).
+ * CADENCE:     point-in-time snapshot ("ever sterilized", not "in period").
+ * SUPPRESSION: none.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
 export async function fetchSterilizationCoverage(
   ctx: ProjectionContext,
 ): Promise<SterilizationCoverageResult> {
@@ -216,6 +228,17 @@ export async function fetchSterilizationCoverage(
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
+/**
+ * KPI: active_pregnancies (see lib/metrics/kpi-catalog.ts)
+ *
+ * NUMERATOR:   COUNT active/lost pets WHERE pregnancy_status = 'in_progress'.
+ * DENOMINATOR: n/a — absolute count.
+ * SOURCE:      pets (denormalized pregnancy_status column).
+ * CADENCE:     point-in-time snapshot.
+ * SUPPRESSION: none.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
 export async function fetchActivePregnancies(ctx: ProjectionContext): Promise<number> {
   if (isEmptyScope(ctx)) return 0;
 
@@ -265,6 +288,23 @@ export type ReproductiveOutcomes = {
  *
  * Event payload shape (from app/actions/pregnancy.ts):
  *   { sub_kind: 'pregnancy', pregnancy_phase: 'ended', outcome: <key>, live_births_count: N|null }
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+/**
+ * KPI: not yet in lib/metrics/kpi-catalog.ts (feeds sterilization_natalidad_ratio's
+ * denominator — documented here directly, no cross-surface label ambiguity).
+ *
+ * NUMERATOR:   COUNT clinical_info_logged events (sub_kind='pregnancy',
+ *              pregnancy_phase='ended'), grouped by payload.outcome.
+ *              registeredBirths = the 'live_birth' bucket specifically.
+ * DENOMINATOR: n/a — grouped counts, not a ratio.
+ * SOURCE:      pet_events (clinical_info_logged).
+ * CADENCE:     matches the caller's ProjectionContext period.
+ * SUPPRESSION: none.
+ *
+ * NATALIDAD CAVEAT: only TRACKED pregnancies are counted — see the
+ * module-level comment. registeredBirths under-counts real natalidad.
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
@@ -376,6 +416,23 @@ export type NetGrowthResult = {
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
+/**
+ * KPI: not yet in lib/metrics/kpi-catalog.ts (composite of three event
+ * counts — no cross-surface label ambiguity reported).
+ *
+ * NUMERATOR:   net = altas (pets.created_at in period) + registeredBirths
+ *              (live_birth outcomes in period) − deaths (death_recorded
+ *              events in period).
+ * DENOMINATOR: n/a — a signed count, not a ratio.
+ * SOURCE:      pets, pet_events (death_recorded, clinical_info_logged).
+ * CADENCE:     matches the caller's ProjectionContext period.
+ * SUPPRESSION: none.
+ *
+ * NATALIDAD CAVEAT: registeredBirths under-counts real natalidad (tracked
+ * pregnancies only) — net is DIRECTIONAL, not exact. See module-level comment.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
 export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthResult> {
   const empty: NetGrowthResult = { altas: 0, registeredBirths: 0, deaths: 0, net: 0 };
   if (isEmptyScope(ctx)) return empty;
@@ -457,6 +514,22 @@ export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthR
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
+/**
+ * KPI: sterilization_natalidad_ratio (see lib/metrics/kpi-catalog.ts)
+ *
+ * NUMERATOR:   COUNT sterilization_performed events in the ctx period.
+ * DENOMINATOR: COUNT registered live births in the SAME period
+ *              (clinical_info_logged, sub_kind='pregnancy',
+ *              pregnancy_phase='ended', outcome='live_birth') — null when 0.
+ * SOURCE:      pet_events (sterilization_performed, clinical_info_logged).
+ * CADENCE:     matches the caller's ProjectionContext period.
+ * SUPPRESSION: none.
+ *
+ * NATALIDAD CAVEAT: the denominator under-counts real natalidad — this ratio
+ * OVER-estimates containment. Directional signal only. See module-level comment.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
 export async function fetchSterilizationNatalidadRatio(
   ctx: ProjectionContext,
 ): Promise<number | null> {
@@ -510,6 +583,11 @@ export async function fetchSterilizationNatalidadRatio(
  * Reuses fetchKpiTrend — same granularity, same scope, same k-anonymity.
  *
  * @param ctx - ProjectionContext (actor + scope + period).
+ */
+/**
+ * KPI: sterilization_performed events bucketed over time — the trend view of
+ * sterilization_coverage_population's numerator (see kpi-catalog.ts). Reuses
+ * fetchKpiTrend, so numerator/scope/k-anon (k=5) are identical to that helper.
  */
 export async function fetchSterilizationTrend(ctx: ProjectionContext): Promise<SingleSeriesTrend> {
   return fetchKpiTrend("sterilization_performed", ctx);

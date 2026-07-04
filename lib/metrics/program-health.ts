@@ -171,6 +171,19 @@ function isEmptyScope(ctx: ProjectionContext): boolean {
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
+/**
+ * KPI: data_quality_completeness (see lib/metrics/kpi-catalog.ts)
+ *
+ * NUMERATOR:   COUNT active/lost pets with NONE of: jurisdiction_locality IS
+ *              NULL, sex = 'unknown', missing active microchip_iso
+ *              (completenessPct only — orphans is a separate structural signal).
+ * DENOMINATOR: COUNT active/lost pets in scope.
+ * SOURCE:      pets, pet_identifications, ownerships.
+ * CADENCE:     point-in-time snapshot.
+ * SUPPRESSION: none.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
 export async function fetchDataQuality(ctx: ProjectionContext): Promise<DataQuality> {
   const empty: DataQuality = {
     total: 0,
@@ -249,6 +262,30 @@ export async function fetchDataQuality(ctx: ProjectionContext): Promise<DataQual
  *
  * Reuses EXISTS patterns from lib/compliance-metrics.ts (C1) and
  * lib/metrics/population-control.ts (sterilization).
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+/**
+ * KPI: not yet in lib/metrics/kpi-catalog.ts (per-province table, reuses the
+ * SAME rabies definition as rabies_coverage_dogs_12m — see below — plus two
+ * metrics not otherwise catalogued: microchip and sterilization per province).
+ *
+ * rabies rows:
+ *   NUMERATOR:   COUNT DISTINCT active dogs with a rabies vaccination event
+ *                matching /(antirr[áa]bica|rabies)/i — IDENTICAL definition
+ *                to rabies_coverage_dogs_12m (fetchRabiesCoverage), grouped
+ *                by province instead of aggregated nationally.
+ *   DENOMINATOR: COUNT active dogs in the province (skipped if < K_ANON_MIN).
+ * microchip rows:
+ *   NUMERATOR:   COUNT active pets with an active microchip_iso identification.
+ *   DENOMINATOR: COUNT active pets in the province.
+ * sterilization rows:
+ *   NUMERATOR:   COUNT active pets with ≥1 sterilization_performed event.
+ *   DENOMINATOR: COUNT active pets in the province.
+ * SOURCE:      pets, pet_events (vaccination_administered, sterilization_performed),
+ *              pet_identifications.
+ * CADENCE:     point-in-time (microchip/sterilization) / matches ctx.period (rabies).
+ * SUPPRESSION: k-anon — provinces with < K_ANON_MIN (5) active pets/dogs are omitted.
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
@@ -382,6 +419,19 @@ export async function fetchCrossJurisdictionOutliers(
  *    actions from actors in other provinces.
  *
  * Read-only aggregate on existing audit_log + govt_assignments — no schema changes.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+/**
+ * KPI: not yet in lib/metrics/kpi-catalog.ts (an oversight ledger, not a
+ * rate/coverage KPI — documented here directly for completeness).
+ *
+ * NUMERATOR:   COUNT audit_log rows grouped by (actor_user_id, action, surface)
+ *              WHERE action IN ('pii_queried', 'welfare_location_viewed').
+ * DENOMINATOR: n/a — top-N ranked counts, not a ratio.
+ * SOURCE:      audit_log, govt_assignments (for govt scope actor filtering).
+ * CADENCE:     since ctx.period.since (no upper bound — "since X" not "in window").
+ * SUPPRESSION: top PII_OVERSIGHT_TOP_N (20) rows only; no k-anon suppression.
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */

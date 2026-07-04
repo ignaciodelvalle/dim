@@ -170,6 +170,12 @@ function isEmptyScope(ctx: ProjectionContext): boolean {
  * "cohort following the same animals". This matches how all other event
  * funnel surfaces (mortalidad Disposición) work in this codebase.
  *
+ * KPI tags: NUMERATOR = COUNT per stage of shelter_intake_recorded /
+ * foster_assigned / adoption_finalized / adoption_reversed events in the ctx
+ * period. DENOMINATOR = n/a (each stage an independent event count, not a
+ * cohort-following ratio). SOURCE = pet_events. CADENCE = ctx.period.
+ * SUPPRESSION = none.
+ *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
 export async function fetchCustodyFunnel(ctx: ProjectionContext): Promise<CustodyFunnel> {
@@ -224,6 +230,10 @@ export async function fetchCustodyFunnel(ctx: ProjectionContext): Promise<Custod
  *
  * Scoped by INNER JOIN pets + petsScopeClause. Results are clamped via
  * timeInStateNonNegative to guard against floating-point edge cases.
+ *
+ * KPI tags: NUMERATOR = percentile_cont(0.5 / 0.75) of ownerships duration
+ * per role. DENOMINATOR = n/a (a distribution statistic, not a ratio). SOURCE
+ * = ownerships. CADENCE = ownerships overlapping ctx.period. SUPPRESSION = none.
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
@@ -284,6 +294,14 @@ export async function fetchTimeInState(ctx: ProjectionContext): Promise<TimeInSt
  * may refer to an adoption that was finalized before the period start).
  * This matches the "events in window" approach used elsewhere.
  *
+ * KPI: custody_return_rate (see lib/metrics/kpi-catalog.ts)
+ *
+ * NUMERATOR:   COUNT adoption_reversed events in the ctx period.
+ * DENOMINATOR: COUNT adoption_finalized events in the SAME period — null when 0.
+ * SOURCE:      pet_events (adoption_finalized, adoption_reversed).
+ * CADENCE:     matches the caller's ProjectionContext period.
+ * SUPPRESSION: none.
+ *
  * @param ctx - ProjectionContext.
  * @returns returnRate (0–1+) or null when adoption_finalized === 0.
  */
@@ -331,6 +349,11 @@ export async function fetchReturnRate(ctx: ProjectionContext): Promise<number | 
  * foster_volunteers is scoped by jurisdiction columns when the ctx is
  * jurisdiction-scoped (province + locality filter on the volunteer table).
  * When the scope is global (admin) no filtering is applied.
+ *
+ * KPI tags: NUMERATOR = COUNT foster_volunteers (active / active+capacity) +
+ * COUNT ownerships (role='foster', ended_at IS NULL). DENOMINATOR = n/a
+ * (absolute counts). SOURCE = foster_volunteers, ownerships. CADENCE =
+ * point-in-time snapshot. SUPPRESSION = none.
  *
  * @param ctx - ProjectionContext.
  */
@@ -404,6 +427,15 @@ export async function fetchFosterPoolUtilization(
  * Reuses lib/org-census.ts mental model (active shelter_custody ownerships
  * = occupied slots) but aggregates NATIONALLY rather than per-org.
  *
+ * KPI: shelter_occupancy_national (see lib/metrics/kpi-catalog.ts)
+ *
+ * NUMERATOR:   SUM active ownerships WHERE role='shelter_custody' AND ended_at IS NULL.
+ * DENOMINATOR: SUM organizations.capacity_total for org_type='shelter' — null
+ *              when no capacity declared.
+ * SOURCE:      ownerships, organizations.
+ * CADENCE:     point-in-time snapshot.
+ * SUPPRESSION: none.
+ *
  * @param ctx - ProjectionContext.
  */
 export async function fetchShelterOccupancyNational(
@@ -455,6 +487,9 @@ export async function fetchShelterOccupancyNational(
  *
  * Directly reuses fetchKpiTrend from lib/metrics/trends.ts — same
  * petEventsScopeClause, same date_trunc, same k-anonymity suppression.
+ *
+ * KPI tags: trend view of adoption_finalized events — see fetchKpiTrend
+ * (lib/metrics/trends.ts) for the shared NUMERATOR/SOURCE/CADENCE/SUPPRESSION.
  *
  * @param ctx - ProjectionContext.
  */

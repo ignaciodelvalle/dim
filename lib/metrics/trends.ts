@@ -97,6 +97,11 @@ function truncBucket(unit: "week" | "month") {
  * restricted by petsScopeClause(ctx) (the death payload carries no jurisdiction
  * fields — same pattern as fetchMortalityDisposition). Per (bucket, cause) cells
  * below k=5 are masked.
+ *
+ * KPI tags: NUMERATOR = COUNT death_recorded events per (bucket, cause).
+ * DENOMINATOR = n/a (a count series, not a rate). SOURCE = pet_events
+ * (death_recorded). CADENCE = ctx.period, bucketed weekly/monthly.
+ * SUPPRESSION = k-anon (k=5) per (bucket, cause) cell.
  */
 export async function fetchDeathCausesTrend(ctx: ProjectionContext): Promise<StackedTrend> {
   const granularity = bucketGranularityFor(ctx.period);
@@ -146,6 +151,12 @@ export async function fetchDeathCausesTrend(ctx: ProjectionContext): Promise<Sta
 /**
  * Bite incidents (incident_reported, incident_type='bite_inflicted') grouped by
  * period bucket. Scope via petEventsScopeClause (payload jurisdiction fields).
+ *
+ * KPI tags: trend view of bites_per_10k's numerator (see kpi-catalog.ts) — no
+ * census denominator applied here, this is a raw count series. NUMERATOR =
+ * COUNT incident_reported (bite_inflicted) per bucket. DENOMINATOR = n/a.
+ * SOURCE = pet_events (incident_reported). CADENCE = ctx.period, bucketed.
+ * SUPPRESSION = k-anon (k=5).
  */
 export async function fetchBitesTrend(ctx: ProjectionContext): Promise<SingleSeriesTrend> {
   const granularity = bucketGranularityFor(ctx.period);
@@ -183,6 +194,10 @@ export async function fetchBitesTrend(ctx: ProjectionContext): Promise<SingleSer
  * Outbreak signals (eventType LIKE 'outbreak_%') grouped by period bucket.
  * Scope via petEventsScopeClause (payload jurisdiction fields), matching the
  * existing fetchZoonosisTrend scope semantics.
+ *
+ * KPI tags: NUMERATOR = COUNT pet_events WHERE event_type LIKE 'outbreak_%'
+ * per bucket. DENOMINATOR = n/a. SOURCE = pet_events. CADENCE = ctx.period,
+ * bucketed. SUPPRESSION = k-anon (k=5).
  */
 export async function fetchOutbreakSignalsTrend(
   ctx: ProjectionContext,
@@ -227,6 +242,13 @@ export async function fetchOutbreakSignalsTrend(
  * Rabies-vaccine match uses the SAME accent-aware regex as fetchRabiesCoverage
  * (~* '(antirr[áa]bica|rabies)') so "is a rabies vaccine" stays consistent.
  * Scope to dogs via INNER JOIN pets + species filter.
+ *
+ * KPI tags: trend view of rabies_coverage_dogs_12m's numerator (see
+ * kpi-catalog.ts) — a FLOW (vaccinations applied per bucket), not a
+ * recomputed per-bucket coverage ratio (see caveat above). NUMERATOR = COUNT
+ * DISTINCT dogs vaccinated per bucket. DENOMINATOR = n/a. SOURCE = pets,
+ * pet_events (vaccination_administered). CADENCE = ctx.period, bucketed.
+ * SUPPRESSION = k-anon (k=5).
  */
 export async function fetchRabiesVaccinationTrend(
   ctx: ProjectionContext,
@@ -278,6 +300,11 @@ export async function fetchRabiesVaccinationTrend(
  * Usage:
  *   const trend = await fetchKpiTrend("vaccination_administered", ctx);
  *   // trend.points → [{ x: "2026-W03", y: 14 }, …]
+ *
+ * KPI tags (generic — parameterized by eventType, not a single fixed KPI):
+ * NUMERATOR = COUNT pet_events WHERE event_type = <eventType> per bucket.
+ * DENOMINATOR = n/a. SOURCE = pet_events. CADENCE = ctx.period, bucketed
+ * weekly (≤120d) or monthly. SUPPRESSION = k-anon (k=5) via suppressSmallBuckets.
  *
  * @param eventType - The exact `pet_events.event_type` value to count.
  * @param ctx       - ProjectionContext (actor + scope + period).
