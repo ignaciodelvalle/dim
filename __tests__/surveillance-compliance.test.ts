@@ -523,8 +523,15 @@ describe("fetchReportableIncidence", () => {
 
   it("scope: govt only sees reportable events in its jurisdiction", async () => {
     const prov = "Corrientes";
-    const inLoc = "Goya";
-    const outLoc = "Mercedes";
+    // Synthetic localities — same reason as the k-anonymity case above: scope
+    // matching is by literal (province, locality) pair, and the panorama
+    // storyline seeds (PANO-*) put reportable events in every REAL locality.
+    // The original Goya/Mercedes pair broke once a seeded disease_reported in
+    // Goya landed inside the trailing-12m window (2026-07-04 gate failure #2 —
+    // verified NOT a scope leak: the out-of-jurisdiction fixture stayed
+    // excluded; the extra count was in-jurisdiction seed data).
+    const inLoc = "Fixture Alcance Dentro";
+    const outLoc = "Fixture Alcance Fuera";
     const petIn = await insertFixturePet({ name: "RepIn", province: prov, locality: inLoc });
     const petOut = await insertFixturePet({ name: "RepOut", province: prov, locality: outLoc });
     await seedDiseaseReport(petIn, "lepto", true);
