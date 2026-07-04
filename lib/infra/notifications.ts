@@ -16,6 +16,7 @@ import {
 } from "@/db";
 import { getReminderVariant, isVaccineReportable } from "@/lib/domain/vaccine-reminder-state";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { createNotification } from "@/lib/infra/notification-service";
 import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
 import { and, eq, gte, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 
@@ -166,9 +167,16 @@ export async function runVaccineDueScan(
           ? ("warning" as const)
           : ("urgent" as const); // overdue + overdue_critical
 
-    const [inserted] = await dbInstance
-      .insert(notifications)
-      .values({
+    // Route through the canonical write path. The dedupe key is scoped to the
+    // reminder + the scan's day bucket: it does NOT suppress the legitimate
+    // escalating cadence (a scan on a LATER day gets a new bucket → new key →
+    // emits), but it DOES collapse two concurrent runs on the same day for the
+    // same reminder into one row — closing the check-then-act throttle race
+    // (review B.2) that the per-reminder history read + separate INSERT left
+    // open. relatedEventId stays NULL (migration 0088 exemption still applies).
+    const dayBucket = now.toISOString().slice(0, 10);
+    const result = await createNotification(
+      {
         userId: row.userId,
         notificationType: "vaccine_due",
         category: "health",
@@ -176,25 +184,19 @@ export async function runVaccineDueScan(
         body,
         severity,
         relatedPetId: row.petId,
-        // relatedReminderId drives the throttle. relatedEventId is
-        // DELIBERATELY NOT SET: migration 0088's unique index
-        // (user_id, related_event_id, notification_type) exempts cron
-        // notifications via related_event_id IS NULL precisely so a repeat
-        // emission (the escalating upcoming→due_soon→overdue cadence) can
-        // insert again. Setting it made the SECOND scan for the same source
-        // event hit the index with no ON CONFLICT — a 23505 that killed the
-        // whole run (projection-cron audit 2026-07-03 C1).
+        // relatedReminderId drives the throttle read above.
         relatedReminderId: row.reminderId,
         // 14.2 notice→action contract: deep-link directly to the vaccination
         // form so the owner can act in one tap. Canonical reminder-linked
         // target (flow audit 2026-07-03): the FULL form with reminderId, so
-        // the vaccine name pre-fills and the reminder closes on submit — the
-        // old /anotar?kind= hop reached the same form without the linkage.
+        // the vaccine name pre-fills and the reminder closes on submit.
         ctaLabel: "Registrar vacuna",
         ctaUrl: buildReminderVaccineUrl(row.publicToken, row.reminderId),
-      })
-      .returning({ id: notifications.id });
-    insertedNotificationIds.push(inserted.id);
+        dedupeKey: `vaccine:${row.reminderId}:${dayBucket}`,
+      },
+      dbInstance,
+    );
+    if (result.status === "inserted" && result.id) insertedNotificationIds.push(result.id);
   }
 
   return {
@@ -363,9 +365,11 @@ export async function runPostAdoptionCheckinScan(
         : daysAhead === 1
           ? `Mañana toca el check-in post-adopción de ${row.petName}.`
           : `En ${daysAhead} días toca el check-in post-adopción de ${row.petName}.`;
-    const [inserted] = await dbInstance
-      .insert(notifications)
-      .values({
+    // Canonical write path. dedupeKey is per-reminder (one proactive due
+    // notification per reminder, ever) — matches the NOT EXISTS guard above and
+    // adds dead-letter durability.
+    const result = await createNotification(
+      {
         userId: row.userId,
         notificationType: "post_adoption_checkin_due",
         title: row.title,
@@ -375,9 +379,11 @@ export async function runPostAdoptionCheckinScan(
         relatedReminderId: row.reminderId,
         ctaLabel: "Hacer check-in",
         ctaUrl: `/mis-mascotas/${row.publicToken}/eventos/nuevo/checkin`,
-      })
-      .returning({ id: notifications.id });
-    proactiveInsertedIds.push(inserted.id);
+        dedupeKey: `post-adoption-due:${row.reminderId}`,
+      },
+      dbInstance,
+    );
+    if (result.status === "inserted" && result.id) proactiveInsertedIds.push(result.id);
   }
 
   // --- Phase 2: missed-window fanout to refugio admins ---
@@ -456,23 +462,27 @@ export async function runPostAdoptionCheckinScan(
       .where(eq(organizations.id, orgId))
       .limit(1);
 
-    const inserted = await dbInstance
-      .insert(notifications)
-      .values(
-        admins.map((a) => ({
+    // Canonical write path, one row per refugio admin. dedupeKey is
+    // per-(reminder, admin) — matches the NOT EXISTS guard above and makes a
+    // re-run idempotent. Low fan-out (org admins), so per-row is fine here.
+    for (const a of admins) {
+      const result = await createNotification(
+        {
           userId: a.userId,
           notificationType: "post_adoption_checkin_missed",
           title: `Check-in pendiente: ${row.petName}`,
           body: `El adoptante de ${row.petName} no envió el seguimiento esperado. Considerá ponerte en contacto.`,
-          severity: "warning" as const,
+          severity: "warning",
           relatedPetId: row.petId,
           relatedReminderId: row.reminderId,
           ctaLabel: "Ver mascota",
           ctaUrl: orgRow ? `/org/${orgRow.publicToken}/mascotas` : "/org",
-        })),
-      )
-      .returning({ id: notifications.id });
-    for (const n of inserted) missedInsertedIds.push(n.id);
+          dedupeKey: `post-adoption-missed:${row.reminderId}:${a.userId}`,
+        },
+        dbInstance,
+      );
+      if (result.status === "inserted" && result.id) missedInsertedIds.push(result.id);
+    }
   }
 
   return {

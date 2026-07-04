@@ -14,22 +14,11 @@
 //          result WITHOUT re-throwing, so the caller (setPetLostWriter) is
 //          never blocked by a broadcast error
 
-import {
-  type db,
-  notifications,
-  organizationCoverage,
-  organizationMemberships,
-  organizations,
-} from "@/db";
+import { type db, organizationCoverage, organizationMemberships, organizations } from "@/db";
 import type * as schema from "@/db/schema";
+import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-
-// Chunk size for the bulk notification insert. At national scale a single
-// jurisdiction can match thousands of org members; one giant multi-row INSERT
-// holds a long write lock and risks exceeding parameter limits. Inserting in
-// batches keeps each statement short and the lock window small.
-const NOTIFICATION_INSERT_CHUNK = 500;
 
 // The transaction type accepted by Drizzle's `db.transaction(async (tx) => …)`
 // callback. We use a looser type here so tests can pass either `db` or a `tx`.
@@ -79,11 +68,21 @@ function buildBroadcastBody(pet: PetForBroadcast): string {
 // transaction; failures don't roll back the lost-flip (D8).
 //
 // Accepts either `db` or a `tx` so tests can drive it directly.
+//
+// `opts.episodeKey` (the lost_pet_episode case id) makes the fan-out
+// IDEMPOTENT per lost episode: each recipient's dedupe key is
+// `lost:${episodeKey}:${userId}`, so a retry of the SAME episode (client
+// timeout, double-submit, a re-entered lost branch) is a no-op instead of
+// re-notifying every org member — the highest-blast-radius duplication site in
+// the codebase (review B.1). A genuinely NEW lost episode carries a new case id
+// and re-notifies correctly. When no episodeKey is supplied the pet id is the
+// fallback scope (still idempotent for an immediate retry).
 export async function broadcastLostPet(
   client: DbOrTx,
   pet: PetForBroadcast,
   _ownerProfile: OwnerProfileForBroadcast,
   lastLocation: LastLocationForBroadcast,
+  opts?: { episodeKey?: string | null },
 ): Promise<BroadcastResult> {
   try {
     // 1. Require province (locality is optional — province-only rows cover the whole province).
@@ -164,30 +163,33 @@ export async function broadcastLostPet(
       return { broadcastedToMemberIds: [], orgCount: coveringOrgs.length };
     }
 
-    // 4. Bulk insert one notification per unique member.
+    // 4. Fan out one notification per unique member through the canonical
+    //    write path (createNotificationsBulk). This gives the broadcast BOTH
+    //    guards the review (B.1 / C.2) demanded without losing the chunked
+    //    performance work:
+    //      - IDEMPOTENCY: each row's deterministic dedupeKey
+    //        `lost:${episodeScope}:${userId}` runs with ON CONFLICT DO NOTHING,
+    //        so a retry of the same episode re-notifies nobody.
+    //      - DURABILITY: a chunk that throws is dead-lettered instead of
+    //        silently swallowed, so a mid-fanout blip is recoverable.
     const body = buildBroadcastBody(pet);
     const title = `Mascota perdida en tu zona: ${pet.name}`;
     const ctaUrl = `/p/${pet.publicToken}`;
+    const episodeScope = opts?.episodeKey ?? pet.id;
 
-    const notifValues = Array.from(notifiedUserIds).map((userId) => ({
+    const notifInputs = Array.from(notifiedUserIds).map((userId) => ({
       userId,
-      notificationType: "lost_pet_broadcast" as const,
+      notificationType: "lost_pet_broadcast",
       severity: "warning" as const,
       title,
       body,
       ctaLabel: "Ver credencial",
       ctaUrl,
       relatedPetId: pet.id,
+      dedupeKey: `lost:${episodeScope}:${userId}`,
     }));
 
-    // Chunked insert: one giant multi-row INSERT at national scale holds a long
-    // write lock and can blow past the bind-parameter limit. Batching keeps each
-    // statement short. The whole broadcast is non-fatal (D8), so a mid-chunk
-    // failure simply surfaces fewer notifications without blocking the lost-flip.
-    for (let i = 0; i < notifValues.length; i += NOTIFICATION_INSERT_CHUNK) {
-      const chunk = notifValues.slice(i, i + NOTIFICATION_INSERT_CHUNK);
-      await (client as typeof db).insert(notifications).values(chunk);
-    }
+    await createNotificationsBulk(notifInputs, client);
 
     return {
       broadcastedToMemberIds: Array.from(notifiedUserIds),

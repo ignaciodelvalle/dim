@@ -77,8 +77,18 @@ export type SetPetLostWriterParams = {
 
 export type SetPetLostWriterResult = { error: string | null };
 
-// biome-ignore lint/suspicious/noExplicitAny: broadcastLostPet accepts typed PetForBroadcast; we pass any-typed shapes from the writer
-type BroadcastFn = (db: any, pet: any, owner: any, lastLocation: any) => Promise<any>;
+// broadcastLostPet accepts typed PetForBroadcast; we pass any-typed shapes from
+// the writer, so the params are intentionally loose. Aliasing `any` once keeps
+// the single suppression valid even when the formatter wraps the signature.
+// biome-ignore lint/suspicious/noExplicitAny: writer passes loosely-typed shapes to broadcastLostPet
+type AnyBroadcastArg = any;
+type BroadcastFn = (
+  db: AnyBroadcastArg,
+  pet: AnyBroadcastArg,
+  owner: AnyBroadcastArg,
+  lastLocation: AnyBroadcastArg,
+  opts?: { episodeKey?: string | null },
+) => Promise<AnyBroadcastArg>;
 
 type Deps = {
   repo: Pick<EventsRepository, "insertEvent" | "updatePetLostProjection" | "insertIdentification">;
@@ -176,6 +186,11 @@ export async function setPetLostWriter(
       ? await fetchActiveIdentifications(petId)
       : { microchip: null, tattoo: null };
 
+  // Captured inside the tx, read post-tx to key the broadcast fan-out so a
+  // retry of THIS lost episode re-notifies nobody (review B.1). Each episode
+  // opens a fresh case, so a genuinely new lost episode gets a new key.
+  let episodeCaseId: string | null = null;
+
   try {
     await deps.transaction(async (tx) => {
       // Open a lost_pet_episode case atomically with the status_changed event.
@@ -191,6 +206,7 @@ export async function setPetLostWriter(
         },
         tx as CaseExecutor,
       );
+      episodeCaseId = caseRow.id;
 
       const eventPayload = validateEventPayload("status_changed", {
         from_status: fromStatus as "active" | "lost" | "deceased",
@@ -369,6 +385,7 @@ export async function setPetLostWriter(
         },
         { id: ownerUserId, displayName: ownerDisplayName },
         null,
+        { episodeKey: episodeCaseId },
       );
     } catch (err) {
       console.error("[setPetLost] broadcast failed (non-fatal):", err);
