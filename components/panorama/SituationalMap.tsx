@@ -1071,7 +1071,11 @@ export function SituationalMap({
                     }}
                     aria-hidden="true"
                   />
-                  <span className="text-white/50">Suprimido</span>
+                  {/* Copy parity with MapChoropleth's legend ("Datos
+                      insuficientes (privacidad)") — design-QA 2026-07-04 P2:
+                      the same suppression state must read the same across
+                      dashboard and situational surfaces. */}
+                  <span className="text-white/50">Datos insuficientes (privacidad)</span>
                 </div>
               </div>
             </div>
