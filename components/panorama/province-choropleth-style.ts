@@ -25,6 +25,17 @@ import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 /** A province feature's properties (as emitted by buildProvinceChoroplethFeatures). */
 type ProvinceFeatureProps = { provinceCode?: string; value?: number };
 
+/**
+ * panorama-ia-v2 §3.2 — the FIXED scale domain for `dataType: "rate"` layers.
+ *
+ * Rate choropleths (cobertura, esterilización) are percentages: color every
+ * province on the SAME 0–100 axis so a single hot province cannot wash out the
+ * rest and the compliance-target anchor stays comparable across jurisdictions.
+ * Passed as `domainBounds` to provinceDivergentColorExpr for rate layers instead
+ * of the observed range (which would rescale per dataset and break comparability).
+ */
+export const FIXED_RATE_DOMAIN = { min: 0, max: 100 } as const;
+
 /** value min/max over a province layer's features (for the scale legend). */
 export type ScaleBounds = { min: number; max: number };
 

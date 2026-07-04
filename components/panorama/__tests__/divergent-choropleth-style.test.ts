@@ -19,7 +19,7 @@ import {
 } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
-import { provinceDivergentColorExpr } from "../province-choropleth-style";
+import { FIXED_RATE_DOMAIN, provinceDivergentColorExpr } from "../province-choropleth-style";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -225,6 +225,26 @@ describe("provinceDivergentColorExpr", () => {
     const fc = provinceFC([{ provinceCode: "AR-B", value: 90 }]);
     // Should not throw when explicit bounds are passed.
     expect(() => provinceDivergentColorExpr(fc, TARGET, { min: 0, max: 100 })).not.toThrow();
+  });
+
+  it("panorama-ia-v2 §3.2: FIXED_RATE_DOMAIN anchors rate stops at 0 and 100, not the observed range", () => {
+    // Observed values are 60..95, but a rate choropleth must color every province
+    // on the SAME 0–100 axis so a hot province can't wash out the rest and the
+    // meta anchor stays comparable across provinces (cross-province comparability).
+    const fc = provinceFC([
+      { provinceCode: "AR-B", value: 60 },
+      { provinceCode: "AR-X", value: 95 },
+    ]);
+    expect(FIXED_RATE_DOMAIN).toEqual({ min: 0, max: 100 });
+    const expr = provinceDivergentColorExpr(fc, TARGET, FIXED_RATE_DOMAIN) as unknown as unknown[];
+    const interp = expr[3] as unknown[];
+    const vals = interp.filter((x): x is number => typeof x === "number");
+    // The scale is bounded by the FIXED domain, with neutral anchored at the target.
+    expect(Math.min(...vals)).toBe(0);
+    expect(Math.max(...vals)).toBe(100);
+    expect(vals).toContain(TARGET);
+    // The observed extremes (60/95) must NOT bound the scale.
+    expect(vals).not.toContain(95);
   });
 });
 

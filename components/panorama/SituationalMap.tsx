@@ -19,6 +19,7 @@ import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
   COLOR_DIVERGENT_NEUTRAL,
+  FIXED_RATE_DOMAIN,
   type ScaleBounds,
   provinceColorExpr,
   provinceDivergentColorExpr,
@@ -621,7 +622,11 @@ export function SituationalMap({
    * all others keep the sequential RAMP_BLUE path. */
   function provinceColorExprForLayer(layer: ActiveLayer) {
     if (layer.dataType === "rate" && typeof layer.complianceTarget === "number") {
-      return provinceDivergentColorExpr(layer.features, layer.complianceTarget);
+      // panorama-ia-v2 §3.2: rate layers use the FIXED [0,100] domain so every
+      // province is colored on the same axis (cross-province comparability); the
+      // observed range would rescale per dataset and let a hot province wash out
+      // the rest.
+      return provinceDivergentColorExpr(layer.features, layer.complianceTarget, FIXED_RATE_DOMAIN);
     }
     return provinceColorExpr(layer.features);
   }
@@ -989,8 +994,10 @@ export function SituationalMap({
                 // Text labels accompany every color swatch (not color-only).
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    {/* Gradient bar: below-pole → neutral → above-pole */}
-                    <span className="tabular-nums text-white/70">bajo meta</span>
+                    {/* panorama-ia-v2 §3.2: FIXED [0,100] endpoints flank the
+                        gradient (below-pole → neutral-at-meta → above-pole) so the
+                        scale reads the same for every province. */}
+                    <span className="tabular-nums text-white/70">0</span>
                     <span
                       className="h-2.5 w-28 flex-none rounded-full"
                       style={{
@@ -998,7 +1005,11 @@ export function SituationalMap({
                       }}
                       aria-hidden="true"
                     />
-                    <span className="tabular-nums text-white/70">sobre meta</span>
+                    <span className="tabular-nums text-white/70">100</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-white/55">
+                    <span>bajo meta</span>
+                    <span>sobre meta</span>
                   </div>
                   {/* Target anchor — the pivotal reference point */}
                   <div className="flex items-center gap-1.5 text-white/60">
