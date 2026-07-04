@@ -148,6 +148,51 @@ beforeAll(async () => {
     },
   });
 
+  // Second sterilization whose performed_by is later CORRECTED via
+  // event_amended — the ranking must attribute it to the corrected vet
+  // (event-sourcing integrity review 2026-07-04 item 4).
+  const [petSterilAmended] = await db
+    .insert(pets)
+    .values({
+      publicToken: `PET-OR-STERIL-AM-${Date.now()}`,
+      name: "Negrita Corregida",
+      species: "cat",
+      sex: "female",
+      status: "active",
+      jurisdictionProvince: TEST_PROVINCE,
+      jurisdictionLocality: TEST_LOCALITY,
+    })
+    .returning({ id: pets.id });
+  createdPetIds.push(petSterilAmended.id);
+
+  const [sterilEvent] = await db
+    .insert(petEvents)
+    .values({
+      petId: petSterilAmended.id,
+      eventType: "sterilization_performed",
+      occurredAt: new Date(Date.now() - 50 * 86400_000),
+      authorRole: "owner",
+      payload: {
+        procedure: "spay",
+        performed_by: "Dr. Typo Vet",
+        clinic: "Clínica Test Outreach",
+      },
+    })
+    .returning({ id: petEvents.id });
+
+  await db.insert(petEvents).values({
+    petId: petSterilAmended.id,
+    eventType: "event_amended",
+    occurredAt: new Date(Date.now() - 10 * 86400_000),
+    authorRole: "owner",
+    payload: {
+      payload_version: 1,
+      target_event_id: sterilEvent.id,
+      reason: "vet name typo",
+      changes: [{ field: "performed_by", old: "Dr. Typo Vet", new: "Dra. Corregida Vet" }],
+    },
+  });
+
   // Pet in TEST_LOCALITY — stray scan (credential_scanned on stray), for pipeline (b)
   const [petStray] = await db
     .insert(pets)
@@ -346,6 +391,19 @@ describe("fetchSterilizationVetRanking — pipeline (c)", () => {
     const vet = result.vets.find((v) => v.vetLabel === "Dr. Test Vet");
     expect(vet).toBeDefined();
     expect(vet?.count).toBeGreaterThanOrEqual(1);
+  });
+
+  it("attributes an amended sterilization to the CORRECTED vet name", async () => {
+    const ctx = buildProjectionContext(
+      { role: "govt" },
+      [{ province: TEST_PROVINCE, locality: TEST_LOCALITY }],
+      { since: new Date(Date.now() - 90 * 86400_000), until: new Date(Date.now() + 86400_000) },
+    );
+    const result = await fetchSterilizationVetRanking(ctx);
+    const labels = result.vets.map((v) => v.vetLabel);
+    // The event_amended correction must win over the raw payload value.
+    expect(labels).toContain("Dra. Corregida Vet");
+    expect(labels).not.toContain("Dr. Typo Vet");
   });
 
   it("returns empty when no sterilizations in jurisdiction", async () => {

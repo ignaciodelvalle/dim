@@ -281,9 +281,10 @@ export type SterilizationVetRankingResult = {
 /**
  * Rank vets by sterilization throughput (recognition pipeline).
  *
- * Groups sterilization_performed events by payload->>'performed_by' and
- * payload->>'clinic', scoped to the operator's jurisdiction and the period.
- * Rows with no performed_by are grouped under "(sin registrar)".
+ * Groups sterilization_performed events by the AMENDED performed_by and
+ * clinic payload fields (amendedPayloadText — corrections apply), scoped to
+ * the operator's jurisdiction and the period. Rows with no performed_by are
+ * grouped under "(sin registrar)".
  *
  * The caller must write a pii_queried audit row via logOutreachPiiQuery.
  */
@@ -297,15 +298,28 @@ export async function fetchSterilizationVetRanking(
   const scopeClause = rawPetsScopeClause(ctx);
   if (scopeClause === false) return { vets: [], empty: true };
 
+  // sterilization_performed is amendable — read performed_by/clinic through
+  // the SQL amendment overlay so a corrected vet name ranks under the
+  // CORRECTED value, not the original typo (event-sourcing integrity review
+  // 2026-07-04 item 4).
+  const amendedPerformedBy = amendedPayloadText("performed_by", {
+    id: sql`pe.id`,
+    payload: sql`pe.payload`,
+  });
+  const amendedClinic = amendedPayloadText("clinic", {
+    id: sql`pe.id`,
+    payload: sql`pe.payload`,
+  });
+
   const rows = await db.execute<{
     vet_label: string | null;
     clinic: string | null;
     event_count: string;
   }>(sql`
     SELECT
-      COALESCE(pe.payload->>'performed_by', '(sin registrar)') AS vet_label,
-      pe.payload->>'clinic'                                     AS clinic,
-      COUNT(*)                                                   AS event_count
+      COALESCE(${amendedPerformedBy}, '(sin registrar)') AS vet_label,
+      ${amendedClinic}                                    AS clinic,
+      COUNT(*)                                            AS event_count
     FROM pet_events pe
     JOIN pets p ON p.id = pe.pet_id
     WHERE
