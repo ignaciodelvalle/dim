@@ -127,14 +127,20 @@ export function LostPublicCredential({
 
         <section className="rounded-2xl bg-ln-card p-5 text-center shadow-sm ">
           <div className="mx-auto inline-block">
-            <span className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-[var(--color-ln-warn-050)] ring-[5px] ring-ln-err">
+            {/* `relative` is load-bearing: <Image fill> renders position:absolute,
+                so without a positioned ancestor its containing block is the
+                VIEWPORT — the photo painted full-bleed on top of every finder
+                CTA and swallowed all taps (QA round 2, finding #0).
+                pointer-events-none is defense-in-depth: the photo is decorative
+                and must never intercept a click. */}
+            <span className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-[var(--color-ln-warn-050)] ring-[5px] ring-ln-err">
               {petPhotoUrl ? (
                 <Image
                   src={petPhotoUrl}
                   alt={petName}
                   fill
                   sizes="128px"
-                  className="object-cover"
+                  className="pointer-events-none object-cover"
                   priority
                 />
               ) : (
