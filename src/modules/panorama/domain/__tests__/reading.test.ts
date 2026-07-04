@@ -113,6 +113,52 @@ describe("buildPanoramaReading — fallback", () => {
   });
 });
 
+describe("buildPanoramaReading — absolute anchor (design-QA 2026-07-04 fast-follow)", () => {
+  it("appends the cobertura anchor when cobertura headlines and carries a % display value", () => {
+    const out = buildPanoramaReading([
+      { id: "cobertura", delta: { pct: -20, direction: "down" }, value: "42%" },
+      kpi("mordeduras", 8, "up"),
+    ]);
+    expect(out).toBe(
+      "Cobertura antirrábica empeora 20% vs período anterior; 0 de 2 indicadores mejoran; cobertura actual 42%.",
+    );
+  });
+
+  it("appends the esterilización anchor when it headlines (forward-looking: delta pending backend)", () => {
+    const out = buildPanoramaReading([
+      { id: "esterilizacion", delta: { pct: 6, direction: "up" }, value: "38%" },
+    ]);
+    expect(out).toBe(
+      "Cobertura de esterilización mejora 6% vs período anterior; 1 de 1 indicadores mejora; esterilización actual 38%.",
+    );
+  });
+
+  it("does NOT anchor when a non-compliance KPI headlines, even if values are present", () => {
+    const out = buildPanoramaReading([
+      { id: "mordeduras", delta: { pct: 12, direction: "up" }, value: "3,4" },
+      { id: "cobertura", delta: { pct: 5, direction: "up" }, value: "42%" },
+    ]);
+    // cobertura's value must not leak into a mordeduras headline.
+    expect(out).toBe("Mordeduras empeora 12% vs período anterior; 1 de 2 indicadores mejora.");
+  });
+
+  it("ignores a display value that is not a percentage (privacy: echo-only, never compute)", () => {
+    const out = buildPanoramaReading([
+      { id: "cobertura", delta: { pct: 5, direction: "up" }, value: "3" },
+    ]);
+    expect(out).toBe(
+      "Cobertura antirrábica mejora 5% vs período anterior; 1 de 1 indicadores mejora.",
+    );
+  });
+
+  it("omits the anchor when the headline KPI carries no display value", () => {
+    const out = buildPanoramaReading([kpi("cobertura", 7, "up")]);
+    expect(out).toBe(
+      "Cobertura antirrábica mejora 7% vs período anterior; 1 de 1 indicadores mejora.",
+    );
+  });
+});
+
 describe("buildPanoramaReading — unknown KPI ids (safety)", () => {
   it("ignores ids outside the known valence map for headline and counts", () => {
     // A future/unknown KPI with a huge delta must not fabricate a headline —

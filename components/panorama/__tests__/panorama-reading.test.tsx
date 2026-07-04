@@ -47,4 +47,20 @@ describe("PanoramaReading", () => {
       screen.getByText("Sin variación destacable frente al período anterior."),
     ).toBeInTheDocument();
   });
+
+  it("appends the absolute anchor when a compliance KPI headlines with its strip % value", () => {
+    // design-QA 2026-07-04 nit 3: PanoramaKpi.value ("42%") flows structurally
+    // into ReadingKpi.value — the sentence gains one actionable absolute.
+    render(
+      <PanoramaReading
+        kpis={[{ id: "cobertura", delta: { pct: -20, direction: "down" }, value: "42%" }]}
+        stale={false}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "Cobertura antirrábica empeora 20% vs período anterior; 0 de 1 indicadores mejoran; cobertura actual 42%.",
+      ),
+    ).toBeInTheDocument();
+  });
 });

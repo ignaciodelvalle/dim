@@ -19,6 +19,15 @@
 export type ReadingKpi = {
   id: string;
   delta?: { pct: number; direction: "up" | "down" | "flat" };
+  /**
+   * Pre-formatted display value from the KPI strip (e.g. "42%") — the SAME
+   * jurisdiction-level dashboard aggregate PanoramaKpiStrip already renders.
+   * Read ONLY to echo an absolute anchor when a compliance KPI headlines
+   * (design-QA 2026-07-04 fast-follow); never a map-cell value, and only
+   * echoed verbatim when it matches the strip's percentage format (see
+   * PCT_VALUE_RE) — the reading never computes anything from it.
+   */
+  value?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -32,14 +41,31 @@ export type ReadingKpi = {
  * Ids outside this map are ignored — without a valence, mejora/empeora would
  * be a guess, and the reading must never guess.
  */
-const KNOWN_KPIS: Record<string, { name: string; goodUp: boolean }> = {
-  cobertura: { name: "Cobertura antirrábica", goodUp: true },
+const KNOWN_KPIS: Record<string, { name: string; goodUp: boolean; anchor?: string }> = {
+  cobertura: { name: "Cobertura antirrábica", goodUp: true, anchor: "cobertura actual" },
   mordeduras: { name: "Mordeduras", goodUp: false },
   zoonosis: { name: "Zoonosis activas", goodUp: false },
+  // esterilizacion carries NO delta today (get-panorama-kpis attaches deltas to
+  // the 3 window-sensitive KPIs only) so it cannot headline yet; the entry is
+  // here so the anchor applies the day the backend adds its delta.
+  esterilizacion: {
+    name: "Cobertura de esterilización",
+    goodUp: true,
+    anchor: "esterilización actual",
+  },
 };
 
 /** Fixed fallback when no delta qualifies (no prior window, or all flat). */
 const FALLBACK_SENTENCE = "Sin variación destacable frente al período anterior.";
+
+/**
+ * Absolute-anchor gate: the display value must LOOK like the strip's own
+ * percentage aggregate ("42%", "42,5%") before it may anchor the sentence.
+ * Anything else — a raw count, or a smuggled cell-level decoy field — is
+ * ignored. Privacy invariant: the anchor never computes a rate; it only
+ * echoes the KPI strip's already-public display value verbatim.
+ */
+const PCT_VALUE_RE = /^\d{1,3}(?:[.,]\d+)?\s?%$/;
 
 // ---------------------------------------------------------------------------
 // Reading builder
@@ -52,6 +78,12 @@ type QualifiedKpi = {
   improves: boolean;
   /** True when the delta is non-flat (eligible for the headline). */
   moves: boolean;
+  /**
+   * Pre-built absolute-anchor clause ("; cobertura actual 42%") — present only
+   * for anchor-bearing compliance KPIs whose display value passes the
+   * percentage gate. Appended ONLY when this KPI wins the headline.
+   */
+  anchorClause?: string;
 };
 
 function qualify(kpi: ReadingKpi): QualifiedKpi | null {
@@ -60,7 +92,12 @@ function qualify(kpi: ReadingKpi): QualifiedKpi | null {
   const { pct, direction } = kpi.delta;
   const moves = direction !== "flat";
   const improves = moves && (direction === "up") === known.goodUp;
-  return { name: known.name, pct, improves, moves };
+  const value = kpi.value?.trim();
+  const anchorClause =
+    known.anchor !== undefined && value !== undefined && PCT_VALUE_RE.test(value)
+      ? `; ${known.anchor} ${value}`
+      : undefined;
+  return { name: known.name, pct, improves, moves, anchorClause };
 }
 
 /**
@@ -71,6 +108,11 @@ function qualify(kpi: ReadingKpi): QualifiedKpi | null {
  * Headline = the largest |pct| among non-flat deltas (tie-break: input array
  * order — deterministic). Suffix: X = improving KPIs, Y = KPIs carrying a
  * delta (flat deltas count in Y, never in X). Singular agreement when X = 1.
+ * When the headline is a compliance coverage (cobertura / esterilización) and
+ * its strip display value is a percentage, one absolute anchor is appended:
+ *
+ *   "…; 0 de 2 indicadores mejoran; cobertura actual 42%."
+ *
  * Returns the fixed fallback when nothing qualifies.
  */
 export function buildPanoramaReading(kpis: readonly ReadingKpi[]): string {
@@ -91,5 +133,5 @@ export function buildPanoramaReading(kpis: readonly ReadingKpi[]): string {
   const improving = qualified.filter((q) => q.improves).length;
   const suffixVerb = improving === 1 ? "mejora" : "mejoran";
 
-  return `${headline.name} ${verb} ${magnitude}% vs período anterior; ${improving} de ${total} indicadores ${suffixVerb}.`;
+  return `${headline.name} ${verb} ${magnitude}% vs período anterior; ${improving} de ${total} indicadores ${suffixVerb}${headline.anchorClause ?? ""}.`;
 }

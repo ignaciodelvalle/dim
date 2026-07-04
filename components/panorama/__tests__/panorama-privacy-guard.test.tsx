@@ -45,7 +45,9 @@ describe("privacy guard — auto-reading reads deltas ONLY", () => {
       {
         id: "cobertura",
         delta: { pct: 5, direction: "up" as const },
-        value: "3", // display value — must not be read
+        // Non-percentage display value: fails the anchor's echo gate (the
+        // fast-follow anchor only echoes the strip's own "NN%" aggregates).
+        value: "3",
         suppressed: true,
         suppressedCount: 4,
         cellValue: 2, // sub-k=5 style value — must never be read
@@ -58,6 +60,20 @@ describe("privacy guard — auto-reading reads deltas ONLY", () => {
       },
     ];
     expect(buildPanoramaReading(withDecoys)).toBe(buildPanoramaReading(bare));
+  });
+
+  it("the absolute anchor ECHOES the strip's % aggregate; cell-level decoys stay invisible", () => {
+    // `value` is the SAME jurisdiction-level display value PanoramaKpiStrip
+    // already renders — echoing it is sanctioned (design-QA 2026-07-04 nit 3).
+    const withValue = [
+      { id: "cobertura", delta: { pct: 5, direction: "up" as const }, value: "42%" },
+    ];
+    const withValueAndDecoys = [
+      { ...withValue[0], suppressed: true, suppressedCount: 4, cellValue: 2 },
+    ];
+    expect(buildPanoramaReading(withValue)).toContain("cobertura actual 42%");
+    // The anchor never computes: byte-identical whether decoys are present.
+    expect(buildPanoramaReading(withValueAndDecoys)).toBe(buildPanoramaReading(withValue));
   });
 
   it("mounts PanoramaReading without issuing ANY network request", () => {
