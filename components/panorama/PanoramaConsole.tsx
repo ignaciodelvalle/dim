@@ -21,7 +21,6 @@
 import { useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AggregationToggle } from "@/components/panorama/AggregationToggle";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPanel";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
@@ -31,6 +30,7 @@ import { PanoramaSuppressionNotice } from "@/components/panorama/PanoramaSuppres
 import { PresetPanel } from "@/components/panorama/PresetPanel";
 import type { ActiveLayer, PointRenderMode } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
+import { Z_LOCALITY, derivedLevel } from "@/components/panorama/situational-map-utils";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
@@ -274,6 +274,14 @@ export function PanoramaConsole({
   });
   const levelRef = useRef(level);
   levelRef.current = level;
+
+  // panorama-ia-v2 §1.1: the aggregation level is no longer a manual control
+  // (AggregationToggle was removed). It is DERIVED from (scope, zoom): scope
+  // selection or zooming past Z_LOCALITY drills the map to the locality mark,
+  // preferring the finer precision whenever it renders (PO decision #1). The
+  // live camera zoom flows up from SituationalMap via `onZoom`.
+  const [mapZoom, setMapZoom] = useState<number>(Z_LOCALITY - 1);
+  const onMapZoom = useCallback((zoom: number) => setMapZoom(zoom), []);
 
   const [states, setStates] = useState<Record<LayerId, LayerPanelState>>(() => {
     const s = initialState();
@@ -1139,6 +1147,25 @@ export function PanoramaConsole({
   /** F3: explicit preset click — a back-button-undoable board commit. */
   const onPreset = useCallback((id: PresetId) => applyPreset(id, "push"), [applyPreset]);
 
+  // panorama-ia-v2 §1.1: DERIVE the aggregation level from (scope, zoom) instead
+  // of a manual toggle. Scope selection or zooming past Z_LOCALITY drills to the
+  // locality mark; a locality-baseline preset (e.g. bienestar) stays at locality
+  // even zoomed out (prefer precision — PO #1). The derivation only ever calls
+  // the existing onLevelChange machinery (cache-aware, keyed-abort), so the
+  // province/locality fetch routing and the debounce/abort contract are intact.
+  const derivedProvince = searchParams.get("province");
+  const derivedLocality = searchParams.get("locality");
+  useEffect(() => {
+    const fromScopeZoom = derivedLevel(
+      { country: "AR", province: derivedProvince, locality: derivedLocality },
+      mapZoom,
+    );
+    const presetLevel = activePresetId ? getPreset(activePresetId)?.level : undefined;
+    const desired: AggregationLevel =
+      fromScopeZoom === "locality" || presetLevel === "locality" ? "locality" : "province";
+    if (desired !== levelRef.current) onLevelChange(desired);
+  }, [mapZoom, derivedProvince, derivedLocality, activePresetId, onLevelChange]);
+
   // map-QOL URL sync: mirror the board (active layers / level / preset) into
   // the URL via shallow replaceState whenever it changes — toggles are silent
   // normalizations (replace), presets push (see onPreset). Skips the first run
@@ -1272,14 +1299,6 @@ export function PanoramaConsole({
     const toFetch = periodChanged ? savedIds : missingFromCache(savedIds, savedLevel);
     if (toFetch.length > 0) void fetchLayersInto(toFetch, savedLevel, nextParams);
   }, [fetchLayersInto, applyPreset]);
-
-  // Whether any aggregation-axis-sensitive layer is active (choropleth or
-  // density/signal point layers). The toggle hints when it has no current effect
-  // (all active layers are reference pins).
-  const anyChoroplethActive = useMemo(
-    () => [...CHOROPLETH_LAYERS, ...AGGREGATED_POINT_LAYERS].some((l) => states[l.id]?.active),
-    [states],
-  );
 
   const mapLabel = useMemo(() => {
     const names = activeLayers.map((l) => l.label);
@@ -1419,6 +1438,7 @@ export function PanoramaConsole({
           selectedProvinceCode={selectedProvinceCode}
           selectedLocalityCenter={selectedLocalityCenter}
           frame={presetFrame}
+          onZoom={onMapZoom}
         />
         <div className="space-y-3">
           {/* RSC slot: scope/period filters owned by the SERVER shell, placed
@@ -1437,34 +1457,28 @@ export function PanoramaConsole({
               <div className="mt-2 space-y-3">{filtersSlot}</div>
             </details>
           )}
-          {/* Design rule #667: consolidated view by default — presets are the
-              primary control; ALL advanced controls (aggregation axis + the
-              per-layer legend/toggles) live behind this single disclosure. */}
-          <details className="group space-y-2">
-            <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
-              <span
-                aria-hidden="true"
-                className="mr-1 inline-block transition-transform group-open:rotate-90"
-              >
-                ▸
-              </span>
+          {/* panorama-ia-v2 §0/§1.2 + PO #5: "Personalizar" is no longer a
+              buried <details>. The aggregation axis was REMOVED (the level is
+              now derived from scope + zoom, not a manual toggle), so the only
+              advanced control left is the per-layer legend/toggle panel — shown
+              as a visible-but-secondary section (muted heading, not a primary
+              control). Keeps the first paint simple while making layer control
+              a single glance away, not a click. */}
+          <section aria-labelledby="pano-personalizar" className="space-y-2">
+            <h3
+              id="pano-personalizar"
+              className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute"
+            >
               Personalizar
-            </summary>
-            <div className="mt-2 space-y-3">
-              <AggregationToggle
-                level={level}
-                onChange={onLevelChange}
-                relevant={anyChoroplethActive}
-              />
-              <LayerPanel
-                states={states}
-                onToggle={onToggle}
-                scrubbing={scrubbing}
-                opacities={opacities}
-                onOpacity={onOpacity}
-              />
-            </div>
-          </details>
+            </h3>
+            <LayerPanel
+              states={states}
+              onToggle={onToggle}
+              scrubbing={scrubbing}
+              opacities={opacities}
+              onOpacity={onOpacity}
+            />
+          </section>
         </div>
       </div>
       {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked by

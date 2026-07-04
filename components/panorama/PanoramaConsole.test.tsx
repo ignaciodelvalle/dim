@@ -71,9 +71,6 @@ vi.mock("@/components/panorama/LayerPanel", () => ({
 vi.mock("@/components/panorama/PanoramaKpiStrip", () => ({
   PanoramaKpiStrip: () => <div data-testid="kpi-strip" />,
 }));
-vi.mock("@/components/panorama/AggregationToggle", () => ({
-  AggregationToggle: () => null,
-}));
 // TimeScrubber is deliberately REAL (design-QA 2026-07-04 P0): the control
 // budget below must hold with the actual scrubber rendered, not mocked away —
 // mocking it made the ≤8 assertion dishonest vs production first paint.
@@ -519,5 +516,52 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
       expect(s.active).toBe(true);
       expect(s.count).toBe(2);
     });
+  });
+});
+
+describe("PanoramaConsole — derived aggregation level (panorama-ia-v2 §1.1, replaces AggregationToggle)", () => {
+  it("drills to LOCALITY when the camera zooms past Z_LOCALITY at national scope", async () => {
+    renderConsole();
+    // Activate a province-baseline preset with a choropleth base (cobertura).
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    await waitFor(() => {
+      expect(mapProps?.onZoom).toBeInstanceOf(Function);
+    });
+    fetchMock.mockClear();
+
+    // Zoom past the locality threshold — the map reports the new camera zoom.
+    act(() => {
+      (mapProps!.onZoom as (z: number) => void)(6);
+    });
+
+    // The derived level flips to locality → cobertura is refetched WITHOUT the
+    // province level flag (locality is the default, un-flagged fetch).
+    await waitFor(() => {
+      const coberturaCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.includes("/api/panorama/cobertura"));
+      expect(coberturaCalls.length).toBeGreaterThan(0);
+      expect(coberturaCalls.every((u) => !u.includes("level=province"))).toBe(true);
+    });
+  });
+
+  it("keeps PROVINCE at national scope while the camera stays below Z_LOCALITY", async () => {
+    renderConsole();
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    await waitFor(() => {
+      expect(mapProps?.onZoom).toBeInstanceOf(Function);
+    });
+    fetchMock.mockClear();
+
+    // A far-out zoom must NOT trigger a locality refetch (level stays province).
+    act(() => {
+      (mapProps!.onZoom as (z: number) => void)(3.5);
+    });
+
+    // No new cobertura fetch is issued — the level did not change.
+    const coberturaCalls = fetchMock.mock.calls
+      .map((c) => String(c[0]))
+      .filter((u) => u.includes("/api/panorama/cobertura"));
+    expect(coberturaCalls.length).toBe(0);
   });
 });

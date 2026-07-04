@@ -152,6 +152,13 @@ type Props = {
    * identical to pre-change).
    */
   frame?: { framing: PresetFraming; token: number } | null;
+  /**
+   * panorama-ia-v2 §1.1: reports the camera zoom after each zoom gesture. The
+   * console derives the aggregation level from it (locality once the camera
+   * crosses Z_LOCALITY), replacing the removed manual AggregationToggle — the
+   * level is now a property of (scope, zoom), never a control.
+   */
+  onZoom?: (zoom: number) => void;
 };
 
 // Continental Argentina centroid + a zoom that frames the mainland.
@@ -218,6 +225,7 @@ export function SituationalMap({
   selectedProvinceCode = null,
   selectedLocalityCenter = null,
   frame = null,
+  onZoom,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -232,6 +240,10 @@ export function SituationalMap({
   // Keep the latest click callback accessible inside one-time map handlers.
   const onFeatureClickRef = useRef(onFeatureClick);
   onFeatureClickRef.current = onFeatureClick;
+  // panorama-ia-v2 §1.1: keep the latest zoom callback for the one-time map
+  // handler that reports the camera zoom to the console (derived level).
+  const onZoomRef = useRef(onZoom);
+  onZoomRef.current = onZoom;
   // Capture initialBounds once at mount — it's a stable server-computed value
   // (jurisdiction bbox) that must not change after the map is constructed.
   const initialBoundsRef = useRef(initialBounds);
@@ -277,6 +289,10 @@ export function SituationalMap({
       });
       mapRef.current = map;
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+      // panorama-ia-v2 §1.1: report the camera zoom after every zoom gesture so
+      // the console can derive the aggregation level (province → locality once
+      // the camera crosses Z_LOCALITY). Fires once per gesture, not per frame.
+      map.on("zoomend", () => onZoomRef.current?.(map.getZoom()));
       popupRef.current = new maplibregl.Popup({
         closeButton: false,
         closeOnClick: false,
