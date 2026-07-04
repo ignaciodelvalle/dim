@@ -107,3 +107,40 @@ export async function resolveBusinessRule<T extends GovtBusinessRuleType>(
     matchedRow: null,
   };
 }
+
+/**
+ * Canonical string key for a jurisdiction — stable across `undefined`/`null`
+ * normalization so batch-resolution maps can be looked up by re-deriving the
+ * key from the same jurisdiction object.
+ */
+export function canonicalJurisdictionKey(jurisdiction: Jurisdiction): string {
+  return [
+    jurisdiction.country ?? "AR",
+    jurisdiction.province ?? "",
+    jurisdiction.locality ?? "",
+  ].join("|");
+}
+
+/**
+ * Batch variant (movilidad-jurisdiccional Fase 1, design D3): resolve ONE
+ * rule type across N jurisdictions, keyed by canonicalJurisdictionKey.
+ * Each jurisdiction goes through the same locality > province > country >
+ * default cascade as resolveBusinessRule. Duplicate jurisdictions are
+ * deduped — one cascade per distinct key.
+ *
+ * Sequential on purpose: `executor` may be a transaction, and drizzle tx
+ * executors are not safe under concurrent queries.
+ */
+export async function resolveBusinessRuleForJurisdictions<T extends GovtBusinessRuleType>(
+  ruleType: T,
+  jurisdictions: Jurisdiction[],
+  executor: Executor = db,
+): Promise<Map<string, ResolvedRule<T>>> {
+  const resolved = new Map<string, ResolvedRule<T>>();
+  for (const jurisdiction of jurisdictions) {
+    const key = canonicalJurisdictionKey(jurisdiction);
+    if (resolved.has(key)) continue;
+    resolved.set(key, await resolveBusinessRule(ruleType, jurisdiction, executor));
+  }
+  return resolved;
+}

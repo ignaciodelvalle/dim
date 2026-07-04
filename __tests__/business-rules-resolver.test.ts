@@ -6,7 +6,11 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db, govtBusinessRules, profiles } from "@/db";
 import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
-import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import {
+  canonicalJurisdictionKey,
+  resolveBusinessRule,
+  resolveBusinessRuleForJurisdictions,
+} from "@/lib/infra/business-rules-resolver";
 
 // Stable test actor referenced by FK on created_by_user_id.
 const ACTOR_ID = "11111111-2222-4333-8444-555555555555";
@@ -218,5 +222,63 @@ describe("resolveBusinessRule — promoted rule types (migration 0116)", () => {
     });
     expect(r.source).toBe("locality");
     expect(r.payload).toEqual({ days: 30 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Batch variant (movilidad-jurisdiccional Fase 1, design D3) — resolves ONE
+// rule type across N jurisdictions in a single call, keyed by canonical
+// jurisdiction string. Each entry follows the same locality > province >
+// country > default cascade as the single resolver.
+// ---------------------------------------------------------------------------
+describe("resolveBusinessRuleForJurisdictions — batch variant", () => {
+  it("resolves each jurisdiction independently through the cascade", async () => {
+    await db.insert(govtBusinessRules).values({
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: null,
+      ruleType: "ppp_breed_list",
+      rulePayload: { breeds: ["Boxer", "Akita Inu"] },
+      createdByUserId: ACTOR_ID,
+      updatedByUserId: ACTOR_ID,
+    });
+
+    const caba = { country: "AR", province: "Ciudad Autónoma de Buenos Aires", locality: null };
+    const pba = { country: "AR", province: "Buenos Aires", locality: null };
+    const result = await resolveBusinessRuleForJurisdictions("ppp_breed_list", [caba, pba]);
+
+    const cabaResolved = result.get(canonicalJurisdictionKey(caba));
+    const pbaResolved = result.get(canonicalJurisdictionKey(pba));
+    expect(cabaResolved?.source).toBe("default");
+    expect(pbaResolved?.source).toBe("province");
+    expect(pbaResolved?.payload.breeds).toEqual(["Boxer", "Akita Inu"]);
+  });
+
+  it("keeps the locality > province fallback order per jurisdiction", async () => {
+    await db.insert(govtBusinessRules).values({
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: null,
+      ruleType: "long_stay_days",
+      rulePayload: { days: 45 },
+      createdByUserId: ACTOR_ID,
+      updatedByUserId: ACTOR_ID,
+    });
+    const j = { country: "AR", province: "Buenos Aires", locality: "Quilmes" };
+    const result = await resolveBusinessRuleForJurisdictions("long_stay_days", [j]);
+    const resolved = result.get(canonicalJurisdictionKey(j));
+    expect(resolved?.source).toBe("province");
+    expect(resolved?.payload).toEqual({ days: 45 });
+  });
+
+  it("dedupes identical jurisdictions (one map entry, one cascade)", async () => {
+    const j = { country: "AR", province: "Buenos Aires", locality: null };
+    const result = await resolveBusinessRuleForJurisdictions("ppp_breed_list", [j, { ...j }]);
+    expect(result.size).toBe(1);
+  });
+
+  it("returns an empty map for an empty jurisdiction list", async () => {
+    const result = await resolveBusinessRuleForJurisdictions("ppp_breed_list", []);
+    expect(result.size).toBe(0);
   });
 });
