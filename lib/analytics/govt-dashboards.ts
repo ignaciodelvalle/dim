@@ -2218,6 +2218,13 @@ export async function fetchEventsForExport(
   const conditions: ReturnType<typeof sql>[] = [];
   const scope = petEventsScopeClause(actor, jurisdictions);
   if (scope) conditions.push(sql`(${scope})`);
+  // Rows return the pet's public token — require the pet's CURRENT jurisdiction
+  // to be in scope too (pets is inner-joined below), so a pet that moved away
+  // doesn't leak its events into the old jurisdiction's export forever. Same
+  // guard the sibling export/analytics fetchers got in the 2026-07-04 scope
+  // review (fetchSurveillanceSignals, fetchZoonosisTrend, …).
+  const petsScope = petsCurrentJurisdictionClause(actor, jurisdictions);
+  if (petsScope) conditions.push(sql`(${petsScope})`);
   // Bind dates as ISO strings (see fetchPetsForExport) — raw Date in sql`` crashes postgres-js.
   if (period.since) conditions.push(sql`${petEvents.occurredAt} >= ${period.since.toISOString()}`);
   if (period.until) conditions.push(sql`${petEvents.occurredAt} <= ${period.until.toISOString()}`);

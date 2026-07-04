@@ -408,17 +408,12 @@ describe("jurisdiction drift — payload vs pets.jurisdiction", () => {
 // they are drift-safe BY CONSTRUCTION. These tests assert that and lock it
 // in as a regression control.
 //
-// fetchEventsForExport is DIFFERENT: it scopes via petEventsScopeClause,
-// which (lib/metrics/scope.ts) matches on the EVENT PAYLOAD's
-// pet_jurisdiction_province/locality snapshot only — it has none of the
-// `petsCurrentJurisdictionExists` guard that fetchZoonosisTrend and
-// fetchOutbreakHistory got. The test below is a genuine RED: a pet that
-// moved out of govt scope still has its event exported to the OLD
-// jurisdiction's CSV, because the export scope trusts the event-time
-// snapshot instead of the pet's current jurisdiction. Marked `.fails()` so
-// the gap is tracked (and CI stays green) rather than silently passing an
-// assertion that doesn't hold — this must flip back to a plain `it()` once
-// fetchEventsForExport gets the same pets-guard as its siblings.
+// fetchEventsForExport ALSO scopes via petEventsScopeClause (the event-payload
+// jurisdiction snapshot), so it originally leaked a moved-away pet's events into
+// the old jurisdiction's export. Fixed 2026-07-04: it now additionally applies
+// petsCurrentJurisdictionClause (pets is inner-joined), matching its sibling
+// fetchers (fetchSurveillanceSignals / fetchZoonosisTrend / fetchOutbreakHistory).
+// The test below is now a plain regression control.
 // ---------------------------------------------------------------------------
 
 describe("jurisdiction drift — export & analytics fetchers fitness sweep (task #33)", () => {
@@ -503,8 +498,8 @@ describe("jurisdiction drift — export & analytics fetchers fitness sweep (task
     expect(r.find((row) => row.cause === "accident")).toBeUndefined();
   });
 
-  it.fails(
-    "[KNOWN GAP] fetchEventsForExport: govt export should exclude events from a pet that moved OUT of scope — currently LEAKS because petEventsScopeClause has no pets-current-jurisdiction guard (unlike fetchZoonosisTrend/fetchOutbreakHistory)",
+  it(
+    "fetchEventsForExport: govt export excludes events from a pet that moved OUT of scope (pets-current-jurisdiction guard, matching its sibling fetchers)",
     async () => {
       const movedId = await insertFixturePet({
         name: "DriftSweepEventsExpMoved",
