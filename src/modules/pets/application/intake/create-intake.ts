@@ -397,11 +397,30 @@ export async function createIntake(
         caseId: custodyCase.id,
       });
 
-      // Canonical dual-write — insert pet_identifications rows for any
-      // identifiers captured at intake time (chip and/or tattoo).
+      // Canonical dual-write — EVENT FIRST, then pet_identifications row
+      // (projection-writes audit 2026-07-04 P1: intake wrote idents with no
+      // microchip_implanted/tattoo_recorded event, so the log was incomplete
+      // for SENASA export and rederivePetCache flagged drift — the exact
+      // S002 class the owner path already avoids in pets-repository.ts).
       if (parsed.microchipId) {
         const chipCode = parsed.microchipId;
         const implantSite = chipImplantSiteFromLocation(null); // no location at intake
+        const microchipEventPayload = validateEventPayload("microchip_implanted", {
+          chip_number: chipCode,
+          implant_date_known: false,
+        });
+        await tx.insert(petEvents).values({
+          petId: newPet.id,
+          eventType: "microchip_implanted",
+          occurredAt: parsed.occurredAt,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: "shelter",
+          authorOrganizationId: organization.id,
+          authorVerified,
+          payload: microchipEventPayload,
+          caseId: custodyCase.id,
+        });
         await tx.insert(petIdentifications).values({
           petId: newPet.id,
           kind: "microchip_iso",
@@ -417,6 +436,23 @@ export async function createIntake(
       }
 
       if (parsed.tattooCode) {
+        const tattooEventPayload = validateEventPayload("tattoo_recorded", {
+          tattoo_code: parsed.tattooCode,
+          recorded_at: parsed.occurredAt.toISOString(),
+          tattoo_date_known: false,
+        });
+        await tx.insert(petEvents).values({
+          petId: newPet.id,
+          eventType: "tattoo_recorded",
+          occurredAt: parsed.occurredAt,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: "shelter",
+          authorOrganizationId: organization.id,
+          authorVerified,
+          payload: tattooEventPayload,
+          caseId: custodyCase.id,
+        });
         await tx.insert(petIdentifications).values({
           petId: newPet.id,
           kind: "tattoo",
