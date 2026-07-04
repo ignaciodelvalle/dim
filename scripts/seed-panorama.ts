@@ -2321,7 +2321,11 @@ async function seedHealthCampaigns(
           jurisdictionProvince: org.provinceName,
           jurisdictionLocality: org.locality,
           serviceKind: template.kind,
-          displayName: `PANO — ${template.label} (${org.locality})`,
+          // NO "PANO —" prefix — this is user-facing (renders in /inicio's
+          // "Próximos turnos" as `${pet.name} · ${offering.displayName}`).
+          // Same fix pattern as panoName() above: synthetic marker stays in
+          // publicToken only, never in the human-readable label.
+          displayName: `${template.label} (${org.locality})`,
           description: "Campaña sanitaria sintética de demostración (seed-panorama)",
           durationMinutes: template.durationMinutes,
           slotCapacity: template.slotCapacity,
@@ -3455,7 +3459,9 @@ async function seedHistoryCampaigns(
             jurisdictionProvince: org.provinceName,
             jurisdictionLocality: org.locality,
             serviceKind: template.kind,
-            displayName: `PANO — ${template.label} ${year} Q${qIdx + 1} (${org.locality})`,
+            // NO "PANO —" prefix — see rationale above (panoName() comment,
+            // ~line 277) applied here to campaign offerings.
+            displayName: `${template.label} ${year} Q${qIdx + 1} (${org.locality})`,
             description: "Campaña histórica sintética de demostración (seed-panorama)",
             durationMinutes: template.durationMinutes,
             slotCapacity: template.slotCapacity,
