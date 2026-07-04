@@ -7,8 +7,11 @@
 //
 // Strangler migration: 1928 lines → thin controllers.
 // Writer-pattern preserved: each action has a public wrapper (handles auth /
-// session) and an inner writer (exported for direct test access, no session
-// required). Existing callers and tests import these names unchanged.
+// session) and an inner writer (imported from application/writers.ts for
+// direct test access, no session required). The inner writers are NOT
+// re-exported from this "use server" file — each accepts a caller-supplied
+// userId/orgId and would otherwise be an independently-addressable server
+// action (authz triage 2026-07-04, residual close-out).
 
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -16,14 +19,20 @@ import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
-import { actorCancelProposalUseCase } from "@/src/modules/return-to-owner/application/actor-cancel-proposal";
-import { orgAcceptOwnerReturnUseCase } from "@/src/modules/return-to-owner/application/org-accept-owner-return";
-import { orgRejectOwnerReturnUseCase } from "@/src/modules/return-to-owner/application/org-reject-owner-return";
-import { ownerAcceptReturnUseCase } from "@/src/modules/return-to-owner/application/owner-accept-return";
-import { ownerProposeReturnToOrgUseCase } from "@/src/modules/return-to-owner/application/owner-propose-return-to-org";
-import { ownerRejectReturnUseCase } from "@/src/modules/return-to-owner/application/owner-reject-return";
-import { proposeReturnAsRefugioUseCase } from "@/src/modules/return-to-owner/application/propose-return-as-refugio";
-import { proposeReturnAsVecinoUseCase } from "@/src/modules/return-to-owner/application/propose-return-as-vecino";
+// Writer-pattern inner functions are NOT re-exported from this "use server"
+// file — each accepts a caller-supplied userId/orgId, which would make it an
+// independently-addressable server action (authz triage 2026-07-04, residual
+// close-out). They live in application/writers.ts, a plain module.
+import {
+  actorCancelProposalWriter,
+  orgAcceptOwnerReturnWriter,
+  orgRejectOwnerReturnWriter,
+  ownerAcceptReturnWriter,
+  ownerProposeReturnToOrgWriter,
+  ownerRejectReturnWriter,
+  proposeReturnAsRefugioWriter,
+  proposeReturnAsVecinoWriter,
+} from "@/src/modules/return-to-owner/application/writers";
 
 // ---------------------------------------------------------------------------
 // Re-export public types (callers must not change)
@@ -77,30 +86,9 @@ export async function proposeReturnToOwnerAction({
   return { error: "actorMode inválido. Debe ser 'refugio' o 'vecino'." };
 }
 
-// ---------------------------------------------------------------------------
-// Inner writer — proposeReturn (refugio path)
-// ---------------------------------------------------------------------------
-
-export async function proposeReturnAsRefugioWriter(args: {
-  userId: string;
-  organization: { id: string; displayName: string };
-  petPublicToken: string;
-  notes: string | null;
-}) {
-  return proposeReturnAsRefugioUseCase(args);
-}
-
-// ---------------------------------------------------------------------------
-// Inner writer — proposeReturn (vecino path)
-// ---------------------------------------------------------------------------
-
-export async function proposeReturnAsVecinoWriter(args: {
-  userId: string;
-  petPublicToken: string;
-  notes: string | null;
-}) {
-  return proposeReturnAsVecinoUseCase(args);
-}
+// Inner writers proposeReturnAsRefugioWriter / proposeReturnAsVecinoWriter
+// moved to application/writers.ts (authz triage 2026-07-04, residual
+// close-out) — not re-exported from this "use server" file.
 
 // ---------------------------------------------------------------------------
 // Public action — ownerAcceptReturnAction
@@ -111,16 +99,8 @@ export async function ownerAcceptReturnAction({ petPublicToken }: { petPublicTok
   return ownerAcceptReturnWriter({ userId: user.id, petPublicToken });
 }
 
-// ---------------------------------------------------------------------------
-// Inner writer — ownerAcceptReturn
-// ---------------------------------------------------------------------------
-
-export async function ownerAcceptReturnWriter(args: {
-  userId: string;
-  petPublicToken: string;
-}) {
-  return ownerAcceptReturnUseCase(args);
-}
+// Inner writer ownerAcceptReturnWriter moved to application/writers.ts
+// (authz triage 2026-07-04, residual close-out) — not re-exported here.
 
 // ---------------------------------------------------------------------------
 // Public action — ownerRejectReturnAction
@@ -137,17 +117,8 @@ export async function ownerRejectReturnAction({
   return ownerRejectReturnWriter({ userId: user.id, petPublicToken, reason });
 }
 
-// ---------------------------------------------------------------------------
-// Inner writer — ownerRejectReturn
-// ---------------------------------------------------------------------------
-
-export async function ownerRejectReturnWriter(args: {
-  userId: string;
-  petPublicToken: string;
-  reason: string;
-}) {
-  return ownerRejectReturnUseCase(args);
-}
+// Inner writer ownerRejectReturnWriter moved to application/writers.ts
+// (authz triage 2026-07-04, residual close-out) — not re-exported here.
 
 // ---------------------------------------------------------------------------
 // Public action — actorCancelProposalAction
@@ -171,18 +142,8 @@ export async function actorCancelProposalAction({
   return actorCancelProposalWriter({ userId: user.id, petPublicToken, reason, actorOrgId });
 }
 
-// ---------------------------------------------------------------------------
-// Inner writer — actorCancelProposal
-// ---------------------------------------------------------------------------
-
-export async function actorCancelProposalWriter(args: {
-  userId: string;
-  petPublicToken: string;
-  reason: string;
-  actorOrgId?: string;
-}) {
-  return actorCancelProposalUseCase(args);
-}
+// Inner writer actorCancelProposalWriter moved to application/writers.ts
+// (authz triage 2026-07-04, residual close-out) — not re-exported here.
 
 // ---------------------------------------------------------------------------
 // Read helpers — intentionally NOT exported from this "use server" file.
@@ -241,20 +202,8 @@ export async function ownerProposeReturnToOrgAction({
   });
 }
 
-// ---------------------------------------------------------------------------
-// Inner writer — ownerProposeReturnToOrg
-// ---------------------------------------------------------------------------
-
-export async function ownerProposeReturnToOrgWriter(args: {
-  userId: string;
-  petPublicToken: string;
-  reason: string;
-  notes: string | null;
-  proposedAt: string;
-  callerRole?: "owner" | "foster";
-}) {
-  return ownerProposeReturnToOrgUseCase(args);
-}
+// Inner writer ownerProposeReturnToOrgWriter moved to application/writers.ts
+// (authz triage 2026-07-04, residual close-out) — not re-exported here.
 
 // ---------------------------------------------------------------------------
 // Public action — orgAcceptOwnerReturnAction
@@ -280,18 +229,8 @@ export async function orgAcceptOwnerReturnAction({
   });
 }
 
-// ---------------------------------------------------------------------------
-// Inner writer — orgAcceptOwnerReturn
-// ---------------------------------------------------------------------------
-
-export async function orgAcceptOwnerReturnWriter(args: {
-  orgId: string;
-  orgDisplayName: string;
-  actingUserId: string;
-  petPublicToken: string;
-}) {
-  return orgAcceptOwnerReturnUseCase(args);
-}
+// Inner writer orgAcceptOwnerReturnWriter moved to application/writers.ts
+// (authz triage 2026-07-04, residual close-out) — not re-exported here.
 
 // ---------------------------------------------------------------------------
 // Public action — orgRejectOwnerReturnAction
@@ -320,16 +259,5 @@ export async function orgRejectOwnerReturnAction({
   });
 }
 
-// ---------------------------------------------------------------------------
-// Inner writer — orgRejectOwnerReturn
-// ---------------------------------------------------------------------------
-
-export async function orgRejectOwnerReturnWriter(args: {
-  orgId: string;
-  orgDisplayName: string;
-  actingUserId: string;
-  petPublicToken: string;
-  reason: string;
-}) {
-  return orgRejectOwnerReturnUseCase(args);
-}
+// Inner writer orgRejectOwnerReturnWriter moved to application/writers.ts
+// (authz triage 2026-07-04, residual close-out) — not re-exported here.
