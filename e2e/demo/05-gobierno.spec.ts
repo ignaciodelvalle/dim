@@ -1,0 +1,95 @@
+import { expect, test } from "@playwright/test";
+import { ACCOUNTS, fullScroll, loginAs, panoramaMapBeat, showScreen, visit } from "./_helpers";
+
+// SEGMENT 05 — GOBIERNO (govt@dim.test). READ-MOSTLY by PO decision: these
+// consoles act on real citizen data, so the recording NAVIGATES queues and
+// opens detail pages but NEVER clicks approve/reject, triage, decomiso or
+// rule-edit actions. The ONLY submission is the new outbreak investigation
+// (additive by design — a fresh case is good on camera and harms nothing).
+test("segmento 05 — gobierno", async ({ page }) => {
+  test.setTimeout(18 * 60_000);
+  page.on("dialog", (d) => d.accept().catch(() => {}));
+
+  await loginAs(page, ACCOUNTS.govt);
+
+  // 1. Panel + Panorama (map beat, fail loud) + Programa
+  await showScreen(page, "/gob");
+  await panoramaMapBeat(page, "/gob/panorama");
+  await showScreen(page, "/gob/programa");
+
+  // 2. VIGILANCIA SANITARIA — hub + surveillance sub-consoles.
+  await showScreen(page, "/gob/vigilancia");
+  await showScreen(page, "/gob/vigilancia/brotes");
+  await showScreen(page, "/gob/vigilancia/zoonosis");
+  await showScreen(page, "/gob/vigilancia/investigaciones");
+
+  // 2a. NUEVA INVESTIGACIÓN — the one allowed submission (fail loud).
+  // OpenInvestigationForm redirects to the case detail page on success,
+  // which doubles as the /investigaciones/[caseCode] shot.
+  await visit(page, "/gob/vigilancia/investigaciones/nuevo");
+  await fullScroll(page);
+  await page.locator("select#diseaseCode").selectOption({ index: 1 });
+  await page
+    .locator("textarea#reason")
+    .fill(
+      "Aumento sostenido de notificaciones de mordeduras con sospecha de rabia en la zona sur durante las últimas dos semanas. Se abre investigación para confirmar nexo epidemiológico.",
+    );
+  await page.waitForTimeout(500);
+  const openBtn = page.getByRole("button", { name: /abrir investigaci/i });
+  await expect(openBtn, "open-investigation submit button").toBeEnabled();
+  await openBtn.click();
+  await page.waitForURL(
+    (url) =>
+      url.pathname.startsWith("/gob/vigilancia/investigaciones/") &&
+      !url.pathname.endsWith("/nuevo"),
+    { timeout: 30_000 },
+  );
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await fullScroll(page); // investigation detail page
+
+  // 2b. Rest of the surveillance block (all read-only dashboards).
+  // /gob/campanas is a performance dashboard — no create form exists, so it
+  // is show-only (deviation from the draft script's "campanas ✎").
+  await showScreen(page, "/gob/mortalidad");
+  await showScreen(page, "/gob/analytics");
+  await showScreen(page, "/gob/campanas");
+  await showScreen(page, "/gob/outreach");
+  await showScreen(page, "/gob/poblacion");
+
+  // 3. CASOS Y CUMPLIMIENTO — lists + ONE maltrato detail, no actions.
+  await showScreen(page, "/gob/casos");
+  await showScreen(page, "/gob/maltrato");
+  const maltratoDetail = page.locator('a[href^="/gob/maltrato/"]').first();
+  if (await maltratoDetail.count()) {
+    await maltratoDetail.click().catch(() => {});
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await fullScroll(page); // triage detail — LOOK, do not touch the action buttons
+  }
+  await showScreen(page, "/gob/decomisos"); // list only — no /nuevo on camera
+  await showScreen(page, "/gob/disputas");
+  await showScreen(page, "/gob/perdidas");
+
+  // 4. REGISTRO Y APROBACIONES — queue + ONE detail, NO approve/reject.
+  await showScreen(page, "/gob/censo");
+  await showScreen(page, "/gob/adopciones");
+  await showScreen(page, "/gob/cola");
+  const colaDetail = page.locator('a[href^="/gob/cola/"]').first();
+  if (await colaDetail.count()) {
+    await colaDetail.click().catch(() => {});
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await fullScroll(page); // registration detail — decision buttons stay untouched
+  }
+  await showScreen(page, "/gob/organizaciones");
+  await showScreen(page, "/gob/usuarios");
+  await showScreen(page, "/gob/reglas"); // show only — no rule edits
+
+  // 5. CONFIABILIDAD
+  await showScreen(page, "/gob/sistema");
+  await showScreen(page, "/gob/outbox");
+
+  // 6. REFERENCIA
+  await showScreen(page, "/gob/servicios");
+  await showScreen(page, "/gob/historial");
+
+  await expect(page.locator("body")).toBeVisible();
+});

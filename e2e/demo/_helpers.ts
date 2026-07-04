@@ -1,6 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Page, expect } from "@playwright/test";
+import { type Locator, type Page, expect } from "@playwright/test";
 
 export const SHARED_PASSWORD = "Test1234!";
 
@@ -23,10 +23,21 @@ export const DEMO_PHOTOS = ["bolt.jpg", "courage.jpg", "hachi.jpg"].map((f) =>
 /** Log in through the real UI at /login and wait until we leave the login page. */
 export async function loginAs(page: Page, email: string): Promise<void> {
   await page.goto("/login");
+  // Let hydration finish before interacting — clicks dispatched before React
+  // attaches handlers are silently dropped (clickthrough audit 2026-07-03,
+  // task #39), which stranded a whole recording pass on the login screen.
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(1_500);
   await page.getByLabel(/correo electrónico/i).fill(email);
   await page.getByLabel(/contraseña/i).fill(SHARED_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
+  try {
+    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 10_000 });
+  } catch {
+    // Click was swallowed — submit via keyboard (the #39 workaround).
+    await page.getByLabel(/contraseña/i).press("Enter");
+    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
+  }
   await page.waitForLoadState("networkidle").catch(() => {});
 }
 
@@ -61,6 +72,32 @@ export async function fullScroll(page: Page): Promise<void> {
 export async function showScreen(page: Page, urlPath: string): Promise<void> {
   await visit(page, urlPath);
   await fullScroll(page);
+}
+
+/**
+ * Panorama map beat (segments 05/06): navigate to the geospatial console,
+ * give the client-side map time to paint, FAIL LOUD if the console itself
+ * errored, full-scroll, then gently switch one map layer when the layer
+ * switcher is present (best-effort — layer availability varies by seed data).
+ */
+export async function panoramaMapBeat(page: Page, urlPath: string): Promise<void> {
+  await visit(page, urlPath);
+  await page.waitForTimeout(3_000); // first map paint (dynamic client import)
+  await expect(
+    page.locator("h1", { hasText: "Panorama" }).first(),
+    `panorama console at ${urlPath}`,
+  ).toBeVisible();
+  await fullScroll(page);
+  const layerToggle = page.locator('label:has(input[type="checkbox"]:not([disabled]))').first();
+  if (
+    await layerToggle
+      .count()
+      .then((c) => c > 0)
+      .catch(() => false)
+  ) {
+    await layerToggle.click().catch(() => {});
+    await page.waitForTimeout(2_000);
+  }
 }
 
 /** Best-effort: fill an input found by label regex, ignore if absent (screens vary by data). */
@@ -101,6 +138,39 @@ export async function clickContinuar(page: Page): Promise<void> {
   await expect(btn, "wizard Continuar button").toBeVisible();
   await btn.click();
   await page.waitForTimeout(500);
+}
+
+/**
+ * Resolve the /org/[orgToken] portal token for the logged-in member AT RUNTIME
+ * (tokens are never hardcoded). /org auto-redirects single-membership users to
+ * their org dashboard; multi-membership users get a picker where we click the
+ * card matching the hint. FAIL LOUD — an org segment without a portal is dead.
+ */
+export async function resolveOrgToken(page: Page, orgNameHint: RegExp): Promise<string> {
+  await page.goto("/org", { waitUntil: "domcontentloaded" }).catch(() => {});
+  await page.waitForLoadState("networkidle").catch(() => {});
+  let match = page.url().match(/\/org\/([^/?#]+)/);
+  if (!match) {
+    // Membership picker — click the org card matching the hint.
+    const card = page.locator('a[href^="/org/"]', { hasText: orgNameHint }).first();
+    await expect(card, `org picker card matching ${orgNameHint}`).toBeVisible();
+    await card.click();
+    await page.waitForURL(/\/org\/[^/?#]+/, { timeout: 15_000 });
+    match = page.url().match(/\/org\/([^/?#]+)/);
+  }
+  const token = match?.[1] ?? "";
+  expect(token, "org token resolved from /org redirect or picker").toBeTruthy();
+  await page.waitForLoadState("networkidle").catch(() => {});
+  return token;
+}
+
+/**
+ * The currently visible step of an LnWizardShell wizard. Inactive steps stay in
+ * the DOM as sr-only + aria-hidden, so global getByRole/getByLabel queries can
+ * hit hidden duplicates ("Continuar" exists on every step). Scope through this.
+ */
+export function wizardStep(page: Page): Locator {
+  return page.locator('section[aria-hidden="false"]');
 }
 
 /** Drive a LocalityPickerAcross typeahead: type, wait for the dropdown, pick the first match. */
