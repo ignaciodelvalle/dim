@@ -40,8 +40,20 @@ function isProduction(source: NodeJS.ProcessEnv): boolean {
   return source.NODE_ENV === "production";
 }
 
+// A REAL production deployment (Vercel or self-hosted) — NOT merely
+// NODE_ENV=production. `next start` for local QA runs in production mode against
+// the LOCAL Supabase and must NOT require the prod-only secrets (it relies on
+// the documented dev fallbacks). A real deploy talks to a REMOTE database, so
+// key the prod-only requirements on that — this keeps any real host fail-closed
+// while unblocking local production-mode QA (the boot 500 this fixes).
+function isRealProdDeploy(source: NodeJS.ProcessEnv): boolean {
+  const dbUrl = source.DATABASE_URL ?? "";
+  const isLocalDb = dbUrl.includes("127.0.0.1") || dbUrl.includes("localhost");
+  return isProduction(source) && !isLocalDb;
+}
+
 function buildSchema(source: NodeJS.ProcessEnv) {
-  const prod = isProduction(source);
+  const prod = isRealProdDeploy(source);
 
   return z.object({
     DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),

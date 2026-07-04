@@ -24,6 +24,11 @@ const VALID_BASE = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
 };
 
+// A REAL production deployment talks to a REMOTE database. NODE_ENV=production
+// against the LOCAL db (VALID_BASE) is `next start` QA, which must NOT require
+// the prod-only secrets — the prod-only requirements key on the remote DB.
+const REMOTE_DB = "postgresql://user:pass@db.prod.example.com:5432/dim";
+
 describe("lib/env parseEnv", () => {
   it("parses a complete, valid dev env without throwing", () => {
     const env = parseEnv({ ...VALID_BASE, NODE_ENV: "development" } as NodeJS.ProcessEnv);
@@ -67,21 +72,25 @@ describe("lib/env parseEnv", () => {
     expect(() => parseEnv({ ...VALID_BASE, NODE_ENV: "test" } as NodeJS.ProcessEnv)).not.toThrow();
   });
 
-  it("requires CRON_SECRET, DNI_HASH_PEPPER, and NEXT_PUBLIC_SITE_URL in production", () => {
-    expect(() => parseEnv({ ...VALID_BASE, NODE_ENV: "production" } as NodeJS.ProcessEnv)).toThrow(
-      /CRON_SECRET/,
-    );
-    expect(() => parseEnv({ ...VALID_BASE, NODE_ENV: "production" } as NodeJS.ProcessEnv)).toThrow(
-      /DNI_HASH_PEPPER/,
-    );
-    expect(() => parseEnv({ ...VALID_BASE, NODE_ENV: "production" } as NodeJS.ProcessEnv)).toThrow(
-      /NEXT_PUBLIC_SITE_URL/,
-    );
+  it("requires CRON_SECRET, DNI_HASH_PEPPER, and NEXT_PUBLIC_SITE_URL on a remote-DB production deploy", () => {
+    const prodDeploy = { ...VALID_BASE, DATABASE_URL: REMOTE_DB, NODE_ENV: "production" };
+    expect(() => parseEnv(prodDeploy as NodeJS.ProcessEnv)).toThrow(/CRON_SECRET/);
+    expect(() => parseEnv(prodDeploy as NodeJS.ProcessEnv)).toThrow(/DNI_HASH_PEPPER/);
+    expect(() => parseEnv(prodDeploy as NodeJS.ProcessEnv)).toThrow(/NEXT_PUBLIC_SITE_URL/);
   });
 
-  it("parses successfully in production once all prod-only vars are set", () => {
+  it("does NOT require prod-only vars in production MODE against a LOCAL db (next start QA)", () => {
+    // The boot-500 fix: `next start` runs NODE_ENV=production against the local
+    // Supabase — prod-only secrets rely on the dev fallbacks, must not throw.
+    expect(() =>
+      parseEnv({ ...VALID_BASE, NODE_ENV: "production" } as NodeJS.ProcessEnv),
+    ).not.toThrow();
+  });
+
+  it("parses successfully on a production deploy once all prod-only vars are set", () => {
     const env = parseEnv({
       ...VALID_BASE,
+      DATABASE_URL: REMOTE_DB,
       NODE_ENV: "production",
       CRON_SECRET: "prod-cron-secret",
       DNI_HASH_PEPPER: "a-real-production-pepper-value",
@@ -90,10 +99,11 @@ describe("lib/env parseEnv", () => {
     expect(env.CRON_SECRET).toBe("prod-cron-secret");
   });
 
-  it("rejects the public dev-default DNI pepper in production", () => {
+  it("rejects the public dev-default DNI pepper on a production deploy", () => {
     expect(() =>
       parseEnv({
         ...VALID_BASE,
+        DATABASE_URL: REMOTE_DB,
         NODE_ENV: "production",
         CRON_SECRET: "prod-cron-secret",
         DNI_HASH_PEPPER: "dim-test-pepper-v1",

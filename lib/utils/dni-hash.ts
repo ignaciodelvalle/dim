@@ -29,12 +29,17 @@ function getPepper(): string {
   // poison every hash written until someone noticed — better to refuse to boot
   // the identity path.
   //
-  // The gate is NODE_ENV === "production" REGARDLESS of the host. The previous
-  // `&& process.env.VERCEL` clause meant a non-Vercel prod deploy (self-hosted
-  // Node, a container, a preview box promoted to prod) silently hashed DNIs
-  // with the public dev pepper. Fail closed on any prod, and also reject the
-  // dev default being set EXPLICITLY in prod (same reversible-pepper hazard).
-  if (process.env.NODE_ENV === "production" && (!pepper || pepper === DEV_TEST_PEPPER)) {
+  // Fail closed on a REAL production DEPLOYMENT (Vercel or self-hosted), not
+  // merely NODE_ENV=production: `next start` for local QA runs in production
+  // mode against the LOCAL Supabase and must be allowed to use the dev pepper.
+  // A real deploy talks to a REMOTE database, so key the gate on that — this
+  // keeps "any prod host" fail-closed (previous `&& VERCEL` missed self-hosted)
+  // while not breaking local production-mode QA. Also rejects the dev default
+  // being set EXPLICITLY on a real deploy (same reversible-pepper hazard).
+  const dbUrl = process.env.DATABASE_URL ?? "";
+  const isLocalDb = dbUrl.includes("127.0.0.1") || dbUrl.includes("localhost");
+  const isRealProdDeploy = process.env.NODE_ENV === "production" && !isLocalDb;
+  if (isRealProdDeploy && (!pepper || pepper === DEV_TEST_PEPPER)) {
     throw new Error(
       "DNI_HASH_PEPPER must be set to a non-default secret in production. " +
         "Refusing to hash DNIs with the public dev pepper.",
