@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { OpCard, OpCardBody, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { approvalRequests, db, organizations, profiles } from "@/db";
+import { summarizeApprovalPayload } from "@/lib/infra/approval-payload-summary";
 import { canDecideRequest } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";
@@ -56,6 +57,10 @@ export default async function ReviewRequestPage({
   // Audit log: record the page view. Fires per render (acceptable noise
   // for an admin tool; spec §7.4 says auto-log on detail open).
   await logRequestViewedForAuthority(user.id, publicToken);
+
+  // Curated, allowlisted projection of the payload — NEVER the raw JSON. See
+  // lib/infra/approval-payload-summary.ts (AGENTS.md: no raw payload dumps).
+  const payloadRows = summarizeApprovalPayload(request.type, request.payload);
 
   const [applicant] = await db
     .select({
@@ -137,11 +142,22 @@ export default async function ReviewRequestPage({
           </Section>
         )}
 
-        {/* Payload */}
-        <Section title="Payload">
-          <pre className="text-[11px] leading-relaxed rounded-[6px] bg-ln-op-stripe border border-ln-op-line p-3 overflow-x-auto text-ln-op-ink-2 font-mono">
-            {JSON.stringify(request.payload, null, 2)}
-          </pre>
+        {/* Detalle de la solicitud — curated fields only (no raw payload). */}
+        <Section title="Detalle de la solicitud">
+          {payloadRows.length === 0 ? (
+            <p className="text-sm text-ln-op-mute">
+              Esta solicitud no tiene datos estructurados adicionales.
+            </p>
+          ) : (
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-[max-content_1fr]">
+              {payloadRows.map((row) => (
+                <div key={row.label} className="contents">
+                  <dt className="text-sm text-ln-op-mute">{row.label}</dt>
+                  <dd className="text-[13px] text-ln-op-ink">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
         </Section>
 
         {/* Decision section */}
