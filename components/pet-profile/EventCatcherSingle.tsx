@@ -18,6 +18,8 @@
 // lib/ui/sheet-nav.ts. A target on a different route (a full page, e.g.
 // vaccination_administered → /eventos/nuevo/vacuna, or the /anotar fallback)
 // is a real navigation and still goes through router.push as before.
+// The same-route/cross-route classification lives in lib/ui/capture-nav.ts
+// (goToCaptureUrl) — shared with CaptureBox so both consumers agree.
 
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -28,7 +30,7 @@ import { LnButton } from "@/components/ui/Button";
 import { LnCard } from "@/components/ui/Card";
 import { LnTextarea } from "@/components/ui/Field";
 import { CAPTURE_INPUT_MAX_LENGTH } from "@/lib/events/event-capture-matcher";
-import { isSameRouteUrl, pushSheetUrl } from "@/lib/ui/sheet-nav";
+import { goToCaptureUrl } from "@/lib/ui/capture-nav";
 
 type Props = {
   petPublicToken: string;
@@ -42,11 +44,7 @@ export function EventCatcherSingle({ petPublicToken, petName }: Props) {
   const [isPending, startTransition] = useTransition();
 
   function go(href: string) {
-    if (isSameRouteUrl(pathname, href)) {
-      pushSheetUrl(href);
-      return;
-    }
-    router.push(href);
+    goToCaptureUrl(pathname, href, router);
   }
 
   function onSubmit() {

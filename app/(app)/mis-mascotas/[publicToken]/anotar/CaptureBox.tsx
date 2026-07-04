@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
 import type { EventType } from "@/db/schema";
 import { matchCaptureIntent, matchToCaptureUrl } from "@/lib/events/event-capture-matcher";
 import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
+import { goToCaptureUrl } from "@/lib/ui/capture-nav";
 import { QUICK_ACTIONS, buildKindDeeplink, findQuickAction, getNoteSlotKey } from "./handoff";
 
 // Re-exports keep existing callers (tests, EventCatcher) working without churn.
@@ -33,12 +34,13 @@ export function CaptureBox({
   initialKind?: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [pending, startTransition] = useTransition();
   const [text, setText] = useState(initialText ?? "");
   const [unmatched, setUnmatched] = useState(false);
   const [placeholderIdx] = useState(() => Math.floor(Math.random() * PLACEHOLDER_EXAMPLES.length));
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only effect — initialText/initialKind drive a one-shot router.replace, not reactive updates.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only effect — initialText/initialKind drive a one-shot redirect, not reactive updates.
   useEffect(() => {
     if (initialKind) {
       const url = buildKindDeeplink(
@@ -47,7 +49,11 @@ export function CaptureBox({
         initialText?.trim() || undefined,
       );
       if (url) {
-        router.replace(url);
+        // Router-hot-path fix (same as identify() below): a same-route
+        // ?sheet= destination (CaptureBox mounted inside SheetMounter at
+        // `?sheet=anotar` on the profile route) must go through pushSheetUrl,
+        // not router.replace — see lib/ui/capture-nav.ts.
+        goToCaptureUrl(pathname, url, router, "replace");
         return;
       }
     }
@@ -63,7 +69,7 @@ export function CaptureBox({
       const url = matchToCaptureUrl(petPublicToken, match, buildCaptureDeeplink);
       if (url) {
         startTransition(() => {
-          router.push(url);
+          goToCaptureUrl(pathname, url, router);
         });
       } else {
         setUnmatched(true);
@@ -98,7 +104,7 @@ export function CaptureBox({
     }
 
     startTransition(() => {
-      router.push(url);
+      goToCaptureUrl(pathname, url, router);
     });
   }
 
