@@ -59,6 +59,53 @@ describe("PANORAMA_LAYERS registry", () => {
     expect(PANORAMA_LAYERS.every((l) => l.scopeFilterable)).toBe(true);
   });
 
+  it("panorama-ia-v2: every layer declares renderPolicy, suppressionStyle and caption", () => {
+    const validMode = new Set(["choropleth-fill", "graduated-symbol", "clustered-points"]);
+    const validSuppression = new Set(["muted", "hatched"]);
+    const validWindow = new Set(["period", "current"]);
+    for (const layer of PANORAMA_LAYERS) {
+      // renderPolicy — both levels declared with a valid mark.
+      expect(validMode.has(layer.renderPolicy.province)).toBe(true);
+      expect(validMode.has(layer.renderPolicy.locality)).toBe(true);
+      // suppressionStyle.
+      expect(validSuppression.has(layer.suppressionStyle)).toBe(true);
+      // caption — unit per level, non-empty measure, valid window.
+      expect(layer.caption.unit.province.length).toBeGreaterThan(0);
+      expect(layer.caption.unit.locality.length).toBeGreaterThan(0);
+      expect(layer.caption.measure.length).toBeGreaterThan(0);
+      expect(validWindow.has(layer.caption.window)).toBe(true);
+    }
+  });
+
+  it("panorama-ia-v2: rate + mortalidad suppress with hatch; density/reference muted", () => {
+    // Rate layers + mortalidad must hatch (spatial honesty on the choropleth).
+    expect(getLayer("cobertura")?.suppressionStyle).toBe("hatched");
+    expect(getLayer("esterilizacion")?.suppressionStyle).toBe("hatched");
+    expect(getLayer("mortalidad")?.suppressionStyle).toBe("hatched");
+    // Density-point + reference layers are muted.
+    for (const id of [
+      "perdidas",
+      "mordeduras",
+      "denuncias",
+      "zoonosis",
+      "refugios",
+      "decomisos",
+    ] as const) {
+      expect(getLayer(id)?.suppressionStyle).toBe("muted");
+    }
+  });
+
+  it("panorama-ia-v2: aggregated layers force province below the locality zoom threshold", () => {
+    // Every non-reference layer sets autoLevel → province below zoom 5 (kills the blob).
+    for (const layer of PANORAMA_LAYERS) {
+      if (layer.dataType === "reference") {
+        expect(layer.renderPolicy.autoLevel).toBeUndefined();
+      } else {
+        expect(layer.renderPolicy.autoLevel).toEqual({ belowZoom: 5, level: "province" });
+      }
+    }
+  });
+
   it("marks event-windowable layers temporal and current-state ones not (F4)", () => {
     // Temporal: the 4 event-based point layers + perdidas (markedLostAt window).
     const temporalIds = TEMPORAL_LAYERS.map((l) => l.id).sort();

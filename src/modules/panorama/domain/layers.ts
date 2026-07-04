@@ -6,10 +6,24 @@
 
 import { TARGETS } from "@/lib/metrics/targets";
 
-import type { LayerDataType, LayerId, PanoramaLayer } from "./types";
+import type { AggregationLevel, LayerDataType, LayerId, PanoramaLayer } from "./types";
 
 // Re-export so callers that need the taxonomy do not also import from types.ts.
 export type { LayerDataType };
+
+// --- panorama-ia-v2 descriptor extension (design §2.3) -----------------------
+
+/** Unit noun per level — shared by every layer's caption (es-AR). */
+const UNIT: Record<AggregationLevel, string> = {
+  province: "provincia",
+  locality: "localidad",
+};
+
+/**
+ * Nacional overview forces the province mark below the locality camera threshold
+ * (design §3.1 render-policy — kills the "green blob"). Z_LOCALITY ≈ 5.
+ */
+const AUTO_PROVINCE = { belowZoom: 5, level: "province" as const };
 
 /**
  * v1 layer catalogue. Colors are a colorblind-distinguishable categorical set
@@ -30,6 +44,13 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     temporal: true,
     // Lost/sighting events — event density, aggregated by unit in F1.
     dataType: "density",
+    renderPolicy: {
+      province: "graduated-symbol",
+      locality: "graduated-symbol",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "muted",
+    caption: { unit: UNIT, measure: "reportes de mascotas perdidas", window: "period" },
   },
   {
     id: "mordeduras",
@@ -42,6 +63,13 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     temporal: true,
     // Bite incident events — event density, aggregated by unit in F1.
     dataType: "density",
+    renderPolicy: {
+      province: "graduated-symbol",
+      locality: "graduated-symbol",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "muted",
+    caption: { unit: UNIT, measure: "eventos de mordedura / antirrábica", window: "period" },
   },
   {
     id: "denuncias",
@@ -54,6 +82,13 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     temporal: true,
     // Welfare report events — event density, aggregated by unit in F1.
     dataType: "density",
+    renderPolicy: {
+      province: "graduated-symbol",
+      locality: "graduated-symbol",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "muted",
+    caption: { unit: UNIT, measure: "denuncias de bienestar", window: "period" },
   },
   {
     id: "zoonosis",
@@ -66,6 +101,13 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     temporal: true,
     // Public-health surveillance signals — aggregated by unit in F1.
     dataType: "signal",
+    renderPolicy: {
+      province: "graduated-symbol",
+      locality: "graduated-symbol",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "muted",
+    caption: { unit: UNIT, measure: "señales de zoonosis", window: "period" },
   },
   {
     id: "refugios",
@@ -79,6 +121,10 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     temporal: false,
     // Individual shelter locations — NEVER aggregated (each is a distinct entity).
     dataType: "reference",
+    // Reference: pins at every level, ignores autoLevel; suppression is a no-op.
+    renderPolicy: { province: "clustered-points", locality: "clustered-points" },
+    suppressionStyle: "muted",
+    caption: { unit: UNIT, measure: "refugios registrados", window: "current" },
   },
   {
     id: "decomisos",
@@ -91,6 +137,10 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     temporal: true,
     // Individual decomiso expedientes — NEVER aggregated (each is a distinct case).
     dataType: "reference",
+    // Reference: pins at every level, ignores autoLevel; suppression is a no-op.
+    renderPolicy: { province: "clustered-points", locality: "clustered-points" },
+    suppressionStyle: "muted",
+    caption: { unit: UNIT, measure: "decomisos", window: "period" },
   },
   // --- choropleth (locality rollups via lib/metrics) ---
   {
@@ -109,6 +159,15 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     // Province-level rendering anchors the divergent scale at this percentage value.
     // V1 locality level shows count-density (see repository.ts — rate-by-locality deferred).
     complianceTarget: TARGETS.STERILIZATION_COVERAGE_PCT,
+    // Rate: fill at both levels (locality fill needs polygons — Fase 2; P0 renders
+    // an interim divergent graduated-symbol, §2.3 footnote 1). Suppressed → hatched.
+    renderPolicy: {
+      province: "choropleth-fill",
+      locality: "choropleth-fill",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "hatched",
+    caption: { unit: UNIT, measure: "cobertura de esterilización", window: "current" },
   },
   {
     id: "cobertura",
@@ -125,6 +184,15 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     // F5: divergent choropleth anchored at the antirrábica legal target (80%).
     // get-panorama-kpis.ts uses coverage.target (also 80) from fetchRabiesCoverage.
     complianceTarget: 80,
+    // Rate: fill at both levels (locality fill needs polygons — Fase 2; P0 renders
+    // an interim divergent graduated-symbol, §2.3 footnote 1). Suppressed → hatched.
+    renderPolicy: {
+      province: "choropleth-fill",
+      locality: "choropleth-fill",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "hatched",
+    caption: { unit: UNIT, measure: "cobertura antirrábica", window: "current" },
   },
   {
     id: "mortalidad",
@@ -138,6 +206,14 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     temporal: false,
     // Mortality density — rendered as choropleth, NOT via the point-aggregation path.
     dataType: "density",
+    // Province fill; no locality polygon → graduated symbol when scoped in (§2.3²).
+    renderPolicy: {
+      province: "choropleth-fill",
+      locality: "graduated-symbol",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "hatched",
+    caption: { unit: UNIT, measure: "mortalidad registrada", window: "current" },
   },
 ] as const;
 

@@ -65,6 +65,64 @@ export type LayerPrivacy = "none" | "coarse" | "gated";
  */
 export type LayerDataType = "rate" | "density" | "signal" | "reference";
 
+// --- panorama-ia-v2 descriptor extension (design §2) -------------------------
+
+/**
+ * How a layer is drawn at a given administrative level.
+ *  - `choropleth-fill`  — fill the polygon (a rate at province; a rate at
+ *                         locality once locality polygons exist — Fase 2).
+ *  - `graduated-symbol` — bubble/circle sized (or diverging-colored) by value;
+ *                         used for counts and for the interim locality path of
+ *                         rate layers before real locality polygons land.
+ *  - `clustered-points` — discrete pins, optionally clustered (reference layers —
+ *                         never aggregated).
+ */
+export type RenderMode = "choropleth-fill" | "graduated-symbol" | "clustered-points";
+
+/**
+ * Per-administrative-level render policy — the design §3.1 fix for the national
+ * "green blob": nationally a layer fills province polygons; entering a province
+ * (scope or zoom) switches to the locality mark. `autoLevel.belowZoom` is the
+ * camera threshold that forces `level` (nacional → province) regardless of the
+ * point count. The render branch resolves the mark via `derivedLevel(scope,zoom)`
+ * then reads `renderPolicy[level]`.
+ */
+export type RenderPolicy = {
+  province: RenderMode;
+  locality: RenderMode;
+  /** Below this camera zoom, force `level` (nacional overview → province fill). */
+  autoLevel?: { belowZoom: number; level: AggregationLevel };
+};
+
+/**
+ * How a k-anon-suppressed cell is drawn (spatial honesty of the k=5 rule).
+ *  - `hatched` — diagonal hatch, perceptually distinct from "no data" (rate /
+ *                choropleth layers, where a suppressed area must not read as
+ *                a plain grey no-data polygon).
+ *  - `muted`   — dimmed neutral (density-point layers; reference layers never
+ *                aggregate, so this is a no-op for them).
+ */
+export type SuppressionStyle = "muted" | "hatched";
+
+/**
+ * Declarative raw material for the plain-language per-view caption (design §2.4).
+ * The pure builder `captionFor(layer, level, period)` assembles the es-AR
+ * sentence; the descriptor only declares the WORDS (never the final sentence),
+ * so the domain stays framework-free.
+ */
+export type LayerCaption = {
+  /** Unit noun per level, e.g. { province: "provincia", locality: "localidad" }. */
+  unit: Record<AggregationLevel, string>;
+  /** The measure in plain es-AR: "cobertura antirrábica", "denuncias de bienestar". */
+  measure: string;
+  /**
+   * How the sentence is anchored in time:
+   *  - `period`  → "últimos N días" (event-windowed layers).
+   *  - `current` → "estado actual"  (current-state rollups: cobertura, mortalidad).
+   */
+  window: "period" | "current";
+};
+
 /** Declarative registry entry. The layer list IS the legend (spec §4). */
 export type PanoramaLayer = {
   id: LayerId;
@@ -104,6 +162,24 @@ export type PanoramaLayer = {
    * Unit: same as the layer's `value` property (percentage for cobertura: 0–100).
    */
   complianceTarget?: number;
+
+  // --- panorama-ia-v2 descriptor extension (design §2.2) ---------------------
+
+  /**
+   * Per-level render policy (design §3.1). Resolves the "green blob": nationally
+   * a layer fills province polygons; entering a province switches to the locality
+   * mark. Replaces the render rule previously implicit in SituationalMap.
+   */
+  renderPolicy: RenderPolicy;
+
+  /**
+   * How suppressed (k<5) cells are drawn. Rate/choropleth → "hatched" (distinct
+   * from no-data); density-point/reference → "muted".
+   */
+  suppressionStyle: SuppressionStyle;
+
+  /** Declarative material for the plain-language per-view caption (design §2.4). */
+  caption: LayerCaption;
 };
 
 // --- Typed GeoJSON (minimal subset the layers emit; RFC 7946) ----------------
