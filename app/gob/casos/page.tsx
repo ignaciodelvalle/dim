@@ -76,8 +76,10 @@ export default async function GovtCasosPage({
                       size="sm"
                     />
                     <span className="text-sm text-ln-op-mute">
-                      {c.jurisdictionLocality}, {c.jurisdictionProvince} · Abierto el{" "}
-                      {formatDate(c.openedAt)}
+                      {c.jurisdictionLocality && c.jurisdictionProvince
+                        ? `${c.jurisdictionLocality}, ${c.jurisdictionProvince} · `
+                        : ""}
+                      Abierto el {formatDate(c.openedAt)}
                       {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
                     </span>
                   </div>

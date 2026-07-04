@@ -57,7 +57,12 @@ export function isCaseKind(value: string): value is CaseKind {
 }
 
 // Display labels (es-AR). Used in dashboards + notification copy.
-export function caseKindLabel(kind: CaseKind): string {
+//
+// Accepts plain strings besides the union: `case_kind` is unconstrained text
+// in the DB, so rows can carry kinds outside CaseKind (e.g. the panorama
+// seed's 'rabies_observation' rows, read literally by fetchVigilanciaMetrics).
+// Unknown kinds fall back to the raw key so the UI never renders blank.
+export function caseKindLabel(kind: CaseKind | (string & {})): string {
   switch (kind) {
     case "bite_incident":
       return "Mordedura / observación rábica";
@@ -83,5 +88,11 @@ export function caseKindLabel(kind: CaseKind): string {
       return "Investigación de brote";
     case "microchip_remediation":
       return "Remediación de microchip";
+    // Outside the CaseKind union — written by scripts/seed-panorama.ts and
+    // counted by fetchVigilanciaMetrics (lib/analytics/govt-dashboards.ts).
+    case "rabies_observation":
+      return "Observación antirrábica";
+    default:
+      return kind || "Caso";
   }
 }
