@@ -1105,6 +1105,73 @@ body {
   color: var(--color-ln-faint);
 }
 
+/* ============ bond band — full-bleed emotional bridge ===================== */
+/* The one bold, full-bleed moment: the human–animal bond the product exists to
+   protect. Photo bleeds edge-to-edge; the copy respects the page's content
+   column (lp-wrap-wide). A warm scrim keeps the light text legible over sun. */
+.lp .lp-bond {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(430px, 62vh, 600px);
+  overflow: hidden;
+  background: var(--color-ln-ink);
+}
+.lp .lp-bond-media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.lp .lp-bond-img {
+  object-fit: cover;
+  /* keep the two touching noses + both faces in frame across crops */
+  object-position: 60% 40%;
+}
+.lp .lp-bond-scrim {
+  position: absolute;
+  inset: 0;
+  /* warm brown-black to harmonize with the golden light, not pure black */
+  background: linear-gradient(
+      100deg,
+      rgba(26, 18, 12, 0.74) 0%,
+      rgba(26, 18, 12, 0.46) 34%,
+      rgba(26, 18, 12, 0) 62%
+    ), linear-gradient(to top, rgba(26, 18, 12, 0.6) 0%, rgba(26, 18, 12, 0) 46%);
+}
+.lp .lp-bond-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding-block: clamp(30px, 5vw, 56px);
+}
+.lp .lp-bond-copy {
+  max-width: 30ch;
+}
+.lp .lp-bond-eyebrow {
+  color: rgba(255, 255, 255, 0.82);
+}
+.lp .lp-bond-title {
+  color: #fff;
+  font-size: clamp(30px, 4.4vw, 54px);
+  margin-top: 12px;
+  text-shadow: 0 1px 30px rgba(26, 18, 12, 0.4);
+}
+.lp .lp-bond-sub {
+  margin-top: 14px;
+  font-size: clamp(15px, 1.5vw, 18px);
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+}
+@media (max-width: 640px) {
+  .lp .lp-bond {
+    min-height: 76vh;
+  }
+  .lp .lp-bond-img {
+    object-position: 62% 34%;
+  }
+}
+
 /* ============ cast — fila editorial (PO-locked variant) =================== */
 .lp .lp-castfila {
   display: flex;

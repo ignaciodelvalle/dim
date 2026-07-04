@@ -2,6 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 
+import { BondBand } from "@/components/landing/BondBand";
 import { CrisisBand } from "@/components/landing/CrisisBand";
 import { EmpezarSection } from "@/components/landing/EmpezarSection";
 import { FaqSection } from "@/components/landing/FaqSection";
@@ -29,8 +30,9 @@ import { createClient } from "@/lib/supabase/server";
 //
 //   Nav (sticky, ABOVE the gob stripe — intentional order) → Hero (Pampa's
 //   credential + FlipCard-motif lost-mode demo + real scannable QR) →
-//   CrisisBand (L1: perdí / encontré / code lookup, no login) → Story
-//   (CastFila + 6 chapters + sticky scroll-spy rail) → Features as life
+//   CrisisBand (L1: perdí / encontré / code lookup, no login) → BondBand
+//   (full-bleed emotional bridge: the human–animal bond the product protects)
+//   → Story (CastFila + 6 chapters + sticky scroll-spy rail) → Features as life
 //   moments (L6) → FAQ + trust row (L7/L4, beta chip) → Empezar (2 doors
 //   ONLY: dueño / organización) → Footer (+ closing GobStripe).
 //
@@ -96,6 +98,7 @@ export default async function Home() {
         <ScrollReset />
         <LandingHero qrSvg={qrSvg} publicHref={publicHref} publicToken={DEMO_PUBLIC_TOKEN} />
         <CrisisBand />
+        <BondBand />
         <StorySection />
         <FeaturesSection />
         <FaqSection />
