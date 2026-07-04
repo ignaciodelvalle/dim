@@ -6,6 +6,10 @@ import { getNormativesForCase } from "@/lib/domain/case-normatives";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { getOutbreakInvestigationDetail } from "@/lib/infra/case-queries";
 import { formatDateTime } from "@/lib/utils/format";
+import {
+  caseClosedReasonLabel,
+  openedReasonDisplay,
+} from "@/src/modules/cases/domain/opened-reason-display";
 
 import { InvestigationActions } from "./InvestigationActions";
 
@@ -13,6 +17,7 @@ const STATUS_LABEL: Record<string, string> = {
   open: "Abierta",
   escalated: "Escalada",
   closed: "Cerrada",
+  merged: "Fusionada",
 };
 
 type PillTone = "open" | "escalated" | "closed";
@@ -26,7 +31,7 @@ const ENTRY_LABEL: Record<string, string> = {
   case_opened: "Apertura",
   case_escalated: "Escalada",
   case_closed: "Cierre",
-  classification: "Clasificacion",
+  classification: "Clasificación",
   lab_result: "Resultado de laboratorio",
   control_action: "Medida de control",
   contact_tracing: "Rastreo de contactos",
@@ -106,7 +111,7 @@ export default async function InvestigacionDetailPage({
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-[22px] font-semibold text-ln-op-ink">
             {/* eslint-disable-next-line react/jsx-curly-brace-presence */}
-            {"Investigacion de brote"}
+            {"Investigación de brote"}
             {diseaseCode ? ` — ${diseaseCode}` : ""}
           </h1>
           <OpPill tone={STATUS_PILL_TONE[detail.status] ?? "neutral"}>
@@ -139,7 +144,7 @@ export default async function InvestigacionDetailPage({
           </p>
         </div>
         <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-          <p className="text-xs uppercase tracking-wider text-ln-op-mute">Jurisdiccion</p>
+          <p className="text-xs uppercase tracking-wider text-ln-op-mute">Jurisdicción</p>
           <p className="text-[13px] font-semibold text-ln-op-ink">
             {[detail.jurisdictionLocality, detail.jurisdictionProvince]
               .filter(Boolean)
@@ -152,14 +157,14 @@ export default async function InvestigacionDetailPage({
         <OpCardHead title="Motivo de apertura" />
         <OpCardBody>
           <p className="text-[13px] text-ln-op-ink whitespace-pre-wrap">
-            {detail.openedReason ?? "Sin motivo registrado"}
+            {openedReasonDisplay(detail.openedReason)}
           </p>
         </OpCardBody>
       </OpCard>
 
       {datasetNotes.length > 0 && (
         <OpCard>
-          <OpCardHead title={`Datos epidemiologicos (${datasetNotes.length})`} />
+          <OpCardHead title={`Datos epidemiológicos (${datasetNotes.length})`} />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line-2">
               {datasetNotes.map((n) => {
@@ -199,7 +204,7 @@ export default async function InvestigacionDetailPage({
 
       {timelineNotes.length > 0 && (
         <OpCard>
-          <OpCardHead title="Linea de tiempo" />
+          <OpCardHead title="Línea de tiempo" />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line-2">
               {timelineNotes.map((n) => (
@@ -246,7 +251,7 @@ export default async function InvestigacionDetailPage({
           <OpCardBody>
             <p className="text-[13px] text-ln-op-ink">
               Cerrada el {detail.closedAt ? formatDateTime(detail.closedAt) : ""}{" "}
-              {detail.closedReason ? `— ${detail.closedReason}` : ""}
+              {detail.closedReason ? `— ${caseClosedReasonLabel(detail.closedReason)}` : ""}
             </p>
           </OpCardBody>
         </OpCard>

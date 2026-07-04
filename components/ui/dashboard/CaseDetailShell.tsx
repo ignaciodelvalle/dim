@@ -28,6 +28,7 @@ import type { CaseStatus } from "@/db/schema";
 import { type LawReference, getNormativesForCase } from "@/lib/domain/case-normatives";
 import { formatDateTime } from "@/lib/utils/format";
 import { type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
+import { openedReasonDisplay } from "@/src/modules/cases/domain/opened-reason-display";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -254,7 +255,7 @@ export function CaseDetailShell({
           <h2 className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-ln-op-mute">
             Motivo de apertura
           </h2>
-          <p className="mt-2 text-[13px] text-ln-op-ink">{openedReason}</p>
+          <p className="mt-2 text-[13px] text-ln-op-ink">{openedReasonDisplay(openedReason)}</p>
         </section>
       ) : null}
 
