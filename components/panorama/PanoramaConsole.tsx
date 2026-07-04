@@ -24,10 +24,12 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPanel";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
+import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
 import { PanoramaKpiStrip } from "@/components/panorama/PanoramaKpiStrip";
 import { PanoramaReading } from "@/components/panorama/PanoramaReading";
 import { PanoramaSuppressionNotice } from "@/components/panorama/PanoramaSuppressionNotice";
 import { PresetPanel } from "@/components/panorama/PresetPanel";
+import { RankedUnitsPanel } from "@/components/panorama/RankedUnitsPanel";
 import type { ActiveLayer, PointRenderMode } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { Z_LOCALITY, derivedLevel } from "@/components/panorama/situational-map-utils";
@@ -38,6 +40,11 @@ import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import { pushMapStateUrl, replaceMapStateUrl } from "@/lib/ui/map-layer-nav";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
+import {
+  type RankedUnit,
+  type RankingKind,
+  rankWorstUnits,
+} from "@/src/modules/panorama/domain/ranking";
 import {
   AGGREGATED_POINT_IDS,
   AGGREGATED_POINT_LAYERS,
@@ -1328,6 +1335,48 @@ export function PanoramaConsole({
     [since, until],
   );
 
+  // panorama-ia-v2 §3.3 — Worst-N ranking of the PRIMARY (base) layer: the same
+  // projection the map draws, re-expressed as a ranked list + accessible table.
+  // Rate layers rank by gap vs meta; density/signal by count. Suppressed cells
+  // never enter the ranking (privacy invariant §5.1 — rankWorstUnits drops them).
+  const rankingKind = useMemo<RankingKind | null>(() => {
+    if (!captionLayer || captionLayer.dataType === "reference") return null;
+    return captionLayer.dataType === "rate" ? "rate" : "density";
+  }, [captionLayer]);
+
+  const rankedActiveLayer = useMemo(
+    () => (captionLayer ? activeLayers.find((l) => l.id === captionLayer.id) : undefined),
+    [captionLayer, activeLayers],
+  );
+
+  const rankedRows = useMemo<RankedUnit[]>(() => {
+    if (!captionLayer || rankingKind === null || !rankedActiveLayer) return [];
+    return rankWorstUnits(rankedActiveLayer.features, {
+      kind: rankingKind,
+      target: captionLayer.complianceTarget,
+      limit: 10,
+    });
+  }, [captionLayer, rankingKind, rankedActiveLayer]);
+
+  // Hover sync map↔row: the highlighted unit key mirrors between the panel and
+  // the map (feature-state highlight). Row click opens the DetailDrawer.
+  const [highlightedUnitKey, setHighlightedUnitKey] = useState<string | null>(null);
+  const [showDataTable, setShowDataTable] = useState(false);
+
+  const onRankedSelect = useCallback(
+    (key: string) => {
+      if (!captionLayer || !rankedActiveLayer) return;
+      const feature = rankedActiveLayer.features.features.find((f) => {
+        const p = f.properties as Record<string, unknown>;
+        return p.provinceCode === key || p.place === key || p.name === key;
+      });
+      if (feature) {
+        onFeatureClick(captionLayer.id, feature.properties as Record<string, unknown>);
+      }
+    },
+    [captionLayer, rankedActiveLayer, onFeatureClick],
+  );
+
   const onScrub = useCallback((next: Date | null) => setAsOf(next), []);
 
   // map-QOL selective refresh (freshness chip's "Actualizar"): refetch the
@@ -1439,8 +1488,44 @@ export function PanoramaConsole({
           selectedLocalityCenter={selectedLocalityCenter}
           frame={presetFrame}
           onZoom={onMapZoom}
+          highlightedUnitKey={highlightedUnitKey}
+          onUnitHover={setHighlightedUnitKey}
         />
         <div className="space-y-3">
+          {/* panorama-ia-v2 §3.3: "Peores N" ranking — the map collapsed to an
+              ordered list (hover-synced with the map), plus the accessible
+              <table> view (Ley 26.653). Shown for rate/density base layers only
+              (reference layers carry no per-unit ranking). */}
+          {rankingKind !== null && captionLayer !== null && (
+            <section className="space-y-2">
+              <RankedUnitsPanel
+                rows={rankedRows}
+                kind={rankingKind}
+                measureLabel={captionLayer.caption.measure}
+                highlightedKey={highlightedUnitKey}
+                onHover={setHighlightedUnitKey}
+                onSelect={onRankedSelect}
+              />
+              {rankedRows.length > 0 && (
+                <button
+                  type="button"
+                  aria-expanded={showDataTable}
+                  onClick={() => setShowDataTable((v) => !v)}
+                  className="text-xs font-medium text-ln-op-azul hover:underline"
+                >
+                  {showDataTable ? "Ocultar tabla" : "Ver tabla completa"}
+                </button>
+              )}
+              {showDataTable && (
+                <PanoramaDataTable
+                  rows={rankedRows}
+                  kind={rankingKind}
+                  measureLabel={captionLayer.caption.measure}
+                  onSelect={onRankedSelect}
+                />
+              )}
+            </section>
+          )}
           {/* RSC slot: scope/period filters owned by the SERVER shell, placed
               behind progressive disclosure — identical behavior, one click away. */}
           {filtersSlot !== undefined && (

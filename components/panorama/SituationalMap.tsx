@@ -159,6 +159,18 @@ type Props = {
    * level is now a property of (scope, zoom), never a control.
    */
   onZoom?: (zoom: number) => void;
+  /**
+   * panorama-ia-v2 §3.3: the unit key (province code) currently highlighted in
+   * the RankedUnitsPanel, or null. Drives a feature-state highlight outline on
+   * the matching province polygon (row → map sync).
+   */
+  highlightedUnitKey?: string | null;
+  /**
+   * panorama-ia-v2 §3.3: fired when the pointer enters/leaves a province
+   * polygon on the map, bubbling its code up so the console can highlight the
+   * matching ranked row (map → row sync). null on leave.
+   */
+  onUnitHover?: (key: string | null) => void;
 };
 
 // Continental Argentina centroid + a zoom that frames the mainland.
@@ -226,6 +238,8 @@ export function SituationalMap({
   selectedLocalityCenter = null,
   frame = null,
   onZoom,
+  highlightedUnitKey = null,
+  onUnitHover,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -244,6 +258,12 @@ export function SituationalMap({
   // handler that reports the camera zoom to the console (derived level).
   const onZoomRef = useRef(onZoom);
   onZoomRef.current = onZoom;
+  // panorama-ia-v2 §3.3: latest map→row hover callback for the one-time handler.
+  const onUnitHoverRef = useRef(onUnitHover);
+  onUnitHoverRef.current = onUnitHover;
+  // The province code currently highlighted via feature-state (row→map sync),
+  // so the sync effect can clear the previous one before setting the next.
+  const highlightedCodeRef = useRef<string | null>(null);
   // Capture initialBounds once at mount — it's a stable server-computed value
   // (jurisdiction bbox) that must not change after the map is constructed.
   const initialBoundsRef = useRef(initialBounds);
@@ -306,7 +326,9 @@ export function SituationalMap({
           // biome-ignore lint/suspicious/noExplicitAny: runtime JSON from local GeoJSON asset.
           const basemap = (await fetch(BASEMAP_URL).then((r) => r.json())) as any;
           if (cancelled) return;
-          map.addSource("ar-provinces", { type: "geojson", data: basemap });
+          // promoteId: "code" so feature-state can key on the province code
+          // (panorama-ia-v2 §3.3 row→map highlight).
+          map.addSource("ar-provinces", { type: "geojson", data: basemap, promoteId: "code" });
           map.addLayer({
             id: "ar-prov-fill",
             type: "fill",
@@ -318,6 +340,18 @@ export function SituationalMap({
             type: "line",
             source: "ar-provinces",
             paint: { "line-color": COLOR_BORDER, "line-width": 0.8 },
+          });
+          // panorama-ia-v2 §3.3: highlight outline driven by feature-state — a
+          // ranked-row hover thickens the matching province's border (row→map).
+          map.addLayer({
+            id: "ar-prov-highlight",
+            type: "line",
+            source: "ar-provinces",
+            paint: {
+              "line-color": "#f8fafc",
+              "line-width": ["case", ["boolean", ["feature-state", "highlighted"], false], 2.5, 0],
+              "line-opacity": ["case", ["boolean", ["feature-state", "highlighted"], false], 1, 0],
+            },
           });
           // A1 PR-7: cache province features for the autozoom helper.
           // Safe: the local GeoJSON asset is authored by us and has this shape.
@@ -429,6 +463,26 @@ export function SituationalMap({
 
     map.fitBounds(viewport.bbox, { padding: 56, animate: !prefersReducedMotion, maxZoom: 11 });
   }, [frame]);
+
+  // panorama-ia-v2 §3.3: row→map highlight. Mirror the RankedUnitsPanel's
+  // highlighted unit onto the province polygon via feature-state (the
+  // ar-prov-highlight line reads it). Clears the previous highlight first.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loadedRef.current) return;
+    if (!map.getSource("ar-provinces")) return;
+    const prev = highlightedCodeRef.current;
+    if (prev !== null && prev !== highlightedUnitKey) {
+      map.setFeatureState({ source: "ar-provinces", id: prev }, { highlighted: false });
+    }
+    if (highlightedUnitKey !== null) {
+      map.setFeatureState(
+        { source: "ar-provinces", id: highlightedUnitKey },
+        { highlighted: true },
+      );
+    }
+    highlightedCodeRef.current = highlightedUnitKey;
+  }, [highlightedUnitKey]);
 
   // Add/update/remove maplibre sources+layers to match `layersRef.current`.
   function syncLayers() {
@@ -704,12 +758,16 @@ export function SituationalMap({
     map.on("mouseleave", fillId, () => {
       map.getCanvas().style.cursor = "";
       popup.remove();
+      // panorama-ia-v2 §3.3: clear the ranked-row highlight (map→row sync).
+      onUnitHoverRef.current?.(null);
     });
     map.on("mousemove", fillId, (e) => {
       const f = e.features?.[0];
       if (!f) return;
       const props = f.properties as { code?: string; name?: string };
       const code = props.code ?? "";
+      // panorama-ia-v2 §3.3: highlight the matching ranked row (map→row sync).
+      onUnitHoverRef.current?.(code);
       const value = valueFor(code);
       const place = props.name ?? code ?? "—";
       const valueLine =
