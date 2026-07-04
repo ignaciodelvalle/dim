@@ -26,11 +26,7 @@ const CUSTOM_BOUNDS: [[number, number], [number, number]] = [
 
 describe("computePresetFrameViewport", () => {
   it("national framing → fitBounds to the captured national bbox", () => {
-    const out = computePresetFrameViewport(
-      { kind: "national" },
-      NATIONAL_BBOX,
-      AR_FALLBACK_BBOX,
-    );
+    const out = computePresetFrameViewport({ kind: "national" }, NATIONAL_BBOX, AR_FALLBACK_BBOX);
     expect(out).toEqual({ kind: "fitBounds", bbox: NATIONAL_BBOX });
   });
 

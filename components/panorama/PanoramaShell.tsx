@@ -95,16 +95,31 @@ export function PanoramaShell({
         </p>
       </header>
 
-      {/* Unified filters — scope + period drive the layers (same controls as the
-          dashboards). Changing them reloads the server render (default layer) and
-          the client re-fetches active layers with the new params. */}
-      <div className="space-y-3 rounded-[8px] border border-ln-op-line bg-ln-op-card/40 p-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        {/* Panorama defaults to a multi-year window (3 años) and exposes the 3a/5a
-            chips so the temporal reproduction spans the seeded history. The detail
-            dashboards keep their own short defaults (multiYear only here). */}
-        <PeriodPicker defaultPreset="3y" multiYear />
-      </div>
+      {/* panorama-redesign Fase 1 reflow: the console (presets + map) leads;
+          the unified filters moved INTO the console's "Alcance y período"
+          disclosure via the filtersSlot RSC slot (this server component keeps
+          ownership of the JSX — the pickers' behavior, including their
+          window.location.assign navigation, is byte-identical). Demo
+          disclosure + methodology follow the console. */}
+      <PanoramaConsole
+        defaultLayerId={layer.id}
+        defaultFeatures={features}
+        defaultTruncated={truncated}
+        defaultSuppressedCount={suppressedCount}
+        initialKpis={kpis}
+        initialBounds={initialBounds}
+        localityCentroids={localityCentroids}
+        initialLevel={initialLevel}
+        filtersSlot={
+          <div className="space-y-3 rounded-[8px] border border-ln-op-line bg-ln-op-card/40 p-3">
+            <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
+            {/* Panorama defaults to a multi-year window (3 años) and exposes the 3a/5a
+                chips so the temporal reproduction spans the seeded history. The detail
+                dashboards keep their own short defaults (multiYear only here). */}
+            <PeriodPicker defaultPreset="3y" multiYear />
+          </div>
+        }
+      />
 
       {/* Demo-data disclosure — synthetic dataset (exec-gate credibility).
           Suppressed when a global demo banner already covers the page (D3). */}
@@ -142,17 +157,6 @@ export function PanoramaShell({
           </li>
         </ul>
       </details>
-
-      <PanoramaConsole
-        defaultLayerId={layer.id}
-        defaultFeatures={features}
-        defaultTruncated={truncated}
-        defaultSuppressedCount={suppressedCount}
-        initialKpis={kpis}
-        initialBounds={initialBounds}
-        localityCentroids={localityCentroids}
-        initialLevel={initialLevel}
-      />
     </div>
   );
 }

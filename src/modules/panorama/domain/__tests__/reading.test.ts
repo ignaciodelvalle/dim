@@ -16,18 +16,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  type ReadingKpi,
-  buildPanoramaReading,
-} from "@/src/modules/panorama/domain/reading";
+import { type ReadingKpi, buildPanoramaReading } from "@/src/modules/panorama/domain/reading";
 
 const FALLBACK = "Sin variación destacable frente al período anterior.";
 
-function kpi(
-  id: string,
-  pct?: number,
-  direction?: "up" | "down" | "flat",
-): ReadingKpi {
+function kpi(id: string, pct?: number, direction?: "up" | "down" | "flat"): ReadingKpi {
   if (pct === undefined || direction === undefined) return { id };
   return { id, delta: { pct, direction } };
 }
@@ -41,17 +34,12 @@ describe("buildPanoramaReading — headline (worst delta)", () => {
       kpi("mordeduras", 12, "up"),
       kpi("zoonosis", -3, "down"),
     ]);
-    expect(out).toBe(
-      "Mordeduras empeora 12% vs período anterior; 2 de 3 indicadores mejoran.",
-    );
+    expect(out).toBe("Mordeduras empeora 12% vs período anterior; 2 de 3 indicadores mejoran.");
   });
 
   it("compares deltas by MAGNITUDE — a large negative pct beats a smaller positive one", () => {
     // cobertura -20 (good-up, down → empeora) has |20| > |8|.
-    const out = buildPanoramaReading([
-      kpi("mordeduras", 8, "up"),
-      kpi("cobertura", -20, "down"),
-    ]);
+    const out = buildPanoramaReading([kpi("mordeduras", 8, "up"), kpi("cobertura", -20, "down")]);
     expect(out).toBe(
       "Cobertura antirrábica empeora 20% vs período anterior; 0 de 2 indicadores mejoran.",
     );
@@ -59,10 +47,7 @@ describe("buildPanoramaReading — headline (worst delta)", () => {
 
   it("tie-breaks equal magnitudes by input array order", () => {
     // |10| === |10| → the FIRST in array order (zoonosis) wins the headline.
-    const out = buildPanoramaReading([
-      kpi("zoonosis", -10, "down"),
-      kpi("mordeduras", 10, "up"),
-    ]);
+    const out = buildPanoramaReading([kpi("zoonosis", -10, "down"), kpi("mordeduras", 10, "up")]);
     expect(out.startsWith("Zoonosis activas mejora 10%")).toBe(true);
   });
 });
@@ -94,19 +79,13 @@ describe("buildPanoramaReading — valence × direction verbs", () => {
 describe("buildPanoramaReading — count suffix agreement", () => {
   it("uses singular 'mejora' when exactly one indicator improves", () => {
     // mordeduras +12 empeora; cobertura +3 mejora → "1 de 2 indicadores mejora."
-    const out = buildPanoramaReading([
-      kpi("mordeduras", 12, "up"),
-      kpi("cobertura", 3, "up"),
-    ]);
+    const out = buildPanoramaReading([kpi("mordeduras", 12, "up"), kpi("cobertura", 3, "up")]);
     expect(out.endsWith("1 de 2 indicadores mejora.")).toBe(true);
   });
 
   it("counts flat deltas in the denominator but never as improving", () => {
     // cobertura +5 mejora (headline); mordeduras flat → Y=2, X=1.
-    const out = buildPanoramaReading([
-      kpi("cobertura", 5, "up"),
-      kpi("mordeduras", 0, "flat"),
-    ]);
+    const out = buildPanoramaReading([kpi("cobertura", 5, "up"), kpi("mordeduras", 0, "flat")]);
     expect(out).toBe(
       "Cobertura antirrábica mejora 5% vs período anterior; 1 de 2 indicadores mejora.",
     );
@@ -114,11 +93,7 @@ describe("buildPanoramaReading — count suffix agreement", () => {
 
   it("KPIs without a delta are excluded from the denominator", () => {
     // mascotas/perdidas carry NO delta (state metrics) — Y counts only delta carriers.
-    const out = buildPanoramaReading([
-      kpi("mascotas"),
-      kpi("cobertura", 5, "up"),
-      kpi("perdidas"),
-    ]);
+    const out = buildPanoramaReading([kpi("mascotas"), kpi("cobertura", 5, "up"), kpi("perdidas")]);
     expect(out.endsWith("1 de 1 indicadores mejora.")).toBe(true);
   });
 });
@@ -133,10 +108,7 @@ describe("buildPanoramaReading — fallback", () => {
   });
 
   it("returns the fixed fallback when every delta is flat (no material variation)", () => {
-    const out = buildPanoramaReading([
-      kpi("cobertura", 0, "flat"),
-      kpi("mordeduras", 0, "flat"),
-    ]);
+    const out = buildPanoramaReading([kpi("cobertura", 0, "flat"), kpi("mordeduras", 0, "flat")]);
     expect(out).toBe(FALLBACK);
   });
 });
@@ -145,10 +117,7 @@ describe("buildPanoramaReading — unknown KPI ids (safety)", () => {
   it("ignores ids outside the known valence map for headline and counts", () => {
     // A future/unknown KPI with a huge delta must not fabricate a headline —
     // valence (mejora/empeora) is undefined for it.
-    const out = buildPanoramaReading([
-      kpi("nueva-metrica", 99, "up"),
-      kpi("cobertura", 5, "up"),
-    ]);
+    const out = buildPanoramaReading([kpi("nueva-metrica", 99, "up"), kpi("cobertura", 5, "up")]);
     expect(out).toBe(
       "Cobertura antirrábica mejora 5% vs período anterior; 1 de 1 indicadores mejora.",
     );

@@ -9,10 +9,7 @@
 // Hidden while the KPIs are stale: the kpisStale warning already covers that
 // state, and a "reading" over stale numbers would mislead the operator.
 
-import {
-  type ReadingKpi,
-  buildPanoramaReading,
-} from "@/src/modules/panorama/domain/reading";
+import { type ReadingKpi, buildPanoramaReading } from "@/src/modules/panorama/domain/reading";
 
 type Props = {
   /** The headline KPIs (PanoramaKpi[] satisfies this structurally). */

@@ -20,7 +20,7 @@
 
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const routerPush = vi.fn();
@@ -47,18 +47,29 @@ vi.mock("next/navigation", () => ({
 
 // The map + surrounding panels are irrelevant to the fluid-commit contract and
 // pull in maplibre-gl (heavy, browser-only) — stub them out. PresetPanel is
-// left real: it's the actual UI surface `onPreset` is wired to.
+// left real: it's the actual UI surface `onPreset` is wired to. The map and
+// KPI-strip stubs render POSITION MARKERS (and capture props) so the
+// panorama-redesign composition tests can assert DOM order + the frame prop.
+let mapProps: Record<string, unknown> | null = null;
+let layerPanelProps: { states?: Record<string, Record<string, unknown>> } | null = null;
+
 vi.mock("@/components/panorama/SituationalMapDynamic", () => ({
-  SituationalMapDynamic: () => null,
+  SituationalMapDynamic: (props: Record<string, unknown>) => {
+    mapProps = props;
+    return <div data-testid="map-region" />;
+  },
 }));
 vi.mock("@/components/panorama/DetailDrawer", () => ({
   DetailDrawer: () => null,
 }));
 vi.mock("@/components/panorama/LayerPanel", () => ({
-  LayerPanel: () => null,
+  LayerPanel: (props: { states?: Record<string, Record<string, unknown>> }) => {
+    layerPanelProps = props;
+    return null;
+  },
 }));
 vi.mock("@/components/panorama/PanoramaKpiStrip", () => ({
-  PanoramaKpiStrip: () => null,
+  PanoramaKpiStrip: () => <div data-testid="kpi-strip" />,
 }));
 vi.mock("@/components/panorama/AggregationToggle", () => ({
   AggregationToggle: () => null,
@@ -73,13 +84,42 @@ const EMPTY_FC = { type: "FeatureCollection" as const, features: [] };
 const INITIAL_KPIS = { kpis: [], recalculatedFor: "Nacional · este mes", dataAsOf: null };
 const OK_ENVELOPE = { features: EMPTY_FC, truncated: false, suppressedCount: 0 };
 
-const fetchMock = vi.fn(
-  async (_input: RequestInfo | URL, _init?: RequestInit) =>
-    ({
-      ok: true,
-      json: async () => OK_ENVELOPE,
-    }) as unknown as Response,
-);
+// Deferred-promise mode (panorama-redesign abort tests): when `deferMode` is
+// on, each fetch stays pending until its entry in `deferred` is resolved —
+// and rejects with an AbortError when its AbortSignal fires, mirroring the
+// real fetch contract. Default mode resolves instantly (legacy tests).
+type DeferredFetch = {
+  url: string;
+  signal: AbortSignal | null;
+  resolve: (body: unknown) => void;
+};
+let deferMode = false;
+let deferred: DeferredFetch[] = [];
+
+const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const url = String(input);
+  const signal = init?.signal ?? null;
+  if (!deferMode) {
+    // The KPI endpoint returns a PanoramaKpis payload, not a layer envelope —
+    // setKpis with the wrong shape would crash the PanoramaReading render.
+    const body = url.includes("/api/panorama/kpis") ? INITIAL_KPIS : OK_ENVELOPE;
+    return Promise.resolve({ ok: true, json: async () => body } as unknown as Response);
+  }
+  return new Promise<Response>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("The operation was aborted.", "AbortError"));
+      return;
+    }
+    signal?.addEventListener("abort", () =>
+      reject(new DOMException("The operation was aborted.", "AbortError")),
+    );
+    deferred.push({
+      url,
+      signal,
+      resolve: (body) => resolve({ ok: true, json: async () => body } as unknown as Response),
+    });
+  });
+});
 
 function setUrl(url: string) {
   window.history.replaceState(null, "", url);
@@ -102,6 +142,10 @@ beforeEach(() => {
   routerReplace.mockClear();
   routerRefresh.mockClear();
   fetchMock.mockClear();
+  deferMode = false;
+  deferred = [];
+  mapProps = null;
+  layerPanelProps = null;
   vi.stubGlobal("fetch", fetchMock);
   window.localStorage.clear();
   setUrl("/gob/panorama");
@@ -216,5 +260,182 @@ describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () =
     const params = new URLSearchParams(window.location.search);
     expect(params.get("period")).toBe("30d");
     expect(params.get("layers")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// panorama-redesign Fase 1 — reflow composition, control budget, frame, abort
+// ---------------------------------------------------------------------------
+
+/** True when `a` precedes `b` in DOM order. */
+function isBefore(a: Element, b: Element): boolean {
+  return (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+}
+
+function renderRedesignConsole(extraProps: Record<string, unknown> = {}) {
+  return render(
+    <PanoramaConsole
+      defaultLayerId="perdidas"
+      defaultFeatures={EMPTY_FC}
+      initialKpis={INITIAL_KPIS}
+      filtersSlot={
+        <select aria-label="Provincia">
+          <option>Todas</option>
+        </select>
+      }
+      {...extraProps}
+    />,
+  );
+}
+
+describe("PanoramaConsole — reflow composition (panorama-redesign Fase 1)", () => {
+  it("renders Reading → PresetPanel → SuppressionNotice before the map, KPI strip after", () => {
+    renderRedesignConsole({ defaultSuppressedCount: 3 });
+
+    const reading = screen.getByText("Sin variación destacable frente al período anterior.");
+    const presets = screen.getByText("Vista");
+    const notice = screen.getByText(/celdas con menos de 5 casos/);
+    const map = screen.getByTestId("map-region");
+    const strip = screen.getByTestId("kpi-strip");
+
+    expect(isBefore(reading, presets)).toBe(true);
+    expect(isBefore(presets, notice)).toBe(true);
+    expect(isBefore(notice, map)).toBe(true);
+    expect(isBefore(map, strip)).toBe(true);
+  });
+
+  it("hosts the filters slot inside the 'Alcance y período' disclosure, next to 'Personalizar'", () => {
+    const { container } = renderRedesignConsole();
+
+    const scopeSummary = screen.getByText("Alcance y período");
+    expect(scopeSummary.closest("details")).not.toBeNull();
+    expect(screen.getByText("Personalizar")).toBeInTheDocument();
+
+    // The slot content is REACHABLE (identical behavior, one click away)…
+    const filterSelect = screen.getByLabelText("Provincia");
+    // …but sits behind the closed disclosure at first paint.
+    const details = filterSelect.closest("details");
+    expect(details).not.toBeNull();
+    expect(details!.hasAttribute("open")).toBe(false);
+    expect(container.contains(filterSelect)).toBe(true);
+  });
+
+  it("stays within the first-paint control budget (≤8 visible interactive controls)", () => {
+    const { container } = renderRedesignConsole({ defaultSuppressedCount: 3 });
+
+    const all = Array.from(container.querySelectorAll("button, input, select, summary"));
+    const firstPaint = all.filter((el) => {
+      const hiddenBy = el.closest("details:not([open])");
+      if (hiddenBy === null) return true;
+      // The <summary> of a closed details is itself visible.
+      return el.tagName === "SUMMARY" && el.parentElement === hiddenBy;
+    });
+
+    expect(firstPaint.length).toBeLessThanOrEqual(8);
+    // Sanity: the 5 preset buttons ARE part of the visible set.
+    expect(firstPaint.filter((el) => el.tagName === "BUTTON").length).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe("PanoramaConsole — preset frame (camera-only)", () => {
+  it("passes { framing, token } to the map when the preset carries framing", () => {
+    renderRedesignConsole();
+
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+
+    expect(mapProps?.frame).toEqual({ framing: { kind: "national" }, token: 1 });
+  });
+
+  it("re-clicking the SAME preset bumps the token so the map re-frames", () => {
+    renderRedesignConsole();
+
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+
+    expect(mapProps?.frame).toEqual({ framing: { kind: "national" }, token: 2 });
+  });
+
+  it("clears the frame when a framing-less preset is selected (map behavior unchanged)", () => {
+    renderRedesignConsole();
+
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("button", { name: /cumplimiento/ }));
+
+    expect(mapProps?.frame).toBeNull();
+  });
+});
+
+describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)", () => {
+  const coberturaCalls = () =>
+    fetchMock.mock.calls.filter((c) => String(c[0]).includes("/api/panorama/cobertura"));
+
+  it("coalesces rapid preset clicks into ONE fetch burst for the last selection", async () => {
+    renderRedesignConsole();
+
+    // Two clicks inside the 200ms debounce window: only the LAST preset fetches.
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("button", { name: /cumplimiento/ }));
+
+    await waitFor(() => expect(coberturaCalls()).toHaveLength(1));
+    // brotes-activos' zoonosis layer was superseded before its burst fired.
+    const zoonosisCalls = fetchMock.mock.calls.filter((c) =>
+      String(c[0]).includes("/api/panorama/zoonosis"),
+    );
+    expect(zoonosisCalls).toHaveLength(0);
+  });
+
+  it("aborts a superseded in-flight fetch; the abort NEVER deactivates the layer; last click wins", async () => {
+    deferMode = true;
+    renderRedesignConsole();
+
+    // Burst A (brotes-activos): cobertura + zoonosis go in flight after ~200ms.
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    await waitFor(() => expect(coberturaCalls()).toHaveLength(1));
+
+    // Burst B (cumplimiento) supersedes A's cobertura fetch.
+    fireEvent.click(screen.getByRole("button", { name: /cumplimiento/ }));
+    await waitFor(() => expect(coberturaCalls()).toHaveLength(2));
+
+    const [first, second] = coberturaCalls();
+    expect((first[1]?.signal as AbortSignal).aborted).toBe(true);
+    expect((second[1]?.signal as AbortSignal).aborted).toBe(false);
+
+    // Let A's AbortError rejection settle: the catch must EARLY-RETURN — the
+    // layer stays active+loading (B in flight), never flipped to inactive.
+    await act(async () => {});
+    const midFlight = layerPanelProps?.states?.cobertura as {
+      active: boolean;
+      loading: boolean;
+    };
+    expect(midFlight.active).toBe(true);
+    expect(midFlight.loading).toBe(true);
+
+    // Resolve the WINNING (last) fetch — its payload lands.
+    const point = {
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [-60, -35] as [number, number] },
+      properties: {},
+    };
+    const winning = deferred.filter((d) => d.url.includes("/api/panorama/cobertura")).at(-1);
+    expect(winning).toBeDefined();
+    act(() => {
+      winning!.resolve({
+        features: { type: "FeatureCollection", features: [point, point] },
+        truncated: false,
+        suppressedCount: 0,
+        noLocalityCount: 0,
+      });
+    });
+
+    await waitFor(() => {
+      const s = layerPanelProps?.states?.cobertura as {
+        active: boolean;
+        loading: boolean;
+        count: number;
+      };
+      expect(s.loading).toBe(false);
+      expect(s.active).toBe(true);
+      expect(s.count).toBe(2);
+    });
   });
 });

@@ -26,9 +26,7 @@ describe("PanoramaReading", () => {
   it("renders the derived sentence from the KPI deltas", () => {
     render(<PanoramaReading kpis={KPIS_WITH_DELTAS} stale={false} />);
     expect(
-      screen.getByText(
-        "Mordeduras empeora 12% vs período anterior; 2 de 3 indicadores mejoran.",
-      ),
+      screen.getByText("Mordeduras empeora 12% vs período anterior; 2 de 3 indicadores mejoran."),
     ).toBeInTheDocument();
   });
 

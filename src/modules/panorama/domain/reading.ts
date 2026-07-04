@@ -74,9 +74,7 @@ function qualify(kpi: ReadingKpi): QualifiedKpi | null {
  * Returns the fixed fallback when nothing qualifies.
  */
 export function buildPanoramaReading(kpis: readonly ReadingKpi[]): string {
-  const qualified = kpis
-    .map(qualify)
-    .filter((q): q is QualifiedKpi => q !== null);
+  const qualified = kpis.map(qualify).filter((q): q is QualifiedKpi => q !== null);
 
   let headline: QualifiedKpi | null = null;
   for (const q of qualified) {

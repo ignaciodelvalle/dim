@@ -19,16 +19,19 @@
 // URL can offer a one-time, subtle restore.
 
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AggregationToggle } from "@/components/panorama/AggregationToggle";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPanel";
 import { PanoramaKpiStrip } from "@/components/panorama/PanoramaKpiStrip";
+import { PanoramaReading } from "@/components/panorama/PanoramaReading";
+import { PanoramaSuppressionNotice } from "@/components/panorama/PanoramaSuppressionNotice";
 import { PresetPanel } from "@/components/panorama/PresetPanel";
 import type { ActiveLayer, PointRenderMode } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
+import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import { pushMapStateUrl, replaceMapStateUrl } from "@/lib/ui/map-layer-nav";
@@ -45,6 +48,7 @@ import {
 } from "@/src/modules/panorama/domain/layers";
 import {
   PANORAMA_PRESETS,
+  type PresetFraming,
   type PresetId,
   getPreset,
   presetLayerIds,
@@ -56,6 +60,19 @@ import type {
 } from "@/src/modules/panorama/domain/types";
 
 const EMPTY_FC: FeatureCollection = { type: "FeatureCollection", features: [] };
+
+// panorama-redesign Fase 1: trailing debounce for the preset-commit layer
+// fetch. Rapid preset clicks coalesce into ONE fetch burst (the last click);
+// the state flips + shallow URL push stay synchronous for instant feedback.
+const PRESET_FETCH_DEBOUNCE_MS = 200;
+
+/** True when the error is a fetch cancellation (superseded request, NOT a
+ * failure). Every catch on an abort-wrapped path MUST early-return on this —
+ * running the failure branch would deactivate the layer on every superseded
+ * fetch (design-mandated correctness rule, panorama-redesign Fase 1). */
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
+}
 
 const initialState = (): Record<LayerId, LayerPanelState> => {
   const out = {} as Record<LayerId, LayerPanelState>;
@@ -184,6 +201,14 @@ type Props = {
    * MUST match the level the page passed to getLayerFeatures for the seed.
    */
   initialLevel?: AggregationLevel;
+  /**
+   * panorama-redesign Fase 1 (RSC slot): the scope/period filters
+   * (JurisdictionSwitcher + PeriodPicker) rendered by the SERVER shell.
+   * PanoramaShell keeps ownership of that JSX (server/client boundary
+   * intact); the console only decides WHERE it appears — inside the
+   * "Alcance y período" disclosure in the side column.
+   */
+  filtersSlot?: ReactNode;
 };
 
 export function PanoramaConsole({
@@ -196,8 +221,13 @@ export function PanoramaConsole({
   initialBounds,
   localityCentroids = {},
   initialLevel = "province",
+  filtersSlot,
 }: Props) {
   const searchParams = useSearchParams();
+  // panorama-redesign Fase 1: per-key fetch cancellation. Key = layer id for
+  // /api/panorama/[layer] fetches, "kpis" for the KPI strip — last click wins
+  // per key; superseded fetches abort instead of racing the UI state.
+  const { signalFor } = useKeyedAbort();
   // Feature data per layer (the default is seeded; others fetched on toggle).
   // This is the LIVE cache (asOf=null). The temporal as-of cache is separate.
   // When the server seeded the default layer at locality level (scoped view,
@@ -316,6 +346,7 @@ export function PanoramaConsole({
     let cancelled = false;
     fetch(`/api/panorama/kpis${scopePeriodQs ? `?${scopePeriodQs}` : ""}`, {
       headers: { accept: "application/json" },
+      signal: signalFor("kpis"),
     })
       .then((r) => (r.ok ? (r.json() as Promise<PanoramaKpis>) : null))
       .then((body) => {
@@ -328,6 +359,9 @@ export function PanoramaConsole({
         }
       })
       .catch((err) => {
+        // Superseded fetch (keyed abort) — a newer KPI request is in flight:
+        // not a failure, the fresher response will land instead.
+        if (isAbortError(err)) return;
         // Leave the last-known KPIs in place on a transient failure (no
         // flash) but surface it — this used to be a silent no-op.
         if (cancelled) return;
@@ -337,7 +371,7 @@ export function PanoramaConsole({
     return () => {
       cancelled = true;
     };
-  }, [scopePeriodQs]);
+  }, [scopePeriodQs, signalFor]);
 
   // --- F4 temporal reproduction -------------------------------------------
   // The active period window [since, until] drives the scrubber axis. Resolved
@@ -422,7 +456,7 @@ export function PanoramaConsole({
         try {
           const res = await fetch(
             `/api/panorama/${l.id}${params.toString() ? `?${params.toString()}` : ""}`,
-            { headers: { accept: "application/json" } },
+            { headers: { accept: "application/json" }, signal: signalFor(l.id) },
           );
           if (!res.ok) return;
           const body = (await res.json()) as ApiResponse;
@@ -442,7 +476,9 @@ export function PanoramaConsole({
               truncated: body.truncated,
             },
           }));
-        } catch {
+        } catch (err) {
+          // Superseded fetch — the newer request owns the layer state now.
+          if (isAbortError(err)) return;
           setStates((s) => ({
             ...s,
             [l.id]: { ...s[l.id], loading: false },
@@ -450,7 +486,7 @@ export function PanoramaConsole({
         }
       }),
     ).then(() => setLevelVersion((v) => v + 1));
-  }, [scopePeriodQs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scopePeriodQs, signalFor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When the as-of moves, refetch the ACTIVE TEMPORAL layers at that instant and
   // repaint. Non-temporal layers are not refetched (they are dimmed instead).
@@ -612,17 +648,22 @@ export function PanoramaConsole({
       try {
         const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
           headers: { accept: "application/json" },
+          signal: signalFor(id),
         });
         if (!res.ok) return null;
         const body = (await res.json()) as ApiResponse;
         if (lvl === "province") provinceDataRef.current.set(id, body.features);
         else dataRef.current.set(id, body.features);
         return body;
-      } catch {
+      } catch (err) {
+        // RETHROW aborts: `null` means "failed" to callers (they run the
+        // failure branch, deactivating the layer) — a superseded fetch must
+        // never look like a failure. Callers early-return on AbortError.
+        if (isAbortError(err)) throw err;
         return null;
       }
     },
-    [searchParams],
+    [searchParams, signalFor],
   );
 
   // map-QOL: fetch a set of layers into the right caches at a given aggregation
@@ -645,6 +686,7 @@ export function PanoramaConsole({
             const qsStr = params.toString();
             const res = await fetch(`/api/panorama/${id}${qsStr ? `?${qsStr}` : ""}`, {
               headers: { accept: "application/json" },
+              signal: signalFor(id),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const body = (await res.json()) as ApiResponse;
@@ -664,7 +706,11 @@ export function PanoramaConsole({
                 truncated: body.truncated,
               },
             }));
-          } catch {
+          } catch (err) {
+            // Superseded fetch (keyed abort): the NEWER request owns this
+            // layer's state — running the failure branch here would
+            // deactivate the layer on every superseded fetch.
+            if (isAbortError(err)) return;
             // On failure, leave the layer off and clear loading; no silent half-state.
             setStates((s) => ({
               ...s,
@@ -681,7 +727,7 @@ export function PanoramaConsole({
       );
       setLevelVersion((v) => v + 1);
     },
-    [],
+    [signalFor],
   );
 
   // Switch the aggregation axis. Refetch the ACTIVE choropleth layers AND the
@@ -714,7 +760,14 @@ export function PanoramaConsole({
       });
       Promise.all(
         needFetch.map(async (l) => {
-          const body = await fetchChoroplethAt(l.id, next);
+          let body: ApiResponse | null;
+          try {
+            body = await fetchChoroplethAt(l.id, next);
+          } catch (err) {
+            // Superseded fetch — the newer request owns this layer's state.
+            if (isAbortError(err)) return;
+            body = null;
+          }
           setStates((s) => ({
             ...s,
             [l.id]: {
@@ -854,7 +907,15 @@ export function PanoramaConsole({
           return;
         }
         setStates((s) => ({ ...s, [id]: { ...s[id], active: true, loading: true } }));
-        const body = await fetchChoroplethAt(id, "province");
+        let body: ApiResponse | null;
+        try {
+          body = await fetchChoroplethAt(id, "province");
+        } catch (err) {
+          // Superseded fetch — the newer request owns this layer's state:
+          // never run the failure branch (it would deactivate the layer).
+          if (isAbortError(err)) return;
+          body = null;
+        }
         setStates((s) => {
           const nextActive = remainingActiveIds.concat(id);
           const layerState: LayerPanelState = body
@@ -905,6 +966,7 @@ export function PanoramaConsole({
         const qs = params.toString();
         const res = await fetch(`/api/panorama/${id}${qs ? `?${qs}` : ""}`, {
           headers: { accept: "application/json" },
+          signal: signalFor(id),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const body = (await res.json()) as ApiResponse;
@@ -928,7 +990,9 @@ export function PanoramaConsole({
         if (asOf !== null && isTemporalLayer(id)) {
           void fetchAsOfFor(id, asOf);
         }
-      } catch {
+      } catch (err) {
+        // Superseded fetch — the newer request owns this layer's state now.
+        if (isAbortError(err)) return;
         // On failure, leave the layer off and clear loading; no silent half-state.
         dataRef.current.delete(id);
         setStates((s) => ({
@@ -937,7 +1001,7 @@ export function PanoramaConsole({
         }));
       }
     },
-    [searchParams, states, asOf, fetchAsOfFor, fetchChoroplethAt, computeHints],
+    [searchParams, states, asOf, fetchAsOfFor, fetchChoroplethAt, computeHints, signalFor],
   );
 
   // F3: active preset — null when the operator is in manual "modo avanzado".
@@ -946,6 +1010,30 @@ export function PanoramaConsole({
     const raw = searchParams.get("preset");
     return raw !== null && getPreset(raw as PresetId) ? (raw as PresetId) : null;
   });
+
+  // panorama-redesign Fase 1: preset map framing (camera-only). Set on preset
+  // activation from the preset's optional `framing` field; the token is a
+  // monotonic counter so re-clicking the same preset re-frames (new object
+  // identity re-fires the map's frame effect). null = no framing (framing-less
+  // presets keep today's map behavior).
+  const frameTokenRef = useRef(0);
+  const [presetFrame, setPresetFrame] = useState<{
+    framing: PresetFraming;
+    token: number;
+  } | null>(null);
+
+  // panorama-redesign Fase 1: trailing debounce handle for the preset-commit
+  // layer fetch (see onPreset). Cleared on unmount so a pending burst never
+  // fires into an unmounted console.
+  const presetFetchTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (presetFetchTimerRef.current !== null) {
+        window.clearTimeout(presetFetchTimerRef.current);
+      }
+    },
+    [],
+  );
 
   /**
    * F3: Activate a preset — FLUID (map-QOL).
@@ -1005,6 +1093,15 @@ export function PanoramaConsole({
 
       setActivePresetId(id);
 
+      // panorama-redesign Fase 1: apply the preset's optional map framing
+      // (camera-only — data scope untouched). Framing-less presets clear it.
+      if (preset.framing) {
+        frameTokenRef.current += 1;
+        setPresetFrame({ framing: preset.framing, token: frameTokenRef.current });
+      } else {
+        setPresetFrame(null);
+      }
+
       // Commit the board URL shallowly (back-button undoable — an explicit
       // user action) and fetch the preset layers against the NEW params.
       const nextParams = new URLSearchParams(searchParams.toString());
@@ -1016,7 +1113,17 @@ export function PanoramaConsole({
       presetCommittedQsRef.current = scopePeriodQsOf(nextParams);
       pushMapStateUrl(`?${nextParams.toString()}`);
       saveBoard(nextParams);
-      void fetchLayersInto(presetIds, preset.level, nextParams);
+      // panorama-redesign Fase 1: TRAILING debounce on the layer-fetch burst
+      // ONLY — the state flips + shallow URL push above stay synchronous
+      // (instant feedback). Rapid preset clicks coalesce into one burst for
+      // the LAST selection; in-flight fetches are superseded via keyed abort.
+      if (presetFetchTimerRef.current !== null) {
+        window.clearTimeout(presetFetchTimerRef.current);
+      }
+      presetFetchTimerRef.current = window.setTimeout(() => {
+        presetFetchTimerRef.current = null;
+        void fetchLayersInto(presetIds, preset.level, nextParams);
+      }, PRESET_FETCH_DEBOUNCE_MS);
     },
     [searchParams, fetchLayersInto],
   );
@@ -1174,6 +1281,7 @@ export function PanoramaConsole({
     });
     const kpiFetch = fetch(`/api/panorama/kpis${scopePeriodQs ? `?${scopePeriodQs}` : ""}`, {
       headers: { accept: "application/json" },
+      signal: signalFor("kpis"),
     })
       .then((r) => (r.ok ? (r.json() as Promise<PanoramaKpis>) : null))
       .then((body) => {
@@ -1185,6 +1293,8 @@ export function PanoramaConsole({
         }
       })
       .catch((err) => {
+        // Superseded fetch (keyed abort) — a newer KPI request replaces this one.
+        if (isAbortError(err)) return;
         // Keep the last-known KPIs on a transient failure, but surface it —
         // this used to be a silent no-op (error-path audit 2026-07-04, E5).
         console.error("[PanoramaConsole] selective KPI refresh failed", err);
@@ -1193,7 +1303,7 @@ export function PanoramaConsole({
     void Promise.all([kpiFetch, fetchLayersInto(activeIds, levelRef.current, params)]).finally(() =>
       setRefreshing(false),
     );
-  }, [refreshing, scopePeriodQs, fetchLayersInto]);
+  }, [refreshing, scopePeriodQs, fetchLayersInto, signalFor]);
 
   // A1 PR-7: autozoom — derive the current jurisdiction selection from
   // searchParams (set by JurisdictionSwitcher via a full document navigation).
@@ -1206,22 +1316,29 @@ export function PanoramaConsole({
   const selectedLocalityCenter: [number, number] | null =
     selectedLocalitySlug !== null ? (localityCentroids[selectedLocalitySlug] ?? null) : null;
 
+  // panorama-redesign Fase 1 reflow: Reading → PresetPanel (full-width) →
+  // SuppressionNotice → TimeScrubber + map grid (side column: "Alcance y
+  // período" disclosure hosting the server filtersSlot, then the unchanged
+  // "Personalizar" disclosure) → KPI strip (deliberately demoted below the
+  // map — flagged for PO, non-blocking). Composition-only: every component
+  // keeps its exact props and behavior.
   return (
     <div className="space-y-4">
-      {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked by
-          asOf in v1). The scrubber note states this so the operator isn't misled. */}
-      <PanoramaKpiStrip kpis={kpis} onRefresh={onRefresh} refreshing={refreshing} />
-      {kpisStale && (
-        // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
-        // the strip above is showing the last-known numbers, not live ones —
-        // say so instead of leaving the operator misled by a silent stale read.
-        <output
-          aria-live="polite"
-          className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
-        >
-          No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
-        </output>
-      )}
+      {/* One-line auto-reading derived from the existing KPI deltas (no new
+          query). Hidden while the KPIs are stale — the notice below covers it. */}
+      <PanoramaReading kpis={kpis.kpis} stale={kpisStale} />
+      {/* Presets promoted above the map: the primary control answers the
+          operator's QUESTION first (design rule #667 still holds — advanced
+          controls stay behind "Personalizar"). */}
+      <PresetPanel
+        presets={PANORAMA_PRESETS}
+        activePresetId={activePresetId}
+        onPreset={onPreset}
+        layout="row"
+      />
+      {/* k-anon disclosure promoted out of "Personalizar": suppression is
+          visible without any click (same envelope counts LayerPanel shows). */}
+      <PanoramaSuppressionNotice states={states} />
       <TimeScrubber since={since} until={until} onChange={onScrub} />
       <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
         <SituationalMapDynamic
@@ -1231,13 +1348,25 @@ export function PanoramaConsole({
           initialBounds={initialBounds}
           selectedProvinceCode={selectedProvinceCode}
           selectedLocalityCenter={selectedLocalityCenter}
+          frame={presetFrame}
         />
         <div className="space-y-3">
-          <PresetPanel
-            presets={PANORAMA_PRESETS}
-            activePresetId={activePresetId}
-            onPreset={onPreset}
-          />
+          {/* RSC slot: scope/period filters owned by the SERVER shell, placed
+              behind progressive disclosure — identical behavior, one click away. */}
+          {filtersSlot !== undefined && (
+            <details className="group space-y-2">
+              <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
+                <span
+                  aria-hidden="true"
+                  className="mr-1 inline-block transition-transform group-open:rotate-90"
+                >
+                  ▸
+                </span>
+                Alcance y período
+              </summary>
+              <div className="mt-2 space-y-3">{filtersSlot}</div>
+            </details>
+          )}
           {/* Design rule #667: consolidated view by default — presets are the
               primary control; ALL advanced controls (aggregation axis + the
               per-layer legend/toggles) live behind this single disclosure. */}
@@ -1268,6 +1397,20 @@ export function PanoramaConsole({
           </details>
         </div>
       </div>
+      {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked by
+          asOf in v1). The scrubber note states this so the operator isn't misled. */}
+      <PanoramaKpiStrip kpis={kpis} onRefresh={onRefresh} refreshing={refreshing} />
+      {kpisStale && (
+        // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
+        // the strip above is showing the last-known numbers, not live ones —
+        // say so instead of leaving the operator misled by a silent stale read.
+        <output
+          aria-live="polite"
+          className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
+        >
+          No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
+        </output>
+      )}
       <DetailDrawer selected={selected} onClose={closeDrawer} />
     </div>
   );
