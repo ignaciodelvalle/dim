@@ -116,6 +116,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
       features: result.features,
       truncated: result.truncated,
       suppressedCount: result.suppressedCount,
+      noLocalityCount: result.noLocalityCount ?? 0,
       level: result.level,
     },
     { headers: { "cache-control": "no-store" } },

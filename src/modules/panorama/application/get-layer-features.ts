@@ -68,6 +68,7 @@ export type LayerFeaturesResult = {
   features: FeatureCollection;
   truncated: boolean;
   suppressedCount: number;
+  noLocalityCount: number;
   /** "province" only for a choropleth layer aggregated by province; else "locality". */
   level: AggregationLevel;
 };
@@ -76,12 +77,19 @@ const empty = (): LayerFeaturesResult => ({
   features: { type: "FeatureCollection", features: [] },
   truncated: false,
   suppressedCount: 0,
+  noLocalityCount: 0,
   level: "locality",
 });
 
 /** Wrap a point-layer reader result into the use-case envelope. */
 function pointResult<Row>(rows: LayerRows<Row>, features: FeatureCollection): LayerFeaturesResult {
-  return { features, truncated: rows.truncated, suppressedCount: 0, level: "locality" };
+  return {
+    features,
+    truncated: rows.truncated,
+    suppressedCount: 0,
+    noLocalityCount: 0,
+    level: "locality",
+  };
 }
 
 /**
@@ -97,6 +105,8 @@ function aggregatedPointResult(
     features: buildAggregatedPointFeatures(result.cells),
     truncated: result.truncated,
     suppressedCount: result.suppressedCount,
+    // Point layers aggregate by event coords, not jurisdiction — no residual.
+    noLocalityCount: 0,
     level,
   };
 }
@@ -107,6 +117,7 @@ function localityChoroplethResult(rows: ChoroplethRows): LayerFeaturesResult {
     features: buildChoroplethFeatures(rows.cells),
     truncated: rows.truncated,
     suppressedCount: rows.suppressedCount,
+    noLocalityCount: rows.noLocalityCount,
     level: "locality",
   };
 }
@@ -117,6 +128,8 @@ function provinceChoroplethResult(rows: ProvinceChoroplethRows): LayerFeaturesRe
     features: buildProvinceChoroplethFeatures(rows.cells),
     truncated: rows.truncated,
     suppressedCount: 0,
+    // Province level counts every pet in the province — nothing is invisible.
+    noLocalityCount: 0,
     level: "province",
   };
 }

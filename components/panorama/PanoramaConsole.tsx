@@ -60,7 +60,14 @@ const EMPTY_FC: FeatureCollection = { type: "FeatureCollection", features: [] };
 const initialState = (): Record<LayerId, LayerPanelState> => {
   const out = {} as Record<LayerId, LayerPanelState>;
   for (const l of PANORAMA_LAYERS) {
-    out[l.id] = { active: false, loading: false, count: 0, suppressedCount: 0, truncated: false };
+    out[l.id] = {
+      active: false,
+      loading: false,
+      count: 0,
+      suppressedCount: 0,
+      noLocalityCount: 0,
+      truncated: false,
+    };
   }
   return out;
 };
@@ -69,6 +76,7 @@ type ApiResponse = {
   features: FeatureCollection;
   truncated: boolean;
   suppressedCount: number;
+  noLocalityCount: number;
   level?: AggregationLevel;
 };
 
@@ -151,6 +159,7 @@ type Props = {
   /** Envelope for the default layer (truncated/suppressed). */
   defaultTruncated?: boolean;
   defaultSuppressedCount?: number;
+  defaultNoLocalityCount?: number;
   /** Server-rendered headline KPIs (recalculated for the active scope+period). */
   initialKpis: PanoramaKpis;
   /**
@@ -182,6 +191,7 @@ export function PanoramaConsole({
   defaultFeatures,
   defaultTruncated = false,
   defaultSuppressedCount = 0,
+  defaultNoLocalityCount = 0,
   initialKpis,
   initialBounds,
   localityCentroids = {},
@@ -242,6 +252,7 @@ export function PanoramaConsole({
         loading: false,
         count: defaultFeatures.features.length,
         suppressedCount: defaultSuppressedCount,
+        noLocalityCount: defaultNoLocalityCount ?? 0,
         truncated: defaultTruncated,
       };
       return s;
@@ -262,9 +273,17 @@ export function PanoramaConsole({
             loading: false,
             count: defaultFeatures.features.length,
             suppressedCount: defaultSuppressedCount,
+            noLocalityCount: defaultNoLocalityCount,
             truncated: defaultTruncated,
           }
-        : { active: true, loading: true, count: 0, suppressedCount: 0, truncated: false };
+        : {
+            active: true,
+            loading: true,
+            count: 0,
+            suppressedCount: 0,
+            noLocalityCount: 0,
+            truncated: false,
+          };
     }
     return s;
   });
@@ -404,6 +423,7 @@ export function PanoramaConsole({
               loading: false,
               count: body.features.features.length,
               suppressedCount: body.suppressedCount,
+              noLocalityCount: body.noLocalityCount ?? 0,
               truncated: body.truncated,
             },
           }));
@@ -625,6 +645,7 @@ export function PanoramaConsole({
                 loading: false,
                 count: body.features.features.length,
                 suppressedCount: body.suppressedCount,
+                noLocalityCount: body.noLocalityCount ?? 0,
                 truncated: body.truncated,
               },
             }));
@@ -686,6 +707,7 @@ export function PanoramaConsole({
               loading: false,
               count: body?.features.features.length ?? s[l.id].count,
               suppressedCount: body?.suppressedCount ?? 0,
+              noLocalityCount: body?.noLocalityCount ?? 0,
               truncated: body?.truncated ?? false,
             },
           }));
@@ -826,6 +848,7 @@ export function PanoramaConsole({
                 loading: false,
                 count: body.features.features.length,
                 suppressedCount: body.suppressedCount,
+                noLocalityCount: body.noLocalityCount ?? 0,
                 truncated: body.truncated,
               }
             : { active: false, loading: false, count: 0, suppressedCount: 0, truncated: false };
@@ -880,6 +903,7 @@ export function PanoramaConsole({
               loading: false,
               count: body.features.features.length,
               suppressedCount: body.suppressedCount,
+              noLocalityCount: body.noLocalityCount ?? 0,
               truncated: body.truncated,
             },
           };

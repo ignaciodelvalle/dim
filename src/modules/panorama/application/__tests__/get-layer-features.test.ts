@@ -452,6 +452,7 @@ describe("getLayerFeatures — esterilizacion (North-Star PROVINCE choropleth)",
     mockLoadChoropleth.mockResolvedValue({
       cells: [],
       suppressedCount: 0,
+      noLocalityCount: 0,
       truncated: false,
     } as ChoroplethRows);
 

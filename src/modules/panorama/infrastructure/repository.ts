@@ -565,6 +565,15 @@ function toChoroplethCells(rollup: RollupRow[]): {
 export type ChoroplethRows = {
   cells: ChoroplethCell[];
   suppressedCount: number;
+  /**
+   * Pets matching the metric that have a province but NO locality — counted
+   * at province level, invisible at locality level (the rollup filters
+   * jurisdiction_locality IS NOT NULL because it can only paint geocodable
+   * cells). Surfaced so the UI can disclose the residual instead of letting
+   * the two aggregation levels silently disagree (task #44; found when the
+   * 2026-07-04 reconciliation pushed deceased counts past the visible layer).
+   */
+  noLocalityCount: number;
   truncated: boolean;
 };
 
@@ -629,6 +638,23 @@ function metricPredicate(metric: ChoroplethMetric): SQL {
   }
   // mortality — pets currently in status='deceased'.
   return sql`${pets.status} = 'deceased'`;
+}
+
+/** Count metric-matching pets that are invisible to the locality rollup:
+ * province set, locality NULL. Same predicate + scope as the rollup so the
+ * two numbers reconcile exactly (see choropleth-by-level.test.ts). */
+async function countPetsNoLocality(whereExtra: SQL[], scopeClause: SQL | null): Promise<number> {
+  const conditions = [
+    ...whereExtra,
+    isNotNull(pets.jurisdictionProvince),
+    sql`${pets.jurisdictionLocality} IS NULL`,
+  ];
+  if (scopeClause) conditions.push(sql`(${scopeClause})`);
+  const [row] = await db
+    .select({ n: countDistinct(pets.id) })
+    .from(pets)
+    .where(and(...conditions));
+  return row?.n ?? 0;
 }
 
 // Build the per-locality rollup join. `whereExtra` adds the metric-specific
@@ -739,9 +765,12 @@ export async function loadRabiesCoverage(
   adminLocality?: string,
 ): Promise<ChoroplethRows> {
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
-  const rollup = await rollupPetsPerLocality([metricPredicate("rabies-coverage")], scope);
+  const [rollup, noLocalityCount] = await Promise.all([
+    rollupPetsPerLocality([metricPredicate("rabies-coverage")], scope),
+    countPetsNoLocality([metricPredicate("rabies-coverage")], scope),
+  ]);
   const { cells, suppressedCount } = toChoroplethCells(rollup);
-  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
 // metrics:sterilization-coverage (esterilizacion) — count of sterilized pets at the
@@ -757,9 +786,12 @@ export async function loadSterilizationCoverage(
   adminLocality?: string,
 ): Promise<ChoroplethRows> {
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
-  const rollup = await rollupPetsPerLocality([metricPredicate("sterilization-coverage")], scope);
+  const [rollup, noLocalityCount] = await Promise.all([
+    rollupPetsPerLocality([metricPredicate("sterilization-coverage")], scope),
+    countPetsNoLocality([metricPredicate("sterilization-coverage")], scope),
+  ]);
   const { cells, suppressedCount } = toChoroplethCells(rollup);
-  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
 // metrics:mortality (mortalidad) — count of pets in scope currently in
@@ -771,9 +803,12 @@ export async function loadMortality(
   adminLocality?: string,
 ): Promise<ChoroplethRows> {
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
-  const rollup = await rollupPetsPerLocality([metricPredicate("mortality")], scope);
+  const [rollup, noLocalityCount] = await Promise.all([
+    rollupPetsPerLocality([metricPredicate("mortality")], scope),
+    countPetsNoLocality([metricPredicate("mortality")], scope),
+  ]);
   const { cells, suppressedCount } = toChoroplethCells(rollup);
-  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
 // U5: PROVINCE-level loaders. Used when the aggregation toggle is on "Provincia".

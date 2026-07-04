@@ -28,6 +28,7 @@ export type LayerPanelState = {
   count: number;
   /** k-anon suppressed cell count (choropleth only); 0 otherwise. */
   suppressedCount: number;
+  noLocalityCount?: number;
   /** The 2.000 per-layer cap clipped the result. */
   truncated: boolean;
   /**
@@ -138,6 +139,14 @@ export function LayerPanel({
                           title="Celdas ocultas por privacidad (k-anonimato, k=5)"
                         >
                           {st.suppressedCount} suprimido{st.suppressedCount === 1 ? "" : "s"}
+                        </span>
+                      )}
+                      {active && !st?.loading && (st.noLocalityCount ?? 0) > 0 && (
+                        <span
+                          className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-xs text-ln-op-mute"
+                          title="Registros con provincia pero sin localidad asignada — visibles en el nivel provincial, no en este mapa"
+                        >
+                          {st.noLocalityCount} sin localidad
                         </span>
                       )}
                       {active && !st?.loading && st.truncated && (
