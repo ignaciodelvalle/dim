@@ -5,18 +5,18 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { fetchLatestAmendmentsForEvents } from "@/app/actions/amendment";
 import { AmendedBadge } from "@/components/ui/AmendedBadge";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { attachments, db, petEvents } from "@/db";
 import type { EventType } from "@/db/schema";
 import { readPoint } from "@/lib/domain/location";
-import { upcastPayload } from "@/lib/events/event-upcasters";
-import { eventPayloadSummary } from "@/lib/events/events";
+import { eventPayloadDetails, eventPayloadSummary } from "@/lib/events/events";
+import { applyAmendments } from "@/lib/infra/amendment";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { eventAttachmentSignedUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
 import { eventTypeLabel, formatDateTime } from "@/lib/utils/format";
+import { fetchLatestAmendmentsForEvents } from "@/src/modules/events/application/amendment/fetch-latest-amendments";
 import { and, eq } from "drizzle-orm";
 import { AmendEventButton } from "./AmendEventButton";
 
@@ -43,8 +43,36 @@ export default async function EventDetailPage({
   if (!event) notFound();
 
   const eventType = event.eventType as EventType;
-  const summary = eventPayloadSummary(event.eventType, event.payload);
+
+  // D2 — Check for amendments on this event. Fetched BEFORE deriving the
+  // summary/detail rows below so both project the CORRECTED payload — the
+  // timeline already applies amendments at its read boundary
+  // (overlayAmendments in lib/infra/amendment.ts), but this detail page
+  // queried `event.payload` directly and never overlaid the correction,
+  // so a corrected vaccine name (etc.) showed its pre-correction value here
+  // while the timeline correctly showed the amended one (owner post-impl
+  // corrections handoff, clickthrough audit 2026-07-04).
+  const amendmentsMap = await fetchLatestAmendmentsForEvents(pet.id, [event.id]);
+  const latestAmendment = amendmentsMap.get(event.id) ?? null;
+  const correctedPayload = latestAmendment
+    ? applyAmendments(event.payload as Record<string, unknown>, [
+        {
+          id: latestAmendment.amendmentId,
+          targetEventId: latestAmendment.targetEventId,
+          occurredAt: latestAmendment.occurredAt,
+          reason: latestAmendment.reason,
+          actorRole: latestAmendment.actorRole,
+          changes: latestAmendment.changes,
+        },
+      ])
+    : (event.payload as Record<string, unknown>);
+
+  const summary = eventPayloadSummary(event.eventType, correctedPayload);
   const heading = summary.primary ?? eventTypeLabel(eventType);
+  // H3 — curated es-AR key/value rows (whitelist), never a raw JSON dump: the
+  // same helper EventTimeline's "Ver detalle" already uses. Never emits
+  // firma_hash, evidence_hash, *_id, source, or payload_version.
+  const details = eventPayloadDetails(event.eventType, correctedPayload);
 
   const eventAttachments = await db
     .select()
@@ -60,15 +88,6 @@ export default async function EventDetailPage({
   );
 
   const point = readPoint(event);
-  const payload = (upcastPayload(event.eventType as EventType, event.payload) ?? {}) as Record<
-    string,
-    unknown
-  >;
-  const payloadEntries = Object.entries(payload).filter(([, v]) => v !== null && v !== undefined);
-
-  // D2 — Check for amendments on this event.
-  const amendmentsMap = await fetchLatestAmendmentsForEvents(pet.id, [event.id]);
-  const latestAmendment = amendmentsMap.get(event.id) ?? null;
 
   // D3 — Capability gate: owner path can amend. Org-path (shelter) cannot
   // amend owner events in v1 (spec says "whoever can write that event_type").
@@ -120,7 +139,7 @@ export default async function EventDetailPage({
         <AmendEventButton
           eventId={event.id}
           eventType={event.eventType}
-          currentPayload={payload}
+          currentPayload={correctedPayload}
           canAmend={canAmend}
           publicToken={publicToken}
         />
@@ -164,26 +183,27 @@ export default async function EventDetailPage({
           </LnCardBody>
         </LnCard>
 
-        {/* Payload detail */}
+        {/* Payload detail — H3: curated es-AR fields only, never a raw JSON
+            dump (owner post-impl corrections handoff H3). */}
         <LnCard>
           <LnCardHead title="Detalle" />
           <LnCardBody>
-            {payloadEntries.length === 0 ? (
+            {details.length === 0 ? (
               <p className="text-[13px] text-[var(--color-ln-mute)] italic">
                 Sin campos adicionales.
               </p>
             ) : (
               <dl className="divide-y divide-[var(--color-ln-line-2)]">
-                {payloadEntries.map(([key, value]) => (
+                {details.map((row) => (
                   <div
-                    key={key}
+                    key={row.label}
                     className="grid grid-cols-1 gap-[4px] py-[10px] first:pt-0 last:pb-0 sm:grid-cols-3 sm:gap-[12px]"
                   >
-                    <dt className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)] break-all">
-                      {key}
+                    <dt className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                      {row.label}
                     </dt>
                     <dd className="text-[13px] text-[var(--color-ln-ink-2)] break-words sm:col-span-2">
-                      <PayloadValue value={value} />
+                      {row.value}
                     </dd>
                   </div>
                 ))}
@@ -275,29 +295,4 @@ function AuthorChip({ role, verified }: { role: string; verified: boolean }) {
       )}
     </span>
   );
-}
-
-function PayloadValue({ value }: { value: unknown }) {
-  if (typeof value === "boolean") return <>{value ? "Sí" : "No"}</>;
-  if (typeof value === "string" || typeof value === "number") return <>{String(value)}</>;
-  if (Array.isArray(value)) {
-    if (value.length === 0)
-      return <span className="italic text-[var(--color-ln-mute)]">vacío</span>;
-    if (value.every((v) => typeof v === "string" || typeof v === "number")) {
-      return <>{value.join(", ")}</>;
-    }
-    return (
-      <pre className="font-[var(--font-ln-mono)] text-[11px] whitespace-pre-wrap text-[var(--color-ln-ink-2)]">
-        {JSON.stringify(value, null, 2)}
-      </pre>
-    );
-  }
-  if (value && typeof value === "object") {
-    return (
-      <pre className="font-[var(--font-ln-mono)] text-[11px] whitespace-pre-wrap text-[var(--color-ln-ink-2)]">
-        {JSON.stringify(value, null, 2)}
-      </pre>
-    );
-  }
-  return <>{String(value)}</>;
 }
