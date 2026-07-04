@@ -515,6 +515,21 @@ async function main(): Promise<void> {
     log("OK", `${pet.name} (${pet.publicToken}): filled ${Object.keys(patch).join(", ")}`);
   }
 
+  // A cache weight without a backing event is exactly the drift the
+  // pet-cache fitness sweep exists to catch (invariant #3) — the first run
+  // of this script created it. Emit one weight_recorded per pet whose
+  // estimated_weight_kg is set but whose log has no weight event.
+  await db.execute(sql`
+    INSERT INTO pet_events (pet_id, event_type, occurred_at, recorded_at, author_role, payload)
+    SELECT p.id, 'weight_recorded', now() - interval '30 days', now() - interval '30 days', 'owner',
+           jsonb_build_object('payload_version', 1, 'kg', p.estimated_weight_kg::text, 'source', 'demo-polish')
+    FROM pets p
+    WHERE p.public_token LIKE 'DIM-%' AND p.estimated_weight_kg IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events e WHERE e.pet_id = p.id AND e.event_type = 'weight_recorded'
+      )
+  `);
+
   // -------------------------------------------------------------------------
   // Step 3 — PANO name cleanup + bulk identity fill
   // -------------------------------------------------------------------------
@@ -525,6 +540,12 @@ async function main(): Promise<void> {
   )) as unknown as { count?: number };
   summary.panoNamesCleaned = panoNames.count ?? 0;
   log("OK", `stripped PANO- prefixes from ${summary.panoNamesCleaned} pet names.`);
+
+  const panoHistNames = (await db.execute(
+    sql`UPDATE pets SET name = regexp_replace(name, '^PANO-HIST-[0-9]+ ', '') WHERE name ~ '^PANO-HIST-[0-9]+ '`,
+  )) as unknown as { count?: number };
+  summary.panoNamesCleaned += panoHistNames.count ?? 0;
+  log("OK", `stripped PANO-HIST- prefixes from ${panoHistNames.count ?? 0} pet names.`);
 
   // hashtext(public_token) instead of random() so reruns are deterministic
   // (the WHERE clause already makes reruns no-ops, but determinism keeps any

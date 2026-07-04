@@ -91,6 +91,32 @@ export async function seedDemoComplianceCoverage(database: {
     ) s
   `)) as { rowCount?: number } | { count?: number } | unknown;
 
+  // (1b) Matching microchip_implanted events — invariant #3: pet_identifications
+  //      is a projection of the event log. Inserting only the table row (the
+  //      original B2 fix) made the pet-cache fitness sweep flag every coverage
+  //      chip as cache<->events drift (task 2026-07-03 #36). Payload keys match
+  //      replayPetMicrochip: chip_number + implant_date_known (NOT chip_id).
+  await database.execute(sql`
+    INSERT INTO pet_events
+      (pet_id, event_type, occurred_at, recorded_at, author_role, author_verified, payload)
+    SELECT pi.pet_id, 'microchip_implanted',
+           pi.recorded_at::timestamptz, pi.recorded_at::timestamptz, 'vet', true,
+           jsonb_build_object(
+             'source', 'DEMO-coverage',
+             'chip_number', pi.code,
+             'country_code', pi.iso_country_code,
+             'implant_date_known', true,
+             'standard', 'ISO 11784/11785'
+           )
+    FROM pet_identifications pi
+    WHERE pi.kind = 'microchip_iso' AND pi.status = 'active'
+      AND NOT EXISTS (
+        SELECT 1 FROM pet_events e
+        WHERE e.pet_id = pi.pet_id
+          AND e.event_type IN ('microchip_implanted', 'microchip_recorded')
+      )
+  `);
+
   // (2) Rabies events — petEventsScopeClause scopes by the payload keys
   //     pet_jurisdiction_province + pet_jurisdiction_locality, which the seed's
   //     vaccination events lack → govt + province-drill views read 0%. pet_events

@@ -924,7 +924,7 @@ const lola: Storyline = {
       event_type: "adoption_eligibility_set",
       author_role: "shelter",
       payload: {
-        adoption_eligible: true,
+        eligible: true,
         set_by_user_id: "alejo",
         reason: "evaluación temperamento completa — apta",
       },
@@ -1233,7 +1233,7 @@ const negro: Storyline = {
       date: "2025-10-22",
       event_type: "adoption_eligibility_set",
       author_role: "shelter",
-      payload: { adoption_eligible: true, set_by_user_id: "alejo" },
+      payload: { eligible: true, set_by_user_id: "alejo" },
     },
     {
       date: "2026-05-10",
