@@ -1354,11 +1354,17 @@ Push visibility decisions to SQL — do not fetch then redact in JS.
 
 ### 5. Scan events — strict payload contract + 90-day TTL purge
 
+Updated by Task #45 (scan-location capture, PO decision obs #733): scans now carry anonymized location, under these rules.
+
 | Rule | Enforcement |
 |---|---|
-| Scan payload = `{ is_self_scan, viewer_authenticated }` only. No IP, no lat/lng. | `app/actions/scans.ts` |
-| `author_role='scanner'` events purged after 90 days | `lib/scan-retention.ts` + cron `/api/cron/purge-scan-events` |
-| Self-scans (`author_role='owner'`) are NOT purged — part of owner's own history | `lib/scan-retention.ts` |
+| Scanner-role payload = `{ is_self_scan, viewer_authenticated, scan_ip_area, scan_coords?, scan_accuracy_m? }`. Never the raw IP. | `src/modules/pets/application/scans/log-scan.ts` |
+| `scan_ip_area` is coarse (city precision max), derived from platform geo headers only — the raw IP is never read into the payload | `lib/infra/scan-geo.ts` |
+| `scan_coords`/`scan_accuracy_m` ONLY when the pet is lost AND the scanner explicitly granted browser geolocation; `pet.status='lost'` re-checked server-side | `src/modules/pets/application/scans/log-scan.ts` |
+| Scanner-role rows are hard-anonymized: `recorded_by_user_id = NULL` always (no scanner identity link, even when authenticated) | `src/modules/pets/application/scans/log-scan.ts` |
+| Self-scans (`author_role='owner'`) carry NO location fields — they are identity-linked and exempt from the purge | `src/modules/pets/application/scans/log-scan.ts` |
+| `author_role='scanner'` events purged after 90 days — this bounds retention of ALL scan-location fields | `lib/infra/scan-retention.ts` + cron `/api/cron/purge-scan-events` |
+| Self-scans (`author_role='owner'`) are NOT purged — part of owner's own history | `lib/infra/scan-retention.ts` |
 | Every purged row produces an `audit_log` entry (`action='scan_event_purged'`) | migration 0104 trigger |
 
 ### 6. k-anonymity on all public aggregates

@@ -547,7 +547,10 @@ export default async function PublicCredentialPage({
 
     return (
       <>
-        <ScanLogger publicToken={publicToken} />
+        {/* Lost mode: also renders the visible location-consent prompt so a
+            finder can share precise GPS (Task #45). Active credentials never
+            prompt — the server rejects coords for non-lost pets anyway. */}
+        <ScanLogger publicToken={publicToken} isLost petName={pet.name} />
         <LostPublicCredential
           petName={pet.name}
           petPhotoUrl={photoUrl}

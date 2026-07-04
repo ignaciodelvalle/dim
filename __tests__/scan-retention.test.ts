@@ -67,6 +67,16 @@ async function insertScanEvent(
         payload_version: 1,
         is_self_scan: authorRole !== "scanner",
         viewer_authenticated: false,
+        // Task #45: scanner-role scans carry the coarse IP-area (and, when the
+        // pet was lost + consent granted, GPS coords). Including them in the
+        // fixture proves the purge is what bounds retention of location data.
+        ...(authorRole === "scanner"
+          ? {
+              scan_ip_area: { city: "La Plata", region: "B", country: "AR" },
+              scan_coords: { lat: -34.9205, lng: -57.9536 },
+              scan_accuracy_m: 25,
+            }
+          : {}),
       },
       authorRole,
       recordedByUserId: null,

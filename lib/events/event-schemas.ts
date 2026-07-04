@@ -633,11 +633,42 @@ const noteAdded = z
   )
   .strict();
 
+// credential_scanned — scan-location contract (Task #45, PO decision obs #733):
+//   - scan_ip_area: coarse IP-derived area (city precision MAX) attached to
+//     every scanner-role scan; explicit null when the platform geo headers are
+//     absent. NEVER contains the raw IP. Self-scans (author_role='owner') do
+//     NOT carry it: those rows are identity-linked and exempt from the 90-day
+//     purge, so no location may accumulate on them.
+//   - scan_coords / scan_accuracy_m: precise GPS, present ONLY when the pet is
+//     lost AND the scanner explicitly granted browser geolocation (server
+//     re-checks pet.status — the client cannot force coords onto a non-lost pet).
+//   - Scanner identity: scanner-role rows are written with
+//     recorded_by_user_id = NULL (src/modules/pets/application/scans/log-scan.ts);
+//     no payload field may ever identify the scanner.
+//   - Retention: all location fields live only on author_role='scanner' rows,
+//     purged wholesale at 90 days (lib/infra/scan-retention.ts).
 const credentialScanned = z
   .object(
     withVersion({
       is_self_scan: z.boolean(),
       viewer_authenticated: z.boolean(),
+      scan_ip_area: z
+        .object({
+          city: z.string().max(120).nullable(),
+          region: z.string().max(120).nullable(),
+          country: z.string().max(120).nullable(),
+        })
+        .strict()
+        .nullable()
+        .optional(),
+      scan_coords: z
+        .object({
+          lat: z.number().min(-90).max(90),
+          lng: z.number().min(-180).max(180),
+        })
+        .strict()
+        .optional(),
+      scan_accuracy_m: z.number().int().nonnegative().max(1_000_000).optional(),
     }),
   )
   .strict();

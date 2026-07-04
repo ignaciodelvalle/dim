@@ -3,16 +3,23 @@
 // Deletes credential_scanned events authored by the 'scanner' role that are
 // older than SCAN_RETENTION_DAYS (90 days, owner-approved TTL).
 //
-// PRIVACY MODEL (AGENTS.md §Scan privacy):
+// PRIVACY MODEL (AGENTS.md §Scan privacy, updated by Task #45):
 //   credential_scanned events with author_role='scanner' are created whenever
 //   the public credential page /p/[publicToken] is viewed by a non-owner visitor.
 //   The payload contains ONLY:
 //     - is_self_scan: boolean (false for scanner-role events)
 //     - viewer_authenticated: boolean
-//   NO IP address or geolocation is stored in the payload (see app/actions/scans.ts).
-//   After TTL_DAYS the event is purged.  The owner-dashboard scan-activity metric
-//   (lib/owner-nudges.ts) uses the same 90-day window, so the nudge remains accurate
-//   within the retained period.
+//     - scan_ip_area: coarse city-precision area from platform geo headers
+//       (or null) — NEVER the raw IP (lib/infra/scan-geo.ts)
+//     - scan_coords / scan_accuracy_m: precise GPS, ONLY when the pet was lost
+//       AND the scanner explicitly granted browser geolocation
+//   Scanner-role rows carry recorded_by_user_id = NULL (no identity link) —
+//   see src/modules/pets/application/scans/log-scan.ts.
+//   After TTL_DAYS the event is purged, which is what bounds retention of ALL
+//   location fields: they exist only on scanner-role rows deleted here.
+//   Self-scans (author_role='owner', never purged) carry no location fields.
+//   The owner-dashboard scan-activity metric (lib/owner-nudges.ts) uses the
+//   same 90-day window, so the nudge remains accurate within the retained period.
 //
 // APPEND-ONLY CONTRACT:
 //   pet_events is governed by the enforce_pet_events_append_only() trigger.
