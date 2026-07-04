@@ -3,7 +3,7 @@
 // Management controls (role change, event-write toggle, remove) are shown
 // when the viewer holds member.invite AND the rank rule permits managing that target.
 
-import { and, count, eq, gt, isNull } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
@@ -50,7 +50,14 @@ export default async function MiembrosPage({
   const canInvite = granted.has("member.invite");
 
   // Active members joined with their profiles.
-  const members = await db
+  //
+  // #815 audit finding #5: previously had no .limit()/.offset() at all — a
+  // large network or rescue coalition could return a genuinely unbounded
+  // list. Fetch one extra row past the cap (same fetch-N+1 pattern as
+  // adopciones/page.tsx) so a truncated notice appears instead of silently
+  // rendering everything.
+  const MEMBERS_PAGE_SIZE = 200;
+  const memberRows = await db
     .select({
       membership: organizationMemberships,
       profile: profiles,
@@ -62,7 +69,12 @@ export default async function MiembrosPage({
         eq(organizationMemberships.organizationId, organization.id),
         isNull(organizationMemberships.leftAt),
       ),
-    );
+    )
+    .orderBy(desc(organizationMemberships.joinedAt))
+    .limit(MEMBERS_PAGE_SIZE + 1);
+
+  const membersTruncated = memberRows.length > MEMBERS_PAGE_SIZE;
+  const members = membersTruncated ? memberRows.slice(0, MEMBERS_PAGE_SIZE) : memberRows;
 
   // Resolve which memberships have an active `event.write` capability grant.
   // This is the authoritative enforcement state — the legacy canWritePetEvents
@@ -103,6 +115,19 @@ export default async function MiembrosPage({
     );
   const activeAdminCount = Number(adminCountRow?.n ?? 0);
   const viewerIsLastAdmin = membership.role === "admin" && activeAdminCount <= 1;
+
+  // True total (unaffected by the MEMBERS_PAGE_SIZE cap above) — used for the
+  // section heading so it doesn't silently read "200" for a 300-member org.
+  const [totalMembersRow] = await db
+    .select({ n: count() })
+    .from(organizationMemberships)
+    .where(
+      and(
+        eq(organizationMemberships.organizationId, organization.id),
+        isNull(organizationMemberships.leftAt),
+      ),
+    );
+  const totalMembersCount = Number(totalMembersRow?.n ?? members.length);
 
   // Settable roles for the viewer (rank-bounded).
   const settableRoles = canInvite ? getSettableRoles(membership.role) : [];
@@ -152,8 +177,13 @@ export default async function MiembrosPage({
           id="members-heading"
           className="mb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
         >
-          Miembros activos ({members.length})
+          Miembros activos ({totalMembersCount})
         </h2>
+        {membersTruncated && (
+          <p className="mb-3 text-sm text-ln-op-mute">
+            Mostrando los primeros {MEMBERS_PAGE_SIZE} de {totalMembersCount}.
+          </p>
+        )}
         {members.length === 0 ? (
           <OpCard>
             <OpCardBody>

@@ -31,11 +31,19 @@ export default async function ServiciosPage({
   const granted = await getGrantedCapabilities(membership);
   const canCreate = granted.has("service_offering.create");
 
-  const offerings = await db
+  // #815 audit finding #5: previously had no .limit() at all. Fetch one extra
+  // row past the cap (same fetch-N+1 pattern as adopciones/page.tsx) so a
+  // truncated notice appears instead of rendering a genuinely unbounded list.
+  const SERVICES_PAGE_SIZE = 200;
+  const offeringRows = await db
     .select()
     .from(serviceOfferings)
     .where(eq(serviceOfferings.organizationId, organization.id))
-    .orderBy(desc(serviceOfferings.submittedAt));
+    .orderBy(desc(serviceOfferings.submittedAt))
+    .limit(SERVICES_PAGE_SIZE + 1);
+
+  const offeringsTruncated = offeringRows.length > SERVICES_PAGE_SIZE;
+  const offerings = offeringsTruncated ? offeringRows.slice(0, SERVICES_PAGE_SIZE) : offeringRows;
 
   return (
     <div className="space-y-6">
@@ -61,6 +69,13 @@ export default async function ServiciosPage({
           </Link>
         )}
       </header>
+
+      {offeringsTruncated && (
+        <p className="text-sm text-ln-op-mute">
+          Mostrando los primeros {SERVICES_PAGE_SIZE}. Hay más servicios registrados de los que se
+          muestran acá.
+        </p>
+      )}
 
       {!canCreate && offerings.length === 0 && (
         <OpCallout
