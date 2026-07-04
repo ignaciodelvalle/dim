@@ -1399,6 +1399,13 @@ export const notifications = pgTable(
     // Values: 'health', 'custody', 'adoption', 'welfare', 'admin'. Nullable
     // for pre-C2 rows that were inserted without a category.
     category: text("category"),
+    // Caller-supplied idempotency key, set by createNotification()
+    // (lib/infra/notification-service.ts). Generalizes migration 0088's
+    // event-natural-key guard to cover cron + broadcast notifications, which
+    // have no related_event_id. The partial unique index below enforces one
+    // row per key. NULL for legacy / not-yet-migrated direct inserts (exempt).
+    // Migration 0124.
+    dedupeKey: text("dedupe_key"),
     // State.
     readAt: timestamp("read_at", { withTimezone: true }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
@@ -1438,11 +1445,58 @@ export const notifications = pgTable(
     relatedPetIdx: index("notifications_related_pet_idx")
       .on(table.relatedPetId)
       .where(sql`${table.relatedPetId} IS NOT NULL`),
+    // Generalized idempotency guard for the createNotification() service.
+    // Applies to ALL notification types (cron + broadcast included), unlike
+    // 0088's event-only guard. The service inserts with ON CONFLICT
+    // (dedupe_key) DO NOTHING so a retry / concurrent double-run is a no-op.
+    // Partial: rows with dedupe_key IS NULL (legacy direct inserts) are exempt.
+    // Migration 0124.
+    dedupeKeyUnique: uniqueIndex("notifications_dedupe_key_unique")
+      .on(table.dedupeKey)
+      .where(sql`${table.dedupeKey} IS NOT NULL`),
   }),
 );
 
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
+
+// ============================================================================
+// NotificationDeadLetter — recoverable failure surface (migration 0124)
+// ============================================================================
+// When the createNotification() service's insert throws (pool exhaustion,
+// deploy-time connection drop, brief outage) it writes the payload here instead
+// of only console.error'ing — closing the ARCH-P silent-dropout gap
+// (consistency review 2026-07-04 C.1). A follow-on retry cron drains
+// unresolved rows.
+export const notificationDeadLetter = pgTable(
+  "notification_dead_letter",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // The dedupe_key the failed insert would have used (nullable). NOT unique:
+    // a dead-letter row is a failure record, not a live notification, and the
+    // same key may fail more than once before it is resolved.
+    dedupeKey: text("dedupe_key"),
+    // The full notification insert payload, so a retry cron can replay it
+    // verbatim through createNotification() once the transient fault clears.
+    payload: jsonb("payload").notNull(),
+    // Best-effort capture of the error that caused the flush to fail.
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Set by the retry cron when it re-attempts this payload.
+    retriedAt: timestamp("retried_at", { withTimezone: true }),
+    // Set when the payload was successfully re-delivered (or manually resolved).
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (table) => ({
+    // The "unresolved" working set the retry cron scans.
+    unresolvedIdx: index("notification_dead_letter_unresolved_idx")
+      .on(table.createdAt)
+      .where(sql`${table.resolvedAt} IS NULL`),
+  }),
+);
+
+export type NotificationDeadLetter = typeof notificationDeadLetter.$inferSelect;
+export type NewNotificationDeadLetter = typeof notificationDeadLetter.$inferInsert;
 
 // ============================================================================
 // WelfareReports — animal-cruelty / welfare denuncia (Ley 14.346)
