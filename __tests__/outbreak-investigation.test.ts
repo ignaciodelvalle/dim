@@ -16,6 +16,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import { auditLog, caseEvents, cases, db, govtAssignments, profiles } from "@/db";
+import { withMutationOverride } from "./_helpers/db-overrides";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   addInvestigationNoteAction,
@@ -102,8 +103,13 @@ async function cleanupTestCasesForUsers(userIds: string[]) {
     .where(inArray(cases.openedByUserId, userIds));
   const caseIds = caseRows.map((r) => r.id);
   if (caseIds.length > 0) {
-    await db.delete(caseEvents).where(inArray(caseEvents.caseId, caseIds));
-    await db.delete(cases).where(inArray(cases.id, caseIds));
+    // case_events is append-only (migration 0121); both the explicit delete
+    // and the cases ON DELETE CASCADE fire the trigger, so clean up under the
+    // accountable mutation override.
+    await withMutationOverride(async (tx) => {
+      await tx.delete(caseEvents).where(inArray(caseEvents.caseId, caseIds));
+      await tx.delete(cases).where(inArray(cases.id, caseIds));
+    });
   }
 }
 
@@ -136,8 +142,12 @@ async function cleanupOpenOutbreakCasesForJurisdiction(
   if (ids.length > 0) {
     // caseEvents has ON DELETE CASCADE from cases, but explicit delete is
     // more explicit and avoids relying on the migration having CASCADE set.
-    await db.delete(caseEvents).where(inArray(caseEvents.caseId, ids));
-    await db.delete(cases).where(inArray(cases.id, ids));
+    // case_events is append-only (0121) — both fire the trigger, so run the
+    // cleanup under the accountable mutation override.
+    await withMutationOverride(async (tx) => {
+      await tx.delete(caseEvents).where(inArray(caseEvents.caseId, ids));
+      await tx.delete(cases).where(inArray(cases.id, ids));
+    });
   }
 }
 
