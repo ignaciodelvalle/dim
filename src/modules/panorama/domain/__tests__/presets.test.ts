@@ -13,6 +13,7 @@ import { checkCompatibility } from "@/src/modules/panorama/domain/compatibility"
 import { roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { PANORAMA_LAYERS } from "@/src/modules/panorama/domain/layers";
 import {
+  DEFAULT_PANORAMA_PRESET_ID,
   PANORAMA_PRESETS,
   type PanoramaPreset,
   getPreset,
@@ -237,15 +238,17 @@ describe("presetLayerIds()", () => {
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — optional framing field", () => {
-  it("brotes-activos carries the national framing (Fase 1 demonstrator)", () => {
-    const p = getPreset("brotes-activos")!;
-    expect(p.framing).toEqual({ kind: "national" });
+  it("national-overview presets carry the national framing (design-QA 2026-07-04 expansion)", () => {
+    // brotes-activos (Fase 1 demonstrator) + the two province-choropleth
+    // compliance presets — all three answer a cross-province question.
+    for (const id of ["brotes-activos", "cumplimiento", "control-poblacional"] as const) {
+      expect(getPreset(id)!.framing).toEqual({ kind: "national" });
+    }
   });
 
-  it("every other preset omits framing (backward-compatible: map behavior unchanged)", () => {
-    for (const p of PANORAMA_PRESETS) {
-      if (p.id === "brotes-activos") continue;
-      expect(p.framing).toBeUndefined();
+  it("locality-level drill-down presets omit framing (map behavior unchanged)", () => {
+    for (const id of ["sintomas", "bienestar"] as const) {
+      expect(getPreset(id)!.framing).toBeUndefined();
     }
   });
 
@@ -263,6 +266,24 @@ describe("PANORAMA_PRESETS — optional framing field", () => {
       expect(p.framing.bounds[0]).toHaveLength(2);
       expect(p.framing.bounds[1]).toHaveLength(2);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DEFAULT_PANORAMA_PRESET_ID (design-QA 2026-07-04 fast-follow)
+// ---------------------------------------------------------------------------
+
+describe("DEFAULT_PANORAMA_PRESET_ID", () => {
+  it("resolves to a catalogued preset", () => {
+    expect(getPreset(DEFAULT_PANORAMA_PRESET_ID)).toBeDefined();
+  });
+
+  it("is the question-framed compliance preset with deliberate map framing", () => {
+    const p = getPreset(DEFAULT_PANORAMA_PRESET_ID)!;
+    expect(p.id).toBe("cumplimiento");
+    // The landing must frame the map deliberately — an unframed default would
+    // reintroduce the orphan-layer first paint the fast-follow removes.
+    expect(p.framing).toEqual({ kind: "national" });
   });
 });
 

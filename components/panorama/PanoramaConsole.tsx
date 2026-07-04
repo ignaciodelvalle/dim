@@ -47,6 +47,7 @@ import {
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
 import {
+  DEFAULT_PANORAMA_PRESET_ID,
   PANORAMA_PRESETS,
   type PresetFraming,
   type PresetId,
@@ -1049,13 +1050,16 @@ export function PanoramaConsole({
    * Ordering:
    * 1. Clear all caches + park the scrubber (a new period invalidates both).
    * 2. Set level + mark the preset's layers active (loading=true).
-   * 3. Commit the board URL (period/layers/level/preset) via shallow pushState;
-   *    flag the new scope+period as handled so the invalidation effect skips.
+   * 3. Commit the board URL (period/layers/level/preset) via shallow History
+   *    API; flag the new scope+period as handled so the invalidation effect
+   *    skips. `commit` picks the primitive: "push" for an explicit operator
+   *    click (back-button undoable); "replace" for the first-visit default
+   *    activation below (the operator didn't navigate — no history entry).
    * 4. Fetch the preset's layers directly against the NEW params (no closure
    *    over stale searchParams) + persist the board for the bare-URL restore.
    */
-  const onPreset = useCallback(
-    (id: PresetId) => {
+  const applyPreset = useCallback(
+    (id: PresetId, commit: "push" | "replace") => {
       const preset = getPreset(id);
       if (!preset) return;
 
@@ -1111,7 +1115,9 @@ export function PanoramaConsole({
       else nextParams.delete("level");
       nextParams.set("preset", id);
       presetCommittedQsRef.current = scopePeriodQsOf(nextParams);
-      pushMapStateUrl(`?${nextParams.toString()}`);
+      const nextUrl = `${window.location.pathname}?${nextParams.toString()}`;
+      if (commit === "push") pushMapStateUrl(nextUrl);
+      else replaceMapStateUrl(nextUrl);
       saveBoard(nextParams);
       // panorama-redesign Fase 1: TRAILING debounce on the layer-fetch burst
       // ONLY — the state flips + shallow URL push above stay synchronous
@@ -1127,6 +1133,9 @@ export function PanoramaConsole({
     },
     [searchParams, fetchLayersInto],
   );
+
+  /** F3: explicit preset click — a back-button-undoable board commit. */
+  const onPreset = useCallback((id: PresetId) => applyPreset(id, "push"), [applyPreset]);
 
   // map-QOL URL sync: mirror the board (active layers / level / preset) into
   // the URL via shallow replaceState whenever it changes — toggles are silent
@@ -1164,6 +1173,12 @@ export function PanoramaConsole({
   // (b) Bare URL + a saved board in localStorage → subtle one-time restore via
   //     shallow replaceState + client fetch (no redirect, no reload). The URL
   //     stays the source of truth; localStorage is only the memory of it.
+  // (c) TRULY-FIRST visit (bare URL, no saved board) → default-activate the
+  //     flagship compliance preset (design-QA 2026-07-04 highest-leverage nit):
+  //     the first screen must answer "¿dónde estamos mal?" — question-framed
+  //     preset + national frame + matching auto-reading — instead of an orphan
+  //     perdidas layer with a generic fallback sentence. Committed via
+  //     replaceState (the operator didn't navigate; no history entry).
   const mountInitDoneRef = useRef(false);
   useEffect(() => {
     if (mountInitDoneRef.current) return;
@@ -1192,10 +1207,18 @@ export function PanoramaConsole({
       const raw = window.localStorage.getItem(BOARD_STORAGE_KEY);
       saved = raw !== null ? (JSON.parse(raw) as SavedBoard) : null;
     } catch {
+      // Storage unreadable — treat as a first visit: default-activate below.
+      saved = null;
+    }
+    if (saved === null) {
+      // (c) No explicit board, no saved board — first visit: land on the
+      // flagship question-framed preset instead of the orphan default layer.
+      applyPreset(DEFAULT_PANORAMA_PRESET_ID, "replace");
       return;
     }
-    if (saved === null) return;
     const savedIds = parseLayersParam(saved.layers || null);
+    // A saved board with an explicit empty layer set is a deliberate
+    // "all off" board — respect it; only the truly-absent case defaults.
     if (savedIds === null || savedIds.length === 0) return;
 
     const nextParams = new URLSearchParams(window.location.search);
@@ -1246,7 +1269,7 @@ export function PanoramaConsole({
     });
     const toFetch = periodChanged ? savedIds : missingFromCache(savedIds, savedLevel);
     if (toFetch.length > 0) void fetchLayersInto(toFetch, savedLevel, nextParams);
-  }, [fetchLayersInto]);
+  }, [fetchLayersInto, applyPreset]);
 
   // Whether any aggregation-axis-sensitive layer is active (choropleth or
   // density/signal point layers). The toggle hints when it has no current effect
@@ -1317,11 +1340,11 @@ export function PanoramaConsole({
     selectedLocalitySlug !== null ? (localityCentroids[selectedLocalitySlug] ?? null) : null;
 
   // panorama-redesign Fase 1 reflow: Reading → PresetPanel (full-width) →
-  // SuppressionNotice → TimeScrubber + map grid (side column: "Alcance y
-  // período" disclosure hosting the server filtersSlot, then the unchanged
-  // "Personalizar" disclosure) → KPI strip (deliberately demoted below the
-  // map — flagged for PO, non-blocking). Composition-only: every component
-  // keeps its exact props and behavior.
+  // SuppressionNotice → "Reproducir en el tiempo" disclosure (TimeScrubber,
+  // default-closed — design-QA 2026-07-04 P0 control budget) → map grid (side
+  // column: "Alcance y período" disclosure hosting the server filtersSlot,
+  // then the unchanged "Personalizar" disclosure) → KPI strip (deliberately
+  // demoted below the map — flagged for PO, non-blocking).
   return (
     <div className="space-y-4">
       {/* One-line auto-reading derived from the existing KPI deltas (no new
@@ -1339,7 +1362,25 @@ export function PanoramaConsole({
       {/* k-anon disclosure promoted out of "Personalizar": suppression is
           visible without any click (same envelope counts LayerPanel shows). */}
       <PanoramaSuppressionNotice states={states} />
-      <TimeScrubber since={since} until={until} onChange={onScrub} />
+      {/* design-QA 2026-07-04 P0 (control budget): the temporal scrubber is a
+          flagship capability but NOT a first-screen decision — default-closed
+          disclosure keeps the landing board at ≤8 controls (5 presets + 3
+          disclosure summaries) and stops the 3-year axis from competing with
+          the map hero. One click re-opens the full reproduction control. */}
+      <details className="group">
+        <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
+          <span
+            aria-hidden="true"
+            className="mr-1 inline-block transition-transform group-open:rotate-90"
+          >
+            ▸
+          </span>
+          Reproducir en el tiempo
+        </summary>
+        <div className="mt-2">
+          <TimeScrubber since={since} until={until} onChange={onScrub} />
+        </div>
+      </details>
       <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
         <SituationalMapDynamic
           layers={activeLayers}

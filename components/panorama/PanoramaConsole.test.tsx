@@ -74,9 +74,9 @@ vi.mock("@/components/panorama/PanoramaKpiStrip", () => ({
 vi.mock("@/components/panorama/AggregationToggle", () => ({
   AggregationToggle: () => null,
 }));
-vi.mock("@/components/panorama/TimeScrubber", () => ({
-  TimeScrubber: () => null,
-}));
+// TimeScrubber is deliberately REAL (design-QA 2026-07-04 P0): the control
+// budget below must hold with the actual scrubber rendered, not mocked away —
+// mocking it made the ≤8 assertion dishonest vs production first paint.
 
 import { PanoramaConsole } from "./PanoramaConsole";
 
@@ -290,6 +290,10 @@ function renderRedesignConsole(extraProps: Record<string, unknown> = {}) {
 
 describe("PanoramaConsole — reflow composition (panorama-redesign Fase 1)", () => {
   it("renders Reading → PresetPanel → SuppressionNotice before the map, KPI strip after", () => {
+    // Explicit period → the first-visit default preset does NOT rewrite the
+    // board, so the server-seeded perdidas layer (suppressedCount 3) stays on
+    // and the suppression notice is visible for the DOM-order assertion.
+    setUrl("/gob/panorama?period=3y");
     renderRedesignConsole({ defaultSuppressedCount: 3 });
 
     const reading = screen.getByText("Sin variación destacable frente al período anterior.");
@@ -320,7 +324,17 @@ describe("PanoramaConsole — reflow composition (panorama-redesign Fase 1)", ()
     expect(container.contains(filterSelect)).toBe(true);
   });
 
-  it("stays within the first-paint control budget (≤8 visible interactive controls)", () => {
+  it("stays within the first-paint BOARD control budget (≤8) with the REAL TimeScrubber rendered", () => {
+    // Honest budget (design-QA 2026-07-04 P0). Scope of the ≤8 assertion:
+    //   COUNTED — the board: preset buttons + disclosure summaries + any
+    //   control not hidden behind a default-closed <details>. TimeScrubber is
+    //   the REAL component here (no mock): its play/range/"Ahora" controls
+    //   must sit behind the default-closed "Reproducir en el tiempo"
+    //   disclosure, contributing exactly ONE summary to the budget.
+    //   NOT COUNTED — map-canvas controls (MapLibre zoom + "Mi alcance" live
+    //   on the map surface itself; SituationalMap is mocked) and the KPI
+    //   strip's refresh (below the map hero, mocked). Production first paint
+    //   therefore shows 8 board controls + the map's own canvas controls.
     const { container } = renderRedesignConsole({ defaultSuppressedCount: 3 });
 
     const all = Array.from(container.querySelectorAll("button, input, select, summary"));
@@ -334,11 +348,19 @@ describe("PanoramaConsole — reflow composition (panorama-redesign Fase 1)", ()
     expect(firstPaint.length).toBeLessThanOrEqual(8);
     // Sanity: the 5 preset buttons ARE part of the visible set.
     expect(firstPaint.filter((el) => el.tagName === "BUTTON").length).toBeGreaterThanOrEqual(5);
+    // The real scrubber IS mounted but its controls are NOT first-paint: the
+    // range slider hides behind the closed disclosure, whose summary shows.
+    expect(container.querySelector("input[type='range']")).not.toBeNull();
+    expect(firstPaint.some((el) => el.getAttribute("type") === "range")).toBe(false);
+    expect(screen.getByText("Reproducir en el tiempo").tagName).toBe("SUMMARY");
   });
 });
 
 describe("PanoramaConsole — preset frame (camera-only)", () => {
+  // Explicit period in the URL → the first-visit default preset stays out of
+  // the way, so token counting starts at the test's own clicks.
   it("passes { framing, token } to the map when the preset carries framing", () => {
+    setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
     fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
@@ -347,6 +369,7 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
   });
 
   it("re-clicking the SAME preset bumps the token so the map re-frames", () => {
+    setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
     fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
@@ -356,12 +379,71 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
   });
 
   it("clears the frame when a framing-less preset is selected (map behavior unchanged)", () => {
+    setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
+    // bienestar is a locality-level drill-down preset — deliberately framing-less
+    // (design-QA 2026-07-04: only national-overview presets frame the country).
     fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
-    fireEvent.click(screen.getByRole("button", { name: /cumplimiento/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Bienestar/ }));
 
     expect(mapProps?.frame).toBeNull();
+  });
+});
+
+describe("PanoramaConsole — first-visit default preset (design-QA 2026-07-04 highest-leverage nit)", () => {
+  it("default-activates 'cumplimiento' on a truly-bare first visit, aligned with framing + fetch", async () => {
+    // spyOn returns the SAME spy when history.pushState was already spied in a
+    // previous test — clear its accumulated calls before this render.
+    const pushSpy = vi.spyOn(window.history, "pushState");
+    pushSpy.mockClear();
+    renderRedesignConsole();
+
+    // Board committed silently — replaceState, never a history entry.
+    expect(pushSpy).not.toHaveBeenCalled();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBe("cumplimiento");
+    expect(params.get("period")).toBe("90d");
+    expect(params.get("layers")).toBe("cobertura");
+    // Preset row and map state are CONNECTED on first paint: the button reads
+    // active and the map receives the preset's national frame.
+    expect(screen.getByRole("button", { name: /cumplimiento/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(mapProps?.frame).toEqual({ framing: { kind: "national" }, token: 1 });
+    // The preset's layer resolves client-side against the committed period.
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.startsWith("/api/panorama/") && !u.includes("/kpis"));
+      expect(
+        layerCalls.some((u) => u.includes("/api/panorama/cobertura") && u.includes("period=90d")),
+      ).toBe(true);
+    });
+  });
+
+  it("does NOT default-activate when the URL carries an explicit period (deliberate navigation)", () => {
+    setUrl("/gob/panorama?period=30d");
+    renderRedesignConsole();
+
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBeNull();
+    expect(params.get("layers")).toBeNull();
+  });
+
+  it("does NOT default-activate when a saved board exists (the restore wins)", async () => {
+    window.localStorage.setItem(
+      "panorama:board:v1",
+      JSON.stringify({ layers: "denuncias", level: "locality", preset: null, period: "30d" }),
+    );
+    renderRedesignConsole();
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get("layers")).toBe("denuncias");
+    });
+    expect(new URLSearchParams(window.location.search).get("preset")).toBeNull();
   });
 });
 

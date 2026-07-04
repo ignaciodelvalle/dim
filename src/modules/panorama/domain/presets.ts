@@ -61,8 +61,10 @@ export type PanoramaPreset = {
   periodPreset: "30d" | "90d";
   /**
    * Optional map framing applied via onPreset when present. Absent = today's
-   * behavior (the camera stays where it is). Fase 1 ships ONE demonstrator
-   * (brotes-activos → national); more presets pend a PO decision.
+   * behavior (the camera stays where it is). National-overview presets
+   * (brotes-activos, cumplimiento, control-poblacional) frame the country;
+   * locality-level drill-down presets (sintomas, bienestar) stay framing-less
+   * (design-QA 2026-07-04 fast-follow, expanding the Fase 1 demonstrator).
    */
   framing?: PresetFraming;
 };
@@ -108,6 +110,9 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     base: "cobertura",
     level: "province",
     periodPreset: "90d",
+    // A province-level compliance ranking is a national question — frame the
+    // whole country so under-target jurisdictions are comparable at a glance.
+    framing: { kind: "national" },
   },
   {
     id: "bienestar",
@@ -129,8 +134,22 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     base: "esterilizacion",
     level: "province",
     periodPreset: "90d",
+    // Same national-overview question as cumplimiento: a province choropleth
+    // vs the 70% target only reads when the whole country is in frame.
+    framing: { kind: "national" },
   },
 ] as const;
+
+/**
+ * Preset auto-activated on a FIRST visit to the console (bare URL, no explicit
+ * board params, no saved board) — design-QA 2026-07-04 highest-leverage nit:
+ * the landing must answer "¿dónde estamos mal?" instead of showing an orphan
+ * default layer with a generic reading. `cumplimiento` is the pick because its
+ * single base layer (cobertura, the antirrábica rate) is the most reliably
+ * present dataset in every scope, and its national framing + question-framed
+ * label align the map, the presets row and the auto-reading on first paint.
+ */
+export const DEFAULT_PANORAMA_PRESET_ID: PresetId = "cumplimiento";
 
 // ---------------------------------------------------------------------------
 // Helpers
