@@ -3,22 +3,26 @@
 -- Apply by pasting into Supabase Studio → SQL Editor. Idempotent.
 --
 -- The pet-photos bucket holds primary photos and any attached images for pets.
--- v1 policies are deliberately loose: anyone can read (photos appear on the
--- public credential page) and any authenticated user can upload (the only
--- upload path in v1 is our own server action, which already verifies the user
--- owns the pet). Update / delete are scoped to the uploader.
+-- The bucket is PUBLIC, so a known object is served by the public object
+-- endpoint (/storage/v1/object/public/pet-photos/<path>, what petPhotoUrl()
+-- builds) WITHOUT consulting RLS. Uploads go through our own server action,
+-- which verifies the user owns the pet. Update / delete are scoped to the
+-- uploader.
 
 -- Create the bucket if it doesn't already exist.
 insert into storage.buckets (id, name, public)
 values ('pet-photos', 'pet-photos', true)
 on conflict (id) do nothing;
 
--- Public can read every object in pet-photos.
+-- NO public SELECT policy on pet-photos (deploy-readiness residual, 2026-07-04;
+-- tracked in migration 0123). Because the bucket is public, GET of a known
+-- object never consults RLS, so a `to public` SELECT policy would add nothing
+-- to the read path — its ONLY effect is to let anon ENUMERATE the bucket via
+-- the storage list API (POST /storage/v1/object/list/pet-photos), leaking every
+-- pet's photo object path. Dropping it lets anon GET a known object but NOT
+-- LIST the bucket. Kept as an explicit drop so an existing DB is tightened on
+-- the next bootstrap replay.
 drop policy if exists "pet_photos_public_read" on storage.objects;
-create policy "pet_photos_public_read"
-  on storage.objects for select
-  to public
-  using (bucket_id = 'pet-photos');
 
 -- Any authenticated user can upload to pet-photos.
 drop policy if exists "pet_photos_authenticated_upload" on storage.objects;
