@@ -6,13 +6,15 @@
 //   acceptDecomisoHandoffAction — receiver org takes custody (new custody_episode).
 //   rejectDecomisoHandoffAction — receiver declines; govt retains the open episode.
 //
-// Both actions revalidate server-side; we also router.refresh() so the row's
-// status flips immediately without a manual reload.
+// Both actions revalidate server-side; we also do a full document reload so
+// the row's status flips immediately (custody episodes change hands here —
+// SSR custody state must match the DB, and router.refresh() is banned; see
+// lib/ui/full-page-action-nav.ts).
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { acceptDecomisoHandoffAction, rejectDecomisoHandoffAction } from "@/app/actions/decomiso";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 export function DecomisoHandoffActions({
   receiverOrgToken,
@@ -23,7 +25,6 @@ export function DecomisoHandoffActions({
   casePublicCode: string;
   petName: string;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"accept" | "reject" | null>(null);
@@ -42,7 +43,7 @@ export function DecomisoHandoffActions({
         setError(result.error);
         return;
       }
-      router.refresh();
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 
@@ -58,7 +59,7 @@ export function DecomisoHandoffActions({
         setError(result.error);
         return;
       }
-      router.refresh();
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

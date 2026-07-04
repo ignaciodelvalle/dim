@@ -2,10 +2,10 @@
 
 // RevokeButton — confirms and calls revokeInvitationAction for a pending invite.
 
-import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { revokeInvitationAction } from "@/src/modules/organizations/actions";
 
 type Props = {
@@ -16,7 +16,6 @@ type Props = {
 };
 
 export function RevokeButton({ organizationId, invitationToken, email, orgToken }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -31,7 +30,9 @@ export function RevokeButton({ organizationId, invitationToken, email, orgToken 
         setConfirming(false);
         return;
       }
-      router.refresh();
+      // Full document reload so the SSR invitation list drops the row
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

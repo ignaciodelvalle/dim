@@ -2,10 +2,10 @@
 
 // RemoveMemberButton — confirms and calls removeMemberAction for a member row.
 
-import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { removeMemberAction } from "@/src/modules/organizations/actions";
 
 type Props = {
@@ -15,7 +15,6 @@ type Props = {
 };
 
 export function RemoveMemberButton({ organizationId, membershipId, displayName }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -30,7 +29,9 @@ export function RemoveMemberButton({ organizationId, membershipId, displayName }
         setConfirming(false);
         return;
       }
-      router.refresh();
+      // Full document reload so the SSR member list drops the row
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

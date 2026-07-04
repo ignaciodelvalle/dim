@@ -1,12 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { cancelFosterProposalAction } from "@/src/modules/foster/actions";
 
 export function CancelProposalButton({ proposalPublicToken }: { proposalPublicToken: string }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -23,7 +22,9 @@ export function CancelProposalButton({ proposalPublicToken }: { proposalPublicTo
         setConfirming(false);
         return;
       }
-      router.refresh();
+      // Full document reload so the SSR proposal list drops/updates the row
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

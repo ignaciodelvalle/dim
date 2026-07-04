@@ -13,7 +13,6 @@
 //   2. Visibilidad pública — status controls (Publicar adopción / Pausar /
 //      Despublicar) + summary recap. CTA per current state.
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { LnWizardShell } from "@/components/ui/WizardShell";
@@ -28,6 +27,7 @@ import {
   energyLabel,
   sizeLabel,
 } from "@/lib/infra/adoption-listing";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   setAdoptionListingStatusAction,
   updateAdoptionListingContentAction,
@@ -62,7 +62,6 @@ export function AdoptionListingForm({
   canPublish: boolean;
   petSex: string;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +90,9 @@ export function AdoptionListingForm({
         return;
       }
       setOkMessage("Listo.");
-      router.refresh();
+      // Status changes drive the public listing's SSR state — full document
+      // reload (router.refresh() is banned; see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 
@@ -119,7 +120,9 @@ export function AdoptionListingForm({
         return;
       }
       setOkMessage("Datos guardados.");
-      router.refresh();
+      // No reload here: a full navigation would reset the wizard to step 1,
+      // and the step-2 recap reads this component's local state (already
+      // fresh). The banned router.refresh() added nothing but the drop risk.
       setStep(2);
     });
   }

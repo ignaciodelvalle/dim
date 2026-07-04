@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { setAdoptionEligibilityAction } from "@/src/modules/adoption/actions";
 
 const REASONS = [
@@ -32,6 +33,8 @@ export function EligibilityForm({
     until: string | null;
   };
 }) {
+  // Router kept ONLY for the Cancelar button's plain (pre-mutation)
+  // navigation; post-success navigation uses navigateAfterActionSuccess.
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [decision, setDecision] = useState<"eligible" | "not_eligible">(
@@ -70,7 +73,9 @@ export function EligibilityForm({
           ? "Marcada como apta para adopción."
           : "Marcada como NO apta. Resolvé el motivo cuando corresponda.",
       );
-      router.refresh();
+      // Full document reload so the SSR "Estado actual" block matches the DB
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

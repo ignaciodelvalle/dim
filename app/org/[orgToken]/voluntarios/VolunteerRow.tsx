@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { speciesLabel } from "@/lib/utils/format";
 import { proposeFosterAction } from "@/src/modules/foster/actions";
 
@@ -35,7 +35,6 @@ export function VolunteerRow({
   orgPets: OrgPet[];
   preselectedPetToken: string | null;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [petToken, setPetToken] = useState(preselectedPetToken ?? orgPets[0]?.publicToken ?? "");
@@ -65,7 +64,10 @@ export function VolunteerRow({
         return;
       }
       setOkMessage(`Propuesta enviada (${result.proposalPublicToken}).`);
-      router.refresh();
+      // Full document reload so the volunteer's SSR slot count reflects the
+      // new pending proposal (router.refresh() is banned — see
+      // lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 

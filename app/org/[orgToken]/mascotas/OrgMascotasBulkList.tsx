@@ -18,7 +18,6 @@
 // opens a BulkListingForm inline. Publish and unlist paths. Same selection set.
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import type { BulkResult } from "@/app/actions/bulk-actions";
@@ -30,6 +29,7 @@ import {
 import { BULK_INELIGIBLE_REASONS } from "@/app/actions/bulk-vaccinate-types";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpStateBadge } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { OrgMascotasPipelineBoard } from "./OrgMascotasPipelineBoard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -153,7 +153,6 @@ export function OrgMascotasBulkList({
   canManageAdoptionListing,
   canEventWrite,
 }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<"none" | "vaccinate" | "eligibility" | "listing">("none");
@@ -191,6 +190,36 @@ export function OrgMascotasBulkList({
 
   const allSelected = selected.size === cards.length && cards.length > 0;
   const someSelected = selected.size > 0;
+
+  // Post-bulk navigation (router.refresh() is banned — it rides the same
+  // client-router transition machinery as the silent-drop defect; see
+  // lib/ui/full-page-action-nav.ts). Clean success → immediate full reload
+  // so the SSR list reflects the new state. Partial failure → keep the
+  // ResultPanel visible (partial failure must stay legible) and do the full
+  // reload when the operator dismisses it.
+  function settleBulkResult(
+    result: BulkResult,
+    type: "vaccinate" | "eligibility" | "listing-publish" | "listing-unlist",
+  ) {
+    if (result.failed.length === 0) {
+      navigateAfterActionSuccess(window.location.href);
+      return;
+    }
+    setLastResult(result);
+    setLastResultType(type);
+    setMode("none");
+    setSelected(new Set());
+  }
+
+  function dismissResult() {
+    if (lastResult && lastResult.succeeded.length > 0) {
+      // Some rows DID change server-side — the list is stale; reload it.
+      navigateAfterActionSuccess(window.location.href);
+      return;
+    }
+    setLastResult(null);
+    setLastResultType(null);
+  }
 
   if (cards.length === 0) {
     return (
@@ -426,10 +455,7 @@ export function OrgMascotasBulkList({
         <ResultPanel
           result={lastResult}
           actionType={lastResultType ?? "vaccinate"}
-          onDismiss={() => {
-            setLastResult(null);
-            setLastResultType(null);
-          }}
+          onDismiss={dismissResult}
         />
       )}
 
@@ -506,11 +532,7 @@ export function OrgMascotasBulkList({
                       bulkActionId,
                       ...fields,
                     });
-                    setLastResult(result);
-                    setLastResultType("vaccinate");
-                    setMode("none");
-                    setSelected(new Set());
-                    router.refresh();
+                    settleBulkResult(result, "vaccinate");
                   });
                 }}
               />
@@ -533,11 +555,7 @@ export function OrgMascotasBulkList({
                       bulkActionId,
                       ...fields,
                     });
-                    setLastResult(result);
-                    setLastResultType("eligibility");
-                    setMode("none");
-                    setSelected(new Set());
-                    router.refresh();
+                    settleBulkResult(result, "eligibility");
                   });
                 }}
               />
@@ -560,11 +578,7 @@ export function OrgMascotasBulkList({
                       bulkActionId,
                       publish,
                     });
-                    setLastResult(result);
-                    setLastResultType(publish ? "listing-publish" : "listing-unlist");
-                    setMode("none");
-                    setSelected(new Set());
-                    router.refresh();
+                    settleBulkResult(result, publish ? "listing-publish" : "listing-unlist");
                   });
                 }}
               />

@@ -4,7 +4,6 @@
 // based on the offering's service_kind. Shared between org-side and pro-side
 // detail pages.
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { DewormingAttendanceForm } from "@/app/_components/attendance-forms/DewormingAttendanceForm";
@@ -13,6 +12,7 @@ import { MicrochipAttendanceForm } from "@/app/_components/attendance-forms/Micr
 import { SterilizationAttendanceForm } from "@/app/_components/attendance-forms/SterilizationAttendanceForm";
 import { VaccinationAttendanceForm } from "@/app/_components/attendance-forms/VaccinationAttendanceForm";
 import type { AttendancePayload, AttendanceResult } from "@/app/actions/attendance";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Props = {
   appointmentToken: string;
@@ -34,7 +34,6 @@ export function AttendanceFormDispatcher({
   onNoShow,
   onCancel,
 }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [actionMode, setActionMode] = useState<ActionMode>("idle");
   const [noShowReason, setNoShowReason] = useState("");
@@ -42,8 +41,11 @@ export function AttendanceFormDispatcher({
   const [actionError, setActionError] = useState<string | null>(null);
 
   function handleSuccess() {
-    router.push(backUrl);
-    router.refresh();
+    // Attendance writes libreta events (vaccination, chip, …) — agenda and
+    // pet medical SSR must both re-derive, so do one full document navigation
+    // back instead of the soft push + router.refresh() pair (banned — see
+    // lib/ui/full-page-action-nav.ts).
+    navigateAfterActionSuccess(backUrl);
   }
 
   function submitNoShow() {

@@ -8,12 +8,14 @@
 //   devuelto  → (terminal for the org; gov re-derives or handles directly)
 //
 // All three actions call welfare server actions that gate on org membership +
-// case-handling role server-side; this component is presentation + optimistic
-// router.refresh only.
+// case-handling role server-side; this component is presentation only — after
+// a successful mutation it does a full document reload so the SSR FSM state
+// (which buttons render) matches the DB (router.refresh() is banned; see
+// lib/ui/full-page-action-nav.ts).
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   addInterventionNoteAction,
   returnDerivedReportAction,
@@ -33,7 +35,6 @@ export function InterventionActions({
   welfareReportId,
   interventionStatus,
 }: InterventionActionsProps) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("none");
   const [text, setText] = useState("");
@@ -54,7 +55,7 @@ export function InterventionActions({
         return;
       }
       reset();
-      router.refresh();
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 
