@@ -21,8 +21,10 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { fetchMicrochipPenetration } from "@/lib/analytics/compliance-metrics";
 import {
   type DashboardJurisdiction,
@@ -139,6 +141,65 @@ export default async function GobProgramaPage({
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
 
+  const allowedProvinces =
+    profile.role === "admin"
+      ? GOB_ALL_PROVINCES
+      : Array.from(new Set(jurisdictions.map((j) => j.province)))
+          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
+          .filter((p) => p.code !== "");
+
+  // Header + filters render in both the data and degraded (timeout) branches.
+  const header = (
+    <header className="space-y-2">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        Gobierno · Resumen ejecutivo
+      </p>
+      <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        Resumen ejecutivo — tu jurisdicción
+      </h1>
+      <p className="text-[13px] text-ln-op-mute">
+        {profile.role === "admin"
+          ? "Vista universal — todas las jurisdicciones."
+          : "KPIs North-Star, outliers, calidad de datos y oversight de PII en tu cobertura asignada."}
+      </p>
+    </header>
+  );
+  const filtersRow = (
+    <div className="grid md:grid-cols-2 gap-3">
+      <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
+      <PeriodPicker defaultPreset="trailing12m" />
+    </div>
+  );
+
+  // Bound the fetcher set with a deadline so a degraded DB yields an honest
+  // "reintentar" state instead of an unbounded hang (parity with /admin/programa).
+  const load = await loadWithTimeout(
+    Promise.all([
+      registryCounts(ctx, DORMANT_MONTHS_DEFAULT),
+      fetchSterilizationCoverage(ctx),
+      fetchMicrochipPenetration(ctx),
+      fetchEnoSla(ctx),
+      fetchQueueHealthScoped(filteredJurisdictions),
+      fetchDataQuality(ctx),
+      fetchCrossJurisdictionOutliers(ctx),
+      fetchPiiOversight(ctx),
+      currentUserId ? evaluateAlertSubscriptions(currentUserId, actor) : Promise.resolve([]),
+    ]),
+  );
+
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {header}
+        {filtersRow}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/programa", sp)}
+        />
+      </div>
+    );
+  }
+
   const [
     registry,
     sterilization,
@@ -149,29 +210,12 @@ export default async function GobProgramaPage({
     outliers,
     piiOversight,
     alertEvals,
-  ] = await Promise.all([
-    registryCounts(ctx, DORMANT_MONTHS_DEFAULT),
-    fetchSterilizationCoverage(ctx),
-    fetchMicrochipPenetration(ctx),
-    fetchEnoSla(ctx),
-    fetchQueueHealthScoped(filteredJurisdictions),
-    fetchDataQuality(ctx),
-    fetchCrossJurisdictionOutliers(ctx),
-    fetchPiiOversight(ctx),
-    currentUserId ? evaluateAlertSubscriptions(currentUserId, actor) : Promise.resolve([]),
-  ]);
+  ] = load.value;
 
   const breachingAlerts = alertEvals.filter((a) => a.breaching);
   const outlierCount = outliers.filter((r) => r.isOutlier).length;
   const chipRatePct = microchip.ratePct;
   const sterilRatePct = sterilization.rate;
-
-  const allowedProvinces =
-    profile.role === "admin"
-      ? GOB_ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
 
   const panelOutliersId = "gob-programa-outliers-titulo";
   const panelPiiId = "gob-programa-pii-titulo";
@@ -182,25 +226,10 @@ export default async function GobProgramaPage({
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Gobierno · Resumen ejecutivo
-        </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
-          Resumen ejecutivo — tu jurisdicción
-        </h1>
-        <p className="text-[13px] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "KPIs North-Star, outliers, calidad de datos y oversight de PII en tu cobertura asignada."}
-        </p>
-      </header>
+      {header}
 
       {/* Filters row */}
-      <div className="grid md:grid-cols-2 gap-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="trailing12m" />
-      </div>
+      {filtersRow}
 
       {/* North-Star KPI strip */}
       <section

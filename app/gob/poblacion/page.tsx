@@ -21,7 +21,9 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
@@ -112,15 +114,55 @@ export default async function GobPoblacionPage({
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");
 
-  const [coverage, activePregnancies, outcomes, netGrowth, sterilNatalidadRatio, sterilTrend] =
-    await Promise.all([
+  // Header + filters render in both the data and degraded (timeout) branches.
+  const header = (
+    <header className="space-y-2">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        Registro · Control poblacional
+      </p>
+      <h1 className="text-[22px] font-semibold text-ln-op-ink">Control poblacional</h1>
+      <p className="text-[13px] text-ln-op-mute">
+        {profile.role === "admin"
+          ? "Vista universal — todas las jurisdicciones."
+          : "Cobertura de esterilización, reproducción activa y balance poblacional en tu cobertura."}
+      </p>
+    </header>
+  );
+  const filtersRow = (
+    <div className="grid md:grid-cols-2 gap-3">
+      <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
+      <PeriodPicker defaultPreset="trailing12m" />
+    </div>
+  );
+
+  // Bound the fetcher set with a deadline so a degraded DB yields an honest
+  // "reintentar" state instead of an unbounded hang (parity with /admin/poblacion).
+  const load = await loadWithTimeout(
+    Promise.all([
       fetchSterilizationCoverage(ctx),
       fetchActivePregnancies(ctx),
       fetchReproductiveOutcomes(ctx),
       fetchNetGrowth(ctx),
       fetchSterilizationNatalidadRatio(ctx),
       fetchSterilizationTrend(ctx),
-    ]);
+    ]),
+  );
+
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {header}
+        {filtersRow}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/poblacion", sp)}
+        />
+      </div>
+    );
+  }
+
+  const [coverage, activePregnancies, outcomes, netGrowth, sterilNatalidadRatio, sterilTrend] =
+    load.value;
 
   const hasData = coverage.total > 0;
   const hasTrend = sterilTrend.points.length > 0;
@@ -146,23 +188,10 @@ export default async function GobPoblacionPage({
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Registro · Control poblacional
-        </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Control poblacional</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Cobertura de esterilización, reproducción activa y balance poblacional en tu cobertura."}
-        </p>
-      </header>
+      {header}
 
       {/* Filters row */}
-      <div className="grid md:grid-cols-2 gap-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="trailing12m" />
-      </div>
+      {filtersRow}
 
       {/* KPI row */}
       <section

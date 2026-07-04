@@ -16,7 +16,9 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
@@ -100,19 +102,59 @@ export default async function GobCensoPage({
   const period = resolveAnalyticsPeriod(sp);
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
 
-  const [counts, trend, funnel, provinceRows] = await Promise.all([
-    registryCounts(ctx, DORMANT_MONTHS_DEFAULT),
-    registrationTrend(ctx),
-    identificationFunnel(ctx),
-    registryByProvince(ctx),
-  ]);
-
   const allowedProvinces =
     profile.role === "admin"
       ? GOB_ALL_PROVINCES
       : Array.from(new Set(jurisdictions.map((j) => j.province)))
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");
+
+  // Header + filters render in both the data and degraded (timeout) branches.
+  const header = (
+    <header className="space-y-2">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        Registro · Censo poblacional
+      </p>
+      <h1 className="text-[22px] font-semibold text-ln-op-ink">Censo y salud del registro</h1>
+      <p className="text-[13px] text-ln-op-mute">
+        {profile.role === "admin"
+          ? "Vista universal — todas las jurisdicciones."
+          : "Crecimiento del padrón, mascotas dormant y calidad de identificación en tu cobertura."}
+      </p>
+    </header>
+  );
+  const filtersRow = (
+    <div className="grid md:grid-cols-2 gap-3">
+      <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
+      <PeriodPicker defaultPreset="trailing12m" />
+    </div>
+  );
+
+  // Bound the fetcher set with a deadline so a degraded DB yields an honest
+  // "reintentar" state instead of an unbounded hang (parity with /admin/censo).
+  const load = await loadWithTimeout(
+    Promise.all([
+      registryCounts(ctx, DORMANT_MONTHS_DEFAULT),
+      registrationTrend(ctx),
+      identificationFunnel(ctx),
+      registryByProvince(ctx),
+    ]),
+  );
+
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {header}
+        {filtersRow}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/censo", sp)}
+        />
+      </div>
+    );
+  }
+
+  const [counts, trend, funnel, provinceRows] = load.value;
 
   const hasData = counts.total > 0;
   const hasTrend = trend.points.length > 0;
@@ -138,23 +180,10 @@ export default async function GobCensoPage({
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Registro · Censo poblacional
-        </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Censo y salud del registro</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Crecimiento del padrón, mascotas dormant y calidad de identificación en tu cobertura."}
-        </p>
-      </header>
+      {header}
 
       {/* Filters row */}
-      <div className="grid md:grid-cols-2 gap-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="trailing12m" />
-      </div>
+      {filtersRow}
 
       {/* KPI row */}
       <section aria-label="Indicadores del censo" className="grid grid-cols-2 md:grid-cols-4 gap-3">
