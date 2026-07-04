@@ -29,7 +29,8 @@ export type IconCircleButtonVariant =
   | "flip";
 
 const BASE =
-  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-full transition-colors";
+  // active:scale — pressed feedback for touch (native-mobile audit §3).
+  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-full transition-colors active:scale-[0.98] active:opacity-90";
 
 const VARIANT_CLASSES: Record<IconCircleButtonVariant, string> = {
   primary: "bg-[var(--color-ln-azul)] text-white hover:bg-ln-azul-700",

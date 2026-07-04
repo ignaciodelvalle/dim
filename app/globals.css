@@ -434,6 +434,23 @@ h6 {
   }
 }
 
+/* ---- Native touch feel (native-mobile audit 2026-07-04 §3–4) --------------- *
+ * The default mobile tap flash reads webby; press feedback comes from the
+ * active: states on the interactive primitives instead. Overscroll containment
+ * stops the whole document rubber-banding in the installed PWA — inner scroll
+ * containers ([data-scroll-reset]) keep their own momentum scroll. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+html,
+body {
+  overscroll-behavior-y: contain;
+}
+[data-scroll-reset] {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ---- Safe-area utilities (native-mobile audit 2026-07-04) ------------------ *
  * Extend the one existing exemplar (adoptar ApplyButton's
  * `pb-[max(0.75rem,env(safe-area-inset-bottom))]`) into reusable utilities for

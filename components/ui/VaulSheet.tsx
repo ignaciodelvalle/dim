@@ -95,7 +95,7 @@ export function Sheet({ id, title, open, onClose, size = "md", triggerRef, child
             <Drawer.Title className="text-base font-semibold text-ln-ink">{title}</Drawer.Title>
             <Drawer.Close
               aria-label="Cerrar"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-ln-ink-2 transition-colors hover:bg-ln-stripe hover:text-ln-ink"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-ln-ink-2 transition-colors hover:bg-ln-stripe hover:text-ln-ink active:bg-ln-line"
             >
               {/* Simple × glyph — no Icon dep to keep the component self-contained */}
               <span aria-hidden="true" className="text-lg leading-none">

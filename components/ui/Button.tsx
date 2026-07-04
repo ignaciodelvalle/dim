@@ -33,6 +33,9 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
 const base =
   "inline-flex items-center justify-center gap-[7px] font-semibold " +
   "rounded-[3px] border transition-colors cursor-pointer select-none " +
+  // Pressed feedback (native-mobile audit §3): touch users get an immediate
+  // tactile response instead of hover-only styling that never fires on touch.
+  "active:scale-[0.98] active:opacity-90 " +
   "disabled:cursor-not-allowed disabled:opacity-60 " +
   "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]";
 
