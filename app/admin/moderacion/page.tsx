@@ -4,6 +4,7 @@ import { OpButton, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui
 import { db, welfareReports } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { type FlagReason, reasonLabel } from "@/lib/infra/welfare-moderation";
+import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,
@@ -11,7 +12,7 @@ import {
   welfareReportSeverityLabel,
 } from "@/src/modules/welfare/domain/types";
 import type { WelfareReportKind, WelfareReportSeverity } from "@/src/modules/welfare/domain/types";
-import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 
 type SeverityTone = "danger" | "open" | "neutral";
 
@@ -29,6 +30,12 @@ const MOD_STATUS_OPTIONS = [
   { value: "all", label: "Todas" },
 ] as const;
 
+// Page size for keyset pagination. The queue was previously capped at a flat
+// LIMIT 500 with no way to reach older rows — a real scale bug once a province
+// accumulates >500 flagged denuncias. Keyset paging removes both the cap and
+// the OFFSET re-scan cost.
+const PAGE_SIZE = 50;
+
 export default async function ModeracionListPage({
   searchParams,
 }: {
@@ -36,6 +43,7 @@ export default async function ModeracionListPage({
     status?: string;
     kind?: string;
     severity?: string;
+    cursor?: string;
   }>;
 }) {
   await requireAdminOrRedirect();
@@ -66,12 +74,44 @@ export default async function ModeracionListPage({
   if (kindFilter) whereClauses.push(eq(welfareReports.kind, kindFilter));
   if (severityFilter) whereClauses.push(eq(welfareReports.severity, severityFilter));
 
-  const rows = await db
+  const baseWhere = and(...whereClauses);
+
+  // Keyset (seek) pagination — same contract as /gob/maltrato and the outbox
+  // lists: DESC on (flaggedAt, id); the cursor encodes the last row of the
+  // current page and "next" fetches strictly older rows via
+  // (flaggedAt, id) < (cursorTs, cursorId). flaggedAt is guaranteed non-null
+  // by the isNotNull clause above, so it is a safe keyset column.
+  const cursorClause = keysetWhere(
+    welfareReports.flaggedAt,
+    welfareReports.id,
+    decodeCursor(sp.cursor),
+  );
+  const rowsWhere = cursorClause ? and(baseWhere, cursorClause) : baseWhere;
+
+  // limit+1 probe row detects hasMore without a second COUNT query.
+  const rawRows = await db
     .select()
     .from(welfareReports)
-    .where(and(...whereClauses))
-    .orderBy(desc(welfareReports.flaggedAt))
-    .limit(500);
+    .where(rowsWhere)
+    .orderBy(desc(welfareReports.flaggedAt), desc(welfareReports.id))
+    .limit(PAGE_SIZE + 1);
+
+  const hasMore = rawRows.length > PAGE_SIZE;
+  const rows = hasMore ? rawRows.slice(0, PAGE_SIZE) : rawRows;
+
+  // Filter params preserved across cursor links — never includes `cursor`
+  // itself, which olderHref/newerHref set/strip.
+  const filterParams: Record<string, string | undefined> = {
+    ...(statusFilter !== "pending" ? { status: statusFilter } : {}),
+    ...(kindFilter ? { kind: kindFilter } : {}),
+    ...(severityFilter ? { severity: severityFilter } : {}),
+  };
+  const lastRow = rows.at(-1);
+  const olderLink =
+    hasMore && lastRow?.flaggedAt
+      ? olderHref("/admin/moderacion", filterParams, { ts: lastRow.flaggedAt, id: lastRow.id })
+      : null;
+  const newerLink = sp.cursor ? newerHref("/admin/moderacion", filterParams) : null;
 
   return (
     <div className="space-y-6">
@@ -224,6 +264,35 @@ export default async function ModeracionListPage({
             );
           })}
         </ul>
+      )}
+
+      {/* Pagination footer — keyset (seek) links preserve active filters. */}
+      {(newerLink || olderLink) && (
+        <nav
+          aria-label="Paginación de moderación"
+          className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+        >
+          <div>
+            {newerLink && (
+              <Link
+                href={newerLink}
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                ← Más recientes
+              </Link>
+            )}
+          </div>
+          <div>
+            {olderLink && (
+              <Link
+                href={olderLink}
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                Ver más antiguas →
+              </Link>
+            )}
+          </div>
+        </nav>
       )}
     </div>
   );
