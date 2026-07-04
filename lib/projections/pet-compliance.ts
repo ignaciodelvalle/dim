@@ -314,6 +314,28 @@ function derivePpp(input: ComplianceInput): ObligationCard {
 }
 
 /**
+ * Single source for the pet hero's microchip tag — mirrors the microchip
+ * obligation card's tone so the hero and the compliance panel never disagree
+ * about whether a microchip is verified.
+ *
+ * Before this helper, the pet profile hero pushed "Microchip verificado"
+ * whenever ANY microchip code was on file (`canonicalIds.microchip`),
+ * regardless of provenance, while the compliance card below it (this same
+ * module's `deriveMicrochip`) correctly required a professional/institutional
+ * event to say "verified" — showing "Declarada · sin verificar" for a
+ * self-reported chip. Same pet, same screen, two different claims about the
+ * same fact (clickthrough audit 2026-07-03/04, Segmento 1 #6). Both surfaces
+ * now read this one function.
+ */
+export function microchipHeroTag(compliance: ComplianceState): string | null {
+  const card = compliance.cards.find((c) => c.key === "microchip");
+  if (!card) return null;
+  if (card.tone === "ok") return "Microchip verificado";
+  if (card.state !== "Sin registro") return "Microchip declarado";
+  return null;
+}
+
+/**
  * Map a pet row + its compliance projection onto the status chip shown on the
  * credential header and every pet list row (LnStatusFlag / LnRegRow).
  *

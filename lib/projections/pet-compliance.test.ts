@@ -5,6 +5,7 @@ import {
   type ComplianceInput,
   deriveComplianceState,
   lnPetStatusFromCompliance,
+  microchipHeroTag,
 } from "@/lib/projections/pet-compliance";
 
 const NOW = new Date("2026-07-01T12:00:00Z");
@@ -225,6 +226,13 @@ describe("deriveComplianceState — sterilization, microchip, PPP", () => {
     expect(chip?.state).toBe("Declarada · sin verificar");
   });
 
+  it("microchip: no code and no event → 'Sin registro'", () => {
+    const state = deriveComplianceState(baseInput());
+    const chip = state.cards.find((c) => c.key === "microchip");
+    expect(chip?.tone).toBe("neutral");
+    expect(chip?.state).toBe("Sin registro");
+  });
+
   it("PPP is 'Atestación requerida' (due) until a dangerous_breed_attested event exists", () => {
     const pending = deriveComplianceState(baseInput({ pppApplies: true }));
     expect(pending.cards.find((c) => c.key === "ppp")?.tone).toBe("due");
@@ -267,6 +275,31 @@ describe("deriveComplianceState — ordering + summary", () => {
     );
     expect(state.summary).toEqual({ total: 3, ok: 2, label: "2 de 3 al día" });
     expect(state.worstTone).toBe("neutral");
+  });
+});
+
+describe("microchipHeroTag — hero tag agrees with the compliance card (H1 display contradiction fix)", () => {
+  it("verified implant → 'Microchip verificado', same tier that flips the card to ok", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        microchipCode: "982000123456789",
+        events: [{ eventType: "microchip_implanted", occurredAt: NOW, payload: {}, ...VET }],
+      }),
+    );
+    expect(state.cards.find((c) => c.key === "microchip")?.tone).toBe("ok");
+    expect(microchipHeroTag(state)).toBe("Microchip verificado");
+  });
+
+  it("self-reported code/event → 'Microchip declarado', never 'verificado' (the exact bug: hero said verificado while the card said Declarada · sin verificar)", () => {
+    const state = deriveComplianceState(baseInput({ microchipCode: "982000123456789" }));
+    expect(state.cards.find((c) => c.key === "microchip")?.state).toBe("Declarada · sin verificar");
+    expect(microchipHeroTag(state)).toBe("Microchip declarado");
+  });
+
+  it("no code and no event → no hero tag at all (matches the card's 'Sin registro')", () => {
+    const state = deriveComplianceState(baseInput());
+    expect(state.cards.find((c) => c.key === "microchip")?.state).toBe("Sin registro");
+    expect(microchipHeroTag(state)).toBeNull();
   });
 });
 

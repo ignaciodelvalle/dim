@@ -48,7 +48,6 @@
 // and the `ppp.attested` prop below read the same fixed whitelist.
 // ---------------------------------------------------------------------------
 
-import { fetchPendingReturnProposalForOwner } from "@/app/actions/return-to-owner";
 import type { PetState } from "@/components/EventCatcher";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
@@ -84,8 +83,13 @@ import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credenti
 import { getPhysicalTagInterest } from "@/lib/infra/physical-tag-interest";
 import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/infra/service-dog-labels";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/infra/storage";
-import { deriveComplianceState, lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
+import {
+  deriveComplianceState,
+  lnPetStatusFromCompliance,
+  microchipHeroTag,
+} from "@/lib/projections/pet-compliance";
 import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/utils/format";
+import { fetchPendingReturnProposalForOwner } from "@/src/modules/return-to-owner/application/proposal-queries";
 import { and, asc, desc, eq, gt, isNull, notInArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -265,7 +269,7 @@ export default async function PetDetailPage({
     // proposal exists. Reuses the same ARCH-B tri-check as /devolucion.
     const returnProposalQuery =
       ownershipRole === "owner"
-        ? fetchPendingReturnProposalForOwner(pet.id, user.id)
+        ? fetchPendingReturnProposalForOwner(pet.id, user.id, db)
         : Promise.resolve(false);
 
     // Emergency / vet contacts from the viewer's profile — J-followup columns
@@ -425,8 +429,15 @@ export default async function PetDetailPage({
 
   const age = ageFromDateOfBirth(pet.dateOfBirth);
 
+  // H1 display contradiction fix (clickthrough audit 2026-07-03/04, Segmento
+  // 1 #6): the "chip" hero tag used to be pushed here from mere microchip
+  // *presence* (canonicalIds.microchip), independently of the compliance
+  // card below it — a self-reported chip showed "Microchip verificado" in
+  // the hero while the compliance card correctly said "Declarada · sin
+  // verificar". The tag is now derived from `complianceState` further down
+  // (microchipHeroTag) — the SAME provenance gate — so both surfaces always
+  // agree. See that unshift() call below.
   const heroTags: Array<{ key: string; label: string; variant?: "celeste" | "gray" }> = [];
-  if (canonicalIds.microchip) heroTags.push({ key: "chip", label: "Microchip verificado" });
   if (pet.jurisdictionLocality)
     heroTags.push({ key: "loc", label: pet.jurisdictionLocality, variant: "gray" });
 
@@ -463,6 +474,11 @@ export default async function PetDetailPage({
     microchipCode: canonicalIds.microchip?.code ?? null,
     pppApplies: Boolean(pet.potentiallyDangerousBreed),
   });
+
+  // Hero "chip" tag — same provenance gate as the compliance card (see the
+  // heroTags declaration above for why this isn't pushed alongside "loc").
+  const microchipTagLabel = microchipHeroTag(complianceState);
+  if (microchipTagLabel) heroTags.unshift({ key: "chip", label: microchipTagLabel });
 
   // Build the LnHero status from pet fields + compliance.
   // pet.status is "active" here, EXCEPT when the owner opened the full profile
