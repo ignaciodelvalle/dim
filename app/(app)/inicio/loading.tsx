@@ -8,7 +8,6 @@
 import { LnCardSkeleton } from "@/components/ui/LnCardSkeleton";
 import { Skeleton } from "@/components/ui/Skeleton";
 
-const REGISTRY_KEYS = ["a", "b", "c"] as const;
 const SIDEBAR_KEYS = ["x", "y"] as const;
 
 export default function InicioLoading() {
@@ -35,13 +34,10 @@ export default function InicioLoading() {
         <Skeleton w="75%" h="40px" radius="4px" />
       </div>
 
-      {/* 2-col grid placeholder */}
+      {/* 2-col grid placeholder — left: Estado sanitario strip, right: sidebar cards */}
       <div className="grid gap-[24px] lg:grid-cols-[1fr_320px]">
         <div className="flex flex-col gap-[12px]">
-          <Skeleton w="40%" h="16px" radius="3px" />
-          {REGISTRY_KEYS.map((k) => (
-            <LnCardSkeleton key={k} />
-          ))}
+          <LnCardSkeleton />
         </div>
         <div className="flex flex-col gap-[20px]">
           {SIDEBAR_KEYS.map((k) => (

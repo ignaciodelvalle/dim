@@ -293,9 +293,10 @@ describe("fetchPetHealthNudges — next reminder", () => {
     const pet = petByToken(result, `REM-${userId.slice(0, 4)}`);
     // openReminders still counts (it feeds the per-pet flags)…
     expect(pet?.openReminders).toBe(1);
-    // …but no strip nudge duplicates it: the Vencimientos card on the same
-    // /inicio screen already lists these reminders (projection-cron audit
-    // 2026-07-03 C3, PO decision — one fact, one surface).
+    // …but no strip nudge duplicates it: RemindersSection on the same /inicio
+    // screen already lists these reminders with actions (projection-cron audit
+    // 2026-07-03 C3, PO decision — one fact, one surface; task #34 removed the
+    // read-only Vencimientos duplicate).
     expect(pet?.nudges.some((n) => n.label.includes("recordatorio"))).toBe(false);
   });
 });

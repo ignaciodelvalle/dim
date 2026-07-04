@@ -1,9 +1,17 @@
-// Owner home — Libreta Nacional redesign.
+// Owner home — Libreta Nacional redesign (leaned, task #34).
 //
-// Layout: greeting (serif h1 + date/place mono right) → capture block
+// Layout: greeting (serif h1 + date mono right) → RemindersSection (the ONE
+// reminder surface — actionable: Posponer/Agendar/Registrar) → capture block
 // (EventCatcher restyled as "Asentar un hecho" card) → 2-col grid:
-//   left:  01 Mis mascotas registry (LnRegRow)
-//   right: stacked cards — Vencimientos, Próximos turnos, Casos abiertos
+//   left:  Estado sanitario — the ONE per-pet surface (status + nudges)
+//   right: stacked cards — Próximos turnos, Casos abiertos
+//
+// Leaned on PO request: the "01 Mis mascotas" registry duplicated the top-nav
+// destination /mis-mascotas and listed every pet the health strip already
+// shows; the read-only "Vencimientos" card rendered the same reminders array
+// RemindersSection already renders with actions. One pet list, one reminder
+// surface. The strip's nudges never duplicate reminders (C3 dedup,
+// lib/infra/owner-nudges.ts).
 //
 // Data fetching, server actions, routes, and EventCatcher behavior unchanged.
 // Auth + role gates enforced by (app)/layout.tsx.
@@ -14,25 +22,20 @@ import { CasesWidget, adaptWorkflow } from "@/components/CasesWidget";
 import { EventCatcher, type EventCatcherPet, type PetState } from "@/components/EventCatcher";
 import { LnButton } from "@/components/ui/Button";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import type { DashboardPet } from "@/lib/analytics/owner-dashboard";
 import {
   fetchActiveReminders,
-  fetchComplianceStatesForPets,
   fetchOpenWorkflows,
   fetchPetsForOwner,
   fetchUpcomingAppointments,
 } from "@/lib/analytics/owner-dashboard";
-import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { petPhotoUrl } from "@/lib/infra/storage";
-import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
 import { BRANDING } from "@/lib/ui/branding";
-import { capCount, speciesLabel } from "@/lib/utils/format";
+import { capCount } from "@/lib/utils/format";
 import { greetingFirstName } from "@/lib/utils/greeting";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
 import { PetHealthStatusStrip } from "./_components/PetHealthStatusStrip";
@@ -77,8 +80,8 @@ export default async function InicioPage() {
   const [profileRow, petsResult, openWf, appointments, reminders, healthStatus] = await Promise.all(
     [
       getProfileCached(user.id),
-      // fetchPetsForOwner is bounded (DASHBOARD_PETS_LIMIT = 50) — petsResult.total
-      // carries the SQL COUNT so we can show "ver todas (N)" without loading all rows.
+      // fetchPetsForOwner is bounded (DASHBOARD_PETS_LIMIT = 50); rows feed the
+      // EventCatcher pet chips only — the per-pet surface is healthStatus.
       fetchPetsForOwner(user.id),
       fetchOpenWorkflows(user.id),
       fetchUpcomingAppointments(user.id, 5),
@@ -89,7 +92,7 @@ export default async function InicioPage() {
     ],
   );
 
-  const { pets, total: totalPets } = petsResult;
+  const { pets } = petsResult;
 
   // Deactivated profiles greet generically — parity with the pre-cache query,
   // which filtered deactivated_at IS NULL.
@@ -100,18 +103,6 @@ export default async function InicioPage() {
 
   const eventCatcherPets = pets.map(adaptPet);
   const cases = openWf.map(adaptWorkflow);
-
-  // Visible pets for the registry (no deceased).
-  // Note: `pets` is already bounded to DASHBOARD_PETS_LIMIT rows; totalPets
-  // is the full SQL count used in the "ver todas (N)" link.
-  const registryPets = pets.filter((p) => p.status !== "deceased");
-
-  // Same compliance projection the pet-profile header derives — the registry
-  // chip must agree with the detail header (QA round 2 2026-07-03 #4).
-  const complianceByPet = await fetchComplianceStatesForPets(
-    user.id,
-    registryPets.map((p) => p.id),
-  );
 
   // Today's date for the greeting datestamp
   const today = new Date();
@@ -220,43 +211,12 @@ export default async function InicioPage() {
       {/* 2-col grid                                                          */}
       {/* ------------------------------------------------------------------ */}
       <div className="grid gap-[24px] lg:grid-cols-[1fr_320px]">
-        {/* LEFT — registry */}
+        {/* LEFT — Estado sanitario: the single per-pet surface (Item 5).
+            Pet navigation lives in the top nav (/mis-mascotas); each strip row
+            links to its pet. Zero pets → the "Cargar una mascota" CTA. */}
         <div>
-          <LnSectionHead
-            num="01"
-            title="Mis mascotas"
-            meta={
-              <Link
-                href="/mis-mascotas"
-                className="text-[var(--color-ln-azul)] no-underline hover:underline"
-              >
-                {totalPets} inscripta{totalPets !== 1 ? "s" : ""} · ver todas →
-              </Link>
-            }
-          />
-          {registryPets.length > 0 ? (
-            <LnRegistry>
-              {registryPets.map((p) => (
-                <LnRegRow
-                  key={p.id}
-                  name={p.name}
-                  status={(() => {
-                    const compliance = complianceByPet.get(p.id);
-                    return compliance
-                      ? lnPetStatusFromCompliance(
-                          { status: p.status, pregnancyStatus: p.pregnancyStatus },
-                          compliance,
-                        )
-                      : "registered";
-                  })()}
-                  breed={speciesLabel(p.species)}
-                  species={speciesLabel(p.species)}
-                  photoSrc={petPhotoUrl(p.primaryPhotoStoragePath) ?? undefined}
-                  photoSize={64}
-                  href={`/mis-mascotas/${p.publicToken}`}
-                />
-              ))}
-            </LnRegistry>
+          {healthStatus.length > 0 ? (
+            <PetHealthStatusStrip pets={healthStatus} />
           ) : (
             <LnEmptyState
               variant="dashed"
@@ -274,26 +234,6 @@ export default async function InicioPage() {
 
         {/* RIGHT — stacked cards */}
         <div className="flex flex-col gap-[20px]">
-          {/* Estado sanitario — per-pet owner health-status nudges (Item 5) */}
-          <PetHealthStatusStrip pets={healthStatus} />
-
-          {/* Vencimientos */}
-          {reminders.length > 0 && (
-            <LnCard>
-              <LnCardHead
-                title="Vencimientos"
-                label={`${reminders.length} próximo${reminders.length !== 1 ? "s" : ""}`}
-              />
-              <LnCardBody>
-                <div className="flex flex-col gap-[10px]">
-                  {reminders.slice(0, 4).map((r) => (
-                    <DueRow key={r.reminderId} reminder={r} />
-                  ))}
-                </div>
-              </LnCardBody>
-            </LnCard>
-          )}
-
           {/* Próximos turnos */}
           {appointments.length > 0 && (
             <LnCard>
@@ -384,50 +324,6 @@ function ApptRow({
         <p className="text-[13px] font-medium text-[var(--color-ln-ink)]">{title}</p>
         <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">{meta}</p>
       </div>
-    </Link>
-  );
-}
-
-type ActiveReminderRow = {
-  reminderId: string;
-  petName: string;
-  petToken: string;
-  title: string;
-  daysUntilDue: number;
-  variant: ReminderVariant;
-};
-
-function DueRow({ reminder }: { reminder: ActiveReminderRow }) {
-  const isOver = reminder.daysUntilDue < 0;
-  const isCritical = reminder.variant === "overdue_critical" || reminder.variant === "overdue";
-  const dotClass = isCritical
-    ? "bg-[var(--color-ln-err)]"
-    : reminder.variant === "due_soon"
-      ? "bg-[var(--color-ln-warn)]"
-      : "bg-[var(--color-ln-celeste)]";
-  const whenColor = isOver
-    ? "text-[var(--color-ln-err)]"
-    : reminder.variant === "due_soon"
-      ? "text-[var(--color-ln-warn)]"
-      : "text-[var(--color-ln-mute)]";
-
-  return (
-    <Link
-      href={`/mis-mascotas/${reminder.petToken}?tab=vacunas`}
-      className="flex items-center gap-[10px] rounded-[4px] hover:bg-[var(--color-ln-stripe)] transition-colors no-underline -mx-[6px] px-[6px] py-[4px]"
-    >
-      <span
-        className={`h-[8px] w-[8px] flex-shrink-0 rounded-full ${dotClass}`}
-        aria-hidden="true"
-      />
-      <div className="min-w-0 flex-1">
-        <p className="text-[12.5px] font-medium text-[var(--color-ln-ink)]">
-          {reminder.title} · {reminder.petName}
-        </p>
-      </div>
-      <span className={`flex-shrink-0 font-[var(--font-ln-mono)] text-[11px] ${whenColor}`}>
-        {isOver ? `−${Math.abs(reminder.daysUntilDue)} días` : `en ${reminder.daysUntilDue} días`}
-      </span>
     </Link>
   );
 }
