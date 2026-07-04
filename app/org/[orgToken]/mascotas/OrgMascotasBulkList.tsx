@@ -29,6 +29,7 @@ import {
 import { BULK_INELIGIBLE_REASONS } from "@/app/actions/bulk-vaccinate-types";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpStateBadge } from "@/components/ui/dashboard";
+import { speciesLabel } from "@/lib/utils/format";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { OrgMascotasPipelineBoard } from "./OrgMascotasPipelineBoard";
 
@@ -64,6 +65,8 @@ type Props = {
   canReturnToOwner: boolean;
   canManageAdoptionListing: boolean;
   canEventWrite: boolean;
+  /** True when a species/text filter is active — changes the empty-state copy. */
+  hasActiveFilters?: boolean;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -91,12 +94,6 @@ const ROLE_BADGE: Record<string, { label: string; className: string }> = {
   },
 };
 
-const SPECIES_LABELS: Record<string, string> = {
-  dog: "Perro",
-  cat: "Gato",
-  other: "Otro",
-};
-
 const INELIGIBLE_REASON_LABELS: Record<(typeof BULK_INELIGIBLE_REASONS)[number], string> = {
   medical_treatment: "Tratamiento médico",
   behavioral_evaluation: "Evaluación conductual",
@@ -109,10 +106,6 @@ const INELIGIBLE_REASON_LABELS: Record<(typeof BULK_INELIGIBLE_REASONS)[number],
 };
 
 const BULK_MAX = 500;
-
-function speciesLabel(s: string): string {
-  return SPECIES_LABELS[s] ?? s;
-}
 
 function calcAge(dob: string): string {
   const birth = new Date(dob);
@@ -152,6 +145,7 @@ export function OrgMascotasBulkList({
   canReturnToOwner,
   canManageAdoptionListing,
   canEventWrite,
+  hasActiveFilters = false,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -224,7 +218,9 @@ export function OrgMascotasBulkList({
   if (cards.length === 0) {
     return (
       <p className="text-[13px] text-ln-op-mute">
-        Todavía no hay animales registrados a nombre de la organización.
+        {hasActiveFilters
+          ? "Ningún animal coincide con el filtro aplicado."
+          : "Todavía no hay animales registrados a nombre de la organización."}
       </p>
     );
   }

@@ -14,6 +14,7 @@ import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { fetchPendingOwnerReturnProposalForOrg } from "@/src/modules/return-to-owner/application/proposal-queries";
+import { speciesLabel } from "@/lib/utils/format";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 
 import {
@@ -155,7 +156,7 @@ export default async function OrgPetDetailPage({
   const canManageEligibility = granted.has("intake.create") && ownershipRole === "shelter_custody";
   const canReplaceMicrochip = granted.has("event.write");
   const canEndFoster = granted.has("foster.end") && !!fosterName;
-  const speciesLabel = pet.species === "dog" ? "Perro" : pet.species === "cat" ? "Gato" : "Otro";
+  const petSpeciesLabel = speciesLabel(pet.species);
 
   const eligibility = {
     eligible: pet.adoptionEligible,
@@ -190,7 +191,7 @@ export default async function OrgPetDetailPage({
               </p>
               <h1 className="text-[22px] font-semibold text-ln-op-ink">{pet.name}</h1>
               <p className="text-[13px] text-ln-op-ink-2">
-                {speciesLabel}
+                {petSpeciesLabel}
                 {pet.breed ? ` · ${pet.breed}` : ""}
                 {pet.color ? ` · ${pet.color}` : ""}
               </p>
