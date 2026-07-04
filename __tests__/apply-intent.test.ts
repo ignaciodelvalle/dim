@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   APPLY_INTENT_TTL_MS,
@@ -40,5 +40,27 @@ describe("apply-intent: generate / validate", () => {
     const expiredTs = Date.now() - APPLY_INTENT_TTL_MS - 1000;
     const expiredToken = `${macPart}.${expiredTs}`;
     expect(validateApplyIntentToken("DIM-DDDD-DDDD", expiredToken)).toBe(false);
+  });
+});
+
+describe("apply-intent: fail-closed signing key resolution", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("throws in production when neither APPLY_INTENT_SECRET nor SUPABASE_SERVICE_ROLE_KEY is set", () => {
+    vi.stubEnv("APPLY_INTENT_SECRET", "");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(() => generateApplyIntentToken("DIM-EEEE-EEEE")).toThrow(
+      /APPLY_INTENT_SECRET .* must be set in production/i,
+    );
+  });
+
+  it("falls back to the dev key outside production when neither var is set", () => {
+    vi.stubEnv("APPLY_INTENT_SECRET", "");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
+    vi.stubEnv("NODE_ENV", "test");
+    expect(() => generateApplyIntentToken("DIM-FFFF-FFFF")).not.toThrow();
   });
 });

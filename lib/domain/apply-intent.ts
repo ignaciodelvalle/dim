@@ -14,7 +14,8 @@
 //                share link to silently become a "free pass" to the form.
 //
 // APPLY_INTENT_SECRET — optional env var, falls back to
-// SUPABASE_SERVICE_ROLE_KEY for parity with `microchip-force-token.ts`.
+// SUPABASE_SERVICE_ROLE_KEY for parity with `microchip-force-token.ts`. Fails
+// closed in production if neither is set (deploy-readiness audit 2026-07-04 W1).
 //
 // We do NOT persist tokens. The cookie is single-use by convention: the
 // postular page clears it after a successful verification. Replay within
@@ -38,6 +39,12 @@ export const APPLY_INTENT_KIND = "adoption_apply";
 function getSigningKey(): string {
   if (process.env.APPLY_INTENT_SECRET) return process.env.APPLY_INTENT_SECRET;
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) return process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Last resort for tests where neither var is set — fail closed in production.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "APPLY_INTENT_SECRET (or SUPABASE_SERVICE_ROLE_KEY) must be set in production.",
+    );
+  }
   return "dim-dev-fallback-key-not-for-production";
 }
 
