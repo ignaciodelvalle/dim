@@ -189,29 +189,33 @@ export function AppCitizenMasthead({
             aria-label={
               unreadCount > 0 ? `Notificaciones (${unreadCount} sin leer)` : "Notificaciones"
             }
-            className="relative text-white/80 transition-colors hover:text-white"
+            // min 44px touch box around the 18px glyph (WCAG 2.5.5); the
+            // badge anchors to the inner span so it hugs the icon, not the box.
+            className="inline-flex min-h-11 min-w-11 items-center justify-center text-white/80 transition-colors hover:text-white active:text-white"
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-[18px] w-[18px]"
-              aria-hidden="true"
-            >
-              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-            </svg>
-            {unreadCount > 0 && (
-              <span
+            <span className="relative">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-[18px] w-[18px]"
                 aria-hidden="true"
-                className="absolute -right-[7px] -top-[5px] min-w-[15px] rounded-full bg-[var(--color-ln-celeste)] px-[4px] text-center font-[var(--font-ln-mono)] text-[9px] font-bold leading-[15px] text-[var(--color-ln-azul-900)]"
               >
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+              </svg>
+              {unreadCount > 0 && (
+                <span
+                  aria-hidden="true"
+                  className="absolute -right-[7px] -top-[5px] min-w-[15px] rounded-full bg-[var(--color-ln-celeste)] px-[4px] text-center font-[var(--font-ln-mono)] text-[9px] font-bold leading-[15px] text-[var(--color-ln-azul-900)]"
+                >
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </span>
           </Link>
         )}
 
@@ -231,7 +235,7 @@ export function AppCitizenMasthead({
         ) : (
           <Link
             href="/login"
-            className="inline-flex min-h-[36px] items-center justify-center rounded-full bg-white px-[18px] text-[13px] font-semibold text-[var(--color-ln-azul-900)] no-underline transition-opacity hover:opacity-90"
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-[18px] text-[13px] font-semibold text-[var(--color-ln-azul-900)] no-underline transition-opacity hover:opacity-90 active:opacity-80"
           >
             Iniciar sesión
           </Link>
@@ -335,7 +339,7 @@ function CitizenMobileDrawer({
         <button
           type="button"
           aria-label="Abrir menú"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md text-white/80 hover:text-white md:hidden"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/80 hover:text-white active:bg-white/10 md:hidden"
         >
           <HamburgerIcon />
         </button>
@@ -363,7 +367,7 @@ function CitizenMobileDrawer({
               <button
                 type="button"
                 aria-label="Cerrar menú"
-                className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md text-white/60 hover:bg-white/10 hover:text-white"
+                className="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/60 hover:bg-white/10 hover:text-white active:bg-white/10"
               >
                 <CloseIcon />
               </button>
@@ -387,7 +391,7 @@ function CitizenMobileDrawer({
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={[
-                      "flex min-h-10 items-center gap-2.5 rounded-[5px] px-3 py-2",
+                      "flex min-h-11 items-center gap-2.5 rounded-[5px] px-3 py-2",
                       "text-[13px] no-underline transition-colors",
                       active
                         ? "border-l-2 border-[var(--color-ln-celeste)] bg-white/10 font-semibold text-white"
@@ -407,7 +411,7 @@ function CitizenMobileDrawer({
               {showReturn && returnHref && (
                 <Link
                   href={returnHref}
-                  className="flex min-h-10 items-center rounded-[5px] px-3 py-2 text-[13px] font-medium text-white/85 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
+                  className="flex min-h-11 items-center rounded-[5px] px-3 py-2 text-[13px] font-medium text-white/85 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
                 >
                   ← Volver a mi app
                 </Link>
@@ -416,7 +420,7 @@ function CitizenMobileDrawer({
                 <Link
                   key={t.key + t.href}
                   href={t.href}
-                  className="flex min-h-10 items-center rounded-[5px] px-3 py-2 text-[13px] text-white/75 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
+                  className="flex min-h-11 items-center rounded-[5px] px-3 py-2 text-[13px] text-white/75 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
                 >
                   {t.label}
                 </Link>

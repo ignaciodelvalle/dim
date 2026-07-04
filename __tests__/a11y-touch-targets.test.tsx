@@ -88,3 +88,60 @@ describe("PetActionRow — 5-icon bar clears 44px at 320px (UX 2.1)", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// AppCitizenMasthead — hamburger / bell / anon login CTA (native-mobile
+// audit 2026-07-04 §9: hamburger was 40px, bell ~18px, login CTA 36px).
+// Drawer rows are not asserted here: vaul portals don't render in static
+// markup while the drawer is closed.
+// ---------------------------------------------------------------------------
+
+import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
+
+describe("AppCitizenMasthead — 44px masthead controls (native-mobile audit §9)", () => {
+  it("hamburger trigger and notification bell carry min-h-11 AND min-w-11", () => {
+    const html = renderToStaticMarkup(
+      <AppCitizenMasthead
+        nav={[{ href: "/inicio", label: "Inicio", matchPrefix: "/inicio" }]}
+        user={{ name: "Ana", initials: "AN" }}
+        unreadCount={2}
+      />,
+    );
+
+    const hamburger = html.match(/<button[^>]*aria-label="Abrir menú"[^>]*>/)?.[0];
+    expect(hamburger).toBeDefined();
+    expect(hamburger).toContain("min-h-11");
+    expect(hamburger).toContain("min-w-11");
+
+    const bell = html.match(/<a[^>]*aria-label="Notificaciones[^"]*"[^>]*>/)?.[0];
+    expect(bell).toBeDefined();
+    expect(bell).toContain("min-h-11");
+    expect(bell).toContain("min-w-11");
+  });
+
+  it("anonymous login CTA is min-h-11, no longer min-h-[36px]", () => {
+    const html = renderToStaticMarkup(<AppCitizenMasthead nav={[]} user={null} />);
+    const login = html.match(/<a[^>]*href="\/login"[^>]*>/)?.[0];
+    expect(login).toBeDefined();
+    expect(login).toContain("min-h-11");
+    expect(html).not.toContain("min-h-[36px]");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CitizenTabBar — bottom tabs must each clear 44px (min-h-12 = 48px).
+// ---------------------------------------------------------------------------
+
+import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
+import { OWNER_NAV } from "@/components/layout/nav-presets";
+
+describe("CitizenTabBar — 44px tab targets", () => {
+  it("all owner tabs render as links with min-h-12", () => {
+    const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} />);
+    const anchors = html.match(/<a [^>]*>/g) ?? [];
+    expect(anchors.length).toBe(OWNER_NAV.length);
+    for (const anchor of anchors) {
+      expect(anchor).toContain("min-h-12");
+    }
+  });
+});
