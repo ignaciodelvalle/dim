@@ -95,6 +95,24 @@ function welfareReportsScopeClause(ctx: ProjectionContext) {
 // KPI 1 — Rabies vaccination coverage
 // ---------------------------------------------------------------------------
 
+/**
+ * Canonical es-AR label for this KPI — DOGS ONLY, trailing 12 months.
+ *
+ * DISAMBIGUATION (critique-govt-2026-07-03.md, "Same metric, different
+ * numbers" — 42% here vs 54% under the same old label elsewhere): this KPI is
+ * DISTINCT from RABIES_VACCINATION_RATE_LABEL_ES (lib/analytics/govt-dashboards.ts),
+ * which counts ALL species with no time window. Full numerator/denominator
+ * breakdown of both lives in lib/metrics/kpi-catalog.ts
+ * (rabies_coverage_dogs_12m vs rabies_vaccination_rate_all_species).
+ *
+ * FOLLOW-UP (render-site, out of this module's lane): app/gob/page.tsx and
+ * src/modules/panorama/application/get-panorama-kpis.ts currently render this
+ * KPI's label as a JSX/object literal, not by importing this constant — a
+ * later pass should have them import RABIES_COVERAGE_LABEL_ES instead of
+ * repeating the string.
+ */
+export const RABIES_COVERAGE_LABEL_ES = "Cobertura antirrábica — perros (12 meses)";
+
 export type RabiesCoverageKpi = {
   /** % of dogs in scope with ≥1 rabies vaccination event in the last 12 months. */
   current: number;
@@ -106,6 +124,20 @@ export type RabiesCoverageKpi = {
   hasData: boolean;
 };
 
+/**
+ * KPI: rabies_coverage_dogs_12m (see lib/metrics/kpi-catalog.ts)
+ *
+ * NUMERATOR:   COUNT DISTINCT dogs with ≥1 vaccination_administered event
+ *              whose vaccine_name matches /(antirr[áa]bica|rabies)/i (accent-
+ *              aware, amendment-overlay-aware), occurred_at in the trailing
+ *              12 months.
+ * DENOMINATOR: COUNT active/lost dogs (pets.species = 'dog') in scope.
+ * SOURCE:      pets, pet_events (vaccination_administered).
+ * CADENCE:     trailing 12 months (ctx.period.since), recomputed per render.
+ * SUPPRESSION: none.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
 export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<RabiesCoverageKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return { current: 0, target: TARGETS.RABIES_COVERAGE_PCT, partidos: 0, hasData: false };
@@ -200,6 +232,11 @@ export type RabiesCoverageByProvinceRow = {
  *
  * ratePct = total > 0 ? round(vaccinated / total * 100) : 0.
  */
+/**
+ * KPI: per-province breakdown of rabies_coverage_dogs_12m (see kpi-catalog.ts).
+ * Same numerator/denominator/source/cadence as fetchRabiesCoverage, grouped by
+ * pets.jurisdiction_province instead of aggregated nationally. SUPPRESSION: none.
+ */
 export async function fetchRabiesCoverageByProvince(
   ctx: ProjectionContext,
 ): Promise<RabiesCoverageByProvinceRow[]> {
@@ -289,6 +326,18 @@ export type SterilizationKpi = {
   orgs: number;
 };
 
+/**
+ * KPI: sterilizations_per_month (see lib/metrics/kpi-catalog.ts)
+ *
+ * NUMERATOR:   COUNT sterilization_performed events in the trailing 30 days.
+ * DENOMINATOR: n/a — flow count, not a ratio (prior-30d count is used only to
+ *              compute deltaPct, not as a KPI denominator).
+ * SOURCE:      pet_events (sterilization_performed).
+ * CADENCE:     trailing 30 days vs prior 30 days.
+ * SUPPRESSION: none.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
 export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise<SterilizationKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return { count: 0, deltaPct: 0, orgs: 0 };
@@ -399,6 +448,18 @@ async function fetchCensusPopulation(ctx: ProjectionContext): Promise<number> {
   return Number(rows[0]?.total ?? 0);
 }
 
+/**
+ * KPI: bites_per_10k (see lib/metrics/kpi-catalog.ts)
+ *
+ * NUMERATOR:   COUNT incident_reported events where payload.incident_type =
+ *              'bite_inflicted', occurred_at in the trailing 12 months.
+ * DENOMINATOR: jurisdictions_census.population (summed over scope) / 10,000.
+ * SOURCE:      pet_events (incident_reported), jurisdictions_census.
+ * CADENCE:     trailing 12 months vs prior 12 months.
+ * SUPPRESSION: none.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
 export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer10kKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return { rate: 0, delta: 0, reports: 0 };
@@ -481,6 +542,22 @@ export type ActiveZoonosisKpi = {
   deltaWeek: number;
 };
 
+/**
+ * KPI: active_zoonosis_signals (see lib/metrics/kpi-catalog.ts)
+ *
+ * NUMERATOR:   COUNT DISTINCT pets with an active rabies observation
+ *              (rabies_observation_status='in_progress') OR an open
+ *              bite_incident case — deduplicated via UNION, not summed — PLUS
+ *              COUNT disease_reported events (payload.disease='lepto', 30d)
+ *              PLUS COUNT disease_reported events (payload.disease='hidatidosis', 30d).
+ * DENOMINATOR: n/a — absolute count.
+ * SOURCE:      pets, cases, pet_events (disease_reported, rabies_observation_started).
+ * CADENCE:     rabies/bite components are a "now" snapshot; lepto/hidat are
+ *              trailing 30 days.
+ * SUPPRESSION: none.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
 export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<ActiveZoonosisKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return { count: 0, rabies: 0, lepto: 0, hidat: 0, deltaWeek: 0 };
@@ -632,6 +709,17 @@ export type OpenWelfareReportsKpi = {
  * Returns the count of active (non-terminal) welfare reports for the viewer's
  * jurisdiction. Mirrors the scope pattern used by fetchWelfareMetrics in
  * lib/govt-dashboards.ts.
+ */
+/**
+ * KPI: open_welfare_reports (see lib/metrics/kpi-catalog.ts)
+ *
+ * NUMERATOR:   COUNT welfare_reports rows where status NOT IN ('closed', 'duplicate').
+ * DENOMINATOR: n/a — absolute count.
+ * SOURCE:      welfare_reports.
+ * CADENCE:     point-in-time snapshot.
+ * SUPPRESSION: none.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
  */
 export async function fetchOpenWelfareReportsCount(
   ctx: ProjectionContext,

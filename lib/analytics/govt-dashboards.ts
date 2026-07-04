@@ -470,6 +470,19 @@ export type PerdidasMetrics = {
  *
  * activeCount and recoveredMonth are always computed via independent COUNT
  * queries; they are unaffected by opts.lostPets.
+ *
+ * KPI: not yet in lib/metrics/kpi-catalog.ts (no cross-surface label
+ * ambiguity reported for "Pérdidas activas" — documented here directly).
+ *   NUMERATOR (activeCount):    COUNT pets WHERE status = 'lost', in scope.
+ *   NUMERATOR (recoveredMonth): COUNT status_changed events where
+ *     payload.from_status='lost' AND payload.to_status != 'lost', trailing 30d.
+ *   NUMERATOR (avgDaysActive):  average of (now − markedLostAt) over
+ *     currently-lost pets, in days.
+ *   DENOMINATOR: n/a for all three — absolute counts / an average, not ratios.
+ *   SOURCE:      pets, pet_events (status_changed).
+ *   CADENCE:     activeCount/avgDaysActive are "now" snapshots; recoveredMonth
+ *                is trailing 30 days.
+ *   SUPPRESSION: none.
  */
 export async function fetchPerdidasMetrics(
   actor: DashboardActor,
@@ -1655,6 +1668,53 @@ export type AnalyticsMetrics = {
   custodyDisputes: number;
 };
 
+/**
+ * Canonical es-AR label for the `rabiesVaccinationRate` field — ALL SPECIES,
+ * all-time (no trailing window).
+ *
+ * DISAMBIGUATION (critique-govt-2026-07-03.md, "Same metric, different
+ * numbers" — 54% here vs 42% under the same old label elsewhere): this KPI is
+ * DISTINCT from RABIES_COVERAGE_LABEL_ES (lib/analytics/govt-home-kpis.ts),
+ * which counts DOGS ONLY over a trailing 12-month window. Full
+ * numerator/denominator breakdown of both lives in lib/metrics/kpi-catalog.ts
+ * (rabies_vaccination_rate_all_species vs rabies_coverage_dogs_12m).
+ *
+ * FOLLOW-UP (render-site, out of this module's lane): app/gob/analytics/page.tsx
+ * currently renders this KPI as `label="Cobertura antirrábica (mascotas)"` — a
+ * later pass should import RABIES_VACCINATION_RATE_LABEL_ES instead of
+ * repeating a similar-looking string that drove the original ambiguity.
+ */
+export const RABIES_VACCINATION_RATE_LABEL_ES =
+  "Cobertura antirrábica — todas las mascotas (histórico)";
+
+/**
+ * KPI: rabiesVaccinationRate → rabies_vaccination_rate_all_species (see
+ * lib/metrics/kpi-catalog.ts); adoptionRate → not yet catalogued (adoption
+ * funnel, no ambiguity reported).
+ *
+ * rabiesVaccinationRate:
+ *   NUMERATOR:   COUNT DISTINCT active/lost pets of ANY species with ≥1
+ *                vaccination_administered event where
+ *                unaccent(vaccine_name) ILIKE unaccent('%rabi%') (amendment-
+ *                overlay-aware). NO occurred_at filter — all-time.
+ *   DENOMINATOR: COUNT active/lost pets (any species) in scope (totalPets).
+ *   SOURCE:      pets, pet_events (vaccination_administered).
+ *   CADENCE:     all-time — recomputed per render, not windowed.
+ *   SUPPRESSION: none.
+ *
+ * adoptionRate:
+ *   NUMERATOR:   COUNT pet_registered events (trailing 12m, scoped) with
+ *                payload.acquisition_method = 'adopted'.
+ *   DENOMINATOR: COUNT pet_registered events (trailing 12m, scoped) — ALL
+ *                acquisition methods, not just adoptions.
+ *   SOURCE:      pet_events (pet_registered).
+ *   CADENCE:     trailing 12 months.
+ *   SUPPRESSION: none.
+ *
+ * @param actor - DashboardActor (role + id).
+ * @param jurisdictions - Caller's assigned jurisdiction pairs (govt) or ignored (admin).
+ * @param opts - since window override + optional admin province/locality drill-down.
+ */
 export async function fetchAnalyticsMetrics(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
