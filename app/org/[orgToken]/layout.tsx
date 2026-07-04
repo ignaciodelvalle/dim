@@ -17,6 +17,7 @@ import { OpOmnibox } from "@/components/ui/dashboard";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
+import type { OrganizationCapability } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -38,8 +39,17 @@ export default async function OrgLayout({
   const displayName = profile?.displayName ?? "";
   // Capability-gated items (Ingresos, Check-ins, Permisos) only render for
   // members holding the matching capability. The pages re-check defensively;
-  // the nav filter is UX, not the security boundary.
-  const granted = await getGrantedCapabilities(membership);
+  // the nav filter is UX, not the security boundary — so a query failure here
+  // must never take down the whole org shell. Next.js does not wrap a
+  // segment's own layout.tsx in its sibling error.tsx boundary, so an
+  // unguarded throw would bypass app/org/[orgToken]/error.tsx and fall through
+  // to the fullscreen root boundary (error-path audit 2026-07-04, finding E4).
+  // Default to no granted capabilities: nav items simply stay hidden, and the
+  // page-level defensive re-check still protects the actual security boundary.
+  const granted = await getGrantedCapabilities(membership).catch((err) => {
+    console.error("[OrgLayout] getGrantedCapabilities failed", err);
+    return new Set<OrganizationCapability>();
+  });
   const orgNavSections = buildOrgNav(orgToken, { granted });
 
   // Omnibox: show only for members with pet read access.

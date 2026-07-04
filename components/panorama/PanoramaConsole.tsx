@@ -296,6 +296,11 @@ export function PanoramaConsole({
   // searchParams change so the strip stays IDENTICAL to the dashboards for the
   // active alcance. The API mirrors the [layer] route's auth + scope rules.
   const [kpis, setKpis] = useState<PanoramaKpis>(initialKpis);
+  // error-path audit 2026-07-04 finding E5: a failed KPI refetch used to be
+  // silently swallowed, leaving stale numbers on screen with no signal that
+  // they no longer reflect the active scope/period. kpisStale surfaces that
+  // without touching the no-flash behavior (the last-known kpis stay put).
+  const [kpisStale, setKpisStale] = useState(false);
   const qs = searchParams.toString();
   // map-QOL: KPI refetches key on the SCOPE+PERIOD subset only — the shallow
   // board params (layers/level/preset) don't change what the KPIs measure.
@@ -314,10 +319,20 @@ export function PanoramaConsole({
     })
       .then((r) => (r.ok ? (r.json() as Promise<PanoramaKpis>) : null))
       .then((body) => {
-        if (!cancelled && body) setKpis(body);
+        if (cancelled) return;
+        if (body) {
+          setKpis(body);
+          setKpisStale(false);
+        } else {
+          setKpisStale(true);
+        }
       })
-      .catch(() => {
-        // Leave the last-known KPIs in place on a transient failure (no flash).
+      .catch((err) => {
+        // Leave the last-known KPIs in place on a transient failure (no
+        // flash) but surface it — this used to be a silent no-op.
+        if (cancelled) return;
+        console.error("[PanoramaConsole] KPI refresh failed", err);
+        setKpisStale(true);
       });
     return () => {
       cancelled = true;
@@ -1162,10 +1177,18 @@ export function PanoramaConsole({
     })
       .then((r) => (r.ok ? (r.json() as Promise<PanoramaKpis>) : null))
       .then((body) => {
-        if (body) setKpis(body);
+        if (body) {
+          setKpis(body);
+          setKpisStale(false);
+        } else {
+          setKpisStale(true);
+        }
       })
-      .catch(() => {
-        // Keep the last-known KPIs on a transient failure.
+      .catch((err) => {
+        // Keep the last-known KPIs on a transient failure, but surface it —
+        // this used to be a silent no-op (error-path audit 2026-07-04, E5).
+        console.error("[PanoramaConsole] selective KPI refresh failed", err);
+        setKpisStale(true);
       });
     void Promise.all([kpiFetch, fetchLayersInto(activeIds, levelRef.current, params)]).finally(() =>
       setRefreshing(false),
@@ -1188,6 +1211,17 @@ export function PanoramaConsole({
       {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked by
           asOf in v1). The scrubber note states this so the operator isn't misled. */}
       <PanoramaKpiStrip kpis={kpis} onRefresh={onRefresh} refreshing={refreshing} />
+      {kpisStale && (
+        // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
+        // the strip above is showing the last-known numbers, not live ones —
+        // say so instead of leaving the operator misled by a silent stale read.
+        <output
+          aria-live="polite"
+          className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
+        >
+          No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
+        </output>
+      )}
       <TimeScrubber since={since} until={until} onChange={onScrub} />
       <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
         <SituationalMapDynamic

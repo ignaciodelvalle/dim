@@ -26,9 +26,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // outbox banner via countOutboxBreaches() so the badge and the banner can
   // never disagree (C2). Uses the outbox_sla_due_idx(sla_due_at, status) index.
   // Open-alerts count (WS-K): firings not yet resuelta/descartada → /admin/alertas badge.
+  //
+  // These are OPTIONAL nav badges, not gate queries — error.tsx does not catch
+  // a throw from this layout (Next.js does not wrap a segment's own layout.tsx
+  // in its sibling error.tsx boundary), so a transient failure here would
+  // bypass app/admin/error.tsx entirely and fall through to the fullscreen
+  // root boundary (error-path audit 2026-07-04, finding E4). Default to 0 and
+  // log instead of letting the whole admin shell go down over a badge count.
   const [breachCount, openAlertCount] = await Promise.all([
-    countOutboxBreaches(),
-    countOpenAlertFirings(),
+    countOutboxBreaches().catch((err) => {
+      console.error("[AdminLayout] countOutboxBreaches failed", err);
+      return 0;
+    }),
+    countOpenAlertFirings().catch((err) => {
+      console.error("[AdminLayout] countOpenAlertFirings failed", err);
+      return 0;
+    }),
   ]);
 
   // getProfileCached is already warmed by requireAdminOrRedirect above —
