@@ -27,6 +27,7 @@
 import { and, count, desc, gte, inArray, sql } from "drizzle-orm";
 
 import { auditLog, db, govtAssignments, ownerships, petIdentifications, pets } from "@/db";
+import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import { activePetsCondition, petsScopeClause } from "@/lib/metrics";
 
 import type { ProjectionContext } from "./context";
@@ -283,11 +284,13 @@ export async function fetchCrossJurisdictionOutliers(
   // events) carry the canonical form name "Antirrábica" in vaccine_name and leave
   // vaccine_type null, so this table read 0% rabies everywhere while the KPIs and
   // map showed real values (B2). One predicate, one definition of "is rabies".
+  // vaccine_name reads through the amendment overlay (audit A2) — the EXISTS
+  // aliases pet_events as pe, so the helper gets explicit refs.
   const hasRabiesVax = sql`EXISTS (
     SELECT 1 FROM pet_events pe
     WHERE pe.pet_id = ${pets.id}
       AND pe.event_type = 'vaccination_administered'
-      AND (pe.payload->>'vaccine_name') ~* '(antirr[áa]bica|rabies)'
+      AND (${amendedPayloadText("vaccine_name", { id: sql`pe.id`, payload: sql`pe.payload` })}) ~* '(antirr[áa]bica|rabies)'
   )`;
 
   // One query: per-province aggregates for all three numerators.

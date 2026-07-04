@@ -7,6 +7,7 @@
 import { and, count, countDistinct, eq, inArray, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "@/db";
+import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
@@ -115,7 +116,8 @@ export async function fetchRegionRanking(
   // 2. Distinct pets with ≥1 rabies vaccination, restricted to provinces we found above.
   const rabiesConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
-    sql`unaccent(${petEvents.payload}->>'vaccine_name') ILIKE unaccent(${"%rabi%"})`,
+    // Amendment overlay (audit A2): rank provinces by the CURRENT vaccine name.
+    sql`unaccent(${amendedPayloadText("vaccine_name")}) ILIKE unaccent(${"%rabi%"})`,
     sql`${pets.status} IN ('active', 'lost')`,
     inArray(pets.jurisdictionProvince, provinceNames),
   ];

@@ -22,6 +22,7 @@ import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } fro
 
 import { arLocalities, cases, db, organizations, petEvents, pets, welfareReports } from "@/db";
 import { fetchRabiesCoverageByProvince } from "@/lib/analytics/govt-home-kpis";
+import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
@@ -616,11 +617,13 @@ function metricPredicate(metric: ChoroplethMetric): SQL {
     // Pets in scope with at least one rabies vaccination event (vaccine_name
     // accent-insensitively matches rabia/rabies/antirrábica). Mirrors the
     // welfare-metrics rabies match.
+    // vaccine_name reads through the amendment overlay (audit A2) — the EXISTS
+    // aliases pet_events as pe_rabies, so the helper gets explicit refs.
     return sql`EXISTS (
       SELECT 1 FROM ${petEvents} pe_rabies
       WHERE pe_rabies.pet_id = ${pets.id}
         AND pe_rabies.event_type = 'vaccination_administered'
-        AND unaccent(lower(coalesce(pe_rabies.payload->>'vaccine_name', ''))) LIKE '%rabi%'
+        AND unaccent(lower(coalesce(${amendedPayloadText("vaccine_name", { id: sql`pe_rabies.id`, payload: sql`pe_rabies.payload` })}, ''))) LIKE '%rabi%'
     )`;
   }
   if (metric === "sterilization-coverage") {
@@ -1639,7 +1642,8 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         const scope = petsScope(actor, jurisdictions);
         const conditions: SQL[] = [
           eq(petEvents.eventType, "vaccination_administered"),
-          sql`unaccent(lower(coalesce(${petEvents.payload}->>'vaccine_name', ''))) LIKE '%rabi%'`,
+          // Amendment overlay (audit A2): count by the CURRENT vaccine name.
+          sql`unaccent(lower(coalesce(${amendedPayloadText("vaccine_name")}, ''))) LIKE '%rabi%'`,
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
           sql`${pets.jurisdictionProvince} = ${province}`,
@@ -1863,7 +1867,8 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         const scope = petsScope(actor, jurisdictions);
         const conditions: SQL[] = [
           eq(petEvents.eventType, "vaccination_administered"),
-          sql`unaccent(lower(coalesce(${petEvents.payload}->>'vaccine_name', ''))) LIKE '%rabi%'`,
+          // Amendment overlay (audit A2): select AND label by the CURRENT name.
+          sql`unaccent(lower(coalesce(${amendedPayloadText("vaccine_name")}, ''))) LIKE '%rabi%'`,
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
           ...petsJurisdictionFilter(),
@@ -1872,7 +1877,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         const rows = await db
           .select({
             occurredAt: petEvents.occurredAt,
-            vaccineName: sql<string | null>`(${petEvents.payload}->>'vaccine_name')`,
+            vaccineName: sql<string | null>`(${amendedPayloadText("vaccine_name")})`,
           })
           .from(petEvents)
           .innerJoin(pets, eq(petEvents.petId, pets.id))
@@ -2061,7 +2066,8 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         const scope = petsScope(actor, jurisdictions);
         const conditions: SQL[] = [
           eq(petEvents.eventType, "vaccination_administered"),
-          sql`unaccent(lower(coalesce(${petEvents.payload}->>'vaccine_name', ''))) LIKE '%rabi%'`,
+          // Amendment overlay (audit A2): bucket by the CURRENT vaccine name.
+          sql`unaccent(lower(coalesce(${amendedPayloadText("vaccine_name")}, ''))) LIKE '%rabi%'`,
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
           ...petsJurisdictionFilter(),

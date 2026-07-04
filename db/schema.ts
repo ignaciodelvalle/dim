@@ -1169,6 +1169,13 @@ export const petEvents = pgTable(
     payloadApplicantUserIdIdx: index("pet_events_payload_applicant_user_id_idx")
       .on(sql`(payload->>'applicant_user_id')`)
       .where(sql`payload->>'applicant_user_id' IS NOT NULL`),
+    // Amendment overlay probe (migration 0118, projection-cron audit 2026-07-03
+    // A2): SQL KPI aggregates resolve the latest correction per target event
+    // via payload->>'target_event_id' (lib/infra/amendment-sql.ts). Partial:
+    // only event_amended rows participate, so the index stays tiny.
+    payloadAmendedTargetIdx: index("pet_events_amended_target_idx")
+      .on(sql`(payload->>'target_event_id')`)
+      .where(sql`event_type = 'event_amended'`),
     // Cases system FK index (shipped in migration 0033, mirrored here for
     // schema↔migration agreement). Partial: most events carry no case_id.
     caseIdIdx: index("pet_events_case_id_idx")

@@ -26,6 +26,15 @@
 // population-level SQL aggregates that read pets.status / denormalized columns
 // rather than replaying events per pet. Audience: Sanitary authority (C1/C2/C5/C7)
 // + Animal-welfare officer (D4/D5).
+//
+// AMENDMENT OVERLAY (projection-cron audit 2026-07-03 A2) — deliberately NOT
+// applied here: every payload field this module reads belongs to an event type
+// OUTSIDE the AMENDABLE_EVENT_TYPES allowlist (lib/infra/amendment.ts D4) —
+// microchip_replaced.reason, status_changed.to_status, shelter_intake_recorded.
+// intake_reason/seizure_motive. Those events cannot carry event_amended
+// corrections, so the raw payload IS the current value. If a new fetcher here
+// ever reads an amendable type's payload (vaccination, weight, deworming, …),
+// route it through amendedPayloadText (lib/infra/amendment-sql.ts).
 
 import { and, count, eq, gte, inArray, lte, sql } from "drizzle-orm";
 

@@ -41,6 +41,7 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
+import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
@@ -1684,7 +1685,8 @@ export async function fetchAnalyticsMetrics(
   //    Requires the unaccent extension (migration 0070; first referenced in 0055).
   const rabiesConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
-    sql`unaccent(${petEvents.payload}->>'vaccine_name') ILIKE unaccent(${"%rabi%"})`,
+    // Amendment overlay (audit A2): match the CURRENT (corrected) vaccine name.
+    sql`unaccent(${amendedPayloadText("vaccine_name")}) ILIKE unaccent(${"%rabi%"})`,
   ];
   if (actor.role === "govt") {
     // jurisdictions.length > 0 guaranteed by early-return at top of function.

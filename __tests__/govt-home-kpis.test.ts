@@ -9,7 +9,11 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, jurisdictionsCensus, petEvents, pets } from "@/db";
-import { fetchBitesPer10k } from "@/lib/analytics/govt-home-kpis";
+import {
+  fetchBitesPer10k,
+  fetchRabiesCoverage,
+  fetchRabiesCoverageByProvince,
+} from "@/lib/analytics/govt-home-kpis";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "./_helpers/db-overrides";
@@ -165,5 +169,156 @@ describe("fetchBitesPer10k — census denominator", () => {
     // Mainly asserting it doesn't throw and returns a non-negative number.
     expect(kpi.rate).toBeGreaterThanOrEqual(0);
     expect(kpi.reports).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Amendment overlay in SQL aggregates (projection-cron audit 2026-07-03 A2)
+// ---------------------------------------------------------------------------
+//
+// An event_amended correction MUST change the KPI: a vaccination logged as
+// "Séxtuple" but corrected to "Antirrábica" counts toward rabies coverage,
+// and the reverse correction un-counts it. Uses a locality no other fixture
+// touches so the scoped denominator is exactly our pets.
+
+describe("fetchRabiesCoverage — event_amended corrections project into the aggregate", () => {
+  const AMEND_PROVINCE = "Santa Fe";
+  const AMEND_LOCALITY = "AmendKpiVille"; // unique to this suite
+  const TOKEN_MISLOGGED = "HK-AMEND-KPI-01"; // logged Séxtuple, corrected → Antirrábica
+  const TOKEN_MISNAMED = "HK-AMEND-KPI-02"; // logged Antirrábica, corrected → Séxtuple
+
+  let misloggedPetId: string;
+  let misnamedPetId: string;
+  let misloggedVaxId: string;
+  let misnamedVaxId: string;
+
+  const scopedCtx = () =>
+    buildProjectionContext(
+      { role: "govt" },
+      [{ province: AMEND_PROVINCE, locality: AMEND_LOCALITY }],
+      windows.trailing12m(),
+    );
+
+  async function cleanupAmendFixtures() {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        DELETE FROM pet_events
+        WHERE pet_id IN (
+          SELECT id FROM pets WHERE public_token IN (${TOKEN_MISLOGGED}, ${TOKEN_MISNAMED})
+        )
+      `);
+      await tx.execute(sql`
+        DELETE FROM pets WHERE public_token IN (${TOKEN_MISLOGGED}, ${TOKEN_MISNAMED})
+      `);
+    });
+  }
+
+  async function insertVaccination(petId: string, vaccineName: string): Promise<string> {
+    const [row] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "vaccination_administered",
+        occurredAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        payload: {
+          payload_version: 1,
+          vaccine_name: vaccineName,
+          brand: null,
+          batch: null,
+          administered_by: null,
+          next_due_at: null,
+          // petEventsScopeClause filters scoped govt reads on these payload
+          // fields — required for the fixture to be visible in the scoped ctx.
+          pet_jurisdiction_province: AMEND_PROVINCE,
+          pet_jurisdiction_locality: AMEND_LOCALITY,
+        },
+        authorRole: "owner",
+        recordedByUserId: null,
+      })
+      .returning({ id: petEvents.id });
+    return row.id;
+  }
+
+  async function amendVaccineName(
+    petId: string,
+    targetEventId: string,
+    from: string,
+    to: string,
+    occurredAt: Date = new Date(),
+  ) {
+    await db.insert(petEvents).values({
+      petId,
+      eventType: "event_amended",
+      occurredAt,
+      payload: {
+        payload_version: 1,
+        target_event_id: targetEventId,
+        reason: "Nombre de vacuna mal cargado",
+        changes: [{ field: "vaccine_name", old: from, new: to }],
+      },
+      authorRole: "owner",
+      recordedByUserId: null,
+    });
+  }
+
+  beforeAll(async () => {
+    await cleanupAmendFixtures();
+    const inserted = await db
+      .insert(pets)
+      .values(
+        [TOKEN_MISLOGGED, TOKEN_MISNAMED].map((token) => ({
+          publicToken: token,
+          name: `AmendKpiDog-${token.slice(-2)}`,
+          species: "dog",
+          status: "active",
+          jurisdictionProvince: AMEND_PROVINCE,
+          jurisdictionLocality: AMEND_LOCALITY,
+        })),
+      )
+      .returning({ id: pets.id, publicToken: pets.publicToken });
+    misloggedPetId = inserted.find((p) => p.publicToken === TOKEN_MISLOGGED)?.id as string;
+    misnamedPetId = inserted.find((p) => p.publicToken === TOKEN_MISNAMED)?.id as string;
+
+    misloggedVaxId = await insertVaccination(misloggedPetId, "Séxtuple");
+    misnamedVaxId = await insertVaccination(misnamedPetId, "Antirrábica");
+  });
+
+  afterAll(cleanupAmendFixtures);
+
+  it("before any correction, only the as-recorded rabies vaccine counts", async () => {
+    const kpi = await fetchRabiesCoverage(scopedCtx());
+    expect(kpi.hasData).toBe(true);
+    // 2 dogs in scope, 1 counted (the raw Antirrábica) → 50%.
+    expect(kpi.current).toBe(50);
+  });
+
+  it("corrections flip BOTH ways: Séxtuple→Antirrábica counts, Antirrábica→Séxtuple un-counts", async () => {
+    await amendVaccineName(misloggedPetId, misloggedVaxId, "Séxtuple", "Antirrábica");
+    await amendVaccineName(misnamedPetId, misnamedVaxId, "Antirrábica", "Séxtuple");
+
+    const kpi = await fetchRabiesCoverage(scopedCtx());
+    // Still 2 dogs; now the OTHER one counts → still 50%, but composed of the
+    // corrected event. Assert composition via the per-province variant below.
+    expect(kpi.current).toBe(50);
+
+    const byProvince = await fetchRabiesCoverageByProvince(scopedCtx());
+    const row = byProvince.find((r) => r.province === AMEND_PROVINCE);
+    expect(row?.total).toBe(2);
+    expect(row?.vaccinated).toBe(1);
+  });
+
+  it("a LATER amendment supersedes the earlier one (latest wins, as in overlayAmendments)", async () => {
+    // Second correction on the mis-named pet restores Antirrábica → both count.
+    // Strictly later occurredAt so the "latest wins" ordering is unambiguous.
+    await amendVaccineName(
+      misnamedPetId,
+      misnamedVaxId,
+      "Séxtuple",
+      "Antirrábica",
+      new Date(Date.now() + 60_000),
+    );
+
+    const kpi = await fetchRabiesCoverage(scopedCtx());
+    expect(kpi.current).toBe(100);
   });
 });

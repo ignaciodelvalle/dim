@@ -29,6 +29,7 @@
 import { sql } from "drizzle-orm";
 
 import { auditLog, db } from "@/db";
+import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import type { ProjectionContext } from "@/lib/metrics";
 
 // ---------------------------------------------------------------------------
@@ -153,7 +154,7 @@ export async function fetchOverdueRabiesVaccine(
       FROM pet_events pe
       WHERE
         pe.event_type = 'vaccination_administered'
-        AND lower(pe.payload->>'vaccine_name') LIKE '%antirr%'
+        AND lower(${amendedPayloadText("vaccine_name", { id: sql`pe.id`, payload: sql`pe.payload` })}) LIKE '%antirr%'
       GROUP BY pe.pet_id
     )
     SELECT

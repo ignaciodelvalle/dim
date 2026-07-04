@@ -13,6 +13,7 @@ import { and, count, countDistinct, gte, inArray, lt, not, sql, sum } from "driz
 import { eq } from "drizzle-orm";
 
 import { cases, db, jurisdictionsCensus, petEvents, pets, welfareReports } from "@/db";
+import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {
   type ProjectionContext,
   TARGETS,
@@ -107,9 +108,12 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
   // "Antirrábica" (the accented á breaks the 'rabi' substring) and
   // undercounted coverage to ~zero. Keeping the same regex as
   // surveillance-repository.ts keeps "is a rabies vaccine" consistent.
+  // vaccine_name reads through the amendment overlay (amendedPayloadText) so a
+  // corrected vaccine counts with its CURRENT name, not the as-typed one
+  // (projection-cron audit 2026-07-03 A2).
   const rabiesVaccConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
-    sql`(${petEvents.payload}->>'vaccine_name') ~* '(antirr[áa]bica|rabies)'`,
+    sql`(${amendedPayloadText("vaccine_name")}) ~* '(antirr[áa]bica|rabies)'`,
     gte(petEvents.occurredAt, since12m),
   ];
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
@@ -193,10 +197,11 @@ export async function fetchRabiesCoverageByProvince(
   const dogsCondition = dogsInScopeCondition(ctx);
 
   // Rabies vaccination event conditions — SAME as fetchRabiesCoverage (regex,
-  // not ILIKE, to match the accented canonical form "Antirrábica").
+  // not ILIKE, to match the accented canonical form "Antirrábica"; amendment
+  // overlay via amendedPayloadText, audit A2).
   const rabiesVaccConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
-    sql`(${petEvents.payload}->>'vaccine_name') ~* '(antirr[áa]bica|rabies)'`,
+    sql`(${amendedPayloadText("vaccine_name")}) ~* '(antirr[áa]bica|rabies)'`,
     gte(petEvents.occurredAt, since12m),
   ];
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);

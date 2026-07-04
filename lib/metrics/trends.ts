@@ -28,6 +28,7 @@
 import { and, count, countDistinct, eq, gte, lte, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "@/db";
+import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 
 import type { ProjectionContext } from "./context";
 import { petEventsScopeClause, petsScopeClause } from "./scope";
@@ -238,7 +239,9 @@ export async function fetchRabiesVaccinationTrend(
   const scope = petEventsScopeClause(ctx);
   const conditions = [
     eq(petEvents.eventType, "vaccination_administered"),
-    sql`(${petEvents.payload}->>'vaccine_name') ~* '(antirr[áa]bica|rabies)'`,
+    // Amendment overlay (audit A2): a corrected vaccine_name counts by its
+    // CURRENT value, matching the TS read boundaries.
+    sql`(${amendedPayloadText("vaccine_name")}) ~* '(antirr[áa]bica|rabies)'`,
     eq(pets.species, "dog"),
     gte(petEvents.occurredAt, ctx.period.since),
     lte(petEvents.occurredAt, ctx.period.until),
