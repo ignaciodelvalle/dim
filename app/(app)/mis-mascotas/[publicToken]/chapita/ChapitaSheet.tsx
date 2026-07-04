@@ -30,7 +30,7 @@ export function ChapitaSheet({ petName, publicToken, qrSvg }: Props) {
           <h1 className="font-[var(--font-ln-serif)] text-xl font-semibold text-[var(--color-ln-ink)]">
             Chapita de {petName}
           </h1>
-          <p className="mt-1 text-[13px] text-[var(--color-ln-mute)]">
+          <p className="mt-1 text-[var(--text-md)] text-[var(--color-ln-mute)]">
             Imprimí al 100% (sin “ajustar a la página”), recortá el formato que te sirva y
             plastificalo o metelo en un portachapita.
           </p>
@@ -38,20 +38,20 @@ export function ChapitaSheet({ petName, publicToken, qrSvg }: Props) {
         <button
           type="button"
           onClick={() => window.print()}
-          className="rounded-[4px] bg-[var(--color-ln-azul)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)]"
+          className="rounded-[var(--radius-op-btn)] bg-[var(--color-ln-azul)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)]"
         >
           Imprimir
         </button>
       </div>
 
-      <div className="chapita-sheet rounded-[8px] border border-[var(--color-ln-line)] bg-white p-8 shadow-sm">
+      <div className="chapita-sheet rounded-[var(--radius-input)] border border-[var(--color-ln-line)] bg-white p-8 shadow-sm">
         <div className="flex flex-wrap items-start gap-8">
           {/* Circle — classic chapita holder (Ø30mm) */}
           <div>
             <div className="chapita-cut chapita-circle justify-center p-[2.5mm]">
               <QrBlock qrSvg={qrSvg} size="22mm" />
             </div>
-            <p className="chapita-no-print mt-2 text-center text-[11px] text-[var(--color-ln-mute)]">
+            <p className="chapita-no-print mt-2 text-center text-[var(--text-sm)] text-[var(--color-ln-mute)]">
               Portachapita Ø30mm
             </p>
           </div>
@@ -61,18 +61,12 @@ export function ChapitaSheet({ petName, publicToken, qrSvg }: Props) {
             <div className="chapita-cut chapita-tag gap-[2.5mm] p-[2.5mm]">
               <QrBlock qrSvg={qrSvg} size="24mm" />
               <div className="min-w-0">
-                <p className="truncate font-[var(--font-ln-sans)] text-[10px] font-bold uppercase leading-tight">
-                  {petName}
-                </p>
-                <p className="font-[var(--font-ln-mono)] text-[7px] leading-tight text-[var(--color-ln-ink-2)]">
-                  {publicToken}
-                </p>
-                <p className="text-[7px] leading-tight text-[var(--color-ln-mute)]">
-                  Escaneame si me perdí
-                </p>
+                <p className="chapita-tag-name truncate">{petName}</p>
+                <p className="chapita-tag-token">{publicToken}</p>
+                <p className="chapita-tag-hint">Escaneame si me perdí</p>
               </div>
             </div>
-            <p className="chapita-no-print mt-2 text-center text-[11px] text-[var(--color-ln-mute)]">
+            <p className="chapita-no-print mt-2 text-center text-[var(--text-sm)] text-[var(--color-ln-mute)]">
               Tag de collar 50×30mm
             </p>
           </div>
@@ -82,21 +76,15 @@ export function ChapitaSheet({ petName, publicToken, qrSvg }: Props) {
             <div className="chapita-cut chapita-card gap-[4mm] p-[4mm]">
               <QrBlock qrSvg={qrSvg} size="40mm" />
               <div className="min-w-0">
-                <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-[var(--color-ln-mute)]">
-                  MiMAR · Credencial
-                </p>
-                <p className="mt-[1mm] truncate font-[var(--font-ln-serif)] text-[14px] font-semibold leading-tight">
-                  {petName}
-                </p>
-                <p className="font-[var(--font-ln-mono)] text-[9px] text-[var(--color-ln-ink-2)]">
-                  {publicToken}
-                </p>
-                <p className="mt-[2mm] text-[8px] leading-snug text-[var(--color-ln-mute)]">
+                <p className="chapita-card-brand">MiMAR · Credencial</p>
+                <p className="chapita-card-name mt-[1mm] truncate">{petName}</p>
+                <p className="chapita-card-token">{publicToken}</p>
+                <p className="chapita-card-hint mt-[2mm]">
                   Si me encontraste, escaneá el código para avisarle a mi familia.
                 </p>
               </div>
             </div>
-            <p className="chapita-no-print mt-2 text-center text-[11px] text-[var(--color-ln-mute)]">
+            <p className="chapita-no-print mt-2 text-center text-[var(--text-sm)] text-[var(--color-ln-mute)]">
               Tarjeta billetera 85,6×54mm
             </p>
           </div>

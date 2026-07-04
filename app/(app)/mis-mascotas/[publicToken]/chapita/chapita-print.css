@@ -64,3 +64,48 @@
   height: 100%;
   display: block;
 }
+
+/* Cut-out interior typography — physical print scale, deliberately px-fixed
+ * (token scale is for SCREEN hierarchy; these sizes are chosen to fit the
+ * millimetre formats above at 100% print scale). */
+.chapita-tag-name {
+  font-family: var(--font-ln-sans);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1.15;
+}
+.chapita-tag-token {
+  font-family: var(--font-ln-mono);
+  font-size: 7px;
+  line-height: 1.2;
+  color: var(--color-ln-ink-2);
+}
+.chapita-tag-hint {
+  font-size: 7px;
+  line-height: 1.2;
+  color: var(--color-ln-mute);
+}
+.chapita-card-brand {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-ln-mute);
+}
+.chapita-card-name {
+  font-family: var(--font-ln-serif);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+.chapita-card-token {
+  font-family: var(--font-ln-mono);
+  font-size: 9px;
+  color: var(--color-ln-ink-2);
+}
+.chapita-card-hint {
+  font-size: 8px;
+  line-height: 1.35;
+  color: var(--color-ln-mute);
+}

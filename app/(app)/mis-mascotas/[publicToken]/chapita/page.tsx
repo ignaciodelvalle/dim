@@ -36,16 +36,16 @@ export default async function ChapitaPage({
 
   if (!channels.printable_qr) {
     return (
-      <div className="mx-auto max-w-md px-[32px] py-[48px] text-center">
+      <div className="mx-auto max-w-md px-8 py-12 text-center">
         <p className="font-[var(--font-ln-serif)] text-xl font-semibold text-[var(--color-ln-ink)]">
           El QR imprimible no está habilitado en tu zona.
         </p>
-        <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
+        <p className="mt-1.5 text-[var(--text-md)] text-[var(--color-ln-mute)]">
           Consultá los canales disponibles para conseguir la chapita de {pet.name}.
         </p>
         <Link
           href={`/mis-mascotas/${publicToken}?sheet=chapita`}
-          className="mt-[20px] inline-flex items-center rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[16px] py-[9px] text-[13px] font-medium text-[var(--color-ln-ink)] no-underline transition-opacity hover:opacity-80"
+          className="mt-5 inline-flex items-center rounded-[var(--radius-op-btn)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-2 text-[var(--text-md)] font-medium text-[var(--color-ln-ink)] no-underline transition-opacity hover:opacity-80"
         >
           Ver canales disponibles
         </Link>
