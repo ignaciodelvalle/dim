@@ -57,7 +57,9 @@ describe("<OpButton> — sizes", () => {
 
   it("md is the default and renders medium padding", () => {
     const html = render(<OpButton>Acción</OpButton>);
-    expect(html).toContain("px-[14px]");
+    // px-3.5 === 14px (Tailwind step); the st-token migration replaced the
+    // value-equal arbitrary px-[14px] with the token step.
+    expect(html).toContain("px-3.5");
   });
 
   it("lg renders large padding", () => {
