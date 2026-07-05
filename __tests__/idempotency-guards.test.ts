@@ -46,6 +46,7 @@ import {
 } from "@/db";
 import type { PetEventAuthorship } from "@/lib/infra/pet-access";
 import { FosterRepository } from "@/src/modules/foster/infrastructure/foster-repository";
+import { generateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
 import { confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
 import { confirmChipMatchAsVecinoWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-vecino";
 import { createIntake } from "@/src/modules/pets/application/intake/create-intake";
@@ -419,6 +420,7 @@ describe("confirmChipMatchAsRefugioWriter — idempotency guard", () => {
         },
         orgToken: "IDEMORGTOK",
         matchedPetToken: pet.publicToken,
+        claim: generateIntakeMatchClaim("IDEMORGTOK", pet.publicToken),
         decision: "same",
       });
 

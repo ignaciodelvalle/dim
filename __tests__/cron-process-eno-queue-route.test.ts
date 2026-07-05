@@ -52,12 +52,12 @@ describe("GET /api/cron/process-eno-queue", () => {
 
   it("returns 200 with batch stats when the secret matches via x-cron-secret", async () => {
     const scannedAt = new Date("2026-06-19T12:00:00.000Z");
-    const batchMock = vi.fn().mockResolvedValue({
-      scannedAt,
-      processed: 10,
-      failed: 1,
-      skipped: 2,
-    });
+    // The route drains in batches within one run; return the work once, then an
+    // empty batch so the drain loop terminates.
+    const batchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ scannedAt, processed: 10, failed: 0, skipped: 2 })
+      .mockResolvedValue({ scannedAt, processed: 0, failed: 0, skipped: 0 });
     vi.doMock("@/lib/infra/eno-queue-processor", () => ({
       processEnoQueueBatch: batchMock,
     }));
@@ -68,10 +68,33 @@ describe("GET /api/cron/process-eno-queue", () => {
       ok: true,
       scanned_at: scannedAt.toISOString(),
       processed: 10,
-      failed: 1,
+      failed: 0,
       skipped: 2,
     });
-    expect(batchMock).toHaveBeenCalledOnce();
+  });
+
+  it("returns 500 when the batch reports failed rows (Vercel must retry the legal-notification queue)", async () => {
+    vi.doMock("@/lib/infra/eno-queue-processor", () => ({
+      processEnoQueueBatch: vi
+        .fn()
+        .mockResolvedValueOnce({
+          scannedAt: new Date("2026-06-19T12:00:00.000Z"),
+          processed: 10,
+          failed: 1,
+          skipped: 2,
+        })
+        .mockResolvedValue({
+          scannedAt: new Date("2026-06-19T12:00:00.000Z"),
+          processed: 0,
+          failed: 0,
+          skipped: 0,
+        }),
+    }));
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+    // A failed ENO fanout row must surface as a failed cron so Vercel retries.
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toMatchObject({ ok: false, failed: 1 });
   });
 
   it("returns 200 when the secret matches via Authorization: Bearer", async () => {
