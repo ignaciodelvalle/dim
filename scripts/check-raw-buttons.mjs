@@ -27,11 +27,16 @@ import { globSync, readFileSync } from "node:fs";
 
 /** Total literal `<button` occurrences across app/gob, app/admin, app/org
  *  measured on 2026-07-04 (task #41, design-system consolidation ratchets).
+ *  2026-07-05: operator OpButton burn-down migrated 137 raw <button>s to
+ *  OpButton across app/gob, app/admin, app/org — baseline lowered 182 → 46.
+ *  Remaining 46 are intentional: segmented toggles (aria-pressed), pure
+ *  text-links (underline, no chrome), icon-only micro-controls, and buttons
+ *  carrying a `ref` for ConfirmDialog focus-restore (OpButton forwards no ref).
  *  Target: 0, via migration to LnButton (citizen) / OpButton (operator).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const BASELINE = 182;
+const BASELINE = 46;
 
 const SCAN_GLOB = "{app/gob,app/admin,app/org}/**/*.tsx";
 const RAW_BUTTON = /<button\b/g;
