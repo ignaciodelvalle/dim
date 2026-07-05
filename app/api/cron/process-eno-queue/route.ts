@@ -26,28 +26,70 @@ export const dynamic = "force-dynamic";
 
 const CRON_NAME = "process_eno_queue";
 
+// Wall-clock budget for the drain loop (ms). Vercel functions time out at 60s;
+// 45s leaves margin to finalize the cron_runs row.
+const MAX_DURATION_MS = 45_000;
+// Hard cap on drain iterations (each ~BATCH_SIZE=50 rows) so a pathological
+// re-pick of retryable-failed rows can't spin unboundedly within one run.
+const MAX_ITERATIONS = 20;
+
 export async function GET(request: NextRequest) {
   const authError = authorizeCronRequest(request);
   if (authError) {
     return NextResponse.json({ error: authError.error }, { status: authError.status });
   }
 
+  const start = Date.now();
+
   try {
+    // Resume loop (review 23 item 8): the queue is a legal-notification backlog
+    // and a single BATCH_SIZE=50 pass once/day let it grow. Now hourly, we also
+    // drain repeatedly WITHIN the run until the queue is empty or the budget is
+    // exhausted. pickPendingBatch claims disjoint sets (FOR UPDATE SKIP LOCKED),
+    // so successive passes are safe.
     const result = await withCronRun(
       CRON_NAME,
-      () => processEnoQueueBatch(),
+      async () => {
+        let processed = 0;
+        let failed = 0;
+        let skipped = 0;
+        let scannedAt = new Date();
+        let iterations = 0;
+
+        for (;;) {
+          if (iterations >= MAX_ITERATIONS || Date.now() - start >= MAX_DURATION_MS) break;
+          const batch = await processEnoQueueBatch();
+          scannedAt = batch.scannedAt;
+          processed += batch.processed;
+          failed += batch.failed;
+          skipped += batch.skipped;
+          iterations += 1;
+          // Nothing left to do this pass → queue drained (or only recently-failed
+          // rows remain, which the next scheduled run retries).
+          if (batch.processed + batch.failed + batch.skipped === 0) break;
+        }
+
+        return { scannedAt, processed, failed, skipped };
+      },
       (r) => ({
         itemsProcessed: r.processed,
+        // ENO fanout rows marked failed in the queue must surface as a failed
+        // run (review 23 item 3) — else Vercel treats the backlog as healthy.
+        failed: r.failed > 0,
         details: { processed: r.processed, failed: r.failed, skipped: r.skipped },
       }),
     );
-    return NextResponse.json({
-      ok: true,
-      scanned_at: result.scannedAt.toISOString(),
-      processed: result.processed,
-      failed: result.failed,
-      skipped: result.skipped,
-    });
+    const failed = result.failed > 0;
+    return NextResponse.json(
+      {
+        ok: !failed,
+        scanned_at: result.scannedAt.toISOString(),
+        processed: result.processed,
+        failed: result.failed,
+        skipped: result.skipped,
+      },
+      { status: failed ? 500 : 200 },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown error";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });

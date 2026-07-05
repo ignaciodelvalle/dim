@@ -16,7 +16,7 @@
 //
 // Auth: none (system-initiated cron). No user authz inside.
 
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, lt, sql } from "drizzle-orm";
 
 import { cases, db, petEvents } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
@@ -27,6 +27,10 @@ export interface CloseStaleLostEpisodesOptions {
   staleAfterDays?: number;
   /** Days of inactivity required to consider a case stale. Default 60. */
   inactivityDays?: number;
+  /** Keyset cursor: only return cases whose id sorts after this value. */
+  afterId?: string | null;
+  /** Max rows to return (keyset page size). Omit for no limit. */
+  limit?: number;
 }
 
 export interface CloseStaleLostEpisodesCandidate {
@@ -45,7 +49,7 @@ export async function findStaleLostEpisodes(
   const inactiveSince = new Date(now.getTime() - inactivityMs);
 
   const inactiveSinceIso = inactiveSince.toISOString();
-  const rows = await db
+  const base = db
     .select({
       id: cases.id,
       primaryPetId: cases.primaryPetId,
@@ -57,13 +61,17 @@ export async function findStaleLostEpisodes(
         eq(cases.caseKind, "lost_pet_episode"),
         eq(cases.status, "open"),
         lt(cases.openedAt, openedBefore),
+        ...(options?.afterId ? [gt(cases.id, options.afterId)] : []),
         sql`NOT EXISTS (
           SELECT 1 FROM ${petEvents}
           WHERE ${petEvents.caseId} = ${cases.id}
             AND ${petEvents.occurredAt} >= ${inactiveSinceIso}::timestamptz
         )`,
       ),
-    );
+    )
+    .orderBy(asc(cases.id));
+
+  const rows = options?.limit ? await base.limit(options.limit) : await base;
 
   return rows;
 }

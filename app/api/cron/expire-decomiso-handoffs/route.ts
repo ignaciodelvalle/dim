@@ -27,15 +27,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: authError.error }, { status: authError.status });
   }
 
+  // NOTE: no keyset `batchSize` here. findStaleDecomisoCandidates post-filters
+  // in JS (latest-proposal age), so candidate.id is not a safe keyset cursor
+  // over the raw scan. The finder instead caps its raw scan with `.limit()` to
+  // bound memory; decomiso volume is low and the cron runs every 12h.
   const result = await runCaseCron<StaleDecomisoCandidateFull>({
     name: CRON_NAME,
     scan: () => findStaleDecomisoCandidates(),
     processOne: (candidate) => escalateStaleDecomiso(candidate),
   });
 
-  return NextResponse.json({
-    status: result.status,
-    itemsProcessed: result.itemsProcessed,
-    runId: result.runId,
-  });
+  return NextResponse.json(
+    {
+      status: result.status,
+      itemsProcessed: result.itemsProcessed,
+      runId: result.runId,
+    },
+    { status: result.status === "ok" ? 200 : 500 },
+  );
 }

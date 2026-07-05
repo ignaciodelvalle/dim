@@ -13,6 +13,11 @@
 // adding a cron without registering it here fails CI.
 
 const DAILY_STALENESS_MS = 26 * 60 * 60 * 1000; // 26 hours
+// Sub-daily crons need a tighter staleness so a single missed period is visible
+// well before a full day passes (review 23 item 28): an hourly cron with a 26h
+// window hides an outage for a day.
+const HOURLY_STALENESS_MS = 2 * 60 * 60 * 1000; // 2 hours
+const TWELVE_HOURLY_STALENESS_MS = 14 * 60 * 60 * 1000; // 14 hours (12h + margin)
 
 export type CronRegistryEntry = {
   /** cron_runs.cron_name — snake_case of the route directory (canonical rule). */
@@ -45,10 +50,10 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
   { cronName: "data_lifecycle", maxStalenessMs: DAILY_STALENESS_MS, schedule: "30 3 * * *" },
   {
     cronName: "drain_notification_dead_letter",
-    maxStalenessMs: DAILY_STALENESS_MS,
+    maxStalenessMs: HOURLY_STALENESS_MS,
     schedule: "15 * * * *",
   },
-  { cronName: "drain_outbox", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 6 * * *" },
+  { cronName: "drain_outbox", maxStalenessMs: HOURLY_STALENESS_MS, schedule: "*/5 * * * *" },
   {
     cronName: "escalate_stale_disputes",
     maxStalenessMs: DAILY_STALENESS_MS,
@@ -67,8 +72,8 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
   },
   {
     cronName: "expire_decomiso_handoffs",
-    maxStalenessMs: DAILY_STALENESS_MS,
-    schedule: "0 0 * * *",
+    maxStalenessMs: TWELVE_HOURLY_STALENESS_MS,
+    schedule: "0 */12 * * *",
   },
   {
     cronName: "expire_foster_proposals",
@@ -78,7 +83,7 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
   { cronName: "expire_pet_transfers", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 4 * * *" },
   { cronName: "materialize_slots", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 2 * * *" },
   { cronName: "post_adoption_checkin", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 13 * * *" },
-  { cronName: "process_eno_queue", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 7 * * *" },
+  { cronName: "process_eno_queue", maxStalenessMs: HOURLY_STALENESS_MS, schedule: "0 * * * *" },
   { cronName: "purge_scan_events", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 1 * * *" },
   { cronName: "reconcile_pet_status", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 9 * * *" },
   { cronName: "vaccine_due", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 12 * * *" },

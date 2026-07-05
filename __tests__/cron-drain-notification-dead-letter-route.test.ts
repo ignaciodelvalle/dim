@@ -120,7 +120,10 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
   });
 
   it("resolves a row that replays successfully", async () => {
-    const { createMock } = mockDeps([{ id: "dl-1", payload: validPayload }], [{ status: "inserted" }]);
+    const { createMock } = mockDeps(
+      [{ id: "dl-1", payload: validPayload }],
+      [{ status: "inserted" }],
+    );
     const res = await callRoute({ "x-cron-secret": "test-secret" });
     expect(res.status).toBe(200);
     const body = await res.json();

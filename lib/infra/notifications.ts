@@ -18,7 +18,7 @@ import { getReminderVariant, isVaccineReportable } from "@/lib/domain/vaccine-re
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { createNotification } from "@/lib/infra/notification-service";
 import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
-import { and, eq, gte, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 
 type DB = typeof defaultDb;
 
@@ -41,6 +41,12 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 // cost, per ADR-4). Kept as a fallback constant for callers/tests that
 // don't go through the resolver path.
 const WINDOW_AHEAD_DAYS = 14;
+
+// Keyset page size + wall-clock budget for the reminder sweep (review 23 item
+// 11). Bounds memory (never loads the whole global reminder set) and time
+// (stays within Vercel's 60s function budget).
+const VACCINE_SCAN_BATCH_SIZE = 500;
+const VACCINE_SCAN_MAX_DURATION_MS = 45_000;
 
 /**
  * Scan for vaccine reminders and emit per-variant throttled `vaccine_due`
@@ -86,117 +92,141 @@ export async function runVaccineDueScan(
   const windowAheadDays = reminderWindowRule.payload.aheadDays;
   const windowEnd = new Date(now.getTime() + windowAheadDays * MS_PER_DAY);
 
-  // Fetch all active, non-snoozed vaccine reminders within the window.
-  // No backward limit — overdue reminders are included indefinitely.
-  const candidates = await dbInstance
-    .select({
-      reminderId: reminders.id,
-      userId: reminders.userId,
-      petId: reminders.petId,
-      sourceEventId: reminders.sourceEventId,
-      dueAt: reminders.dueAt,
-      title: reminders.title,
-      description: reminders.description,
-      petName: pets.name,
-      petSpecies: pets.species,
-      petJurisdictionLocality: pets.jurisdictionLocality,
-      publicToken: pets.publicToken,
-    })
-    .from(reminders)
-    .innerJoin(pets, eq(pets.id, reminders.petId))
-    .where(
-      and(
-        eq(reminders.reminderType, "vaccine"),
-        isNull(reminders.completedAt),
-        // snoozed_until IS NULL OR snoozed_until <= now
-        sql`(${reminders.snoozedUntil} IS NULL OR ${reminders.snoozedUntil} <= ${sql.param(now.toISOString())}::timestamptz)`,
-        lte(reminders.dueAt, windowEnd),
-      ),
-    );
-
   const insertedNotificationIds: string[] = [];
 
-  for (const row of candidates) {
-    const dueMs = new Date(row.dueAt).getTime() - now.getTime();
-    // daysUntilDue: positive = future, negative = past
-    const daysUntilDue = Math.round(dueMs / MS_PER_DAY);
+  // Keyset-batched sweep (review 23 item 11): the reminder scan used to load
+  // the ENTIRE global vaccine-reminder set in one query and then run a per-row
+  // history SELECT (N+1). Now paged over reminders.id with a wall-clock budget,
+  // and the throttle history is fetched ONCE per batch (single grouped query).
+  const start = Date.now();
+  let cursor: string | null = null;
 
-    const isReportable = isVaccineReportable(
-      row.title,
-      row.petSpecies ?? "",
-      row.petJurisdictionLocality ?? "",
-    );
-    const variant = getReminderVariant(daysUntilDue, isReportable);
+  for (;;) {
+    if (Date.now() - start >= VACCINE_SCAN_MAX_DURATION_MS) break;
 
-    // Query the notification history for this reminder to determine throttle.
-    const historyRows = await dbInstance.execute<{
-      first_at: Date | null;
-      last_at: Date | null;
-      notif_count: string;
-    }>(sql`
-      SELECT
-        MIN(created_at) AS first_at,
-        MAX(created_at) AS last_at,
-        COUNT(*)::text  AS notif_count
-      FROM ${notifications}
-      WHERE related_reminder_id = ${row.reminderId}
-        AND notification_type LIKE 'vaccine_%'
-    `);
-    // Archived rows COUNT toward the throttle: archiving dismisses the
-    // notification from the inbox, it does not consent to being re-notified
-    // at full frequency — the old `archived_at IS NULL` filter let archiving
-    // reset the cadence (projection-cron audit 2026-07-03 C2).
+    // Fetch a page of active, non-snoozed vaccine reminders within the window.
+    // No backward limit — overdue reminders are included indefinitely.
+    const candidates = await dbInstance
+      .select({
+        reminderId: reminders.id,
+        userId: reminders.userId,
+        petId: reminders.petId,
+        sourceEventId: reminders.sourceEventId,
+        dueAt: reminders.dueAt,
+        title: reminders.title,
+        description: reminders.description,
+        petName: pets.name,
+        petSpecies: pets.species,
+        petJurisdictionLocality: pets.jurisdictionLocality,
+        publicToken: pets.publicToken,
+      })
+      .from(reminders)
+      .innerJoin(pets, eq(pets.id, reminders.petId))
+      .where(
+        and(
+          eq(reminders.reminderType, "vaccine"),
+          isNull(reminders.completedAt),
+          // snoozed_until IS NULL OR snoozed_until <= now
+          sql`(${reminders.snoozedUntil} IS NULL OR ${reminders.snoozedUntil} <= ${sql.param(now.toISOString())}::timestamptz)`,
+          lte(reminders.dueAt, windowEnd),
+          ...(cursor ? [gt(reminders.id, cursor)] : []),
+        ),
+      )
+      .orderBy(asc(reminders.id))
+      .limit(VACCINE_SCAN_BATCH_SIZE);
 
-    const history = historyRows[0] ?? { first_at: null, last_at: null, notif_count: "0" };
-    const notifCount = Number.parseInt(history.notif_count ?? "0", 10);
-    const firstAt = history.first_at ? new Date(history.first_at) : null;
-    const lastAt = history.last_at ? new Date(history.last_at) : null;
+    if (candidates.length === 0) break;
 
-    // Evaluate per-variant throttle gate.
-    const shouldEmit = checkThrottle({ variant, notifCount, firstAt, lastAt, now });
-    if (!shouldEmit) continue;
+    // Batched throttle-history fetch (fixes the N+1): one grouped query for the
+    // whole page instead of one SELECT per reminder. Archived rows COUNT toward
+    // the throttle — archiving dismisses from the inbox, it does not consent to
+    // being re-notified at full frequency (projection-cron audit C2).
+    const reminderIds = candidates.map((c) => c.reminderId);
+    const historyRows = await dbInstance
+      .select({
+        reminderId: notifications.relatedReminderId,
+        firstAt: sql<Date | null>`MIN(${notifications.createdAt})`,
+        lastAt: sql<Date | null>`MAX(${notifications.createdAt})`,
+        notifCount: sql<string>`COUNT(*)::text`,
+      })
+      .from(notifications)
+      .where(
+        and(
+          inArray(notifications.relatedReminderId, reminderIds),
+          sql`${notifications.notificationType} LIKE 'vaccine_%'`,
+        ),
+      )
+      .groupBy(notifications.relatedReminderId);
 
-    // Build notification body per variant.
-    const body = buildBody(variant, row.petName, Math.abs(daysUntilDue), daysUntilDue);
+    const historyMap = new Map(historyRows.map((h) => [h.reminderId, h]));
 
-    // Severity per variant.
-    const severity =
-      variant === "upcoming"
-        ? ("info" as const)
-        : variant === "due_soon"
-          ? ("warning" as const)
-          : ("urgent" as const); // overdue + overdue_critical
+    for (const row of candidates) {
+      cursor = row.reminderId;
 
-    // Route through the canonical write path. The dedupe key is scoped to the
-    // reminder + the scan's day bucket: it does NOT suppress the legitimate
-    // escalating cadence (a scan on a LATER day gets a new bucket → new key →
-    // emits), but it DOES collapse two concurrent runs on the same day for the
-    // same reminder into one row — closing the check-then-act throttle race
-    // (review B.2) that the per-reminder history read + separate INSERT left
-    // open. relatedEventId stays NULL (migration 0088 exemption still applies).
-    const dayBucket = now.toISOString().slice(0, 10);
-    const result = await createNotification(
-      {
-        userId: row.userId,
-        notificationType: "vaccine_due",
-        category: "health",
-        title: row.title,
-        body,
-        severity,
-        relatedPetId: row.petId,
-        // relatedReminderId drives the throttle read above.
-        relatedReminderId: row.reminderId,
-        // 14.2 notice→action contract: deep-link directly to the vaccination
-        // form so the owner can act in one tap. Canonical reminder-linked
-        // target (flow audit 2026-07-03): the FULL form with reminderId, so
-        // the vaccine name pre-fills and the reminder closes on submit.
-        ctaLabel: "Registrar vacuna",
-        ctaUrl: buildReminderVaccineUrl(row.publicToken, row.reminderId),
-        dedupeKey: `vaccine:${row.reminderId}:${dayBucket}`,
-      },
-      dbInstance,
-    );
-    if (result.status === "inserted" && result.id) insertedNotificationIds.push(result.id);
+      const dueMs = new Date(row.dueAt).getTime() - now.getTime();
+      // daysUntilDue: positive = future, negative = past
+      const daysUntilDue = Math.round(dueMs / MS_PER_DAY);
+
+      const isReportable = isVaccineReportable(
+        row.title,
+        row.petSpecies ?? "",
+        row.petJurisdictionLocality ?? "",
+      );
+      const variant = getReminderVariant(daysUntilDue, isReportable);
+
+      const history = historyMap.get(row.reminderId);
+      const notifCount = history ? Number.parseInt(history.notifCount ?? "0", 10) : 0;
+      const firstAt = history?.firstAt ? new Date(history.firstAt) : null;
+      const lastAt = history?.lastAt ? new Date(history.lastAt) : null;
+
+      // Evaluate per-variant throttle gate.
+      const shouldEmit = checkThrottle({ variant, notifCount, firstAt, lastAt, now });
+      if (!shouldEmit) continue;
+
+      // Build notification body per variant.
+      const body = buildBody(variant, row.petName, Math.abs(daysUntilDue), daysUntilDue);
+
+      // Severity per variant.
+      const severity =
+        variant === "upcoming"
+          ? ("info" as const)
+          : variant === "due_soon"
+            ? ("warning" as const)
+            : ("urgent" as const); // overdue + overdue_critical
+
+      // Route through the canonical write path. The dedupe key is scoped to the
+      // reminder + the scan's day bucket: it does NOT suppress the legitimate
+      // escalating cadence (a scan on a LATER day gets a new bucket → new key →
+      // emits), but it DOES collapse two concurrent runs on the same day for the
+      // same reminder into one row — closing the check-then-act throttle race
+      // (review B.2) that the per-reminder history read + separate INSERT left
+      // open. relatedEventId stays NULL (migration 0088 exemption still applies).
+      const dayBucket = now.toISOString().slice(0, 10);
+      const result = await createNotification(
+        {
+          userId: row.userId,
+          notificationType: "vaccine_due",
+          category: "health",
+          title: row.title,
+          body,
+          severity,
+          relatedPetId: row.petId,
+          // relatedReminderId drives the throttle read above.
+          relatedReminderId: row.reminderId,
+          // 14.2 notice→action contract: deep-link directly to the vaccination
+          // form so the owner can act in one tap. Canonical reminder-linked
+          // target (flow audit 2026-07-03): the FULL form with reminderId, so
+          // the vaccine name pre-fills and the reminder closes on submit.
+          ctaLabel: "Registrar vacuna",
+          ctaUrl: buildReminderVaccineUrl(row.publicToken, row.reminderId),
+          dedupeKey: `vaccine:${row.reminderId}:${dayBucket}`,
+        },
+        dbInstance,
+      );
+      if (result.status === "inserted" && result.id) insertedNotificationIds.push(result.id);
+    }
+
+    if (candidates.length < VACCINE_SCAN_BATCH_SIZE) break; // drained
   }
 
   return {

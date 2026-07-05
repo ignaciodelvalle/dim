@@ -11,13 +11,17 @@
 //
 // Auth: none (system-initiated cron). No user authz inside.
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 
 import { cases, db, petEvents } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 export interface CloseFollowupExpiredAdoptionsOptions {
   now?: Date;
+  /** Keyset cursor: only return cases whose id sorts after this value. */
+  afterId?: string | null;
+  /** Max rows to return (keyset page size). Omit for no limit. */
+  limit?: number;
 }
 
 export interface FollowupExpiredCandidate {
@@ -32,7 +36,7 @@ export async function findFollowupExpiredAdoptions(
   const now = options?.now ?? new Date();
   const nowIso = now.toISOString();
 
-  const rows = await db
+  const base = db
     .select({
       id: cases.id,
       primaryPetId: cases.primaryPetId,
@@ -43,6 +47,7 @@ export async function findFollowupExpiredAdoptions(
       and(
         eq(cases.caseKind, "adoption_listing"),
         eq(cases.status, "open"),
+        ...(options?.afterId ? [gt(cases.id, options.afterId)] : []),
         sql`EXISTS (
           SELECT 1 FROM ${petEvents}
           WHERE ${petEvents.caseId} = ${cases.id}
@@ -51,7 +56,10 @@ export async function findFollowupExpiredAdoptions(
             AND (${petEvents.payload}->>'followup_until')::timestamptz < ${nowIso}::timestamptz
         )`,
       ),
-    );
+    )
+    .orderBy(asc(cases.id));
+
+  const rows = options?.limit ? await base.limit(options.limit) : await base;
 
   return rows;
 }

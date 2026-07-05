@@ -27,7 +27,7 @@
 //   this window. Mirrors the single-threshold guard used by
 //   escalate-stale-welfare-cases.ts.
 
-import { and, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { cases, db, notifications, organizationMemberships, organizations, profiles } from "@/db";
 
@@ -35,6 +35,13 @@ export interface EscalateStaleDecomisosOptions {
   now?: Date;
   /** Days a pending handoff may sit before escalation. Default 7 per DC8. */
   staleAfterDays?: number;
+  /**
+   * Ceiling on the raw scan (review 23 item 13). This finder post-filters in JS
+   * (latest-proposal age), so a keyset cursor over the raw rows isn't safe; a
+   * plain LIMIT bounds memory instead. Decomiso volume is low and the cron runs
+   * every 12h, so a per-run cap is acceptable. Default 500.
+   */
+  maxRawScan?: number;
 }
 
 export interface StaleDecomisoCandidateFull {
@@ -93,7 +100,9 @@ export async function findStaleDecomisoCandidates(
         eq(cases.status, "open"),
         isNotNull(cases.receiverOrganizationId),
       ),
-    );
+    )
+    .orderBy(asc(cases.id))
+    .limit(options?.maxRawScan ?? 500);
 
   // Filter: keep only rows where the latest proposal predates the stale threshold.
   // Done in JS to avoid a complex HAVING/WHERE on a correlated sub-select column.

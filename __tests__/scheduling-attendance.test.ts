@@ -18,9 +18,6 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { AttendancePayload, AuthorDescriptor } from "@/app/actions/attendance";
-// Writer imports from the application module, not the "use server" shim
-// (impersonation triage, review 07).
-import { markAppointmentAttendedWriter } from "@/src/modules/events/application/attendance/mark-appointment-attended";
 import {
   appointments,
   db,
@@ -41,6 +38,9 @@ import {
   generateOfferingToken,
   generatePublicToken,
 } from "@/lib/infra/publicToken";
+// Writer imports from the application module, not the "use server" shim
+// (impersonation triage, review 07).
+import { markAppointmentAttendedWriter } from "@/src/modules/events/application/attendance/mark-appointment-attended";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

@@ -47,11 +47,11 @@
     },
     {
       "path": "/api/cron/drain-outbox",
-      "schedule": "0 6 * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/process-eno-queue",
-      "schedule": "0 7 * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/expire-pet-transfers",
@@ -59,7 +59,7 @@
     },
     {
       "path": "/api/cron/expire-decomiso-handoffs",
-      "schedule": "0 0 * * *"
+      "schedule": "0 */12 * * *"
     },
     {
       "path": "/api/cron/materialize-slots",

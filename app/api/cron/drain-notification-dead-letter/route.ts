@@ -37,10 +37,7 @@ import { eq, isNull } from "drizzle-orm";
 
 import { cronRuns, db, notificationDeadLetter } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import {
-  type CreateNotificationInput,
-  createNotification,
-} from "@/lib/infra/notification-service";
+import { type CreateNotificationInput, createNotification } from "@/lib/infra/notification-service";
 
 export const dynamic = "force-dynamic";
 
@@ -173,12 +170,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       status: cronStatus,
       finishedAt: new Date(),
       itemsProcessed: resolved,
-      details: errors.length > 0 ? { scanned, resolved, stillFailing, invalid, errors } : {
-        scanned,
-        resolved,
-        stillFailing,
-        invalid,
-      },
+      details:
+        errors.length > 0
+          ? { scanned, resolved, stillFailing, invalid, errors }
+          : {
+              scanned,
+              resolved,
+              stillFailing,
+              invalid,
+            },
     })
     .where(eq(cronRuns.id, run.id));
 

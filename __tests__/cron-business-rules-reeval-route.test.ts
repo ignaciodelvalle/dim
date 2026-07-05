@@ -135,9 +135,10 @@ describe("GET /api/cron/business-rules-reeval", () => {
       notified: 3,
     });
     expect(body.durationMs).toBeGreaterThanOrEqual(0);
-    // One call for the default AR scope.
+    // One call for the default AR scope. (First arg is the scope; a second
+    // options arg carries the per-scope deadline — assert on the scope only.)
     expect(reEvalMock).toHaveBeenCalledTimes(1);
-    expect(reEvalMock).toHaveBeenCalledWith({ country: "AR", province: null, locality: null });
+    expect(reEvalMock.mock.calls[0][0]).toEqual({ country: "AR", province: null, locality: null });
   });
 
   it("returns 200 and processes multiple jurisdiction scopes when db rows are returned", async () => {
@@ -246,7 +247,7 @@ describe("GET /api/cron/business-rules-reeval", () => {
     });
     // Only the AR-default scope (index 0, sorts first) was processed.
     expect(reEvalMock).toHaveBeenCalledTimes(1);
-    expect(reEvalMock).toHaveBeenCalledWith({ country: "AR", province: null, locality: null });
+    expect(reEvalMock.mock.calls[0][0]).toEqual({ country: "AR", province: null, locality: null });
 
     dateSpy.mockRestore();
   });

@@ -365,28 +365,57 @@ export async function getTransferForViewerAction(
 
 export type ExpirePetTransfersStats = { expired: number };
 
+// Keyset/drain bounds (review 23 item 12): bound each pass and drain the
+// backlog within the run instead of loading ALL expired transfers at once.
+const EXPIRE_TRANSFERS_BATCH_SIZE = 500;
+const EXPIRE_TRANSFERS_MAX_DURATION_MS = 45_000;
+const EXPIRE_TRANSFERS_MAX_ITERATIONS = 50;
+
 /** System action called by the cron route. Throws on fatal error (cron logs it). */
 // @no-auth-required: cron/system path — auth enforced at the /api/cron/expire-pet-transfers route via authorizeCronRequest (CRON_SECRET).
 export async function expirePetTransfersAction(): Promise<ExpirePetTransfersStats> {
-  const result = await expirePetTransfers({ repo: TransfersRepository });
-  if (!result.ok) throw new Error(result.error);
+  const start = Date.now();
+  let totalExpired = 0;
+  let iterations = 0;
 
-  // Flush per-row notifications best-effort.
-  await flushNotifications(result.notifications);
+  for (;;) {
+    if (
+      iterations >= EXPIRE_TRANSFERS_MAX_ITERATIONS ||
+      Date.now() - start >= EXPIRE_TRANSFERS_MAX_DURATION_MS
+    ) {
+      break;
+    }
 
-  // Parity (R6): audit_log insert per expired row; actor=fromOwnerId per row.
-  for (const entry of result.value.auditEntries) {
-    await flushAuditLog({
-      actorUserId: entry.actorUserId,
-      action: "pet_transfer_expired",
-      payload: {
-        transfer_public_token: entry.transferToken,
-        pet_id: entry.petId,
-      },
-    });
+    const result = await expirePetTransfers(
+      { repo: TransfersRepository },
+      { limit: EXPIRE_TRANSFERS_BATCH_SIZE },
+    );
+    if (!result.ok) throw new Error(result.error);
+
+    // Flush per-row notifications best-effort.
+    await flushNotifications(result.notifications);
+
+    // Parity (R6): audit_log insert per expired row; actor=fromOwnerId per row.
+    for (const entry of result.value.auditEntries) {
+      await flushAuditLog({
+        actorUserId: entry.actorUserId,
+        action: "pet_transfer_expired",
+        payload: {
+          transfer_public_token: entry.transferToken,
+          pet_id: entry.petId,
+        },
+      });
+    }
+
+    totalExpired += result.value.expired;
+    iterations += 1;
+
+    // A partial batch means no more expirable rows this pass (expired rows drop
+    // out of the 'pending' scope). A full batch of expirals → keep draining.
+    if (result.value.expired < EXPIRE_TRANSFERS_BATCH_SIZE) break;
   }
 
-  return { expired: result.value.expired };
+  return { expired: totalExpired };
 }
 
 // ---------------------------------------------------------------------------

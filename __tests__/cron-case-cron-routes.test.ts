@@ -15,7 +15,8 @@
 //   - Missing secret → 401
 //   - Wrong secret → 401
 //   - Happy path (authorized, runCaseCron returns ok) → 200
-//   - runCaseCron returns failed status → 200 (the route always returns 200 for cron status)
+//   - runCaseCron returns failed status → 500 (review 23 item 5: a failed cron
+//     must surface HTTP 500 so Vercel treats the run as failed, not success)
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -95,7 +96,7 @@ describe("GET /api/cron/close-followup-expired-adoptions", () => {
     expect(runCaseCronMock).toHaveBeenCalledOnce();
   });
 
-  it("returns 200 even when runCaseCron status is failed", async () => {
+  it("returns 500 when runCaseCron status is failed", async () => {
     const runCaseCronMock = vi
       .fn()
       .mockResolvedValue(makeRunResult({ status: "failed", itemsProcessed: 0 }));
@@ -112,7 +113,7 @@ describe("GET /api/cron/close-followup-expired-adoptions", () => {
       headers: {},
     });
     const res = await GET(req as unknown as Parameters<typeof GET>[0]);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.status).toBe("failed");
   });

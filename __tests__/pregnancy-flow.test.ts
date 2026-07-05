@@ -5,12 +5,12 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { db, notifications, ownerships, pets, profiles, reminders } from "@/db";
+import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
 // Writers import from the application modules, not the "use server" shim
 // (impersonation triage, review 07).
 import { recordPregnancyEndedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-ended";
 import { recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
-import { db, notifications, ownerships, pets, profiles, reminders } from "@/db";
-import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

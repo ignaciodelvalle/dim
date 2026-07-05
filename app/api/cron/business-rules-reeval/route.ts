@@ -144,7 +144,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           }
 
           const scope: JurisdictionScope = scopes[index];
-          const result = await reEvaluatePppClassificationChange(scope);
+          // Pass a wall-clock deadline so a single large scope's in-scope pet
+          // sweep is keyset-batched AND time-bounded (review 23 item 10) — it
+          // can't blow the 60s function budget. An interrupted scope is
+          // re-covered idempotently by a later run (scope-level resume cursor).
+          const result = await reEvaluatePppClassificationChange(scope, {
+            deadlineMs: start + MAX_DURATION_MS,
+          });
           totalScanned += result.scanned;
           totalFlippedToPpp += result.flippedToPpp;
           totalFlippedToNonPpp += result.flippedToNonPpp;

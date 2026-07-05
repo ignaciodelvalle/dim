@@ -12,7 +12,6 @@ import { createClient } from "@supabase/supabase-js";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { bookSlotWriter } from "@/src/modules/events/application/booking/book-slot";
 import {
   appointments,
   db,
@@ -29,6 +28,7 @@ import {
   generateOfferingToken,
   generatePublicToken,
 } from "@/lib/infra/publicToken";
+import { bookSlotWriter } from "@/src/modules/events/application/booking/book-slot";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

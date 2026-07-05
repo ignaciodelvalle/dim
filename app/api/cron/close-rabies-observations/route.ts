@@ -30,6 +30,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       () => closeEligibleRabiesObservations(),
       (s) => ({
         itemsProcessed: s.closedNegative + s.flaggedForReview,
+        // Per-row failures in a legal 10-day auto-close must NOT report success
+        // (review 23 item 2): flip the run to failed so Vercel retries.
+        failed: s.errors.length > 0,
         details: {
           scanned: s.scanned,
           closedNegative: s.closedNegative,
@@ -39,11 +42,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         },
       }),
     );
-    return NextResponse.json({
-      ok: true,
-      ...stats,
-      durationMs: Date.now() - start,
-    });
+    const failed = stats.errors.length > 0;
+    return NextResponse.json(
+      {
+        ok: !failed,
+        ...stats,
+        durationMs: Date.now() - start,
+      },
+      { status: failed ? 500 : 200 },
+    );
   } catch (err) {
     console.error("[cron/close-rabies] failed:", err);
     return NextResponse.json(

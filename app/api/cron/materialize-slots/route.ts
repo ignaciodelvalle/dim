@@ -15,9 +15,9 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { materializeAllActiveSlots } from "@/src/modules/service-offerings/application/slot-materialization/materialize-slots";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import { withCronRun } from "@/lib/infra/case-cron";
+import { readLastRunDetail, withCronRun } from "@/lib/infra/case-cron";
+import { materializeAllActiveSlots } from "@/src/modules/service-offerings/application/slot-materialization/materialize-slots";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +32,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const start = Date.now();
 
   try {
+    // Resume from the cursor persisted by the last finished run (piggy-backs on
+    // the cron_runs telemetry row — no new table). null → fresh sweep from top.
+    const resumeCursor = await readLastRunDetail<string>(CRON_NAME, "nextCursor");
+
     const { rulesProcessed, slotsInserted } = await withCronRun(
       CRON_NAME,
-      () => materializeAllActiveSlots(),
+      () => materializeAllActiveSlots({ afterRuleId: resumeCursor }),
       (r) => ({
         itemsProcessed: r.slotsInserted,
-        details: { rulesProcessed: r.rulesProcessed, slotsInserted: r.slotsInserted },
+        details: {
+          rulesProcessed: r.rulesProcessed,
+          slotsInserted: r.slotsInserted,
+          earlyStop: r.earlyStop,
+          nextCursor: r.nextCursor,
+        },
       }),
     );
     const durationMs = Date.now() - start;

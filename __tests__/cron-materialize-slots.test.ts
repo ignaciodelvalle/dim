@@ -16,9 +16,9 @@
 import { and, count, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { materializeAllActiveSlots } from "@/src/modules/service-offerings/application/slot-materialization/materialize-slots";
 import { db, organizations, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
 import { generatePrefixedToken, generatePublicToken } from "@/lib/infra/publicToken";
+import { materializeAllActiveSlots } from "@/src/modules/service-offerings/application/slot-materialization/materialize-slots";
 
 // ---------------------------------------------------------------------------
 // Fixture IDs collected during setup so afterAll can clean up.

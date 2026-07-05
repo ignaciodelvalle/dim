@@ -21,13 +21,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const result = await runCaseCron<FollowupExpiredCandidate>({
     name: CRON_NAME,
-    scan: () => findFollowupExpiredAdoptions(),
+    scan: (cursor) =>
+      findFollowupExpiredAdoptions({ afterId: cursor?.afterId, limit: cursor?.limit }),
     processOne: (candidate) => closeFollowupExpiredAdoption(candidate),
+    batchSize: 200,
   });
 
-  return NextResponse.json({
-    status: result.status,
-    itemsProcessed: result.itemsProcessed,
-    runId: result.runId,
-  });
+  return NextResponse.json(
+    {
+      status: result.status,
+      itemsProcessed: result.itemsProcessed,
+      runId: result.runId,
+    },
+    { status: result.status === "ok" ? 200 : 500 },
+  );
 }

@@ -13,7 +13,7 @@
 // Does NOT modify welfare_reports.status — sensitive, manual-triage only.
 // Auth: none (system-initiated cron). No user authz inside.
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 
 import { cases, db, notifications, petEvents, welfareReports } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
@@ -22,6 +22,10 @@ export interface EscalateStaleWelfareOptions {
   now?: Date;
   /** Days of inactivity before escalation. Default 90. */
   inactivityDays?: number;
+  /** Keyset cursor: only return cases whose id sorts after this value. */
+  afterId?: string | null;
+  /** Max rows to return (keyset page size). Omit for no limit. */
+  limit?: number;
 }
 
 export interface StaleWelfareCandidate {
@@ -41,7 +45,7 @@ export async function findStaleWelfareCases(
   const inactiveSince = new Date(now.getTime() - inactivityMs);
 
   const inactiveSinceIso = inactiveSince.toISOString();
-  const rows = await db
+  const base = db
     .select({
       id: cases.id,
       publicCode: cases.publicCode,
@@ -57,13 +61,17 @@ export async function findStaleWelfareCases(
         eq(cases.caseKind, "welfare_denuncia"),
         eq(cases.status, "open"),
         inArray(welfareReports.status, ["triaged", "in_progress"]),
+        ...(options?.afterId ? [gt(cases.id, options.afterId)] : []),
         sql`NOT EXISTS (
           SELECT 1 FROM ${petEvents}
           WHERE ${petEvents.caseId} = ${cases.id}
             AND ${petEvents.occurredAt} >= ${inactiveSinceIso}::timestamptz
         )`,
       ),
-    );
+    )
+    .orderBy(asc(cases.id));
+
+  const rows = options?.limit ? await base.limit(options.limit) : await base;
 
   return rows;
 }

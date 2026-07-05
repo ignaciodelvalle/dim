@@ -19,7 +19,7 @@
 // together, so a breed-list change can also need a weight re-check and
 // vice versa).
 
-import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, isNull, or } from "drizzle-orm";
 
 import { db, ownerships, pets } from "@/db";
 
@@ -37,11 +37,40 @@ export interface ReevalCounters {
   notified: number;
 }
 
+export interface ReevalResult extends ReevalCounters {
+  /**
+   * Keyset resume point when the sweep stopped early (deadline hit): the last
+   * pet id processed. `null` when the scope was fully drained. Callers that
+   * want cross-invocation resume can persist this and pass it back as
+   * `afterPetId`; the cron route currently only uses it as an early-stop signal
+   * (scope-level resume already re-covers the scope idempotently).
+   */
+  nextPetId: string | null;
+}
+
 export interface JurisdictionScope {
   country?: string;
   province?: string | null;
   locality?: string | null;
 }
+
+export interface ReevalOptions {
+  /** Keyset cursor: process pets whose id sorts after this value. */
+  afterPetId?: string | null;
+  /**
+   * Absolute wall-clock deadline (Date.now() ms). When set, the keyset loop
+   * stops after the current batch once the deadline passes, bounding a single
+   * huge scope's time so it can't blow the function budget. Omit (inline
+   * callers) to run to completion — the write-path reeval MUST fully flip all
+   * affected pets, so it never passes a deadline.
+   */
+  deadlineMs?: number;
+}
+
+// Keyset page size for the in-scope pet sweep (review 23 item 10): the scope
+// used to load its ENTIRE matching population into memory in one query. Now
+// paged, so memory is bounded regardless of scope size.
+const PETS_BATCH_SIZE = 500;
 
 /**
  * Re-evaluate the PPP flag for every dog whose jurisdiction matches `scope`.
@@ -54,7 +83,8 @@ export interface JurisdictionScope {
  */
 export async function reEvaluatePppClassificationChange(
   scope: JurisdictionScope,
-): Promise<ReevalCounters> {
+  options?: ReevalOptions,
+): Promise<ReevalResult> {
   const country = scope.country ?? "AR";
   const province = scope.province ?? null;
   const locality = scope.locality ?? null;
@@ -69,37 +99,24 @@ export async function reEvaluatePppClassificationChange(
   // DB has ~36k dogs in AR but only ~32 with breed OR weight set — a
   // province-scoped sweep without this filter timed out scanning 11k+ rows
   // it could never flip).
-  const conditions = [
+  const baseConditions = [
     eq(pets.jurisdictionCountry, country),
     eq(pets.species, "dog"),
     or(isNotNull(pets.breed), isNotNull(pets.estimatedWeightKg)),
   ];
   if (province !== null) {
-    conditions.push(eq(pets.jurisdictionProvince, province));
+    baseConditions.push(eq(pets.jurisdictionProvince, province));
   }
   if (locality !== null) {
-    conditions.push(eq(pets.jurisdictionLocality, locality));
+    baseConditions.push(eq(pets.jurisdictionLocality, locality));
   }
-  const rows = await db
-    .select({
-      id: pets.id,
-      name: pets.name,
-      breed: pets.breed,
-      estimatedWeightKg: pets.estimatedWeightKg,
-      publicToken: pets.publicToken,
-      potentiallyDangerousBreed: pets.potentiallyDangerousBreed,
-      jurisdictionCountry: pets.jurisdictionCountry,
-      jurisdictionProvince: pets.jurisdictionProvince,
-      jurisdictionLocality: pets.jurisdictionLocality,
-    })
-    .from(pets)
-    .where(and(...conditions));
 
-  const counters: ReevalCounters = {
-    scanned: rows.length,
+  const counters: ReevalResult = {
+    scanned: 0,
     flippedToPpp: 0,
     flippedToNonPpp: 0,
     notified: 0,
+    nextPetId: null,
   };
 
   // Cache resolved rules per DISTINCT (province, locality) tuple — a sweep
@@ -124,62 +141,96 @@ export async function reEvaluatePppClassificationChange(
     return cached;
   }
 
-  for (const pet of rows) {
-    const weightKg =
-      pet.estimatedWeightKg !== null ? Number.parseFloat(pet.estimatedWeightKg) : null;
-    const rules = await rulesFor({
-      country: pet.jurisdictionCountry,
-      province: pet.jurisdictionProvince,
-      locality: pet.jurisdictionLocality,
-    });
-    const nowPpp = classifyPpp("dog", pet.breed, Number.isNaN(weightKg) ? null : weightKg, rules);
-    if (nowPpp === pet.potentiallyDangerousBreed) continue;
+  let cursor: string | null = options?.afterPetId ?? null;
 
-    await db.update(pets).set({ potentiallyDangerousBreed: nowPpp }).where(eq(pets.id, pet.id));
+  for (;;) {
+    const rows = await db
+      .select({
+        id: pets.id,
+        name: pets.name,
+        breed: pets.breed,
+        estimatedWeightKg: pets.estimatedWeightKg,
+        publicToken: pets.publicToken,
+        potentiallyDangerousBreed: pets.potentiallyDangerousBreed,
+        jurisdictionCountry: pets.jurisdictionCountry,
+        jurisdictionProvince: pets.jurisdictionProvince,
+        jurisdictionLocality: pets.jurisdictionLocality,
+      })
+      .from(pets)
+      .where(and(...baseConditions, ...(cursor ? [gt(pets.id, cursor)] : [])))
+      .orderBy(asc(pets.id))
+      .limit(PETS_BATCH_SIZE);
 
-    if (nowPpp) counters.flippedToPpp += 1;
-    else counters.flippedToNonPpp += 1;
+    if (rows.length === 0) break;
 
-    if (nowPpp) {
-      // Notify each active human owner of this pet. Copy is breed-flavored
-      // when the breed drove the flip and weight-flavored when weight did
-      // (or a generic message when both apply) — see notificationCopyFor.
-      const breedLabel = (pet.breed ?? "").trim();
-      const { notificationType, body } = notificationCopyFor(pet.name, breedLabel);
+    for (const pet of rows) {
+      cursor = pet.id;
+      counters.scanned += 1;
 
-      const owners = await db
-        .select({ userId: ownerships.ownerUserId })
-        .from(ownerships)
-        .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)));
-      const userIds = owners
-        .map((o) => o.userId)
-        .filter((id): id is string => typeof id === "string");
-      if (userIds.length > 0) {
-        // Route through the canonical write path (createNotificationsBulk) rather
-        // than a raw db.insert. This closes an ARCH-P silent-loss gap that was
-        // specific to this sweep: the flag UPDATE above COMMITS before the notify,
-        // so if a raw insert threw, the NEXT reeval run would see
-        // `nowPpp === pet.potentiallyDangerousBreed` and `continue` — the urgent
-        // PPP alert was lost forever, never retried. The service instead
-        // dead-letters a failed insert (recoverable via the
-        // drain-notification-dead-letter cron), and the stable dedupe key
-        // `ppp-flip:${petId}:${userId}` makes a repeat sweep idempotent
-        // (ON CONFLICT DO NOTHING) instead of re-notifying on every run.
-        const result = await createNotificationsBulk(
-          userIds.map((userId) => ({
-            userId,
-            notificationType,
-            severity: "warning" as const,
-            title: `Cambio en la regulación PPP que afecta a ${pet.name}`,
-            body,
-            relatedPetId: pet.id,
-            ctaLabel: "Ver requisitos",
-            ctaUrl: `/mis-mascotas/${pet.publicToken}`,
-            dedupeKey: `ppp-flip:${pet.id}:${userId}`,
-          })),
-        );
-        counters.notified += result.insertedCount;
+      const weightKg =
+        pet.estimatedWeightKg !== null ? Number.parseFloat(pet.estimatedWeightKg) : null;
+      const rules = await rulesFor({
+        country: pet.jurisdictionCountry,
+        province: pet.jurisdictionProvince,
+        locality: pet.jurisdictionLocality,
+      });
+      const nowPpp = classifyPpp("dog", pet.breed, Number.isNaN(weightKg) ? null : weightKg, rules);
+      if (nowPpp === pet.potentiallyDangerousBreed) continue;
+
+      await db.update(pets).set({ potentiallyDangerousBreed: nowPpp }).where(eq(pets.id, pet.id));
+
+      if (nowPpp) counters.flippedToPpp += 1;
+      else counters.flippedToNonPpp += 1;
+
+      if (nowPpp) {
+        // Notify each active human owner of this pet. Copy is breed-flavored
+        // when the breed drove the flip and weight-flavored when weight did
+        // (or a generic message when both apply) — see notificationCopyFor.
+        const breedLabel = (pet.breed ?? "").trim();
+        const { notificationType, body } = notificationCopyFor(pet.name, breedLabel);
+
+        const owners = await db
+          .select({ userId: ownerships.ownerUserId })
+          .from(ownerships)
+          .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)));
+        const userIds = owners
+          .map((o) => o.userId)
+          .filter((id): id is string => typeof id === "string");
+        if (userIds.length > 0) {
+          // Route through the canonical write path (createNotificationsBulk) rather
+          // than a raw db.insert. This closes an ARCH-P silent-loss gap that was
+          // specific to this sweep: the flag UPDATE above COMMITS before the notify,
+          // so if a raw insert threw, the NEXT reeval run would see
+          // `nowPpp === pet.potentiallyDangerousBreed` and `continue` — the urgent
+          // PPP alert was lost forever, never retried. The service instead
+          // dead-letters a failed insert (recoverable via the
+          // drain-notification-dead-letter cron), and the stable dedupe key
+          // `ppp-flip:${petId}:${userId}` makes a repeat sweep idempotent
+          // (ON CONFLICT DO NOTHING) instead of re-notifying on every run.
+          const result = await createNotificationsBulk(
+            userIds.map((userId) => ({
+              userId,
+              notificationType,
+              severity: "warning" as const,
+              title: `Cambio en la regulación PPP que afecta a ${pet.name}`,
+              body,
+              relatedPetId: pet.id,
+              ctaLabel: "Ver requisitos",
+              ctaUrl: `/mis-mascotas/${pet.publicToken}`,
+              dedupeKey: `ppp-flip:${pet.id}:${userId}`,
+            })),
+          );
+          counters.notified += result.insertedCount;
+        }
       }
+    }
+
+    if (rows.length < PETS_BATCH_SIZE) break; // fully drained → nextPetId stays null
+    if (options?.deadlineMs !== undefined && Date.now() >= options.deadlineMs) {
+      // Stopped early to protect the function budget. Report the resume point;
+      // the scope is re-covered idempotently on a later run.
+      counters.nextPetId = cursor;
+      break;
     }
   }
 

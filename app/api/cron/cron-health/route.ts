@@ -27,6 +27,7 @@ import { desc, eq } from "drizzle-orm";
 
 import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { sendCronAlert } from "@/lib/infra/cron-alert";
 import { CRON_REGISTRY } from "@/lib/infra/cron-registry";
 
 export const dynamic = "force-dynamic";
@@ -177,11 +178,30 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const healthy = results.filter((r) => r.healthy);
 
     if (unhealthy.length > 0) {
+      // An unhealthy fleet is itself a failure: mark this meta-run failed so it
+      // returns HTTP 500 (review 23 item 6) instead of a green ok:true that
+      // hides a stalled/failed cron. Previously this only console.warn'd.
+      cronStatus = "failed";
       for (const u of unhealthy) {
         console.warn(
           `[cron/cron-health] UNHEALTHY cron detected — name=${u.cronName} reason=${u.reason} lastRunAt=${u.lastRunAt?.toISOString() ?? "never"} lastStatus=${u.lastStatus ?? "none"}`,
         );
       }
+      // Page a human (review 23 item 2 / Cursor #3). Best-effort; no-op when
+      // CRON_ALERT_WEBHOOK is unset.
+      await sendCronAlert({
+        job: CRON_NAME,
+        severity: "critical",
+        error: `${unhealthy.length} unhealthy cron(s)`,
+        details: {
+          unhealthy: unhealthy.map((u) => ({
+            cronName: u.cronName,
+            reason: u.reason,
+            lastRunAt: u.lastRunAt?.toISOString() ?? null,
+            lastStatus: u.lastStatus,
+          })),
+        },
+      });
     } else {
       console.info(
         `[cron/cron-health] all crons healthy — checked=${results.length} healthy=${healthy.length}`,
@@ -225,16 +245,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       })
       .where(eq(cronRuns.id, run.id));
 
-    return NextResponse.json({
-      ok: true,
-      checked: results.length,
-      unhealthy: unhealthy.map((u) => ({
-        cronName: u.cronName,
-        reason: u.reason,
-        lastRunAt: u.lastRunAt?.toISOString() ?? null,
-        lastStatus: u.lastStatus,
-      })),
-    });
+    return NextResponse.json(
+      {
+        ok: cronStatus === "ok",
+        checked: results.length,
+        unhealthy: unhealthy.map((u) => ({
+          cronName: u.cronName,
+          reason: u.reason,
+          lastRunAt: u.lastRunAt?.toISOString() ?? null,
+          lastStatus: u.lastStatus,
+        })),
+      },
+      { status: cronStatus === "ok" ? 200 : 500 },
+    );
   } catch (err) {
     cronStatus = "failed";
     console.error("[cron/cron-health] fatal error:", err);

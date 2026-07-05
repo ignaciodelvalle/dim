@@ -18,13 +18,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const result = await runCaseCron({
     name: CRON_NAME,
-    scan: () => TransfersRepository.findExpirableCrossOrgCases(),
+    scan: (cursor) =>
+      TransfersRepository.findExpirableCrossOrgCases({
+        afterId: cursor?.afterId,
+        limit: cursor?.limit,
+      }),
     processOne: (candidate) => TransfersRepository.expireOneCrossOrgCase(candidate),
+    batchSize: 200,
   });
 
-  return NextResponse.json({
-    status: result.status,
-    itemsProcessed: result.itemsProcessed,
-    runId: result.runId,
-  });
+  return NextResponse.json(
+    {
+      status: result.status,
+      itemsProcessed: result.itemsProcessed,
+      runId: result.runId,
+    },
+    { status: result.status === "ok" ? 200 : 500 },
+  );
 }
