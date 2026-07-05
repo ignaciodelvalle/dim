@@ -1,0 +1,21 @@
+1. `db/schema.ts:2228` · CHECK lists 8 `rule_type` values but `0120_travel_corridor_rule_type.sql` widened Postgres to 9 (`travel_corridor_requirements`) · **HIGH** · Add `'travel_corridor_requirements'` to the `govtBusinessRulesRuleTypeValid` check (or remove from DB before push).
+2. `db/schema.ts:1163` · Migration `0119_pet_events_type_client_key_idx.sql` adds `pet_events_type_client_key_idx` but schema.ts has no matching index · **HIGH** · Declare `index("pet_events_type_client_key_idx").on(table.eventType, table.clientIdempotencyKey).where(...)` on `petEvents`.
+3. `db/migrations/0103_location_drop_legacy.sql:33` · `DROP CONSTRAINT cases_subject_location_consistency` has no `IF EXISTS` — partial apply leaves DB without constraint and retry aborts · **HIGH** · Change to `DROP CONSTRAINT IF EXISTS cases_subject_location_consistency`.
+4. `db/migrations/0056_pet_identifications_polymorphic.sql:19` · `CREATE TYPE identification_kind/status` and `:33` `CREATE TABLE pet_identifications` lack existence guards — re-run fails after partial apply · **HIGH** · Wrap in `DO $$ … EXCEPTION WHEN duplicate_object` / use `CREATE TABLE IF NOT EXISTS`.
+5. `db/migrations/0056_pet_identifications_polymorphic.sql:108` · Chip backfill `INSERT` has no `NOT EXISTS` guard (unlike `0082`) — re-run can duplicate rows or hit partial unique index · **HIGH** · Add `AND NOT EXISTS (SELECT 1 FROM pet_identifications … active microchip_iso)` like `0082`.
+6. `db/migrations/0079_caseid_fks.sql:57` · Claims idempotent but bare `ADD CONSTRAINT pet_events_case_id_cases_id_fk` / `:75` foster FK — re-run errors if constraints exist · **MED** · Guard with `pg_constraint` existence check before each `ADD CONSTRAINT`.
+7. `db/migrations/0078_attachments_xor_parent.sql:42` · Unguarded `ADD CONSTRAINT attachments_at_most_one_parent` — re-run fails · **MED** · Wrap in `DO $$ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = …)`.
+8. `db/migrations/0089_eno_queue_processing_status.sql:50` · `ADD CONSTRAINT eno_processing_queue_status_check` after `DROP IF EXISTS` with no re-add guard — re-run fails · **MED** · Guard ADD with `pg_constraint` check (same pattern as `0116`).
+9. `db/migrations/0106_dni_less_identity.sql:119` · `ADD CONSTRAINT profiles_institutional_no_pii` after `DROP IF EXISTS` with no guard — re-run fails · **MED** · Guard ADD with `IF NOT EXISTS`/`pg_constraint` check.
+10. `db/migrations/0007_vet_matricula_columns.sql:8` · `ADD COLUMN` / `:13` `CREATE UNIQUE INDEX` without `IF NOT EXISTS` — not re-runnable · **MED** · Use `ADD COLUMN IF NOT EXISTS` and `CREATE UNIQUE INDEX IF NOT EXISTS`.
+11. `db/migrations/0064_add_finder_author_role.sql:11` · `ALTER TYPE … ADD VALUE` but file lacks `-- dim:no-transaction` while runner wraps all statements in `BEGIN/COMMIT` (`migrate.ts:522-524`) per runner contract (`migrate.ts:37-40`) · **MED** · Put `-- dim:no-transaction` in first five lines (same for `0000:43`, `0005:18`, `0010:26`).
+12. `scripts/migrate.ts:280` · `ON CONFLICT DO UPDATE SET checksum` lets `--baseline` overwrite checksums without re-executing SQL — masks post-apply file edits · **MED** · Fail on checksum mismatch unless `--force-baseline`; never auto-update checksum.
+13. `scripts/migrate.ts:367` · Checksum drift is warning-only by default; `db:migrate:check` (`package.json:35`) does not pass `--strict` — deploy gate ignores edited-applied migrations · **MED** · Make `--check` exit non-zero on drift or wire `--strict` into CI/deploy gate.
+14. `db/migrations/0103_location_drop_legacy.sql:46` · Irreversible `DROP COLUMN` on `cases`/`organizations` legacy coords (guarded with `IF EXISTS` only) · **LOW** · Expected; document owner sign-off gate already in file header — no code fix unless rollback path needed.
+15. `db/migrations/0106_dni_less_identity.sql:109` · Irreversible `DROP COLUMN dni_number` (guarded `IF EXISTS`) · **LOW** · Expected destructive cutover; ensure prod backup/PITR before apply.
+
+**CREATE INDEX CONCURRENTLY / `-- dim:no-transaction`:** clean (`0090`, `0096` marked; no unmarked `CONCURRENTLY`).
+
+**Enum forward-only adds:** clean (all four `ADD VALUE` use `IF NOT EXISTS`; PG ≥12 transaction-safe; gap is missing no-transaction marker — #11).
+
+**Checksum tracking:** see #12–#13 (runner exists; strict enforcement not default).

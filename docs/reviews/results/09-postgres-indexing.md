@@ -1,0 +1,25 @@
+1. `db/schema.ts:1094` · `pet_events.pet_id` `ON DELETE CASCADE` hard-deletes the append-only event spine when a `pets` row is removed · **HIGH** · `ON DELETE RESTRICT` (erasure only via controlled soft-delete/RPC path).
+2. `db/schema.ts:3060` · `custody_disputes.raising_event_id` `ON DELETE CASCADE` deletes the dispute if the founding event is deleted/purged · **HIGH** · `ON DELETE RESTRICT`.
+3. `db/schema.ts:3701` · `event_notification_outbox.source_event_id` `ON DELETE CASCADE` drops ENO/SLA audit rows when the source event disappears · **HIGH** · `ON DELETE RESTRICT` (payload snapshot already decouples delivery).
+4. `db/schema.ts:1279` · `attachments.event_id` `ON DELETE CASCADE` deletes attachment rows when an event is deleted (incl. scan-purge escape hatch) · **MED** · `ON DELETE RESTRICT` or explicit detach step before purge.
+5. `db/schema.ts:1397` · `notifications.related_case_id` is a bare UUID (index only, no FK) · **HIGH** · `REFERENCES cases(id) ON DELETE SET NULL`.
+6. `db/schema.ts:1581` · `welfare_reports.case_id` indexed but not FK-constrained · **MED** · `REFERENCES cases(id) ON DELETE SET NULL`.
+7. `db/schema.ts:3433` · `cases.adoption_application_id` stores a pet-event id with no FK · **MED** · `REFERENCES pet_events(id) ON DELETE SET NULL`.
+8. `db/schema.ts:3439` · `cases.parent_listing_case_id` self-link with no FK · **MED** · `REFERENCES cases(id) ON DELETE SET NULL`.
+9. `db/schema.ts:3353` · `eno_processing_queue.pet_event_id` `NOT NULL` but no FK to `pet_events` · **MED** · add FK (`ON DELETE RESTRICT` preferred).
+10. `db/schema.ts:3729` · `event_notification_outbox` lacks index for `/gob/outbox` + `fetchEnoSla` filters (`target_kind` + jurisdiction + `ORDER BY created_at DESC, id DESC`) · **HIGH** · add `(target_jurisdiction_province, target_jurisdiction_locality, created_at DESC, id DESC)` and `(target_kind, created_at)` partial indexes.
+11. `db/schema.ts:107` · Panorama trend queries scope `pet_events` via `payload->>'pet_jurisdiction_*'` (`lib/metrics/trends.ts:167`) with no supporting JSONB index · **HIGH** · partial expression index on those payload keys (with `event_type, occurred_at`) or scope via `JOIN pets` + `pets_jurisdiction_idx`.
+12. `app/gob/maltrato/page.tsx:176` · Welfare queue keyset-sorts all statuses by `(created_at DESC, id DESC)` but only `status='open'` has `(province, locality, created_at)` index (`db/schema.ts:1636`) · **MED** · add `welfare_reports_juris_created_at_idx (jurisdiction_province, jurisdiction_locality, created_at DESC, id DESC)`.
+13. `db/schema.ts:1194` · Case detail loads events `WHERE case_id=? ORDER BY occurred_at DESC` (`lib/infra/case-queries.ts:280`) but index is `case_id` only · **MED** · `(case_id, occurred_at DESC)`.
+14. `db/schema.ts:2225` · `govt_business_rules` only indexes `rule_type`; resolver filters `(rule_type, jurisdiction_country, jurisdiction_province, jurisdiction_locality)` (`lib/infra/business-rules-resolver.ts:77`) · **MED** · composite `(rule_type, jurisdiction_country, jurisdiction_province, jurisdiction_locality)`.
+15. `db/schema.ts:2204` · No `UNIQUE` on business-rule scope → duplicate overrides at same jurisdiction+type possible · **MED** · `UNIQUE NULLS NOT DISTINCT (rule_type, jurisdiction_country, jurisdiction_province, jurisdiction_locality)`.
+16. `db/schema.ts:3446` · `cases_open_by_jurisdiction_kind_idx` leads with `jurisdiction_locality` (not province) — wrong order for `(province, locality)` govt filters and ambiguous locality names · **MED** · `(jurisdiction_province, jurisdiction_locality, case_kind)` partial on open/escalated.
+17. `lib/metrics/population.ts:26` · `activePetsCondition`/`dogsInScopeCondition` omit `pets.deleted_at IS NULL` → soft-erased pets stay in govt panorama denominators · **MED** · add `deleted_at IS NULL` to base conditions.
+18. `db/schema.ts:694` · `pets_jurisdiction_idx (province, locality)` missing `status` though aggregates always filter `status IN ('active','lost')` · **MED** · `(jurisdiction_province, jurisdiction_locality, status)` partial/active set.
+19. `db/schema.ts:1419` · Inbox keyset uses `(user_id, archived_at IS NULL, ORDER BY created_at DESC, id DESC)` (`app/(app)/notificaciones/page.tsx:160`) but `notifications_user_created_idx` lacks `archived_at` partial/`id` · **MED** · partial `(user_id, created_at DESC, id DESC) WHERE archived_at IS NULL`.
+20. `db/schema.ts:1153` · `pet_events_event_type_idx` largely redundant with `pet_events_event_type_occurred_at_idx` · **LOW** · drop single-column index after `EXPLAIN` confirms no event_type-only scans.
+21. `db/schema.ts:1611` · `welfare_reports_status_idx` redundant with prefix of `welfare_reports_jurisdiction_status_idx` · **LOW** · drop standalone status index if unused.
+
+**Text vs enum:** clean — intentional TEXT + CHECK/app registry for extensible catalogs (`event_type`, `notification_type`, `case_kind`, `approval_requests.type`).
+
+**Cases/event lists (post-0126):** `cases_juris_opened_at_idx` / `cases_opened_at_id_idx` cover the main case queues; `case_events_case_id_occurred_idx` is clean for case timelines.
