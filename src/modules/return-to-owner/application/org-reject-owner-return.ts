@@ -7,7 +7,7 @@
 //   1. Look up pet, re-verify pending proposal for this org.
 //   2. In a tx: emit custody_transfer_cancelled, notify the owner.
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { db, notifications, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
@@ -49,6 +49,20 @@ export async function orgRejectOwnerReturnUseCase({
 
   try {
     await db.transaction(async (tx) => {
+      // TOCTOU fix (parity with owner-reject-return): serialize against a
+      // concurrent org-accept on the same pet with the pet's advisory key, then
+      // re-verify the proposal is STILL pending UNDER the lock. Without it a
+      // reject can race an accept — both having read the proposal as pending
+      // before the accept committed — and emit a spurious
+      // custody_transfer_cancelled into the immutable log after the accept
+      // already resolved the proposal.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
+
+      const stillPending = await fetchPendingOwnerReturnProposalForOrg(pet.id, orgId, tx);
+      if (!stillPending) {
+        throw new Error("No hay propuesta de devolución pendiente para esta mascota.");
+      }
+
       // Emit custody_transfer_cancelled (ARCH-B).
       const cancelPayload = validateEventPayload("custody_transfer_cancelled", {
         proposal_event_id: latestProposal.id,

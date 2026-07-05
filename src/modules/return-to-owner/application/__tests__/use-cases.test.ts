@@ -937,3 +937,98 @@ describe("orgRejectOwnerReturnUseCase — attribution", () => {
     expect(cancelEvent.authorRole).toBe("shelter");
   });
 });
+
+// ---------------------------------------------------------------------------
+// 9b. orgRejectOwnerReturnUseCase — concurrency guard (WAVE E1-#3)
+// ---------------------------------------------------------------------------
+//
+// org-reject now takes the pet advisory lock and re-verifies the proposal is
+// still pending UNDER the lock (parity with owner-reject-return). A true
+// concurrent accept-vs-reject race is not deterministically reproducible in a
+// sequential test harness, so this guards the observable outcome the lock
+// protects: once the return was accepted, a reject must NOT emit a spurious
+// custody_transfer_cancelled into the immutable log.
+
+describe("orgRejectOwnerReturnUseCase — concurrency guard", () => {
+  it("refuses to reject after the org already accepted the return (no spurious cancel)", async () => {
+    const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`
+      .toUpperCase()
+      .slice(-6);
+    const token = `UCR5-${suffix}`;
+    const now = new Date();
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: token,
+        name: `UCRejectRacePet-${suffix}`,
+        species: "dog",
+        sex: "unknown",
+        status: "active",
+        potentiallyDangerousBreed: false,
+      })
+      .returning();
+    insertedPetIds.push(pet.id);
+
+    await db
+      .insert(ownerships)
+      .values({ petId: pet.id, ownerUserId, role: "owner", startedAt: now });
+
+    const adoptionPayload = validateEventPayload("adoption_finalized", {
+      previous_owner_organization_id: orgId,
+      adopter_user_id: ownerUserId,
+      foster_user_id: null,
+      contract_attachment_id: null,
+      post_adoption_followup_months: null,
+      notes: null,
+    });
+    await db.insert(petEvents).values({
+      petId: pet.id,
+      eventType: "adoption_finalized",
+      occurredAt: now,
+      recordedAt: now,
+      recordedByUserId: refugioMemberUserId,
+      authorRole: "shelter",
+      authorOrganizationId: orgId,
+      payload: adoptionPayload,
+    });
+
+    const propose = await ownerProposeReturnToOrgUseCase({
+      userId: ownerUserId,
+      petPublicToken: token,
+      reason: "post_adoption_failed_return",
+      notes: null,
+      proposedAt: now.toISOString(),
+      callerRole: "owner",
+    });
+    expect("ok" in propose && propose.ok).toBe(true);
+
+    // Org accepts and commits — models the accept winning the race.
+    const accept = await orgAcceptOwnerReturnUseCase({
+      orgId,
+      orgDisplayName: "UC Return Refugio",
+      actingUserId: refugioMemberUserId,
+      petPublicToken: token,
+    });
+    expect("error" in accept).toBe(false);
+    if ("error" in accept) throw new Error(`Unexpected error: ${accept.error}`);
+
+    // Reject must now fail — the proposal is already resolved.
+    const reject = await orgRejectOwnerReturnUseCase({
+      orgId,
+      orgDisplayName: "UC Return Refugio",
+      actingUserId: refugioMemberUserId,
+      petPublicToken: token,
+      reason: "UC: llega tarde.",
+    });
+    expect("error" in reject).toBe(true);
+
+    // No custody_transfer_cancelled was emitted (only custody_transferred exists).
+    const cancels = await db
+      .select()
+      .from(petEvents)
+      .where(
+        and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "custody_transfer_cancelled")),
+      );
+    expect(cancels.length).toBe(0);
+  });
+});
