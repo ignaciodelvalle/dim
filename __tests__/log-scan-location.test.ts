@@ -63,6 +63,19 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock: @/lib/infra/rate-limit — these tests assert payload shape, not rate
+// limiting. enforceRateLimit is a no-op so every scan reaches the insert (the
+// real limiter is covered by scan-log-rate-limit.test.ts). callerIp reads the
+// trusted x-real-ip header, matching production.
+// ---------------------------------------------------------------------------
+
+vi.mock("@/lib/infra/rate-limit", () => ({
+  enforceRateLimit: vi.fn(async () => {}),
+  callerIp: (h: { get(k: string): string | null }) => h.get("x-real-ip") ?? "unknown",
+  RateLimitError: class RateLimitError extends Error {},
+}));
+
+// ---------------------------------------------------------------------------
 // Mock: @/db — select chain routes pet + ownership queries; insert is captured.
 // ---------------------------------------------------------------------------
 

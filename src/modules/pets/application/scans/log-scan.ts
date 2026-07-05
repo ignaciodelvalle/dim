@@ -30,9 +30,31 @@ import { headers } from "next/headers";
 
 import { db, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { ipAreaFromHeaders } from "@/lib/infra/scan-geo";
 import { createClient } from "@/lib/supabase/server";
 import { and, eq, isNull } from "drizzle-orm";
+
+// WAVE D4 — abuse controls for the anonymous credential_scanned write.
+//
+// credential_scanned is an unauthenticated, append-only public write. Without a
+// limit any client can call the server action in a loop and forge an unbounded
+// number of scans, inflating a pet's public scan count. Two per-(token, IP)
+// controls sit in front of the insert:
+//
+//   1. SCAN_LOG_LIMIT — a hard abuse cap. Generous enough that the legitimate
+//      lost-pet flow (base scan + one GPS follow-up) plus a handful of refreshes
+//      always passes; tight enough that trivial inflation is bounded.
+//   2. Dedupe (maxPerMinute: 1) — collapses the same person's page re-renders in
+//      a given minute into a single counted scan. The lost-pet GPS follow-up is
+//      the one event exempt from dedupe (it is a distinct, just-granted fix).
+//
+// Best-effort telemetry: on RateLimitError we DROP the scan silently; on any
+// other (infra) error we fail open so a rate-limiter outage never loses a real
+// scan.
+const SCAN_LOG_ENDPOINT = "scan_log";
+const SCAN_LOG_DEDUPE_ENDPOINT = "scan_log_dedupe";
+const SCAN_LOG_LIMIT = { maxPerMinute: 10, maxPerHour: 60 } as const;
 
 /** GPS fix passed by the client after an explicit geolocation grant. */
 export type ScanCoords = {
@@ -62,6 +84,20 @@ function sanitizeCoords(
 
 export async function logScan(publicToken: string, opts?: { coords?: ScanCoords }): Promise<void> {
   if (!publicToken) return;
+
+  // Resolve request headers once — reused for both rate limiting (trusted IP)
+  // and the coarse IP-area floor (geo headers). callerIp reads x-real-ip / the
+  // edge-appended x-forwarded-for hop; never a client-spoofable segment.
+  const reqHeaders = await headers();
+  const ip = callerIp(reqHeaders);
+
+  // Abuse cap (WAVE D4) — enforced before any row is touched. Drop on throttle,
+  // fail open on infra error.
+  try {
+    await enforceRateLimit(SCAN_LOG_ENDPOINT, `${publicToken}:${ip}`, SCAN_LOG_LIMIT);
+  } catch (err) {
+    if (err instanceof RateLimitError) return;
+  }
 
   const [pet] = await db
     .select({ id: pets.id, status: pets.status })
@@ -93,6 +129,25 @@ export async function logScan(publicToken: string, opts?: { coords?: ScanCoords 
     isSelfScan = !!ownership;
   }
 
+  // Precise GPS is stored ONLY for a lost pet, never on self-scans, and only
+  // when the client passed a valid fix (server-side re-validation). Computing it
+  // here also determines whether this scan is exempt from dedupe below.
+  const storedCoords = !isSelfScan && pet.status === "lost" ? sanitizeCoords(opts?.coords) : null;
+
+  // Short-window dedupe (WAVE D4): a base scan (no stored GPS) from the same
+  // (token, IP) within the same minute is almost always the same person
+  // re-rendering — count it once. The GPS follow-up on a lost pet is the sole
+  // exemption: it is a distinct, just-granted fix that must always record.
+  if (!storedCoords) {
+    try {
+      await enforceRateLimit(SCAN_LOG_DEDUPE_ENDPOINT, `${publicToken}:${ip}`, {
+        maxPerMinute: 1,
+      });
+    } catch (err) {
+      if (err instanceof RateLimitError) return;
+    }
+  }
+
   const payload: Record<string, unknown> = {
     is_self_scan: isSelfScan,
     viewer_authenticated: !!user,
@@ -101,16 +156,11 @@ export async function logScan(publicToken: string, opts?: { coords?: ScanCoords 
   if (!isSelfScan) {
     // Guaranteed floor: coarse IP-area on every external scan (null when the
     // platform geo headers are absent, e.g. local dev). Never the raw IP.
-    payload.scan_ip_area = ipAreaFromHeaders(await headers());
+    payload.scan_ip_area = ipAreaFromHeaders(reqHeaders);
 
-    // Precise GPS only for lost pets, and only when the client passed coords
-    // after an explicit geolocation grant. Server-enforced lost check.
-    if (pet.status === "lost") {
-      const coords = sanitizeCoords(opts?.coords);
-      if (coords) {
-        payload.scan_coords = { lat: coords.lat, lng: coords.lng };
-        if (coords.accuracyM !== null) payload.scan_accuracy_m = coords.accuracyM;
-      }
+    if (storedCoords) {
+      payload.scan_coords = { lat: storedCoords.lat, lng: storedCoords.lng };
+      if (storedCoords.accuracyM !== null) payload.scan_accuracy_m = storedCoords.accuracyM;
     }
   }
 
