@@ -1165,6 +1165,14 @@ export const petEvents = pgTable(
     idempotencyIdx: uniqueIndex("pet_events_idempotency_idx")
       .on(table.petId, table.eventType, table.clientIdempotencyKey)
       .where(sql`client_idempotency_key is not null`),
+    // Cross-pet idempotency lookup (migration 0119): the org-intake guard looks
+    // up pet_registered events by (event_type, client_idempotency_key) BEFORE a
+    // pet exists, so the pet_id-leading idempotencyIdx above cannot serve it.
+    // Partial (key IS NOT NULL) keeps it tiny. Declared here so drizzle-kit push
+    // does not drop the migration-created index (schema↔migration agreement).
+    typeClientKeyIdx: index("pet_events_type_client_key_idx")
+      .on(table.eventType, table.clientIdempotencyKey)
+      .where(sql`client_idempotency_key is not null`),
     // SENASA alignment partial index (compliance PR 3, migration 0061).
     tipoEventoCodeIdx: index("pet_events_tipo_evento_code_idx")
       .on(table.tipoEventoCode)
@@ -2225,7 +2233,7 @@ export const govtBusinessRules = pgTable(
     ruleTypeIdx: index("govt_business_rules_rule_type_idx").on(table.ruleType),
     govtBusinessRulesRuleTypeValid: check(
       "govt_business_rules_rule_type_valid",
-      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries', 'physical_credential_channels', 'rabies_observation_window', 'due_soon_window', 'reminder_windows', 'long_stay_days')`,
+      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries', 'physical_credential_channels', 'rabies_observation_window', 'due_soon_window', 'reminder_windows', 'long_stay_days', 'travel_corridor_requirements')`,
     ),
     govtBusinessRulesJurisdictionProvinceCanonical: check(
       "govt_business_rules_jurisdiction_province_canonical",
