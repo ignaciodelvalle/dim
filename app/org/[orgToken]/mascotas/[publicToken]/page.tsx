@@ -12,9 +12,9 @@ import { Suspense } from "react";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { speciesLabel } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { fetchPendingOwnerReturnProposalForOrg } from "@/src/modules/return-to-owner/application/proposal-queries";
-import { speciesLabel } from "@/lib/utils/format";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 
 import {

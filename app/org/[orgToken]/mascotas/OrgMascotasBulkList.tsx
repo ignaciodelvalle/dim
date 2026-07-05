@@ -29,8 +29,8 @@ import {
 import { BULK_INELIGIBLE_REASONS } from "@/app/actions/bulk-vaccinate-types";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpStateBadge } from "@/components/ui/dashboard";
-import { speciesLabel } from "@/lib/utils/format";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
+import { speciesLabel } from "@/lib/utils/format";
 import { OrgMascotasPipelineBoard } from "./OrgMascotasPipelineBoard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

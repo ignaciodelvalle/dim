@@ -37,8 +37,13 @@ describe("fetchJurisdictionActorIds", () => {
   // locality pattern — this also drains rows left by earlier interrupted runs.
   // Profiles are cleaned best-effort (they own no audit rows in this suite).
   afterAll(async () => {
-    await db.delete(govtAssignments).where(like(govtAssignments.jurisdictionLocality, "govt-audit-scope-%"));
-    await db.delete(profiles).where(like(profiles.displayName, "govt-audit-scope%")).catch(() => {});
+    await db
+      .delete(govtAssignments)
+      .where(like(govtAssignments.jurisdictionLocality, "govt-audit-scope-%"));
+    await db
+      .delete(profiles)
+      .where(like(profiles.displayName, "govt-audit-scope%"))
+      .catch(() => {});
   });
 
   it("returns [] without querying when jurisdictions is empty", async () => {

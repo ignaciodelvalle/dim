@@ -16,9 +16,7 @@ import { buildSectionedCsv, logGobDashboardExport } from "@/lib/analytics/govt-d
 
 describe("buildSectionedCsv", () => {
   it("renders a single section with a title comment + header + rows", () => {
-    const csv = buildSectionedCsv([
-      { title: "resumen", rows: [{ total: 10, activas: 8 }] },
-    ]);
+    const csv = buildSectionedCsv([{ title: "resumen", rows: [{ total: 10, activas: 8 }] }]);
     expect(csv).toContain("# resumen\r\n");
     expect(csv).toContain("total,activas\r\n10,8");
   });
@@ -66,7 +64,10 @@ describe("logGobDashboardExport (export smoke)", () => {
       .insert(profiles)
       .values({ id: testActorId, displayName: "govt-dashboard-export smoke", role: "govt" });
 
-    await logGobDashboardExport(testActorId, "poblacion", { resumen: 1, cobertura_por_provincia: 4 });
+    await logGobDashboardExport(testActorId, "poblacion", {
+      resumen: 1,
+      cobertura_por_provincia: 4,
+    });
 
     const rows = await db
       .select()

@@ -163,7 +163,10 @@ export default async function GobAdopcionesPage({
           <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
           <PeriodPicker defaultPreset="trailing12m" />
         </div>
-        <a href={exportHref} className="shrink-0 text-[var(--text-md)] text-ln-azul hover:underline">
+        <a
+          href={exportHref}
+          className="shrink-0 text-[var(--text-md)] text-ln-azul hover:underline"
+        >
           Exportar CSV →
         </a>
       </div>

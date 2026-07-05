@@ -324,7 +324,10 @@ export default async function GobHistorialPage({
 
       <form action="/gob/historial" method="get" className="flex flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
-          <label htmlFor="historial-action" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
+          <label
+            htmlFor="historial-action"
+            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
+          >
             Acción
           </label>
           <select
@@ -343,7 +346,10 @@ export default async function GobHistorialPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="historial-actor" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
+          <label
+            htmlFor="historial-actor"
+            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
+          >
             Actor
           </label>
           <select
@@ -362,7 +368,10 @@ export default async function GobHistorialPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="historial-from" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
+          <label
+            htmlFor="historial-from"
+            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
+          >
             Desde
           </label>
           <input
@@ -375,7 +384,10 @@ export default async function GobHistorialPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="historial-to" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
+          <label
+            htmlFor="historial-to"
+            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
+          >
             Hasta
           </label>
           <input
