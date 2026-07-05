@@ -16,7 +16,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import { CopyButton } from "@/components/ui/CopyButton";
-import { OpCallout, OpCrumbs } from "@/components/ui/dashboard";
+import { OpButton, OpCallout, OpCrumbs } from "@/components/ui/dashboard";
 
 import { OrgMascotasBulkList } from "./OrgMascotasBulkList";
 
@@ -274,12 +274,9 @@ export default async function OrgMascotasPage({
               <option value="other">Otras</option>
             </select>
           </div>
-          <button
-            type="submit"
-            className="rounded-[var(--radius-sm)] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
-          >
+          <OpButton type="submit" size="sm">
             Filtrar
-          </button>
+          </OpButton>
           {(sp.species || sp.q) && (
             <Link
               href={`/org/${orgToken}/mascotas`}

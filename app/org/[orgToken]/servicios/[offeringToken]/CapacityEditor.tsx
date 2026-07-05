@@ -7,6 +7,7 @@
 import { useRef, useState, useTransition } from "react";
 
 import { updateOfferingCapacityAction } from "@/app/actions/service-offerings";
+import { OpButton } from "@/components/ui/dashboard";
 
 type Props = {
   orgToken: string;
@@ -69,13 +70,9 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
           <span className="text-[13px] text-ln-op-ink">
             {capacity} lugar{capacity === 1 ? "" : "es"} por turno
           </span>
-          <button
-            type="button"
-            onClick={openEditor}
-            className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
-          >
+          <OpButton variant="ghost" size="sm" onClick={openEditor}>
             Editar cupos
-          </button>
+          </OpButton>
         </div>
       </div>
     );
@@ -101,22 +98,12 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
             if (e.key === "Escape") cancel();
           }}
         />
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={pending}
-          className="rounded-[var(--radius-sm)] bg-ln-op-azul px-3 py-[5px] text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-60"
-        >
+        <OpButton variant="primary" size="sm" onClick={handleSave} disabled={pending}>
           {pending ? "Guardando..." : "Guardar"}
-        </button>
-        <button
-          type="button"
-          onClick={cancel}
-          disabled={pending}
-          className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
-        >
+        </OpButton>
+        <OpButton variant="ghost" size="sm" onClick={cancel} disabled={pending}>
           Cancelar
-        </button>
+        </OpButton>
       </div>
       {error && (
         <p className="text-sm text-ln-op-danger" role="alert">

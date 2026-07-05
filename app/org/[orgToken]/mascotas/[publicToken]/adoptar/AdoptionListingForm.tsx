@@ -16,6 +16,7 @@
 import { useState, useTransition } from "react";
 
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { OpButton } from "@/components/ui/dashboard";
 import {
   ADOPTION_AGE_BUCKETS,
   ADOPTION_ENERGY_LEVELS,
@@ -264,13 +265,9 @@ export function AdoptionListingForm({
           {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
           {okMessage && <output className="block text-sm text-ln-op-ok">{okMessage}</output>}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full px-4 py-3 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
-          >
+          <OpButton type="submit" disabled={pending} block>
             {pending ? "Guardando..." : "Guardar y continuar"}
-          </button>
+          </OpButton>
         </form>
       </section>
 
@@ -304,54 +301,59 @@ export function AdoptionListingForm({
           <p className="text-[13px] font-medium text-ln-op-ink">Visibilidad pública</p>
           <div className="flex flex-wrap gap-2">
             {!initial.isPublished && (
-              <button
+              <OpButton
                 type="button"
+                size="sm"
+                variant="ok"
                 onClick={() => runStatus("publish")}
                 disabled={pending || !canPublish}
-                className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] bg-ln-op-ok text-white font-medium hover:opacity-90 disabled:opacity-50"
                 title={canPublish ? undefined : "Resolvé los bloqueos antes de publicar."}
               >
                 Publicar adopción
-              </button>
+              </OpButton>
             )}
             {initial.isPublished && !initial.isPaused && (
               <>
-                <button
+                <OpButton
                   type="button"
+                  size="sm"
+                  variant="ghost"
                   onClick={() => runStatus("pause")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-warn-bd text-ln-op-warn font-medium hover:bg-ln-op-warn-bg disabled:opacity-50"
                 >
                   Pausar
-                </button>
-                <button
+                </OpButton>
+                <OpButton
                   type="button"
+                  size="sm"
+                  variant="danger"
                   onClick={() => runStatus("unpublish")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-danger-bd text-ln-op-danger font-medium hover:bg-ln-op-danger-bg disabled:opacity-50"
                 >
                   Despublicar
-                </button>
+                </OpButton>
               </>
             )}
             {initial.isPaused && (
               <>
-                <button
+                <OpButton
                   type="button"
+                  size="sm"
+                  variant="ok"
                   onClick={() => runStatus("unpause")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] bg-ln-op-ok text-white font-medium hover:opacity-90 disabled:opacity-50"
                 >
                   Reanudar
-                </button>
-                <button
+                </OpButton>
+                <OpButton
                   type="button"
+                  size="sm"
+                  variant="danger"
                   onClick={() => runStatus("unpublish")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-danger-bd text-ln-op-danger font-medium hover:bg-ln-op-danger-bg disabled:opacity-50"
                 >
                   Despublicar
-                </button>
+                </OpButton>
               </>
             )}
           </div>

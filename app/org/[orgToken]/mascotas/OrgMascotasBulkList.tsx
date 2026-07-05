@@ -28,7 +28,7 @@ import {
 } from "@/app/actions/bulk-pet-events";
 import { BULK_INELIGIBLE_REASONS } from "@/app/actions/bulk-vaccinate-types";
 import { LnCheckbox } from "@/components/ui/Field";
-import { OpStateBadge } from "@/components/ui/dashboard";
+import { OpButton, OpStateBadge } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { speciesLabel } from "@/lib/utils/format";
 import { OrgMascotasPipelineBoard } from "./OrgMascotasPipelineBoard";
@@ -478,34 +478,35 @@ export function OrgMascotasBulkList({
                     Limpiar
                   </button>
                   {canEventWrite && (
-                    <button
+                    <OpButton
                       type="button"
+                      size="sm"
                       onClick={() => setMode("vaccinate")}
                       disabled={selected.size > BULK_MAX}
-                      className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Vacunar selección
-                    </button>
+                    </OpButton>
                   )}
                   {canIntake && (
-                    <button
+                    <OpButton
                       type="button"
+                      size="sm"
                       onClick={() => setMode("eligibility")}
                       disabled={selected.size > BULK_MAX}
-                      className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] bg-ln-op-celeste text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Marcar elegibilidad
-                    </button>
+                    </OpButton>
                   )}
                   {canManageAdoptionListing && (
-                    <button
+                    <OpButton
                       type="button"
+                      size="sm"
+                      variant="ok"
                       onClick={() => setMode("listing")}
                       disabled={selected.size > BULK_MAX}
-                      className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] bg-ln-op-ok text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Publicar en adopción
-                    </button>
+                    </OpButton>
                   )}
                 </div>
               </div>
@@ -720,22 +721,12 @@ function BulkVaccinationForm({
       </div>
 
       <div className="flex gap-2 justify-end">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
-        >
+        <OpButton type="button" size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
           Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={pending || !canSubmit}
-          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] font-medium bg-ln-op-azul text-white hover:bg-ln-op-azul-700 disabled:opacity-50"
-        >
+        </OpButton>
+        <OpButton type="button" size="sm" onClick={handleSubmit} disabled={pending || !canSubmit}>
           {pending ? "Registrando..." : "Confirmar vacunación"}
-        </button>
+        </OpButton>
       </div>
     </div>
   );
@@ -875,22 +866,12 @@ function BulkEligibilityForm({
       )}
 
       <div className="flex gap-2 justify-end">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
-        >
+        <OpButton type="button" size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
           Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={pending || !canSubmit}
-          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] font-medium bg-ln-op-celeste text-white hover:opacity-90 disabled:opacity-50"
-        >
+        </OpButton>
+        <OpButton type="button" size="sm" onClick={handleSubmit} disabled={pending || !canSubmit}>
           {pending ? "Guardando..." : "Confirmar elegibilidad"}
-        </button>
+        </OpButton>
       </div>
     </div>
   );
@@ -920,30 +901,27 @@ function BulkListingForm({
         detalle de fallos con la razón específica.
       </p>
       <div className="flex gap-2 justify-end">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
-        >
+        <OpButton type="button" size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
           Cancelar
-        </button>
-        <button
+        </OpButton>
+        <OpButton
           type="button"
+          size="sm"
+          variant="danger"
           onClick={() => onSubmit(false)}
           disabled={pending}
-          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50"
         >
           {pending ? "Procesando..." : "Despublicar selección"}
-        </button>
-        <button
+        </OpButton>
+        <OpButton
           type="button"
+          size="sm"
+          variant="ok"
           onClick={() => onSubmit(true)}
           disabled={pending}
-          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] font-medium bg-ln-op-ok text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Publicando..." : "Confirmar publicación"}
-        </button>
+        </OpButton>
       </div>
     </div>
   );

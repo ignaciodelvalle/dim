@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { OpButton } from "@/components/ui/dashboard";
 import { leaveOrganizationAction } from "@/src/modules/organizations/actions";
 
 type Props = {
@@ -35,14 +36,14 @@ export function LeaveOrgButton({ organizationId, isLastAdmin }: Props) {
 
   if (isLastAdmin) {
     return (
-      <button
-        type="button"
+      <OpButton
+        variant="ghost"
+        size="sm"
         disabled
         title="Sos el único administrador. Asigná otro administrador antes de salir."
-        className="cursor-not-allowed rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-mute opacity-50"
       >
         Salir de la organización
-      </button>
+      </OpButton>
     );
   }
 

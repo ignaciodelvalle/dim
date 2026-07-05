@@ -14,6 +14,7 @@
 import { useState, useTransition } from "react";
 
 import { acceptDecomisoHandoffAction, rejectDecomisoHandoffAction } from "@/app/actions/decomiso";
+import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 export function DecomisoHandoffActions({
@@ -74,25 +75,20 @@ export function DecomisoHandoffActions({
         </p>
         {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleAccept}
-            disabled={pending}
-            className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-60 transition-opacity"
-          >
+          <OpButton type="button" variant="ok" onClick={handleAccept} disabled={pending}>
             {pending ? "Procesando..." : "Confirmar custodia"}
-          </button>
-          <button
+          </OpButton>
+          <OpButton
             type="button"
+            variant="ghost"
             onClick={() => {
               setMode(null);
               setError(null);
             }}
             disabled={pending}
-            className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
       </div>
     );
@@ -116,26 +112,21 @@ export function DecomisoHandoffActions({
         />
         {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleReject}
-            disabled={pending}
-            className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-danger text-ln-op-danger bg-ln-op-card text-[13px] font-medium hover:bg-ln-op-stripe disabled:opacity-60 transition-colors"
-          >
+          <OpButton type="button" variant="danger" onClick={handleReject} disabled={pending}>
             {pending ? "Procesando..." : "Confirmar rechazo"}
-          </button>
-          <button
+          </OpButton>
+          <OpButton
             type="button"
+            variant="ghost"
             onClick={() => {
               setMode(null);
               setError(null);
               setRejectReason("");
             }}
             disabled={pending}
-            className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
       </div>
     );
@@ -143,20 +134,12 @@ export function DecomisoHandoffActions({
 
   return (
     <div className="flex flex-wrap gap-2 pt-1">
-      <button
-        type="button"
-        onClick={() => setMode("accept")}
-        className="px-3 py-1.5 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 transition-opacity"
-      >
+      <OpButton type="button" size="sm" variant="ok" onClick={() => setMode("accept")}>
         Aceptar custodia
-      </button>
-      <button
-        type="button"
-        onClick={() => setMode("reject")}
-        className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-sm font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
-      >
+      </OpButton>
+      <OpButton type="button" size="sm" variant="danger" onClick={() => setMode("reject")}>
         Rechazar
-      </button>
+      </OpButton>
     </div>
   );
 }

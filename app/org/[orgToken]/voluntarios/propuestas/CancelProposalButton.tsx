@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { cancelFosterProposalAction } from "@/src/modules/foster/actions";
 
@@ -31,14 +32,9 @@ export function CancelProposalButton({ proposalPublicToken }: { proposalPublicTo
   if (!confirming) {
     return (
       <div className="text-right">
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          disabled={pending}
-          className="rounded-[var(--radius-sm)] border border-ln-op-danger px-3 py-[5px] text-sm text-ln-op-danger transition-colors hover:bg-ln-op-danger-bg disabled:opacity-50"
-        >
+        <OpButton variant="danger" size="sm" onClick={() => setConfirming(true)} disabled={pending}>
           Cancelar
-        </button>
+        </OpButton>
       </div>
     );
   }
@@ -52,25 +48,20 @@ export function CancelProposalButton({ proposalPublicToken }: { proposalPublicTo
         </output>
       )}
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={cancel}
-          disabled={pending}
-          className="rounded-[var(--radius-sm)] bg-ln-op-danger px-3 py-[5px] text-sm text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-        >
+        <OpButton variant="danger" size="sm" onClick={cancel} disabled={pending}>
           {pending ? "Cancelando..." : "Confirmar cancelación"}
-        </button>
-        <button
-          type="button"
+        </OpButton>
+        <OpButton
+          variant="ghost"
+          size="sm"
           onClick={() => {
             setConfirming(false);
             setError(null);
           }}
           disabled={pending}
-          className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
         >
           No, volver
-        </button>
+        </OpButton>
       </div>
     </div>
   );

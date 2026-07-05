@@ -27,6 +27,7 @@ import { useActionState, useState } from "react";
 import { proposeReturnToOwnerFormAction } from "@/app/actions/return-to-owner-form";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { OpButton } from "@/components/ui/dashboard";
 
 export type ProposeReturnFormState = {
   error: string | null;
@@ -94,13 +95,9 @@ export function ProposeReturnForm({
             Confirmá que esta es la mascota correcta. Si tenés acceso al chip o foto del dueño, te
             recomendamos hacer el cross-check antes de continuar.
           </p>
-          <button
-            type="button"
-            onClick={() => setStep(2)}
-            className="w-full px-4 py-3 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90"
-          >
+          <OpButton type="button" onClick={() => setStep(2)} block>
             Continuar
-          </button>
+          </OpButton>
         </section>
 
         {/* Step 2 — Entrega */}
@@ -113,13 +110,9 @@ export function ProposeReturnForm({
             Sugerencia: si no es posible reunirse, dejá un teléfono o canal de contacto en las notas
             de la próxima pantalla.
           </div>
-          <button
-            type="button"
-            onClick={() => setStep(3)}
-            className="w-full px-4 py-3 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90"
-          >
+          <OpButton type="button" onClick={() => setStep(3)} block>
             Continuar
-          </button>
+          </OpButton>
         </section>
 
         {/* Step 3 — Confirmar + notes */}
@@ -144,13 +137,9 @@ export function ProposeReturnForm({
             </p>
           )}
 
-          <button
-            type="submit"
-            disabled={isPending}
-            className="w-full px-4 py-3 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-50"
-          >
+          <OpButton type="submit" disabled={isPending} variant="ok" block>
             {isPending ? "Enviando…" : "Confirmar propuesta"}
-          </button>
+          </OpButton>
         </section>
       </LnWizardShell>
     </form>

@@ -25,6 +25,7 @@ import { type IntakeFormState, createIntakeAction } from "@/app/actions/intake";
 import { LnRadio } from "@/components/ui/Field";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { OpButton } from "@/components/ui/dashboard";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 
 // "seizure" is intentionally absent: a decomiso is a State act (DC1),
@@ -218,13 +219,9 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             Opcional. Se verificará contra registros existentes antes de guardar.
           </span>
         </label>
-        <button
-          type="button"
-          onClick={() => setStep(2)}
-          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
-        >
+        <OpButton type="button" onClick={() => setStep(2)} block>
           {microchipId ? "Continuar (chequearemos el chip al confirmar)" : "Continuar sin chip"}
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 2 — Identidad */}
@@ -354,14 +351,9 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           />
         </label>
 
-        <button
-          type="button"
-          onClick={() => setStep(3)}
-          disabled={!name || !species}
-          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={() => setStep(3)} disabled={!name || !species} block>
           Continuar
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 3 — Estado */}
@@ -451,14 +443,9 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           />
         </label>
 
-        <button
-          type="button"
-          onClick={() => setStep(4)}
-          disabled={!intakeReason}
-          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={() => setStep(4)} disabled={!intakeReason} block>
           Continuar
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 4 — Confirmar */}
@@ -527,14 +514,9 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSubmit}
-          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={!canSubmit} block>
           {pending ? "Registrando…" : "Crear ingreso"}
-        </button>
+        </OpButton>
       </section>
     </LnWizardShell>
   );

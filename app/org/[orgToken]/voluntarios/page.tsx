@@ -1,5 +1,6 @@
 import { JurisdictionFilter } from "@/components/JurisdictionFilter";
 import { LnEmptyState } from "@/components/ui/EmptyState";
+import { OpButton } from "@/components/ui/dashboard";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { speciesLabel } from "@/lib/utils/format";
@@ -141,12 +142,9 @@ export default async function VoluntariosPage({
             ))}
           </select>
         </div>
-        <button
-          type="submit"
-          className="rounded-[var(--radius-sm)] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
-        >
+        <OpButton type="submit" variant="primary" size="sm">
           Filtrar
-        </button>
+        </OpButton>
       </form>
 
       {visibleRows.length === 0 && (

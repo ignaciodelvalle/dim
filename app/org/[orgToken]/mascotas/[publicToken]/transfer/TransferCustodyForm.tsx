@@ -1,6 +1,7 @@
 "use client";
 
 import { LnField, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 import {
   type TransferCustodyFormState,
   transferCustodyAction,
@@ -121,13 +122,9 @@ export function TransferCustodyForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
-      >
+      <OpButton type="submit" disabled={isPending}>
         {isPending ? "Transfiriendo…" : "Transferir custodia"}
-      </button>
+      </OpButton>
     </form>
   );
 }

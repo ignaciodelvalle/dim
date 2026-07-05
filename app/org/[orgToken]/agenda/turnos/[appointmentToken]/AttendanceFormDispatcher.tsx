@@ -12,6 +12,7 @@ import { MicrochipAttendanceForm } from "@/app/_components/attendance-forms/Micr
 import { SterilizationAttendanceForm } from "@/app/_components/attendance-forms/SterilizationAttendanceForm";
 import { VaccinationAttendanceForm } from "@/app/_components/attendance-forms/VaccinationAttendanceForm";
 import type { AttendancePayload, AttendanceResult } from "@/app/actions/attendance";
+import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Props = {
@@ -147,20 +148,12 @@ export function AttendanceFormDispatcher({
 
         {actionMode === "idle" && (
           <div className="flex gap-3 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setActionMode("noshow")}
-              className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-warn text-ln-op-warn text-[13px] font-medium hover:bg-ln-op-warn-bg transition-colors"
-            >
+            <OpButton variant="ghost" size="sm" onClick={() => setActionMode("noshow")}>
               No vino
-            </button>
-            <button
-              type="button"
-              onClick={() => setActionMode("cancel")}
-              className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-danger text-ln-op-danger text-[13px] font-medium hover:bg-ln-op-danger-bg transition-colors"
-            >
+            </OpButton>
+            <OpButton variant="danger" size="sm" onClick={() => setActionMode("cancel")}>
               Cancelar turno
-            </button>
+            </OpButton>
           </div>
         )}
 
@@ -178,22 +171,12 @@ export function AttendanceFormDispatcher({
               className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-warn"
             />
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={submitNoShow}
-                disabled={pending}
-                className="rounded-[var(--radius-sm)] bg-ln-op-warn px-4 py-1.5 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-              >
+              <OpButton variant="primary" size="sm" onClick={submitNoShow} disabled={pending}>
                 {pending ? "Guardando…" : "Confirmar ausencia"}
-              </button>
-              <button
-                type="button"
-                onClick={resetAction}
-                disabled={pending}
-                className="rounded-[var(--radius-sm)] border border-ln-op-line px-4 py-1.5 text-[13px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
-              >
+              </OpButton>
+              <OpButton variant="ghost" size="sm" onClick={resetAction} disabled={pending}>
                 Cancelar
-              </button>
+              </OpButton>
             </div>
           </div>
         )}
@@ -212,22 +195,12 @@ export function AttendanceFormDispatcher({
               className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-danger"
             />
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={submitCancel}
-                disabled={pending}
-                className="rounded-[var(--radius-sm)] bg-ln-op-danger px-4 py-1.5 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-              >
+              <OpButton variant="danger" size="sm" onClick={submitCancel} disabled={pending}>
                 {pending ? "Cancelando…" : "Confirmar cancelación"}
-              </button>
-              <button
-                type="button"
-                onClick={resetAction}
-                disabled={pending}
-                className="rounded-[var(--radius-sm)] border border-ln-op-line px-4 py-1.5 text-[13px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
-              >
+              </OpButton>
+              <OpButton variant="ghost" size="sm" onClick={resetAction} disabled={pending}>
                 Volver
-              </button>
+              </OpButton>
             </div>
           </div>
         )}

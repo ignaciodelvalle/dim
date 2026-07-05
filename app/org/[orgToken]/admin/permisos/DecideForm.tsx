@@ -1,5 +1,6 @@
 "use client";
 
+import { OpButton } from "@/components/ui/dashboard";
 import {
   type CapabilityActionState,
   decideCapabilityAction,
@@ -26,19 +27,12 @@ export function DecideForm({
     tone: "approve" | "deny",
   ) {
     const isOpen = showReason === decision;
-    const baseClass =
-      tone === "approve"
-        ? "bg-ln-op-ok text-white hover:bg-ln-op-ok/90"
-        : "bg-ln-op-danger text-white hover:bg-ln-op-danger/90";
+    const variant = tone === "approve" ? "ok" : "danger";
     if (!isOpen) {
       return (
-        <button
-          type="button"
-          onClick={() => setShowReason(decision)}
-          className={`text-sm px-2 py-1 rounded-[var(--radius-sm)] transition-colors ${baseClass}`}
-        >
+        <OpButton variant={variant} size="sm" onClick={() => setShowReason(decision)}>
           {label}
-        </button>
+        </OpButton>
       );
     }
     return (
@@ -53,13 +47,9 @@ export function DecideForm({
           className="text-sm w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card p-2 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
         />
         <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`text-sm px-2 py-1 rounded-[var(--radius-sm)] transition-colors disabled:opacity-50 ${baseClass}`}
-          >
+          <OpButton type="submit" variant={variant} size="sm" disabled={isSubmitting}>
             {isSubmitting ? "Enviando…" : `Confirmar ${label.toLowerCase()}`}
-          </button>
+          </OpButton>
           <button
             type="button"
             onClick={() => setShowReason(null)}

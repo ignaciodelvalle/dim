@@ -1,5 +1,6 @@
 "use client";
 
+import { OpButton } from "@/components/ui/dashboard";
 import { type EndFosterFormState, endFosterAction } from "@/src/modules/foster/actions";
 import { useActionState } from "react";
 
@@ -64,13 +65,9 @@ export function EndFosterForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-danger text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-50"
-      >
+      <OpButton type="submit" disabled={isPending} variant="danger">
         {isPending ? "Cerrando…" : "Cerrar tránsito"}
-      </button>
+      </OpButton>
     </form>
   );
 }

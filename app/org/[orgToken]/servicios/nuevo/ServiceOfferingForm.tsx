@@ -18,6 +18,7 @@ import { useActionState, useState } from "react";
 import type { ServiceOfferingFormState } from "@/app/actions/service-offerings";
 import { LnCheckbox, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { OpButton } from "@/components/ui/dashboard";
 import type { ServiceKindDef } from "@/lib/reference/service-kinds";
 
 const INITIAL_STATE: ServiceOfferingFormState = { error: null };
@@ -99,13 +100,9 @@ export function ServiceOfferingForm({
             />
           </div>
 
-          <button
-            type="button"
-            onClick={() => setStep(2)}
-            className="w-full px-5 py-3 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
-          >
+          <OpButton variant="primary" block onClick={() => setStep(2)}>
             Continuar
-          </button>
+          </OpButton>
         </section>
 
         {/* Step 2 — Capacidad */}
@@ -162,13 +159,9 @@ export function ServiceOfferingForm({
             />
           </div>
 
-          <button
-            type="button"
-            onClick={() => setStep(3)}
-            className="w-full px-5 py-3 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
-          >
+          <OpButton variant="primary" block onClick={() => setStep(3)}>
             Continuar
-          </button>
+          </OpButton>
         </section>
 
         {/* Step 3 — Elegibilidad + submit */}
@@ -221,13 +214,9 @@ export function ServiceOfferingForm({
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="flex-1 px-5 py-3 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
-            >
+            <OpButton type="submit" variant="primary" className="flex-1" disabled={isPending}>
               {isPending ? "Enviando…" : "Crear servicio"}
-            </button>
+            </OpButton>
             <a
               href={`/org/${orgToken}/servicios`}
               className="text-sm text-ln-op-azul hover:underline"

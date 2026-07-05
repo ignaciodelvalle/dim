@@ -1,6 +1,7 @@
 "use client";
 
 import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 import {
   type FinalizeAdoptionFormState,
   finalizeAdoptionAction,
@@ -149,13 +150,9 @@ export function FinalizeAdoptionForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
-      >
+      <OpButton type="submit" disabled={isPending} variant="ok">
         {isPending ? "Finalizando adopción…" : "Finalizar adopción"}
-      </button>
+      </OpButton>
     </form>
   );
 }

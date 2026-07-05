@@ -6,6 +6,7 @@
 import { useState, useTransition } from "react";
 
 import { blockSlotAction } from "@/app/actions/slot-materialization";
+import { OpButton } from "@/components/ui/dashboard";
 
 type Props = {
   orgToken: string;
@@ -46,13 +47,9 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
   if (!confirming) {
     return (
       <div className="flex flex-col gap-1">
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
-        >
+        <OpButton variant="danger" size="sm" onClick={() => setConfirming(true)}>
           Bloquear
-        </button>
+        </OpButton>
         {error && (
           <p className="text-sm text-ln-op-danger" role="alert">
             {error}
@@ -71,25 +68,20 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
         </p>
       )}
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={handleBlock}
-          disabled={pending}
-          className="rounded-[var(--radius-sm)] bg-ln-op-danger px-3 py-[5px] text-sm font-medium text-white transition-colors disabled:opacity-60"
-        >
+        <OpButton variant="danger" size="sm" onClick={handleBlock} disabled={pending}>
           {pending ? "Bloqueando..." : "Confirmar"}
-        </button>
-        <button
-          type="button"
+        </OpButton>
+        <OpButton
+          variant="ghost"
+          size="sm"
           onClick={() => {
             setConfirming(false);
             setError(null);
           }}
           disabled={pending}
-          className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

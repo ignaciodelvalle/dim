@@ -706,8 +706,8 @@ export default async function OrgDashboardPage({
                   Registrar / firmar evento clínico
                 </p>
                 <p className="text-sm text-ln-op-mute mt-1">
-                  Cargá una vacuna, cirugía u otro evento clínico. Si tenés matrícula
-                  verificada, se firma como verificado por profesional.
+                  Cargá una vacuna, cirugía u otro evento clínico. Si tenés matrícula verificada, se
+                  firma como verificado por profesional.
                 </p>
               </Link>
             )}

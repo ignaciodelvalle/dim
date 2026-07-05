@@ -1,6 +1,7 @@
 "use client";
 
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 import { type AssignFosterFormState, assignFosterAction } from "@/src/modules/foster/actions";
 import { useActionState, useState } from "react";
 
@@ -106,13 +107,9 @@ export function AssignFosterForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending || candidates.length === 0}
-        className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
-      >
+      <OpButton type="submit" disabled={isPending || candidates.length === 0}>
         {isPending ? "Asignando…" : "Asignar tránsito"}
-      </button>
+      </OpButton>
     </form>
   );
 }

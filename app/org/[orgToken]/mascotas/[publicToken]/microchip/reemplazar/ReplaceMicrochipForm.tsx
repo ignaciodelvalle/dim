@@ -1,6 +1,7 @@
 "use client";
 
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
@@ -123,13 +124,9 @@ export function ReplaceMicrochipForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full px-4 py-3 rounded-[var(--radius-md)] bg-ln-op-azul text-white font-medium hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
+      <OpButton type="submit" disabled={isPending} block>
         {isPending ? "Guardando..." : "Registrar reemplazo de chip"}
-      </button>
+      </OpButton>
     </form>
   );
 }

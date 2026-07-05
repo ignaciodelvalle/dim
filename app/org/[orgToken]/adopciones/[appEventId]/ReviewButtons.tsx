@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import {
   approveAdoptionApplicationAction,
   rejectAdoptionApplicationAction,
@@ -70,13 +71,9 @@ export function ReviewButtons({
     return (
       <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4">
         <p className="text-[13px] font-medium text-ln-op-ok">Mensaje enviado a {applicantName}.</p>
-        <button
-          type="button"
-          onClick={reset}
-          className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
-        >
+        <OpButton type="button" variant="ghost" onClick={reset}>
           Volver a las acciones
-        </button>
+        </OpButton>
       </div>
     );
   }
@@ -84,27 +81,15 @@ export function ReviewButtons({
   if (mode === null) {
     return (
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setMode("approve")}
-          className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
-        >
+        <OpButton type="button" variant="ok" onClick={() => setMode("approve")}>
           Aprobar postulación
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("request_info")}
-          className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-azul text-ln-op-azul bg-ln-op-card text-[13px] font-medium hover:bg-ln-op-blue-bg transition-colors"
-        >
+        </OpButton>
+        <OpButton type="button" variant="primary" onClick={() => setMode("request_info")}>
           Solicitar más información
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("reject")}
-          className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
-        >
+        </OpButton>
+        <OpButton type="button" variant="danger" onClick={() => setMode("reject")}>
           No avanzar
-        </button>
+        </OpButton>
       </div>
     );
   }
@@ -135,10 +120,10 @@ export function ReviewButtons({
     request_info: "Enviar mensaje",
   } as const;
 
-  const confirmStyleMap = {
-    approve: "bg-ln-op-ok hover:opacity-90",
-    reject: "bg-ln-op-azul hover:opacity-90",
-    request_info: "bg-ln-op-azul hover:opacity-90",
+  const confirmVariantMap = {
+    approve: "ok",
+    reject: "danger",
+    request_info: "primary",
   } as const;
 
   return (
@@ -154,22 +139,17 @@ export function ReviewButtons({
       />
       {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
-        <button
+        <OpButton
           type="button"
+          variant={confirmVariantMap[mode]}
           onClick={confirm}
           disabled={pending}
-          className={`px-4 py-2 rounded-[var(--radius-md)] text-[13px] font-medium text-white disabled:opacity-60 transition-opacity ${confirmStyleMap[mode]}`}
         >
           {pending ? "Procesando..." : confirmLabelMap[mode]}
-        </button>
-        <button
-          type="button"
-          onClick={reset}
-          disabled={pending}
-          className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
-        >
+        </OpButton>
+        <OpButton type="button" variant="ghost" onClick={reset} disabled={pending}>
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

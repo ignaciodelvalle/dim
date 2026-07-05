@@ -5,6 +5,7 @@
 
 import type { ScheduleRuleFormState } from "@/app/actions/schedule-rules";
 import { LnCheckbox, LnInput } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
 import { useActionState, useState } from "react";
 
 const WEEKDAYS = [
@@ -134,13 +135,9 @@ export function AgendaRuleForm({
       </div>
 
       <div className="flex items-center gap-3 pt-1">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
-        >
+        <OpButton type="submit" variant="primary" disabled={isPending}>
           {isPending ? "Guardando…" : "Agregar regla"}
-        </button>
+        </OpButton>
       </div>
     </form>
   );

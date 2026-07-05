@@ -4,6 +4,8 @@
 
 import { useState } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
+
 export function CopyLinkButton({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -18,12 +20,8 @@ export function CopyLinkButton({ url }: { url: string }) {
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
-    >
+    <OpButton variant="ghost" size="sm" onClick={handleCopy}>
       {copied ? "¡Copiado!" : "Copiar link"}
-    </button>
+    </OpButton>
   );
 }

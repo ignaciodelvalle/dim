@@ -18,6 +18,7 @@
 import { useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import type { OrganizationCoverage } from "@/db";
 import type { LocalityOption } from "@/lib/infra/ar-localidades";
 import type { Province } from "@/lib/reference/ar-provincias";
@@ -152,14 +153,13 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
             </p>
           )}
 
-          <button
-            type="button"
+          <OpButton
+            variant="primary"
             onClick={handleAdd}
             disabled={pending || !selectedProvinceCode}
-            className="inline-flex items-center gap-2 rounded-full bg-ln-op-azul px-5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-ln-op-azul-700 disabled:opacity-60"
           >
             {pending ? "Guardando…" : "Agregar zona"}
-          </button>
+          </OpButton>
         </div>
       )}
 
@@ -228,23 +228,23 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex gap-2">
                           {!zone.isPrimary && (
-                            <button
-                              type="button"
+                            <OpButton
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleSetPrimary(zone.id)}
                               disabled={pending}
-                              className="rounded-full border border-ln-op-line px-3 py-1 text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
                             >
                               Marcar principal
-                            </button>
+                            </OpButton>
                           )}
-                          <button
-                            type="button"
+                          <OpButton
+                            variant="danger"
+                            size="sm"
                             onClick={() => handleRemove(zone.id)}
                             disabled={pending}
-                            className="rounded-full border border-ln-op-danger-bd px-3 py-1 text-sm font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white disabled:opacity-60"
                           >
                             Eliminar
-                          </button>
+                          </OpButton>
                         </div>
                       </td>
                     )}

@@ -19,6 +19,7 @@ import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnCheckbox, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { OpButton } from "@/components/ui/dashboard";
 import { OpField } from "@/components/ui/dashboard/OpField";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import {
@@ -154,14 +155,14 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             />
           )}
         </OpField>
-        <button
-          type="button"
+        <OpButton
+          variant="primary"
+          block
           onClick={() => setStep(2)}
           disabled={!petPublicToken.trim()}
-          className="w-full rounded-[var(--radius-md)] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Continuar
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 2 — Cuándo */}
@@ -180,14 +181,9 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             />
           )}
         </OpField>
-        <button
-          type="button"
-          onClick={() => setStep(3)}
-          disabled={!occurredAt}
-          className="w-full rounded-[var(--radius-md)] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton variant="primary" block onClick={() => setStep(3)} disabled={!occurredAt}>
           Continuar
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 3 — Víctima + contexto */}
@@ -356,14 +352,9 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           )}
         </OpField>
 
-        <button
-          type="button"
-          onClick={() => setStep(4)}
-          disabled={!severity}
-          className="w-full rounded-[var(--radius-md)] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton variant="primary" block onClick={() => setStep(4)} disabled={!severity}>
           Continuar
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 4 — Confirmar + submit */}
@@ -386,14 +377,14 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           </p>
         )}
 
-        <button
-          type="button"
+        <OpButton
+          variant="primary"
+          block
           onClick={submit}
           disabled={pending || !confirmObservation}
-          className="w-full rounded-[var(--radius-md)] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {pending ? "Reportando..." : "Confirmar mordedura"}
-        </button>
+        </OpButton>
       </section>
     </LnWizardShell>
   );

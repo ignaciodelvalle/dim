@@ -1,5 +1,6 @@
 "use client";
 
+import { OpButton } from "@/components/ui/dashboard";
 import {
   type CapabilityActionState,
   requestCapabilityAction,
@@ -20,13 +21,9 @@ export function RequestCapabilityForm({
 
   if (!expanded) {
     return (
-      <button
-        type="button"
-        onClick={() => setExpanded(true)}
-        className="text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line text-ln-op-azul hover:bg-ln-op-stripe transition-colors"
-      >
+      <OpButton variant="ghost" size="sm" onClick={() => setExpanded(true)}>
         Solicitar
-      </button>
+      </OpButton>
     );
   }
 
@@ -41,13 +38,9 @@ export function RequestCapabilityForm({
         className="text-sm w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card p-2 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
       />
       <div className="flex items-center gap-2">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="text-sm px-2 py-1 rounded-[var(--radius-sm)] bg-ln-op-azul text-white disabled:opacity-50 transition-colors"
-        >
+        <OpButton type="submit" variant="primary" size="sm" disabled={isPending}>
           {isPending ? "Enviando…" : "Enviar pedido"}
-        </button>
+        </OpButton>
         <button
           type="button"
           onClick={() => setExpanded(false)}

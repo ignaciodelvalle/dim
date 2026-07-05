@@ -7,7 +7,7 @@ import { useState, useTransition } from "react";
 import { Icon } from "@/components/Icon";
 import { LnButton } from "@/components/ui/Button";
 import { LnCheckbox, LnField, LnInput, LnSelect } from "@/components/ui/Field";
-import { OpCallout } from "@/components/ui/dashboard";
+import { OpButton, OpCallout } from "@/components/ui/dashboard";
 import { inviteMemberAction } from "@/src/modules/organizations/actions";
 
 type RoleOption = { value: string; label: string };
@@ -68,13 +68,9 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
         <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
           <p className="break-all font-ln-mono text-sm text-ln-op-ink">{inviteUrl}</p>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
-            >
+            <OpButton variant="ghost" size="sm" onClick={handleCopy}>
               {copied ? "¡Copiado!" : "Copiar link"}
-            </button>
+            </OpButton>
             <a
               href={`https://wa.me/?text=${encodeURIComponent(inviteUrl)}`}
               target="_blank"

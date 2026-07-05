@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { speciesLabel } from "@/lib/utils/format";
 import { proposeFosterAction } from "@/src/modules/foster/actions";
@@ -106,14 +107,15 @@ export function VolunteerRow({
           )}
         </div>
         {!open && (
-          <button
-            type="button"
+          <OpButton
+            variant="primary"
+            size="sm"
+            className="whitespace-nowrap"
             onClick={() => setOpen(true)}
             disabled={orgPets.length === 0}
-            className="whitespace-nowrap rounded-[var(--radius-sm)] bg-ln-op-azul px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700 disabled:opacity-50"
           >
             Proponer tránsito
-          </button>
+          </OpButton>
         )}
       </div>
 
@@ -167,22 +169,12 @@ export function VolunteerRow({
           />
           {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={propose}
-              disabled={pending}
-              className="rounded-[var(--radius-sm)] bg-ln-op-ok px-4 py-[7px] text-sm font-semibold text-white transition-colors disabled:opacity-50"
-            >
+            <OpButton variant="ok" size="sm" onClick={propose} disabled={pending}>
               {pending ? "Enviando..." : "Enviar propuesta"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              disabled={pending}
-              className="rounded-[var(--radius-sm)] border border-ln-op-line px-4 py-[7px] text-sm text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
-            >
+            </OpButton>
+            <OpButton variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>
               Cancelar
-            </button>
+            </OpButton>
           </div>
         </div>
       )}

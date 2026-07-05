@@ -16,6 +16,7 @@
 import { useRef, useState, useTransition } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   addInterventionNoteAction,
@@ -91,30 +92,17 @@ export function InterventionActions({
     return (
       <div className="flex flex-wrap items-center gap-2">
         {interventionStatus !== "tomado" ? (
-          <button
-            type="button"
-            onClick={take}
-            disabled={pending}
-            className="px-3 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors disabled:opacity-50"
-          >
+          <OpButton variant="primary" size="sm" onClick={take} disabled={pending}>
             {pending ? "Procesando..." : "Tomar denuncia"}
-          </button>
+          </OpButton>
         ) : (
           <>
-            <button
-              type="button"
-              onClick={() => setMode("add_note")}
-              className="px-3 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors"
-            >
+            <OpButton variant="primary" size="sm" onClick={() => setMode("add_note")}>
               Agregar nota
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("return")}
-              className="px-3 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium border border-ln-op-warn-bd bg-ln-op-warn-bg text-ln-op-warn hover:opacity-90 transition-opacity"
-            >
+            </OpButton>
+            <OpButton variant="danger" size="sm" onClick={() => setMode("return")}>
               No podemos intervenir
-            </button>
+            </OpButton>
           </>
         )}
         {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
@@ -158,14 +146,9 @@ export function InterventionActions({
         >
           {pending ? "Procesando..." : isReturn ? "Confirmar devolución" : "Guardar nota"}
         </button>
-        <button
-          type="button"
-          onClick={reset}
-          disabled={pending}
-          className="px-4 py-2 rounded-[var(--radius-sm)] border border-ln-op-line text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
-        >
+        <OpButton variant="ghost" size="sm" onClick={reset} disabled={pending}>
           Cancelar
-        </button>
+        </OpButton>
       </div>
 
       {isReturn && (

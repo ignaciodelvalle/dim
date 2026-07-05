@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import { type EndFosterFormState, endFosterAction } from "@/src/modules/foster/actions";
 
 const SELECTABLE_END_REASONS = [
@@ -49,13 +50,9 @@ export function EndFosterButton({
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="shrink-0 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors whitespace-nowrap"
-      >
+      <OpButton variant="danger" size="sm" onClick={() => setOpen(true)} className="shrink-0">
         Finalizar tránsito
-      </button>
+      </OpButton>
     );
   }
 
@@ -94,45 +91,40 @@ export function EndFosterButton({
             Esto cierra el tránsito y notifica al voluntario. ¿Confirmás?
           </p>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={submit}
-              disabled={pending}
-              className="rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-            >
+            <OpButton variant="danger" size="sm" onClick={submit} disabled={pending}>
               {pending ? "Cerrando..." : "Confirmar finalización"}
-            </button>
-            <button
-              type="button"
+            </OpButton>
+            <OpButton
+              variant="ghost"
+              size="sm"
               onClick={() => setConfirming(false)}
               disabled={pending}
-              className="rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
             >
               Atrás
-            </button>
+            </OpButton>
           </div>
         </div>
       ) : (
         <div className="flex gap-2">
-          <button
-            type="button"
+          <OpButton
+            variant="danger"
+            size="sm"
             onClick={() => setConfirming(true)}
             disabled={pending}
-            className="rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             Confirmar
-          </button>
-          <button
-            type="button"
+          </OpButton>
+          <OpButton
+            variant="ghost"
+            size="sm"
             onClick={() => {
               setOpen(false);
               setConfirming(false);
             }}
             disabled={pending}
-            className="rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
       )}
     </div>

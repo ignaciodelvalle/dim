@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { setAdoptionEligibilityAction } from "@/src/modules/adoption/actions";
 
@@ -97,28 +98,22 @@ export function EligibilityForm({
       <div className="space-y-2">
         <p className="text-sm font-medium text-ln-op-ink">Decisión</p>
         <div className="flex gap-2">
-          <button
+          <OpButton
             type="button"
+            size="sm"
+            variant={decision === "eligible" ? "ok" : "ghost"}
             onClick={() => setDecision("eligible")}
-            className={`px-3 py-1.5 rounded-[var(--radius-md)] border text-sm ${
-              decision === "eligible"
-                ? "bg-ln-op-ok text-white border-ln-op-ok"
-                : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe"
-            }`}
           >
             Apta para adopción
-          </button>
-          <button
+          </OpButton>
+          <OpButton
             type="button"
+            size="sm"
+            variant={decision === "not_eligible" ? "primary" : "ghost"}
             onClick={() => setDecision("not_eligible")}
-            className={`px-3 py-1.5 rounded-[var(--radius-md)] border text-sm ${
-              decision === "not_eligible"
-                ? "bg-ln-op-azul text-white border-ln-op-azul"
-                : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe"
-            }`}
           >
             NO apta
-          </button>
+          </OpButton>
         </div>
       </div>
 
@@ -176,22 +171,17 @@ export function EligibilityForm({
       {okMessage && <output className="block text-sm text-ln-op-ok">{okMessage}</output>}
 
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={pending}
-          className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={pending}>
           {pending ? "Guardando..." : "Confirmar elegibilidad"}
-        </button>
-        <button
+        </OpButton>
+        <OpButton
           type="button"
+          variant="ghost"
           onClick={() => router.push(`/org/${orgToken}/mascotas`)}
           disabled={pending}
-          className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-line text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

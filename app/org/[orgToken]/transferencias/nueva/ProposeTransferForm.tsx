@@ -16,6 +16,7 @@ import { useState, useTransition } from "react";
 
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { OpButton } from "@/components/ui/dashboard";
 import { proposeCrossOrgTransferAction } from "@/src/modules/transfers/actions";
 
 interface ReceiverOption {
@@ -127,13 +128,9 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           Esta propuesta crea un handshake con otra organización. La transferencia se concreta solo
           si el destinatario acepta.
         </p>
-        <button
-          type="button"
-          onClick={() => setStep(2)}
-          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
-        >
+        <OpButton type="button" onClick={() => setStep(2)} block>
           Continuar
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 2 — Destino */}
@@ -164,14 +161,9 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
             Solo aparecen orgs verificadas activas. Sin auto-selección por proximidad.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setStep(3)}
-          disabled={!receiverOrgId}
-          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={() => setStep(3)} disabled={!receiverOrgId} block>
           Continuar
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 3 — Razón + notas */}
@@ -224,14 +216,9 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSubmit}
-          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={!canSubmit} block>
           {pending ? "Enviando…" : "Confirmar transferencia"}
-        </button>
+        </OpButton>
       </section>
     </LnWizardShell>
   );

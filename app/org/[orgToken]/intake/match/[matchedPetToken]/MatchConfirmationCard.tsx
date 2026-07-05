@@ -11,7 +11,7 @@ import Image from "next/image";
 import { useState, useTransition } from "react";
 
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
-import { OpBreach, OpPill } from "@/components/ui/dashboard";
+import { OpBreach, OpButton, OpPill } from "@/components/ui/dashboard";
 import { speciesLabel } from "@/lib/utils/format";
 import { useRouter } from "next/navigation";
 
@@ -141,22 +141,23 @@ export function MatchConfirmationCard({
       )}
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <button
+        <OpButton
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("same")}
-          className="flex-1 rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="flex-1"
         >
           {isPending ? "Procesando..." : "Es la misma mascota"}
-        </button>
-        <button
+        </OpButton>
+        <OpButton
           type="button"
+          variant="ghost"
           disabled={isPending}
           onClick={() => handleDecision("not_same")}
-          className="flex-1 rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 px-4 py-3 text-[13px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-warn/20 disabled:opacity-50"
+          className="flex-1"
         >
           {isPending ? "Procesando..." : "No es la misma"}
-        </button>
+        </OpButton>
       </div>
 
       <p className="text-sm text-ln-op-mute">

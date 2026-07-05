@@ -10,6 +10,7 @@ import {
   pauseServiceOfferingAction,
   unpauseServiceOfferingAction,
 } from "@/app/actions/service-offerings";
+import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Props = {
@@ -86,27 +87,25 @@ export function OfferingActions({ orgToken, offeringToken, status }: Props) {
           </p>
         )}
         <div className="flex gap-2">
-          <button
-            type="button"
+          <OpButton
+            variant={isDestructive ? "danger" : "primary"}
+            size="sm"
             onClick={() => run(confirming)}
             disabled={pending}
-            className={`rounded-[var(--radius-sm)] px-3 py-[5px] text-sm font-medium text-white transition-colors disabled:opacity-60 ${
-              isDestructive ? "bg-ln-op-danger" : "bg-ln-op-azul"
-            }`}
           >
             {pending ? "Procesando..." : confirmLabel[confirming]}
-          </button>
-          <button
-            type="button"
+          </OpButton>
+          <OpButton
+            variant="ghost"
+            size="sm"
             onClick={() => {
               setConfirming(null);
               setError(null);
             }}
             disabled={pending}
-            className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
       </div>
     );
@@ -119,20 +118,16 @@ export function OfferingActions({ orgToken, offeringToken, status }: Props) {
           {error}
         </p>
       )}
-      <button
-        type="button"
+      <OpButton
+        variant="ghost"
+        size="sm"
         onClick={() => setConfirming(isPaused ? "unpause" : "pause")}
-        className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
       >
         {isPaused ? "Reactivar servicio" : "Pausar servicio"}
-      </button>
-      <button
-        type="button"
-        onClick={() => setConfirming("archive")}
-        className="rounded-[var(--radius-sm)] px-3 py-[5px] text-sm font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger-bg"
-      >
+      </OpButton>
+      <OpButton variant="danger" size="sm" onClick={() => setConfirming("archive")}>
         Eliminar
-      </button>
+      </OpButton>
     </div>
   );
 }
