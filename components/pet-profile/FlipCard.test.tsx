@@ -92,9 +92,37 @@ describe("<FlipCard> — both faces always mounted", () => {
   });
 });
 
-describe("<FlipCard> — prefers-reduced-motion instant swap", () => {
-  it("has no transition/transform class and no rotateY when reduced motion is active", () => {
+describe("<FlipCard> — hydration-safe single tree (prefers-reduced-motion via CSS)", () => {
+  it("produces IDENTICAL markup regardless of the reduced-motion media query", () => {
+    // The reduced-motion branch was removed: motion is honored purely in CSS
+    // (.ln-doc-turn transition nulled under the media query), so the React tree
+    // must be deterministic server↔client — no matchMedia-driven subtree swap
+    // that would hydrate-mismatch on a reduced-motion client.
+    stubMatchMedia(false);
+    const noReduce = renderToStaticMarkup(
+      <FlipCard
+        front={<div>F</div>}
+        back={<div>B</div>}
+        activeFace="credencial"
+        onFlip={() => {}}
+      />,
+    );
     stubMatchMedia(true);
+    const reduce = renderToStaticMarkup(
+      <FlipCard
+        front={<div>F</div>}
+        back={<div>B</div>}
+        activeFace="credencial"
+        onFlip={() => {}}
+      />,
+    );
+    expect(reduce).toBe(noReduce);
+    // The transition is a CSS class, not a reduced-motion data attribute.
+    expect(noReduce).toContain("ln-doc-turn");
+    expect(noReduce).not.toContain("data-reduced-motion");
+  });
+
+  it("wires each face as a tabpanel controlled by its tab (aria-labelledby ↔ id)", () => {
     const html = renderToStaticMarkup(
       <FlipCard
         front={<div>F</div>}
@@ -103,18 +131,11 @@ describe("<FlipCard> — prefers-reduced-motion instant swap", () => {
         onFlip={() => {}}
       />,
     );
-    expect(html).toContain('data-reduced-motion="true"');
-    expect(html).not.toContain("transition-transform");
-    expect(html).not.toContain("rotateY");
-  });
-
-  it("swaps visibility via hidden/block classes instead of a 3D transform", () => {
-    stubMatchMedia(true);
-    const html = renderToStaticMarkup(
-      <FlipCard front={<div>F</div>} back={<div>B</div>} activeFace="libreta" onFlip={() => {}} />,
-    );
-    expect(html).toContain('data-section="flip-front" aria-hidden="true" class="hidden"');
-    expect(html).toContain('data-section="flip-back" aria-hidden="false" class="block"');
+    expect(html).toContain('id="pet-face-credencial"');
+    expect(html).toContain('aria-labelledby="pet-tab-credencial"');
+    expect(html).toContain('id="pet-face-libreta"');
+    expect(html).toContain('aria-labelledby="pet-tab-libreta"');
+    expect(html).toContain('role="tabpanel"');
   });
 });
 

@@ -18,12 +18,19 @@
 //   component (and thus the Libreta face) is rendered.
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-data";
 import { Icon } from "@/components/Icon";
-import { FlipCard } from "@/components/pet-profile/FlipCard";
+import { FlipCard, PET_FACE_PANEL_ID, PET_FACE_TAB_ID } from "@/components/pet-profile/FlipCard";
 import {
   LibretaFace,
   type LibretaFaceEmergencyContacts,
@@ -182,9 +189,11 @@ export function PetDetailTabsPanel({
     const faceFromHash = HASH_TO_TAB[hash];
     if (faceFromHash && faceFromHash !== initialFace) {
       const params = new URLSearchParams(searchParams.toString());
+      // `?lente=` is a dead param (ADR-10 removed the lens system;
+      // resolvePetFace ignores it) — stop writing it. Any legacy `?lente=`
+      // already in the URL is preserved untouched (harmless, still resolves).
       if (faceFromHash === "libreta") {
         params.set("tab", "libreta");
-        if (!params.get("lente")) params.set("lente", isOwner ? "todo" : "oficial");
       } else {
         params.delete("tab");
         params.delete("lente");
@@ -197,7 +206,7 @@ export function PetDetailTabsPanel({
         });
       });
     }
-  }, [searchParams, initialFace, isOwner]);
+  }, [searchParams, initialFace]);
 
   // Back face content — skeleton/error scoped here only (never the front,
   // which is the eager SSR credencialContent).
@@ -221,20 +230,38 @@ export function PetDetailTabsPanel({
   // silent-drop symptom as the sheets (see lib/ui/sheet-nav.ts). pushState
   // (not replaceState) is required here so the browser back button can undo
   // a flip and restore the previous face via popstate → useSearchParams()
-  // reactivity above.
-  function goToFace(target: TabKey) {
+  // reactivity above. `?lente=` is no longer written (dead param, ADR-10).
+  //
+  // `focusAfter` records where focus should land once the flip lands (the
+  // active-face effect below performs the move once `activeFace` catches up):
+  // "panel" for a deliberate flip (click / band turn button) so the reader is
+  // taken to the newly-shown content; "tab" for arrow-key roving so focus stays
+  // on the tablist. The move is only performed for user-initiated flips — never
+  // on mount / deep-link / browser-back (which leave `focusAfter` null).
+  const focusAfterRef = useRef<"panel" | "tab" | null>(null);
+
+  function goToFace(target: TabKey, focusAfter: "panel" | "tab" = "panel") {
     if (target === activeFace) return;
+    focusAfterRef.current = focusAfter;
     const params = new URLSearchParams(searchParams.toString());
     if (target === "credencial") {
       params.delete("tab");
       params.delete("lente");
     } else {
       params.set("tab", "libreta");
-      params.set("lente", isOwner ? "todo" : "oficial");
     }
     const qs = params.toString();
     pushTabUrl(qs ? `${pathname}?${qs}` : pathname);
   }
+
+  // Move focus after a user-initiated flip settles (see focusAfterRef).
+  useEffect(() => {
+    const mode = focusAfterRef.current;
+    if (!mode) return;
+    focusAfterRef.current = null;
+    const id = mode === "panel" ? PET_FACE_PANEL_ID[activeFace] : PET_FACE_TAB_ID[activeFace];
+    document.getElementById(id)?.focus();
+  }, [activeFace]);
 
   // Two flip triggers, kept in sync (both write ?tab= through goToFace): the
   // segmented Credencial/Libreta control below, and the band turn button that
@@ -243,43 +270,58 @@ export function PetDetailTabsPanel({
     goToFace(activeFace === "credencial" ? "libreta" : "credencial");
   }
 
+  // Roving tablist keyboard nav (WAI-ARIA tabs pattern): Arrow/Home/End move
+  // focus between the two tabs and auto-activate; focus stays on the tabs.
+  function onTablistKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    let target: TabKey | null = null;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "End") target = "libreta";
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "Home")
+      target = "credencial";
+    if (!target) return;
+    e.preventDefault();
+    if (target !== activeFace) goToFace(target, "tab");
+    else document.getElementById(PET_FACE_TAB_ID[target])?.focus();
+  }
+
+  function faceTab(face: TabKey, label: string, eyebrow: string, icon: string) {
+    const isActive = activeFace === face;
+    return (
+      <button
+        type="button"
+        id={PET_FACE_TAB_ID[face]}
+        role="tab"
+        aria-selected={isActive}
+        aria-controls={PET_FACE_PANEL_ID[face]}
+        tabIndex={isActive ? 0 : -1}
+        className={`ln-facetab${isActive ? " is-active" : ""}`}
+        onClick={() => goToFace(face, "panel")}
+      >
+        <span className="ln-facetab-ic">
+          <Icon name={icon} size="sm" decorative />
+        </span>
+        <span className="ln-facetab-t">
+          <b>{label}</b>
+          <span>{eyebrow}</span>
+        </span>
+      </button>
+    );
+  }
+
   return (
     <div id="tab-panel" className="ln-doc-root">
       {/* Recto/verso — explicit two-sided control (the "Una sola libreta"
           redesign restored a visible segmented switcher alongside the band
-          turn button; aria-selected stays synced across both triggers). */}
+          turn button; aria-selected + the tabpanel wiring stay synced across
+          both triggers). */}
       <div className="ln-facetabs">
-        <div className="ln-facetabs-inner" role="tablist" aria-label="Cara del documento">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeFace === "credencial"}
-            className={`ln-facetab${activeFace === "credencial" ? " is-active" : ""}`}
-            onClick={() => goToFace("credencial")}
-          >
-            <span className="ln-facetab-ic">
-              <Icon name="credential" size="sm" decorative />
-            </span>
-            <span className="ln-facetab-t">
-              <b>Credencial</b>
-              <span>Frente</span>
-            </span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeFace === "libreta"}
-            className={`ln-facetab${activeFace === "libreta" ? " is-active" : ""}`}
-            onClick={() => goToFace("libreta")}
-          >
-            <span className="ln-facetab-ic">
-              <Icon name="libreta" size="sm" decorative />
-            </span>
-            <span className="ln-facetab-t">
-              <b>Libreta</b>
-              <span>Dorso</span>
-            </span>
-          </button>
+        <div
+          className="ln-facetabs-inner"
+          role="tablist"
+          aria-label="Cara del documento"
+          onKeyDown={onTablistKeyDown}
+        >
+          {faceTab("credencial", "Credencial", "Frente", "credential")}
+          {faceTab("libreta", "Libreta", "Dorso", "libreta")}
         </div>
       </div>
 

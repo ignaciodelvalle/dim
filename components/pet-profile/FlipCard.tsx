@@ -3,8 +3,9 @@
 // FlipCard — literal CSS-3D flip container for the pet profile's two faces
 // (pet-document-redesign ADR-11, elevated in the "Una sola libreta" redesign).
 // PRESENTATION ONLY: it has no navigation state of its own — `activeFace` is
-// read from the caller (PetDetailTabsPanel, which owns the ?tab= sync) and
-// `onFlip` is a callback the caller wires to its own ?tab= write.
+// read from the caller (PetDetailTabsPanel, which owns the ?tab= sync + the
+// tablist wiring) and `onFlip` is a callback the caller wires to its ?tab=
+// write.
 //
 // The document reads as ONE physical two-sided object:
 //   - Two offset "back page" sheets peek behind (.ln-doc-wrap ::before/::after).
@@ -14,19 +15,31 @@
 //   - Each face is wrapped in <DocumentChrome> (blue band + certificate frame +
 //     the "Dar vuelta / Ver credencial" turn button — the second flip trigger).
 //
-// Both `front` and `back` are ALWAYS mounted — the back face needs to exist in
-// the DOM from the first render so ResizeObserver can measure it and the flip
-// has real content to rotate into (no first-flip content pop-in).
+// Both faces are ALWAYS mounted (the back face must exist from first render so
+// ResizeObserver can measure it and the flip has real content to rotate into),
+// and each is a `role="tabpanel"` wired to its tab in PetDetailTabsPanel.
 //
-// `prefers-reduced-motion: reduce` disables the 3D transform entirely: the
-// non-active face is hidden via `display:none` (still mounted) instead of being
-// rotated out of view, and no transition class is applied. The peeking pages
-// and band chrome still render (they carry no motion of their own).
+// HYDRATION SAFETY: this renders ONE deterministic tree — server and client
+// produce identical markup. `prefers-reduced-motion` is honored purely in CSS
+// (.ln-doc-turn transition is nulled under the media query), NOT by branching to
+// a different React subtree, which used to hydrate-mismatch on a reduced-motion
+// client (the server always sees reduced-motion = false).
 
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { DocumentChrome } from "./DocumentChrome";
 
 export type FlipCardFace = "credencial" | "libreta";
+
+// Stable ids shared with PetDetailTabsPanel's tablist so each tab controls its
+// panel (aria-controls ↔ id) and the panel is labelled by its tab.
+export const PET_FACE_TAB_ID: Record<FlipCardFace, string> = {
+  credencial: "pet-tab-credencial",
+  libreta: "pet-tab-libreta",
+};
+export const PET_FACE_PANEL_ID: Record<FlipCardFace, string> = {
+  credencial: "pet-face-credencial",
+  libreta: "pet-face-libreta",
+};
 
 type FlipCardProps = {
   front: ReactNode;
@@ -36,98 +49,51 @@ type FlipCardProps = {
   onFlip: () => void;
 };
 
-function readPrefersReducedMotion(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-function usePrefersReducedMotion(): boolean {
-  // Lazy initializer runs during the render pass itself (including under
-  // renderToStaticMarkup, unlike useEffect) so the reduced-motion branch is
-  // testable without jsdom — repo convention (react-dom/server, no jsdom).
-  const [reduced, setReduced] = useState(readPrefersReducedMotion);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const handler = (e: MediaQueryListEvent) => setReduced(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-  return reduced;
-}
-
 export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
-  const reducedMotion = usePrefersReducedMotion();
   const frontRef = useRef<HTMLDivElement>(null);
   const backRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | undefined>(undefined);
 
   const isLibreta = activeFace === "libreta";
 
-  // JS-measured height transition (ADR-11): syncs the container's height to
-  // whichever face is currently visible, so the height animates together with
-  // the rotateY transform instead of snapping. Skipped entirely under reduced
-  // motion (see the render branch below — no explicit height there).
+  // Height-sync (ADR-11): keep the rotating container's height matched to the
+  // visible face so the height animates with the turn instead of snapping.
+  // Observes BOTH faces — not just the active one — so an async content change
+  // on the CURRENTLY-SHOWN face (e.g. the Libreta back face resolving from its
+  // loading skeleton to real content while already flipped) re-measures
+  // immediately, instead of leaving a stale height until the next flip.
   useLayoutEffect(() => {
-    if (reducedMotion) return;
-    const activeEl = isLibreta ? backRef.current : frontRef.current;
-    if (!activeEl) return;
-    setHeight(activeEl.getBoundingClientRect().height);
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) setHeight(entry.contentRect.height);
-    });
-    ro.observe(activeEl);
+    const measure = () => {
+      const el = (isLibreta ? backRef : frontRef).current;
+      if (el) setHeight(el.getBoundingClientRect().height);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (frontRef.current) ro.observe(frontRef.current);
+    if (backRef.current) ro.observe(backRef.current);
     return () => ro.disconnect();
-  }, [isLibreta, reducedMotion]);
-
-  if (reducedMotion) {
-    return (
-      <div data-section="flip-card" data-reduced-motion="true" className="ln-doc-root">
-        <div className="ln-doc-stage">
-          <div className="ln-doc-wrap">
-            <div
-              ref={frontRef}
-              data-section="flip-front"
-              aria-hidden={isLibreta}
-              className={isLibreta ? "hidden" : "block"}
-            >
-              <DocumentChrome face="credencial" onFlip={onFlip} isLibretaActive={isLibreta}>
-                {front}
-              </DocumentChrome>
-            </div>
-            <div
-              ref={backRef}
-              data-section="flip-back"
-              aria-hidden={!isLibreta}
-              className={isLibreta ? "block" : "hidden"}
-            >
-              <DocumentChrome face="libreta" onFlip={onFlip} isLibretaActive={isLibreta}>
-                {back}
-              </DocumentChrome>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  }, [isLibreta]);
 
   return (
     <div data-section="flip-card" className="ln-doc-root">
       <div className="ln-doc-stage">
         <div className="ln-doc-wrap">
           <div
-            className="relative w-full [-webkit-transform-style:preserve-3d] [transform-style:preserve-3d]"
+            className="ln-doc-turn relative w-full [-webkit-transform-style:preserve-3d] [transform-style:preserve-3d]"
             style={{
               transform: `rotateY(${isLibreta ? 180 : 0}deg)`,
               height: height !== undefined ? `${height}px` : undefined,
-              transition: "transform 500ms ease-in-out, height 500ms ease-in-out",
             }}
           >
             <div
               ref={frontRef}
+              id={PET_FACE_PANEL_ID.credencial}
+              role="tabpanel"
+              aria-labelledby={PET_FACE_TAB_ID.credencial}
+              tabIndex={-1}
               data-section="flip-front"
               aria-hidden={isLibreta}
-              className="absolute inset-x-0 top-0 w-full [-webkit-backface-visibility:hidden] [backface-visibility:hidden]"
+              className="absolute inset-x-0 top-0 w-full outline-none [-webkit-backface-visibility:hidden] [backface-visibility:hidden]"
             >
               <DocumentChrome face="credencial" onFlip={onFlip} isLibretaActive={isLibreta}>
                 {front}
@@ -135,9 +101,13 @@ export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
             </div>
             <div
               ref={backRef}
+              id={PET_FACE_PANEL_ID.libreta}
+              role="tabpanel"
+              aria-labelledby={PET_FACE_TAB_ID.libreta}
+              tabIndex={-1}
               data-section="flip-back"
               aria-hidden={!isLibreta}
-              className="absolute inset-x-0 top-0 w-full [-webkit-backface-visibility:hidden] [backface-visibility:hidden] [transform:rotateY(180deg)]"
+              className="absolute inset-x-0 top-0 w-full outline-none [-webkit-backface-visibility:hidden] [backface-visibility:hidden] [transform:rotateY(180deg)]"
             >
               <DocumentChrome face="libreta" onFlip={onFlip} isLibretaActive={isLibreta}>
                 {back}

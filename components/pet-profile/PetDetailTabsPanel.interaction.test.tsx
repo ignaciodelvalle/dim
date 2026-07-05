@@ -141,13 +141,13 @@ describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => 
     );
   });
 
-  it("clicking Girar flips the face and updates the URL to ?tab=libreta&lente=todo — no router involved", () => {
+  it("clicking Girar flips the face and updates the URL to ?tab=libreta — no router involved", () => {
     renderPanel("credencial");
 
     expect(window.location.search).toBe("");
     fireEvent.click(screen.getByRole("button", { name: "Girar a Libreta" }));
 
-    expect(window.location.search).toBe("?tab=libreta&lente=todo");
+    expect(window.location.search).toBe("?tab=libreta");
     const flipped = screen.getByRole("button", { name: "Girar a Credencial" });
     expect(flipped).toBeInTheDocument();
     expect(flipped).toHaveAttribute("aria-pressed", "true");
@@ -159,7 +159,7 @@ describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => 
     renderPanel("credencial");
 
     fireEvent.click(screen.getByRole("button", { name: "Girar a Libreta" }));
-    expect(window.location.search).toBe("?tab=libreta&lente=todo");
+    expect(window.location.search).toBe("?tab=libreta");
 
     fireEvent.click(screen.getByRole("button", { name: "Girar a Credencial" }));
     expect(window.location.search).toBe("");
@@ -174,7 +174,7 @@ describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => 
     renderPanel("credencial");
 
     fireEvent.click(screen.getByRole("button", { name: "Girar a Libreta" }));
-    expect(window.location.search).toBe("?tab=libreta&lente=todo");
+    expect(window.location.search).toBe("?tab=libreta");
 
     act(() => {
       window.history.back();
@@ -202,8 +202,33 @@ describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => 
 
     // Clicking the Libreta tab flips the face via the History API (no router).
     fireEvent.click(libretaTab);
-    expect(window.location.search).toBe("?tab=libreta&lente=todo");
+    expect(window.location.search).toBe("?tab=libreta");
     expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(routerReplace).not.toHaveBeenCalled();
+  });
+
+  it("wires each tab to its face panel (aria-controls ↔ id) with roving tabIndex", () => {
+    renderPanel("credencial");
+    const [credencialTab, libretaTab] = screen.getAllByRole("tab");
+
+    // aria-controls points at the tabpanel FlipCard renders for that face.
+    expect(credencialTab).toHaveAttribute("aria-controls", "pet-face-credencial");
+    expect(libretaTab).toHaveAttribute("aria-controls", "pet-face-libreta");
+    // Roving tabIndex: only the active tab is in the tab order.
+    expect(credencialTab).toHaveAttribute("tabindex", "0");
+    expect(libretaTab).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("ArrowRight on the tablist moves to and activates the Libreta face", () => {
+    renderPanel("credencial");
+    const tablist = screen.getByRole("tablist");
+
+    fireEvent.keyDown(tablist, { key: "ArrowRight" });
+    expect(window.location.search).toBe("?tab=libreta");
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
+    // Roving tabIndex follows the active tab.
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("tabindex", "0");
     expect(routerPush).not.toHaveBeenCalled();
     expect(routerReplace).not.toHaveBeenCalled();
   });
@@ -224,7 +249,7 @@ describe("PetDetailTabsPanel — legacy #hash mount migration (replaceTabUrl, ro
     renderPanel("credencial");
 
     await waitFor(() => {
-      expect(window.location.search).toBe("?tab=libreta&lente=todo");
+      expect(window.location.search).toBe("?tab=libreta");
     });
     expect(routerReplace).not.toHaveBeenCalled();
     expect(routerPush).not.toHaveBeenCalled();
