@@ -32,6 +32,7 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { getProfileCached } from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, isNull } from "drizzle-orm";
@@ -112,6 +113,32 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
       membership: null,
       eventAuthorship: OWNER_AUTHORSHIP,
       error: "Sesión expirada.",
+    };
+  }
+
+  // Right-to-erasure lockout (Ley 25.326 art. 16, Wave D2/E2): a valid Supabase
+  // session is necessary but NOT sufficient to mutate a pet. erase_subject_data()
+  // soft-deletes the profile (deleted_at) and hashes PII, but does not invalidate
+  // an already-issued JWT — so a self-erased account keeps a live token until it
+  // naturally expires. requireUserOrRedirect() blocks erased accounts at the
+  // page/layer boundary, but Drizzle bypasses RLS and every pet-scoped SERVER
+  // ACTION resolves the user here, not through that page guard. Without this
+  // check an erased account could still write pets/events. getProfileCached is
+  // request-memoized (already selects deletedAt) so a page render pass reuses the
+  // same round-trip; a server-action call pays one indexed read — the price of
+  // the security boundary.
+  const actingProfile = await getProfileCached(user.id);
+  if (actingProfile?.deletedAt != null) {
+    return {
+      ok: false,
+      supabase,
+      user: { id: user.id },
+      pet: null,
+      accessPath: null,
+      organization: null,
+      membership: null,
+      eventAuthorship: OWNER_AUTHORSHIP,
+      error: "Tu cuenta fue eliminada.",
     };
   }
 
