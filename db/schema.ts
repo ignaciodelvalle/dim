@@ -1401,8 +1401,13 @@ export const notifications = pgTable(
     }),
     // Cases system (migration 0033). Lets the dashboard collapse N
     // case-derived notifications into one "Caso X" entry. Nullable —
-    // free-standing notifications never set this.
-    relatedCaseId: uuid("related_case_id"),
+    // free-standing notifications never set this. FK to cases(id) added in
+    // migration 0128 (C6 defense-in-depth): ON DELETE SET NULL so a deleted
+    // case nulls the grouping rather than leaving a dangling ref. Forward
+    // reference (cases is declared later in this file), same as petEvents.caseId.
+    relatedCaseId: uuid("related_case_id").references((): AnyPgColumn => cases.id, {
+      onDelete: "set null",
+    }),
     // Category for /notificaciones tab filtering (C2, migration 0040).
     // Values: 'health', 'custody', 'adoption', 'welfare', 'admin'. Nullable
     // for pre-C2 rows that were inserted without a category.
