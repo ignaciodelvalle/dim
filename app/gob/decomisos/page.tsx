@@ -187,7 +187,7 @@ export default async function DecomisosDashboardPage() {
                         {/* Case code + pet */}
                         <div className="flex items-center gap-2 flex-wrap">
                           <Link
-                            href={`/casos/${c.publicCode}`}
+                            href={`/gob/casos/${c.publicCode}`}
                             className="text-[13px] font-semibold text-ln-op-azul hover:underline font-mono no-underline"
                           >
                             {c.publicCode}
@@ -240,7 +240,7 @@ export default async function DecomisosDashboardPage() {
 
                       <div className="flex gap-2">
                         <Link
-                          href={`/casos/${c.publicCode}`}
+                          href={`/gob/casos/${c.publicCode}`}
                           className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline text-sm"
                         >
                           Ver caso

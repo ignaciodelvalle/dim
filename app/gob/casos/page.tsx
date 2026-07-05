@@ -60,8 +60,11 @@ export default async function GovtCasosPage({
   const newerLink = rawCursor ? newerHref("/gob/casos", filterParams) : null;
 
   // Map CaseListItem → CaseQueueRow (shapes are identical except detailHref).
-  // Cases are cross-org public records reachable via the canonical
-  // /casos/[publicCode] route (canReadCase gates govt-in-scope access there).
+  // Detail links stay INSIDE the /gob operator shell via /gob/casos/[code]
+  // (task #47): the row previously pointed at the public /casos/[publicCode]
+  // route, which renders under the citizen layout and stripped the operator
+  // rail. The gob route reuses the same CaseDetailView; canReadCase still
+  // gates govt-in-scope access, so nothing is widened.
   const queueRows: CaseQueueRow[] = items.map((c) => ({
     id: c.id,
     publicCode: c.publicCode,
@@ -73,7 +76,7 @@ export default async function GovtCasosPage({
     jurisdictionLocality: c.jurisdictionLocality,
     openedAt: c.openedAt,
     closedAt: c.closedAt,
-    detailHref: `/casos/${c.publicCode}`,
+    detailHref: `/gob/casos/${c.publicCode}`,
   }));
 
   const emptyMessage =
