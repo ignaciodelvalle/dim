@@ -11,6 +11,7 @@ import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { sexLabel, speciesLabel } from "@/lib/utils/format";
 import { eq } from "drizzle-orm";
 
+import { STATUS_LABELS } from "../status-labels";
 import { ProposalActions } from "./ProposalActions";
 
 export default async function ProposalDetailPage({
@@ -113,7 +114,11 @@ export default async function ProposalDetailPage({
         />
       ) : (
         <p className="text-[13px] text-[var(--color-ln-mute)]">
-          Esta propuesta está en estado <strong>{proposal.status}</strong>.
+          Esta propuesta está en estado{" "}
+          <strong>
+            {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ?? proposal.status}
+          </strong>
+          .
         </p>
       )}
     </div>

@@ -132,7 +132,7 @@ export default async function OrgAppointmentDetailPage({
           <OpCardBody>
             <p className="text-[13px] text-ln-op-ink-2">
               Este turno ya fue procesado (estado:{" "}
-              <strong className="text-ln-op-ink">{appointment.status}</strong>).
+              <strong className="text-ln-op-ink">{pill.label}</strong>).
             </p>
             {appointment.attendedAt && (
               <p className="text-sm text-ln-op-mute mt-1">

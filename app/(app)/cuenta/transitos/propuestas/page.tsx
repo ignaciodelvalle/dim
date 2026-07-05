@@ -8,13 +8,7 @@ import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { speciesLabel } from "@/lib/utils/format";
 import { desc, eq } from "drizzle-orm";
 
-const STATUS_LABELS = {
-  pending: "Pendiente",
-  accepted: "Aceptada",
-  rejected: "Rechazada",
-  expired: "Expirada",
-  cancelled: "Cancelada",
-} as const;
+import { STATUS_LABELS } from "./status-labels";
 
 export default async function PropuestasInboxPage() {
   const { user } = await requireUserOrRedirect();

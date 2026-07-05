@@ -33,10 +33,19 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
     label: "Cancelado por vos",
     className: "bg-ln-stripe text-ln-mute  ",
   },
+  cancelled_by_org: {
+    label: "Cancelado por el prestador",
+    className: "bg-ln-stripe text-ln-mute  ",
+  },
   no_show: {
     label: "No asistió",
     className: "bg-[var(--color-ln-err-050)] text-ln-err  ",
   },
+};
+
+const UNKNOWN_STATUS_BADGE = {
+  label: "Estado desconocido",
+  className: "bg-ln-stripe text-ln-mute  ",
 };
 
 export function AppointmentCard({ row }: { row: AppointmentRow }) {
@@ -62,7 +71,7 @@ export function AppointmentCard({ row }: { row: AppointmentRow }) {
         ? `Dr/a. ${provider.displayName.split(" ")[0]}`
         : "Profesional independiente";
 
-  const statusBadge = STATUS_BADGE[appointment.status] ?? STATUS_BADGE.confirmed;
+  const statusBadge = STATUS_BADGE[appointment.status] ?? UNKNOWN_STATUS_BADGE;
 
   const isUpcoming = appointment.status === "confirmed" && slot.startsAt >= new Date();
 
