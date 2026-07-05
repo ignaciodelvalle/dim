@@ -8,7 +8,7 @@
 // Returns Drizzle Case rows — callers already type them as Case.
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
 
 import { type Case, type NewCase, cases, db } from "@/db";
 import { generatePrefixedToken } from "@/lib/infra/publicToken";
@@ -134,6 +134,16 @@ export class CasesRepository {
    * UPDATE `cases` setting status='closed', closed_reason, closed_at,
    * closed_by_user_id. Idempotent: closing an already-closed case is a
    * no-op (returns the existing row).
+   *
+   * Concurrency: the terminal-status guard is folded INTO the UPDATE's WHERE
+   * (`status NOT IN ('closed','merged')`) rather than living only in the
+   * pre-read above. Two concurrent closers can both pass the pre-read (both
+   * see "open"); without the predicate on the UPDATE itself both would write,
+   * clobbering the true closer's reason/actor and letting each caller believe
+   * it won the close (duplicate downstream effects). With the predicate, only
+   * the first committer's UPDATE matches a row — the loser's UPDATE matches
+   * zero rows, and we re-read to return the now-closed row so the result stays
+   * idempotent while signalling (empty rowcount) that this call did NOT close it.
    */
   async closeCase(input: CloseCaseInput, executor: CaseExecutor = db): Promise<Case | null> {
     const [existing] = await executor
@@ -145,7 +155,7 @@ export class CasesRepository {
     if (existing.status === "closed" || existing.status === "merged") {
       return existing;
     }
-    const [updated] = await executor
+    const updatedRows = await executor
       .update(cases)
       .set({
         status: "closed",
@@ -154,9 +164,20 @@ export class CasesRepository {
         closedByUserId: input.closedByUserId ?? null,
         updatedAt: new Date(),
       })
-      .where(eq(cases.id, input.caseId))
+      .where(and(eq(cases.id, input.caseId), notInArray(cases.status, ["closed", "merged"])))
       .returning();
-    return updated;
+    if (updatedRows.length === 0) {
+      // Lost the race: another closer committed between our pre-read and this
+      // UPDATE. Re-read and return the now-closed row (idempotent), but this
+      // caller is NOT the winner and must not run close-dependent downstream.
+      const [current] = await executor
+        .select()
+        .from(cases)
+        .where(eq(cases.id, input.caseId))
+        .limit(1);
+      return current ?? null;
+    }
+    return updatedRows[0];
   }
 
   // -------------------------------------------------------------------------

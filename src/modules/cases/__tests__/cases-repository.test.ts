@@ -206,6 +206,54 @@ describe("CasesRepository.closeCase", () => {
     });
     expect(result).toBeNull();
   });
+
+  it("is atomic under concurrent closers: exactly one wins (WAVE D3-#2)", async () => {
+    const opened = await repo.openCase({
+      kind: "lost_pet_episode",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedReason: "auto: concurrent close race",
+    });
+
+    // Two closers hit the same OPEN case at once, each in its own transaction
+    // with a distinct reason. Each runs the full closeCase (pre-read sees
+    // "open", then the guarded UPDATE). With the status guard folded into the
+    // UPDATE, only the first committer's UPDATE matches a row; the loser's
+    // UPDATE matches zero rows and re-reads the winner's row. WITHOUT the guard
+    // both UPDATEs would fire, each returning ITS OWN reason — so the
+    // "exactly one call returns its own reason" invariant is what proves
+    // atomicity.
+    const [a, b] = await Promise.all([
+      db.transaction((tx) =>
+        repo.closeCase(
+          { caseId: opened.id, reason: "resolved", closedByUserId: null },
+          tx as Parameters<typeof repo.closeCase>[1],
+        ),
+      ),
+      db.transaction((tx) =>
+        repo.closeCase(
+          { caseId: opened.id, reason: "cancelled", closedByUserId: null },
+          tx as Parameters<typeof repo.closeCase>[1],
+        ),
+      ),
+    ]);
+
+    const selfReported = [a?.closedReason === "resolved", b?.closedReason === "cancelled"].filter(
+      Boolean,
+    ).length;
+    expect(selfReported).toBe(1);
+
+    // The persisted row reflects a single winner, and both calls agree on it.
+    const [persisted] = await db.select().from(cases).where(eq(cases.id, opened.id)).limit(1);
+    expect(persisted.status).toBe("closed");
+    expect(["resolved", "cancelled"]).toContain(persisted.closedReason);
+    expect(a?.closedReason).toBe(persisted.closedReason);
+    expect(b?.closedReason).toBe(persisted.closedReason);
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${opened.id}`);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
