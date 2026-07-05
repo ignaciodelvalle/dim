@@ -140,5 +140,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     })
     .where(eq(cronRuns.id, run.id));
 
-  return NextResponse.json({ ok: true, processed, delivered, failed, retried });
+  // Report the RUN's health, not a hardcoded success: a global failure (the
+  // transaction/select threw) must surface as ok:false + HTTP 500 so Vercel's
+  // cron dashboard flags it. Per-row `failed` (exhausted retries) is a terminal
+  // row state, not a cron failure, so it does not flip cronStatus.
+  return NextResponse.json(
+    { ok: cronStatus === "ok", processed, delivered, failed, retried },
+    { status: cronStatus === "ok" ? 200 : 500 },
+  );
 }

@@ -65,6 +65,18 @@ export async function runCaseCron<TCandidate>(
     errors.push({ id: "global", reason: err instanceof Error ? err.message : "unknown" });
   }
 
+  // A cron with per-candidate errors must NOT report success. Previously `status`
+  // only flipped to "failed" on the outer catch (scan threw), so a run where the
+  // scan succeeded but every candidate's processOne threw still returned
+  // status:"ok" — the classic "reports success on failure" defect. Any error at
+  // all (global or per-candidate) means the run was not fully healthy.
+  if (errors.length > 0 && status === "ok") {
+    status = "failed";
+    console.error(
+      `[case-cron:${input.name}] ${errors.length} candidate error(s) — run marked failed`,
+    );
+  }
+
   await db
     .update(cronRuns)
     .set({
