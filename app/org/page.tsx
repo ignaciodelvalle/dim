@@ -9,6 +9,7 @@
 
 import { db, organizationMemberships, organizations } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { BRANDING } from "@/lib/ui/branding";
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -20,6 +21,28 @@ const ORG_TYPE_LABELS: Record<string, string> = {
   sanitary_authority: "Autoridad sanitaria",
   other: "Organización",
 };
+
+// MiMAR brand header for the standalone org index (#43 item 5). The picker and
+// empty state render outside the org rail, so they carried no brand — a member
+// of several orgs landed on an unbranded "Seleccionar organización" screen.
+// Mirrors the OpRail monogram + serif wordmark, tuned for the light op page.
+function MiMarBrandHeader({ subtitle }: { subtitle: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[5px] bg-ln-op-navy font-ln-mono text-[13px] font-bold text-white">
+        m·
+      </div>
+      <div className="flex flex-col leading-tight">
+        <span className="font-ln-serif text-[15px] font-semibold tracking-[-0.005em] text-ln-op-ink">
+          {BRANDING.appName}
+        </span>
+        <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-ln-op-mute">
+          {subtitle}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default async function OrgIndexPage() {
   const { user } = await requireUserOrRedirect();
@@ -37,7 +60,10 @@ export default async function OrgIndexPage() {
 
   if (myOrgs.length === 0) {
     return (
-      <main className="min-h-screen bg-ln-op-page flex items-center justify-center p-6">
+      <main className="min-h-screen bg-ln-op-page flex flex-col items-center justify-center p-6">
+        <div className="mb-8">
+          <MiMarBrandHeader subtitle="Portal de organizaciones" />
+        </div>
         <div className="max-w-md text-center space-y-3">
           <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin organizaciones</h1>
           <p className="text-[13px] text-ln-op-mute">
@@ -68,6 +94,7 @@ export default async function OrgIndexPage() {
   return (
     <main className="min-h-screen bg-ln-op-page p-6">
       <div className="max-w-2xl mx-auto pt-8 space-y-6">
+        <MiMarBrandHeader subtitle="Portal de organizaciones" />
         <header className="space-y-2">
           <h1 className="text-[22px] font-semibold text-ln-op-ink">Seleccionar organización</h1>
           <p className="text-[13px] text-ln-op-mute">
