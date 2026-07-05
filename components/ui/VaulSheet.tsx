@@ -40,10 +40,27 @@ export type SheetProps = {
    * Backward-compatible — callers that omit it keep existing behavior.
    */
   triggerRef?: RefObject<HTMLElement | null>;
+  /**
+   * Accessible description for the sheet, wired to the underlying Radix
+   * DialogContent's aria-describedby via Drawer.Description. Radix warns
+   * ("Missing Description for DialogContent") when a dialog renders without
+   * one; supplying it also gives screen-reader users context beyond the title.
+   * Falls back to the title when omitted so the warning never fires.
+   */
+  description?: string;
   children: ReactNode;
 };
 
-export function Sheet({ id, title, open, onClose, size = "md", triggerRef, children }: SheetProps) {
+export function Sheet({
+  id,
+  title,
+  open,
+  onClose,
+  size = "md",
+  triggerRef,
+  description,
+  children,
+}: SheetProps) {
   const widthClass = getDrawerWidth(size);
 
   // B-9: Return focus to the trigger element when the sheet closes.
@@ -89,6 +106,12 @@ export function Sheet({ id, title, open, onClose, size = "md", triggerRef, child
         >
           {/* Drag handle — mobile only */}
           <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-ln-line md:hidden" />
+
+          {/* Screen-reader description — satisfies Radix's aria-describedby
+              presence check (silences the "Missing Description" warning) and
+              gives assistive tech context. Visually hidden; the visible title
+              above carries the on-screen heading. */}
+          <Drawer.Description className="sr-only">{description ?? title}</Drawer.Description>
 
           {/* Header */}
           <div className="flex items-center justify-between border-b border-ln-line px-5 py-4">

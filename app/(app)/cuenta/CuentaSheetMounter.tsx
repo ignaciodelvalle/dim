@@ -59,7 +59,14 @@ export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props)
 
   if (sheet === "editar-perfil") {
     return (
-      <Sheet id="editar-perfil" title="Editar mi información" open onClose={close} size="lg">
+      <Sheet
+        id="editar-perfil"
+        title="Editar mi información"
+        description="Actualizá tu nombre, teléfono y foto de perfil."
+        open
+        onClose={close}
+        size="lg"
+      >
         <EditProfileForm initialProfile={initialProfile} />
       </Sheet>
     );
@@ -68,7 +75,13 @@ export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props)
   if (sheet === "renunciar-rol") {
     if (role !== "vet") return null;
     return (
-      <Sheet id="renunciar-rol" title="Renunciar a rol veterinario/a" open onClose={close}>
+      <Sheet
+        id="renunciar-rol"
+        title="Renunciar a rol veterinario/a"
+        description="Al renunciar volvés a tener rol de dueño/a."
+        open
+        onClose={close}
+      >
         <VetSelfResignForm />
       </Sheet>
     );
@@ -83,6 +96,7 @@ export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props)
       <Sheet
         id="solicitar-upgrade-vet"
         title="Convertirme en profesional"
+        description="Registrá tu matrícula veterinaria o creá una organización."
         open
         onClose={close}
         size="lg"
@@ -95,7 +109,13 @@ export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props)
   if (sheet === "verificar-dni") {
     if (dniVerified) return null; // already verified — no-op
     return (
-      <Sheet id="verificar-dni" title="Declarar DNI" open onClose={close}>
+      <Sheet
+        id="verificar-dni"
+        title="Declarar DNI"
+        description="Declará tu número de documento para verificar tu identidad."
+        open
+        onClose={close}
+      >
         <DniVerifyForm next="/cuenta" />
       </Sheet>
     );
