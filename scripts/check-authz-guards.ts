@@ -76,6 +76,72 @@ export const PERSONAL_TIER_GUARDS = [
   "requireOwnedAndAlive",
 ] as const;
 
+// WS-AUTHZ 1.4 — deletion-aware guard rule (Wave E2, Ley 25.326 art. 16).
+//
+// A valid Supabase JWT is necessary but NOT sufficient to MUTATE a pet. A self-
+// erased account (profiles.deleted_at set by erase_subject_data) keeps a live
+// token until it naturally expires; `supabase.auth.getUser()` returns that user
+// and never consults deleted_at. So an action that authorizes a PET WRITE on a
+// bare getUser() lets an erased account keep writing pets/events — invisible to
+// Rule 1.2, which counts bare `auth.getUser` as an equivalent guard.
+//
+// Only these guards resolve the acting user AND reject an erased profile — they
+// all funnel through requireUserOrRedirect (which checks deleted_at, Wave D2) or
+// requirePetAccess/requireAlivePetAccess (which check it at the mutation
+// boundary, Wave E2). Bare `auth.getUser` and the file-local `requireAdminUser`
+// (auth.getUser + role re-check) are deliberately NOT here.
+export const DELETION_AWARE_GUARDS = [
+  "requireUserOrRedirect",
+  "requirePetAccess",
+  "requireAlivePetAccess",
+  "requireOwnedPet",
+  "requireOwnedPetByToken",
+  "requireOwnedAndAlive",
+  "requireOrgAccessByToken",
+  "requireActiveOrgOrRedirect",
+  "requireAdminOrRedirect",
+  "requireAdminOrGovtOrRedirect",
+  "requireDecomisoPrincipal",
+  "requireOrgInterventionAccess",
+  "requireCapability",
+] as const;
+
+// Pet-write signal (inline): a drizzle insert/update/delete whose body also
+// names a pet-scoped table — petEvents (the append-only event spine) or pets
+// (the credential row). This catches the monolithic "getUser then write a pet
+// event in the same function" pattern; shims that delegate the write to an
+// application use-case are covered by that use-case routing through a guard.
+const PET_TABLE_RE = /\b(petEvents|pets)\b/;
+const DB_MUTATION_RE = /\.(insert|update|delete)\s*\(/;
+const BARE_GET_USER_RE = /\.auth\.getUser\s*\(/;
+
+// Documented safe exports: `"<relPath>#<name>"` → reason. Use ONLY when the
+// action resolves identity through a bare getUser() and touches a pet table but
+// the erased-account write is provably impossible (e.g. a deletion-aware check
+// happens in a delegated use-case). Empty is the goal.
+export const DELETION_AWARE_ALLOWLIST: Record<string, string> = {};
+
+function callsAnyGuard(body: string, guards: readonly string[]): boolean {
+  return guards.some((g) => new RegExp(`\\b${g.replace(/\./g, "\\.")}\\s*\\(`).test(body));
+}
+
+// Returns one offender line per exported action that authorizes an inline pet
+// write on a bare auth.getUser() with no deletion-aware guard. Empty = clean.
+export function findDeletionUnawareMutations(relPath: string, src: string): string[] {
+  const offenders: string[] = [];
+  for (const fn of extractExportedAsyncFunctions(src)) {
+    if (isInnerWriter(fn.name)) continue;
+    if (!BARE_GET_USER_RE.test(fn.body)) continue;
+    if (callsAnyGuard(fn.body, DELETION_AWARE_GUARDS)) continue;
+    if (!(PET_TABLE_RE.test(fn.body) && DB_MUTATION_RE.test(fn.body))) continue;
+    if (DELETION_AWARE_ALLOWLIST[`${relPath}#${fn.name}`] !== undefined) continue;
+    offenders.push(
+      `${relPath}:${fn.startLine} export async function ${fn.name} — authorizes a pet write on a bare auth.getUser() with no deletion-aware guard (one of ${DELETION_AWARE_GUARDS.join("/")}). An erased account (profiles.deleted_at) keeps a valid JWT and could still mutate pets/events. Route the write through requirePetAccess/requireAlivePetAccess, or add the deleted_at check (see lib/infra/pet-access.ts).`,
+    );
+  }
+  return offenders;
+}
+
 // Names of exported async functions that are inner writers / scoped helpers,
 // taking caller identity as a parameter. They are called from public wrappers
 // that themselves call a guard, so they are not required to be guarded.
@@ -389,11 +455,13 @@ function runScan(): void {
   // from a "use server" module, pattern-based.
   const coverageOffenders: string[] = [];
   const impersonationOffenders: string[] = [];
+  const deletionOffenders: string[] = [];
   for (const file of actionFiles) {
     const relPath = file.replaceAll("\\", "/");
     const src = readFileSync(file, "utf8");
     coverageOffenders.push(...findOffenders(relPath, src));
     impersonationOffenders.push(...findImpersonationExports(relPath, src));
+    deletionOffenders.push(...findDeletionUnawareMutations(relPath, src));
   }
 
   // Rule 1.3 — no operator route gated by a personal-tier guard alone.
@@ -403,7 +471,12 @@ function runScan(): void {
     routeOffenders.push(...findRouteGuardViolations(relPath, readFileSync(file, "utf8")));
   }
 
-  const offenders = [...coverageOffenders, ...impersonationOffenders, ...routeOffenders];
+  const offenders = [
+    ...coverageOffenders,
+    ...impersonationOffenders,
+    ...deletionOffenders,
+    ...routeOffenders,
+  ];
   if (offenders.length > 0) {
     console.error(offenders.join("\n"));
     if (coverageOffenders.length > 0) {
@@ -416,6 +489,11 @@ function runScan(): void {
         )}) from "use server" module(s).`,
       );
     }
+    if (deletionOffenders.length > 0) {
+      console.error(
+        `✗ ${deletionOffenders.length} pet-write action(s) authorized on a bare auth.getUser() with no deletion-aware guard.`,
+      );
+    }
     if (routeOffenders.length > 0) {
       console.error(
         `✗ ${routeOffenders.length} operator route(s) gated by a personal-tier guard only.`,
@@ -425,7 +503,7 @@ function runScan(): void {
   }
 
   console.log(
-    `✓ authz coverage clean — ${actionFiles.length} action files guarded, no impersonation-class exports; operator routes (app/admin, app/gob) institutionally gated.`,
+    `✓ authz coverage clean — ${actionFiles.length} action files guarded, no impersonation-class exports, no bare-getUser pet writes; operator routes (app/admin, app/gob) institutionally gated.`,
   );
 }
 

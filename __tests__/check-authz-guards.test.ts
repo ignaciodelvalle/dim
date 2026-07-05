@@ -10,12 +10,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   AUTH_GUARDS,
+  DELETION_AWARE_GUARDS,
   INNER_WRITER_SUFFIXES,
   INSTITUTIONAL_GUARDS,
   NO_AUTH_COMMENT,
   PERSONAL_TIER_GUARDS,
   callsAuthGuard,
   extractExportedAsyncFunctions,
+  findDeletionUnawareMutations,
   findOffenders,
   findRouteGuardViolations,
   isInnerWriter,
@@ -174,6 +176,80 @@ describe("findOffenders", () => {
       "}",
     ].join("\n");
     expect(findOffenders("src/modules/x/actions.ts", src)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findDeletionUnawareMutations — WS-AUTHZ 1.4 deletion-aware guard rule (E2)
+// ---------------------------------------------------------------------------
+
+describe("findDeletionUnawareMutations", () => {
+  it("flags an inline pet write authorized on a bare auth.getUser() with no deletion-aware guard", () => {
+    const src = [
+      "export async function logEventAction(token: string) {",
+      "  const { data: { user } } = await supabase.auth.getUser();",
+      "  if (!user) throw new Error('no session');",
+      "  await db.insert(petEvents).values({ petId, authorUserId: user.id });",
+      "  return { ok: true };",
+      "}",
+    ].join("\n");
+    const offenders = findDeletionUnawareMutations("app/actions/x.ts", src);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]).toContain("logEventAction");
+    expect(offenders[0]).toContain("deletion-aware guard");
+  });
+
+  it("passes when the same write also routes through requireAlivePetAccess", () => {
+    const src = [
+      "export async function logEventAction(token: string) {",
+      "  const access = await requireAlivePetAccess(token);",
+      "  if (!access.ok) return access;",
+      "  await db.insert(petEvents).values({ petId: access.pet.id });",
+      "  return { ok: true };",
+      "}",
+    ].join("\n");
+    expect(findDeletionUnawareMutations("app/actions/x.ts", src)).toHaveLength(0);
+  });
+
+  it("does NOT flag a bare-getUser write to a non-pet table", () => {
+    // Reminders / notifications writes are lower-stakes and out of the pet-write
+    // scope this rule targets.
+    const src = [
+      "export async function snoozeReminderAction(id: string) {",
+      "  const { data: { user } } = await supabase.auth.getUser();",
+      "  if (!user) throw new Error('no session');",
+      "  await db.update(reminders).set({ snoozedUntil: new Date() });",
+      "  return { ok: true };",
+      "}",
+    ].join("\n");
+    expect(findDeletionUnawareMutations("app/actions/reminders.ts", src)).toHaveLength(0);
+  });
+
+  it("does NOT flag a bare-getUser pet READ (no insert/update/delete)", () => {
+    const src = [
+      "export async function readPetAction(token: string) {",
+      "  const { data: { user } } = await supabase.auth.getUser();",
+      "  if (!user) throw new Error('no session');",
+      "  return db.select().from(pets).where(eq(pets.publicToken, token));",
+      "}",
+    ].join("\n");
+    expect(findDeletionUnawareMutations("app/actions/x.ts", src)).toHaveLength(0);
+  });
+
+  it("does NOT flag an inner writer (identity is a param, guarded upstream)", () => {
+    const src = [
+      "export async function logEventForUser(userId: string, token: string) {",
+      "  const { data: { user } } = await supabase.auth.getUser();",
+      "  await db.insert(petEvents).values({ petId, authorUserId: userId });",
+      "}",
+    ].join("\n");
+    expect(findDeletionUnawareMutations("src/modules/x/actions.ts", src)).toHaveLength(0);
+  });
+
+  it("the deletion-aware set excludes bare auth.getUser (the whole point of the rule)", () => {
+    expect(DELETION_AWARE_GUARDS as readonly string[]).not.toContain("auth.getUser");
+    expect(DELETION_AWARE_GUARDS).toContain("requirePetAccess");
+    expect(DELETION_AWARE_GUARDS).toContain("requireCapability");
   });
 });
 
