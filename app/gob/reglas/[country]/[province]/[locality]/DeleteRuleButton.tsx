@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 
 import { type BusinessRuleFormState, deleteBusinessRuleAction } from "@/app/actions/business-rules";
+import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 const initialState: BusinessRuleFormState = { error: null };
@@ -44,13 +45,9 @@ export function DeleteRuleButton({
 
   if (!confirming) {
     return (
-      <button
-        type="button"
-        onClick={() => setConfirming(true)}
-        className="text-sm font-semibold text-ln-op-danger no-underline underline-offset-4 hover:underline"
-      >
+      <OpButton type="button" onClick={() => setConfirming(true)} variant="danger" size="sm">
         Eliminar
-      </button>
+      </OpButton>
     );
   }
 
@@ -82,23 +79,20 @@ export function DeleteRuleButton({
           </p>
         )}
         <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={!reasonValid || isPending}
-            className="text-sm font-semibold text-ln-op-danger underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
-          >
+          <OpButton type="submit" disabled={!reasonValid || isPending} variant="danger" size="sm">
             {isPending ? "Eliminando..." : "Confirmar eliminación"}
-          </button>
-          <button
+          </OpButton>
+          <OpButton
             type="button"
             onClick={() => {
               setConfirming(false);
               setReason("");
             }}
-            className="text-sm text-ln-op-mute transition-colors hover:text-ln-op-ink"
+            variant="ghost"
+            size="sm"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
       </form>
     </div>

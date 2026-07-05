@@ -50,30 +50,12 @@ export function ProposeUserActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {canProposeVet && <ActionButton onClick={() => setMode("vet")}>Proponer vet</ActionButton>}
+      {canProposeVet && (
+        <OpButton type="button" onClick={() => setMode("vet")} variant="primary" size="sm">
+          Proponer vet
+        </OpButton>
+      )}
     </div>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  tone = "default",
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  tone?: "default" | "danger";
-}) {
-  const base =
-    "text-sm px-3 py-1.5 rounded-[var(--radius-md)] transition-opacity hover:opacity-90 disabled:opacity-50";
-  const variant =
-    tone === "danger"
-      ? "border border-ln-op-warn text-ln-op-warn"
-      : "border border-ln-op-line text-ln-op-ink-2";
-  return (
-    <button type="button" onClick={onClick} className={`${base} ${variant}`}>
-      {children}
-    </button>
   );
 }
 

@@ -57,13 +57,9 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-[13px] underline text-ln-op-azul hover:text-ln-op-azul-700"
-      >
+      <OpButton type="button" onClick={() => setOpen(true)} variant="primary" size="sm">
         {"+ Sumar parte"}
-      </button>
+      </OpButton>
     );
   }
 

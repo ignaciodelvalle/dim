@@ -121,14 +121,14 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
       <OpButton type="button" onClick={() => setMode("approving")} disabled={pending} variant="ok">
         Aprobar
       </OpButton>
-      <button
+      <OpButton
         type="button"
         onClick={() => setMode("rejecting")}
         disabled={pending}
-        className="text-[13px] px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors disabled:opacity-50"
+        variant="danger"
       >
         Rechazar
-      </button>
+      </OpButton>
       {error && <p className="text-sm text-ln-op-danger">{error}</p>}
     </div>
   );

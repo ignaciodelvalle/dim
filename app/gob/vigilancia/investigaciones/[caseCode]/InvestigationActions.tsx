@@ -115,25 +115,40 @@ export function InvestigationActions({
   if (mode === "none") {
     return (
       <div className="flex flex-wrap gap-2">
-        <ActionButton onClick={() => setMode("add_note")} tone="primary">
+        <OpButton type="button" onClick={() => setMode("add_note")} variant="primary" size="sm">
           Registrar dato / nota
-        </ActionButton>
-        <ActionButton onClick={() => setMode("external_notification")} tone="muted">
+        </OpButton>
+        <OpButton
+          type="button"
+          onClick={() => setMode("external_notification")}
+          variant="ghost"
+          size="sm"
+        >
           Registrar notificación externa
-        </ActionButton>
+        </OpButton>
         {canEscalate && (
-          <ActionButton onClick={() => setMode("escalate")} tone="warning">
+          <OpButton type="button" onClick={() => setMode("escalate")} variant="danger" size="sm">
             Escalar
-          </ActionButton>
+          </OpButton>
         )}
         {canClose && (
           <>
-            <ActionButton onClick={() => setMode("close_resolved")} tone="success">
+            <OpButton
+              type="button"
+              onClick={() => setMode("close_resolved")}
+              variant="ok"
+              size="sm"
+            >
               Cerrar como resuelta
-            </ActionButton>
-            <ActionButton onClick={() => setMode("close_dismissed")} tone="muted">
+            </OpButton>
+            <OpButton
+              type="button"
+              onClick={() => setMode("close_dismissed")}
+              variant="ghost"
+              size="sm"
+            >
               Cerrar como desestimada
-            </ActionButton>
+            </OpButton>
           </>
         )}
       </div>
@@ -284,33 +299,5 @@ export function InvestigationActions({
         </OpButton>
       </div>
     </div>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  tone,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  tone: "primary" | "success" | "warning" | "muted";
-}) {
-  const toneClass =
-    tone === "primary"
-      ? "bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
-      : tone === "success"
-        ? "bg-ln-op-ok text-white hover:opacity-90"
-        : tone === "warning"
-          ? "bg-ln-op-warn-bg text-ln-op-warn border border-ln-op-warn-bd hover:opacity-90"
-          : "border border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-[var(--radius-md)] text-[13px] font-medium transition-colors ${toneClass}`}
-    >
-      {children}
-    </button>
   );
 }

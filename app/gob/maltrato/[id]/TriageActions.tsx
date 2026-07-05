@@ -72,28 +72,28 @@ export function TriageActions({
     return (
       <div className="flex flex-wrap gap-2">
         {canTriage && (
-          <ActionButton onClick={() => setMode("triage")} tone="primary">
+          <OpButton type="button" onClick={() => setMode("triage")} variant="primary" size="sm">
             Marcar revisada
-          </ActionButton>
+          </OpButton>
         )}
         {canStart && (
-          <ActionButton onClick={() => setMode("start")} tone="primary">
+          <OpButton type="button" onClick={() => setMode("start")} variant="primary" size="sm">
             Iniciar seguimiento
-          </ActionButton>
+          </OpButton>
         )}
         {canClose && (
-          <ActionButton onClick={() => setMode("close")} tone="success">
+          <OpButton type="button" onClick={() => setMode("close")} variant="ok" size="sm">
             Cerrar con resolución
-          </ActionButton>
+          </OpButton>
         )}
         {canMarkInvalidOrDuplicate && (
           <>
-            <ActionButton onClick={() => setMode("invalid")} tone="muted">
+            <OpButton type="button" onClick={() => setMode("invalid")} variant="ghost" size="sm">
               Sin sustento
-            </ActionButton>
-            <ActionButton onClick={() => setMode("duplicate")} tone="muted">
+            </OpButton>
+            <OpButton type="button" onClick={() => setMode("duplicate")} variant="ghost" size="sm">
               Duplicada
-            </ActionButton>
+            </OpButton>
           </>
         )}
       </div>
@@ -151,31 +151,5 @@ export function TriageActions({
         </OpButton>
       </div>
     </div>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  tone,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  tone: "primary" | "success" | "muted";
-}) {
-  const toneClass =
-    tone === "primary"
-      ? "bg-ln-op-azul text-white hover:opacity-90"
-      : tone === "success"
-        ? "bg-ln-op-ok text-white hover:opacity-90"
-        : "border border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium ${toneClass}`}
-    >
-      {children}
-    </button>
   );
 }
