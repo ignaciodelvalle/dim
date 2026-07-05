@@ -187,22 +187,53 @@ export function findOffenders(relPath: string, src: string): string[] {
   return offenders;
 }
 
-// Authz triage 2026-07-04 — impersonation-export rule (pattern-based).
+// Authz impersonation-export rule (pattern-based).
+// Origin: authz triage 2026-07-04. Widened: security review 07 (2026-07-05).
 //
-// A "use server" module must NEVER export a `*ForUser` / `*ForAuthority` /
-// `*ForOrg` function. Every export of a "use server" file is an
-// independently-addressable server action, and these writers take their
-// acting identity (userId / actorUserId / orgId) as a caller-supplied
-// parameter — exporting one hands impersonation-as-anyone to any client.
-// RLS is NOT a backstop: db/index.ts connects with postgres-js (no Supabase
-// JWT), so the app-layer guard is the only defense. This rule is a suffix
-// pattern, not an allowlist — any new export with one of these suffixes
-// fails CI immediately, so the class cannot regress.
+// A "use server" module must NEVER export an inner writer that carries the
+// acting identity. Every export of a "use server" file is an independently-
+// addressable server action, and such a writer takes its actor / subject /
+// org as a caller-supplied parameter — exporting one hands impersonation-as-
+// anyone to any client. RLS is NOT a backstop: db/index.ts connects with
+// postgres-js (no Supabase JWT), so the app-layer guard is the only defense.
+//
+// Two signals, both pattern-based (not an allowlist of functions), so the
+// class cannot silently regress:
+//   (1) NAME — the export's name ends in one of IMPERSONATION_SUFFIXES
+//       (*ForUser / *ForAuthority / *ForOrg / *Writer). The original rule
+//       matched only the *For* trio; review 07 added *Writer, which had been
+//       slipping through: the coverage rule (INNER_WRITER_SUFFIXES) exempts a
+//       *Writer from needing its own guard, and nothing forbade exporting one.
+//   (2) PARAMS — a DECLARED export whose signature names a caller-supplied
+//       actor/subject id (IMPERSONATION_ACTOR_PARAMS), even if its name does
+//       not match a suffix (e.g. a no-auth writer taking a bare actorUserId).
+//
+// A genuinely-safe export (identity derived from the session INSIDE the
+// "use server" file, no client-trusted actor) may be listed in
+// IMPERSONATION_SAFE_EXPORTS with a documented reason. It is empty today —
+// every current writer export was removed rather than baselined.
 //
 // The writers themselves live on in plain application modules
 // (src/modules/**/application/**), where they are not client-addressable;
 // guarded `*Action` wrappers derive the actor from the session and delegate.
-export const IMPERSONATION_SUFFIXES = ["ForUser", "ForAuthority", "ForOrg"] as const;
+export const IMPERSONATION_SUFFIXES = ["ForUser", "ForAuthority", "ForOrg", "Writer"] as const;
+
+// Caller-supplied identity parameters. A declared "use server" export whose
+// signature names any of these is trusting the client for "who is acting" —
+// the impersonation surface, regardless of the function's name.
+export const IMPERSONATION_ACTOR_PARAMS = [
+  "actorUserId",
+  "recordedByUserId",
+  "actingUserId",
+  "subjectUserId",
+  "onBehalfOfUserId",
+  "performedByUserId",
+] as const;
+
+// Documented safe exports: `"<relPath>#<name>"` → reason. Use ONLY when the
+// identity is derived from the session inside the "use server" file and no
+// actor is client-supplied.
+export const IMPERSONATION_SAFE_EXPORTS: Record<string, string> = {};
 
 const IMPERSONATION_SUFFIX_RE = new RegExp(`(?:${IMPERSONATION_SUFFIXES.join("|")})$`);
 
@@ -210,29 +241,73 @@ function lineOfIndex(src: string, index: number): number {
   return src.slice(0, index).split("\n").length;
 }
 
-// Returns one offender line per impersonation-suffixed export in a
-// "use server" module. Covers declared exports (`export async function
-// xForUser`), plain function exports, and runtime re-export lists
-// (`export { x }`, `export { y as xForUser }`). `export type { ... }` is
-// erased at runtime and allowed. Empty array = file is clean.
+// Extract the parenthesized parameter list whose opening `(` is at
+// `openParenIndex`, balancing parens so destructured `{ … }` params and
+// default values are captured whole. Returns the inner text (without the
+// outer parens).
+function paramListAt(src: string, openParenIndex: number): string {
+  let depth = 0;
+  for (let i = openParenIndex; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === "(") depth++;
+    else if (ch === ")") {
+      depth--;
+      if (depth === 0) return src.slice(openParenIndex + 1, i);
+    }
+  }
+  return "";
+}
+
+function actorParamIn(paramList: string): string | null {
+  for (const p of IMPERSONATION_ACTOR_PARAMS) {
+    if (new RegExp(`\\b${p}\\b`).test(paramList)) return p;
+  }
+  return null;
+}
+
+// Returns one offender line per impersonation-class export in a "use server"
+// module: declared exports (`export async function xWriter`), exports whose
+// signature names a caller-supplied actor id, and runtime re-export lists
+// (`export { x }`, `export { y as xWriter }`). `export type { ... }` is erased
+// at runtime and allowed. Empty array = file is clean.
 export function findImpersonationExports(relPath: string, src: string): string[] {
   if (!src.startsWith('"use server"') && !src.startsWith("'use server'")) return [];
   const offenders: string[] = [];
-  const offend = (name: string, line: number) =>
+  const isSafe = (name: string) =>
+    IMPERSONATION_SAFE_EXPORTS[`${relPath}#${name}`] !== undefined;
+  const offendSuffix = (name: string, line: number) => {
+    if (isSafe(name)) return;
     offenders.push(
       `${relPath}:${line} exports ${name} — a "use server" module must not export a *${IMPERSONATION_SUFFIXES.join(
         "/*",
       )} writer (caller-supplied identity = impersonation surface; RLS does not backstop). Keep the writer in a plain application module and export only a session-guarded *Action wrapper.`,
     );
+  };
+  const offendParam = (name: string, param: string, line: number) => {
+    if (isSafe(name)) return;
+    offenders.push(
+      `${relPath}:${line} exports ${name} — its signature takes a caller-supplied \`${param}\` (impersonation surface: a "use server" export lets any client act as any user; RLS does not backstop). Derive the actor from the session in a guarded *Action wrapper and keep the writer in a plain application module.`,
+    );
+  };
 
-  // Declared exports: `export [async] function nameForUser(`.
-  const declRe = /export\s+(?:async\s+)?function\s+(\w+)\s*[(<]/g;
+  // Declared exports: `export [async] function name<generics>(params)`.
+  const declRe = /export\s+(?:async\s+)?function\s+(\w+)\s*(?:<[^>]*>)?\s*\(/g;
   for (const m of src.matchAll(declRe)) {
-    if (IMPERSONATION_SUFFIX_RE.test(m[1])) offend(m[1], lineOfIndex(src, m.index));
+    const name = m[1];
+    const line = lineOfIndex(src, m.index);
+    if (IMPERSONATION_SUFFIX_RE.test(name)) {
+      offendSuffix(name, line);
+      continue;
+    }
+    // The trailing char of the match is the param-list `(`.
+    const openParen = (m.index ?? 0) + m[0].length - 1;
+    const actor = actorParamIn(paramListAt(src, openParen));
+    if (actor) offendParam(name, actor, line);
   }
 
   // Runtime re-export lists: `export { a, b as c } [from "..."]`.
   // (`export type { ... }` and inline `type x` entries are type-only.)
+  // Name-based only — no signature is visible on a re-export.
   const reExportRe = /export\s*(type\s*)?\{([^}]*)\}/g;
   for (const m of src.matchAll(reExportRe)) {
     if (m[1]) continue; // export type { ... } — erased at runtime
@@ -242,7 +317,7 @@ export function findImpersonationExports(relPath: string, src: string): string[]
       const parts = entry.split(/\s+as\s+/);
       const exportedName = (parts[1] ?? parts[0]).trim();
       if (IMPERSONATION_SUFFIX_RE.test(exportedName)) {
-        offend(exportedName, lineOfIndex(src, m.index));
+        offendSuffix(exportedName, lineOfIndex(src, m.index));
       }
     }
   }

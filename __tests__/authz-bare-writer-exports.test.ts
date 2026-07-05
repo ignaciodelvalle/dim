@@ -91,7 +91,28 @@ const FORBIDDEN_EXPORTS: Record<string, string[]> = {
   "app/actions/dni-verification.ts": ["verifyDniForUser"],
   "app/actions/decomiso.ts": ["resolveGovtOrgForUser"],
   "app/actions/alert-firings.ts": ["recordFiringsForUser"],
-  "app/actions/slot-materialization.ts": ["materializeSlotsForOffering"],
+  // Review 07 (2026-07-05) — caller-supplied actorUserId on a client-callable
+  // export (PII-audit forgery). Server-component pages import it from the module.
+  "app/actions/admin-proposals.ts": ["logPiiReadSafely"],
+  // Review 07 (2026-07-05) — *Writer exports removed (impersonation / no-auth
+  // client-callable surface). Writers now import from src/modules/** in tests.
+  "app/actions/business-rules.ts": [
+    "createBusinessRuleWriter",
+    "updateBusinessRuleWriter",
+    "deleteBusinessRuleWriter",
+  ],
+  "app/actions/pregnancy.ts": ["recordPregnancyStartedWriter", "recordPregnancyEndedWriter"],
+  "app/actions/chip-match.ts": [
+    "confirmChipMatchAsRefugioWriter",
+    "confirmChipMatchAsVecinoWriter",
+  ],
+  "app/actions/booking.ts": ["bookSlotWriter"],
+  "app/actions/attendance.ts": ["markAppointmentAttendedWriter"],
+  "app/actions/service-offerings.ts": ["updateOfferingCapacityWriter"],
+  "app/actions/slot-materialization.ts": [
+    "materializeSlotsForOffering",
+    "materializeAllActiveSlots",
+  ],
   "app/actions/custody-disputes.ts": ["openDisputeFromEvent"],
   "app/actions/amendment.ts": ["fetchLatestAmendmentsForEvents"],
   "app/actions/return-to-owner.ts": [
