@@ -38,7 +38,19 @@ export function LoginFormView({
   isPending: boolean;
   returnTo: string | null;
 }) {
-  const [email, setEmail] = useState("");
+  // Password is controlled so we can reset it programmatically; the email is
+  // intentionally UNCONTROLLED (the DOM owns its value). Two field-state bugs
+  // motivate this split (PO QA #44):
+  //
+  //  1. Password persisted across an account switch. A password is scoped to
+  //     the email it was typed for — editing the email must drop the stale
+  //     password. We clear it from the email's onChange.
+  //  2. A controlled email fought browser autofill: binding value={email} let a
+  //     re-render (e.g. a failed-submit error state) write React's copy back
+  //     into the input, clobbering what autofill or the user had just typed.
+  //     Leaving the email uncontrolled makes the DOM the single source of truth,
+  //     so the typed/autofilled value always wins.
+  const [password, setPassword] = useState("");
 
   return (
     <div className="space-y-5">
@@ -58,8 +70,9 @@ export function LoginFormView({
                 required
                 aria-describedby={describedBy}
                 invalid={invalid || Boolean(state.error)}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                // Uncontrolled value (DOM-owned); onChange only drops the stale
+                // password when the account email is edited.
+                onChange={() => setPassword("")}
               />
             )}
           </LnField>
@@ -73,6 +86,8 @@ export function LoginFormView({
                 required
                 aria-describedby={describedBy}
                 invalid={invalid}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             )}
           </LnField>
