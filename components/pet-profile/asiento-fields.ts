@@ -96,7 +96,15 @@ function formatRelative(date: Date, now: Date): string {
 // Provenance
 // ---------------------------------------------------------------------------
 
-function deriveProvenance(row: HistorialEventRow): AsientoProvenance {
+// `citedProfessional` is an optional free-text professional the RECORD names
+// (e.g. a vaccine's `administered_by` = "Dra. Paz — MP 4821"). It changes the
+// wording but NEVER the tier: naming a vet is a CLAIM, only their signature is
+// verification (#43 tiers are the source of truth). The two must read as
+// unmistakably different (#45): "cité a mi vet" ≠ "mi vet firmó el asiento".
+function deriveProvenance(
+  row: HistorialEventRow,
+  citedProfessional?: string | null,
+): AsientoProvenance {
   const tier = computeConfidence({
     authorRole: row.authorRole,
     authorVerified: row.authorVerified,
@@ -107,7 +115,23 @@ function deriveProvenance(row: HistorialEventRow): AsientoProvenance {
     return { verified: true, label: "Verificado · Registro miMAR" };
   }
   if (tier === "professional_verified") {
-    return { verified: true, label: "Verificado por vet" };
+    // The matriculated vet SIGNED the asiento — name them when the record cites
+    // one, so "Verificado por Dra. Paz (MP 4821)" reads as real verification.
+    return {
+      verified: true,
+      label: citedProfessional ? `Verificado por ${citedProfessional}` : "Verificado por vet",
+    };
+  }
+  if (tier === "org_registered") {
+    // A named organization recorded it, but no matriculated professional signed
+    // (#43 VET keystone) — a valid record, NOT verification.
+    return { verified: false, label: "Registrado por la organización" };
+  }
+  // Owner-declared (self_reported / corroborated / unverified). When the owner
+  // NAMES a professional they only CITE (did not sign), say so explicitly so a
+  // named vet never masquerades as verification (#45 QA §2).
+  if (citedProfessional) {
+    return { verified: false, label: `Declarado por vos — citás a ${citedProfessional}` };
   }
   return { verified: false, label: "Cargado por vos" };
 }
@@ -199,25 +223,38 @@ export function toAsientoView(
     case "vaccination_administered": {
       const name = str(p, "vaccine_name");
       const isRabies = RABIES_RE.test(name ?? "");
+      const administeredBy = str(p, "administered_by");
+      // Recompute provenance WITH the cited professional so a vaccine that names
+      // "Dra. Paz — MP 4821" reads correctly: verified → "Verificado por Dra.
+      // Paz…"; owner-declared → "Declarado por vos — citás a Dra. Paz…" (#45).
+      const vaccineProvenance = deriveProvenance(row, administeredBy);
       const facts: AsientoFact[] = [
         { key: "Aplicada", value: aplicada },
         fact("Vence", dateStr(p, "next_due_at"), "Sin dato"),
         fact("Vía", str(p, "route"), "Sin dato"),
         {
           key: "Aplicó",
-          value: str(p, "administered_by") ?? "Declarado por el titular",
-          missing: !str(p, "administered_by"),
+          value: administeredBy ?? "Declarado por el titular",
+          missing: !administeredBy,
         },
         fact("Laboratorio", str(p, "brand"), "Sin dato"),
         fact("Lote", str(p, "batch"), "No adjunto"),
       ];
-      const needsVerification = !provenance.verified;
+      const needsVerification = !vaccineProvenance.verified;
       return {
         ...base,
+        provenance: vaccineProvenance,
         kind: isRabies ? "Vacuna · obligatoria" : "Vacuna",
         title: name ?? "Vacuna",
         facts,
-        warn: needsVerification ? "Falta verificación profesional" : undefined,
+        // When the owner cited a professional, the record is waiting on THAT
+        // vet's confirmation — say so instead of the generic "falta
+        // verificación", which read as if no vet was involved at all (#45).
+        warn: needsVerification
+          ? administeredBy
+            ? "Pendiente de confirmación del profesional"
+            : "Falta verificación profesional"
+          : undefined,
         verifyHref:
           needsVerification && isRabies
             ? `/mis-mascotas/${petPublicToken}?sheet=turno-antirrabica`
