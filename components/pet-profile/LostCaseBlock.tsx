@@ -20,12 +20,11 @@
 // All 9 capabilities (unchanged, just regrouped):
 //   1. Urgent-treatment header — publicCode + /casos/[publicCode] link +
 //      public /p/{token} link.
-//   2. Marcar encontrada — owner-only. DEDUPE (task #43): this used to be a
-//      second "✓ Marcar encontrada" affordance in this header, alongside the
-//      identical always-visible icon in PetActionRow (same
-//      ?sheet=marcar-encontrada target). PetActionRow's is the persistent
-//      one ("never buried", per its own doc comment) — this header no
-//      longer duplicates it.
+//   2. Marcar encontrada — owner-only. PO 2026-07-05: surfaced as a PROMINENT
+//      primary CTA leading the owner body ("¡Apareció! Marcar como
+//      encontrada", ?sheet=marcar-encontrada). This is now the SINGLE found
+//      affordance — PetActionRow dropped its found slot for lost pets, so
+//      there is no duplication.
 //   3. Last-seen + update — owner: a one-line summary (place · locality ·
 //      date) with a single "actualizar" link in the primary strip; the full
 //      LostLastSeenCard (map, sightings count, its own copy-link) moved
@@ -74,6 +73,7 @@ import Link from "next/link";
 
 import { setPetDisclosurePrefsAction } from "@/app/actions/lost-mode";
 import { reactivateLostSearchAction } from "@/app/actions/reactivate-lost-search";
+import { Icon } from "@/components/Icon";
 import {
   type DisclosurePrefs,
   LostDisclosureCard,
@@ -82,6 +82,7 @@ import { LostLastSeenCard } from "@/components/pet-profile/LostLastSeenCard";
 import { LostScanFeed, type ScanFeedItem } from "@/components/pet-profile/LostScanFeed";
 import { LostShareCard } from "@/components/pet-profile/LostShareCard";
 import { MarkFoundInlineForm } from "@/components/pet-profile/MarkFoundInlineForm";
+import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { LnAlert } from "@/components/ui/Alert";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { LostEpisode } from "@/lib/infra/lost-mode";
@@ -199,11 +200,9 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
               {sightingsCount > 0 && ` · ${sightingsCount} avistamientos`}
             </p>
           </div>
-          {/* No "Marcar encontrada" button here — DEDUPE (task #43): it lived
-              here AND as the always-visible icon in PetActionRow (identical
-              ?sheet=marcar-encontrada target, same SheetTriggerLink
-              mechanism). PetActionRow's is the one kept — that bar is
-              already mounted directly below this block on every render. */}
+          {/* "Marcar como encontrada" lives in the owner body below as a
+              prominent primary CTA (PO 2026-07-05) — no longer duplicated in
+              PetActionRow (which dropped the found slot for lost pets). */}
         </div>
       </div>
 
@@ -211,6 +210,19 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
           unchanged informational-only read (REQ-5.3). */}
       {isOwner ? (
         <div className="p-4" style={{ background: "var(--color-ln-card)" }}>
+          {/* Prominent happy-path CTA — capability 2 (PO 2026-07-05: the found
+              action was "hard to find" as a small icon). A worried owner looks
+              here first, so the "¡Apareció!" primary button leads the block
+              (opens ?sheet=marcar-encontrada). This is now the ONLY found
+              affordance — PetActionRow no longer carries it. */}
+          <SheetTriggerLink
+            href={`/mis-mascotas/${pet.publicToken}?sheet=marcar-encontrada`}
+            className="ln-found-cta mb-4"
+          >
+            <Icon name="check" size="sm" decorative />
+            ¡Apareció! Marcar como {foundParticiple(pet.sex)}
+          </SheetTriggerLink>
+
           {/* Share-first hero — capability 6. Rendered directly (no LnCard
               wrapper): LostShareCard already renders its own <section>, so
               wrapping it in LnCardHead too was the double-chrome the lean
