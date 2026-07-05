@@ -23,9 +23,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Drawer } from "vaul";
 
+import { logoutAction } from "@/app/actions/auth";
 import type { NavItem } from "@/components/layout/HeaderNav";
 import { isNavItemActive } from "@/components/layout/nav-active";
 import { BRANDING } from "@/lib/ui/branding";
@@ -219,19 +220,11 @@ export function AppCitizenMasthead({
           </Link>
         )}
 
-        {/* User pill (logged-in) → /cuenta, or a sign-in CTA (anonymous). */}
+        {/* User menu (logged-in) → avatar dropdown with "Mi cuenta" + reliable
+            "Cerrar sesión"; or a sign-in CTA (anonymous). Logout living in the
+            masthead means it never depends on /cuenta rendering (task #50). */}
         {user ? (
-          <div className="flex items-center gap-[9px] border-l border-white/[0.18] pl-4">
-            <Link
-              href="/cuenta"
-              className="flex items-center gap-[9px] no-underline transition-opacity hover:opacity-80"
-            >
-              <span className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-celeste)] font-[var(--font-ln-mono)] text-sm font-semibold text-[var(--color-ln-azul-900)]">
-                {user.initials}
-              </span>
-              <span className="hidden text-[12.5px] font-medium md:block">{user.name}</span>
-            </Link>
-          </div>
+          <CitizenUserMenu user={user} />
         ) : (
           <Link
             href="/login"
@@ -242,6 +235,81 @@ export function AppCitizenMasthead({
         )}
       </div>
     </header>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// User menu (citizen variant) — the avatar pill opens a small dropdown with
+// "Mi cuenta" and a reliable "Cerrar sesión". Putting logout here (global
+// chrome) means signing out never depends on the /cuenta page rendering — the
+// escape hatch when that route is degraded (task #50). Renders on every
+// viewport, so mobile keeps a logout affordance even when the nav drawer is
+// absent (tab bar owns primary nav).
+// ---------------------------------------------------------------------------
+
+function CitizenUserMenu({ user }: { user: CitizenUser }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on navigation.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the trigger; setOpen is React-stable
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!open) return;
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative border-l border-white/[0.18] pl-4">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Menú de cuenta"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-[9px] rounded-full no-underline transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+      >
+        <span className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-celeste)] font-[var(--font-ln-mono)] text-sm font-semibold text-[var(--color-ln-azul-900)]">
+          {user.initials}
+        </span>
+        <span className="hidden text-[12.5px] font-medium md:block">{user.name}</span>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-[var(--radius-md)] border border-ln-line bg-white py-1 shadow-md"
+        >
+          <Link
+            href="/cuenta"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-3 py-[7px] text-[12.5px] text-ln-ink no-underline transition-colors hover:bg-ln-stripe"
+          >
+            Mi cuenta
+          </Link>
+          <div className="my-1 border-t border-ln-line-2" aria-hidden="true" />
+          <form action={logoutAction}>
+            <button
+              type="submit"
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-3 py-[7px] text-left text-[12.5px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-ln-stripe"
+            >
+              Cerrar sesión
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }
 
