@@ -22,6 +22,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-data";
+import { Icon } from "@/components/Icon";
 import { FlipCard } from "@/components/pet-profile/FlipCard";
 import {
   LibretaFace,
@@ -213,16 +214,16 @@ export function PetDetailTabsPanel({
     );
   }
 
-  // "Girar" affordance (ADR-11) — the only face switcher since wave-3 P2.
+  // Face navigation (ADR-11) — writes the active face into ?tab=.
   //
   // Router-hot-path fix: writes the URL via pushTabUrl (native History API)
   // instead of router.replace — reproduced 3/3 in production with the same
   // silent-drop symptom as the sheets (see lib/ui/sheet-nav.ts). pushState
   // (not replaceState) is required here so the browser back button can undo
   // a flip and restore the previous face via popstate → useSearchParams()
-  // reactivity below.
-  function switchFace() {
-    const target: TabKey = activeFace === "credencial" ? "libreta" : "credencial";
+  // reactivity above.
+  function goToFace(target: TabKey) {
+    if (target === activeFace) return;
     const params = new URLSearchParams(searchParams.toString());
     if (target === "credencial") {
       params.delete("tab");
@@ -235,11 +236,53 @@ export function PetDetailTabsPanel({
     pushTabUrl(qs ? `${pathname}?${qs}` : pathname);
   }
 
-  // Wave-3 P2 (PO decision #645): the Credencial|Libreta tab title bar is
-  // gone — FlipCard's "Girar" button is the only switcher, so this wrapper
-  // no longer hosts a tablist and doesn't claim `role="tabpanel"`.
+  // Two flip triggers, kept in sync (both write ?tab= through goToFace): the
+  // segmented Credencial/Libreta control below, and the band turn button that
+  // DocumentChrome renders inside each face (FlipCard.onFlip → switchFace).
+  function switchFace() {
+    goToFace(activeFace === "credencial" ? "libreta" : "credencial");
+  }
+
   return (
-    <div id="tab-panel">
+    <div id="tab-panel" className="ln-doc-root">
+      {/* Recto/verso — explicit two-sided control (the "Una sola libreta"
+          redesign restored a visible segmented switcher alongside the band
+          turn button; aria-selected stays synced across both triggers). */}
+      <div className="ln-facetabs">
+        <div className="ln-facetabs-inner" role="tablist" aria-label="Cara del documento">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeFace === "credencial"}
+            className={`ln-facetab${activeFace === "credencial" ? " is-active" : ""}`}
+            onClick={() => goToFace("credencial")}
+          >
+            <span className="ln-facetab-ic">
+              <Icon name="credential" size="sm" decorative />
+            </span>
+            <span className="ln-facetab-t">
+              <b>Credencial</b>
+              <span>Frente</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeFace === "libreta"}
+            className={`ln-facetab${activeFace === "libreta" ? " is-active" : ""}`}
+            onClick={() => goToFace("libreta")}
+          >
+            <span className="ln-facetab-ic">
+              <Icon name="libreta" size="sm" decorative />
+            </span>
+            <span className="ln-facetab-t">
+              <b>Libreta</b>
+              <span>Dorso</span>
+            </span>
+          </button>
+        </div>
+      </div>
+
       <FlipCard
         front={credencialContent}
         back={renderBackContent()}

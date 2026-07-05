@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 //
-// PetDetailTabsPanel interaction test — router-hot-path fix for the
-// FlipCard "Girar" button, which is the ONLY face switcher since wave-3 P2
-// (PO decision #645 removed the Credencial|Libreta tab title bar). Same
+// PetDetailTabsPanel interaction test — router-hot-path fix for the two face
+// switchers restored by the "Una sola libreta" redesign: the band "Girar" turn
+// button (DocumentChrome) and the segmented Credencial/Libreta tablist. Both
+// write ?tab= through the same goToFace (native History API). Same
 // defect class as SheetHost.interaction.test.tsx's sheets: Next 15.5.x's
 // App Router can silently drop a router.replace transition's own fetch in
 // production (see lib/ui/sheet-nav.ts's module docblock). The Girar click
@@ -187,11 +188,24 @@ describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => 
     expect(screen.getByRole("button", { name: "Girar a Libreta" })).toBeInTheDocument();
   });
 
-  it("does not render a Credencial|Libreta tab title bar — the flip button is the only switcher", () => {
+  it("renders the segmented Credencial/Libreta tablist in sync with the band turn button", () => {
+    // The "Una sola libreta" redesign restored a visible segmented control
+    // alongside the band turn button; both write ?tab= through the same
+    // goToFace, so aria-selected on the tablist tracks the active face.
     renderPanel("credencial");
 
-    expect(screen.queryByRole("button", { name: "Credencial" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Libreta" })).not.toBeInTheDocument();
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(2);
+    const [credencialTab, libretaTab] = tabs;
+    expect(credencialTab).toHaveAttribute("aria-selected", "true");
+    expect(libretaTab).toHaveAttribute("aria-selected", "false");
+
+    // Clicking the Libreta tab flips the face via the History API (no router).
+    fireEvent.click(libretaTab);
+    expect(window.location.search).toBe("?tab=libreta&lente=todo");
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(routerReplace).not.toHaveBeenCalled();
   });
 });
 
