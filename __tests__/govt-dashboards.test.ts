@@ -22,7 +22,10 @@ import {
   fetchWelfareMetrics,
   fetchZoonosisTrend,
 } from "@/lib/analytics/govt-dashboards";
+import { fetchOpenWelfareReportsCount } from "@/lib/analytics/govt-home-kpis";
 import { generatePublicToken } from "@/lib/infra/publicToken";
+import { buildProjectionContext } from "@/lib/metrics";
+import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -1547,6 +1550,44 @@ describe("fetchWelfareMetrics", () => {
     expect(m.myCount).toBe(0);
     expect(m.inProgressCount).toBe(0);
     expect(m.closedMonth).toBe(0);
+  });
+});
+
+// ============================================================================
+// C4 — fetchOpenWelfareReportsCount treats invalid/duplicate as terminal
+// ============================================================================
+
+describe("fetchOpenWelfareReportsCount — terminal statuses (C4)", () => {
+  afterEach(cleanupFixtureWelfareReports);
+
+  // Isolated jurisdiction so only these fixtures are in scope.
+  const PROV = "La Rioja";
+  const LOC = "La Rioja Capital";
+
+  function ctx() {
+    return buildProjectionContext(
+      { role: "govt" },
+      [{ province: PROV, locality: LOC }],
+      windows.trailing12m(),
+    );
+  }
+
+  it("excludes invalid and duplicate reports from the open count", async () => {
+    await insertFixtureWelfareReport({ province: PROV, locality: LOC, status: "open" });
+    await insertFixtureWelfareReport({ province: PROV, locality: LOC, status: "in_progress" });
+    // Terminal — must NOT count as open. Before C4 'invalid' leaked through here.
+    await insertFixtureWelfareReport({ province: PROV, locality: LOC, status: "invalid" });
+    await insertFixtureWelfareReport({ province: PROV, locality: LOC, status: "duplicate" });
+    await insertFixtureWelfareReport({
+      province: PROV,
+      locality: LOC,
+      status: "closed",
+      closedAt: new Date(),
+    });
+
+    const { count } = await fetchOpenWelfareReportsCount(ctx());
+    // open + in_progress = 2; invalid/duplicate/closed excluded.
+    expect(count).toBe(2);
   });
 });
 

@@ -16,11 +16,13 @@ import { cases, db, jurisdictionsCensus, petEvents, pets, welfareReports } from 
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {
   type ProjectionContext,
+  RABIES_VACCINE_NAME_REGEX,
   TARGETS,
   dogsInScopeCondition,
   petEventsScopeClause,
   petsScopeClause,
 } from "@/lib/metrics";
+import { TERMINAL_STATUSES as WELFARE_TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 
 // Re-export types so callers that import from this module don't need to change.
 export type { DashboardActor, DashboardJurisdiction, ProjectionContext } from "@/lib/metrics";
@@ -161,7 +163,7 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
   // (projection-cron audit 2026-07-03 A2).
   const rabiesVaccConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
-    sql`(${amendedPayloadText("vaccine_name")}) ~* '(antirr[áa]bica|rabies)'`,
+    sql`(${amendedPayloadText("vaccine_name")}) ~* ${RABIES_VACCINE_NAME_REGEX}`,
     gte(petEvents.occurredAt, since12m),
   ];
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
@@ -254,7 +256,7 @@ export async function fetchRabiesCoverageByProvince(
   // overlay via amendedPayloadText, audit A2).
   const rabiesVaccConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
-    sql`(${amendedPayloadText("vaccine_name")}) ~* '(antirr[áa]bica|rabies)'`,
+    sql`(${amendedPayloadText("vaccine_name")}) ~* ${RABIES_VACCINE_NAME_REGEX}`,
     gte(petEvents.occurredAt, since12m),
   ];
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
@@ -697,8 +699,10 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
 // KPI 5 — Open welfare reports (Denuncias ciudadanas)
 // ---------------------------------------------------------------------------
 
-// Statuses considered "terminal" — excluded from the active count.
-const WELFARE_TERMINAL_STATUSES = ["closed", "duplicate"] as const;
+// Statuses considered "terminal" — excluded from the active count. Sourced from
+// the welfare domain's single TERMINAL_STATUSES (closed | invalid | duplicate) so
+// spam/invalid denuncias do NOT inflate the "open denuncias" KPI. Before C4 this
+// local copy omitted 'invalid', over-counting invalid reports as active.
 
 export type OpenWelfareReportsKpi = {
   /** Count of welfare reports with a non-terminal status in scope. */
@@ -713,7 +717,7 @@ export type OpenWelfareReportsKpi = {
 /**
  * KPI: open_welfare_reports (see lib/metrics/kpi-catalog.ts)
  *
- * NUMERATOR:   COUNT welfare_reports rows where status NOT IN ('closed', 'duplicate').
+ * NUMERATOR:   COUNT welfare_reports rows where status NOT IN ('closed', 'invalid', 'duplicate').
  * DENOMINATOR: n/a — absolute count.
  * SOURCE:      welfare_reports.
  * CADENCE:     point-in-time snapshot.

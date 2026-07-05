@@ -60,6 +60,7 @@ import {
   type ReservedRabiesTurno,
   deriveComplianceState,
 } from "@/lib/projections/pet-compliance";
+import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 
 // ---------------------------------------------------------------------------
 // Pets
@@ -438,7 +439,16 @@ async function fetchOpenWelfareReports(userId: string): Promise<WorkflowItem[]> 
       createdAt: welfareReports.createdAt,
     })
     .from(welfareReports)
-    .where(and(eq(welfareReports.reporterUserId, userId), ne(welfareReports.status, "closed")));
+    .where(
+      and(
+        eq(welfareReports.reporterUserId, userId),
+        // Exclude ALL terminal statuses (closed | invalid | duplicate), not just
+        // 'closed' — an invalid/duplicate denuncia is resolved and must NOT surface
+        // as an "open denuncia" workflow item (C4). Shares the welfare domain's
+        // single TERMINAL_STATUSES with the govt KPIs.
+        notInArray(welfareReports.status, [...TERMINAL_STATUSES]),
+      ),
+    );
   return rows.map((r) => ({
     id: `welfare_report:${r.id}`,
     kind: "welfare_report_open" as const,
@@ -1116,9 +1126,19 @@ export async function fetchComplianceStatesForPets(
           inArray(reminders.petId, petIds),
         ),
       ),
-    // PPP jurisdiction gate.
+    // PPP jurisdiction gate + PPP-determinability inputs. species/breed/weight are
+    // needed so a DOG missing breed and/or weight surfaces the "Faltan datos" PPP
+    // obligation on the LIST exactly as it does on the profile (review 02-6): the
+    // profile passes these to deriveComplianceState but the list omitted them, so
+    // the indeterminado card was silently absent from /inicio.
     db
-      .select({ id: pets.id, ppp: pets.potentiallyDangerousBreed })
+      .select({
+        id: pets.id,
+        ppp: pets.potentiallyDangerousBreed,
+        species: pets.species,
+        breed: pets.breed,
+        estimatedWeightKg: pets.estimatedWeightKg,
+      })
       .from(pets)
       .where(inArray(pets.id, petIds)),
     // Reserved rabies turnos (WS-2) — presence flips the rabies card to
@@ -1192,10 +1212,11 @@ export async function fetchComplianceStatesForPets(
     }
   }
 
-  const pppByPet = new Map(petRows.map((r) => [r.id, Boolean(r.ppp)]));
+  const petInfoByPet = new Map(petRows.map((r) => [r.id, r]));
 
   const result = new Map<string, ComplianceState>();
   for (const petId of petIds) {
+    const petInfo = petInfoByPet.get(petId);
     result.set(
       petId,
       deriveComplianceState({
@@ -1204,7 +1225,11 @@ export async function fetchComplianceStatesForPets(
         rabiesReminder: rabiesReminderByPet.get(petId) ?? null,
         reservedRabiesTurno: turnoByPet.get(petId) ?? null,
         microchipCode: null,
-        pppApplies: pppByPet.get(petId) ?? false,
+        pppApplies: Boolean(petInfo?.ppp),
+        // Same PPP-determinability inputs the profile passes (review 02-6).
+        species: petInfo?.species ?? null,
+        breed: petInfo?.breed ?? null,
+        estimatedWeightKg: petInfo?.estimatedWeightKg ?? null,
       }),
     );
   }

@@ -54,6 +54,7 @@ import { windows } from "@/lib/metrics/period";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { findDisease } from "@/lib/reference/diseases";
 import { likeContains } from "@/lib/utils/like-helpers";
+import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 
 // Re-export so existing callers that import from this module don't need to change.
 export type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
@@ -1174,7 +1175,9 @@ export function welfareReportsScopeClause(
   );
 }
 
-const TERMINAL_STATUSES = ["closed", "invalid", "duplicate"] as const;
+// TERMINAL_STATUSES (closed | invalid | duplicate) is imported from the welfare
+// domain — the single source of truth shared with govt-home-kpis and
+// owner-dashboard so every welfare count treats "terminal" identically (C4).
 
 // ============================================================================
 // Maltrato list WHERE-clause builder (E4 followup)
