@@ -89,6 +89,7 @@ import {
   lnPetStatusFromCompliance,
   microchipHeroTag,
 } from "@/lib/projections/pet-compliance";
+import { derivePetSituation } from "@/lib/ui/pet-situation";
 import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/utils/format";
 import { fetchPendingReturnProposalForOwner } from "@/src/modules/return-to-owner/application/proposal-queries";
 import { and, asc, desc, eq, gt, isNull, notInArray } from "drizzle-orm";
@@ -586,6 +587,24 @@ export default async function PetDetailPage({
     });
   }
 
+  // Pet SITUATION (state-language, #42) — the single derivation of "what this
+  // pet is going through", a separate axis from compliance/registration. The
+  // credential adopts its skin only for a non-default, non-deceased situation
+  // (deceased keeps the memorial skin above — the two never stack).
+  const petSituation = derivePetSituation({
+    status: pet.status,
+    rabiesObservationStatus: pet.rabiesObservationStatus,
+    pregnancyStatus: pet.pregnancyStatus,
+    inTransit: isTransit,
+  });
+  const credentialSituation = !isDeceased && !petSituation.isDefault ? petSituation : null;
+  let situationDetail: string | null = null;
+  if (credentialSituation?.key === "perdida" && lostEpisode) {
+    situationDetail = `desde ${lostEpisode.openedAt.toLocaleDateString("es-AR")}`;
+  } else if (credentialSituation?.key === "prenada" && pregnancyCardData) {
+    situationDetail = `parto estimado ${pregnancyCardData.expectedBirthAt.toLocaleDateString("es-AR")}`;
+  }
+
   return (
     <div
       className="mx-auto max-w-4xl pb-12 px-4 md:px-8"
@@ -670,6 +689,8 @@ export default async function PetDetailPage({
               }
               petPublicToken={pet.publicToken}
               memorial={memorial}
+              situation={credentialSituation}
+              situationDetail={situationDetail}
               avisos={petAlerts.length > 0 ? <PetAlertStrip alerts={petAlerts} /> : null}
               anotar={
                 // Owners keep inline capture WHILE the pet is lost (AGENTS.md

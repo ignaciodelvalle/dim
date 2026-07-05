@@ -29,6 +29,7 @@ import { LnAlert } from "@/components/ui/Alert";
 import type { LnHeroProps } from "@/components/ui/Hero";
 import { LnMemorialChip } from "@/components/ui/StatusFlag";
 import type { ComplianceState } from "@/lib/projections/pet-compliance";
+import type { PetSituation } from "@/lib/ui/pet-situation";
 
 export type CredentialFacePppInfo = {
   attested: boolean;
@@ -64,6 +65,18 @@ export type CredentialFaceProps = {
   petPublicToken: string;
   /** In-Memoriam skin (ADR-15) — sepia tone + ribbon + deceased-date line. */
   memorial?: CredentialFaceMemorial | null;
+  /**
+   * Pet SITUATION skin (state-language, #42). When the pet is in a non-default
+   * situation (perdida, observación antirrábica, en tratamiento, preñada, en
+   * adopción / tránsito), the credential ADOPTS that situation's skin: the band
+   * gets its tint + ONE status line carries it, and the passive "Inscripta"
+   * registration badge is DEMOTED to a quiet secondary marker. The caller must
+   * pass `null` for the default (`al-dia`) and for deceased pets (the memorial
+   * skin above owns that state) so the two skins never stack.
+   */
+  situation?: PetSituation | null;
+  /** es-AR detail appended after the situation label, e.g. "desde 3 jul 2026". */
+  situationDetail?: string | null;
   /** Prioritized alert strip node. `null`/absent → no "Avisos" section. */
   avisos?: ReactNode;
   /** Embedded capture node (EventCatcherSingle). `null`/absent → no "Anotar" section. */
@@ -80,6 +93,8 @@ export function CredentialFace({
   serviceDog,
   petPublicToken,
   memorial,
+  situation,
+  situationDetail,
   avisos,
   anotar,
   actions,
@@ -91,13 +106,37 @@ export function CredentialFace({
 
   const publicLabel = publicHref.replace(/^\//, "");
 
+  // The situation skin only engages for a genuine, non-default situation. The
+  // default `al-dia` and the deceased/memorial case resolve to no skin (the
+  // caller already passes null for deceased, but guard on isDefault too so a
+  // stray al-dia never tints the credential green as if it were an alert).
+  const activeSituation = situation && !situation.isDefault ? situation : null;
+
   return (
-    <div style={memorial ? { filter: "grayscale(0.35) sepia(0.2)" } : undefined}>
+    <div
+      className="ln-cred"
+      data-situation={activeSituation?.key}
+      style={memorial ? { filter: "grayscale(0.35) sepia(0.2)" } : undefined}
+    >
       {memorial && (
         <div data-section="memorial-ribbon" className="flex justify-center pt-4">
           <LnMemorialChip>
             En memoria{memorialYearRange ? ` · ${memorialYearRange}` : ""}
           </LnMemorialChip>
+        </div>
+      )}
+
+      {/* Situation skin (#42) — ONE status line carrying the pet's current
+          situation via color + icon + label (never color alone). The band tint
+          and face accent are driven by `data-situation` in globals.css; this is
+          the single textual carrier. Rendered once, right under the band, so it
+          reads as the credential adopting the situation's skin — not as a badge
+          stacked next to "Inscripta". */}
+      {activeSituation && (
+        <div className={`ln-sit ln-sit--${activeSituation.tone}`} data-section="pet-situation">
+          <Icon name={activeSituation.icon} size="sm" decorative />
+          <span className="ln-sit-label">{activeSituation.label}</span>
+          {situationDetail && <span className="ln-sit-detail">— {situationDetail}</span>}
         </div>
       )}
 
@@ -117,11 +156,23 @@ export function CredentialFace({
           <div className="ln-idmeta">
             <h1 className="ln-idname">
               {heroProps.name}
-              <span className="ln-badge-reg">
+              {/* Default state: "Inscripta" is the prominent badge next to the
+                  name. When a situation skin is active it is DEMOTED to the
+                  quiet secondary marker below — the situation is the headline,
+                  registration is the footnote (no two competing badges). */}
+              {!activeSituation && (
+                <span className="ln-badge-reg">
+                  <Icon name="check" size="sm" decorative />
+                  Inscripta
+                </span>
+              )}
+            </h1>
+            {activeSituation && (
+              <div className="ln-reg-quiet">
                 <Icon name="check" size="sm" decorative />
                 Inscripta
-              </span>
-            </h1>
+              </div>
+            )}
             {heroProps.breed && <div className="ln-idsub">{heroProps.breed}</div>}
             {heroProps.tags && heroProps.tags.length > 0 && (
               <div className="ln-chips">
