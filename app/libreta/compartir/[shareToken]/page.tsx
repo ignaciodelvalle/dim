@@ -1,4 +1,5 @@
 import { and, desc, eq, or } from "drizzle-orm";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -12,11 +13,32 @@ import { groupLibretaEvents, libretaSanitariaClause } from "@/lib/infra/libreta-
 import { validateShareToken } from "@/lib/infra/libreta-share-token";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { PET_LIBRETA_SHARE_SELECT } from "@/lib/infra/pet-projections";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { petPhotoUrl } from "@/lib/infra/storage";
 
 import { ViewLogger } from "./ViewLogger";
 
 export const dynamic = "force-dynamic";
+
+// WAVE D4 — per-IP rate limit for the shared-libreta read path.
+//
+// This route resolves an unauthenticated share token to the pet's FULL medical
+// history plus the owner's first name and microchip/tattoo — a strictly more
+// sensitive payload than the public /p credential. It gets a TIGHTER per-IP cap
+// than /p (30/min, 200/hr vs 60/min, 400/hr), enforced BEFORE the token lookup
+// so no row is touched until the caller is under the limit. A legitimate vet or
+// family member opening the link (and refreshing a few times) never approaches
+// this; single-IP token enumeration is throttled hard. On limit the page renders
+// a soft throttle notice (not a hard error) to preserve UX.
+const LIBRETA_SHARE_PAGE_LIMIT = { maxPerMinute: 30, maxPerHour: 200 } as const;
+
+async function callerIpFromHeaders(): Promise<string> {
+  try {
+    return callerIp(await headers());
+  } catch {
+    return "unknown";
+  }
+}
 
 // Common shape passed to the expired / revoked / deceased terminal views so
 // each one can render the pet identity context (foto + nombre + raza) plus a
@@ -40,6 +62,16 @@ export default async function PublicLibretaPage({
   params: Promise<{ shareToken: string }>;
 }) {
   const { shareToken } = await params;
+
+  // WAVE D4: rate-limit per IP BEFORE the token lookup so no share/pet/event row
+  // is read until the caller is under the limit. Soft throttle notice on breach.
+  const ip = await callerIpFromHeaders();
+  try {
+    await enforceRateLimit("libreta_share_page", ip, LIBRETA_SHARE_PAGE_LIMIT);
+  } catch (err) {
+    if (err instanceof RateLimitError) return <ThrottleNotice />;
+    throw err;
+  }
 
   // Resolve share token via Drizzle (bypasses RLS by design — see D7 in plan).
   // Join profiles to get the owner's first name for the "Compartido por" chip.
@@ -340,4 +372,25 @@ function formatRelativeExpiry(expiresAt: Date): string {
   if (hours < 24) return `Expira en ${hours} ${hours === 1 ? "hora" : "horas"}`;
   const days = Math.floor(hours / 24);
   return `Expira en ${days} ${days === 1 ? "día" : "días"}`;
+}
+
+// ---------------------------------------------------------------------------
+// ThrottleNotice — shown when a single IP exceeds the per-IP read limit for the
+// shared libreta. Soft message instead of a hard error (mirrors /p). es-AR copy.
+// ---------------------------------------------------------------------------
+
+function ThrottleNotice() {
+  return (
+    <div className="flex min-h-[70vh] items-center justify-center bg-[var(--color-ln-paper)] p-6">
+      <div className="mx-auto max-w-[400px] px-6 py-12 text-center">
+        <p className="mb-3 font-[var(--font-ln-serif)] text-lg font-semibold text-[var(--color-ln-ink)]">
+          Demasiadas consultas
+        </p>
+        <p className="text-md leading-[1.6] text-[var(--color-ln-ink-2)]">
+          Estás realizando demasiadas consultas desde esta conexión. Esperá unos minutos y volvé a
+          intentarlo.
+        </p>
+      </div>
+    </div>
+  );
 }
