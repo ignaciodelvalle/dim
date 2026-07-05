@@ -46,6 +46,9 @@ export const DENY_ALL_ALLOWLIST: Record<string, string> = {
   // event_notification_outbox — payload snapshots (migration 0048). Service role only.
   event_notification_outbox:
     "Event notification outbox (may contain PII); drained by service-role. Deny-all to PostgREST is safe.",
+  // notification_dead_letter — failed-notification payloads (migration 0125). Service role only.
+  notification_dead_letter:
+    "Recoverable failed-notification payloads (may contain PII); written by the createNotification service and drained by a retry cron, both via Drizzle/service-role. Deny-all to PostgREST is safe.",
   // govt_business_rules — jurisdiction policy reference (migration 0086 §PART 7).
   // Authority-published reference data, no personal data, writes are admin-only.
   govt_business_rules:
