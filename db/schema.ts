@@ -3467,6 +3467,18 @@ export const cases = pgTable(
       .where(
         sql`${table.status} IN ('open', 'escalated') AND ${table.receiverOrganizationId} IS NOT NULL`,
       ),
+    // Keyset composites for the case-queue lists (migration 0126). Both back
+    // the shared ORDER BY (opened_at DESC, id DESC) keyset pagination in
+    // lib/infra/case-queries.ts: the jurisdiction composite serves
+    // listCasesForGovt (/gob/casos), the plain opened_at one serves the
+    // unscoped listCasesForAdmin (/admin/casos).
+    jurisOpenedAtIdx: index("cases_juris_opened_at_idx").on(
+      table.jurisdictionProvince,
+      table.jurisdictionLocality,
+      table.openedAt.desc(),
+      table.id.desc(),
+    ),
+    openedAtIdIdx: index("cases_opened_at_id_idx").on(table.openedAt.desc(), table.id.desc()),
     // Performance indexes added in migration 0096.
     applicantUserIdx: index("cases_applicant_user_idx").on(table.applicantUserId),
     welfareReportIdx: index("cases_welfare_report_idx")
