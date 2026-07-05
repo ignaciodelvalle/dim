@@ -454,6 +454,25 @@ async function main(): Promise<void> {
     log("OK", `${token}: "${pet.name}" → "${newName}"`);
   }
 
+  // Species coherence — the DEMO-PET-* cohort is created exclusively as dogs
+  // (scripts/seed-demo-scenario.ts `ensureDemoPet` hardcodes species='dog' and
+  // every DEMO_PET_IDENTITY entry is a dog breed). A raw DB edit that flipped
+  // one to 'cat' leaves its stored species contradicting its dog-sized weights,
+  // canine vaccines, and the `pet_species` baked into its `outbreak_signal`
+  // payload — an incoherence the fleet/surveillance demo views surface. Force
+  // the cohort back to 'dog' idempotently (no-op once every row is coherent).
+  const demoDogTokens = Object.keys(RENAMES).filter((t) => t.startsWith("DEMO-PET-"));
+  const speciesFixed = await db
+    .update(pets)
+    .set({ species: "dog" })
+    .where(and(inArray(pets.publicToken, demoDogTokens), sql`${pets.species} <> 'dog'`))
+    .returning({ publicToken: pets.publicToken });
+  if (speciesFixed.length > 0) {
+    log("OK", `species → dog for ${speciesFixed.map((r) => r.publicToken).join(", ")}`);
+  } else {
+    log("SKIP", "DEMO-PET-* species already coherent (dog).");
+  }
+
   // E2E leftovers → "Turrón" (matched by name pattern, so RETURNING captures
   // the tokens for the identity-fill pass below; reruns find them by name).
   const e2eRenamed = (await db.execute(

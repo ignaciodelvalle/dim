@@ -44,8 +44,14 @@ export function dateInYear(year: number, rng: () => number, minMonth = 0, maxMon
   // Day 0 of (maxMonth + 1) is the LAST day of maxMonth; +1 day minus 1ms gives
   // the inclusive end-of-month instant without overflowing into the next month.
   const hiExclusive = Date.UTC(year, maxMonth + 1, 1, 0, 0, 0, 0);
-  const hi = hiExclusive - 1; // last representable ms inside the window
-  const span = hi - lo;
+  let hi = hiExclusive - 1; // last representable ms inside the window
+  // Never emit a FUTURE-dated event. For the current (partial) calendar year the
+  // window would otherwise run to Dec 31, seeding events that "haven't happened
+  // yet" and breaking the admin "en vivo" metrics. Clamp the upper bound to now
+  // so the current year only spans up to today; past years are unaffected.
+  const nowMs = Date.now();
+  if (hi > nowMs) hi = nowMs;
+  const span = Math.max(0, hi - lo);
   return new Date(lo + Math.floor(rng() * (span + 1)));
 }
 
