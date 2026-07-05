@@ -30,6 +30,7 @@ import {
   organizations,
   ownerships,
   pets,
+  profiles,
 } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -37,8 +38,20 @@ import { and, eq, isNull } from "drizzle-orm";
 
 export type PetAccessPath = "owner" | "org";
 
+// VET-role trust keystone (#43): the three provenance tiers below are bound to
+// the SIGNER's validated matrícula, resolved here at the signing boundary:
+//   - authorRole "vet"     + authorVerified=true  → verified_professional
+//       (the acting user HELD a validated matrícula at sign time). This is the
+//       only org-path tier that satisfies the compliance "verificado" gate.
+//   - authorRole "shelter" + authorVerified=false → org_registered
+//       (event.write by an org member WITHOUT a validated matrícula). A valid
+//       institutional record, but NOT professional-verified.
+//   - authorRole "owner"   + authorVerified=false → owner_declared (owner path).
+// See lib/events/event-confidence.ts (computeConfidence) for how these columns
+// project onto the ConfidenceTier, and lib/projections/pet-compliance.ts for the
+// "al día" gate that only professional/institutional tiers clear.
 export type PetEventAuthorship = {
-  authorRole: "owner" | "shelter";
+  authorRole: "owner" | "shelter" | "vet";
   authorOrganizationId: string | null;
   authorVerified: boolean;
 };
@@ -140,6 +153,9 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
       pet: pets,
       organization: organizations,
       membership: organizationMemberships,
+      // VET keystone (#43): resolve whether the acting user HELD a validated
+      // matrícula at sign time — same join, no extra round-trip.
+      signerMatriculaVerified: profiles.matriculaVerified,
     })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
@@ -152,9 +168,23 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
         isNull(organizationMemberships.leftAt),
       ),
     )
+    .innerJoin(profiles, eq(profiles.id, organizationMemberships.userId))
     .where(and(eq(pets.publicToken, publicToken), isNull(ownerships.endedAt)))
     .limit(1);
   if (orgRow) {
+    // VET-role trust keystone (#43): bind the provenance tier to the SIGNER's
+    // validated matrícula, NOT to the organization's verified status. A member
+    // who holds a validated matrícula signs as verified_professional; anyone
+    // else (clinic admin, volunteer) signs as org_registered — a valid record
+    // that does NOT satisfy the compliance "verificado" gate. This is what
+    // closes the "verificado por profesional" theater (#45).
+    const eventAuthorship: PetEventAuthorship = orgRow.signerMatriculaVerified
+      ? { authorRole: "vet", authorOrganizationId: orgRow.organization.id, authorVerified: true }
+      : {
+          authorRole: "shelter",
+          authorOrganizationId: orgRow.organization.id,
+          authorVerified: false,
+        };
     return {
       ok: true,
       supabase,
@@ -163,11 +193,7 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
       accessPath: "org",
       organization: orgRow.organization,
       membership: orgRow.membership,
-      eventAuthorship: {
-        authorRole: "shelter",
-        authorOrganizationId: orgRow.organization.id,
-        authorVerified: orgRow.organization.verified,
-      },
+      eventAuthorship,
       error: null,
     };
   }

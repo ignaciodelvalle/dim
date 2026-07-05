@@ -9,16 +9,24 @@
 export type ConfidenceTier =
   | "institutional_verified"
   | "professional_verified"
+  | "org_registered"
   | "corroborated"
   | "self_reported"
   | "unverified";
 
-// Ascending order of trustworthiness — index 0 = lowest, index 4 = highest.
+// Ascending order of trustworthiness — index 0 = lowest, index 5 = highest.
 // Used by isAtLeast() for threshold comparisons.
+//
+// `org_registered` (VET-role trust keystone, #43): an event recorded by a member
+// of a named organization who does NOT hold a validated matrícula. It ranks above
+// owner self-evidence (an accountable institution recorded it) but strictly BELOW
+// professional_verified — it is a valid record, NOT professional verification, so
+// it never satisfies the compliance "verificado / al día" gate.
 export const CONFIDENCE_ORDER: ReadonlyArray<ConfidenceTier> = [
   "unverified",
   "self_reported",
   "corroborated",
+  "org_registered",
   "professional_verified",
   "institutional_verified",
 ];
@@ -39,6 +47,7 @@ export interface ConfidenceInput {
  *  shelter verified + org  → institutional_verified
  *  govt verified           → institutional_verified
  *  vet verified            → professional_verified
+ *  shelter/org (no matrícula) → org_registered (VET keystone #43: recorded, not verified)
  *  owner + corroboration   → corroborated
  *  owner alone             → self_reported
  *  scanner (anon QR)       → unverified
@@ -62,6 +71,17 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceTier {
   // Licensed veterinarian with verified matriculation.
   if (authorRole === "vet" && authorVerified) {
     return "professional_verified";
+  }
+
+  // VET-role trust keystone (#43): an org member who does NOT hold a validated
+  // matrícula. The event is a valid institutional RECORD ("Registrado por la
+  // organización") but is NOT professional verification, so it must rank below
+  // professional_verified and never satisfy the compliance "verificado" gate.
+  // The signing boundary (lib/infra/pet-access.ts) stamps authorRole="shelter"
+  // + authorVerified=false + authorOrganizationId for exactly this case; a
+  // matriculated signer is stamped authorRole="vet"+verified instead (above).
+  if (authorRole === "shelter" && authorOrganizationId) {
+    return "org_registered";
   }
 
   // Owner with supporting evidence.
@@ -103,6 +123,8 @@ export function confidenceLabel(tier: ConfidenceTier): string {
       return "Verificado institucionalmente";
     case "professional_verified":
       return "Verificado por veterinario matriculado";
+    case "org_registered":
+      return "Registrado por la organización";
     case "corroborated":
       return "Autorreportado con evidencia";
     case "self_reported":

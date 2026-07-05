@@ -9,6 +9,7 @@
 //
 //   institutional_verified            -> "Verificado · oficial"  (success/green)
 //   professional_verified             -> "Verificado por vet"    (info/celeste)
+//   org_registered                    -> "Registrado por la organización" (neutral, #43)
 //   corroborated | self_reported      -> "Registrado por vos"    (neutral)
 //   unverified                        -> "Sin verificar"         (warning)
 //
@@ -31,6 +32,11 @@ export function ownerConfidenceDisplay(tier: ConfidenceTier): OwnerConfidenceDis
       return { label: "Verificado · oficial", badge: "success" };
     case "professional_verified":
       return { label: "Verificado por vet", badge: "info" };
+    // org_registered (#43): a named org recorded it, but no matriculated
+    // professional signed — an honest "record, not verified" for the owner's
+    // Historial (never reads as vet/oficial verification).
+    case "org_registered":
+      return { label: "Registrado por la organización", badge: "neutral" };
     case "corroborated":
     case "self_reported":
       return { label: "Registrado por vos", badge: "neutral" };

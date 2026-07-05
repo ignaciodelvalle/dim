@@ -14,6 +14,10 @@ const NOW = new Date("2026-07-01T12:00:00Z");
 // obligation. VET → professional_verified; SELF (owner) → self_reported.
 const VET = { authorRole: "vet", authorVerified: true, authorOrganizationId: null };
 const SELF = { authorRole: "owner", authorVerified: false, authorOrganizationId: null };
+// VET-role trust keystone (#43): an org member WITHOUT a validated matrícula →
+// org_registered. A valid record, but NOT professional-verified — it must NOT
+// clear the "al día" gate (closes the "verificado por profesional" theater #45).
+const ORG = { authorRole: "shelter", authorVerified: false, authorOrganizationId: "org-1" };
 
 function baseInput(overrides: Partial<ComplianceInput> = {}): ComplianceInput {
   return {
@@ -146,6 +150,27 @@ describe("deriveComplianceState — H1 provenance gate", () => {
     expect(card?.tone).toBe("neutral");
     expect(card?.hint).toBeTruthy();
     expect(state.summary.ok).toBe(0);
+  });
+
+  it("org-registered sterilization (no matrícula) → 'Declarada · sin verificar', NOT counted (#43)", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...ORG }],
+      }),
+    );
+    const card = state.cards.find((c) => c.key === "sterilization");
+    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.tone).toBe("neutral");
+    expect(state.summary.ok).toBe(0);
+  });
+
+  it("org-registered rabies dose (no matrícula) → not 'Vigente' (does not satisfy the gate) (#43)", () => {
+    const state = deriveComplianceState(
+      baseInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", ORG)] }),
+    );
+    const card = state.cards.find((c) => c.key === "rabies");
+    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.tone).toBe("neutral");
   });
 
   it("vet-verified sterilization → 'Registrada' (ok), counted", () => {

@@ -48,12 +48,21 @@ describe("computeConfidence", () => {
     );
   });
 
-  it("shelter unverified with org → self_reported", () => {
+  // VET-role trust keystone (#43): an org member WITHOUT a validated matrícula
+  // signs as shelter+org+!verified. It is a valid institutional record but NOT
+  // professional verification — org_registered, which never clears the "al día"
+  // compliance gate. This is the tier that closes the "verificado" theater (#45).
+  it("shelter unverified with org → org_registered (recorded, not verified)", () => {
     expect(
       computeConfidence(
         input({ authorRole: "shelter", authorVerified: false, authorOrganizationId: "org-1" }),
       ),
-    ).toBe("self_reported");
+    ).toBe("org_registered");
+  });
+
+  it("org_registered ranks below professional_verified (never clears the verified gate)", () => {
+    expect(isAtLeast("org_registered", "professional_verified")).toBe(false);
+    expect(isAtLeast("org_registered", "corroborated")).toBe(true);
   });
 
   // --- govt ---
@@ -181,12 +190,13 @@ describe("isAtLeast", () => {
     expect(isAtLeast("unverified", "unverified")).toBe(true);
   });
 
-  it("CONFIDENCE_ORDER has 5 distinct tiers in ascending order", () => {
-    expect(CONFIDENCE_ORDER).toHaveLength(5);
+  it("CONFIDENCE_ORDER has 6 distinct tiers in ascending order", () => {
+    expect(CONFIDENCE_ORDER).toHaveLength(6);
     const tiers: ConfidenceTier[] = [
       "unverified",
       "self_reported",
       "corroborated",
+      "org_registered",
       "professional_verified",
       "institutional_verified",
     ];
@@ -211,6 +221,13 @@ describe("confidenceLabel", () => {
 
   it("professional_verified → es-AR label about veterinarian", () => {
     expect(confidenceLabel("professional_verified")).toBe("Verificado por veterinario matriculado");
+  });
+
+  it("org_registered → es-AR label about the organization (record, not verification)", () => {
+    const label = confidenceLabel("org_registered");
+    expect(label).toBe("Registrado por la organización");
+    // Must NOT read as professional/institutional verification.
+    expect(label.toLowerCase()).not.toContain("verificado");
   });
 
   it("corroborated → es-AR label about evidence", () => {

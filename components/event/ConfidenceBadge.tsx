@@ -16,6 +16,9 @@ interface Props {
 const TIER_STYLES: Record<ConfidenceTier, string> = {
   institutional_verified: "bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)]",
   professional_verified: "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]",
+  // org_registered (VET keystone #43): a record, not a verification — a neutral
+  // tone that never reads as the green/celeste "verified" chips above it.
+  org_registered: "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
   corroborated: "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]",
   self_reported: "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
   unverified: "bg-[var(--color-ln-stripe)] text-[var(--color-ln-faint)]",
