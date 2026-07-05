@@ -35,4 +35,69 @@ describe("replayPetWeight", () => {
     ];
     expect(replayPetWeight(events).estimatedWeightKg).toBeNull();
   });
+
+  // --- register / profile weight are derivable too (Invariant #3) -----------
+
+  it("derives the registration weight from pet_registered.estimated_weight_kg", () => {
+    const events = [ev("pet_registered", { estimated_weight_kg: "5.5" })];
+    expect(replayPetWeight(events).estimatedWeightKg).toBe("5.5");
+  });
+
+  it("treats a registration with no weight (null) as no weight", () => {
+    const events = [ev("pet_registered", { estimated_weight_kg: null })];
+    expect(replayPetWeight(events).estimatedWeightKg).toBeNull();
+  });
+
+  it("derives a profile-edit weight correction (latest-wins over registration)", () => {
+    const events = [
+      ev("pet_registered", { estimated_weight_kg: "5.5" }, "2026-01-01T00:00:00Z"),
+      ev(
+        "pet_profile_updated",
+        {
+          changes: [
+            { field: "name", old: "A", new: "B" },
+            { field: "estimated_weight_kg", old: "5.5", new: "7.2" },
+          ],
+        },
+        "2026-02-01T00:00:00Z",
+      ),
+    ];
+    expect(replayPetWeight(events).estimatedWeightKg).toBe("7.2");
+  });
+
+  it("a later weight_recorded wins over an earlier profile-edit weight", () => {
+    const events = [
+      ev(
+        "pet_profile_updated",
+        { changes: [{ field: "estimated_weight_kg", old: null, new: "7.2" }] },
+        "2026-01-01T00:00:00Z",
+      ),
+      ev("weight_recorded", { kg: "8.0" }, "2026-02-01T00:00:00Z"),
+    ];
+    expect(replayPetWeight(events).estimatedWeightKg).toBe("8.0");
+  });
+
+  it("a profile edit that does not touch weight preserves the prior weight", () => {
+    const events = [
+      ev("weight_recorded", { kg: "8.0" }, "2026-01-01T00:00:00Z"),
+      ev(
+        "pet_profile_updated",
+        { changes: [{ field: "color", old: "brown", new: "black" }] },
+        "2026-02-01T00:00:00Z",
+      ),
+    ];
+    expect(replayPetWeight(events).estimatedWeightKg).toBe("8.0");
+  });
+
+  it("a profile edit that clears the weight (new=null) wins as null", () => {
+    const events = [
+      ev("weight_recorded", { kg: "8.0" }, "2026-01-01T00:00:00Z"),
+      ev(
+        "pet_profile_updated",
+        { changes: [{ field: "estimated_weight_kg", old: "8.0", new: null }] },
+        "2026-02-01T00:00:00Z",
+      ),
+    ];
+    expect(replayPetWeight(events).estimatedWeightKg).toBeNull();
+  });
 });
