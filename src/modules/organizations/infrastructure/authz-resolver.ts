@@ -24,6 +24,7 @@ import {
   organizationMemberships,
   organizations,
 } from "@/db";
+import { getProfileCached } from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolveGrantedCaps } from "@/src/modules/organizations/domain/capabilities";
 
@@ -137,6 +138,25 @@ export async function requireCapability(
       organization: null,
       granted: null,
       error: "Sesión expirada.",
+    };
+  }
+
+  // Right-to-erasure lockout (Ley 25.326 art. 16, Wave E2). requireCapability is
+  // the org-side mutation guard (member management, capability grants, cross-org
+  // custody transfers, foster/adoption state changes). Like requirePetAccess it
+  // resolves the user from the JWT, which stays valid after erase_subject_data()
+  // soft-deletes the profile — so without this check a self-erased org member
+  // could keep mutating through every requireCapability-gated action. getProfile-
+  // Cached is request-memoized (already selects deletedAt); a server-action call
+  // pays one indexed read — the price of the boundary.
+  const actingProfile = await getProfileCached(user.id);
+  if (actingProfile?.deletedAt != null) {
+    return {
+      user: { id: user.id },
+      membership: null,
+      organization: null,
+      granted: null,
+      error: "Tu cuenta fue eliminada.",
     };
   }
 
