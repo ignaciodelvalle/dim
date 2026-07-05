@@ -150,6 +150,9 @@ function makeFakeRepo(
     insertNotifications: vi.fn().mockResolvedValue(undefined),
     // cross-org case lookup by publicCode (for accept/reject/cancel)
     findCaseByPublicCode: vi.fn().mockResolvedValue(makeCase()),
+    // cross-org concurrency guard (advisory lock + in-tx case status re-check)
+    acquirePetAdvisoryLock: vi.fn().mockResolvedValue(undefined),
+    caseStatusById: vi.fn().mockResolvedValue("open"),
     // cross-org expiry (repo-level helpers pulled from lib)
     findExpirableCrossOrgCases: vi.fn().mockResolvedValue([]),
     expireOneCrossOrgCase: vi.fn().mockResolvedValue(undefined),
@@ -828,6 +831,44 @@ describe("expirePetTransfers", () => {
     const n = r.notifications.find((n) => n.notificationType === "pet_transfer_expired");
     expect(n?.userId).toBe("user-sender");
   });
+
+  // -------------------------------------------------------------------------
+  // Concurrency: guarded expiry must NOT stomp a transfer another writer
+  // already resolved between the scan and the UPDATE (expectedStatus=pending).
+  // -------------------------------------------------------------------------
+
+  it("passes expectedStatus=pending so the UPDATE is guarded against a concurrent flip", async () => {
+    const rows = [{ id: "tr-1", petId: "pet-1", fromOwnerId: "user-sender", publicToken: "PTR-1" }];
+    const repo = makeFakeRepo({ expirablePetTransfers: vi.fn().mockResolvedValue(rows) });
+    await expirePetTransfers({ repo });
+    expect(repo.updateTransferStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "expired", expectedStatus: "pending" }),
+    );
+  });
+
+  it("does not expire (skips row, no notification) when the transfer was concurrently resolved (zero rows updated)", async () => {
+    const rows = [
+      { id: "tr-1", petId: "pet-1", fromOwnerId: "user-sender", publicToken: "PTR-1" },
+      { id: "tr-2", petId: "pet-2", fromOwnerId: "user-sender2", publicToken: "PTR-2" },
+    ];
+    const repo = makeFakeRepo({
+      expirablePetTransfers: vi.fn().mockResolvedValue(rows),
+      // tr-1 was accepted/rejected/cancelled by a concurrent writer between the
+      // scan and this UPDATE → guarded UPDATE matches zero rows. tr-2 still pending.
+      updateTransferStatus: vi.fn().mockResolvedValueOnce(0).mockResolvedValue(1),
+    });
+    const result = await expirePetTransfers({ repo });
+    const r = result as {
+      ok: true;
+      value: { expired: number };
+      notifications: { relatedPetId: string }[];
+    };
+    // Only the still-pending row was expired.
+    expect(r.value.expired).toBe(1);
+    // No expiry notification for the stomped row.
+    expect(r.notifications.find((n) => n.relatedPetId === "pet-1")).toBeUndefined();
+    expect(r.notifications.find((n) => n.relatedPetId === "pet-2")).toBeDefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1176,6 +1217,48 @@ describe("acceptCrossOrgTransfer", () => {
       (n) => n.notificationType === "cross_org_transfer_accepted_sender",
     );
     expect(n?.userId).toBe("coord-1");
+  });
+
+  // -------------------------------------------------------------------------
+  // Concurrency: advisory lock + in-tx case-status re-check BEFORE the
+  // destructive custody writes (the pre-tx status check is a stale read).
+  // -------------------------------------------------------------------------
+
+  it("acquires the pet advisory lock and re-checks case status before any destructive write", async () => {
+    const repo = makeFakeRepo();
+    await acceptCrossOrgTransfer(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(repo.acquirePetAdvisoryLock).toHaveBeenCalledWith("pet-1", fakeTx);
+    expect(repo.caseStatusById).toHaveBeenCalledWith("case-1", fakeTx);
+    const lockOrder = (repo.acquirePetAdvisoryLock as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    const statusOrder = (repo.caseStatusById as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    const insertOrder = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    // lock → status re-check → destructive event insert.
+    expect(lockOrder).toBeLessThan(statusOrder);
+    expect(statusOrder).toBeLessThan(insertOrder);
+  });
+
+  it("aborts in-tx when the case was concurrently closed (no custody flip)", async () => {
+    // Pre-tx read still says open (stale), but the in-tx re-check under the lock
+    // sees the case already closed by a racing reject/cancel/expire.
+    const repo = makeFakeRepo({
+      findCaseByPublicCode: vi.fn().mockResolvedValue(makeCase({ status: "open" })),
+      caseStatusById: vi.fn().mockResolvedValue("cancelled"),
+    });
+    const result = await acceptCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/abierto/i);
+    // The guard fired BEFORE any destructive custody write.
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+    expect(repo.endShelterCustody).not.toHaveBeenCalled();
+    expect(repo.insertShelterCustody).not.toHaveBeenCalled();
+    expect(repo.closeCase).not.toHaveBeenCalled();
   });
 });
 

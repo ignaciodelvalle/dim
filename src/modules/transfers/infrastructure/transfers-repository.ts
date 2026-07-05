@@ -711,6 +711,32 @@ export const TransfersRepository = {
     return row ?? null;
   },
 
+  /**
+   * Acquires a transaction-scoped advisory lock keyed on the pet id. Serializes
+   * concurrent custody writers (cross-org accept vs reject/cancel/expire) on the
+   * same pet so an in-tx status re-check is authoritative. Auto-released at tx
+   * commit/rollback. Mirrors the pg_advisory_xact_lock(hashtext(petId)) pattern
+   * used by the return-to-owner writers.
+   */
+  async acquirePetAdvisoryLock(petId: string, tx: Tx): Promise<void> {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${petId}))`);
+  },
+
+  /**
+   * Re-reads a case's status inside a transaction. Used under the advisory lock
+   * to re-check the case is still open BEFORE any destructive custody write —
+   * the pre-tx status read is stale and a concurrent reject/cancel/expire may
+   * have closed the case after it.
+   */
+  async caseStatusById(caseId: string, tx: Tx): Promise<string | null> {
+    const [row] = await tx
+      .select({ status: cases.status })
+      .from(cases)
+      .where(eq(cases.id, caseId))
+      .limit(1);
+    return row?.status ?? null;
+  },
+
   // -------------------------------------------------------------------------
   // Cross-org expiry helpers (moved from lib/case-closers)
   // -------------------------------------------------------------------------

@@ -131,6 +131,26 @@ export async function acceptCrossOrgTransfer(
     await transaction(async (tx) => {
       const now = new Date();
 
+      // CONCURRENCY GUARD (parity with owner-accept-return, D3): take the pet's
+      // advisory lock and re-check the case is STILL open UNDER the lock BEFORE
+      // any destructive custody write. The pre-tx `caseRow.status === "open"`
+      // check above is a stale read — a concurrent reject/cancel/expire may have
+      // closed the case after it. Without this the custody flip (event insert +
+      // shelter-custody end/start) executes against an already-closed case, and
+      // the closeCase call below cannot undo those writes (its result was always
+      // discarded anyway). The loser aborts here and the tx rolls back untouched.
+      await repo.acquirePetAdvisoryLock(
+        caseRow.primaryPetId as string,
+        tx as Parameters<typeof repo.acquirePetAdvisoryLock>[1],
+      );
+      const currentStatus = await repo.caseStatusById(
+        caseRow.id,
+        tx as Parameters<typeof repo.caseStatusById>[1],
+      );
+      if (currentStatus !== "open") {
+        throw new Error("Este caso ya no está abierto.");
+      }
+
       await repo.insertPetEvent(
         {
           petId: caseRow.primaryPetId as string,

@@ -53,7 +53,21 @@ export async function expirePetTransfers(
 
   for (const row of stale) {
     try {
-      await repo.updateTransferStatus({ id: row.id, status: "expired", respondedAt: now });
+      // Concurrency guard: only expire rows STILL 'pending'. The
+      // expirablePetTransfers scan reads 'pending' rows, but between that scan
+      // and this per-row UPDATE a concurrent accept/reject/cancel may have moved
+      // the transfer to a terminal status. Without the expectedStatus predicate
+      // this blind write would stomp that terminal status back to 'expired',
+      // corrupting an already-accepted/rejected/cancelled transfer. A zero-row
+      // result means another writer already resolved it — skip silently (no
+      // expiry notification, no audit entry).
+      const updatedRows = await repo.updateTransferStatus({
+        id: row.id,
+        status: "expired",
+        respondedAt: now,
+        expectedStatus: "pending",
+      });
+      if (updatedRows === 0) continue;
 
       notifications.push({
         userId: row.fromOwnerId,
