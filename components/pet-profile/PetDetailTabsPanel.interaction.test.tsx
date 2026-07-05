@@ -77,20 +77,23 @@ beforeEach(() => {
   routerPush.mockClear();
   routerReplace.mockClear();
 
-  // FlipCard's height-sync effect and Vaul-adjacent matchMedia checks need
-  // these jsdom polyfills — same as FlipCard.test.tsx / SheetHost.interaction.test.tsx.
-  window.matchMedia =
-    window.matchMedia ??
-    ((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(() => false),
-    }));
+  // matchMedia reports REDUCED motion so FlipCard's edge-on turn resolves as an
+  // INSTANT face swap — the displayed face (and its band turn button) updates
+  // synchronously within the click's act(), instead of after the ~485ms
+  // animation timers. This test exercises the router/nav contract, not the
+  // animation; the instant path keeps every assertion synchronous. (Overwrite
+  // unconditionally — jsdom ships no matchMedia, but a prior test may have set
+  // a matches:false stub that must not win here.)
+  window.matchMedia = ((query: string) => ({
+    matches: true,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => false),
+  })) as unknown as typeof window.matchMedia;
   globalThis.ResizeObserver =
     globalThis.ResizeObserver ??
     (class {

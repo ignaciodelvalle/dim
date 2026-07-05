@@ -139,11 +139,38 @@ describe("<FlipCard> — hydration-safe single tree (prefers-reduced-motion via 
   });
 });
 
-describe("<FlipCard> — animated path (motion allowed)", () => {
-  it("applies the rotateY transform matching activeFace", () => {
+describe("<FlipCard> — single painted face (paint-bug fix)", () => {
+  // Only the active face is painted; the inactive one is display:none (Tailwind
+  // `hidden`). Two faces painting in a preserve-3d/backface context failed to
+  // composite in Chromium and rendered the credential as an empty frame — this
+  // asserts the inactive face is hidden and NO 3D-stacking transforms are used.
+  it("hides the inactive face (credencial active → back is `hidden`)", () => {
+    const html = renderToStaticMarkup(
+      <FlipCard
+        front={<div>F</div>}
+        back={<div>B</div>}
+        activeFace="credencial"
+        onFlip={() => {}}
+      />,
+    );
+    expect(html).toContain('data-section="flip-back" aria-hidden="true" class="hidden"');
+    expect(html).toContain('data-section="flip-front" aria-hidden="false" class="outline-none"');
+  });
+
+  it("hides the inactive face (libreta active → front is `hidden`)", () => {
     const html = renderToStaticMarkup(
       <FlipCard front={<div>F</div>} back={<div>B</div>} activeFace="libreta" onFlip={() => {}} />,
     );
-    expect(html).toContain("rotateY(180deg)");
+    expect(html).toContain('data-section="flip-front" aria-hidden="true" class="hidden"');
+    expect(html).toContain('data-section="flip-back" aria-hidden="false" class="outline-none"');
+  });
+
+  it("uses no preserve-3d / backface-visibility / static rotateY stacking", () => {
+    const html = renderToStaticMarkup(
+      <FlipCard front={<div>F</div>} back={<div>B</div>} activeFace="libreta" onFlip={() => {}} />,
+    );
+    expect(html).not.toContain("preserve-3d");
+    expect(html).not.toContain("backface-visibility");
+    expect(html).not.toContain("rotateY(180deg)");
   });
 });

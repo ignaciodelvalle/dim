@@ -1,31 +1,32 @@
 "use client";
 
-// FlipCard — literal CSS-3D flip container for the pet profile's two faces
-// (pet-document-redesign ADR-11, elevated in the "Una sola libreta" redesign).
-// PRESENTATION ONLY: it has no navigation state of its own — `activeFace` is
-// read from the caller (PetDetailTabsPanel, which owns the ?tab= sync + the
-// tablist wiring) and `onFlip` is a callback the caller wires to its ?tab=
-// write.
+// FlipCard — the pet profile's two-sided credential ("Una sola libreta").
+// PRESENTATION ONLY: `activeFace` comes from the caller (PetDetailTabsPanel,
+// which owns the ?tab= sync + tablist wiring) and `onFlip` toggles it.
 //
-// The document reads as ONE physical two-sided object:
-//   - Two offset "back page" sheets peek behind (.ln-doc-wrap ::before/::after).
-//   - The whole sheet rises in on entrance (.ln-doc-wrap ln-doc-in, motion-gated).
-//   - A real rotateY(180deg) turn flips between faces, with the container height
-//     animated to the visible face (ResizeObserver) so it never snaps.
-//   - Each face is wrapped in <DocumentChrome> (blue band + certificate frame +
-//     the "Dar vuelta / Ver credencial" turn button — the second flip trigger).
+// SINGLE PAINTED FACE (paint-bug fix). The two faces are BOTH mounted (so the
+// tabpanel a11y wiring + the eager Libreta fetch stay intact), but only the
+// active one is painted — the inactive face is `display:none`. There is NO
+// preserve-3d / backface-visibility stacking: two faces painting inside a
+// 3D context failed to COMPOSITE in Chromium with the credential's tall,
+// complex content (band + z-index frame + QR SVG) and rendered the whole
+// credential as an empty frame. One painted face in normal flow cannot hit
+// that bug, and it is exactly the mockup's mechanic (a single visible face
+// that swaps at edge-on).
 //
-// Both faces are ALWAYS mounted (the back face must exist from first render so
-// ResizeObserver can measure it and the flip has real content to rotate into),
-// and each is a `role="tabpanel"` wired to its tab in PetDetailTabsPanel.
+// THE TURN (mockup §Interactions). On an activeFace change we turn the sheet
+// edge-on, swap which face is shown at the invisible edge, then turn back:
+//   rotateY(0 → 87°) ease-in .2s  →  swap shown face + jump to -87° (no anim)
+//   →  rotateY(-87° → 0°) ease-out .26s   (~485ms, `turningRef` re-entrancy
+//   guard; if activeFace changed again mid-turn it reconciles on completion).
+// Reduced motion: instant swap, no rotation (read at turn time — never during
+// render — so the initial tree stays hydration-deterministic).
 //
-// HYDRATION SAFETY: this renders ONE deterministic tree — server and client
-// produce identical markup. `prefers-reduced-motion` is honored purely in CSS
-// (.ln-doc-turn transition is nulled under the media query), NOT by branching to
-// a different React subtree, which used to hydrate-mismatch on a reduced-motion
-// client (the server always sees reduced-motion = false).
+// Height needs no ResizeObserver anymore: the one painted face lives in normal
+// flow, so the container auto-sizes to it (and to the Libreta face growing from
+// its loading skeleton to real content).
 
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { DocumentChrome } from "./DocumentChrome";
 
 export type FlipCardFace = "credencial" | "libreta";
@@ -49,67 +50,118 @@ type FlipCardProps = {
   onFlip: () => void;
 };
 
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
-  const frontRef = useRef<HTMLDivElement>(null);
-  const backRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | undefined>(undefined);
+  // `displayedFace` lags `activeFace` during the turn — it swaps at the edge-on
+  // midpoint so the content change is invisible. Initialised to activeFace so
+  // the FIRST render (server + client hydration) is identical and deterministic.
+  const [displayedFace, setDisplayedFace] = useState<FlipCardFace>(activeFace);
+  const displayedRef = useRef<FlipCardFace>(activeFace);
+  const activeRef = useRef<FlipCardFace>(activeFace);
+  const turningRef = useRef(false);
+  const turnElRef = useRef<HTMLDivElement>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const isLibreta = activeFace === "libreta";
+  const commit = useCallback((face: FlipCardFace) => {
+    displayedRef.current = face;
+    setDisplayedFace(face);
+  }, []);
 
-  // Height-sync (ADR-11): keep the rotating container's height matched to the
-  // visible face so the height animates with the turn instead of snapping.
-  // Observes BOTH faces — not just the active one — so an async content change
-  // on the CURRENTLY-SHOWN face (e.g. the Libreta back face resolving from its
-  // loading skeleton to real content while already flipped) re-measures
-  // immediately, instead of leaving a stale height until the next flip.
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = (isLibreta ? backRef : frontRef).current;
-      if (el) setHeight(el.getBoundingClientRect().height);
+  const maybeTurn = useCallback(() => {
+    if (turningRef.current) return;
+    const target = activeRef.current;
+    if (target === displayedRef.current) return;
+
+    const el = turnElRef.current;
+    if (!el || prefersReducedMotion()) {
+      commit(target);
+      // Reduced motion / no node: reconcile again in case activeFace advanced.
+      if (activeRef.current !== target) queueMicrotask(maybeTurn);
+      return;
+    }
+
+    turningRef.current = true;
+    // Phase 1: turn the sheet edge-on.
+    el.style.transition = "transform 0.2s ease-in";
+    el.style.transform = "rotateY(87deg)";
+    timersRef.current.push(
+      setTimeout(() => {
+        // At edge-on: swap the shown face (to the LATEST target) and jump to the
+        // opposite edge without animating.
+        commit(activeRef.current);
+        el.style.transition = "none";
+        el.style.transform = "rotateY(-87deg)";
+        // Force reflow so the jump isn't coalesced with the turn-in below.
+        void el.offsetWidth;
+        // Phase 2: turn the new face in.
+        el.style.transition = "transform 0.26s ease-out";
+        el.style.transform = "rotateY(0deg)";
+        timersRef.current.push(
+          setTimeout(() => {
+            turningRef.current = false;
+            // Reconcile if activeFace changed again during the turn.
+            maybeTurn();
+          }, 280),
+        );
+      }, 205),
+    );
+  }, [commit]);
+
+  // Run a turn whenever the requested face changes. Sync the ref here (rather
+  // than during render) so `maybeTurn` and its reconcile timer always read the
+  // latest target, and so `activeFace` is a genuine dependency of this effect.
+  useEffect(() => {
+    activeRef.current = activeFace;
+    maybeTurn();
+  }, [activeFace, maybeTurn]);
+
+  // Clear any in-flight timers on unmount only (NOT on activeFace change — that
+  // would cancel a turn mid-flight).
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      for (const t of timers) clearTimeout(t);
     };
-    measure();
-    const ro = new ResizeObserver(measure);
-    if (frontRef.current) ro.observe(frontRef.current);
-    if (backRef.current) ro.observe(backRef.current);
-    return () => ro.disconnect();
-  }, [isLibreta]);
+  }, []);
+
+  const isCredencialShown = displayedFace === "credencial";
+  const isLibretaActive = activeFace === "libreta";
 
   return (
     <div data-section="flip-card" className="ln-doc-root">
       <div className="ln-doc-stage">
         <div className="ln-doc-wrap">
-          <div
-            className="ln-doc-turn relative w-full [-webkit-transform-style:preserve-3d] [transform-style:preserve-3d]"
-            style={{
-              transform: `rotateY(${isLibreta ? 180 : 0}deg)`,
-              height: height !== undefined ? `${height}px` : undefined,
-            }}
-          >
+          <div ref={turnElRef} className="ln-doc-turn w-full">
             <div
-              ref={frontRef}
               id={PET_FACE_PANEL_ID.credencial}
               role="tabpanel"
               aria-labelledby={PET_FACE_TAB_ID.credencial}
               tabIndex={-1}
               data-section="flip-front"
-              aria-hidden={isLibreta}
-              className="absolute inset-x-0 top-0 w-full outline-none [-webkit-backface-visibility:hidden] [backface-visibility:hidden]"
+              aria-hidden={!isCredencialShown}
+              className={isCredencialShown ? "outline-none" : "hidden"}
             >
-              <DocumentChrome face="credencial" onFlip={onFlip} isLibretaActive={isLibreta}>
+              <DocumentChrome face="credencial" onFlip={onFlip} isLibretaActive={isLibretaActive}>
                 {front}
               </DocumentChrome>
             </div>
             <div
-              ref={backRef}
               id={PET_FACE_PANEL_ID.libreta}
               role="tabpanel"
               aria-labelledby={PET_FACE_TAB_ID.libreta}
               tabIndex={-1}
               data-section="flip-back"
-              aria-hidden={!isLibreta}
-              className="absolute inset-x-0 top-0 w-full outline-none [-webkit-backface-visibility:hidden] [backface-visibility:hidden] [transform:rotateY(180deg)]"
+              aria-hidden={isCredencialShown}
+              className={isCredencialShown ? "hidden" : "outline-none"}
             >
-              <DocumentChrome face="libreta" onFlip={onFlip} isLibretaActive={isLibreta}>
+              <DocumentChrome face="libreta" onFlip={onFlip} isLibretaActive={isLibretaActive}>
                 {back}
               </DocumentChrome>
             </div>
