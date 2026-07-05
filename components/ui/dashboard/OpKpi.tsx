@@ -1,8 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
 
 /**
  * OpKpi v2 — backward-compatible KPI tile with optional new props.
@@ -167,49 +167,15 @@ function InfoButton({ info }: { info: InfoTooltip }) {
 }
 
 // ---------------------------------------------------------------------------
-// Sparkline sub-component
+// Sparkline sub-component (bundle-size #22: dynamic-imported — recharts is
+// only fetched when a caller actually passes `sparkline`, not on every OpKpi
+// tile across every /gob, /admin, /org page that imports this module).
 // ---------------------------------------------------------------------------
 
-function Sparkline({ values, tone }: { values: number[]; tone: Tone }) {
-  if (values.length < 2) return null;
-
-  const strokeColor =
-    tone === "ok"
-      ? "#31a354"
-      : tone === "danger"
-        ? "#cb181d"
-        : tone === "warn"
-          ? "#e6550d"
-          : tone === "blue"
-            ? "#2171b5"
-            : "#6b7280";
-
-  const chartData = values.map((v, i) => ({ i, v }));
-
-  return (
-    <div className="mt-2 h-8 w-full" aria-hidden="true">
-      <ResponsiveContainer width="100%" height={32}>
-        <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id={`sparkFill-${tone}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={strokeColor} stopOpacity={0.3} />
-              <stop offset="95%" stopColor={strokeColor} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <Area
-            type="monotone"
-            dataKey="v"
-            stroke={strokeColor}
-            strokeWidth={1.5}
-            fill={`url(#sparkFill-${tone})`}
-            dot={false}
-            isAnimationActive={false}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
+const Sparkline = dynamic(() => import("./OpKpiSparkline").then((m) => m.OpKpiSparkline), {
+  ssr: false,
+  loading: () => <div className="mt-2 h-8 w-full" aria-hidden="true" />,
+});
 
 // ---------------------------------------------------------------------------
 // OpKpi — full-size tile

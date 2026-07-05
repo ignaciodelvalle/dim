@@ -5,7 +5,7 @@
 import { Suspense } from "react";
 
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
-import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
@@ -142,17 +142,15 @@ export default async function DashboardPrimitivasPage() {
               12 puntos mensuales sintéticos. Variante &ldquo;area&rdquo;. Animaciones respetan
               prefers-reduced-motion.
             </p>
-            <Suspense fallback={null}>
-              <TimeSeriesChart
-                data={SAMPLE_TIMESERIES}
-                seriesLabel="Denuncias registradas"
-                yLabel="Denuncias"
-                variant="area"
-                strokeColor="#1e40af"
-                height={300}
-                fallbackTableLabel="Denuncias registradas por mes"
-              />
-            </Suspense>
+            <TimeSeriesChartDynamic
+              data={SAMPLE_TIMESERIES}
+              seriesLabel="Denuncias registradas"
+              yLabel="Denuncias"
+              variant="area"
+              strokeColor="#1e40af"
+              height={300}
+              fallbackTableLabel="Denuncias registradas por mes"
+            />
           </LnCardBody>
         </LnCard>
 

@@ -1,4 +1,4 @@
-import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
@@ -124,7 +124,7 @@ export default async function GobVigilanciazoonosisPage({
           }
         />
         <OpCardBody>
-          <TimeSeriesChart data={trendPoints} seriesLabel="Señales" />
+          <TimeSeriesChartDynamic data={trendPoints} seriesLabel="Señales" />
         </OpCardBody>
       </OpCard>
     </div>
