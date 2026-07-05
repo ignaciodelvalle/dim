@@ -968,6 +968,61 @@ async function loadStoryline(
     });
   }
 
+  // Canonical dual-write for microchip_replaced — mirror replaceMicrochipForUser
+  // (src/modules/pets/application/microchip/replace-microchip.ts).
+  //
+  // WHY: the block above only writes the INITIAL implant row. A storyline whose
+  // timeline carries a microchip_replaced event (replacement OR pure revocation)
+  // must fold that lifecycle into pet_identifications too, otherwise the canonical
+  // row keeps the ORIGINAL chip code while replayPetMicrochip(events) reflects the
+  // replacement/revocation — cache<->events drift the pet-cache fitness sweep
+  // (__tests__/pet-cache-rederivation.test.ts) rightly rejects. Fold each replace
+  // event chronologically: flip the current active microchip_iso row to
+  // 'replaced', then (unless new_chip_number is null → pure revocation) insert the
+  // successor as the new active row, mirroring the real writer's field mapping.
+  const replaceEvents = (story.events as any[])
+    .filter((e) => e.event_type === "microchip_replaced")
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  for (const re of replaceEvents) {
+    const rp = (re.payload ?? {}) as Record<string, unknown>;
+    const newChip =
+      typeof rp.new_chip_number === "string" && rp.new_chip_number.length > 0
+        ? rp.new_chip_number
+        : null;
+
+    // Flip the currently-active microchip_iso row to 'replaced'.
+    await db
+      .update(schemas.petIdentifications)
+      .set({ status: "replaced", updatedAt: new Date() })
+      .where(
+        drizzle.and(
+          drizzle.eq(schemas.petIdentifications.petId, pet.id),
+          drizzle.eq(schemas.petIdentifications.kind, "microchip_iso"),
+          drizzle.eq(schemas.petIdentifications.status, "active"),
+        ),
+      );
+
+    // Replacement (not a pure revocation) → insert the successor active row.
+    // Fields mirror both the writer's insert and replayPetMicrochip's fold:
+    // recordedAt = the replace date, recordedByLabel = replaced_by, ISO subfields
+    // sliced from the new code, implantationSite unset (null).
+    if (newChip) {
+      const replacedBy =
+        typeof rp.replaced_by === "string" && rp.replaced_by.length > 0 ? rp.replaced_by : null;
+      await db.insert(schemas.petIdentifications).values({
+        petId: pet.id,
+        kind: "microchip_iso",
+        code: newChip,
+        recordedAt: typeof re.date === "string" ? re.date : story.events[0].date,
+        recordedByLabel: replacedBy,
+        isoCountryCode: newChip.slice(0, 3),
+        isoManufacturerCode: newChip.slice(3, 7),
+        isoNationalId: newChip.slice(7, 15),
+        isoCompliant: true,
+      });
+    }
+  }
+
   // Canonical tattoo row — written when the storyline carries a tattoo_recorded event.
   // Uses the FIRST tattoo_recorded event's payload as the canonical identifier.
   // If a subsequent tattoo_updated event changes the code, the original row is
