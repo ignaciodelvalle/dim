@@ -12,6 +12,7 @@
 // Writers (server action) live in app/actions/amendment.ts.
 
 import type { EventType } from "@/db/schema";
+import { upcastPayload } from "@/lib/events/event-upcasters";
 
 // ---------------------------------------------------------------------------
 // D4 — Allowlist of amendable event types
@@ -146,7 +147,13 @@ type OverlayableEvent = {
  * they already fetch; this derives the per-target overlay from them.
  *
  *  - `event_amended` rows pass through untouched (the correction itself is a
- *    visible, append-only timeline entry).
+ *    visible, append-only timeline entry) — they are never upcast.
+ *  - Every non-amendment row is first UPCAST (upcastPayload — no-op unless the
+ *    event type has a registered v(N+1) upcaster) so a `payload_version` bump
+ *    can't silently hand a reader a stale-shaped payload; this makes
+ *    overlayAmendments the single payload-access boundary that ALWAYS upcasts
+ *    (WAVE D1 / finding 27-#11). The amendment correction is applied ON TOP of
+ *    the upcast payload.
  *  - Targeted rows get `payload` projected via the LATEST amendment (chains
  *    are flattened by amend-event.ts: every amendment targets the original)
  *    and `amendedAt` set to that amendment's occurredAt.
@@ -171,15 +178,18 @@ export function overlayAmendments<T extends OverlayableEvent>(
     }
   }
 
-  if (latestByTarget.size === 0) {
-    return events.map((e) => ({ ...e, amendedAt: null }));
-  }
-
   return events.map((e) => {
+    // The correction itself is an append-only timeline entry — never upcast or
+    // projected. (event_amended has no schema upcaster anyway.)
     if (e.eventType === "event_amended") return { ...e, amendedAt: null };
+
+    // Upcast first so the reader always sees the latest payload shape, then
+    // layer the correction on top.
+    const upcast = upcastPayload(e.eventType as EventType, e.payload) as Record<string, unknown>;
     const amendment = latestByTarget.get(e.id);
-    if (!amendment) return { ...e, amendedAt: null };
-    const projected = { ...(e.payload as Record<string, unknown>) };
+    if (!amendment) return { ...e, payload: upcast, amendedAt: null };
+
+    const projected = { ...upcast };
     for (const change of amendment.changes) {
       projected[change.field] = change.new;
     }

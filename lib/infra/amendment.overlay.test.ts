@@ -108,6 +108,48 @@ describe("overlayAmendments", () => {
     expect(out.find((r) => r.id === "w1")?.payload).toEqual({ kg: "12.50" });
   });
 
+  // WAVE D1 / finding 27-#11: overlayAmendments is the single read boundary
+  // that ALWAYS upcasts, so a payload_version bump can't silently hand a reader
+  // a stale-shaped payload. adoption_application_submitted has a registered
+  // v1→v2 upcaster (lib/events/event-upcasters.ts) — a v1 row must come out v2.
+  it("upcasts non-amendment payloads to the latest schema version", () => {
+    const rows: Row[] = [
+      {
+        id: "app1",
+        eventType: "adoption_application_submitted",
+        occurredAt: "2026-01-01",
+        // v1 shape — motivation / prior_pets absent, version 1.
+        payload: { payload_version: 1, housing_type: "departamento" },
+      },
+    ];
+    const out = overlayAmendments(rows);
+    const app = out.find((r) => r.id === "app1")?.payload as Record<string, unknown>;
+    expect(app.payload_version).toBe(2);
+    expect(app.motivation).toBeNull();
+    expect(app.prior_pets).toBeNull();
+    expect(app.housing_type).toBe("departamento");
+  });
+
+  it("applies the correction ON TOP of the upcast payload", () => {
+    const rows: Row[] = [
+      {
+        id: "app1",
+        eventType: "adoption_application_submitted",
+        occurredAt: "2026-01-01",
+        payload: { payload_version: 1, housing_type: "departamento" },
+      },
+      amendment("a1", "app1", "2026-02-01", [
+        { field: "housing_type", old: "departamento", new: "casa" },
+      ]),
+    ];
+    const out = overlayAmendments(rows);
+    const app = out.find((r) => r.id === "app1")?.payload as Record<string, unknown>;
+    // Upcast keys are present AND the correction won.
+    expect(app.payload_version).toBe(2);
+    expect(app.motivation).toBeNull();
+    expect(app.housing_type).toBe("casa");
+  });
+
   it("multi-field change entries all apply", () => {
     const rows: Row[] = [
       {
