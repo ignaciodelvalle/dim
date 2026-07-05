@@ -11,7 +11,8 @@
 //   5. De-dupes a user with two active assignments matching two of the
 //      queried jurisdictions (selectDistinct).
 
-import { describe, expect, it } from "vitest";
+import { like } from "drizzle-orm";
+import { afterAll, describe, expect, it } from "vitest";
 
 import { db, govtAssignments, profiles } from "@/db";
 import { fetchJurisdictionActorIds } from "@/lib/infra/govt-audit-scope";
@@ -30,6 +31,16 @@ async function makeProfile(displayName: string): Promise<string> {
 }
 
 describe("fetchJurisdictionActorIds", () => {
+  // The synthetic assignments this suite creates use localities (govt-audit-scope-*)
+  // that do NOT resolve against ar_localities, so leaving them ACTIVE trips the
+  // govt-assignments-locality-integrity fitness sweep (#758). Delete them by the
+  // locality pattern — this also drains rows left by earlier interrupted runs.
+  // Profiles are cleaned best-effort (they own no audit rows in this suite).
+  afterAll(async () => {
+    await db.delete(govtAssignments).where(like(govtAssignments.jurisdictionLocality, "govt-audit-scope-%"));
+    await db.delete(profiles).where(like(profiles.displayName, "govt-audit-scope%")).catch(() => {});
+  });
+
   it("returns [] without querying when jurisdictions is empty", async () => {
     expect(await fetchJurisdictionActorIds([])).toEqual([]);
   });
