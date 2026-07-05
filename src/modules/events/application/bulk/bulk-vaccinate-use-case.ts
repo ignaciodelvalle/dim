@@ -126,6 +126,14 @@ export async function bulkVaccinate(
         {
           pet: { id: petId },
           user: { id: userId },
+          // FOLLOW-UP (#43): this shelter-batch path still stamps
+          // authorVerified=org.verified (pre-keystone behavior). The per-pet
+          // clinical signing boundary (lib/infra/pet-access.ts) now binds the
+          // provenance tier to the SIGNER's validated matrícula; this bulk path
+          // should do the same (resolve profiles.matriculaVerified for `userId`
+          // and stamp vet+verified vs shelter+org_registered) so a verified
+          // refugio's bulk vaccination does not falsely clear the "verificado"
+          // gate. Deferred: it needs a DB-integration test pass (bulk-vaccinate).
           eventAuthorship: {
             authorRole: "shelter",
             authorOrganizationId: org.id,

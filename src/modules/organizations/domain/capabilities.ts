@@ -40,7 +40,7 @@ export const CAPABILITY_CATALOG: readonly CapabilityCatalogEntry[] = [
     capability: "intake.create",
     label: "Registrar ingreso (intake)",
     description:
-      "Dar de alta animales que entran en custodia del refugio (rescate, decomiso, abandono, encontrado).",
+      "Dar de alta animales que entran en custodia de la organización (rescate, decomiso, abandono, encontrado).",
   },
   {
     capability: "foster.assign",
@@ -131,6 +131,47 @@ const CAPABILITY_SET = new Set<string>(ORGANIZATION_CAPABILITIES);
 /** Returns true iff `value` is a member of ORGANIZATION_CAPABILITIES. */
 export function isValidCapability(value: string): value is OrganizationCapability {
   return CAPABILITY_SET.has(value);
+}
+
+// ---------------------------------------------------------------------------
+// Org-type specialization (#43 item 2) — a Clínica must not see refugio modules.
+//
+// These six capabilities are PURE-SHELTER concerns (custody rehoming lifecycle:
+// foster, adoption, custody transfer, adoption listings). A clinic or sanitary
+// authority never runs them, so their action cards and permission rows are
+// hidden for those org types. `admin` still implicitly holds every capability
+// (resolveGrantedCaps), which is exactly why a clinic ADMIN used to see every
+// refugio card — the org-type filter, not the grant set, is the right gate.
+// ---------------------------------------------------------------------------
+
+export const SHELTER_ONLY_CAPABILITIES: ReadonlySet<OrganizationCapability> = new Set([
+  "foster.assign",
+  "foster.end",
+  "adoption.review",
+  "adoption.finalize",
+  "custody.transfer",
+  "adoption.listing.manage",
+]);
+
+// Org types that run the custody-rehoming lifecycle (and thus the shelter-only
+// capabilities above). Everything else (clinic, sanitary_authority, other)
+// hides them.
+const REHOMING_ORG_TYPES: ReadonlySet<string> = new Set(["shelter", "rescue_network"]);
+
+/**
+ * Whether a capability is relevant to a given org_type. Shelter-only
+ * capabilities are available only to rehoming org types; every other
+ * capability is universal. Used to filter both the org-console action cards
+ * and the permissions table so a clinic never surfaces refugio modules.
+ */
+export function capabilityAppliesToOrgType(
+  capability: OrganizationCapability,
+  orgType: string,
+): boolean {
+  if (SHELTER_ONLY_CAPABILITIES.has(capability)) {
+    return REHOMING_ORG_TYPES.has(orgType);
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------

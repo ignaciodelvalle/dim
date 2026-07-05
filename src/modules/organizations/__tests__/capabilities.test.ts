@@ -7,11 +7,64 @@ import { ORGANIZATION_CAPABILITIES, type OrganizationCapability } from "@/db/sch
 import {
   CAPABILITY_CATALOG,
   COORDINATOR_IMPLICIT_CAPS,
+  SHELTER_ONLY_CAPABILITIES,
   VET_INDIVIDUAL_IMPLICIT_CAPS,
   WELFARE_DECOMISO_EXECUTE_CAPABILITY,
+  capabilityAppliesToOrgType,
   isValidCapability,
   resolveGrantedCaps,
 } from "@/src/modules/organizations/domain/capabilities";
+
+// ---------------------------------------------------------------------------
+// Org-type specialization (#43 item 2)
+// ---------------------------------------------------------------------------
+
+describe("capabilityAppliesToOrgType", () => {
+  const shelterOnly: OrganizationCapability[] = [
+    "foster.assign",
+    "foster.end",
+    "adoption.review",
+    "adoption.finalize",
+    "custody.transfer",
+    "adoption.listing.manage",
+  ];
+
+  it("SHELTER_ONLY_CAPABILITIES holds exactly the six pure-shelter caps", () => {
+    expect([...SHELTER_ONLY_CAPABILITIES].sort()).toEqual([...shelterOnly].sort());
+  });
+
+  it("hides every shelter-only capability from a clinic", () => {
+    for (const cap of shelterOnly) {
+      expect(capabilityAppliesToOrgType(cap, "clinic"), cap).toBe(false);
+    }
+  });
+
+  it("hides shelter-only capabilities from a sanitary_authority", () => {
+    for (const cap of shelterOnly) {
+      expect(capabilityAppliesToOrgType(cap, "sanitary_authority"), cap).toBe(false);
+    }
+  });
+
+  it("keeps shelter-only capabilities for shelters and rescue networks", () => {
+    for (const cap of shelterOnly) {
+      expect(capabilityAppliesToOrgType(cap, "shelter"), cap).toBe(true);
+      expect(capabilityAppliesToOrgType(cap, "rescue_network"), cap).toBe(true);
+    }
+  });
+
+  it("keeps clinic-relevant capabilities visible for a clinic (event.write, appointments, bite)", () => {
+    for (const cap of [
+      "event.write",
+      "appointment.manage",
+      "service_offering.create",
+      "bite.report",
+      "pet.read_held",
+      "intake.create",
+    ] as OrganizationCapability[]) {
+      expect(capabilityAppliesToOrgType(cap, "clinic"), cap).toBe(true);
+    }
+  });
+});
 
 // ---------------------------------------------------------------------------
 // WELFARE_DECOMISO_EXECUTE_CAPABILITY

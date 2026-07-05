@@ -49,7 +49,10 @@ import {
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { deriveSetupSteps, isSetupComplete } from "@/lib/infra/org-setup-checklist";
 import { getProfileCached } from "@/lib/infra/request-cache";
-import { CAPABILITY_CATALOG } from "@/src/modules/organizations/domain/capabilities";
+import {
+  CAPABILITY_CATALOG,
+  capabilityAppliesToOrgType,
+} from "@/src/modules/organizations/domain/capabilities";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { RequestCapabilityForm } from "./RequestCapabilityForm";
@@ -156,12 +159,23 @@ export default async function OrgDashboardPage({
 
   const granted = await getGrantedCapabilities(membership);
   const isAdmin = membership.role === "admin";
+  const orgType = organization.orgType;
+  const isShelter = orgType === "shelter";
+  const isClinic = orgType === "clinic";
+  // Org-type specialization (#43 item 2): a granted capability is only surfaced
+  // when it is also relevant to the org_type. This is what stops a clinic ADMIN
+  // — who implicitly holds every capability — from seeing refugio modules
+  // (Adopciones, Foster/Tránsitos, custodia). See capabilityAppliesToOrgType.
+  const showCap = (capability: OrganizationCapability): boolean =>
+    granted.has(capability) && capabilityAppliesToOrgType(capability, orgType);
+  const isRehoming = orgType === "shelter" || orgType === "rescue_network";
   const canDecideRequests = granted.has("capability.grant");
-  const canReadHeld = granted.has("pet.read_held");
-  const canIntake = granted.has("intake.create");
-  const canReviewAdoptions = granted.has("adoption.review");
-  const canAssignFoster = granted.has("foster.assign");
-  const isShelter = organization.orgType === "shelter";
+  const canReadHeld = showCap("pet.read_held");
+  const canIntake = showCap("intake.create");
+  const canReviewAdoptions = showCap("adoption.review");
+  const canAssignFoster = showCap("foster.assign");
+  const canWriteEvents = granted.has("event.write");
+  const canReportBite = granted.has("bite.report");
 
   const grantHistory = isAdmin
     ? []
@@ -605,7 +619,7 @@ export default async function OrgDashboardPage({
             >
               <p className="text-[13px] font-semibold text-ln-op-ink">Registrar ingreso</p>
               <p className="text-sm text-ln-op-mute mt-1">
-                Dar de alta un animal que entra a custodia del refugio.
+                Dar de alta un animal que entra a custodia de la organización.
               </p>
             </Link>
           )}
@@ -651,7 +665,7 @@ export default async function OrgDashboardPage({
               </Link>
             </>
           )}
-          {canIntake && (
+          {canIntake && isRehoming && (
             <Link
               href={`/org/${orgToken}/pets/no-aptas`}
               className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
@@ -671,20 +685,51 @@ export default async function OrgDashboardPage({
           is shelter-only; clinics and health authorities previously landed on a
           thin panel with no actionable modules. Surface their primary modules
           here, capability-gated so the links never dead-end. */}
-      {organization.orgType === "clinic" &&
-        (granted.has("appointment.manage") || canCreateServices) && (
+      {isClinic &&
+        (canWriteEvents ||
+          canReportBite ||
+          granted.has("appointment.manage") ||
+          canCreateServices) && (
           <section
             aria-label="Módulos de la clínica"
             className="grid grid-cols-1 sm:grid-cols-2 gap-3"
           >
+            {/* Vet home (#43 item 3): the clinic's primary action is signing a
+                clinical event — it leads the module grid (accent card). Adoption
+                is demoted (hidden entirely for clinics by the org-type filter). */}
+            {canWriteEvents && (
+              <Link
+                href={`/org/${orgToken}/mascotas`}
+                className="block rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline sm:col-span-2"
+              >
+                <p className="text-[13px] font-semibold text-ln-op-ink">
+                  Registrar / firmar evento clínico
+                </p>
+                <p className="text-sm text-ln-op-mute mt-1">
+                  Cargá una vacuna, cirugía u otro evento clínico. Si tenés matrícula
+                  verificada, se firma como verificado por profesional.
+                </p>
+              </Link>
+            )}
             {granted.has("appointment.manage") && (
               <Link
                 href={`/org/${orgToken}/agenda`}
                 className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
-                <p className="text-[13px] font-semibold text-ln-op-ink">Agenda</p>
+                <p className="text-[13px] font-semibold text-ln-op-ink">Turnos de hoy</p>
                 <p className="text-sm text-ln-op-mute mt-1">
-                  Turnos del día: asistencia, ausencias y cancelaciones.
+                  La agenda del día: asistencia, ausencias y cancelaciones.
+                </p>
+              </Link>
+            )}
+            {canReportBite && (
+              <Link
+                href={`/org/${orgToken}/mordedura/nuevo`}
+                className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+              >
+                <p className="text-[13px] font-semibold text-ln-op-ink">Reportar mordedura</p>
+                <p className="text-sm text-ln-op-mute mt-1">
+                  Registrar una mordedura e iniciar la observación antirrábica.
                 </p>
               </Link>
             )}
@@ -757,7 +802,11 @@ export default async function OrgDashboardPage({
             </p>
           )}
           <ul className="divide-y divide-ln-op-line">
-            {CAPABILITY_CATALOG.map((entry) => {
+            {CAPABILITY_CATALOG.filter((entry) =>
+              // Org-type specialization (#43 item 2): hide pure-shelter permissions
+              // (foster/adoption/custody) from clinics and health authorities.
+              capabilityAppliesToOrgType(entry.capability, orgType),
+            ).map((entry) => {
               const state = stateFor(entry.capability);
               const showRequestForm =
                 !isAdmin &&
