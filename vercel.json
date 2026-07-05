@@ -42,6 +42,10 @@
       "schedule": "0 4 * * *"
     },
     {
+      "path": "/api/cron/drain-notification-dead-letter",
+      "schedule": "15 * * * *"
+    },
+    {
       "path": "/api/cron/drain-outbox",
       "schedule": "0 6 * * *"
     },

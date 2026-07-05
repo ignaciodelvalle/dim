@@ -43,6 +43,11 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
   },
   { cronName: "cron_health", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 10 * * *" },
   { cronName: "data_lifecycle", maxStalenessMs: DAILY_STALENESS_MS, schedule: "30 3 * * *" },
+  {
+    cronName: "drain_notification_dead_letter",
+    maxStalenessMs: DAILY_STALENESS_MS,
+    schedule: "15 * * * *",
+  },
   { cronName: "drain_outbox", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 6 * * *" },
   {
     cronName: "escalate_stale_disputes",
