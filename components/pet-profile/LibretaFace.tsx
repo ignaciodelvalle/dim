@@ -12,13 +12,15 @@
 // owner-only Emergencia block (wave-3 P3, PO decision #645 point 3 — moved
 // off CredentialFace), and the keepsake ExportLibretaButton in its footer.
 
-import { EventTimelineList } from "@/app/(app)/mis-mascotas/[publicToken]/EventTimeline";
 import { Icon } from "@/components/Icon";
+import { AsientoCard } from "@/components/pet-profile/AsientoCard";
 import { ExportLibretaButton } from "@/components/pet-profile/ExportLibretaButton";
 import { FutureLedgerList } from "@/components/pet-profile/FutureLedgerList";
 import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { VacunasStatusBadges } from "@/components/pet-profile/VacunasStatusBadges";
+import { speciesLabel } from "@/lib/utils/format";
 import type { LibretaFaceData } from "@/src/modules/pets/application/tab-data/types";
+import { toAsientoView } from "./asiento-fields";
 import { pastEventMatchesAudience } from "./libreta-lens";
 
 export type LibretaFaceEmergencyContacts = {
@@ -54,42 +56,70 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
   const past = data.past.filter((row) => pastEventMatchesAudience(row.eventType, audience));
 
   const isEmpty = future.length === 0 && past.length === 0;
+  const now = new Date();
+  const speciesLine = [
+    speciesLabel(data.identity.species),
+    data.identity.sex === "male" ? "macho" : data.identity.sex === "female" ? "hembra" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <div className="space-y-5 py-5">
-      <VacunasStatusBadges summary={data.summary} />
+    <div className="ln-sec">
+      {/* Libreta head — the ledger's masthead. */}
+      <div className="ln-lib-head">
+        <h2>{data.identity.name}</h2>
+        <span className="ln-lib-code">{data.identity.publicToken}</span>
+        {speciesLine && <span className="ln-lib-titular">{speciesLine}</span>}
+      </div>
+
+      <div className="mt-4">
+        <VacunasStatusBadges summary={data.summary} />
+      </div>
 
       {isEmpty ? (
-        <p className="text-sm text-[var(--color-ln-mute)]">
+        <p className="mt-5 text-sm text-[var(--color-ln-mute)]">
           Sin eventos ni cuidados programados todavía.
         </p>
       ) : (
         <>
-          <FutureLedgerList items={future} petPublicToken={petPublicToken} />
-
-          {future.length > 0 && past.length > 0 && (
-            // Directional divider: a bare "— hoy —" read as a date tag for the
-            // future item directly above it (QA round 2 2026-07-03 #7: a 2027
-            // reminder appeared labeled "HOY"). Arrows disambiguate which side
-            // is upcoming and which is history.
-            <div className="flex items-center gap-3 text-xs uppercase tracking-[.06em] text-[var(--color-ln-faint)]">
-              <span className="h-px flex-1 bg-[var(--color-ln-line)]" />
-              próximo ↑ · hoy · historia ↓
-              <span className="h-px flex-1 bg-[var(--color-ln-line)]" />
+          {future.length > 0 && (
+            <div className="mt-1">
+              <FutureLedgerList items={future} petPublicToken={petPublicToken} />
             </div>
           )}
 
-          <EventTimelineList
-            events={past}
-            publicToken={petPublicToken}
-            weightSamples={data.weightSamples}
-          />
+          {future.length > 0 && past.length > 0 && (
+            // Directional "hoy" divider: a bare "— hoy —" read as a date tag for
+            // the future item directly above it (QA round 2 2026-07-03 #7: a
+            // 2027 reminder appeared labeled "HOY"). Arrows disambiguate which
+            // side is upcoming and which is history.
+            <div className="ln-hoy">próximo ↑ · hoy · historia ↓</div>
+          )}
+
+          {past.length > 0 && (
+            <>
+              <div className="ln-ledlbl">
+                Asientos · {past.length} {past.length === 1 ? "registro" : "registros"}
+              </div>
+              <div className="ln-asientos">
+                {past.map((row) => (
+                  <AsientoCard
+                    key={row.id}
+                    view={toAsientoView(row, petPublicToken, now)}
+                    eventHref={`/mis-mascotas/${petPublicToken}/eventos/${row.id}`}
+                    weightSamples={data.weightSamples}
+                  />
+                ))}
+              </div>
+            </>
+          )}
 
           {data.pastTruncated && (
             // perf/scale review 2026-07-04 — `past` is bounded (PAST_EVENTS_WINDOW)
             // for long-lived pets; this note keeps that cap honest instead of
             // silently hiding older history.
-            <p className="text-xs text-[var(--color-ln-mute)]">
+            <p className="mt-3 text-xs text-[var(--color-ln-mute)]">
               Mostrando los eventos más recientes. Imprimí la libreta completa para ver todo el
               historial.
             </p>
@@ -98,16 +128,20 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
       )}
 
       {emergencyContacts && (
-        <EmergenciaBlock contacts={emergencyContacts} petPublicToken={petPublicToken} />
+        <div className="mt-5">
+          <EmergenciaBlock contacts={emergencyContacts} petPublicToken={petPublicToken} />
+        </div>
       )}
 
       {/* Immutability, in plain es-AR (append-only ledger — WS-3). */}
-      <p className="text-xs text-[var(--color-ln-mute)]">
-        Los eventos no se editan ni se borran. Una corrección es un evento nuevo.
+      <p className="ln-immut">
+        <Icon name="lock" size="sm" decorative />
+        <span>Los eventos no se editan ni se borran. Una corrección es un evento nuevo.</span>
       </p>
 
-      <footer className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-3.5 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+      <footer className="ln-libfoot font-[var(--font-ln-mono)] text-xs uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
         <span>Asientos firmados digitalmente · inmutables</span>
+        <span className="ln-fspace" />
         <ExportLibretaButton petPublicToken={petPublicToken} />
       </footer>
     </div>
