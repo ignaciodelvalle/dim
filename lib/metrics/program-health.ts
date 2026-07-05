@@ -27,10 +27,10 @@
 import { and, count, desc, gte, inArray, sql } from "drizzle-orm";
 
 import { auditLog, db, govtAssignments, ownerships, petIdentifications, pets } from "@/db";
-import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import { activePetsCondition, petsScopeClause } from "@/lib/metrics";
 
 import type { ProjectionContext } from "./context";
+import { rabiesVaccinatedExists } from "./rabies";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -315,20 +315,14 @@ export async function fetchCrossJurisdictionOutliers(
   )`;
 
   // EXISTS: rabies vaccination event (for dogs only — compliance-metrics.ts C1 analog).
-  // Match on vaccine_name with the SAME accent-aware regex as fetchRabiesCoverage
-  // / fetchRabiesCoverageByProvince / the Panorama coberta layer. The old
-  // `vaccine_type = 'antirabica'` predicate was a DRIFT: the seed (and real
-  // events) carry the canonical form name "Antirrábica" in vaccine_name and leave
-  // vaccine_type null, so this table read 0% rabies everywhere while the KPIs and
-  // map showed real values (B2). One predicate, one definition of "is rabies".
-  // vaccine_name reads through the amendment overlay (audit A2) — the EXISTS
-  // aliases pet_events as pe, so the helper gets explicit refs.
-  const hasRabiesVax = sql`EXISTS (
-    SELECT 1 FROM pet_events pe
-    WHERE pe.pet_id = ${pets.id}
-      AND pe.event_type = 'vaccination_administered'
-      AND (${amendedPayloadText("vaccine_name", { id: sql`pe.id`, payload: sql`pe.payload` })}) ~* '(antirr[áa]bica|rabies)'
-  )`;
+  // Uses the SHARED rabiesVaccinatedExists predicate (lib/metrics/rabies.ts) so the
+  // /admin panel counts the SAME numerator as fetchRabiesCoverage, the province
+  // breakdown, and the Panorama choropleth: anchored accent-aware regex on the
+  // amended vaccine_name AND occurred_at within the trailing-12-month window
+  // (ctx.period.since). Before C3 this EXISTS had the regex but NO occurred_at
+  // window, so the panel read ALL-TIME coverage (~54%) while the KPI read the
+  // last-12-months figure (~42%) — the same-label/different-number drift.
+  const hasRabiesVax = rabiesVaccinatedExists(sql`${pets.id}`, ctx.period.since);
 
   // One query: per-province aggregates for all three numerators.
   const rows = await db

@@ -30,6 +30,7 @@ import {
   jurisdictionPairClause,
   petEventsScopeClause as metricsPetEventsScopeClause,
   petsScopeClause as metricsPetsScopeClause,
+  rabiesVaccinatedExists,
   suppressSmallCells,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
@@ -614,17 +615,15 @@ export type ChoroplethMetric = "rabies-coverage" | "sterilization-coverage" | "m
  * loadSterilizationCoverageByProvince. */
 function metricPredicate(metric: ChoroplethMetric): SQL {
   if (metric === "rabies-coverage") {
-    // Pets in scope with at least one rabies vaccination event (vaccine_name
-    // accent-insensitively matches rabia/rabies/antirrábica). Mirrors the
-    // welfare-metrics rabies match.
-    // vaccine_name reads through the amendment overlay (audit A2) — the EXISTS
-    // aliases pet_events as pe_rabies, so the helper gets explicit refs.
-    return sql`EXISTS (
-      SELECT 1 FROM ${petEvents} pe_rabies
-      WHERE pe_rabies.pet_id = ${pets.id}
-        AND pe_rabies.event_type = 'vaccination_administered'
-        AND unaccent(lower(coalesce(${amendedPayloadText("vaccine_name", { id: sql`pe_rabies.id`, payload: sql`pe_rabies.payload` })}, ''))) LIKE '%rabi%'
-    )`;
+    // DOGS in scope with at least one qualifying rabies vaccination in the
+    // trailing-12-month window. Uses the SHARED rabiesVaccinatedExists predicate
+    // (lib/metrics/rabies.ts) so the locality numerator is the SAME definition as
+    // the national KPI, the province breakdown, and the /admin panel (C3).
+    // Before C3 this was `ILIKE '%rabi%'` (accent-SENSITIVE → silently missed the
+    // canonical form "Antirrábica"), over ALL species and ALL time — three ways
+    // adrift from the canonical rabies_coverage_dogs_12m numerator.
+    const since = windows.trailing12m().since;
+    return sql`(${pets.species} = 'dog' AND ${rabiesVaccinatedExists(sql`${pets.id}`, since)})`;
   }
   if (metric === "sterilization-coverage") {
     // Pets in scope with at least one sterilization_performed event.

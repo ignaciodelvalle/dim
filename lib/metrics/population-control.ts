@@ -448,13 +448,20 @@ export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthR
   ];
   if (scope) altasConditions.push(sql`(${scope})`);
 
-  // deaths: death_recorded events in the period, scoped via JOIN to pets
+  // deaths: death_recorded events in the period, scoped via JOIN to pets.
+  // BOTH scope clauses apply: evtScope guards the event payload jurisdiction, and
+  // the pets-table `scope` guards the pet's CURRENT jurisdiction (the queries
+  // innerJoin pets). Without the pets-side clause a death/birth event whose
+  // payload jurisdiction was in scope but whose pet has since moved out (or whose
+  // payload drifted) leaked into a govt aggregate — the same payload-drift guard
+  // altas already gets via `scope` (C3 / scope-security A2).
   const deathConditions = [
     eq(petEvents.eventType, "death_recorded"),
     gte(petEvents.occurredAt, ctx.period.since),
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (evtScope) deathConditions.push(sql`(${evtScope})`);
+  if (scope) deathConditions.push(sql`(${scope})`);
 
   // registeredBirths: clinical_info_logged pregnancy-ended live_birth in the period
   const birthConditions = [
@@ -466,6 +473,7 @@ export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthR
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (evtScope) birthConditions.push(sql`(${evtScope})`);
+  if (scope) birthConditions.push(sql`(${scope})`);
 
   const [altasRows, deathRows, birthRows] = await Promise.all([
     db

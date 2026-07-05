@@ -24,6 +24,10 @@ export { petsScopeClause, petEventsScopeClause, jurisdictionPairClause } from ".
 
 export { activePetsCondition, dogsInScopeCondition, petEventsInScopeCondition } from "./population";
 
+// Shared rabies-vaccination predicate — single definition of the
+// rabies_coverage_dogs_12m numerator for EXISTS-shaped queries (C3).
+export { RABIES_VACCINE_NAME_REGEX, rabiesVaccinatedExists } from "./rabies";
+
 export { cachedActivePetCount, cachedDogCount } from "./cache";
 
 export { resolveAnalyticsPeriod, windows } from "./period";
