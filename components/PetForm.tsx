@@ -64,6 +64,7 @@ export function PetForm({
   submitLabel,
   pendingLabel,
   hiddenFields,
+  pppBreedList,
 }: {
   action: FormAction;
   existingPet?: Pet;
@@ -74,6 +75,14 @@ export function PetForm({
   submitLabel?: string;
   pendingLabel?: string;
   hiddenFields?: Record<string, string>;
+  /**
+   * Jurisdiction-resolved PPP breed list (govt_business_rules `ppp_breed_list`
+   * for the pet's jurisdiction). When provided, the inline "raza peligrosa"
+   * warning flags breeds a locality ADDED via the admin console — not just the
+   * static country-wide set. Resolved server-side by the page that renders the
+   * form. Optional: absent → fall back to the static country-wide list.
+   */
+  pppBreedList?: readonly string[];
 }) {
   const isEdit = !!existingPet;
   const [state, formAction, isPending] = useActionState(action, initialState);
@@ -145,17 +154,19 @@ export function PetForm({
   }
 
   const breedOptions = useMemo(() => breedsForSpecies(species), [species]);
-  // NOTE (config-theater audit 2026-07-03 #4): this inline warning checks the
-  // static country-wide breed list, not the jurisdiction-resolved
-  // ppp_breed_list rule — a locality that ADDS a breed via the admin console
-  // shows no inline warning here (the server-side classification at submit
-  // time IS jurisdiction-correct; this is display-only). Low impact, sync
-  // client shim by design (PetForm has no server round-trip per keystroke).
-  // Proper fix: thread the jurisdiction-resolved breed list down as a prop
-  // from the page server component (same pattern as
-  // DangerousBreedAttestationForm's resolvedRegistries) — left as a follow-up
-  // since it's a client-only display nuance, not a behavior/compliance gap.
-  const breedIsDangerous = isPotentiallyDangerousBreed(species, breed);
+  // Inline "raza peligrosa" warning. When the page threads the jurisdiction-
+  // resolved `ppp_breed_list` down (2026-07-04), a breed a locality ADDED via
+  // the admin console is flagged too; without it we fall back to the static
+  // country-wide set. Either way this is display-only — the server-side
+  // classification at submit time is authoritative (PetForm has no per-keystroke
+  // round-trip). NOTE: the in-profile edit SHEET (SheetMounter) does not yet
+  // thread the prop, so it stays on the static fallback — a scoped follow-up.
+  const breedIsDangerous = useMemo(() => {
+    const trimmed = breed.trim();
+    if (species !== "dog" || !trimmed) return false;
+    if (pppBreedList) return pppBreedList.some((b) => b.trim() === trimmed);
+    return isPotentiallyDangerousBreed(species, breed);
+  }, [species, breed, pppBreedList]);
 
   const initialAge = useMemo(
     () => ageFromDateOfBirth(existingPet?.dateOfBirth ?? null),
@@ -335,8 +346,15 @@ export function PetForm({
             </span>
           </summary>
           <div className="flex flex-col gap-[12px] border-t border-[var(--color-ln-line)] px-[14px] py-[12px]">
-            {/* Breed */}
-            <LnField label="Raza">
+            {/* Breed — dog-only PPP hint (strong-but-optional, never required). */}
+            <LnField
+              label="Raza"
+              hint={
+                speciesGroup === "dog"
+                  ? "En perros, la raza y el peso definen si entra en el régimen PPP."
+                  : undefined
+              }
+            >
               {({ id, describedBy }) => (
                 <LnInput
                   id={id}
@@ -364,8 +382,15 @@ export function PetForm({
               </LnCallout>
             )}
 
-            {/* Estimated weight */}
-            <LnField label="Peso estimado" hint="En kilogramos.">
+            {/* Estimated weight — dog-only PPP hint (strong-but-optional). */}
+            <LnField
+              label="Peso estimado"
+              hint={
+                speciesGroup === "dog"
+                  ? "En kilogramos. Junto con la raza, define el régimen PPP."
+                  : "En kilogramos."
+              }
+            >
               {({ id, describedBy }) => (
                 <LnWeightInput
                   id={id}
