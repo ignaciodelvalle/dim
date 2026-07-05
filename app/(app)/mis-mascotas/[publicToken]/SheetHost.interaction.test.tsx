@@ -141,22 +141,26 @@ afterEach(() => {
 });
 
 describe("PetActionRow + SheetMounter — client-driven sheet open/close (router-hot-path fix)", () => {
-  it("clicking the Anotar trigger opens the sheet and updates the URL — no router involved", () => {
+  // Trigger via the "Más" labeled action button (PO 2026-07-05 relabeled the
+  // action bar; the Anotar trigger moved to CredentialFace's dedicated capture
+  // section). Assert on the URL + the dialog's own "Cerrar" button so the test
+  // stays content-agnostic across whichever sheet a button opens.
+  it("clicking an action trigger opens the sheet and updates the URL — no router involved", () => {
     render(<Harness />);
 
     expect(window.location.search).toBe("");
-    expect(screen.queryByText("Anotar algo de Firulais")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cerrar" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("link", { name: "Anotar" }));
+    fireEvent.click(screen.getByRole("link", { name: "Más" }));
 
-    expect(window.location.search).toContain("sheet=anotar");
-    expect(screen.getByText("Anotar algo de Firulais")).toBeInTheDocument();
+    expect(window.location.search).toContain("sheet=mas");
+    expect(screen.getByRole("button", { name: "Cerrar" })).toBeInTheDocument();
   });
 
   it("closing via the sheet's Cerrar button strips the URL param and stays on the profile", async () => {
     render(<Harness />);
-    fireEvent.click(screen.getByRole("link", { name: "Anotar" }));
-    expect(window.location.search).toContain("sheet=anotar");
+    fireEvent.click(screen.getByRole("link", { name: "Más" }));
+    expect(window.location.search).toContain("sheet=mas");
 
     // Opened via pushSheetUrl, so closing goes through history.back() —
     // jsdom (like real browsers) processes history navigation as a queued
@@ -167,13 +171,13 @@ describe("PetActionRow + SheetMounter — client-driven sheet open/close (router
       expect(window.location.search).not.toContain("sheet=");
     });
     expect(window.location.pathname).toBe("/mis-mascotas/abc123");
-    expect(screen.queryByText("Anotar algo de Firulais")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cerrar" })).not.toBeInTheDocument();
   });
 
   it("the back button (a real popstate from history.back()) closes an opened sheet", async () => {
     render(<Harness />);
-    fireEvent.click(screen.getByRole("link", { name: "Anotar" }));
-    expect(screen.getByText("Anotar algo de Firulais")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Más" }));
+    expect(screen.getByRole("button", { name: "Cerrar" })).toBeInTheDocument();
 
     act(() => {
       window.history.back();
@@ -182,15 +186,15 @@ describe("PetActionRow + SheetMounter — client-driven sheet open/close (router
     await waitFor(() => {
       expect(window.location.search).not.toContain("sheet=");
     });
-    expect(screen.queryByText("Anotar algo de Firulais")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cerrar" })).not.toBeInTheDocument();
   });
 
   it("a modified click (ctrl+click, e.g. open-in-new-tab intent) is left alone — sheet stays closed", () => {
     render(<Harness />);
-    fireEvent.click(screen.getByRole("link", { name: "Anotar" }), { ctrlKey: true });
+    fireEvent.click(screen.getByRole("link", { name: "Más" }), { ctrlKey: true });
 
     expect(window.location.search).toBe("");
-    expect(screen.queryByText("Anotar algo de Firulais")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cerrar" })).not.toBeInTheDocument();
   });
 
   it("direct load with ?sheet= already in the URL renders the sheet open without any click", () => {

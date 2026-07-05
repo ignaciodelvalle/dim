@@ -185,10 +185,14 @@ describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => 
 
     // jsdom (like real browsers) processes history navigation as a queued
     // task — assertions after it need waitFor (see SheetHost.interaction.test.tsx).
+    // The face swap (displayedFace) lags the URL by an effect tick, so await the
+    // restored front turn button too rather than asserting it synchronously.
     await waitFor(() => {
       expect(window.location.search).toBe("");
     });
-    expect(screen.getByRole("button", { name: "Girar a Libreta" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Girar a Libreta" })).toBeInTheDocument();
+    });
   });
 
   it("renders the segmented Credencial/Libreta tablist in sync with the band turn button", () => {

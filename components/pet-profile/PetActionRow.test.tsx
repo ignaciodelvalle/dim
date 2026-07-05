@@ -1,58 +1,53 @@
-// Tests for <PetActionRow> — icon-only action bar (pet-document-redesign
-// ADR-12b/ADR-17b, Phase 4). Pattern: react-dom/server renderToStaticMarkup
-// (repo convention — no jsdom).
+// Tests for <PetActionRow> — labeled action bar matching the "Una sola
+// libreta" handoff (.actionbar; PO 2026-07-05). Pattern: react-dom/server
+// renderToStaticMarkup (repo convention — no jsdom).
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { PetActionRow } from "./PetActionRow";
 
-describe("<PetActionRow> — icon-only, no visible link text (ADR-12b)", () => {
-  it("owner + active pet: renders all 5 icons with aria-label, no visible label text", () => {
+describe("<PetActionRow> — labeled buttons (handoff .actionbar)", () => {
+  it("owner + active pet: Compartir · Editar datos · Marcar como perdida (danger) · Más, in order", () => {
     const html = renderToStaticMarkup(
       <PetActionRow petPublicToken="abc" isOwner isDeceased={false} petStatus="active" />,
     );
-    for (const label of ["Anotar", "Compartir", "Marcar como perdida", "Chapita", "Más"]) {
-      expect(html).toContain(`aria-label="${label}"`);
-      expect(html).toContain(`title="${label}"`);
+    // Visible, labeled (not icon-only).
+    for (const label of ["Compartir", "Editar datos", "Marcar como perdida", "Más"]) {
+      expect(html).toContain(`>${label}`);
     }
-    // No visible text nodes for the labels — only aria-label/title attrs.
-    expect(html).not.toMatch(/>Anotar</);
-    expect(html).not.toMatch(/>Compartir</);
-    expect(html).not.toMatch(/>Marcar como perdida</);
-    expect(html).not.toMatch(/>Chapita</);
-    expect(html).not.toMatch(/>Más</);
-  });
-
-  it("every icon link carries min-h-11 and min-w-11 (44px touch target, UX 2.1)", () => {
-    const html = renderToStaticMarkup(
-      <PetActionRow petPublicToken="abc" isOwner isDeceased={false} petStatus="active" />,
-    );
+    // Handoff order.
+    const order = ["Compartir", "Editar datos", "Marcar como perdida", "Más"];
+    const positions = order.map((l) => html.indexOf(`>${l}`));
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    // Marcar como perdida carries the danger modifier.
+    expect(html).toContain("ln-act ln-act--danger");
+    // Every action uses the shared .ln-act class (44px touch target lives there).
     const anchors = html.match(/<a [^>]*>/g) ?? [];
-    expect(anchors.length).toBe(5);
-    for (const anchor of anchors) {
-      expect(anchor).toContain("min-h-11");
-      expect(anchor).toContain("min-w-11");
-    }
+    expect(anchors.length).toBe(4);
+    for (const a of anchors) expect(a).toContain("ln-act");
   });
 
-  it("lost pet: Marcar como perdida is replaced by Marcar encontrada", () => {
+  it("lost pet: NO Marcar como perdida/encontrada here (found CTA lives in LostCaseBlock)", () => {
     const html = renderToStaticMarkup(
       <PetActionRow petPublicToken="abc" isOwner isDeceased={false} petStatus="lost" />,
     );
-    expect(html).toContain('aria-label="Marcar encontrada"');
-    expect(html).not.toContain('aria-label="Marcar como perdida"');
+    expect(html).not.toContain("Marcar como perdida");
+    expect(html).not.toContain("Marcar como encontrada");
+    // Still has the everyday actions.
+    for (const label of ["Compartir", "Editar datos", "Más"]) {
+      expect(html).toContain(`>${label}`);
+    }
   });
 
   it("deceased pet: collapses to [Compartir][Más] only (ADR-15/REQ-9.3)", () => {
     const html = renderToStaticMarkup(
       <PetActionRow petPublicToken="abc" isOwner isDeceased={true} petStatus="deceased" />,
     );
-    expect(html).toContain('aria-label="Compartir"');
-    expect(html).toContain('aria-label="Más"');
-    expect(html).not.toContain('aria-label="Anotar"');
-    expect(html).not.toContain('aria-label="Chapita"');
-    expect(html).not.toContain('aria-label="Marcar');
+    expect(html).toContain(">Compartir");
+    expect(html).toContain(">Más");
+    expect(html).not.toContain("Editar datos");
+    expect(html).not.toContain("Marcar como");
     const anchors = html.match(/<a [^>]*>/g) ?? [];
     expect(anchors.length).toBe(2);
   });
@@ -61,9 +56,11 @@ describe("<PetActionRow> — icon-only, no visible link text (ADR-12b)", () => {
     const html = renderToStaticMarkup(
       <PetActionRow petPublicToken="abc" isOwner={false} isDeceased={false} petStatus="active" />,
     );
-    expect(html).toContain('aria-label="Compartir"');
-    expect(html).not.toContain('aria-label="Anotar"');
-    expect(html).not.toContain('aria-label="Chapita"');
-    expect(html).not.toContain('aria-label="Más"');
+    expect(html).toContain(">Compartir");
+    expect(html).not.toContain("Editar datos");
+    expect(html).not.toContain("Marcar como");
+    expect(html).not.toContain(">Más");
+    const anchors = html.match(/<a [^>]*>/g) ?? [];
+    expect(anchors.length).toBe(1);
   });
 });

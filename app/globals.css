@@ -2484,8 +2484,10 @@ body {
 .ln-doc-wrap {
   position: relative;
 }
-/* two stacked "back page" sheets → obviously a two-sided, multi-page object */
-.ln-doc-wrap::before,
+/* ONE very subtle back edge — a hint of physical thickness, NOT a stack of
+   offset sheets (PO: "must read as ONE credential, not several stacked DNIs").
+   A single 2px-offset paper edge peeks at the bottom-right; the two visible
+   offset sheets were removed. */
 .ln-doc-wrap::after {
   content: "";
   position: absolute;
@@ -2493,18 +2495,9 @@ body {
   z-index: 0;
   border-radius: var(--radius-card);
   border: 1px solid var(--color-ln-line);
-  background: var(--color-ln-card);
-  pointer-events: none;
-}
-.ln-doc-wrap::before {
-  transform: translate(7px, 9px);
-  background: var(--color-ln-stripe);
-  border-color: var(--color-ln-line-strong);
-  box-shadow: 0 12px 26px -18px rgba(20, 16, 10, 0.5);
-}
-.ln-doc-wrap::after {
-  transform: translate(3px, 4px);
   background: var(--color-ln-paper);
+  transform: translate(2px, 3px);
+  pointer-events: none;
 }
 @keyframes ln-doc-in {
   from {
@@ -3092,6 +3085,166 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   padding-top: 16px;
   border-top: 1px solid var(--color-ln-line-2);
   flex-wrap: wrap;
+}
+
+/* ---- Action bar — labeled buttons (handoff .actionbar) -------------------- */
+.ln-actionbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ln-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px; /* WCAG touch target */
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--color-ln-line-strong);
+  background: var(--color-ln-card);
+  color: var(--color-ln-ink-2);
+  font-family: var(--font-ln-sans);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+.ln-act svg {
+  color: var(--color-ln-mute);
+}
+.ln-act:hover {
+  border-color: var(--color-ln-azul);
+  color: var(--color-ln-azul);
+  background: var(--color-ln-celeste-050);
+}
+.ln-act:hover svg {
+  color: var(--color-ln-azul);
+}
+.ln-act:focus-visible {
+  outline: 2px solid var(--color-ln-azul);
+  outline-offset: 2px;
+}
+.ln-act--danger {
+  color: var(--color-ln-seal);
+  border-color: #e6c3bc;
+}
+.ln-act--danger svg {
+  color: var(--color-ln-seal);
+}
+.ln-act--danger:hover {
+  border-color: var(--color-ln-seal);
+  color: var(--color-ln-seal);
+  background: var(--color-ln-err-050);
+}
+.ln-act--danger:hover svg {
+  color: var(--color-ln-seal);
+}
+.ln-act-spacer {
+  flex: 1;
+}
+
+/* ---- Vaccination drill-down (interactive Estado de vacunación) ------------ */
+.ln-vac-badge {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid;
+  padding: 10px 12px;
+  text-align: center;
+  cursor: pointer;
+  font-family: var(--font-ln-sans);
+  background: transparent;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
+}
+.ln-vac-badge:hover {
+  filter: brightness(0.98);
+}
+.ln-vac-badge:focus-visible {
+  outline: 2px solid var(--color-ln-azul);
+  outline-offset: 2px;
+}
+.ln-vac-badge[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px var(--color-ln-celeste-100);
+}
+.ln-vac-badge-count {
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.ln-vac-badge-label {
+  margin-top: 2px;
+  font-family: var(--font-ln-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ln-vac-caret {
+  transition: transform 0.15s ease;
+}
+.ln-vac-badge[aria-expanded="true"] .ln-vac-caret {
+  transform: rotate(90deg);
+}
+.ln-vac-list {
+  margin-top: 10px;
+  border: 1px solid var(--color-ln-line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.ln-vac-list-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 13px;
+  border-top: 1px solid var(--color-ln-line-2);
+}
+.ln-vac-list-item:first-child {
+  border-top: 0;
+}
+.ln-vac-list-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ln-ink);
+}
+.ln-vac-list-meta {
+  font-family: var(--font-ln-mono);
+  font-size: var(--text-xs);
+  color: var(--color-ln-mute);
+  white-space: nowrap;
+}
+
+/* ---- Prominent "Marcar como encontrada" (lost pet, owner) ----------------- */
+.ln-found-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--color-ln-ok);
+  background: var(--color-ln-ok);
+  color: #fff;
+  font-family: var(--font-ln-sans);
+  font-weight: 700;
+  font-size: 15px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 0.18s ease;
+}
+.ln-found-cta:hover {
+  filter: brightness(1.06);
+}
+.ln-found-cta:focus-visible {
+  outline: 2px solid var(--color-ln-ok);
+  outline-offset: 2px;
 }
 
 /* ---- Responsive ---------------------------------------------------------- */

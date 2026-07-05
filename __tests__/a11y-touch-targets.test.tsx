@@ -56,35 +56,29 @@ describe("OpRailNav — 44px nav links (UX 2.1)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// LostCaseBlock — Marcar encontrada button (pet-document-redesign S2, NFR-3)
-//
-// Removed (task #43 dedupe, 2026-07-04): LostCaseBlock's header used to
-// render its own "Marcar encontrada" button alongside an identical
-// always-visible icon in PetActionRow (same ?sheet=marcar-encontrada
-// target). The header copy was dropped to fix the duplication; the sole
-// surviving control is PetActionRow's icon, whose 44px touch target is
-// already covered by the "PetActionRow" describe block below.
-// ---------------------------------------------------------------------------
-// PetActionRow — icon-only 5-icon bar at 320px (pet-document-redesign
-// ADR-12b/ADR-17b, Phase 4). Full coverage lives in
-// components/pet-profile/PetActionRow.test.tsx; this asserts the
-// cross-cutting 44px invariant this sweep exists to guard.
+// PetActionRow — labeled action bar (PO 2026-07-05: relabeled from icon-only
+// circles to the handoff's `.actionbar` — Compartir · Editar datos · Marcar
+// como perdida · Más). Full coverage lives in
+// components/pet-profile/PetActionRow.test.tsx; this asserts the cross-cutting
+// 44px touch-target invariant this sweep exists to guard. The 44px min-height
+// now lives on the shared `.ln-act` class (globals.css) rather than a
+// min-h-11 utility, so this checks every action carries `ln-act`.
+// "Marcar como encontrada" moved to LostCaseBlock as a prominent primary CTA
+// (its 44px/48px sizing lives on `.ln-found-cta`).
 // ---------------------------------------------------------------------------
 
 import { PetActionRow } from "@/components/pet-profile/PetActionRow";
 
-describe("PetActionRow — 5-icon bar clears 44px at 320px (UX 2.1)", () => {
-  it("all 5 icon links (owner, active) carry min-h-11 AND min-w-11", () => {
+describe("PetActionRow — labeled buttons clear 44px (UX 2.1)", () => {
+  it("every action link uses .ln-act (min-height:44px in globals.css)", () => {
     const html = renderToStaticMarkup(
       <PetActionRow petPublicToken="abc" isOwner isDeceased={false} petStatus="active" />,
     );
     const anchors = html.match(/<a [^>]*>/g) ?? [];
-    // 5 × 44px + gap-2 (8px) × 4 = 220 + 32 = 252px, fits inside 320px with
-    // the page's own px-4 (16px) gutters on each side (252 + 32 = 284 ≤ 320).
-    expect(anchors.length).toBe(5);
+    // Owner + active: Compartir · Editar datos · Marcar como perdida · Más.
+    expect(anchors.length).toBe(4);
     for (const anchor of anchors) {
-      expect(anchor).toContain("min-h-11");
-      expect(anchor).toContain("min-w-11");
+      expect(anchor).toContain("ln-act");
     }
   });
 });
