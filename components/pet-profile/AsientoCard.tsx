@@ -35,16 +35,16 @@ function AsientoSparkline({ samples }: { samples: WeightSample[] }) {
   const pad = Math.max((max - min) * 0.15, 0.05);
   const yMin = Math.max(0, min - pad);
   const yMax = max + pad;
+  const range = yMax - yMin;
   const dx = 122 / (sorted.length - 1);
+  // Guard the zero-range case (all identical weights) — draw a flat line at
+  // mid-height instead of dividing by 0 → NaN → an invisible polyline.
+  const yFor = (kg: number) => (range === 0 ? 17 : ((yMax - kg) / range) * 26 + 4);
   const points = sorted
-    .map((s, i) => {
-      const x = 4 + i * dx;
-      const y = ((yMax - s.kg) / (yMax - yMin)) * 26 + 4;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
+    .map((s, i) => `${(4 + i * dx).toFixed(1)},${yFor(s.kg).toFixed(1)}`)
     .join(" ");
   const lastX = 4 + (sorted.length - 1) * dx;
-  const lastY = ((yMax - last.kg) / (yMax - yMin)) * 26 + 4;
+  const lastY = yFor(last.kg);
 
   const delta = last.kg - first.kg;
   const months = Math.max(

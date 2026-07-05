@@ -69,11 +69,17 @@ export type AsientoView = {
 // Dates
 // ---------------------------------------------------------------------------
 
+function isValidDate(date: Date): boolean {
+  return Number.isFinite(date.getTime());
+}
+
 function formatAbsolute(date: Date): string {
+  if (!isValidDate(date)) return "sin fecha";
   return date.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function formatRelative(date: Date, now: Date): string {
+  if (!isValidDate(date)) return "";
   const days = Math.floor((now.getTime() - date.getTime()) / 86_400_000);
   if (days <= 0) return "hoy";
   if (days === 1) return "ayer";
@@ -243,16 +249,16 @@ export function toAsientoView(
     }
 
     case "weight_recorded": {
+      // The weight payload only carries `kg` (no method/context in the schema),
+      // so the asiento shows the value (title) + the trend sparkline — no
+      // phantom "Sin dato" rows for fields the event never had.
       const kg = str(p, "kg");
       return {
         ...base,
         kind: "Peso",
         title: kg ? `${kg} kg` : "Peso",
         showSparkline: true,
-        facts: [
-          fact("Método", str(p, "method"), "Sin dato"),
-          fact("Contexto", str(p, "context"), "Control de rutina"),
-        ],
+        facts: [],
       };
     }
 

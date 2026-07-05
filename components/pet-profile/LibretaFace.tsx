@@ -108,7 +108,16 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
                     key={row.id}
                     view={toAsientoView(row, petPublicToken, now)}
                     eventHref={`/mis-mascotas/${petPublicToken}/eventos/${row.id}`}
-                    weightSamples={data.weightSamples}
+                    // A weight asiento's sparkline shows the trend UP TO its own
+                    // date — not future weigh-ins the owner logged later (a past
+                    // record must not depend on data that didn't exist yet).
+                    weightSamples={
+                      row.eventType === "weight_recorded"
+                        ? data.weightSamples.filter(
+                            (s) => s.date.getTime() <= new Date(row.occurredAt).getTime(),
+                          )
+                        : undefined
+                    }
                   />
                 ))}
               </div>
@@ -170,9 +179,11 @@ function EmergenciaBlock({
   const editHref = `/mis-mascotas/${petPublicToken}?sheet=emergencia`;
 
   return (
+    // Borderless, hairline-topped section (not a nested box) so it coheres with
+    // the rest of the ledger inside the certificate sheet.
     <div
       data-section="libreta-emergencia"
-      className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3.5 py-3"
+      className="border-t border-[var(--color-ln-line-2)] pt-4"
     >
       <p className="mb-1.5 font-[var(--font-ln-mono)] text-[var(--text-sm)] uppercase tracking-[.06em] text-[var(--color-ln-faint)]">
         Emergencia
