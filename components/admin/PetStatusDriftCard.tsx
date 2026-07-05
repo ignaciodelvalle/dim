@@ -60,18 +60,39 @@ export function PetStatusDriftCard({ data }: { data: PetStatusDrift }) {
                 <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">
                   Muestra
                 </p>
-                <ul className="space-y-0.5">
-                  {reconcile.sample.slice(0, 5).map((s) => (
-                    <li
-                      key={s.publicToken}
-                      className="flex items-baseline justify-between gap-3 text-[var(--text-sm)]"
-                    >
-                      <span className="font-mono text-ln-op-ink">{s.publicToken}</span>
-                      <span className="text-ln-op-mute">
-                        cache {s.cached ?? "—"} {"→"} log {s.derived ?? "—"}
-                      </span>
-                    </li>
-                  ))}
+                <ul className="space-y-1">
+                  {reconcile.sample.slice(0, 5).map((s) => {
+                    // A pet is flagged divergent when ANY checked cache column
+                    // drifts (status, weight, microchip, tattoo, …), not just
+                    // status. Showing only the status pair made non-status
+                    // drifts look mislabelled ("cache active → log active" for a
+                    // row that actually diverged on weight). Surface the field(s)
+                    // that truly diverged so a DIVERGENTE row demonstrates it.
+                    const cols = s.driftedColumns;
+                    // Legacy runs (pre-driftedColumns) recorded only the status
+                    // pair — treat a differing pair as a status drift so those
+                    // rows still render their cache→log detail.
+                    const statusDrifted =
+                      cols.includes("status") || (cols.length === 0 && s.cached !== s.derived);
+                    const fieldLabel =
+                      cols.length > 0 ? cols.join(", ") : statusDrifted ? "status" : "—";
+                    return (
+                      <li
+                        key={s.publicToken}
+                        className="flex flex-col gap-0.5 text-[var(--text-sm)]"
+                      >
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="font-mono text-ln-op-ink">{s.publicToken}</span>
+                          <span className="text-ln-op-mute">{fieldLabel}</span>
+                        </div>
+                        {statusDrifted && (
+                          <span className="text-ln-op-mute">
+                            status: cache {s.cached ?? "—"} {"→"} log {s.derived ?? "—"}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

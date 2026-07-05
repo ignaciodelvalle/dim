@@ -113,7 +113,7 @@ export default async function AdminSistemaPage() {
             <StatRow label="Personal" value={users.totalPersonal} />
             <StatRow label="Institucional activo" value={users.totalInstitutionalActive} />
             <StatRow
-              label="Nuevos · 24h / 7d / 30d"
+              label="Nuevos personal · 24h / 7d / 30d"
               value={`${users.new24h} / ${users.new7d} / ${users.new30d}`}
             />
           </OpCardBody>

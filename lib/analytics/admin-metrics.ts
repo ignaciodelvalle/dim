@@ -52,13 +52,23 @@ export type CronRunRow = {
 
 export async function fetchUserMetrics(): Promise<UserMetrics> {
   const now = Date.now();
+  // The "Nuevos" counts are scoped to accountType='personal' so they share the
+  // same population as `totalPersonal` (the headline number on the same card).
+  // Counting ALL account types here produced the honesty bug flagged in PO QA
+  // §7: institutional (admin-created) profiles inflated the windows so that
+  // new7d/new30d could exceed totalPersonal ("new > total"), which is
+  // impossible for a single population. Scoping guarantees
+  // new24h ≤ new7d ≤ new30d ≤ totalPersonal. (A 7d == 30d equality is NOT a
+  // window bug — it just means no personal signups landed between 7 and 30 days
+  // ago; with demo seed data that clusters all created_at at seed time, that
+  // equality is expected and is a seed-data artifact, not a counting error.)
   const [row] = await db
     .select({
       totalPersonal: sql<number>`count(*) filter (where ${profiles.accountType} = 'personal')`,
       totalInstitutionalActive: sql<number>`count(*) filter (where ${profiles.accountType} = 'institutional' and ${profiles.deactivatedAt} is null)`,
-      new24h: sql<number>`count(*) filter (where ${profiles.createdAt} >= ${new Date(now - DAY_MS).toISOString()})`,
-      new7d: sql<number>`count(*) filter (where ${profiles.createdAt} >= ${new Date(now - 7 * DAY_MS).toISOString()})`,
-      new30d: sql<number>`count(*) filter (where ${profiles.createdAt} >= ${new Date(now - 30 * DAY_MS).toISOString()})`,
+      new24h: sql<number>`count(*) filter (where ${profiles.accountType} = 'personal' and ${profiles.createdAt} >= ${new Date(now - DAY_MS).toISOString()})`,
+      new7d: sql<number>`count(*) filter (where ${profiles.accountType} = 'personal' and ${profiles.createdAt} >= ${new Date(now - 7 * DAY_MS).toISOString()})`,
+      new30d: sql<number>`count(*) filter (where ${profiles.accountType} = 'personal' and ${profiles.createdAt} >= ${new Date(now - 30 * DAY_MS).toISOString()})`,
     })
     .from(profiles);
   return {
@@ -321,6 +331,15 @@ export type PetStatusDriftSample = {
   cached: string | null;
   /** Status derived from the event log at scan time. */
   derived: string | null;
+  /**
+   * The cache columns that ACTUALLY diverged for this pet. A pet is flagged
+   * divergent when ANY checked column drifts (status, estimatedWeightKg,
+   * microchip*, tattoo*, pregnancyStatus, …) — not only status. The card must
+   * show these so a divergent row whose `status` happens to match doesn't read
+   * as a mislabelled "cache active → log active" pair. Empty for legacy runs
+   * recorded before the cron persisted this field.
+   */
+  driftedColumns: string[];
 };
 
 export type PetStatusDrift = {
@@ -384,6 +403,9 @@ export async function fetchPetStatusDrift(): Promise<PetStatusDrift> {
         publicToken: typeof s.publicToken === "string" ? s.publicToken : "—",
         cached: typeof s.cached === "string" ? s.cached : null,
         derived: typeof s.derived === "string" ? s.derived : null,
+        driftedColumns: Array.isArray(s.driftedColumns)
+          ? (s.driftedColumns as unknown[]).filter((c): c is string => typeof c === "string")
+          : [],
       })),
     };
   }

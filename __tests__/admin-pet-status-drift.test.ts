@@ -32,11 +32,34 @@ beforeAll(async () => {
         itemsProcessed: 42,
         details: {
           scanned: 42,
-          divergent: 2,
+          divergent: 3,
           earlyStop: false,
           sample: [
-            { petId: "p1", publicToken: "AR-DRIFT-01", cached: "active", derived: "deceased" },
-            { petId: "p2", publicToken: "AR-DRIFT-02", cached: "lost", derived: "active" },
+            {
+              petId: "p1",
+              publicToken: "AR-DRIFT-01",
+              cached: "active",
+              derived: "deceased",
+              driftedColumns: ["status", "deceasedAt"],
+            },
+            {
+              petId: "p2",
+              publicToken: "AR-DRIFT-02",
+              cached: "lost",
+              derived: "active",
+              driftedColumns: ["status"],
+            },
+            // Non-status divergence: status matches (both "active") but the pet
+            // is genuinely divergent on estimatedWeightKg. Before the fix the
+            // card rendered this as "cache active → log active", which looked
+            // like a mislabelled non-divergent row. driftedColumns makes it honest.
+            {
+              petId: "p3",
+              publicToken: "AR-DRIFT-03",
+              cached: "active",
+              derived: "active",
+              driftedColumns: ["estimatedWeightKg"],
+            },
           ],
         },
       },
@@ -68,14 +91,27 @@ describe("fetchPetStatusDrift", () => {
     const drift = await fetchPetStatusDrift();
     expect(drift.reconcile).not.toBeNull();
     expect(drift.reconcile?.scanned).toBe(42);
-    expect(drift.reconcile?.divergent).toBe(2);
+    expect(drift.reconcile?.divergent).toBe(3);
     expect(drift.reconcile?.earlyStop).toBe(false);
     expect(drift.reconcile?.sample.map((s) => s.publicToken)).toEqual([
       "AR-DRIFT-01",
       "AR-DRIFT-02",
+      "AR-DRIFT-03",
     ]);
     expect(drift.reconcile?.sample[0]?.cached).toBe("active");
     expect(drift.reconcile?.sample[0]?.derived).toBe("deceased");
+  });
+
+  it("surfaces driftedColumns so a non-status divergence is not a mislabelled identical pair", async () => {
+    const drift = await fetchPetStatusDrift();
+    const sample = drift.reconcile?.sample ?? [];
+    expect(sample[0]?.driftedColumns).toEqual(["status", "deceasedAt"]);
+    // The pet whose status matches (active→active) is still honestly divergent:
+    // its driftedColumns names the field that actually diverged.
+    const nonStatus = sample.find((s) => s.publicToken === "AR-DRIFT-03");
+    expect(nonStatus?.cached).toBe("active");
+    expect(nonStatus?.derived).toBe("active");
+    expect(nonStatus?.driftedColumns).toEqual(["estimatedWeightKg"]);
   });
 
   it("surfaces the meta-cron semantic verdict for the reconcile cron", async () => {
