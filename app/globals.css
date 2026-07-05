@@ -865,28 +865,13 @@ body {
   }
 }
 
-/* floating credential — FlipCard motif (same gesture as the product) */
-.lp .lp-cred-flip {
+/* floating credential — a single card whose status badge cycles with Pampa's
+   state (PO landing feedback #10). Motion collapses under reduced motion. */
+.lp .lp-hcred {
   position: absolute;
   right: -6px;
   bottom: 6px;
   width: min(300px, 78vw);
-  perspective: 2000px;
-}
-.lp .lp-cred-inner {
-  position: relative;
-  display: grid;
-  transform-style: preserve-3d;
-  -webkit-transform-style: preserve-3d;
-  transition: transform 0.5s ease-in-out;
-}
-.lp .lp-cred-flip[data-lost="true"] .lp-cred-inner {
-  transform: rotateY(180deg);
-}
-.lp .lp-cred-face {
-  grid-area: 1 / 1;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
   background: var(--color-ln-card);
   border: 1px solid var(--color-ln-line);
   border-radius: 12px;
@@ -897,24 +882,103 @@ body {
   gap: 10px;
   font-size: 12px;
 }
-.lp .lp-cred-face--lost {
-  transform: rotateY(180deg);
-  border-color: var(--color-ln-err-100);
-  box-shadow: 0 14px 34px rgba(192, 57, 43, 0.13);
+
+/* landing-local status badge — echoes LnStatusFlag, but carries two hero-only
+   states (watch = observación antirrábica, ppp = registro PPP) that the shared
+   LnPetStatus type intentionally does not define. */
+.lp .lp-hbadge {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid;
+  border-radius: 2px;
+  padding: 2px 7px;
+  font: 600 9px / 1 var(--font-ln-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: lp-hbadge-in 0.4s ease both;
 }
-/* reduced motion: no 3D — the inactive face simply doesn't paint */
-@media (prefers-reduced-motion: reduce) {
-  .lp .lp-cred-inner {
-    transform: none !important;
-    transform-style: flat;
+.lp .lp-hbadge[data-tone="ok"] {
+  background: var(--color-ln-ok-bg);
+  border-color: var(--color-ln-ok-100);
+  color: var(--color-ln-ok);
+}
+.lp .lp-hbadge[data-tone="lost"] {
+  background: var(--color-ln-err-050);
+  border-color: var(--color-ln-err-100);
+  color: var(--color-ln-err);
+}
+.lp .lp-hbadge[data-tone="watch"] {
+  background: var(--color-ln-celeste-050);
+  border-color: var(--color-ln-celeste-100);
+  color: var(--color-ln-azul-700);
+}
+.lp .lp-hbadge[data-tone="sick"] {
+  background: var(--color-ln-warn-050);
+  border-color: var(--color-ln-warn-100);
+  color: var(--color-ln-warn);
+}
+.lp .lp-hbadge[data-tone="ppp"] {
+  background: var(--color-ln-violeta-050);
+  border-color: var(--color-ln-violeta-100);
+  color: var(--color-ln-violeta);
+}
+@keyframes lp-hbadge-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
   }
-  .lp .lp-cred-face--lost {
+  to {
+    opacity: 1;
     transform: none;
   }
-  .lp .lp-cred-flip[data-lost="false"] .lp-cred-face--lost,
-  .lp .lp-cred-flip[data-lost="true"] .lp-cred-face--ok {
-    visibility: hidden;
+}
+
+/* live state caption + cycle dots under the credential */
+.lp .lp-hstate {
+  display: block;
+  max-width: 340px;
+  margin-top: 20px;
+  min-height: 62px;
+  text-align: center;
+}
+.lp .lp-hstate-line {
+  display: block;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--color-ln-ink-2);
+  animation: lp-hstate-in 0.45s ease both;
+}
+.lp .lp-hstate-line b {
+  color: var(--color-ln-ink);
+}
+@keyframes lp-hstate-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lp .lp-hstate-dots {
+  display: inline-flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+.lp .lp-hstate-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-ln-line-strong);
+  transition: background 0.3s, transform 0.3s;
+}
+.lp .lp-hstate-dot[data-on="true"] {
+  background: var(--color-ln-azul);
+  transform: scale(1.35);
 }
 .lp .lp-qr {
   width: 54px;
@@ -932,77 +996,10 @@ body {
   height: 100%;
 }
 
-/* lost-mode demo (the ONE orchestrated hero moment) */
-.lp .lp-lostdemo {
-  display: flex;
-  justify-content: center;
-  margin-top: 18px;
-  min-height: 44px;
-}
-.lp .lp-lostdemo-btn {
-  font: 600 13.5px var(--lp-sans);
-  color: var(--color-ln-err);
-  background: var(--color-ln-card);
-  border: 1px solid var(--color-ln-err-100);
-  border-radius: var(--radius-pill);
-  padding: 10px 18px;
-  cursor: pointer;
-  display: inline-flex;
-  gap: 9px;
-  align-items: center;
-  transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
-}
-.lp .lp-lostdemo-btn:hover {
-  background: var(--color-ln-err-050);
-  box-shadow: 0 6px 18px rgba(192, 57, 43, 0.16);
-}
-.lp .lp-lostdemo-btn:active {
-  transform: translateY(1px);
-}
-.lp .lp-lostdemo-btn .lp-ld {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-ln-err);
-}
-.lp .lp-lost-panel {
-  max-width: 384px;
-  background: var(--color-ln-card);
-  border: 1px solid var(--color-ln-err-100);
-  border-radius: 14px;
-  padding: 16px 18px;
-  box-shadow: 0 14px 34px rgba(192, 57, 43, 0.13);
-}
-.lp .lp-lost-panel b {
-  color: var(--color-ln-err);
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.lp .lp-lost-panel p {
-  font-size: 13.5px;
-  color: var(--color-ln-ink-2);
-  line-height: 1.55;
-  margin: 7px 0 0;
-}
-.lp .lp-lost-back {
-  margin-top: 12px;
-  font: 600 13px var(--lp-sans);
-  color: var(--color-ln-ok);
-  background: var(--color-ln-ok-bg);
-  border: 1px solid var(--color-ln-ok-100);
-  border-radius: var(--radius-pill);
-  padding: 8px 15px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-.lp .lp-lost-back:hover {
-  background: var(--color-ln-card);
+/* vet screen — the real credential (LnHero) embedded in the phone; strip its
+   trailing margin so it sits in the phone's padded flex column. */
+.lp .lp-cred-embed > div {
+  margin-bottom: 0;
 }
 
 /* ============ crisis band (L1) ============================================ */
@@ -1791,14 +1788,94 @@ body {
 .lp .lp-lost-btn--found {
   background: var(--color-ln-azul);
 }
-.lp .lp-lost-note {
-  margin-top: auto;
-  padding: 11px 16px 13px;
-  text-align: center;
+.lp .lp-lost-hero--map {
+  padding-bottom: 12px;
+}
+
+/* last-seen mini-map (cap-anon) — a faithful, lightweight echo of the app's
+   LocationMap (rounded OSM panel + red marker) without loading maplibre-gl on
+   the landing. The pin is exact; a coordinate line reinforces the precision. */
+.lp .lp-minimap {
+  position: relative;
+  margin: 6px 16px 0;
+  height: 152px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--color-ln-line);
+  background: #e9eee6;
+}
+.lp .lp-minimap-tiles {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+      0deg,
+      transparent 0 27px,
+      rgba(90, 110, 90, 0.1) 27px 28px
+    ), repeating-linear-gradient(90deg, transparent 0 32px, rgba(90, 110, 90, 0.1) 32px 33px),
+    linear-gradient(118deg, transparent 0 39%, #d7e0d0 39% 41%, transparent 41%),
+    linear-gradient(28deg, transparent 0 63%, #d7e0d0 63% 65%, transparent 65%),
+    radial-gradient(circle at 74% 30%, rgba(160, 200, 150, 0.55) 0 16%, transparent 17%),
+    radial-gradient(circle at 20% 78%, rgba(150, 190, 215, 0.5) 0 13%, transparent 14%);
+}
+.lp .lp-minimap-pin {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--color-ln-err);
+  border: 2px solid #fff;
+  box-shadow: 0 3px 9px rgba(192, 57, 43, 0.45);
+}
+.lp .lp-minimap-pin::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(192, 57, 43, 0.4);
+  animation: lp-pin-pulse 1.8s ease-out infinite;
+}
+@keyframes lp-pin-pulse {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+.lp .lp-minimap-cap {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--color-ln-line);
   font-size: 11px;
+  color: var(--color-ln-ink-2);
+}
+.lp .lp-minimap-cap b {
+  font-size: 12px;
+  color: var(--color-ln-ink);
+}
+.lp .lp-minimap-coord {
+  font-family: var(--font-ln-mono);
+  font-size: 10px;
   color: var(--color-ln-mute);
-  border-top: 1px dashed var(--color-ln-line);
-  background: var(--color-ln-card);
+  letter-spacing: 0.02em;
 }
 
 /* org intake mini-rows (cap-refugio) */
@@ -1831,9 +1908,11 @@ body {
   color: var(--color-ln-ink);
 }
 .lp .lp-intake-row .lp-intake-sub {
+  display: block;
   font-size: 11px;
   color: var(--color-ln-ink-2);
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 /* ============ estado — navy console + celeste silhouette cartogram ======== */
