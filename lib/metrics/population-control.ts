@@ -32,6 +32,7 @@
 import { and, count, countDistinct, eq, gte, lte, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "@/db";
+import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 
 import type { ProjectionContext } from "./context";
 import { activePetsCondition } from "./population";
@@ -335,16 +336,35 @@ export async function fetchReproductiveOutcomes(
   ];
   if (scope) conditions.push(sql`(${scope})`);
 
-  const rows = await db
+  // AMENDMENT OVERLAY (corrections-supersede E3): clinical_info_logged is in
+  // AMENDABLE_EVENT_TYPES, so `outcome` and `live_births_count` are mutable —
+  // a vet correcting an outcome (e.g. live_birth → stillbirth via event_amended)
+  // MUST move the natalidad buckets. Both are read through amendedPayloadText so
+  // the latest corrected payload counts, not the original. sub_kind/
+  // pregnancy_phase are structural discriminators (existence-defining), raw.
+  //
+  // The overlay is a correlated subquery on pet_events.id, so it CANNOT sit
+  // directly in GROUP BY alongside an aggregate over another such subquery
+  // (Postgres: "subquery uses ungrouped column"). Resolve both fields per-row in
+  // a derived table first, then group by the resolved plain column.
+  const resolved = db
     .select({
-      outcome: sql<string>`COALESCE(${petEvents.payload}->>'outcome', 'unknown')`,
-      n: count(),
-      liveBirthsSum: sql<number>`COALESCE(SUM((${petEvents.payload}->>'live_births_count')::int) FILTER (WHERE ${petEvents.payload}->>'live_births_count' IS NOT NULL), 0)::int`,
+      outcome: sql<string>`COALESCE(${amendedPayloadText("outcome")}, 'unknown')`.as("outcome"),
+      liveBirths: sql<string | null>`${amendedPayloadText("live_births_count")}`.as("live_births"),
     })
     .from(petEvents)
     .innerJoin(pets, eq(pets.id, petEvents.petId))
     .where(and(...conditions))
-    .groupBy(sql`COALESCE(${petEvents.payload}->>'outcome', 'unknown')`);
+    .as("resolved");
+
+  const rows = await db
+    .select({
+      outcome: resolved.outcome,
+      n: count(),
+      liveBirthsSum: sql<number>`COALESCE(SUM((${resolved.liveBirths})::int) FILTER (WHERE ${resolved.liveBirths} IS NOT NULL), 0)::int`,
+    })
+    .from(resolved)
+    .groupBy(resolved.outcome);
 
   const VALID_OUTCOMES = new Set<ReproductiveOutcomeKey>([
     "live_birth",
@@ -463,12 +483,15 @@ export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthR
   if (evtScope) deathConditions.push(sql`(${evtScope})`);
   if (scope) deathConditions.push(sql`(${scope})`);
 
-  // registeredBirths: clinical_info_logged pregnancy-ended live_birth in the period
+  // registeredBirths: clinical_info_logged pregnancy-ended live_birth in the period.
+  // AMENDMENT OVERLAY (E3): `outcome` is a mutable field on an amendable event —
+  // read it through amendedPayloadText so a correction (live_birth → stillbirth)
+  // supersedes here too. sub_kind/pregnancy_phase are structural, kept raw.
   const birthConditions = [
     eq(petEvents.eventType, "clinical_info_logged"),
     sql`${petEvents.payload}->>'sub_kind' = ${"pregnancy"}`,
     sql`${petEvents.payload}->>'pregnancy_phase' = ${"ended"}`,
-    sql`${petEvents.payload}->>'outcome' = ${"live_birth"}`,
+    sql`${amendedPayloadText("outcome")} = ${"live_birth"}`,
     gte(petEvents.occurredAt, ctx.period.since),
     lte(petEvents.occurredAt, ctx.period.until),
   ];
@@ -552,11 +575,13 @@ export async function fetchSterilizationNatalidadRatio(
   ];
   if (evtScope) sterilConditions.push(sql`(${evtScope})`);
 
+  // AMENDMENT OVERLAY (E3): `outcome` read through amendedPayloadText so a
+  // corrected outcome supersedes the ratio denominator too.
   const birthConditions = [
     eq(petEvents.eventType, "clinical_info_logged"),
     sql`${petEvents.payload}->>'sub_kind' = ${"pregnancy"}`,
     sql`${petEvents.payload}->>'pregnancy_phase' = ${"ended"}`,
-    sql`${petEvents.payload}->>'outcome' = ${"live_birth"}`,
+    sql`${amendedPayloadText("outcome")} = ${"live_birth"}`,
     gte(petEvents.occurredAt, ctx.period.since),
     lte(petEvents.occurredAt, ctx.period.until),
   ];
