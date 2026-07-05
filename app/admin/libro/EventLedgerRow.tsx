@@ -15,6 +15,7 @@
 
 import { useId, useRef, useState } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import { type AmendmentChainEntry, fetchEventAmendmentChainAction } from "./actions";
 import { AUTHOR_ROLE_LABELS, type LedgerRowView } from "./view";
 
@@ -68,15 +69,17 @@ export function EventLedgerRow({ row }: Props) {
               </span>
             )}
             {row.hasAmendment && (
-              <button
+              <OpButton
                 type="button"
                 onClick={toggle}
                 aria-expanded={expanded}
                 aria-controls={panelId}
-                className="mt-0.5 inline-flex h-11 w-fit items-center gap-1 self-start rounded-[var(--radius-md)] border border-ln-op-line px-2 text-[11px] text-ln-op-ink hover:bg-ln-op-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ln-op-azul"
+                variant="ghost"
+                size="sm"
+                className="mt-0.5 w-fit self-start"
               >
                 {expanded ? "Ocultar corrección" : "Ver corrección"}
-              </button>
+              </OpButton>
             )}
           </div>
         </td>

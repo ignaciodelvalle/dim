@@ -53,13 +53,9 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
         <OpButton type="button" onClick={() => setMode("pass")} variant="ok" size="sm">
           Pasar a triage
         </OpButton>
-        <button
-          type="button"
-          onClick={() => setMode("spam")}
-          className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-1.5 text-sm font-semibold text-ln-op-danger transition-opacity hover:opacity-80"
-        >
+        <OpButton type="button" onClick={() => setMode("spam")} variant="danger" size="sm">
           Confirmar como spam
-        </button>
+        </OpButton>
       </div>
     );
   }
@@ -69,11 +65,6 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
     mode === "pass"
       ? "Por qué considerás que es legítima a pesar del flag (mínimo 10 caracteres)."
       : "Por qué confirmás que es spam — pattern observado, frecuencia, etc. (mínimo 10).";
-
-  const confirmClass =
-    mode === "pass"
-      ? "bg-ln-op-ok text-white hover:opacity-90"
-      : "bg-ln-op-navy text-white hover:opacity-90";
 
   const canSubmit = canSubmitModeration({ mode, notes, acknowledged });
 
@@ -111,22 +102,17 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
       <p className="text-[11px] tabular-nums text-ln-op-mute">{notes.trim().length} caracteres</p>
       {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
-        <button
+        <OpButton
           type="button"
           onClick={submit}
           disabled={pending || !canSubmit}
-          className={`rounded-[var(--radius-md)] px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${confirmClass}`}
+          variant={mode === "pass" ? "ok" : "danger"}
         >
           {pending ? "Procesando..." : "Confirmar"}
-        </button>
-        <button
-          type="button"
-          onClick={reset}
-          disabled={pending}
-          className="rounded-[var(--radius-md)] border border-ln-op-line px-4 py-2 text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe disabled:opacity-50"
-        >
+        </OpButton>
+        <OpButton type="button" onClick={reset} disabled={pending} variant="ghost">
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

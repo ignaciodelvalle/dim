@@ -27,6 +27,7 @@ import {
   registerFollowupFiringAction,
   resolveFiringAction,
 } from "@/app/actions/alert-firings";
+import { OpButton } from "@/components/ui/dashboard";
 import type { AlertFiringStatus, AlertMetricKey } from "@/db/schema";
 
 type Props = {
@@ -40,9 +41,6 @@ type Props = {
 type PromptKind = "resolve" | "dismiss" | "followup" | null;
 
 const ZOONOSIS_METRIC: AlertMetricKey = "active_zoonosis";
-
-const BTN =
-  "h-11 rounded-[var(--radius-md)] border px-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed";
 
 export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }: Props) {
   const [pending, startTransition] = useTransition();
@@ -94,7 +92,7 @@ export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }
         />
         {error ? <p className="text-[11px] text-ln-op-danger">{error}</p> : null}
         <div className="flex items-center gap-2">
-          <button
+          <OpButton
             type="button"
             disabled={pending}
             onClick={() =>
@@ -104,11 +102,12 @@ export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }
                 return registerFollowupFiringAction(firingId, noteValue);
               })
             }
-            className={`${BTN} border-ln-op-azul bg-ln-op-azul font-semibold text-white hover:opacity-90`}
+            variant="primary"
+            size="sm"
           >
             {cta}
-          </button>
-          <button
+          </OpButton>
+          <OpButton
             type="button"
             disabled={pending}
             onClick={() => {
@@ -116,10 +115,11 @@ export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }
               setError(null);
               setNoteValue("");
             }}
-            className={`${BTN} border-ln-op-line text-ln-op-mute hover:text-ln-op-ink`}
+            variant="ghost"
+            size="sm"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
       </div>
     );
@@ -133,81 +133,87 @@ export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
         {canAcknowledge ? (
-          <button
+          <OpButton
             type="button"
             disabled={pending}
             onClick={() => run(() => acknowledgeFiringAction(firingId))}
-            className={`${BTN} border-ln-op-azul text-ln-op-azul hover:bg-ln-op-azul/10`}
+            variant="primary"
+            size="sm"
           >
             Reconocer
-          </button>
+          </OpButton>
         ) : null}
 
         {status === "reconocida" && isZoonosis ? (
-          <button
+          <OpButton
             type="button"
             disabled={pending}
             onClick={() => run(() => openInvestigationFiringAction(firingId))}
-            className={`${BTN} border-ln-op-viol-bd text-ln-op-viol hover:bg-ln-op-viol-bg`}
+            variant="primary"
+            size="sm"
           >
             Abrir investigación
-          </button>
+          </OpButton>
         ) : null}
 
         {status === "reconocida" && !isZoonosis ? (
-          <button
+          <OpButton
             type="button"
             disabled={pending}
             onClick={() => {
               setPrompt("followup");
               setError(null);
             }}
-            className={`${BTN} border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe`}
+            variant="ghost"
+            size="sm"
           >
             Registrar seguimiento
-          </button>
+          </OpButton>
         ) : null}
 
         {canWork ? (
-          <button
+          <OpButton
             type="button"
             disabled={pending || !hasJurisdiction}
             title={
               hasJurisdiction ? undefined : "Sin jurisdicción local: no hay autoridad a contactar."
             }
             onClick={() => run(() => contactAuthorityFiringAction(firingId))}
-            className={`${BTN} border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe`}
+            variant="ghost"
+            size="sm"
           >
             Contactar autoridad
-          </button>
+          </OpButton>
         ) : null}
 
         {canWork || status === "autoridad_contactada" ? (
-          <button
+          <OpButton
             type="button"
             disabled={pending}
             onClick={() => {
               setPrompt("resolve");
               setError(null);
             }}
-            className={`${BTN} border-ln-op-ok-bd text-ln-op-ok hover:bg-ln-op-ok-bg`}
+            variant="ok"
+            size="sm"
           >
             Resolver
-          </button>
+          </OpButton>
         ) : null}
 
         {canAcknowledge || status === "reconocida" ? (
-          <button
+          <OpButton
             type="button"
             disabled={pending}
             onClick={() => {
               setPrompt("dismiss");
               setError(null);
             }}
-            className={`${BTN} border-ln-op-line text-ln-op-mute hover:text-ln-op-ink`}
+            variant="ghost"
+            size="sm"
           >
             Descartar
-          </button>
+          </OpButton>
         ) : null}
       </div>
       {error ? <p className="text-[11px] text-ln-op-danger">{error}</p> : null}

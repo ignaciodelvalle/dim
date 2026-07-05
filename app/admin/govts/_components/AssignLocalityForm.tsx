@@ -112,13 +112,9 @@ export function AssignLocalityForm({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => setMode("confirming")}
-      className="text-sm px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-blue-bd text-ln-op-azul hover:bg-ln-op-blue-bg transition-colors"
-    >
+    <OpButton type="button" onClick={() => setMode("confirming")} variant="primary" size="sm">
       Asignar nueva localidad
-    </button>
+    </OpButton>
   );
 
   function handleSubmit() {

@@ -9,6 +9,8 @@
 
 import type { Metadata } from "next";
 
+import { OpButton } from "@/components/ui/dashboard";
+
 export const metadata: Metadata = {
   title: "Integración Mi Argentina — DIM",
 };
@@ -76,14 +78,9 @@ export default function IntegracionMiArgPage() {
           </div>
 
           {/* CTA — illustrative, no action. */}
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            className="w-full cursor-not-allowed rounded-[var(--radius-lg)] bg-ln-op-navy/60 px-4 py-2.5 text-sm font-semibold text-white opacity-60"
-          >
+          <OpButton type="button" disabled aria-disabled="true" variant="primary" block>
             Acceder con Mi Argentina (próximamente)
-          </button>
+          </OpButton>
         </div>
       </div>
 
