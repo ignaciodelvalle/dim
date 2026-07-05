@@ -110,7 +110,7 @@ describe("pet-profile page.tsx — front-face delegation (AGENTS.md rule 5)", ()
     expect(alertStripAt).toBeGreaterThan(avisosSlotAt);
   });
 
-  it("no longer renders the old page-level `data-section=\"hero\"` identity wrapper (moved into CredentialFace)", () => {
+  it('no longer renders the old page-level `data-section="hero"` identity wrapper (moved into CredentialFace)', () => {
     const src = read(PAGE_TSX);
     expect(src).not.toContain('data-section="hero"');
   });
