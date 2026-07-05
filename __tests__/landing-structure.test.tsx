@@ -73,14 +73,16 @@ describe("landing hero — credential + lost demo", () => {
     expect(html).toContain(DEMO_PUBLIC_TOKEN);
   });
 
-  it("mounts BOTH flip faces (FlipCard motif: back face exists from first render)", () => {
+  it("renders the credential resting on AL DÍA at SSR (state cycle is client-only)", () => {
     const html = renderHero();
-    expect(html).toContain("lp-cred-face--ok");
-    expect(html).toContain("lp-cred-face--lost");
-    expect(html).toContain('data-lost="false"');
-    // Lost demo trigger present; the lost panel only mounts after the click.
-    expect(html).toContain("¿Y si se pierde?");
-    expect(html).not.toContain("Modo perdido activado");
+    // The hero is a single cycling credential (not the old 2-face FlipCard).
+    expect(html).toContain("lp-hcred");
+    expect(html).toContain("lp-hbadge");
+    // SSR / no-JS / reduced-motion rest on the first state — "al día".
+    expect(html).toContain("AL DÍA");
+    // Later states only appear via client-side cycling — never in SSR HTML.
+    expect(html).not.toContain("REGISTRO PPP");
+    expect(html).not.toContain("EN OBSERVACIÓN");
   });
 });
 
@@ -104,10 +106,11 @@ describe("story — CastFila + 6 chapters + rail", () => {
   it("renders the CastFila variant with Pampa and the 4 hands", () => {
     const html = renderToStaticMarkup(<StorySection />);
     expect(html).toContain('data-section="cast-fila"');
-    expect(html).toContain("El dueño");
-    expect(html).toContain("El veterinario");
-    expect(html).toContain("La organización");
-    expect(html).toContain("El Estado");
+    // Roles are one word each (PO landing feedback #8 — no "el"/"la").
+    expect(html).toContain("Dueño");
+    expect(html).toContain("Veterinario");
+    expect(html).toContain("Organización");
+    expect(html).toContain("Estado");
     // The orbit variant is explicitly NOT built (PO decision #1).
     expect(html).not.toContain("orbit");
   });
