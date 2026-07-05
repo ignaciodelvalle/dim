@@ -26,12 +26,25 @@ export type AuthenticatedSession = {
 };
 
 // Require an authenticated session. Redirects to /login if absent.
+//
+// Right-to-erasure lockout (Ley 25.326 art. 16, Wave D2): a valid Supabase
+// session is necessary but NOT sufficient. erase_subject_data() soft-deletes the
+// profile (deleted_at) and hashes every PII column, but does not by itself
+// invalidate an already-issued session token. Without this check a self-erased
+// account keeps full access to every guarded surface until the token naturally
+// expires. We resolve the profile (request-cached — every layout/guard downstream
+// reuses the same round-trip) and bounce erased accounts to /login, which renders
+// the "cuenta eliminada" notice + a logout surface instead of looping back in.
 export async function requireUserOrRedirect(): Promise<AuthenticatedSession> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const profile = await getProfileCached(user.id);
+  if (profile?.deletedAt != null) redirect("/login");
+
   return { supabase, user };
 }
 

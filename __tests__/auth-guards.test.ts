@@ -99,10 +99,51 @@ describe("requireUserOrRedirect", () => {
 
   it("returns the supabase client and user when a session exists", async () => {
     mockGetUser.mockResolvedValue(userSession("user-abc", "alice@dim.local"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-abc",
+      role: "owner",
+      displayName: "Alice",
+      accountType: "personal",
+      deactivatedAt: null,
+      deletedAt: null,
+    });
     const result = await requireUserOrRedirect();
     expect(result.user.id).toBe("user-abc");
     expect(result.user.email).toBe("alice@dim.local");
     expect(result.supabase).toBe(mockSupabaseClient);
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  // Wave D2 (Ley 25.326 art. 16 — finding 27-#1): an erased account keeps a
+  // valid Supabase session until the token expires. requireUserOrRedirect must
+  // treat a non-null profiles.deleted_at as "no access" and bounce to /login,
+  // which renders the "cuenta eliminada" notice instead of looping back in.
+  it("redirects to /login when the profile has been erased (deletedAt set)", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-erased", "erased@dim.local"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-erased",
+      role: "owner",
+      displayName: "erased:abc",
+      accountType: "personal",
+      deactivatedAt: null,
+      deletedAt: new Date("2026-07-04"),
+    });
+    await expect(requireUserOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/login");
+    expect(mockRedirect).toHaveBeenCalledWith("/login");
+  });
+
+  it("does not redirect an active (non-erased) account with a session", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-live"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-live",
+      role: "owner",
+      displayName: "Live User",
+      accountType: "personal",
+      deactivatedAt: null,
+      deletedAt: null,
+    });
+    const result = await requireUserOrRedirect();
+    expect(result.user.id).toBe("user-live");
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 });

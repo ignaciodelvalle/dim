@@ -8,6 +8,7 @@ import { getIntentCopy } from "@/lib/domain/auth-intent-copy";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import {
   isDeactivatedInstitutional,
+  isErasedAccount,
   pathForRole,
   resolveVetLanding,
   safeReturnTo,
@@ -44,8 +45,13 @@ export default async function LoginPage({
   // surface at all. Render the login page with a notice + "Cerrar sesión".
   const profile = user ? await getProfileCached(user.id) : null;
   const deactivatedSession = isDeactivatedInstitutional(profile);
+  // Erased account (Ley 25.326 art. 16): like a deactivated session, never
+  // redirect it into the app — requireUserOrRedirect bounces erased profiles
+  // straight back here, so an auto-redirect by role would loop forever. Render
+  // the notice + a guaranteed logout surface instead.
+  const erasedSession = isErasedAccount(profile);
 
-  if (user && !deactivatedSession) {
+  if (user && !deactivatedSession && !erasedSession) {
     if (returnTo) redirect(returnTo);
 
     const role = profile?.role ?? "owner";
@@ -109,6 +115,30 @@ export default async function LoginPage({
             {intentCopy ? intentCopy.subcopy : "Bienvenido de vuelta a MiMAR"}
           </p>
         </div>
+        {/* Erased account (Ley 25.326 art. 16): the account was deleted at the
+            subject's request. Clear notice + a guaranteed logout surface so the
+            stale session can be dropped. Rendered before the deactivated notice
+            because erasure is the stronger, terminal state. */}
+        {erasedSession && (
+          <div
+            role="alert"
+            className="space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-bg)] px-4 py-3 text-sm text-[var(--color-ln-ink)]"
+          >
+            <p className="font-medium text-[var(--color-ln-err)]">Esta cuenta fue eliminada.</p>
+            <p>
+              Eliminaste tu cuenta y tus datos personales a tu pedido. No podés volver a acceder con
+              ella. Si querés usar MiMAR de nuevo, creá una cuenta nueva.
+            </p>
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                className="cursor-pointer border-0 bg-transparent p-0 text-sm font-medium text-[var(--color-ln-azul)] underline underline-offset-2 hover:text-[var(--color-ln-azul-700)]"
+              >
+                Cerrar sesión
+              </button>
+            </form>
+          </div>
+        )}
         {/* Deactivated institutional account: clear notice + a guaranteed
             logout surface (server-action form works even without JS). */}
         {deactivatedSession && (

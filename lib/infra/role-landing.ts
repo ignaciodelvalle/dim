@@ -55,6 +55,28 @@ export function isDeactivatedInstitutional(
   return !!profile && profile.accountType === "institutional" && profile.deactivatedAt !== null;
 }
 
+// ---------------------------------------------------------------------------
+// Erased accounts — right-to-erasure lockout (Ley 25.326 art. 16, Wave D2)
+// ---------------------------------------------------------------------------
+//
+// erase_subject_data() soft-deletes the profile (deleted_at = now()) and hashes
+// every PII column, but the Supabase session is only dropped client-side via
+// signOut(). A stale/replayed session cookie — or a user who simply logs back in
+// before auth.users is cleaned up — would otherwise regain a full session on an
+// account that no longer holds any identity. Every auth entry point MUST treat a
+// non-null deleted_at as "no access", identically to how it treats a deactivated
+// institutional account: bounce to /login, never into the app (which would loop
+// against requireUserOrRedirect).
+
+export type ErasureStatusFields = {
+  deletedAt: Date | null;
+};
+
+/** True when the profile has been erased at the subject's request (soft-deleted). */
+export function isErasedAccount(profile: ErasureStatusFields | null | undefined): boolean {
+  return !!profile && profile.deletedAt !== null;
+}
+
 export function pathForRole(role: string, options: RoleOptions | boolean): string {
   const opts: RoleOptions =
     typeof options === "boolean" ? { hasOrgAdminMembership: options } : options;
@@ -121,10 +143,14 @@ export async function resolveUserLanding(userId: string): Promise<string> {
       role: profiles.role,
       accountType: profiles.accountType,
       deactivatedAt: profiles.deactivatedAt,
+      deletedAt: profiles.deletedAt,
     })
     .from(profiles)
     .where(eq(profiles.id, userId))
     .limit(1);
+
+  // Erased (right-to-erasure) → never into a portal. /login renders the notice.
+  if (isErasedAccount(profile)) return "/login";
 
   // Deactivated institutional → never into a portal (guards bounce it back
   // to `/` and the redirects loop). /login renders the deactivated notice.

@@ -51,6 +51,12 @@ export type CachedProfile = {
   displayName: string;
   accountType: "personal" | "institutional";
   deactivatedAt: Date | null;
+  // Soft-delete marker set by erase_subject_data (Ley 25.326 art. 16). A
+  // non-null value means the account was erased at the subject's request: its
+  // PII is hashed/nulled and it must NOT be able to authenticate any longer
+  // (requireUserOrRedirect bounces it to /login). Distinct from deactivatedAt,
+  // which is the institutional-account admin deactivation flag.
+  deletedAt: Date | null;
 };
 
 /**
@@ -66,6 +72,7 @@ export const getProfileCached = cache(async (userId: string): Promise<CachedProf
       displayName: profiles.displayName,
       accountType: profiles.accountType,
       deactivatedAt: profiles.deactivatedAt,
+      deletedAt: profiles.deletedAt,
     })
     .from(profiles)
     .where(eq(profiles.id, userId))
