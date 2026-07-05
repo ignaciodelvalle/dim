@@ -161,10 +161,10 @@ export function VetUpgradeForm({ dniVerified }: Props) {
           )}
         </LnField>
         <div className="space-y-1.5">
-          <p className="block text-sm font-medium text-[var(--color-ln-ink)]">
-            Localidad donde ejercés
-          </p>
-          <LocationFields mode="l1" />
+          {/* Single label owned by LocationFields (l1Label) — no redundant
+              outer heading (#43 item 4). Free text is normalized against the
+              INDEC catalog server-side; the picker assists selection. */}
+          <LocationFields mode="l1" l1Label="Localidad donde ejercés" required />
           <p className="text-xs text-[var(--color-ln-mute)]">
             Para enrutar tu verificación al gobierno correspondiente. Requerido.
           </p>

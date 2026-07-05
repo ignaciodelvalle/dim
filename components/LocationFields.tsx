@@ -76,6 +76,7 @@ export function LocationFields({
   allowAnonymous = false,
   onLocationPresenceChange,
   required = false,
+  l1Label = "Localidad",
 }: {
   mode: LocationMode;
   defaultValue?: LocationFieldsValue;
@@ -86,6 +87,10 @@ export function LocationFields({
    * the helper said "Requerido" but the label carried no asterisk). Does not
    * add native validation — callers own the required semantics. */
   required?: boolean;
+  /** Overrides the L1 field label. Defaults to "Localidad". Lets a caller name
+   * the field in context (e.g. "Localidad donde ejercés") WITHOUT rendering a
+   * second, redundant label above the picker (#43 item 4). */
+  l1Label?: string;
   // Override the wire-format name for the L2 address / lat / lng hidden
   // inputs. Retained for flexibility; no current consumer overrides these
   // (the lastKnownLocation alias was retired by critique §5).
@@ -294,7 +299,7 @@ export function LocationFields({
       {!isL2 && (
         <div className="space-y-1.5">
           <label htmlFor="localityName-input" className="block text-sm font-medium text-ln-ink">
-            Localidad
+            {l1Label}
             {required && (
               <span className="ml-1 text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
