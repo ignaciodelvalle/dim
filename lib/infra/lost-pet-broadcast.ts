@@ -50,6 +50,20 @@ export type LastLocationForBroadcast = {
 export type BroadcastResult = {
   broadcastedToMemberIds: string[];
   orgCount: number;
+  /**
+   * How many recipient payloads were dead-lettered because their insert failed
+   * (surfaced from createNotificationsBulk). >0 means some members were not
+   * notified live but the payloads are recoverable via the
+   * drain-notification-dead-letter cron. 0 on the no-op / early-return paths.
+   */
+  deadLetteredCount: number;
+  /**
+   * Set only when the broadcast threw BEFORE any payload was built (e.g. the
+   * coverage/member query failed). D8 keeps this non-fatal to the caller, but we
+   * now SURFACE the error instead of swallowing it silently so a pre-insert
+   * failure is observable rather than an indistinguishable empty result.
+   */
+  error?: string;
 };
 
 // Builds the notification body: intentionally minimal and PII-free.
@@ -90,7 +104,7 @@ export async function broadcastLostPet(
     const locality = lastLocation?.locality ?? pet.jurisdictionLocality ?? null;
 
     if (!province) {
-      return { broadcastedToMemberIds: [], orgCount: 0 };
+      return { broadcastedToMemberIds: [], orgCount: 0, deadLetteredCount: 0 };
     }
 
     // 2. Find verified, active orgs with coverage matching the jurisdiction.
@@ -131,7 +145,7 @@ export async function broadcastLostPet(
       );
 
     if (coveringOrgs.length === 0) {
-      return { broadcastedToMemberIds: [], orgCount: 0 };
+      return { broadcastedToMemberIds: [], orgCount: 0, deadLetteredCount: 0 };
     }
 
     // 3. Collect unique member IDs across all covering orgs in a SINGLE query.
@@ -160,7 +174,7 @@ export async function broadcastLostPet(
     }
 
     if (notifiedUserIds.size === 0) {
-      return { broadcastedToMemberIds: [], orgCount: coveringOrgs.length };
+      return { broadcastedToMemberIds: [], orgCount: coveringOrgs.length, deadLetteredCount: 0 };
     }
 
     // 4. Fan out one notification per unique member through the canonical
@@ -189,14 +203,21 @@ export async function broadcastLostPet(
       dedupeKey: `lost:${episodeScope}:${userId}`,
     }));
 
-    await createNotificationsBulk(notifInputs, client);
+    const bulk = await createNotificationsBulk(notifInputs, client);
 
     return {
       broadcastedToMemberIds: Array.from(notifiedUserIds),
       orgCount: coveringOrgs.length,
+      deadLetteredCount: bulk.deadLetteredCount,
     };
   } catch (err) {
+    // D8: non-fatal to the caller (the lost-flip must not roll back). But we no
+    // longer swallow the error into an indistinguishable empty result — a
+    // pre-insert failure (coverage/member query threw before any payload was
+    // built, so createNotificationsBulk never ran to dead-letter anything) is
+    // now surfaced via `error` for observability.
+    const message = err instanceof Error ? err.message : String(err);
     console.error("[broadcastLostPet] broadcast failed (non-fatal):", err);
-    return { broadcastedToMemberIds: [], orgCount: 0 };
+    return { broadcastedToMemberIds: [], orgCount: 0, deadLetteredCount: 0, error: message };
   }
 }

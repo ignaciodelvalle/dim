@@ -21,8 +21,9 @@
 
 import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
 
-import { db, notifications, ownerships, pets } from "@/db";
+import { db, ownerships, pets } from "@/db";
 
+import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import {
   type PppRules,
   classifyPpp,
@@ -154,7 +155,17 @@ export async function reEvaluatePppClassificationChange(
         .map((o) => o.userId)
         .filter((id): id is string => typeof id === "string");
       if (userIds.length > 0) {
-        await db.insert(notifications).values(
+        // Route through the canonical write path (createNotificationsBulk) rather
+        // than a raw db.insert. This closes an ARCH-P silent-loss gap that was
+        // specific to this sweep: the flag UPDATE above COMMITS before the notify,
+        // so if a raw insert threw, the NEXT reeval run would see
+        // `nowPpp === pet.potentiallyDangerousBreed` and `continue` — the urgent
+        // PPP alert was lost forever, never retried. The service instead
+        // dead-letters a failed insert (recoverable via the
+        // drain-notification-dead-letter cron), and the stable dedupe key
+        // `ppp-flip:${petId}:${userId}` makes a repeat sweep idempotent
+        // (ON CONFLICT DO NOTHING) instead of re-notifying on every run.
+        const result = await createNotificationsBulk(
           userIds.map((userId) => ({
             userId,
             notificationType,
@@ -164,9 +175,10 @@ export async function reEvaluatePppClassificationChange(
             relatedPetId: pet.id,
             ctaLabel: "Ver requisitos",
             ctaUrl: `/mis-mascotas/${pet.publicToken}`,
+            dedupeKey: `ppp-flip:${pet.id}:${userId}`,
           })),
         );
-        counters.notified += userIds.length;
+        counters.notified += result.insertedCount;
       }
     }
   }

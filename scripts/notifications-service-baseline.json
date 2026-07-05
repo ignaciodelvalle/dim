@@ -2,8 +2,6 @@
   "//": "Baseline for scripts/check-notifications-service.ts. Each key is a file that STILL writes notifications via a direct db.insert(notifications) instead of the createNotification() service (lib/infra/notification-service.ts). New direct inserts are BANNED — route them through the service. As each baselined file migrates, DELETE its key here in the same PR; the list only ever shrinks. Recorded 2026-07-04 (notifications reinforcement, consistency review).",
   "app/(public)/p/[publicToken]/encontre/action.ts": true,
   "app/actions/decomiso.ts": true,
-  "app/api/cron/auto-expire-approvals/route.ts": true,
-  "lib/infra/business-rules-reeval.ts": true,
   "lib/infra/owner-disease-alerts.ts": true,
   "src/modules/adoption/actions.ts": true,
   "src/modules/alerts/application/firings/triage.ts": true,

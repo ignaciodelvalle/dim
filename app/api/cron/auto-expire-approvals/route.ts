@@ -11,8 +11,9 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { and, eq, isNull, lt } from "drizzle-orm";
 
-import { approvalRequests, auditLog, cronRuns, db, notifications, profiles } from "@/db";
+import { approvalRequests, auditLog, cronRuns, db, profiles } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { createNotification } from "@/lib/infra/notification-service";
 
 export const dynamic = "force-dynamic";
 
@@ -101,15 +102,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             },
           });
 
-          await tx.insert(notifications).values({
-            userId: r.applicantUserId,
-            notificationType: "approval_request_auto_expired",
-            title: "Tu solicitud fue auto-expirada",
-            body: "Tu solicitud pendiente fue cerrada automáticamente por inactividad mayor a 60 días. Podés volver a iniciarla cuando quieras.",
-            severity: "info",
-            ctaLabel: "Ver solicitudes",
-            ctaUrl: "/cuenta/solicitudes",
-          });
+          // Route through the canonical write path: a stable dedupe key makes a
+          // re-run idempotent (ON CONFLICT DO NOTHING) and an insert failure is
+          // dead-lettered (recoverable) rather than aborting the withdrawal tx.
+          // Passed the `tx` so a committed withdrawal and its notification stay
+          // atomic; the service's dead-letter write uses the shared pool, so a
+          // notify failure never poisons this transaction.
+          await createNotification(
+            {
+              userId: r.applicantUserId,
+              notificationType: "approval_request_auto_expired",
+              title: "Tu solicitud fue auto-expirada",
+              body: "Tu solicitud pendiente fue cerrada automáticamente por inactividad mayor a 60 días. Podés volver a iniciarla cuando quieras.",
+              severity: "info",
+              ctaLabel: "Ver solicitudes",
+              ctaUrl: "/cuenta/solicitudes",
+              dedupeKey: `approval-auto-expired:${r.id}`,
+            },
+            tx,
+          );
         });
         itemsProcessed += 1;
       } catch (err) {
@@ -119,6 +130,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   } catch (err) {
     status = "failed";
     errors.push({ id: "global", reason: err instanceof Error ? err.message : "unknown" });
+  }
+
+  // Don't report success on failure: per-candidate errors (a single approval's
+  // tx threw) previously left status:"ok" because only the outer catch flipped
+  // it. Any error at all means the run was not fully healthy.
+  if (errors.length > 0 && status === "ok") {
+    status = "failed";
+    console.error(
+      `[cron/auto-expire-approvals] ${errors.length} candidate error(s) — run marked failed`,
+    );
   }
 
   await db
