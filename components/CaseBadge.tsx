@@ -7,6 +7,8 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
+import { CASE_STATUS_CONFIG } from "@/components/ui/dashboard/CaseStatusBadge";
+import { TONE_CLASSES } from "@/components/ui/dashboard/OpStatusPill";
 import type { CaseStatus } from "@/db";
 import { type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
@@ -25,32 +27,12 @@ const KIND_ICON: Record<CaseKind, string> = {
   microchip_remediation: "reparacion",
 };
 
-// Canonical case-status tones (decision 2026-06-24, triage model):
-// open=warn (atención) · escalated=err · closed=ok (resuelto) · merged=info.
-// Uses the --color-st-* indirection layer so tones auto-remap per skin
-// (operator surfaces under .op-surface → ln-op-*; citizen → ln-*).
-const STATUS_STYLES: Record<CaseStatus, { label: string; classes: string }> = {
-  open: {
-    label: "Abierto",
-    classes:
-      "bg-[var(--color-st-warn-bg)] text-[var(--color-st-warn)] ring-1 ring-[var(--color-st-warn)]",
-  },
-  escalated: {
-    label: "Escalado",
-    classes:
-      "bg-[var(--color-st-err-bg)] text-[var(--color-st-err)] ring-1 ring-[var(--color-st-err)]",
-  },
-  closed: {
-    label: "Cerrado",
-    classes:
-      "bg-[var(--color-st-ok-bg)] text-[var(--color-st-ok)] ring-1 ring-[var(--color-st-ok)]",
-  },
-  merged: {
-    label: "Fusionado",
-    classes:
-      "bg-[var(--color-st-info-bg)] text-[var(--color-st-info)] ring-1 ring-[var(--color-st-info)]",
-  },
-};
+// Status label + tone are delegated to the canonical CASE_STATUS_CONFIG (the
+// single source of truth for the case color grammar) and OpStatusPill's
+// TONE_CLASSES — no local re-implementation. Both resolve via the
+// --color-st-* indirection layer so tones auto-remap per skin (operator
+// surfaces under .op-surface → ln-op-*; citizen → ln-*). This chip keeps its
+// citizen rounded-full geometry; only the mapping is shared.
 
 interface Props {
   publicCode: string;
@@ -61,7 +43,7 @@ interface Props {
 
 export function CaseBadge({ publicCode, caseKind, status, size = "md" }: Props) {
   const sizeClasses = size === "sm" ? "px-2 py-1 text-xs gap-1.5" : "px-3 py-1.5 text-sm gap-2";
-  const statusStyle = STATUS_STYLES[status];
+  const { label: statusLabel, tone } = CASE_STATUS_CONFIG[status];
   return (
     <Link
       href={`/casos/${publicCode}`}
@@ -83,9 +65,9 @@ export function CaseBadge({ publicCode, caseKind, status, size = "md" }: Props) 
       <span className="text-ln-mute ">·</span>
       <span className="text-ln-ink ">{caseKindLabel(caseKind)}</span>
       <span
-        className={`ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusStyle.classes}`}
+        className={`ml-1 inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${TONE_CLASSES[tone]}`}
       >
-        {statusStyle.label}
+        {statusLabel}
       </span>
     </Link>
   );
