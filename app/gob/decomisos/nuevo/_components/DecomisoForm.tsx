@@ -46,7 +46,7 @@ import {
   type GovtPetLookupResult,
   lookupPetForDecomisoAction,
 } from "@/app/actions/decomiso-pet-lookup";
-import { sexLabel, speciesLabel } from "@/lib/utils/format";
+import { sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -418,7 +418,7 @@ export function DecomisoForm({
                           : "bg-ln-op-stripe text-ln-op-mute"
                       }`}
                     >
-                      {petPreview.status}
+                      {statusLabel(petPreview.status)}
                     </span>
                   </div>
                   <p className="text-[11px] font-mono text-ln-op-mute">{petPreview.publicToken}</p>

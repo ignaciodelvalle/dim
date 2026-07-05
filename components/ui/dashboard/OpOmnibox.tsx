@@ -31,11 +31,22 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { searchOmniboxAction, searchOmniboxOrgAction } from "@/app/actions/omnibox-search";
+import { caseStatusDisplay } from "@/components/ui/dashboard/CaseStatusBadge";
+import type { CaseStatus } from "@/db/schema";
 import type { OmniboxResult, OmniboxResults } from "@/lib/infra/omnibox-search";
 import { speciesLabel } from "@/lib/utils/format";
+import { caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 const DEBOUNCE_MS = 250;
 const MIN_QUERY_LENGTH = 2;
+
+// Person-result role labels (same values as profiles.role across the app).
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Dueño/a",
+  vet: "Veterinario/a",
+  govt: "Gobierno",
+  admin: "Administrador",
+};
 
 const EMPTY_RESULTS: OmniboxResults = { pets: [], persons: [], cases: [], total: 0 };
 
@@ -64,8 +75,8 @@ function resultLabel(r: OmniboxResult): string {
 
 function resultMeta(r: OmniboxResult): string {
   if (r.type === "pet") return `${speciesLabel(r.species)} · ${r.publicToken}`;
-  if (r.type === "person") return r.role;
-  return `${r.caseKind} · ${r.status}`;
+  if (r.type === "person") return ROLE_LABELS[r.role] ?? r.role;
+  return `${caseKindLabel(r.caseKind)} · ${caseStatusDisplay(r.status as CaseStatus).label}`;
 }
 
 export function OpOmnibox({ orgToken }: { orgToken?: string } = {}) {

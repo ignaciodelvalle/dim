@@ -98,7 +98,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
 
       <div>
         <label htmlFor="party-id" className="block text-sm text-ln-op-mute mb-1">
-          {partyKind === "user" ? "User ID (UUID)" : "Organization ID (UUID)"}
+          {partyKind === "user" ? "ID de usuario (UUID)" : "ID de organización (UUID)"}
         </label>
         <input
           id="party-id"

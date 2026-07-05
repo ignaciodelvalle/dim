@@ -11,8 +11,9 @@ import {
   pets,
   profiles,
 } from "@/db";
+import type { EventType } from "@/db/schema";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { speciesLabel } from "@/lib/utils/format";
+import { eventTypeLabel, speciesLabel } from "@/lib/utils/format";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { AddPartyForm } from "./AddPartyForm";
@@ -198,7 +199,9 @@ export default async function DisputeDetailPage({
                 key={e.id}
                 className="flex items-baseline justify-between gap-3 border-l-2 border-ln-op-line pl-3 py-1"
               >
-                <span className="font-mono text-sm text-ln-op-ink-2">{e.eventType}</span>
+                <span className="font-mono text-sm text-ln-op-ink-2">
+                  {eventTypeLabel(e.eventType as EventType)}
+                </span>
                 <span className="text-sm text-ln-op-mute whitespace-nowrap">
                   {new Date(e.occurredAt).toLocaleDateString("es-AR", {
                     day: "numeric",

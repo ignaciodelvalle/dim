@@ -104,18 +104,18 @@ const SPECIES_LABEL: Record<string, string> = {
   other: "Otra",
 };
 
-const PET_STATUS_LABEL: Record<string, string> = {
+export const PET_STATUS_LABEL: Record<string, string> = {
   active: "Activa",
   lost: "Perdida",
   deceased: "Fallecida",
 };
 
-const INCIDENT_LABEL: Record<string, string> = {
+export const INCIDENT_LABEL: Record<string, string> = {
   bite_inflicted: "Mordedura infligida",
   bite_suffered: "Mordedura sufrida",
 };
 
-const SEVERITY_LABEL: Record<string, string> = {
+export const SEVERITY_LABEL: Record<string, string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",

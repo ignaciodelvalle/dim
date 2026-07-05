@@ -3,6 +3,11 @@
 import type maplibregl from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 
+import {
+  INCIDENT_LABEL,
+  PET_STATUS_LABEL,
+  SEVERITY_LABEL,
+} from "@/components/panorama/DetailDrawer";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 
 import {
@@ -1347,7 +1352,17 @@ function pointPopupHtml(layer: ActiveLayer, props: Record<string, unknown>): str
   }
   // Generic: a primary label + a meta line built from common props.
   const primary = String(props.name ?? props.code ?? props.diseaseLabel ?? layer.label);
-  const meta = [props.incidentType, props.severity, props.status, props.diseaseCode]
+  const incidentType =
+    typeof props.incidentType === "string"
+      ? (INCIDENT_LABEL[props.incidentType] ?? props.incidentType)
+      : undefined;
+  const severity =
+    typeof props.severity === "string"
+      ? (SEVERITY_LABEL[props.severity] ?? props.severity)
+      : undefined;
+  const status =
+    typeof props.status === "string" ? (PET_STATUS_LABEL[props.status] ?? props.status) : undefined;
+  const meta = [incidentType, severity, status, props.diseaseLabel ? undefined : props.diseaseCode]
     .filter(Boolean)
     .join(" · ");
   return `<div style="font-size:12px;padding:2px 6px"><strong>${escapeHtml(primary)}</strong>${meta ? `<br/><span style="color:#94a3b8">${escapeHtml(meta)}</span>` : ""}</div>`;

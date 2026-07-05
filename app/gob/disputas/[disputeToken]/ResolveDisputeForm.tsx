@@ -156,8 +156,8 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
           <div>
             <label htmlFor="transfer-target" className="block text-sm text-ln-op-mute mb-1">
               {transferKind === "user"
-                ? "User ID destino (UUID)"
-                : "Organization ID destino (UUID)"}
+                ? "ID de usuario destino (UUID)"
+                : "ID de organización destino (UUID)"}
             </label>
             <div className="flex gap-2">
               <input

@@ -21,8 +21,10 @@ import {
   OpPill,
 } from "@/components/ui/dashboard";
 import { db, eventNotificationOutbox, petEvents } from "@/db";
+import type { EventType } from "@/db/schema";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildBreachCue, buildStatusLabel } from "@/lib/infra/outbox-list";
+import { eventTypeLabel } from "@/lib/utils/format";
 
 import { retryOutboxRowAction } from "../actions";
 
@@ -190,7 +192,9 @@ export default async function AdminOutboxDetailPage({
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
                 <dt className="text-sm text-ln-op-mute">Tipo</dt>
                 <dd>
-                  <OpCodeBadge tone="blue">{sourceEvent.eventType}</OpCodeBadge>
+                  <OpCodeBadge tone="blue">
+                    {eventTypeLabel(sourceEvent.eventType as EventType)}
+                  </OpCodeBadge>
                 </dd>
                 <dt className="text-sm text-ln-op-mute">Ocurrido</dt>
                 <dd className="text-[13px] text-ln-op-ink">{fmt(sourceEvent.occurredAt)}</dd>
