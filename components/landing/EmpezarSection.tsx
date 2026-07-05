@@ -1,6 +1,7 @@
-// Empezar — "Entrá por tu puerta". EXACTLY two doors (PO-locked): owner
-// (primary CTA) + organization. Government/admin do NOT appear (invite-only,
-// implicit).
+// Empezar — EXACTLY two doors (PO-locked): owner (primary CTA) + organization.
+// Government/admin do NOT appear (invite-only, implicit). PO landing feedback:
+// heading trimmed to just "Empezar"; the eyebrow + "antes del día que se
+// pierda" lead were removed so the two doors carry the section.
 
 import { Icon } from "@/components/Icon";
 import { ROLES } from "@/components/landing/landing-content";
@@ -11,13 +12,9 @@ export function EmpezarSection() {
     <section className="lp-section lp-section--card" id="empezar" data-section="empezar">
       <div className="lp-wrap">
         <div className="lp-maxw-sec mx-auto text-center">
-          <p className="lp-eyebrow lp-eyebrow--blue lp-reveal">Empezar</p>
-          <h2 className="lp-display lp-h-sec lp-reveal mt-3.5" data-d="1">
-            Entrá por tu puerta
+          <h2 className="lp-display lp-h-sec lp-reveal" data-d="1">
+            Empezar
           </h2>
-          <p className="lp-lead lp-reveal mx-auto mt-4 text-[var(--text-lg)]" data-d="2">
-            Registrala hoy, antes del día que se pierda.
-          </p>
         </div>
         <div className="lp-role-grid lp-reveal mt-[clamp(36px,5vw,54px)]">
           {ROLES.map((r) => (

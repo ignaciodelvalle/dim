@@ -11,9 +11,8 @@ export function FaqSection() {
     <section className="lp-section lp-section--paper" id="faq" data-section="faq">
       <div className="lp-wrap">
         <div className="lp-maxw-sec mx-auto text-center">
-          <p className="lp-eyebrow lp-eyebrow--blue lp-reveal">Preguntas frecuentes</p>
-          <h2 className="lp-display lp-h-sec lp-reveal mt-3.5" data-d="1">
-            Las dudas de siempre
+          <h2 className="lp-display lp-h-sec lp-reveal" data-d="1">
+            Preguntas frecuentes
           </h2>
         </div>
         <div className="lp-faq lp-reveal mt-[clamp(30px,4vw,48px)]">

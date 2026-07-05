@@ -16,7 +16,6 @@ import type { IconName } from "@/components/Icon";
 
 export const PAMPA = {
   name: "Pampa",
-  breed: "Mestiza · Caniche × Border collie",
   sex: "Hembra",
   age: "4 años",
 } as const;
@@ -49,7 +48,7 @@ export const ACTORS: LandingActor[] = [
     chapter: "dueno",
     tone: "warm",
     icon: "corazon",
-    name: "El dueño",
+    name: "Dueño",
     does: "Registra, comparte, activa el modo perdido.",
   },
   {
@@ -57,7 +56,7 @@ export const ACTORS: LandingActor[] = [
     chapter: "vet",
     tone: "neutral",
     icon: "vet",
-    name: "El veterinario",
+    name: "Veterinario",
     does: "Firma eventos con su matrícula validada.",
   },
   {
@@ -65,7 +64,7 @@ export const ACTORS: LandingActor[] = [
     chapter: "refugio",
     tone: "neutral",
     icon: "casa",
-    name: "La organización",
+    name: "Organización",
     does: "Custodia, tránsitos y adopciones verificadas.",
   },
   {
@@ -73,7 +72,7 @@ export const ACTORS: LandingActor[] = [
     chapter: "estado",
     tone: "official",
     icon: "edificio",
-    name: "El Estado",
+    name: "Estado",
     does: "Vigila tendencias con datos reales.",
   },
 ];
@@ -97,15 +96,15 @@ export type LandingChapter = {
 export const CHAPTERS: LandingChapter[] = [
   {
     key: "dueno",
-    hand: "El dueño",
+    hand: "Dueño",
     state: "registered",
     side: "r",
     title: "Empieza en casa.",
-    lead: "Martín registra a Pampa: identidad pública con QR y una libreta lista para escribirse. Gratuito, en cinco minutos.",
+    lead: "Martín registra a Pampa: identidad pública con QR y un historial listo para escribirse. Gratuito, en cinco minutos.",
   },
   {
     key: "vet",
-    hand: "La veterinaria",
+    hand: "Veterinaria",
     state: "ok",
     side: "l",
     title: "El turno salió de la app.",
@@ -113,29 +112,29 @@ export const CHAPTERS: LandingChapter[] = [
   },
   {
     key: "anon",
-    hand: "Un anónimo",
+    hand: "Anónimo",
     state: "lost",
     side: "r",
     title: "Un martes, se pierde.",
-    lead: "Alguien la encuentra en la plaza y escanea su QR. Sin cuenta y sin app: ve lo justo para ayudar y avisa. Los datos de Martín, protegidos.",
+    lead: "Alguien la encuentra en la plaza y escanea su QR. Sin cuenta y sin app: ve lo justo para ayudar y avisa.",
   },
   {
     key: "refugio",
-    hand: "El refugio",
+    hand: "Refugio",
     state: "ok",
     side: "l",
     title: "La recibe el refugio más cercano.",
-    lead: "Verifican el chip, la libreta dice quién es, y Martín ya está en camino. Custodia devuelta — y registrada.",
+    lead: "Verifican el chip, miMAR dice quién es, y Martín ya está en camino. Custodia devuelta — y registrada.",
   },
   {
     key: "libreta",
-    hand: "La libreta",
+    hand: "miMAR",
     state: "ok",
     side: "r",
     title: "Todo quedó escrito.",
     lead: "Cuatro manos, una sola historia. La línea de vida es de Pampa: inmutable — nada se edita, nada se borra.",
   },
-  { key: "estado", hand: "El Estado", state: "navy", full: true },
+  { key: "estado", hand: "Estado", state: "navy", full: true },
 ];
 
 // ---------------------------------------------------------------------------
@@ -304,10 +303,13 @@ export function mapTintStep(v: number): 0 | 1 | 2 | 3 | 4 {
   return 0;
 }
 
+// Grouped by theme (PO landing feedback): the first pair is surveillance
+// REACH — how wide the signal spreads (total signals + jurisdictions covered);
+// the second pair is the RABIES-specific read (active observations + coverage).
 export const CONSOLE_KPIS = [
   { label: "Señales zoonóticas · 12m", value: "1.982", tone: "warn" },
-  { label: "Observaciones antirrábicas", value: "214", tone: "danger" },
   { label: "Jurisdicciones con señal", value: "19/24", tone: "blue" },
+  { label: "Observaciones antirrábicas", value: "214", tone: "danger" },
   { label: "Cobertura antirrábica", value: "72,4%", tone: "ok" },
 ] as const;
 
@@ -330,7 +332,7 @@ export const LIFE_MOMENTS: LifeMoment[] = [
   {
     icon: "shield",
     title: "Mi perro mordió a alguien",
-    body: "Tras una mordedura, el período de observación se abre, se sigue y se cierra en la libreta. Automático.",
+    body: "Tras una mordedura, el período de observación se abre, se sigue y se cierra en miMAR. Automático.",
   },
   {
     icon: "vacuna",
@@ -369,7 +371,7 @@ export const FAQS: Array<[string, string]> = [
   ],
   [
     "¿Necesito microchip?",
-    "No. La credencial QR funciona desde el día uno. Si tu mascota ya tiene chip, se asocia a la misma libreta y suma una forma más de identificarla.",
+    "No. La credencial QR funciona desde el día uno. Si tu mascota ya tiene chip, se asocia al mismo historial y suma una forma más de identificarla.",
   ],
   [
     "¿Reemplaza la libreta de papel?",
@@ -377,7 +379,7 @@ export const FAQS: Array<[string, string]> = [
   ],
   [
     "¿Y si me roban el teléfono?",
-    "La libreta no vive en tu teléfono: vive en el registro. Entrás desde cualquier dispositivo con tu cuenta, y la credencial pública sigue funcionando igual.",
+    "miMAR no vive en tu teléfono: vive en el registro. Entrás desde cualquier dispositivo con tu cuenta, y la credencial pública sigue funcionando igual.",
   ],
 ];
 
@@ -402,8 +404,8 @@ export const ROLES: LandingRole[] = [
     tone: "dueno",
     icon: "corazon",
     eyebrow: "Soy dueño",
-    title: "La libreta de tu mascota",
-    body: "Identidad pública con QR, libreta sanitaria y modo perdido. Gratuito, para toda su vida.",
+    title: "miMAR para tu mascota",
+    body: "Identidad pública con QR, historial sanitario y modo perdido. Gratis, para toda su vida.",
     cta: "Crear cuenta",
     ctaHref: "/signup",
     cta2: "Ya tengo cuenta",
@@ -430,7 +432,7 @@ export const FOOTER_NAV: Array<[string, Array<[string, string]>]> = [
   [
     "Ciudadanía",
     [
-      ["Crear la libreta", "/signup"],
+      ["Crear mi miMAR", "/signup"],
       ["Mascotas perdidas", "/perdidas"],
       ["Adoptar", "/adoptar"],
       ["Denunciar maltrato", "/denuncias/nueva"],
