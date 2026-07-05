@@ -15,6 +15,7 @@ import {
   fetchUnreadNotificationCount,
 } from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { excludeResolvedLostEpisodeSql } from "@/lib/infra/notification-reconcile";
 import {
   decodeCursor,
   encodeCursor,
@@ -146,6 +147,9 @@ export default async function NotificacionesPage({
     eq(notifications.userId, user.id),
     isNull(notifications.archivedAt),
     activeCat !== "all" ? eq(notifications.category, activeCat) : undefined,
+    // Reconcile against current state: drop lost-active alerts (sighting,
+    // broadcast, possession) once the subject pet is no longer lost (PO QA §2).
+    excludeResolvedLostEpisodeSql,
     // Keyset predicate: only rows older than the cursor.
     keysetWhere(notifications.createdAt, notifications.id, cursor),
   ].filter(Boolean);

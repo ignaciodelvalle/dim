@@ -1,0 +1,128 @@
+// Integration test: the read-time reconcile filter suppresses a lost-active
+// notification once the subject pet is no longer lost, while keeping unrelated
+// notifications and the lost-episode recovery notice.
+//
+// Runs against local Postgres via Drizzle. Provisions its own user + pet and
+// tears them down in afterAll.
+
+import { createClient } from "@supabase/supabase-js";
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { db, notifications, ownerships, pets } from "@/db";
+import {
+  countUnreadNotifications,
+  fetchNotificationCategoryCounts,
+  fetchUnreadNotificationCount,
+} from "@/lib/analytics/owner-dashboard";
+import { withMutationOverride } from "./_helpers/db-overrides";
+
+const SUPABASE_URL = "http://127.0.0.1:54321";
+const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+const admin = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false } });
+
+const EMAIL = "notif-reconcile@dim-test.local";
+const PASS = "NotifReconcile_2026!";
+
+let userId: string;
+let petId: string;
+
+async function ensureUserDeleted(email: string) {
+  const { data: list } = await admin.auth.admin.listUsers();
+  const found = list?.users.find((u) => u.email === email);
+  if (!found) return;
+  const owned = await db.select().from(ownerships).where(eq(ownerships.ownerUserId, found.id));
+  await withMutationOverride(async (tx) => {
+    for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
+  });
+  await db.delete(notifications).where(eq(notifications.userId, found.id));
+  await admin.auth.admin.deleteUser(found.id);
+}
+
+beforeAll(async () => {
+  await ensureUserDeleted(EMAIL);
+  const { data, error } = await admin.auth.admin.createUser({
+    email: EMAIL,
+    password: PASS,
+    email_confirm: true,
+  });
+  if (error || !data.user) throw new Error(`createUser: ${error?.message}`);
+  userId = data.user.id;
+
+  const [pet] = await db
+    .insert(pets)
+    .values({
+      publicToken: `RECON-${userId.slice(0, 6).toUpperCase()}`,
+      name: "Panchita",
+      species: "dog",
+      sex: "female",
+      status: "lost",
+    })
+    .returning();
+  petId = pet.id;
+  await db.insert(ownerships).values({ petId: pet.id, ownerUserId: userId, role: "owner" });
+
+  // Clear the welcome notification inserted by the handle_new_user trigger.
+  await db.delete(notifications).where(eq(notifications.userId, userId));
+
+  // A lost-active sighting alert (should reconcile away once found).
+  await db.insert(notifications).values({
+    userId,
+    notificationType: "pet_found_report",
+    title: "Avistaje de Panchita",
+    severity: "urgent",
+    category: "perdidas",
+    relatedPetId: petId,
+  });
+  // A recovery notice (must always persist).
+  await db.insert(notifications).values({
+    userId,
+    notificationType: "lost_episode_resolved_owner",
+    title: "Marcaste a Panchita como encontrada",
+    severity: "success",
+    category: "perdidas",
+    relatedPetId: petId,
+  });
+  // An unrelated health notification (never touched by the filter).
+  await db.insert(notifications).values({
+    userId,
+    notificationType: "vaccine_due",
+    title: "Vacuna próxima",
+    severity: "info",
+    category: "health",
+    relatedPetId: petId,
+  });
+});
+
+afterAll(async () => {
+  const owned = await db.select().from(ownerships).where(eq(ownerships.ownerUserId, userId));
+  await withMutationOverride(async (tx) => {
+    for (const o of owned) await tx.delete(pets).where(eq(pets.id, o.petId));
+  });
+  await db.delete(notifications).where(eq(notifications.userId, userId));
+  await admin.auth.admin.deleteUser(userId);
+});
+
+describe("notification reconcile filter", () => {
+  it("counts the sighting alert while the pet is still lost", async () => {
+    const counts = await fetchNotificationCategoryCounts(userId);
+    expect(counts.perdidas).toBe(2); // sighting + recovery
+    expect(counts.health).toBe(1);
+    expect(counts.all).toBe(3);
+    expect(await countUnreadNotifications(userId)).toBe(3);
+    expect(await fetchUnreadNotificationCount(userId, "perdidas")).toBe(2);
+  });
+
+  it("suppresses the sighting alert once the pet is marked found (status → active)", async () => {
+    await db.update(pets).set({ status: "active" }).where(eq(pets.id, petId));
+
+    const counts = await fetchNotificationCategoryCounts(userId);
+    // Sighting reconciled away; the recovery notice stays.
+    expect(counts.perdidas).toBe(1);
+    expect(counts.perdidasUrgent).toBe(0);
+    expect(counts.health).toBe(1);
+    expect(counts.all).toBe(2);
+    expect(await countUnreadNotifications(userId)).toBe(2);
+    expect(await fetchUnreadNotificationCount(userId, "perdidas")).toBe(1);
+  });
+});

@@ -53,6 +53,7 @@ import {
 } from "@/lib/domain/vaccine-reminder-state";
 import { excludeAuthorityOnlyClause } from "@/lib/events/events";
 import { overlayAmendments } from "@/lib/infra/amendment";
+import { excludeResolvedLostEpisodeSql } from "@/lib/infra/notification-reconcile";
 import {
   type ComplianceEvent,
   type ComplianceState,
@@ -225,6 +226,7 @@ export async function fetchUnreadNotifications(
         eq(notifications.userId, userId),
         isNull(notifications.readAt),
         isNull(notifications.archivedAt),
+        excludeResolvedLostEpisodeSql,
       ),
     )
     .orderBy(desc(notifications.createdAt))
@@ -245,6 +247,7 @@ export async function countUnreadNotifications(userId: string): Promise<number> 
         eq(notifications.userId, userId),
         isNull(notifications.readAt),
         isNull(notifications.archivedAt),
+        excludeResolvedLostEpisodeSql,
       ),
     );
   return row?.n ?? 0;
@@ -1344,6 +1347,7 @@ export async function fetchUnreadNotificationCount(
     WHERE user_id = ${userId}
       AND archived_at IS NULL
       AND read_at IS NULL
+      AND ${excludeResolvedLostEpisodeSql}
       ${category ? sql`AND category = ${category}` : sql``}
   `);
   return Number(rows[0]?.n ?? "0");
@@ -1365,6 +1369,7 @@ export async function fetchNotificationCategoryCounts(
     FROM notifications
     WHERE user_id = ${userId}
       AND archived_at IS NULL
+      AND ${excludeResolvedLostEpisodeSql}
     GROUP BY category, severity
   `);
 
