@@ -13,16 +13,24 @@
 //   we resolve `server-only` / `client-only` to an empty module instead. The Next
 //   build is untouched — this hook only applies to a process started with
 //   `node --import ./scripts/register-server-only-stub.mjs ...`.
-import { register } from "node:module";
+//
+// Node 24 note:
+//   The previous implementation used `register(dataUrl)`, which installs the hook
+//   on a separate worker thread. Under Node 24 + tsx 4.x that worker-thread hook
+//   silently breaks tsx's own loader chaining — the entry `.ts` never executes
+//   (the process exits 0 with zero output and zero effect, e.g. every `seed:*`
+//   became a silent no-op). The synchronous `registerHooks` API runs in-thread
+//   and composes correctly with tsx, so the script actually runs. Do NOT revert
+//   to `register()`.
+import { registerHooks } from "node:module";
 
-const hooks = `
 const STUBBED = new Set(["server-only", "client-only"]);
-export async function resolve(specifier, context, nextResolve) {
-  if (STUBBED.has(specifier)) {
-    return { url: "data:text/javascript,export%20%7B%7D", shortCircuit: true };
-  }
-  return nextResolve(specifier, context);
-}
-`;
 
-register(`data:text/javascript,${encodeURIComponent(hooks)}`);
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (STUBBED.has(specifier)) {
+      return { url: "data:text/javascript,export%20%7B%7D", shortCircuit: true };
+    }
+    return nextResolve(specifier, context);
+  },
+});
