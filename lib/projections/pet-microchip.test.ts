@@ -71,4 +71,78 @@ describe("replayPetMicrochip", () => {
     expect(p.microchipImplantedBy).toBe("Dr. Gómez");
     expect(p.microchipLocation).toBe("cuello");
   });
+
+  // --- microchip_replaced lifecycle (folded into the replay) ----------------
+
+  const replaced = (
+    prev: string,
+    next: string | null,
+    extra: Record<string, unknown> = {},
+    occurredAt?: string,
+  ) =>
+    ev(
+      "microchip_replaced",
+      { previous_chip_number: prev, new_chip_number: next, reason: "damaged", ...extra },
+      occurredAt,
+    );
+
+  it("a replacement makes the NEW chip active (mirrors the canonical row)", () => {
+    const events = [
+      chip("858000000000001", { country_code: "858" }, "2026-01-01T00:00:00Z"),
+      replaced(
+        "858000000000001",
+        "858000000000002",
+        { replaced_by: "Dr. Ruiz" },
+        "2026-03-04T00:00:00Z",
+      ),
+    ];
+    const p = replayPetMicrochip(events);
+    expect(p.microchipId).toBe("858000000000002");
+    // country code mirrors newChip.slice(0,3), as the writer sets iso_country_code.
+    expect(p.microchipCountryCode).toBe("858");
+    // implant date is the replace date (event.occurredAt), matching recorded_at.
+    expect(p.microchipImplantedAt).toBe("2026-03-04");
+    expect(p.microchipImplantedBy).toBe("Dr. Ruiz");
+    // replace does not carry a location — canonical implantation_site is null.
+    expect(p.microchipLocation).toBeNull();
+  });
+
+  it("a pure revocation (new_chip_number=null) leaves NO active chip", () => {
+    const events = [
+      chip("858000000000001", {}, "2026-01-01T00:00:00Z"),
+      replaced("858000000000001", null, { reason: "owner_request" }, "2026-03-04T00:00:00Z"),
+    ];
+    expect(replayPetMicrochip(events)).toEqual({
+      microchipId: null,
+      microchipCountryCode: null,
+      microchipImplantedAt: null,
+      microchipImplantedBy: null,
+      microchipLocation: null,
+    });
+  });
+
+  it("implant → replace → revoke ends with no active chip", () => {
+    const events = [
+      chip("858000000000001", {}, "2026-01-01T00:00:00Z"),
+      replaced("858000000000001", "858000000000002", {}, "2026-02-01T00:00:00Z"),
+      replaced("858000000000002", null, { reason: "device_failure" }, "2026-03-01T00:00:00Z"),
+    ];
+    expect(replayPetMicrochip(events).microchipId).toBeNull();
+  });
+
+  it("an implant AFTER a revocation re-binds a fresh chip", () => {
+    const events = [
+      chip("858000000000001", {}, "2026-01-01T00:00:00Z"),
+      replaced("858000000000001", null, { reason: "owner_request" }, "2026-02-01T00:00:00Z"),
+      chip("858000000000009", { country_code: "858" }, "2026-03-01T00:00:00Z"),
+    ];
+    expect(replayPetMicrochip(events).microchipId).toBe("858000000000009");
+  });
+
+  it("a replace with no preceding implant still binds the new chip (canonical parity)", () => {
+    // A chip seeded directly into pet_identifications (no implant event) then
+    // replaced: canonical active row = new chip, so derived must agree.
+    const events = [replaced("858000000000001", "858000000000002", {}, "2026-03-04T00:00:00Z")];
+    expect(replayPetMicrochip(events).microchipId).toBe("858000000000002");
+  });
 });

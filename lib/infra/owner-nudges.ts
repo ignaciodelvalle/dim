@@ -33,6 +33,10 @@ import type { ProjectionEvent } from "@/lib/projections/types";
 const NUDGE_EVENT_TYPES = [
   "vaccination_administered",
   "microchip_implanted",
+  // Microchip lifecycle beyond the implant — a replacement/revocation must be
+  // visible to replayPetMicrochip so `hasChip` flips to false after a pure
+  // revocation (new_chip_number=null). Owner-data only, not a surveillance read.
+  "microchip_replaced",
   "sterilization_performed",
   "credential_scanned",
   // Corrections — fetched so overlayAmendments projects corrected payloads
@@ -176,8 +180,9 @@ export function derivePetHealthStatus(
   },
 ): PetHealthStatus {
   const vaccineStatus = deriveVaccineStatus(events, now);
-  // replayPetMicrochip returns a non-null microchipId only when an
-  // microchip_implanted event with a chip_number exists.
+  // replayPetMicrochip folds implant + replace/revoke, so microchipId is
+  // non-null only when a chip is currently ACTIVE — it goes back to null after a
+  // pure revocation (microchip_replaced with new_chip_number=null).
   const hasChip = replayPetMicrochip(events).microchipId !== null;
   const isSterilized = hasEventOfType(events, "sterilization_performed");
   const recentScanCount = countRecentExternalScans(events, now);
