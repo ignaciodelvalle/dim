@@ -71,7 +71,8 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
             <div className="flex flex-col items-center">
               <div className="lp-halo" data-status={status}>
                 <LnPetPhoto
-                  alt={lost ? `${PAMPA.name}, en modo perdido` : `${PAMPA.name}, perra mestiza`}
+                  src="/landing/pampa-hero.jpg"
+                  alt={lost ? `${PAMPA.name}, en modo perdido` : `${PAMPA.name}, perro`}
                   status={status}
                   size={272}
                 />
