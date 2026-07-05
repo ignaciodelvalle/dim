@@ -12,7 +12,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db, organizations } from "@/db";
+import { db, organizations, profiles } from "@/db";
 import {
   type RequireCapabilitySuccess,
   requireCapability,
@@ -85,10 +85,24 @@ export async function bulkVaccinateAction(input: BulkVaccinateInput): Promise<Bu
   }
   const capOk = cap as RequireCapabilitySuccess;
 
+  // Provenance keystone (#43): the bulk signer's clinical provenance is bound to
+  // THEIR validated matrícula, not the org's verified flag — so a verified
+  // refugio's batch vaccination signed by a non-matriculado does not falsely
+  // clear the "verificado" compliance gate. Mirrors lib/infra/pet-access.ts.
+  const [signer] = await db
+    .select({ matriculaVerified: profiles.matriculaVerified })
+    .from(profiles)
+    .where(eq(profiles.id, capOk.user.id))
+    .limit(1);
+
   const repo = new EventsRepository();
   const result = await bulkVaccinate(
     input,
-    { userId: capOk.user.id, organization: capOk.organization },
+    {
+      userId: capOk.user.id,
+      organization: capOk.organization,
+      signerMatriculaVerified: signer?.matriculaVerified === true,
+    },
     { repo, transaction: makeTransaction() },
   );
 

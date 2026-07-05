@@ -36,6 +36,9 @@ const BULK_BATCH_MAX = 500;
 export type BulkVaccinateContext = {
   userId: string;
   organization: { id: string; publicToken: string; verified: boolean };
+  // Whether the signer holds a validated matrícula. Binds clinical provenance
+  // to the professional, not the org's verified flag (keystone #43).
+  signerMatriculaVerified: boolean;
 };
 
 type Deps = {
@@ -53,7 +56,7 @@ export async function bulkVaccinate(
   deps: Deps,
 ): Promise<BulkResult> {
   const { bulkActionId, petPublicTokens } = input;
-  const { userId, organization: org } = ctx;
+  const { userId, organization: org, signerMatriculaVerified } = ctx;
   const { repo, transaction } = deps;
 
   // --- Guard: batch size ---
@@ -126,18 +129,15 @@ export async function bulkVaccinate(
         {
           pet: { id: petId },
           user: { id: userId },
-          // FOLLOW-UP (#43): this shelter-batch path still stamps
-          // authorVerified=org.verified (pre-keystone behavior). The per-pet
-          // clinical signing boundary (lib/infra/pet-access.ts) now binds the
-          // provenance tier to the SIGNER's validated matrícula; this bulk path
-          // should do the same (resolve profiles.matriculaVerified for `userId`
-          // and stamp vet+verified vs shelter+org_registered) so a verified
-          // refugio's bulk vaccination does not falsely clear the "verificado"
-          // gate. Deferred: it needs a DB-integration test pass (bulk-vaccinate).
+          // Provenance keystone (#43): bind the tier to the SIGNER's validated
+          // matrícula (mirrors the per-pet boundary in lib/infra/pet-access.ts).
+          // Matriculado → vet + verified → professional_verified. Otherwise
+          // → shelter + false → org_registered, which does NOT clear the
+          // "verificado" compliance gate.
           eventAuthorship: {
-            authorRole: "shelter",
+            authorRole: signerMatriculaVerified ? "vet" : "shelter",
             authorOrganizationId: org.id,
-            authorVerified: org.verified,
+            authorVerified: signerMatriculaVerified,
           },
           vaccineName,
           occurredAt,
