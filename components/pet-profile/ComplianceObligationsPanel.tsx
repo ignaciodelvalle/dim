@@ -60,18 +60,31 @@ function StatusBadge({ card }: { card: ObligationCard }) {
 function ObligationCardView({
   card,
   petPublicToken,
+  bare = false,
 }: {
   card: ObligationCard;
   petPublicToken: string;
+  /** Inside the credential sheet: render as a borderless divider-separated row
+   *  (no nested box) so the whole compliance section reads as one document. */
+  bare?: boolean;
 }) {
   const showTurnoAction = card.key === "rabies" && (card.tone === "due" || card.tone === "over");
   const isReserved = card.key === "rabies" && card.tone === "reserved";
+  // PPP attestation register affordance — surfaced HERE (the canonical
+  // obligation card) instead of a duplicate LnAlert row on the credential face.
+  // Only for the flagged-PPP "Atestación requerida" state; the "Faltan datos"
+  // (indeterminado) variant nudges toward completing breed/weight via its hint.
+  const showPppRegister = card.key === "ppp" && card.state === "Atestación requerida";
 
   return (
     <div
       data-section="compliance-card"
       data-obligation={card.key}
-      className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4"
+      className={
+        bare
+          ? "flex flex-col gap-2 py-3.5 first:pt-0 last:pb-0"
+          : "flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4"
+      }
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -101,6 +114,15 @@ function ObligationCardView({
           className="mt-1 w-fit"
         >
           Programar turno
+        </LnLinkButton>
+      )}
+
+      {showPppRegister && (
+        <LnLinkButton
+          href={`/mis-mascotas/${petPublicToken}/eventos/atestar-raza-peligrosa`}
+          className="mt-1 w-fit"
+        >
+          Registrar atestación
         </LnLinkButton>
       )}
 
@@ -160,7 +182,15 @@ export function ComplianceObligationsPanel({
     </div>
   );
 
-  const grid = (
+  // Bare (inside the sheet): borderless obligation ROWS separated by hairlines
+  // — one continuous document, no card-in-card. Standalone: bordered cards.
+  const grid = bare ? (
+    <div className="divide-y divide-[var(--color-ln-line-2)]">
+      {state.cards.map((card) => (
+        <ObligationCardView key={card.key} card={card} petPublicToken={petPublicToken} bare />
+      ))}
+    </div>
+  ) : (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {state.cards.map((card) => (
         <ObligationCardView key={card.key} card={card} petPublicToken={petPublicToken} />

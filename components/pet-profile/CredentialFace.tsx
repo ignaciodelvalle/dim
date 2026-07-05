@@ -59,7 +59,6 @@ export type CredentialFaceProps = {
   /** Public credential page URL. E.g. /p/{token} */
   publicHref: string;
   /** Rendered only when the jurisdiction PPP rule applies. */
-  ppp?: CredentialFacePppInfo | null;
   /** Rendered only for a vigente, in-service registered service dog. */
   serviceDog?: CredentialFaceServiceDogInfo | null;
   petPublicToken: string;
@@ -78,7 +77,6 @@ export function CredentialFace({
   complianceState,
   qrSvg,
   publicHref,
-  ppp,
   serviceDog,
   petPublicToken,
   memorial,
@@ -174,51 +172,33 @@ export function CredentialFace({
               bare
             />
 
-            {(ppp || serviceDog) && (
+            {/* PPP is surfaced ONCE — as the canonical compliance obligation
+                card above (derivePpp + its "Registrar atestación" action). The
+                old duplicate PPP alert row was removed. Only the service-dog
+                credential row lives here now. */}
+            {serviceDog && (
               <div data-section="credentials" className="mt-3 flex flex-col gap-2">
-                {ppp && (
-                  <div data-section="ppp-row">
-                    <LnAlert variant="warning">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <span>
-                          Animal Potencialmente Peligroso
-                          {ppp.attested ? " · Atestada" : " · Atestación pendiente"}
-                        </span>
-                        {!ppp.attested && (
-                          <Link
-                            href={ppp.registerHref}
-                            className="shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-warn)] no-underline hover:underline"
-                          >
-                            Registrar →
-                          </Link>
-                        )}
-                      </div>
-                    </LnAlert>
-                  </div>
-                )}
-                {serviceDog && (
-                  <div data-section="service-dog-row">
-                    <LnAlert variant="success" icon="paw">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <span>Perro de asistencia · {serviceDog.serviceTypeLabel}</span>
-                        <span className="flex shrink-0 gap-3">
-                          <Link
-                            href={serviceDog.manageHref}
-                            className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
-                          >
-                            Gestionar →
-                          </Link>
-                          <Link
-                            href={serviceDog.presentHref}
-                            className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
-                          >
-                            Presentar →
-                          </Link>
-                        </span>
-                      </div>
-                    </LnAlert>
-                  </div>
-                )}
+                <div data-section="service-dog-row">
+                  <LnAlert variant="success" icon="paw">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span>Perro de asistencia · {serviceDog.serviceTypeLabel}</span>
+                      <span className="flex shrink-0 gap-3">
+                        <Link
+                          href={serviceDog.manageHref}
+                          className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                        >
+                          Gestionar →
+                        </Link>
+                        <Link
+                          href={serviceDog.presentHref}
+                          className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                        >
+                          Presentar →
+                        </Link>
+                      </span>
+                    </div>
+                  </LnAlert>
+                </div>
               </div>
             )}
           </div>

@@ -641,14 +641,6 @@ export default async function PetDetailPage({
               complianceState={complianceState}
               qrSvg={credentialQrSvg}
               publicHref={`/p/${pet.publicToken}`}
-              ppp={
-                pet.potentiallyDangerousBreed
-                  ? {
-                      attested: typedEvents.some((e) => e.eventType === "dangerous_breed_attested"),
-                      registerHref: `/mis-mascotas/${pet.publicToken}/eventos/atestar-raza-peligrosa`,
-                    }
-                  : null
-              }
               serviceDog={
                 serviceDogRow &&
                 serviceDogRow.credentialStatus === "vigente" &&
@@ -665,7 +657,11 @@ export default async function PetDetailPage({
               memorial={memorial}
               avisos={petAlerts.length > 0 ? <PetAlertStrip alerts={petAlerts} /> : null}
               anotar={
-                isOwner && !isDeceased && pet.status === "active" ? (
+                // Owners keep inline capture WHILE the pet is lost (AGENTS.md
+                // scan-location / north-star: the libreta must stay writable
+                // during a lost episode) — gated on owner + not-deceased, NOT
+                // on `active`. Org viewers (isOwner=false) still get no capture.
+                isOwner && !isDeceased ? (
                   <EventCatcherSingle petPublicToken={pet.publicToken} petName={pet.name} />
                 ) : null
               }
