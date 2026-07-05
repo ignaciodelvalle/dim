@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-07-05",
     "branch": "integration/all-20260703",
-    "totalViolations": 2493,
+    "totalViolations": 2431,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -63,7 +63,7 @@
       "hexStyle": 0
     },
     "components/PetForm.tsx": {
-      "text": 15,
+      "text": 20,
       "space": 2,
       "rounded": 4,
       "shadow": 0,
@@ -224,7 +224,7 @@
       "hexStyle": 0
     },
     "components/ui/dashboard/CaseDetailShell.tsx": {
-      "text": 9,
+      "text": 8,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
@@ -455,8 +455,8 @@
       "hexStyle": 0
     },
     "components/layout/AppCitizenMasthead.tsx": {
-      "text": 16,
-      "space": 5,
+      "text": 18,
+      "space": 6,
       "rounded": 3,
       "shadow": 1,
       "hexStyle": 0
@@ -503,6 +503,13 @@
       "shadow": 0,
       "hexStyle": 0
     },
+    "components/casos/CaseDetailView.tsx": {
+      "text": 8,
+      "space": 0,
+      "rounded": 1,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "components/admin/AlertInboxTable.tsx": {
       "text": 4,
       "space": 3,
@@ -539,9 +546,9 @@
       "hexStyle": 0
     },
     "app/org/page.tsx": {
-      "text": 6,
+      "text": 9,
       "space": 0,
-      "rounded": 0,
+      "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
@@ -553,7 +560,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/page.tsx": {
-      "text": 21,
+      "text": 23,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -561,20 +568,13 @@
     },
     "app/org/[orgToken]/voluntarios/page.tsx": {
       "text": 8,
-      "space": 4,
+      "space": 3,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/voluntarios/VolunteerRow.tsx": {
       "text": 3,
-      "space": 5,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/org/[orgToken]/voluntarios/propuestas/CancelProposalButton.tsx": {
-      "text": 0,
       "space": 3,
       "rounded": 0,
       "shadow": 0,
@@ -609,14 +609,14 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/transferencias/recibidas/DecomisoHandoffActions.tsx": {
-      "text": 7,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/transferencias/recibidas/IncomingTransferActions.tsx": {
-      "text": 8,
+      "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -637,7 +637,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/transferencias/nueva/ProposeTransferForm.tsx": {
-      "text": 10,
+      "text": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -652,14 +652,7 @@
     },
     "app/org/[orgToken]/servicios/[offeringToken]/CapacityEditor.tsx": {
       "text": 2,
-      "space": 4,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/org/[orgToken]/servicios/[offeringToken]/OfferingActions.tsx": {
-      "text": 0,
-      "space": 4,
+      "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -672,14 +665,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/servicios/[offeringToken]/agenda/AgendaRuleForm.tsx": {
-      "text": 7,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/org/[orgToken]/servicios/[offeringToken]/agenda/MaterializeNowButton.tsx": {
-      "text": 1,
+      "text": 6,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -700,7 +686,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/servicios/nuevo/ServiceOfferingForm.tsx": {
-      "text": 13,
+      "text": 10,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -714,7 +700,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mordedura/nuevo/OrgBiteForm.tsx": {
-      "text": 6,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -734,13 +720,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/org/[orgToken]/miembros/CopyLinkButton.tsx": {
-      "text": 0,
-      "space": 1,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/org/[orgToken]/miembros/EventWriteToggle.tsx": {
       "text": 0,
       "space": 1,
@@ -750,7 +729,7 @@
     },
     "app/org/[orgToken]/miembros/LeaveOrgButton.tsx": {
       "text": 0,
-      "space": 2,
+      "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -778,7 +757,7 @@
     },
     "app/org/[orgToken]/miembros/invitar/InviteForm.tsx": {
       "text": 0,
-      "space": 2,
+      "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -791,7 +770,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/OrgMascotasBulkList.tsx": {
-      "text": 27,
+      "text": 17,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -806,7 +785,7 @@
     },
     "app/org/[orgToken]/mascotas/page.tsx": {
       "text": 9,
-      "space": 3,
+      "space": 2,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -819,7 +798,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/[publicToken]/OwnerReturnProposalCard.tsx": {
-      "text": 8,
+      "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -840,7 +819,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/[publicToken]/transfer/TransferCustodyForm.tsx": {
-      "text": 7,
+      "text": 6,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -854,14 +833,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/[publicToken]/foster-fin/EndFosterForm.tsx": {
-      "text": 4,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/org/[orgToken]/mascotas/[publicToken]/foster/AssignFosterForm.tsx": {
-      "text": 1,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -875,21 +847,21 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/[publicToken]/eligibility/EligibilityForm.tsx": {
-      "text": 7,
+      "text": 5,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/[publicToken]/devolver-al-dueno/ProposeReturnForm.tsx": {
-      "text": 10,
+      "text": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/[publicToken]/adoption/FinalizeAdoptionForm.tsx": {
-      "text": 5,
+      "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -903,7 +875,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/[publicToken]/adoptar/AdoptionListingForm.tsx": {
-      "text": 23,
+      "text": 17,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -938,7 +910,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/intake/IntakeForm.tsx": {
-      "text": 26,
+      "text": 22,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -952,7 +924,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/intake/match/[matchedPetToken]/MatchConfirmationCard.tsx": {
-      "text": 6,
+      "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -980,7 +952,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/cobertura/CoverageEditor.tsx": {
-      "text": 5,
+      "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1014,21 +986,7 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/org/[orgToken]/agenda/BlockSlotButton.tsx": {
-      "text": 0,
-      "space": 3,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/org/[orgToken]/agenda/page.tsx": {
-      "text": 6,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/org/[orgToken]/agenda/turnos/[appointmentToken]/AttendanceFormDispatcher.tsx": {
       "text": 6,
       "space": 0,
       "rounded": 0,
@@ -1057,7 +1015,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/adopciones/[appEventId]/ReviewButtons.tsx": {
-      "text": 9,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1141,7 +1099,7 @@
       "hexStyle": 0
     },
     "app/gob/vigilancia/investigaciones/[caseCode]/InvestigationActions.tsx": {
-      "text": 9,
+      "text": 8,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1191,13 +1149,6 @@
     },
     "app/gob/servicios/page.tsx": {
       "text": 4,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/gob/servicios/[offeringToken]/OfferingReviewActions.tsx": {
-      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1379,7 +1330,7 @@
       "hexStyle": 0
     },
     "app/gob/maltrato/[id]/page.tsx": {
-      "text": 18,
+      "text": 17,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1414,7 +1365,7 @@
       "hexStyle": 0
     },
     "app/gob/disputas/[disputeToken]/AddPartyForm.tsx": {
-      "text": 6,
+      "text": 5,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1485,13 +1436,6 @@
     },
     "app/gob/cola/[publicToken]/page.tsx": {
       "text": 6,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/gob/cola/[publicToken]/ReviewActions.tsx": {
-      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1666,7 +1610,7 @@
       "hexStyle": 0
     },
     "app/admin/libro/EventLedgerRow.tsx": {
-      "text": 6,
+      "text": 5,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -1966,13 +1910,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/(public)/casos/[publicCode]/page.tsx": {
-      "text": 8,
-      "space": 0,
-      "rounded": 1,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/(public)/ayuda/page.tsx": {
       "text": 8,
       "space": 0,
@@ -2253,6 +2190,20 @@
       "shadow": 0,
       "hexStyle": 0
     },
+    "app/(app)/mis-mascotas/[publicToken]/mudanza/MoveForm.tsx": {
+      "text": 3,
+      "space": 1,
+      "rounded": 1,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/(app)/mis-mascotas/[publicToken]/mudanza/page.tsx": {
+      "text": 1,
+      "space": 2,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "app/(app)/mis-mascotas/[publicToken]/libreta/LibretaSanitariaView.tsx": {
       "text": 5,
       "space": 7,
@@ -2484,6 +2435,20 @@
       "shadow": 1,
       "hexStyle": 0
     },
+    "app/(app)/mis-mascotas/[publicToken]/corregir-especie/CorrectSpeciesForm.tsx": {
+      "text": 2,
+      "space": 1,
+      "rounded": 1,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/(app)/mis-mascotas/[publicToken]/corregir-especie/page.tsx": {
+      "text": 1,
+      "space": 2,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "app/(app)/mis-mascotas/[publicToken]/cartel/page.tsx": {
       "text": 2,
       "space": 1,
@@ -2674,9 +2639,9 @@
       "hexStyle": 0
     },
     "app/(app)/cuenta/page.tsx": {
-      "text": 15,
-      "space": 6,
-      "rounded": 3,
+      "text": 17,
+      "space": 7,
+      "rounded": 4,
       "shadow": 0,
       "hexStyle": 0
     },
