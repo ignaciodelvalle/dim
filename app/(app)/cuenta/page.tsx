@@ -16,8 +16,8 @@ import { Suspense } from "react";
 
 import { logoutAction } from "@/app/actions/auth";
 import { db, organizationMemberships, ownerships, profiles } from "@/db";
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 
 import { LnBadge } from "@/components/ui/Badge";
@@ -41,13 +41,25 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   institutional: "Institucional",
 };
 
-export default async function CuentaPage() {
-  const { user } = await requireUserOrRedirect();
+// Deadline for the cuenta data load before it degrades to an honest error card
+// instead of an unbounded "Cargando…" spin (task #50: /cuenta hang). A hung DB
+// query no longer strands the user on the loading skeleton forever.
+const CUENTA_LOAD_TIMEOUT_MS = 8_000;
 
-  // Profile DB read, admin auth email lookup, and pet count are independent — run in parallel.
-  // petCount uses SQL COUNT(*) — never loads pet rows into JS (scale guard, UX 0.3).
-  const adminClient = createAdminClient();
-  const [[profile], emailResult, petCountResult] = await Promise.all([
+/**
+ * Load every row the cuenta hub needs. Profile read and pet count run in
+ * parallel; the vet-clinic membership probe only runs for verified vets.
+ *
+ * Email comes from the session (`user.email`) — NOT a service-role
+ * `auth.admin.getUserById` call. That admin lookup was an unbounded network
+ * round-trip with no timeout: when the Supabase Auth admin API stalled, the
+ * enclosing `Promise.all` never settled and the page hung on the loading
+ * skeleton (task #50). `requireUserOrRedirect()` already carries the email for
+ * exactly this display-only use, so the round-trip was redundant as well as
+ * fragile (and it violated admin.ts's "only import from admin-institutional").
+ */
+async function loadCuentaData(userId: string) {
+  const [rows, petCount] = await Promise.all([
     db
       .select({
         role: profiles.role,
@@ -71,19 +83,18 @@ export default async function CuentaPage() {
         phone: profiles.phone,
       })
       .from(profiles)
-      .where(eq(profiles.id, user.id))
+      .where(eq(profiles.id, userId))
       .limit(1),
-    adminClient.auth.admin.getUserById(user.id).catch(() => ({ data: null })),
     // SQL COUNT — bounded by definition; safe for owners with thousands of pets.
     db
       .select({ n: count() })
       .from(ownerships)
-      .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)))
+      .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)))
       .then((r) => Number(r[0]?.n ?? 0))
       .catch(() => 0),
   ]);
-  const petCount = petCountResult;
-  const email = emailResult.data?.user?.email ?? "";
+
+  const profile = rows[0];
 
   let vetNeedsClinic = false;
   if (profile?.role === "vet" && profile.matriculaVerified) {
@@ -92,7 +103,7 @@ export default async function CuentaPage() {
       .from(organizationMemberships)
       .where(
         and(
-          eq(organizationMemberships.userId, user.id),
+          eq(organizationMemberships.userId, userId),
           inArray(organizationMemberships.role, ["admin", "coordinator"]),
           isNull(organizationMemberships.leftAt),
         ),
@@ -100,6 +111,45 @@ export default async function CuentaPage() {
       .limit(1);
     vetNeedsClinic = !adminRow;
   }
+
+  return { profile, petCount, vetNeedsClinic };
+}
+
+export default async function CuentaPage() {
+  const { user } = await requireUserOrRedirect();
+
+  // email is display-only (identity card) — taken straight from the session.
+  const email = user.email ?? "";
+
+  // Bound the whole load: a slow/hung query degrades to an error card with a
+  // retry, never an unbounded spin on the loading skeleton (task #50).
+  const load = await loadWithTimeout(loadCuentaData(user.id), CUENTA_LOAD_TIMEOUT_MS);
+
+  if (!load.ok) {
+    return (
+      <div className="mx-auto max-w-4xl px-8 py-7">
+        <LnCard>
+          <LnCardHead title="No pudimos cargar tu cuenta" />
+          <LnCardBody>
+            <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+              {load.reason === "timeout"
+                ? "La carga está tardando más de lo esperado."
+                : "Hubo un problema al cargar tus datos."}{" "}
+              Volvé a intentar.
+            </p>
+            <Link
+              href="/cuenta"
+              className="mt-4 inline-flex items-center justify-center rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] text-[13px] font-semibold text-[var(--color-ln-ink)] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
+            >
+              Reintentar
+            </Link>
+          </LnCardBody>
+        </LnCard>
+      </div>
+    );
+  }
+
+  const { profile, petCount, vetNeedsClinic } = load.value;
 
   if (!profile) {
     return (
