@@ -135,11 +135,17 @@ describe("story — CastFila + 6 chapters + rail", () => {
     expect(html).toContain('data-q="0"');
   });
 
-  it("libreta screen shows real system event types, append-only footer", () => {
+  it("libreta screen shows real system event types (es-AR labels), append-only footer", () => {
     const html = renderToStaticMarkup(<StorySection />);
-    expect(html).toContain("pet_registered");
-    expect(html).toContain("vaccination_administered");
-    expect(html).toContain("shelter_intake_recorded");
+    // Event types are the REAL system event types (landing-content.ts), but
+    // rendered through eventTypeLabel() — raw snake_case must never leak to
+    // the public landing (review 19-i18n, item #3).
+    expect(html).toContain("Mascota registrada");
+    expect(html).toContain("Vacuna administrada");
+    expect(html).toContain("Ingreso al refugio");
+    expect(html).not.toContain("pet_registered");
+    expect(html).not.toContain("vaccination_administered");
+    expect(html).not.toContain("shelter_intake_recorded");
     expect(html).toContain("append-only — nada se edita, nada se borra");
   });
 });

@@ -20,6 +20,8 @@ import { LnHero } from "@/components/ui/Hero";
 import { LnPetPhoto, LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { LnStatusFlag, LnVstamp } from "@/components/ui/StatusFlag";
 import { OpKpiSm } from "@/components/ui/dashboard/OpKpi";
+import type { EventType } from "@/db/schema";
+import { eventTypeLabel } from "@/lib/utils/format";
 import type { ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
@@ -154,7 +156,7 @@ export function VetTurnoScreen() {
           <div className="min-w-0 flex-1">
             <div className="lp-t">Vacuna firmada por la vet</div>
             <div className="lp-lib-foot mt-1">
-              <span className="lp-lib-type">vaccination_administered</span>
+              <span className="lp-lib-type">{eventTypeLabel("vaccination_administered")}</span>
               <span className="lp-lib-by">{VET.matricula}</span>
             </div>
           </div>
@@ -303,7 +305,7 @@ export function LibretaScreen() {
               </div>
               <div className="lp-lib-meta">{e.meta}</div>
               <div className="lp-lib-foot">
-                <span className="lp-lib-type">{e.type}</span>
+                <span className="lp-lib-type">{eventTypeLabel(e.type as EventType)}</span>
                 <span className="lp-lib-by">{e.by}</span>
               </div>
             </div>
