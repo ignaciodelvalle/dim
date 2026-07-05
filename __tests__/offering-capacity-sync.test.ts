@@ -19,7 +19,7 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { updateOfferingCapacityWriter } from "@/app/actions/service-offerings";
+import { updateOfferingCapacityWriter } from "@/src/modules/service-offerings/application/update-offering-capacity";
 import {
   appointments,
   db,

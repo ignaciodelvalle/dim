@@ -21,9 +21,6 @@ import { PREGNANCY_OUTCOMES } from "@/src/modules/pets/application/pregnancy/typ
 import type {
   PregnancyFormState,
   PregnancyOutcome,
-  RecordPregnancyEndedParams,
-  RecordPregnancyResult,
-  RecordPregnancyStartedParams,
 } from "@/src/modules/pets/application/pregnancy/types";
 
 // ---------------------------------------------------------------------------
@@ -37,21 +34,12 @@ export type {
   RecordPregnancyStartedParams,
 } from "@/src/modules/pets/application/pregnancy/types";
 
-// ---------------------------------------------------------------------------
-// Writer re-exports — async wrappers (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function recordPregnancyStartedWriter(
-  params: RecordPregnancyStartedParams,
-): Promise<RecordPregnancyResult> {
-  return _recordPregnancyStartedWriter(params);
-}
-
-export async function recordPregnancyEndedWriter(
-  params: RecordPregnancyEndedParams,
-): Promise<RecordPregnancyResult> {
-  return _recordPregnancyEndedWriter(params);
-}
+// Bare writers are NOT re-exported here (impersonation triage, review 07).
+// recordPregnancyStarted/EndedWriter take a caller-supplied recordedByUserId;
+// exporting them from a "use server" file would let any client record events
+// as any user. They live on in src/modules/pets/application/pregnancy/*;
+// integration tests import them from there, and the guarded *Action wrappers
+// below derive the actor from requireAlivePetAccess.
 
 // ---------------------------------------------------------------------------
 // Server actions (form wrappers)

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { logPiiReadSafely } from "@/app/actions/admin-proposals";
+import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import {
   OpBreach,

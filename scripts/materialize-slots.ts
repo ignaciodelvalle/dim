@@ -37,7 +37,9 @@ if (!isLocalUrl(DATABASE_URL)) {
 // Deferred imports (after env load)
 // ---------------------------------------------------------------------------
 
-const { materializeAllActiveSlots } = await import("../app/actions/slot-materialization");
+const { materializeAllActiveSlots } = await import(
+  "../src/modules/service-offerings/application/slot-materialization/materialize-slots"
+);
 
 // ---------------------------------------------------------------------------
 // Main

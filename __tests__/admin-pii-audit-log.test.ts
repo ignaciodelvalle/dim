@@ -12,7 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { logPiiReadSafely } from "@/app/actions/admin-proposals";
+import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { auditLog, db, profiles } from "@/db";
 import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 

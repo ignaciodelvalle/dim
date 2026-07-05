@@ -13,7 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { bookSlotWriter } from "@/app/actions/booking";
+import { bookSlotWriter } from "@/src/modules/events/application/booking/book-slot";
 import {
   appointments,
   db,

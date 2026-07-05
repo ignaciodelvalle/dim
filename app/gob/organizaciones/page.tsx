@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { logPiiReadSafely } from "@/app/actions/admin-proposals";
+import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { OpButton, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { searchOrganizations } from "@/lib/infra/admin-search";

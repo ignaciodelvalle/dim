@@ -16,7 +16,6 @@ import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { blockSlot as _blockSlot } from "@/src/modules/service-offerings/application/slot-materialization/block-slot";
 import { materializeOfferingNow as _materializeOfferingNow } from "@/src/modules/service-offerings/application/slot-materialization/materialize-offering-now";
-import { materializeAllActiveSlots as _materializeAllActiveSlots } from "@/src/modules/service-offerings/application/slot-materialization/materialize-slots";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
@@ -27,25 +26,14 @@ export type {
   BlockSlotResult,
 } from "@/src/modules/service-offerings/application/slot-materialization/types";
 
-// ---------------------------------------------------------------------------
-// Writer re-export — async wrapper (used by cron route + integration tests)
-// ---------------------------------------------------------------------------
-//
-// materializeSlotsForOffering is intentionally NOT re-exported here: it takes
-// an arbitrary offeringId with no guard, so exporting it from a "use server"
-// file would make it an independently-addressable action (authz triage
-// 2026-07-04). Internal callers import it from
-// src/modules/service-offerings/application/slot-materialization/materialize-slots.
-
-// @no-auth-required: cron writer — invoked by /api/cron/materialize-slots,
-// which is gated by authorizeCronRequest (CRON_SECRET) before calling this
-// (verified 2026-07-04). Takes no arguments.
-export async function materializeAllActiveSlots(): Promise<{
-  rulesProcessed: number;
-  slotsInserted: number;
-}> {
-  return _materializeAllActiveSlots();
-}
+// materializeAllActiveSlots and materializeSlotsForOffering are intentionally
+// NOT re-exported here (review 07). A "use server" export is client-
+// addressable and bypasses the /api/cron/materialize-slots CRON_SECRET gate,
+// so exposing materializeAllActiveSlots would let any client trigger unbounded
+// global slot materialization (resource-exhaustion surface). Both live on in
+// src/modules/service-offerings/application/slot-materialization/; the cron
+// route, the standalone script, and integration tests import
+// materializeAllActiveSlots from the module directly.
 
 // ---------------------------------------------------------------------------
 // Action wrappers — auth guard + delegate to use-cases

@@ -15,7 +15,7 @@ vi.mock("@/db", () => ({
   auditLog: {},
 }));
 
-import { logPiiReadSafely } from "@/app/actions/admin-proposals";
+import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
 describe("logPiiReadSafely — failure path (AC2)", () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;

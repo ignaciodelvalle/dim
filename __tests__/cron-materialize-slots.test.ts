@@ -9,14 +9,14 @@
 //     next run regenerates exactly the missing ones without touching the rest.
 //
 // Tested function: materializeAllActiveSlots() from
-//   app/actions/slot-materialization.ts
+//   src/modules/service-offerings/application/slot-materialization/materialize-slots.ts
 // (this is what the cron route delegates to; no need to invoke the HTTP route
 // for behavior coverage).
 
 import { and, count, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { materializeAllActiveSlots } from "@/app/actions/slot-materialization";
+import { materializeAllActiveSlots } from "@/src/modules/service-offerings/application/slot-materialization/materialize-slots";
 import { db, organizations, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
 import { generatePrefixedToken, generatePublicToken } from "@/lib/infra/publicToken";
 

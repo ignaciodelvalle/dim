@@ -254,7 +254,9 @@ describe("createBusinessRuleWriter — physical_credential_channels does NOT tri
       const reevalModule = await import("@/lib/infra/business-rules-reeval");
       const reevalSpy = vi.spyOn(reevalModule, "reEvaluatePppClassificationChange");
 
-      const { createBusinessRuleWriter } = await import("@/app/actions/business-rules");
+      const { createBusinessRuleWriter } = await import(
+        "@/src/modules/organizations/application/business-rules/create-business-rule"
+      );
 
       const result = await createBusinessRuleWriter({
         actorUserId: ACTOR_ID,

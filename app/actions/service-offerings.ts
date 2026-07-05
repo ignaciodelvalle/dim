@@ -11,8 +11,11 @@
 // writer taking a caller-supplied actorUserId/orgId would let any client
 // create or approve offerings as any org/authority. Callers import them
 // from src/modules/service-offerings/application/ directly.
-// updateOfferingCapacityWriter (id-scoped, no actor param) remains exported
-// for the capacity-sync test surface.
+// updateOfferingCapacityWriter is NOT exported either (review 07): it takes an
+// arbitrary offeringId with no auth guard, so a "use server" export would let
+// any client resize any offering. The capacity-sync test imports it from
+// src/modules/service-offerings/application/update-offering-capacity; the
+// guarded updateOfferingCapacityAction below scopes it to the caller's org.
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -45,18 +48,6 @@ import type {
 export type { ServiceOfferingResult } from "@/src/modules/service-offerings/domain/types";
 export type { UpdateCapacityResult } from "@/src/modules/service-offerings/domain/types";
 export type { ServiceOfferingFormState } from "@/src/modules/service-offerings/domain/types";
-
-// ============================================================================
-// Inner writer — id-scoped, no actor parameter; kept for the capacity-sync
-// test surface. The impersonation-class writers were removed (see header).
-// ============================================================================
-
-export async function updateOfferingCapacityWriter(
-  offeringId: string,
-  newCapacity: number,
-): Promise<UpdateCapacityResult> {
-  return updateOfferingCapacityWriterUC(offeringId, newCapacity);
-}
 
 // ============================================================================
 // Form-shaped wrappers — gate auth + capability, delegate to use-cases

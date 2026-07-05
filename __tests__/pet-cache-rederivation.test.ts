@@ -20,7 +20,7 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { recordPregnancyStartedWriter } from "@/app/actions/pregnancy";
+import { recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
 import {
   custodyDisputes,
   db,

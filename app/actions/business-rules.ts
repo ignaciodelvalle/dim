@@ -25,13 +25,7 @@ import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 
 import { createBusinessRuleWriter as _createBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/create-business-rule";
 import { deleteBusinessRuleWriter as _deleteBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/delete-business-rule";
-import type {
-  BusinessRuleFormState,
-  CreateBusinessRuleResult,
-  CreateBusinessRuleWriterParams,
-  DeleteBusinessRuleWriterParams,
-  UpdateBusinessRuleWriterParams,
-} from "@/src/modules/organizations/application/business-rules/types";
+import type { BusinessRuleFormState } from "@/src/modules/organizations/application/business-rules/types";
 import { updateBusinessRuleWriter as _updateBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/update-business-rule";
 
 // ---------------------------------------------------------------------------
@@ -46,27 +40,13 @@ export type {
   UpdateBusinessRuleWriterParams,
 } from "@/src/modules/organizations/application/business-rules/types";
 
-// ---------------------------------------------------------------------------
-// Writer re-exports — async wrappers (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function createBusinessRuleWriter(
-  params: CreateBusinessRuleWriterParams,
-): Promise<CreateBusinessRuleResult> {
-  return _createBusinessRuleWriter(params);
-}
-
-export async function updateBusinessRuleWriter(
-  params: UpdateBusinessRuleWriterParams,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  return _updateBusinessRuleWriter(params);
-}
-
-export async function deleteBusinessRuleWriter(
-  params: DeleteBusinessRuleWriterParams,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  return _deleteBusinessRuleWriter(params);
-}
+// Bare writers are NOT re-exported here (impersonation triage, review 07).
+// createBusinessRuleWriter/update/delete take a caller-supplied actorUserId;
+// exporting them from a "use server" file would make them independently-
+// addressable actions that impersonate any user. They live on in
+// src/modules/organizations/application/business-rules/*; integration tests
+// import them from there, and the guarded *Action wrappers below derive the
+// actor from the admin session.
 
 // ---------------------------------------------------------------------------
 // Private helpers (controller-only — form data parsing)

@@ -69,18 +69,10 @@ export async function confirmChipMatchAction({
   return { error: "actorMode inválido. Debe ser 'refugio' o 'vecino'." };
 }
 
-// ---------------------------------------------------------------------------
-// Writer re-exports — async wrappers (used by integration tests)
-// ---------------------------------------------------------------------------
-
-export async function confirmChipMatchAsRefugioWriter(
-  ...args: Parameters<typeof _confirmChipMatchAsRefugioWriter>
-) {
-  return _confirmChipMatchAsRefugioWriter(...args);
-}
-
-export async function confirmChipMatchAsVecinoWriter(
-  ...args: Parameters<typeof _confirmChipMatchAsVecinoWriter>
-) {
-  return _confirmChipMatchAsVecinoWriter(...args);
-}
+// Bare writers are NOT re-exported here (impersonation triage, review 07).
+// confirmChipMatchAsRefugioWriter takes a caller-supplied `auth`, and
+// confirmChipMatchAsVecinoWriter a caller-supplied `userId`; exporting them
+// from a "use server" file would let any client confirm matches as any
+// org/user. They live on in src/modules/pets/application/chip-match/*;
+// integration tests import them from there, and the guarded
+// confirmChipMatchAction above derives identity from the session/capability.

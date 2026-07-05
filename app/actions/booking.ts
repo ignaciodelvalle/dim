@@ -30,15 +30,12 @@ export type {
   CancelAppointmentResult,
 } from "@/src/modules/events/application/booking/types";
 
-// ---------------------------------------------------------------------------
-// Pure writer re-export — async wrapper (used by integration tests + UI)
-// ---------------------------------------------------------------------------
-
-export async function bookSlotWriter(
-  ...args: Parameters<typeof _bookSlotWriter>
-): Promise<Awaited<ReturnType<typeof _bookSlotWriter>>> {
-  return _bookSlotWriter(...args);
-}
+// Bare writer is NOT re-exported here (impersonation triage, review 07).
+// bookSlotWriter(slotId, petId, userId) takes a caller-supplied userId;
+// exporting it from a "use server" file would let any client book slots as
+// any user. It lives on in src/modules/events/application/booking/book-slot;
+// integration tests import it from there, and bookSlotAction below derives
+// the user from requireUserOrRedirect + an ownership check.
 
 // ---------------------------------------------------------------------------
 // Action wrappers — thin controllers for UI components

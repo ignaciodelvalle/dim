@@ -16,11 +16,11 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  confirmChipMatchAction,
-  confirmChipMatchAsRefugioWriter,
-  confirmChipMatchAsVecinoWriter,
-} from "@/app/actions/chip-match";
+import { confirmChipMatchAction } from "@/app/actions/chip-match";
+// Writers import from the application modules, not the "use server" shim
+// (impersonation triage, review 07).
+import { confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
+import { confirmChipMatchAsVecinoWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-vecino";
 import {
   db,
   notifications,

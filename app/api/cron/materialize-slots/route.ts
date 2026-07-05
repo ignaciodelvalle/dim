@@ -15,7 +15,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { materializeAllActiveSlots } from "@/app/actions/slot-materialization";
+import { materializeAllActiveSlots } from "@/src/modules/service-offerings/application/slot-materialization/materialize-slots";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { withCronRun } from "@/lib/infra/case-cron";
 

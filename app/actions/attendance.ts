@@ -39,15 +39,14 @@ export type {
   VetVisitPayload,
 } from "@/src/modules/events/application/attendance/types";
 
-// ---------------------------------------------------------------------------
-// Pure writer re-export — async wrapper (used by integration tests + UI)
-// ---------------------------------------------------------------------------
-
-export async function markAppointmentAttendedWriter(
-  ...args: Parameters<typeof _markAppointmentAttendedWriter>
-): Promise<Awaited<ReturnType<typeof _markAppointmentAttendedWriter>>> {
-  return _markAppointmentAttendedWriter(...args);
-}
+// Bare writer is NOT re-exported here (impersonation triage, review 07).
+// markAppointmentAttendedWriter takes a caller-supplied author descriptor
+// (actorUserId, authorOrganizationId, authorVerified); exporting it from a
+// "use server" file would let any client write attendance events as any
+// vet/org. It lives on in
+// src/modules/events/application/attendance/mark-appointment-attended;
+// integration tests import it from there, and markAppointmentAttendedAction
+// below derives the author from requireCapability("appointment.manage").
 
 // ---------------------------------------------------------------------------
 // Action wrappers — thin controllers for UI components
