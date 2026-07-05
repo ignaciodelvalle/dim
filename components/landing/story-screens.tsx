@@ -7,6 +7,7 @@
 // are decorative illustrations; the narrative copy lives in the chapters.
 
 import { Icon } from "@/components/Icon";
+import { CountUp } from "@/components/landing/CountUp";
 import {
   CONSOLE_KPIS,
   LIBRETA_EVENTS,
@@ -15,6 +16,7 @@ import {
   mapTintStep,
 } from "@/components/landing/landing-content";
 import { LnBadge } from "@/components/ui/Badge";
+import { LnHero } from "@/components/ui/Hero";
 import { LnPetPhoto, LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { LnStatusFlag, LnVstamp } from "@/components/ui/StatusFlag";
 import { OpKpiSm } from "@/components/ui/dashboard/OpKpi";
@@ -97,7 +99,7 @@ export function DuenoScreen() {
         <div className="lp-ph-caps mt-3">
           <span className="lp-ph-cap">
             <Icon name="share" size="sm" decorative className="text-[var(--color-ln-azul)]" />
-            Compartir libreta
+            Compartir miMAR
           </span>
           <span className="lp-ph-cap">
             <Icon name="perdida" size="sm" decorative className="text-[var(--color-ln-err)]" />
@@ -118,53 +120,45 @@ const VET = {
   nombre: "Dra. Lucía Romero",
 };
 
+// The vet chapter leans on the SAME credential object the app ships (LnHero,
+// the identity face of CredentialFace) plus the real vaccination stamp
+// (LnVstamp) — the components carry the meaning, so the copy stays minimal.
 export function VetTurnoScreen() {
   return (
     <>
       <div className="lp-scr-top" />
       <AppHead
-        title="Vet. Belgrano"
-        sub={`${VET.nombre} · ${VET.matricula}`}
-        right={<LnBadge variant="success">Verificada</LnBadge>}
+        title={VET.nombre}
+        sub={`${VET.matricula} · Vet. Belgrano`}
+        right={<LnBadge variant="success">Matrícula verificada</LnBadge>}
       />
       <div className="lp-app-body lp-ph-pad">
-        <div className="lp-ph-card">
-          <div className="lp-ph-label">Turno de hoy</div>
-          <div className="flex items-center gap-3">
-            <span className="grid h-[42px] w-[42px] flex-shrink-0 place-items-center rounded-[var(--radius-input)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]">
-              <Icon name="reloj" size="sm" decorative />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[var(--text-md)] font-bold text-[var(--color-ln-ink)]">
-                Pampa · Vacunación antirrábica
-              </div>
-              <div className="mt-0.5 text-[var(--text-sm)] text-[var(--color-ln-ink-2)]">
-                Jueves 12 jun · 10:30 · confirmado
-              </div>
-            </div>
-          </div>
-          <div className="mt-2.5 flex items-center gap-2 border-t border-[var(--color-ln-line-2)] pt-2.5 text-[var(--text-sm)] text-[var(--color-ln-mute)]">
-            <Icon name="celular" size="sm" decorative />
-            Reservado por Martín desde la app · llega con la libreta completa
-          </div>
+        <div className="lp-cred-embed">
+          <LnHero
+            name={PAMPA.name}
+            status="ok"
+            photoSrc="/landing/pampa-hero.jpg"
+            tags={[
+              {
+                key: "chip",
+                label: "Microchip",
+                icon: <Icon name="microchip" size="sm" decorative />,
+              },
+              { key: "rabia", label: "Antirrábica vigente" },
+            ]}
+          />
         </div>
 
         <div className="lp-ph-ok">
           <Icon name="vacuna" size="sm" decorative className="mt-0.5 text-[var(--color-ln-ok)]" />
-          <div className="flex-1">
-            <div className="lp-t">Vacuna aplicada y firmada</div>
-            <div className="lp-s">Lote AR-2214 · próximo refuerzo se agenda solo</div>
+          <div className="min-w-0 flex-1">
+            <div className="lp-t">Vacuna firmada por la vet</div>
+            <div className="lp-lib-foot mt-1">
+              <span className="lp-lib-type">vaccination_administered</span>
+              <span className="lp-lib-by">{VET.matricula}</span>
+            </div>
           </div>
           <LnVstamp variant="ok" />
-        </div>
-
-        <div className="lp-ph-card">
-          <div className="lp-ph-label">Así queda en la libreta</div>
-          <div className="lp-lib-t">Vacunación: antirrábica</div>
-          <div className="lp-lib-foot">
-            <span className="lp-lib-type">vaccination_administered</span>
-            <span className="lp-lib-by">firmado · {VET.matricula}</span>
-          </div>
         </div>
       </div>
     </>
@@ -175,6 +169,9 @@ export function VetTurnoScreen() {
 // Cap 3 · Anónimo — credencial pública en modo perdido (sin cuenta, sin app)
 // ---------------------------------------------------------------------------
 
+// Cap 3 · the finder's view. No photo on the phone here (PO landing feedback):
+// what matters to whoever scans the QR is WHERE she was last seen — so the
+// last-seen map, with an exact pin, is the hero, mirroring the app's event map.
 export function AnonLostScreen() {
   return (
     <>
@@ -183,17 +180,26 @@ export function AnonLostScreen() {
         Mascota perdida
         <small>desde el 14 mar 2024 · 09:14</small>
       </div>
-      <div className="lp-lost-hero">
-        <div className="flex justify-center">
-          <LnPetPhoto alt={`${PAMPA.name}, perdida`} status="lost" size={120} />
-        </div>
+      <div className="lp-lost-hero lp-lost-hero--map">
         <div className="lp-lh-name">¡Hola! Soy {PAMPA.name}</div>
-        <div className="lp-lh-sub">
-          Mansa, responde a su nombre.
-          <br />
-          Si la viste o la tenés, por favor avisá.
-        </div>
+        <div className="lp-lh-sub">Mansa, responde a su nombre. Si la viste, avisá.</div>
       </div>
+
+      {/* Last-seen mini-map — faithful to the app's LocationMap (rounded OSM
+          panel + red marker). Rendered as a lightweight static mini so the
+          landing never pulls the maplibre-gl runtime for a decorative frame. */}
+      <figure className="lp-minimap" aria-hidden="true">
+        <span className="lp-minimap-tiles" />
+        <span className="lp-minimap-pin">
+          <Icon name="map-pin" size="sm" decorative />
+        </span>
+        <figcaption className="lp-minimap-cap">
+          <b>Última vez vista</b>
+          <span>Barrancas de Belgrano · CABA — hoy 09:14</span>
+          <span className="lp-minimap-coord">−34.5610, −58.4370</span>
+        </figcaption>
+      </figure>
+
       <div className="lp-lost-actions">
         <span className="lp-lost-btn lp-lost-btn--call">
           <Icon name="telefono" size="sm" decorative /> Llamar a Martín
@@ -201,20 +207,6 @@ export function AnonLostScreen() {
         <span className="lp-lost-btn lp-lost-btn--found">
           <Icon name="ubicacion" size="sm" decorative /> La encontré
         </span>
-      </div>
-      <div className="lp-ph-card mx-4 mt-2.5 flex items-start gap-2.5">
-        <Icon name="map-pin" size="sm" decorative className="mt-0.5 text-[var(--color-ln-err)]" />
-        <div>
-          <div className="text-[var(--text-sm)] font-bold text-[var(--color-ln-ink)]">
-            Última vez vista
-          </div>
-          <div className="mt-0.5 text-[var(--text-sm)] text-[var(--color-ln-ink-2)]">
-            Barrancas de Belgrano · CABA — hoy 09:14
-          </div>
-        </div>
-      </div>
-      <div className="lp-lost-note">
-        Sin cuenta y sin app: solo escaneaste un QR. Los datos de Martín quedan protegidos.
       </div>
     </>
   );
@@ -237,40 +229,20 @@ export function OrgIntakeScreen() {
         <div className="lp-ph-card">
           <div className="lp-intake-row">
             <span className="lp-iic">
-              <Icon name="checkin" size="sm" decorative />
-            </span>
-            <div>
-              <b>Ingreso registrado</b>
-              <span className="lp-intake-sub">
-                La trajo una vecina · <span className="lp-lib-type">shelter_intake_recorded</span>
-              </span>
-            </div>
-          </div>
-          <div className="lp-intake-row">
-            <span className="lp-iic">
               <Icon name="microchip" size="sm" decorative />
             </span>
-            <div>
+            <div className="min-w-0">
               <b>Chip verificado</b>
               <span className="lp-intake-sub">
-                941 000 100 000 001 → es <b className="inline">Pampa</b>, de Martín
+                Es <b className="inline">Pampa</b>, de Martín — a 1,2 km, en camino.
               </span>
-            </div>
-          </div>
-          <div className="lp-intake-row" data-t="ok">
-            <span className="lp-iic">
-              <Icon name="bell" size="sm" decorative />
-            </span>
-            <div>
-              <b>Dueño notificado</b>
-              <span className="lp-intake-sub">Martín está a 1,2 km · en camino</span>
             </div>
           </div>
           <div className="lp-intake-row" data-t="ok">
             <span className="lp-iic">
               <Icon name="casa" size="sm" decorative />
             </span>
-            <div>
+            <div className="min-w-0">
               <b>Custodia devuelta</b>
               <span className="lp-intake-sub flex flex-wrap items-center gap-1.5">
                 <span className="lp-lib-type">status_changed</span> <LnStatusFlag status="ok" />
@@ -279,8 +251,8 @@ export function OrgIntakeScreen() {
           </div>
         </div>
         <p className="lp-ph-note">
-          Refugio, red de rescate, veterinaria, municipal — <b>se llamen como se llamen</b>, el
-          acceso llega por solicitud verificada. El público ve un solo sello.
+          Refugio, veterinaria o municipio: el acceso llega por solicitud verificada. El público ve
+          un solo sello.
         </p>
         <div className="lp-ph-caps mt-auto">
           <span className="lp-ph-cap">
@@ -306,7 +278,7 @@ export function LibretaScreen() {
       <AppHead
         photo={<LnPetPhoto alt={PAMPA.name} status="ok" size={40} />}
         title={PAMPA.name}
-        sub={PAMPA.breed}
+        sub={`${PAMPA.sex} · ${PAMPA.age}`}
         right={<LnStatusFlag status="ok" />}
       />
       <div className="lp-app-body lp-lib-feed">
@@ -392,7 +364,7 @@ export function EstadoConsole() {
           <p className="lp-eyebrow">Vista · Estado</p>
           <h3 className="lp-display lp-h-sub mt-3">Tendencias, no planillas.</h3>
           <p className="lp-lead mt-3.5 text-[var(--text-lg)]">
-            Cada libreta suma a la foto sanitaria del país. La consola llega prefiltrada: señales
+            Cada miMAR suma a la foto sanitaria del país. La consola llega prefiltrada: señales
             zoonóticas por jurisdicción, en tiempo real.
           </p>
         </div>
@@ -449,11 +421,11 @@ export function EstadoConsole() {
             <div className="lp-con-rail">
               {CONSOLE_KPIS.map((k) => (
                 <div className="lp-navy-card op-surface" key={k.label}>
-                  <OpKpiSm label={k.label} value={k.value} tone={k.tone} />
+                  <OpKpiSm label={k.label} value={<CountUp value={k.value} />} tone={k.tone} />
                 </div>
               ))}
               <div className="lp-con-railnote">
-                fuente: libretas + campañas oficiales
+                fuente: miMAR + campañas oficiales
                 <br />
                 agregado y anónimo por diseño
                 <br />
