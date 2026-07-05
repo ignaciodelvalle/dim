@@ -512,6 +512,69 @@ export default async function PetDetailPage({
     errorCorrectionLevel: "M",
   });
 
+  // Prioritized alert strip (urgency-ordered): lost → rabies → transit →
+  // open-cases → pregnancy. Built once so CredentialFace only grows an "Avisos"
+  // section when it is genuinely non-empty (no empty divider). Same ordering
+  // and same nodes as before the "Una sola libreta" redesign — now hosted
+  // INSIDE the credential sheet instead of stacked below it.
+  const petAlerts: PetAlert[] = [];
+  if (pet.status === "lost") {
+    petAlerts.push({
+      id: "lost",
+      tone: "urgent",
+      node: (
+        <LostCaseBlock
+          pet={pet}
+          photoUrl={photoUrl}
+          episode={lostEpisode}
+          scans={lostScans}
+          ownerFirstName={ownerFirstName}
+          isOwner={isOwner}
+        />
+      ),
+    });
+  }
+  if (pet.rabiesObservationStatus === "in_progress") {
+    petAlerts.push({
+      id: "rabies",
+      tone: "urgent",
+      node: <RabiesObservationBanner pet={pet} events={typedEvents} />,
+    });
+  }
+  if (isTransit) {
+    petAlerts.push({
+      id: "transit",
+      tone: "warning",
+      node: <TransitBanner petName={pet.name} petPublicToken={pet.publicToken} />,
+    });
+  }
+  if (allCases.some((c) => c.status === "open" || c.status === "escalated")) {
+    petAlerts.push({
+      id: "open-cases",
+      tone: "warning",
+      node: (
+        <div data-section="cases">
+          <PetOpenCasesSection petId={pet.id} />
+        </div>
+      ),
+    });
+  }
+  if (pregnancyCardData) {
+    petAlerts.push({
+      id: "pregnancy",
+      tone: "info",
+      node: (
+        <PregnancyInProgressCard
+          petPublicToken={pet.publicToken}
+          pregnancyStartedAt={pregnancyCardData.startedAt}
+          weeksAtDiagnosis={pregnancyCardData.weeksAtDiagnosis}
+          expectedBirthAt={pregnancyCardData.expectedBirthAt}
+          lastClinicalAt={pregnancyCardData.lastClinicalAt}
+        />
+      ),
+    });
+  }
+
   return (
     <div
       className="mx-auto max-w-4xl pb-[48px] px-[16px] md:px-[32px]"
@@ -560,144 +623,61 @@ export default async function PetDetailPage({
               : null
           }
           credencialContent={
-            <div className="flex flex-col gap-4 py-5">
-              {/* 1. Credencial first — identity ALWAYS first. No conditional
-                    banner precedes it. H1 provenance gates the stamp row. */}
-              <div data-section="hero">
-                <CredentialFace
-                  heroProps={{
-                    name: pet.name,
-                    status: lnPetStatus,
-                    breed: breedLine,
-                    photoSrc: photoUrl ?? undefined,
-                    tags: heroTags,
-                  }}
-                  complianceState={complianceState}
-                  qrSvg={credentialQrSvg}
-                  publicHref={`/p/${pet.publicToken}`}
-                  ppp={
-                    pet.potentiallyDangerousBreed
-                      ? {
-                          attested: typedEvents.some(
-                            (e) => e.eventType === "dangerous_breed_attested",
-                          ),
-                          registerHref: `/mis-mascotas/${pet.publicToken}/eventos/atestar-raza-peligrosa`,
-                        }
-                      : null
-                  }
-                  serviceDog={
-                    serviceDogRow &&
-                    serviceDogRow.credentialStatus === "vigente" &&
-                    serviceDogRow.inService
-                      ? {
-                          serviceTypeLabel:
-                            SERVICE_TYPE_LABELS[serviceDogRow.serviceType] ??
-                            serviceDogRow.serviceType,
-                          manageHref: `/mis-mascotas/${pet.publicToken}/asistencia`,
-                          presentHref: buildPresentarHref(pet.publicToken),
-                        }
-                      : null
-                  }
+            // The whole front face is ONE framed sheet ("Una sola libreta"):
+            // identity → Cumplimiento → Avisos → Anotar → action row, bound by
+            // labeled hairline dividers inside CredentialFace. H1 provenance
+            // gates the stamp row. Deceased (ADR-15/REQ-9.3): `anotar` is null
+            // (a closed life record accepts no new events) and `actions`
+            // collapses to [Compartir][Más]; org viewers get the same read-only
+            // object with a null `anotar`.
+            <CredentialFace
+              heroProps={{
+                name: pet.name,
+                status: lnPetStatus,
+                breed: breedLine,
+                photoSrc: photoUrl ?? undefined,
+                tags: heroTags,
+              }}
+              complianceState={complianceState}
+              qrSvg={credentialQrSvg}
+              publicHref={`/p/${pet.publicToken}`}
+              ppp={
+                pet.potentiallyDangerousBreed
+                  ? {
+                      attested: typedEvents.some((e) => e.eventType === "dangerous_breed_attested"),
+                      registerHref: `/mis-mascotas/${pet.publicToken}/eventos/atestar-raza-peligrosa`,
+                    }
+                  : null
+              }
+              serviceDog={
+                serviceDogRow &&
+                serviceDogRow.credentialStatus === "vigente" &&
+                serviceDogRow.inService
+                  ? {
+                      serviceTypeLabel:
+                        SERVICE_TYPE_LABELS[serviceDogRow.serviceType] ?? serviceDogRow.serviceType,
+                      manageHref: `/mis-mascotas/${pet.publicToken}/asistencia`,
+                      presentHref: buildPresentarHref(pet.publicToken),
+                    }
+                  : null
+              }
+              petPublicToken={pet.publicToken}
+              memorial={memorial}
+              avisos={petAlerts.length > 0 ? <PetAlertStrip alerts={petAlerts} /> : null}
+              anotar={
+                isOwner && !isDeceased && pet.status === "active" ? (
+                  <EventCatcherSingle petPublicToken={pet.publicToken} petName={pet.name} />
+                ) : null
+              }
+              actions={
+                <PetActionRow
                   petPublicToken={pet.publicToken}
-                  memorial={memorial}
+                  isOwner={isOwner}
+                  isDeceased={isDeceased}
+                  petStatus={pet.status as "active" | "lost" | "deceased"}
                 />
-              </div>
-
-              {/* 2. Avisos — single prioritized strip BELOW the credential.
-                    Rabies(urgent) → transit(warning) → open-cases(warning) →
-                    pregnancy(info). Empty → renders nothing. */}
-              <PetAlertStrip
-                alerts={(() => {
-                  const alerts: PetAlert[] = [];
-                  // Lost — leads the strip (design ADR-6/ADR-7). Pushed first
-                  // so same-tone (urgent) stability keeps it above rabies.
-                  // LostCaseBlock itself guards on `episode` being non-null,
-                  // so this stays safe even if status flips mid-render.
-                  if (pet.status === "lost") {
-                    alerts.push({
-                      id: "lost",
-                      tone: "urgent",
-                      node: (
-                        <LostCaseBlock
-                          pet={pet}
-                          photoUrl={photoUrl}
-                          episode={lostEpisode}
-                          scans={lostScans}
-                          ownerFirstName={ownerFirstName}
-                          isOwner={isOwner}
-                        />
-                      ),
-                    });
-                  }
-                  if (pet.rabiesObservationStatus === "in_progress") {
-                    alerts.push({
-                      id: "rabies",
-                      tone: "urgent",
-                      node: <RabiesObservationBanner pet={pet} events={typedEvents} />,
-                    });
-                  }
-                  if (isTransit) {
-                    alerts.push({
-                      id: "transit",
-                      tone: "warning",
-                      node: <TransitBanner petName={pet.name} petPublicToken={pet.publicToken} />,
-                    });
-                  }
-                  // Only add the open-cases alert when the pet actually has
-                  // open/escalated cases, so the strip can be genuinely empty.
-                  // allCases is already fetched above (capped 50).
-                  if (allCases.some((c) => c.status === "open" || c.status === "escalated")) {
-                    alerts.push({
-                      id: "open-cases",
-                      tone: "warning",
-                      node: (
-                        <div data-section="cases">
-                          <PetOpenCasesSection petId={pet.id} />
-                        </div>
-                      ),
-                    });
-                  }
-                  if (pregnancyCardData) {
-                    alerts.push({
-                      id: "pregnancy",
-                      tone: "info",
-                      node: (
-                        <PregnancyInProgressCard
-                          petPublicToken={pet.publicToken}
-                          pregnancyStartedAt={pregnancyCardData.startedAt}
-                          weeksAtDiagnosis={pregnancyCardData.weeksAtDiagnosis}
-                          expectedBirthAt={pregnancyCardData.expectedBirthAt}
-                          lastClinicalAt={pregnancyCardData.lastClinicalAt}
-                        />
-                      ),
-                    });
-                  }
-                  return alerts;
-                })()}
-              />
-
-              {/* 3. Embedded capture, then an icon-only action row (ADR-12a/b).
-                    EventCatcherSingle (owner + active only) sits directly under
-                    the flip card; PetAnotarFooterCta is gone (this replaces it).
-                    Mark-lost stays always visible here (T2), never buried in
-                    ⋯ Más. Every icon carries an aria-label (accessible name,
-                    no visible text) + title tooltip, mirroring FlipCard's
-                    "Girar" affordance pattern.
-                    Deceased (ADR-15/REQ-9.3): the bar collapses to
-                    [Compartir][Más] only — no Anotar (a closed life record
-                    accepts no new events, and EventCatcherSingle itself is
-                    hidden), no Perdida/Encontrada (moot), no Chapita
-                    (ordering a tag for a deceased pet is nonsensical). */}
-              {isOwner && !isDeceased && pet.status === "active" && (
-                <EventCatcherSingle petPublicToken={pet.publicToken} petName={pet.name} />
-              )}
-              <PetActionRow
-                petPublicToken={pet.publicToken}
-                isOwner={isOwner}
-                isDeceased={isDeceased}
-                petStatus={pet.status as "active" | "lost" | "deceased"}
-              />
-            </div>
+              }
+            />
           }
         />
       </Suspense>

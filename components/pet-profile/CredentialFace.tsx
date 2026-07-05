@@ -1,24 +1,32 @@
-// CredentialFace — Face 1 of the pet profile's two-face redesign (server).
-// Spec: docs/design/handoffs/2026-07-01-pet-profile-two-face-lean-handoff.md
-// Design: ADR-2. Fuses LnHero (identity) + printed QR (via the hero's actions
-// slot) + the compliance stamp row + compact ppp/service-dog credential rows
-// into ONE credential object.
+// CredentialFace — the FRONT of the pet profile's one-document credential
+// ("Una sola libreta" redesign; server component). Everything below the blue
+// band (which DocumentChrome renders around this face) lives here as one framed
+// sheet, bound by labeled hairline dividers so it reads as a single credential
+// rather than a stack of panels:
 //
-// H1 (provenance gate): the stamp row is ComplianceObligationsPanel,
+//   Identity row (photo overlapping the band · name + "Registrada" badge ·
+//     "Macho · Perro" · location chip · public-credential QR)
+//   — Cumplimiento —  ComplianceObligationsPanel (bare) + ppp/service-dog rows
+//   — Avisos —        the prioritized alert strip (only when non-empty)
+//   — Anotar —        the embedded free-text capture (owner + active only)
+//   — (actions) —     the icon action row
+//
+// H1 (provenance gate): the compliance grid is ComplianceObligationsPanel,
 // re-hosted verbatim — its `tone: "ok"` only ever comes from
 // deriveComplianceState, which requires a professional/institutional-verified
 // event. This component does not derive compliance itself.
 //
-// Org-path viewers receive the exact same read-only object — no Anotar / no
-// ⋯ Más live here; those belong to the caller's action row (page.tsx). The
-// Emergencia card (vet/emergency contacts) moved to LibretaFace (wave-3 P3,
-// PO decision #645 point 3) — this face no longer renders it.
+// Org-path viewers receive the exact same read-only object — the caller passes
+// `anotar={null}` and an org-scoped `actions` node (no capture, no ⋯ Más), so
+// this face never grows an owner-only affordance on its own.
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 
+import { Icon } from "@/components/Icon";
 import { ComplianceObligationsPanel } from "@/components/pet-profile/ComplianceObligationsPanel";
 import { LnAlert } from "@/components/ui/Alert";
-import { LnHero, type LnHeroProps } from "@/components/ui/Hero";
+import type { LnHeroProps } from "@/components/ui/Hero";
 import { LnMemorialChip } from "@/components/ui/StatusFlag";
 import type { ComplianceState } from "@/lib/projections/pet-compliance";
 
@@ -43,7 +51,7 @@ export type CredentialFaceMemorial = {
 };
 
 export type CredentialFaceProps = {
-  /** Everything LnHero needs except `actions` — the QR is injected here. */
+  /** Identity data — same shape the hero used (name/breed/photo/tags/status). */
   heroProps: Omit<LnHeroProps, "actions">;
   complianceState: ComplianceState;
   /** Pre-rendered QR SVG markup (from `qrcode`'s `toString({ type: "svg" })`). */
@@ -57,6 +65,12 @@ export type CredentialFaceProps = {
   petPublicToken: string;
   /** In-Memoriam skin (ADR-15) — sepia tone + ribbon + deceased-date line. */
   memorial?: CredentialFaceMemorial | null;
+  /** Prioritized alert strip node. `null`/absent → no "Avisos" section. */
+  avisos?: ReactNode;
+  /** Embedded capture node (EventCatcherSingle). `null`/absent → no "Anotar" section. */
+  anotar?: ReactNode;
+  /** Action row node (PetActionRow). Always rendered as the sheet footer. */
+  actions?: ReactNode;
 };
 
 export function CredentialFace({
@@ -68,95 +82,182 @@ export function CredentialFace({
   serviceDog,
   petPublicToken,
   memorial,
+  avisos,
+  anotar,
+  actions,
 }: CredentialFaceProps) {
-  // wave-3 D12 (design-system audit finding 6): the ribbon used to hand-roll
-  // its own box using the exact same 3 --color-ln-memorial-chip-* tokens
-  // LnMemorialChip already wraps up — it's the canonical memorial-state
-  // treatment (StatusFlag.tsx) and had zero consumers. Route through it
-  // instead of reinventing the same colors/shape a second time.
   const memorialYearRange =
     memorial?.birthYear && memorial?.deathYear
       ? `${memorial.birthYear}–${memorial.deathYear}`
       : null;
 
+  const publicLabel = publicHref.replace(/^\//, "");
+
   return (
-    <div
-      className="flex flex-col gap-4"
-      style={memorial ? { filter: "grayscale(0.35) sepia(0.2)" } : undefined}
-    >
+    <div style={memorial ? { filter: "grayscale(0.35) sepia(0.2)" } : undefined}>
       {memorial && (
-        <div data-section="memorial-ribbon" className="flex justify-center">
+        <div data-section="memorial-ribbon" className="flex justify-center pt-4">
           <LnMemorialChip>
             En memoria{memorialYearRange ? ` · ${memorialYearRange}` : ""}
           </LnMemorialChip>
         </div>
       )}
 
-      <LnHero
-        {...heroProps}
-        actions={
-          // Single QR entry point (spec "Single source per datum") — tapping
-          // it navigates straight to the public credential; no in-page reveal.
-          <Link href={publicHref} aria-label="Ver credencial pública" className="block">
-            <div
-              className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-white p-1 [&_svg]:h-16 [&_svg]:w-16"
-              // biome-ignore lint/security/noDangerouslySetInnerHtml: server-generated QR SVG from the qrcode package, no user input.
-              dangerouslySetInnerHTML={{ __html: qrSvg }}
-            />
-          </Link>
-        }
-      />
+      {/* Identity row — the photo pokes up into the band (negative margin). */}
+      <div className="ln-sec">
+        <div className="ln-idrow">
+          <div className="ln-photo">
+            {heroProps.photoSrc ? (
+              <img src={heroProps.photoSrc} alt={heroProps.name} />
+            ) : (
+              <span className="ln-photo-empty">
+                <Icon name="paw" size="lg" decorative />
+              </span>
+            )}
+          </div>
 
+          <div className="ln-idmeta">
+            <h1 className="ln-idname">
+              {heroProps.name}
+              <span className="ln-badge-reg">
+                <Icon name="check" size="sm" decorative />
+                Inscripta
+              </span>
+            </h1>
+            {heroProps.breed && <div className="ln-idsub">{heroProps.breed}</div>}
+            {heroProps.tags && heroProps.tags.length > 0 && (
+              <div className="ln-chips">
+                {heroProps.tags.map((tag) => (
+                  <span key={tag.key} className="ln-chip">
+                    {tag.key === "loc" && <Icon name="map-pin" size="sm" decorative />}
+                    {tag.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="ln-qr">
+            <Link
+              href={publicHref}
+              aria-label="Ver credencial pública"
+              className="ln-qr-link no-underline"
+            >
+              <span
+                className="ln-qr-frame"
+                // biome-ignore lint/security/noDangerouslySetInnerHtml: server-generated QR SVG from the qrcode package, no user input.
+                dangerouslySetInnerHTML={{ __html: qrSvg }}
+              />
+            </Link>
+            <div className="ln-qr-cap">
+              <b>Credencial pública</b>
+              {publicLabel}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Cumplimiento — the provenance-gated obligation grid, bare (the divider
+          labels it; no card-in-card outer box). */}
       {complianceState.cards.length > 0 && (
-        <ComplianceObligationsPanel state={complianceState} petPublicToken={petPublicToken} />
+        <>
+          <div className="ln-divider">
+            <span className="ln-divider-label">
+              <Icon name="shield" size="sm" decorative />
+              Cumplimiento
+            </span>
+          </div>
+          <div className="ln-sec">
+            <ComplianceObligationsPanel
+              state={complianceState}
+              petPublicToken={petPublicToken}
+              bare
+            />
+
+            {(ppp || serviceDog) && (
+              <div data-section="credentials" className="mt-3 flex flex-col gap-2">
+                {ppp && (
+                  <div data-section="ppp-row">
+                    <LnAlert variant="warning">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <span>
+                          Animal Potencialmente Peligroso
+                          {ppp.attested ? " · Atestada" : " · Atestación pendiente"}
+                        </span>
+                        {!ppp.attested && (
+                          <Link
+                            href={ppp.registerHref}
+                            className="shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-warn)] no-underline hover:underline"
+                          >
+                            Registrar →
+                          </Link>
+                        )}
+                      </div>
+                    </LnAlert>
+                  </div>
+                )}
+                {serviceDog && (
+                  <div data-section="service-dog-row">
+                    <LnAlert variant="success" icon="paw">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <span>Perro de asistencia · {serviceDog.serviceTypeLabel}</span>
+                        <span className="flex shrink-0 gap-3">
+                          <Link
+                            href={serviceDog.manageHref}
+                            className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                          >
+                            Gestionar →
+                          </Link>
+                          <Link
+                            href={serviceDog.presentHref}
+                            className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                          >
+                            Presentar →
+                          </Link>
+                        </span>
+                      </div>
+                    </LnAlert>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
-      {(ppp || serviceDog) && (
-        <div data-section="credentials" className="flex flex-col gap-2">
-          {ppp && (
-            <div data-section="ppp-row">
-              <LnAlert variant="warning">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span>
-                    Animal Potencialmente Peligroso
-                    {ppp.attested ? " · Atestada" : " · Atestación pendiente"}
-                  </span>
-                  {!ppp.attested && (
-                    <Link
-                      href={ppp.registerHref}
-                      className="shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-warn)] no-underline hover:underline"
-                    >
-                      Registrar →
-                    </Link>
-                  )}
-                </div>
-              </LnAlert>
-            </div>
-          )}
-          {serviceDog && (
-            <div data-section="service-dog-row">
-              <LnAlert variant="success" icon="paw">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span>Perro de asistencia · {serviceDog.serviceTypeLabel}</span>
-                  <span className="flex shrink-0 gap-3">
-                    <Link
-                      href={serviceDog.manageHref}
-                      className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
-                    >
-                      Gestionar →
-                    </Link>
-                    <Link
-                      href={serviceDog.presentHref}
-                      className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
-                    >
-                      Presentar →
-                    </Link>
-                  </span>
-                </div>
-              </LnAlert>
-            </div>
-          )}
-        </div>
+      {/* Avisos — only when the strip carries at least one alert (the caller
+          passes null when empty, so no empty divider appears). */}
+      {avisos && (
+        <>
+          <div className="ln-divider">
+            <span className="ln-divider-label">
+              <Icon name="alert" size="sm" decorative />
+              Avisos
+            </span>
+          </div>
+          <div className="ln-sec">{avisos}</div>
+        </>
+      )}
+
+      {/* Anotar — embedded free-text capture (owner + active only). */}
+      {anotar && (
+        <>
+          <div className="ln-divider">
+            <span className="ln-divider-label">
+              <Icon name="edit" size="sm" decorative />
+              Anotar
+            </span>
+          </div>
+          <div className="ln-sec">{anotar}</div>
+        </>
+      )}
+
+      {/* Action row — the sheet footer. */}
+      {actions && (
+        <>
+          <div className="ln-divider" />
+          <div className="ln-sec">{actions}</div>
+        </>
       )}
     </div>
   );

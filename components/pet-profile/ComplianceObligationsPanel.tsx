@@ -71,17 +71,14 @@ function ObligationCardView({
     <div
       data-section="compliance-card"
       data-obligation={card.key}
-      className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-[var(--color-ln-line)] p-4"
+      className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Icon
-            name={ICON_FOR[card.key]}
-            size="md"
-            decorative
-            className="flex-shrink-0 text-[var(--color-ln-azul)]"
-          />
-          <p className="font-[var(--font-ln-sans)] text-md font-semibold text-[var(--color-ln-ink)]">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex size-8 flex-shrink-0 items-center justify-center rounded-[var(--radius-lg)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]">
+            <Icon name={ICON_FOR[card.key]} size="sm" decorative />
+          </span>
+          <p className="font-[var(--font-ln-sans)] text-md font-semibold leading-tight text-[var(--color-ln-ink)]">
             {card.label}
           </p>
         </div>
@@ -94,7 +91,7 @@ function ObligationCardView({
         </p>
       )}
 
-      <p className="font-[var(--font-ln-sans)] text-xs text-[var(--color-ln-faint)]">
+      <p className="font-[var(--font-ln-sans)] text-xs leading-relaxed text-[var(--color-ln-faint)]">
         {card.legalFootnote}
       </p>
 
@@ -114,47 +111,79 @@ function ObligationCardView({
       )}
 
       {card.hint && (
-        <p className="mt-1 font-[var(--font-ln-sans)] text-xs text-[var(--color-ln-mute)]">
-          {card.hint}
+        <p className="mt-1 flex items-start gap-2 rounded-[var(--radius-lg)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-3 py-2.5 text-xs leading-relaxed text-[var(--color-ln-warn)]">
+          <Icon name="info" size="sm" decorative className="mt-px flex-shrink-0" />
+          <span>{card.hint}</span>
         </p>
       )}
     </div>
   );
 }
 
+// Compliance grid + summary. `bare` (used inside the credential sheet) drops the
+// own outer bordered box and the "Cumplimiento" eyebrow — the sheet's labeled
+// hairline divider provides both, so the panel doesn't nest a card in a card.
 export function ComplianceObligationsPanel({
   state,
   petPublicToken,
+  bare = false,
 }: {
   state: ComplianceState;
   petPublicToken: string;
+  bare?: boolean;
 }) {
   if (state.cards.length === 0) return null;
+
+  const header = bare ? (
+    <div className="ln-comply-head">
+      <h3>
+        <span className="ln-eyebrow">Estado</span>
+        Estado de cumplimiento
+      </h3>
+      <LnBadge variant={TONE_TO_BADGE[state.worstTone]} className="flex-shrink-0">
+        {state.summary.label}
+      </LnBadge>
+    </div>
+  ) : (
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <div>
+        <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-wide text-[var(--color-ln-mute)]">
+          Cumplimiento
+        </p>
+        <h2 className="mt-0.5 font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
+          Estado de cumplimiento
+        </h2>
+      </div>
+      <LnBadge variant={TONE_TO_BADGE[state.worstTone]} className="flex-shrink-0">
+        {state.summary.label}
+      </LnBadge>
+    </div>
+  );
+
+  const grid = (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {state.cards.map((card) => (
+        <ObligationCardView key={card.key} card={card} petPublicToken={petPublicToken} />
+      ))}
+    </div>
+  );
+
+  if (bare) {
+    return (
+      <section data-section="compliance">
+        {header}
+        {grid}
+      </section>
+    );
+  }
 
   return (
     <section
       data-section="compliance"
       className="rounded-[var(--radius-card)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4"
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-wide text-[var(--color-ln-mute)]">
-            Cumplimiento
-          </p>
-          <h2 className="mt-0.5 font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
-            Estado de cumplimiento
-          </h2>
-        </div>
-        <LnBadge variant={TONE_TO_BADGE[state.worstTone]} className="flex-shrink-0">
-          {state.summary.label}
-        </LnBadge>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {state.cards.map((card) => (
-          <ObligationCardView key={card.key} card={card} petPublicToken={petPublicToken} />
-        ))}
-      </div>
+      {header}
+      {grid}
     </section>
   );
 }
