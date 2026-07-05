@@ -25,7 +25,7 @@ export function FinalizeAdoptionForm({
   return (
     <form action={formAction} className="space-y-4" encType="multipart/form-data">
       {fosterShortcut && (
-        <section className="rounded-[6px] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-3">
+        <section className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-3">
           <LnCheckbox
             id="use-foster-shortcut"
             checked={useFosterShortcut}
@@ -137,14 +137,14 @@ export function FinalizeAdoptionForm({
               type="file"
               accept="application/pdf,image/*"
               aria-describedby={describedBy}
-              className="block w-full text-sm text-ln-op-ink-2 file:mr-3 file:rounded-[4px] file:border-0 file:bg-ln-op-azul file:px-3 file:py-1.5 file:text-white file:text-sm"
+              className="block w-full text-sm text-ln-op-ink-2 file:mr-3 file:rounded-[var(--radius-sm)] file:border-0 file:bg-ln-op-azul file:px-3 file:py-1.5 file:text-white file:text-sm"
             />
           )}
         </LnField>
       </section>
 
       {state.error && (
-        <p className="text-sm rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+        <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}
@@ -152,7 +152,7 @@ export function FinalizeAdoptionForm({
       <button
         type="submit"
         disabled={isPending}
-        className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
+        className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
       >
         {isPending ? "Finalizando adopción…" : "Finalizar adopción"}
       </button>

@@ -77,7 +77,7 @@ export function Step4Subject({
           return (
             <li key={card.value}>
               <label
-                className={`flex items-center gap-3 rounded-[6px] border px-4 py-3.5 cursor-pointer transition-colors ${
+                className={`flex items-center gap-3 rounded-[var(--radius-md)] border px-4 py-3.5 cursor-pointer transition-colors ${
                   isSelected
                     ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)]"
                     : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:border-[var(--color-ln-line-strong)]"
@@ -124,7 +124,7 @@ export function Step4Subject({
       <button
         type="button"
         onClick={() => onSubjectKindChange("location")}
-        className={`w-full text-left rounded-[6px] border px-4 py-3 text-sm transition-colors ${
+        className={`w-full text-left rounded-[var(--radius-md)] border px-4 py-3 text-sm transition-colors ${
           subjectKind === "location"
             ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)] font-semibold text-[var(--color-ln-ink)]"
             : "border-dashed border-[var(--color-ln-line-strong)] text-[var(--color-ln-mute)] hover:border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)]"
@@ -135,7 +135,7 @@ export function Step4Subject({
 
       {/* Conditional fields */}
       {subjectKind === "registered_pet" && (
-        <div className="space-y-3 rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-4">
+        <div className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-4">
           <div className="space-y-1.5">
             <label
               htmlFor="subjectPetToken"
@@ -224,7 +224,7 @@ export function Step4Subject({
 
       {error && (
         <p
-          className="text-sm text-[var(--color-ln-seal)] rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-err-100)] px-3 py-2"
+          className="text-sm text-[var(--color-ln-seal)] rounded-[var(--radius-sm)] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-err-100)] px-3 py-2"
           role="alert"
         >
           {error}
@@ -273,7 +273,7 @@ function PetLookupPreview({ query }: { query: string }) {
         : "activa";
 
   return (
-    <div className="rounded-[4px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-xs text-[var(--color-ln-ink)]">
+    <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-xs text-[var(--color-ln-ink)]">
       <p>
         ✓ Esta mascota está registrada como <span className="font-semibold">{result.petName}</span>{" "}
         <span className="text-[var(--color-ln-mute)]">({statusLabel})</span>

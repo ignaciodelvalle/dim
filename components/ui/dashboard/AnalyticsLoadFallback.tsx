@@ -36,7 +36,7 @@ export function AnalyticsLoadFallback({ reason, retryHref }: Props) {
           action={
             <a
               href={retryHref}
-              className="inline-flex h-11 items-center rounded-[6px] border border-ln-op-line px-4 text-[13px] text-ln-op-ink no-underline hover:bg-ln-op-hover"
+              className="inline-flex h-11 items-center rounded-[var(--radius-md)] border border-ln-op-line px-4 text-[13px] text-ln-op-ink no-underline hover:bg-ln-op-hover"
             >
               Reintentar
             </a>

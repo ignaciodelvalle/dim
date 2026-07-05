@@ -136,7 +136,7 @@ export function Step5Contact({
           type="button"
           onClick={() => onContactModeChange("anonymous")}
           aria-pressed={contactMode === "anonymous"}
-          className={`w-full text-left rounded-[6px] border px-4 py-3.5 transition-colors ${
+          className={`w-full text-left rounded-[var(--radius-md)] border px-4 py-3.5 transition-colors ${
             contactMode === "anonymous"
               ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)]"
               : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:border-[var(--color-ln-line-strong)]"
@@ -170,7 +170,7 @@ export function Step5Contact({
           type="button"
           onClick={() => onContactModeChange("with_contact")}
           aria-pressed={contactMode === "with_contact"}
-          className={`w-full text-left rounded-[6px] border px-4 py-3.5 transition-colors ${
+          className={`w-full text-left rounded-[var(--radius-md)] border px-4 py-3.5 transition-colors ${
             contactMode === "with_contact"
               ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)]"
               : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:border-[var(--color-ln-line-strong)]"
@@ -202,7 +202,7 @@ export function Step5Contact({
 
       {/* Contact fields — shown when mode is with_contact */}
       {contactMode === "with_contact" && (
-        <div className="rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-4 space-y-4">
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-4 space-y-4">
           <p className="text-xs text-[var(--color-ln-ink-2)] leading-relaxed">
             Tu contacto es anónimo en el sentido de que no pedimos DNI ni nombre. Solo para que
             podamos avisarte si avanza la denuncia.
@@ -257,7 +257,7 @@ export function Step5Contact({
           Files are lifted into WizardState.evidenceFiles and appended to FormData
           in DenunciaWizard.handleSubmit. The file input is cleared after each
           selection to allow incremental adds (same pattern as WelfareReportForm). */}
-      <div className="space-y-3 rounded-[6px] border border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] p-4">
+      <div className="space-y-3 rounded-[var(--radius-md)] border border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] p-4">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-[var(--color-ln-ink)]">
             📎 Sumar fotos o videos{" "}
@@ -337,7 +337,7 @@ export function Step5Contact({
 
       {error && (
         <p
-          className="text-sm text-[var(--color-ln-seal)] rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-err-100)] px-3 py-2"
+          className="text-sm text-[var(--color-ln-seal)] rounded-[var(--radius-sm)] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-err-100)] px-3 py-2"
           role="alert"
         >
           {error}
@@ -350,7 +350,7 @@ export function Step5Contact({
           type="button"
           onClick={onSubmit}
           disabled={!canSubmit || isPending}
-          className="w-full px-4 py-[13px] rounded-[6px] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full px-4 py-[13px] rounded-[var(--radius-md)] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isPending ? "Enviando denuncia…" : "Enviar denuncia →"}
         </button>

@@ -22,7 +22,7 @@ function StatusBadge({ pending }: { pending: number }) {
     : "border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-ink)]";
   return (
     <span
-      className={`inline-flex flex-shrink-0 items-center rounded-full border px-[8px] py-[1px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.05em] ${cls}`}
+      className={`inline-flex flex-shrink-0 items-center rounded-full border px-2 py-[1px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.05em] ${cls}`}
     >
       {/* "Sin pendientes", not "Al día" — AL DÍA is a compliance claim owned by
           deriveComplianceState; this badge only says no nudges are pending
@@ -38,7 +38,7 @@ function NudgeRow({ nudge }: { nudge: Nudge }) {
   return (
     <Link
       href={nudge.actionHref}
-      className="-mx-[6px] flex items-center gap-[10px] rounded-[4px] px-[6px] py-[4px] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
+      className="-mx-1.5 flex items-center gap-2.5 rounded-[var(--radius-sm)] px-1.5 py-1 no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
     >
       <span
         className={`h-[7px] w-[7px] flex-shrink-0 rounded-full ${dotClass}`}
@@ -57,21 +57,21 @@ function NudgeRow({ nudge }: { nudge: Nudge }) {
 
 function PetStatusRow({ pet }: { pet: PetHealthStatus }) {
   return (
-    <div className="flex flex-col gap-[8px] border-b border-[var(--color-ln-line-2)] py-[10px] last:border-b-0 last:pb-0">
-      <div className="flex items-center justify-between gap-[10px]">
+    <div className="flex flex-col gap-2 border-b border-[var(--color-ln-line-2)] py-2.5 last:border-b-0 last:pb-0">
+      <div className="flex items-center justify-between gap-2.5">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
           className="min-w-0 truncate text-[13.5px] font-semibold text-[var(--color-ln-ink)] no-underline hover:underline"
         >
           {pet.name}
-          <span className="ml-[6px] font-normal text-[var(--color-ln-mute)]">
+          <span className="ml-1.5 font-normal text-[var(--color-ln-mute)]">
             {speciesLabel(pet.species)}
           </span>
         </Link>
         <StatusBadge pending={pet.pendingCount} />
       </div>
       {pet.nudges.length > 0 && (
-        <div className="flex flex-col gap-[2px]">
+        <div className="flex flex-col gap-0.5">
           {pet.nudges.map((n) => (
             <NudgeRow key={n.kind} nudge={n} />
           ))}

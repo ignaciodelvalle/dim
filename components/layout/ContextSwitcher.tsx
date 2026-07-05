@@ -56,7 +56,7 @@ function SwitcherItem({
     <Link
       href={target.href}
       onClick={onClick}
-      className="flex items-center gap-2 rounded-[4px] px-3 py-[7px] text-[12.5px] text-ln-op-ink no-underline transition-colors hover:bg-ln-op-page"
+      className="flex items-center gap-2 rounded-[var(--radius-sm)] px-3 py-[7px] text-[12.5px] text-ln-op-ink no-underline transition-colors hover:bg-ln-op-page"
     >
       {target.label}
     </Link>
@@ -107,7 +107,7 @@ export function ContextSwitcher({ session }: Props) {
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-[4px] border border-ln-op-line px-2.5 py-[5px] text-sm text-ln-op-ink-2 transition-colors hover:border-ln-op-line-2 hover:text-ln-op-ink"
+        className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-ln-op-line px-2.5 py-[5px] text-sm text-ln-op-ink-2 transition-colors hover:border-ln-op-line-2 hover:text-ln-op-ink"
       >
         Portales
         <ChevronIcon />
@@ -116,7 +116,7 @@ export function ContextSwitcher({ session }: Props) {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-[6px] border border-ln-op-line bg-ln-op-card py-1 shadow-md"
+          className="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card py-1 shadow-md"
         >
           {targets.map((t) => (
             <SwitcherItem key={t.key + t.href} target={t} onClick={() => setOpen(false)} />

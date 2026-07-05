@@ -46,7 +46,7 @@ export function LostPetRow({ pet }: LostPetRowProps) {
   const statusTone: PillTone = STATUS_TONE[pet.petStatus] ?? "neutral";
 
   return (
-    <li className="rounded-[6px] border border-ln-op-line px-4 py-3">
+    <li className="rounded-[var(--radius-md)] border border-ln-op-line px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-0.5">
           <div className="flex items-center gap-2 flex-wrap">

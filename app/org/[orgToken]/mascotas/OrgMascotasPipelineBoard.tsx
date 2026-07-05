@@ -111,7 +111,7 @@ function PipelineCard({
     <Link
       href={`/mis-mascotas/${card.publicToken}`}
       className={[
-        "block rounded-[6px] border border-ln-op-line bg-ln-op-card p-3 space-y-1",
+        "block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-3 space-y-1",
         "hover:border-ln-op-azul hover:shadow-sm transition-shadow",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul",
       ].join(" ")}
@@ -147,7 +147,7 @@ function PipelineColumn({
     <section
       aria-label={`Columna ${label}`}
       className={[
-        "flex flex-col rounded-[8px] border min-w-[220px] max-w-[260px] flex-shrink-0 overflow-hidden",
+        "flex flex-col rounded-[var(--radius-lg)] border min-w-[220px] max-w-[260px] flex-shrink-0 overflow-hidden",
         style.border,
       ].join(" ")}
     >
@@ -163,7 +163,7 @@ function PipelineColumn({
           {label}
         </h2>
         <span
-          className={`text-xs font-ln-mono font-bold px-[6px] py-[1px] rounded-full ${style.countBadge}`}
+          className={`text-xs font-ln-mono font-bold px-1.5 py-[1px] rounded-full ${style.countBadge}`}
           aria-label={`${cards.length} animales`}
         >
           {cards.length}

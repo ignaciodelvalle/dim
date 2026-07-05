@@ -24,7 +24,7 @@ export type LnPetStatus = "ok" | "registered" | "sick" | "lost" | "pregnant";
 const statusDotColors: Record<LnPetStatus, string> = {
   ok: "bg-[var(--color-ln-ok)]",
   registered: "bg-[var(--color-ln-mute)]",
-  sick: "bg-[var(--color-ln-warn)] rounded-[2px]",
+  sick: "bg-[var(--color-ln-warn)] rounded-[var(--radius-xs)]",
   lost: "bg-[var(--color-ln-err)] rounded-[1px]",
   pregnant: "bg-[var(--color-ln-rosa)]",
 };
@@ -116,7 +116,7 @@ export function LnChipGroup({ items, selected, onChange, className = "" }: LnChi
   }
 
   return (
-    <div className={["flex flex-wrap gap-[6px]", className].filter(Boolean).join(" ")}>
+    <div className={["flex flex-wrap gap-1.5", className].filter(Boolean).join(" ")}>
       {items.map((item) => (
         <LnChip
           key={item.key}
@@ -146,7 +146,7 @@ export function LnPetPill({ name, status = "ok", active = false, onClick }: LnPe
       type="button"
       onClick={onClick}
       className={[
-        "inline-flex cursor-pointer items-center gap-[7px] rounded-full border px-[11px] py-[4px] pl-[5px] text-[12.5px] font-medium transition-colors",
+        "inline-flex cursor-pointer items-center gap-[7px] rounded-full border px-[11px] py-1 pl-[5px] text-[12.5px] font-medium transition-colors",
         "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
         active
           ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul-700)]"

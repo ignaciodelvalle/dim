@@ -46,17 +46,17 @@ export default async function TransitosHistorialPage() {
     .orderBy(desc(fosterProposals.proposedAt));
 
   return (
-    <div className="mx-auto max-w-3xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-3xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/cuenta/transitos"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Tránsitos
       </Link>
 
       {/* Header */}
-      <div className="mb-[28px]">
+      <div className="mb-7">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Historial de tránsitos
         </h1>
@@ -65,20 +65,20 @@ export default async function TransitosHistorialPage() {
         </p>
       </div>
 
-      <div className="flex flex-col gap-[32px]">
+      <div className="flex flex-col gap-8">
         {/* Finalized */}
         <section>
-          <LnSectionHead num="01" title="Tránsitos finalizados" className="mb-[16px]" />
+          <LnSectionHead num="01" title="Tránsitos finalizados" className="mb-4" />
           {past.length === 0 ? (
             <p className="text-[13px] text-[var(--color-ln-mute)]">
               Todavía no tenés tránsitos finalizados.
             </p>
           ) : (
-            <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+            <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
               {past.map(({ ownership, pet }) => (
                 <div
                   key={ownership.id}
-                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[12px] last:border-b-0"
+                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 last:border-b-0"
                 >
                   <div>
                     <Link
@@ -111,17 +111,17 @@ export default async function TransitosHistorialPage() {
 
         {/* Not-accepted proposals */}
         <section>
-          <LnSectionHead num="02" title="Propuestas no concretadas" className="mb-[16px]" />
+          <LnSectionHead num="02" title="Propuestas no concretadas" className="mb-4" />
           {noProposals.length === 0 ? (
             <p className="text-[13px] text-[var(--color-ln-mute)]">
               No hay propuestas en el historial.
             </p>
           ) : (
-            <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+            <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
               {noProposals.map(({ proposal, pet, org }) => (
                 <div
                   key={proposal.id}
-                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[12px] last:border-b-0"
+                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 last:border-b-0"
                 >
                   <div>
                     <p className="text-[13px] font-medium text-[var(--color-ln-ink)]">
@@ -131,7 +131,7 @@ export default async function TransitosHistorialPage() {
                       </span>
                     </p>
                     {proposal.rejectionReason && (
-                      <p className="mt-[2px] text-[11.5px] text-[var(--color-ln-mute)]">
+                      <p className="mt-0.5 text-[11.5px] text-[var(--color-ln-mute)]">
                         Motivo: {proposal.rejectionReason}
                       </p>
                     )}
@@ -148,7 +148,7 @@ export default async function TransitosHistorialPage() {
       </div>
 
       {/* Nav */}
-      <div className="mt-[32px] border-t border-[var(--color-ln-line-2)] pt-[14px]">
+      <div className="mt-8 border-t border-[var(--color-ln-line-2)] pt-3.5">
         <Link
           href="/cuenta/transitos/activos"
           className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"

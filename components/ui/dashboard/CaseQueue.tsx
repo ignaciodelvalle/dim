@@ -205,11 +205,11 @@ export function CaseQueue({
 
       {/* Table */}
       {rows.length === 0 ? (
-        <p className="rounded-[4px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
+        <p className="rounded-[var(--radius-sm)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
           {emptyMessage}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-[4px] border border-ln-op-line">
+        <div className="overflow-x-auto rounded-[var(--radius-sm)] border border-ln-op-line">
           <table className="w-full border-collapse text-[13px]">
             <caption className="sr-only">{caption}</caption>
             <thead className="bg-ln-op-stripe">

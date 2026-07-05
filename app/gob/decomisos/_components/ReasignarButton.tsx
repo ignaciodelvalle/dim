@@ -71,7 +71,7 @@ export function ReasignarButton({ casePublicCode, currentReceiverName }: Reasign
         onKeyDown={(e) => e.key === "Escape" && !isPending && setOpen(false)}
       />
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-md rounded-[8px] bg-ln-op-card border border-ln-op-line shadow-xl p-6 space-y-4">
+      <div className="relative z-10 w-full max-w-md rounded-[var(--radius-lg)] bg-ln-op-card border border-ln-op-line shadow-xl p-6 space-y-4">
         <h3 className="text-[15px] font-semibold text-ln-op-ink">
           Reasignar decomiso — {casePublicCode}
         </h3>
@@ -89,7 +89,7 @@ export function ReasignarButton({ casePublicCode, currentReceiverName }: Reasign
             value={newReceiverId}
             onChange={(e) => setNewReceiverId(e.target.value)}
             placeholder="UUID del refugio (shelter / rescue_network verificado)"
-            className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+            className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
           />
           <p className="text-sm text-ln-op-mute">
             Podes obtener el UUID desde la seccion Organizaciones.
@@ -106,12 +106,12 @@ export function ReasignarButton({ casePublicCode, currentReceiverName }: Reasign
             onChange={(e) => setReason(e.target.value)}
             rows={2}
             placeholder="Por ej: el refugio anterior rechazo por falta de espacio."
-            className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
+            className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
           />
         </div>
 
         {error && (
-          <p className="text-[13px] text-ln-op-danger rounded-[6px] bg-ln-op-danger-bg border border-ln-op-danger-bd px-3 py-2">
+          <p className="text-[13px] text-ln-op-danger rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd px-3 py-2">
             {error}
           </p>
         )}

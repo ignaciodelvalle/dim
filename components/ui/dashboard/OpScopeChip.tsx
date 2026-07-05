@@ -20,7 +20,7 @@ type Props = {
 export function OpScopeChip({ code, label, variant = "default" }: Props) {
   if (variant === "neutral") {
     return (
-      <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card px-[10px] py-[3px] text-[11px] text-ln-op-ink-2">
+      <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-[3px] text-[11px] text-ln-op-ink-2">
         <span className="font-ln-mono font-semibold tracking-[0.04em] text-ln-op-ink-2">
           {code}
         </span>
@@ -41,7 +41,7 @@ export function OpScopeChip({ code, label, variant = "default" }: Props) {
   return (
     <span
       className={[
-        "inline-flex flex-shrink-0 items-center gap-1.5 rounded-[4px] px-[10px] py-1",
+        "inline-flex flex-shrink-0 items-center gap-1.5 rounded-[var(--radius-sm)] px-2.5 py-1",
         bgClass,
         "text-[11px] text-white",
       ].join(" ")}

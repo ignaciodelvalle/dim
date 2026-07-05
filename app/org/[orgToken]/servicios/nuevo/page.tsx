@@ -36,7 +36,7 @@ export default async function NuevoServicioPage({
         />
         <Link
           href={`/org/${orgToken}`}
-          className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+          className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
         >
           Volver al panel
         </Link>

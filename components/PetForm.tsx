@@ -192,7 +192,7 @@ export function PetForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-[10px]">
+    <form action={formAction} className="flex flex-col gap-2.5">
       {hiddenFields &&
         Object.entries(hiddenFields).map(([key, value]) => (
           <input key={key} type="hidden" name={key} value={value} />
@@ -313,7 +313,7 @@ export function PetForm({
 
       {/* Location — REQUIRED in the full (non-compact) form */}
       {!compact && (
-        <div className="flex flex-col gap-[6px]">
+        <div className="flex flex-col gap-1.5">
           <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
             Localidad{" "}
             <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
@@ -335,8 +335,8 @@ export function PetForm({
 
       {/* ── "OTROS" COLLAPSIBLE SECTION ───────────────────────── */}
       {!compact && (
-        <details className="group rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-[8px] px-[14px] py-[12px] text-sm font-semibold text-[var(--color-ln-ink-2)] select-none">
+        <details className="group rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3.5 py-3 text-sm font-semibold text-[var(--color-ln-ink-2)] select-none">
             <span>Otros datos</span>
             <span
               aria-hidden="true"
@@ -345,7 +345,7 @@ export function PetForm({
               ▾
             </span>
           </summary>
-          <div className="flex flex-col gap-[12px] border-t border-[var(--color-ln-line)] px-[14px] py-[12px]">
+          <div className="flex flex-col gap-3 border-t border-[var(--color-ln-line)] px-3.5 py-3">
             {/* Breed — dog-only PPP hint (strong-but-optional, never required). */}
             <LnField
               label="Raza"
@@ -405,7 +405,7 @@ export function PetForm({
             <LnAgeFields defaultYears={initialAge.years} defaultMonths={initialAge.months} />
 
             {/* Favourite foods */}
-            <div className="flex flex-col gap-[6px]">
+            <div className="flex flex-col gap-1.5">
               <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
                 Comidas favoritas
               </p>
@@ -429,7 +429,7 @@ export function PetForm({
             </div>
 
             {/* Known allergies */}
-            <div className="flex flex-col gap-[6px]">
+            <div className="flex flex-col gap-1.5">
               <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
                 Alergias conocidas
               </p>
@@ -506,7 +506,7 @@ export function PetForm({
             </LnField>
 
             {/* Insurance */}
-            <div className="flex flex-col gap-[10px] border-t border-[var(--color-ln-line-2)] pt-[12px]">
+            <div className="flex flex-col gap-2.5 border-t border-[var(--color-ln-line-2)] pt-3">
               <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
                 Seguro de mascota
               </p>
@@ -552,7 +552,7 @@ export function PetForm({
 
       {/* ── SENSITIVE SECTION — gated behind ConfirmDialog ────── */}
       {!compact && (
-        <div className="flex flex-col gap-[10px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-[14px]">
+        <div className="flex flex-col gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-3.5">
           <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
             Condiciones sensibles
           </p>
@@ -590,7 +590,7 @@ export function PetForm({
                 ref={sensitiveButtonRef}
                 type="button"
                 onClick={() => setSensitiveDialogOpen(true)}
-                className="self-start rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[12px] py-[8px] text-sm font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+                className="self-start rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)]"
               >
                 Editar condiciones sensibles
               </button>
@@ -639,7 +639,7 @@ export function PetForm({
         type="submit"
         disabled={isPending}
         className={[
-          "inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border px-[16px] py-[10px] text-[13px] font-semibold text-white transition-colors",
+          "inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border px-4 py-2.5 text-[13px] font-semibold text-white transition-colors",
           "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)]",
           "disabled:cursor-not-allowed disabled:opacity-60",
         ]
@@ -686,20 +686,20 @@ function SensitiveFields({
   onEmergencyChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex flex-col gap-[12px]">
+    <div className="flex flex-col gap-3">
       <p className="text-sm text-[var(--color-ln-mute)]">
         Marcá si tu mascota convive con alguna condición de por vida (sentidos, motora, médica).
       </p>
-      <div className="flex flex-col gap-[10px]">
+      <div className="flex flex-col gap-2.5">
         {PERMANENT_CONDITION_GROUPS.map((group) => {
           const codes = PERMANENT_CONDITIONS.filter((c) => permanentConditionGroup(c) === group.id);
           if (codes.length === 0) return null;
           return (
-            <div key={group.id} className="flex flex-col gap-[6px]">
+            <div key={group.id} className="flex flex-col gap-1.5">
               <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-faint)]">
                 {group.label}
               </p>
-              <div className="flex flex-wrap gap-[6px]">
+              <div className="flex flex-wrap gap-1.5">
                 {codes.map((code) => (
                   <LnChip
                     key={code}
@@ -761,12 +761,12 @@ function CustodyKindToggle({
   onChange: (v: "owner" | "foster_in_transit") => void;
 }) {
   return (
-    <div className="flex flex-col gap-[10px]">
+    <div className="flex flex-col gap-2.5">
       <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         ¿Es tu mascota o la estás cuidando?
       </p>
       <input type="hidden" name="custodyKind" value={value} />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <CustodyOptionCard
           checked={value === "owner"}
           onSelect={() => onChange("owner")}
@@ -781,7 +781,7 @@ function CustodyKindToggle({
         />
       </div>
       {value === "foster_in_transit" && (
-        <p className="rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[12px] py-[10px] text-sm text-[var(--color-ln-ink-2)]">
+        <p className="rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-3 py-2.5 text-sm text-[var(--color-ln-ink-2)]">
           Vas a poder llevarle la libreta sanitaria mientras la cuidás. La información viaja con la
           mascota si aparece su familia o pasa a un refugio.
         </p>
@@ -807,7 +807,7 @@ function CustodyOptionCard({
       onClick={onSelect}
       aria-pressed={checked}
       className={[
-        "rounded-[4px] border p-[12px] text-left transition-colors",
+        "rounded-[var(--radius-sm)] border p-3 text-left transition-colors",
         checked
           ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)]"
           : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:bg-[var(--color-ln-stripe)]",
@@ -848,11 +848,11 @@ function LnAgeFields({
   const [years, setYears] = useState<string>(defaultYears != null ? String(defaultYears) : "");
   const [months, setMonths] = useState<string>(defaultMonths != null ? String(defaultMonths) : "");
   return (
-    <div className="flex flex-col gap-[6px]">
+    <div className="flex flex-col gap-1.5">
       <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         Edad aproximada
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {/* B-6: aria-label so each input has an accessible name independent of id/label wiring */}
         <LnInput
           id="ageYears"
@@ -931,7 +931,7 @@ function MicrochipBlock({
   );
 
   return (
-    <div className="flex flex-col gap-[10px] border-t border-[var(--color-ln-line-2)] pt-[12px]">
+    <div className="flex flex-col gap-2.5 border-t border-[var(--color-ln-line-2)] pt-3">
       <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
         Microchip
       </p>
@@ -1018,7 +1018,7 @@ function LnPhotoField({
   preview: string | null;
 }) {
   return (
-    <div className="flex flex-col gap-[6px]">
+    <div className="flex flex-col gap-1.5">
       <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         Foto{" "}
         <span className="font-normal lowercase tracking-[.04em] text-[var(--color-ln-faint)]">
@@ -1027,7 +1027,7 @@ function LnPhotoField({
       </p>
       <label
         htmlFor="photo"
-        className="flex cursor-pointer items-center gap-[14px] rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[12px] transition-colors hover:bg-[var(--color-ln-stripe)]"
+        className="flex cursor-pointer items-center gap-3.5 rounded-[var(--radius-sm)] border border-dashed border-[var(--color-ln-line-strong)] p-3 transition-colors hover:bg-[var(--color-ln-stripe)]"
       >
         {preview ? (
           <img
@@ -1044,7 +1044,7 @@ function LnPhotoField({
           <p className="text-[13px] text-[var(--color-ln-ink-2)]">
             {preview ? "Cambiar foto" : "Tocá para elegir una foto"}
           </p>
-          <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+          <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
             JPG o PNG, hasta 5 MB
           </p>
         </div>

@@ -136,14 +136,14 @@ export default async function DisputeDetailPage({
       </header>
 
       {dispute.status === "open" && (
-        <div className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-[13px] text-ln-op-warn">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-[13px] text-ln-op-warn">
           Disputa abierta — la mascota queda bloqueada para transferencias o adopción hasta que se
           resuelva o retire.
         </div>
       )}
 
       {dispute.status === "resolved" && dispute.resolutionSummary && (
-        <section className="rounded-[6px] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-2">
+        <section className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-2">
           <p className="text-[13px] font-medium text-ln-op-ok">Resolucion: {dispute.resolution}</p>
           <p className="text-[13px] text-ln-op-ok whitespace-pre-wrap">
             {dispute.resolutionSummary}

@@ -73,7 +73,7 @@ export function EventLedgerRow({ row }: Props) {
                 onClick={toggle}
                 aria-expanded={expanded}
                 aria-controls={panelId}
-                className="mt-0.5 inline-flex h-11 w-fit items-center gap-1 self-start rounded-[6px] border border-ln-op-line px-2 text-[11px] text-ln-op-ink hover:bg-ln-op-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ln-op-azul"
+                className="mt-0.5 inline-flex h-11 w-fit items-center gap-1 self-start rounded-[var(--radius-md)] border border-ln-op-line px-2 text-[11px] text-ln-op-ink hover:bg-ln-op-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ln-op-azul"
               >
                 {expanded ? "Ocultar corrección" : "Ver corrección"}
               </button>
@@ -124,7 +124,7 @@ export function EventLedgerRow({ row }: Props) {
       {expanded && (
         <tr id={panelId} ref={panelRef} tabIndex={-1} className="border-b border-ln-op-line">
           <td colSpan={5} className="bg-ln-op-stripe/40 px-4 py-3">
-            <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-3">
+            <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-3">
               <p className="mb-2 text-sm font-semibold text-ln-op-ink">
                 Corregido por enmienda — el original se conserva
               </p>
@@ -138,7 +138,7 @@ export function EventLedgerRow({ row }: Props) {
                   {chain.map((a) => (
                     <li
                       key={a.id}
-                      className="rounded-[6px] border border-ln-op-line-2 bg-ln-op-stripe/40 p-2 text-sm"
+                      className="rounded-[var(--radius-md)] border border-ln-op-line-2 bg-ln-op-stripe/40 p-2 text-sm"
                     >
                       <div className="mb-1 flex flex-wrap items-baseline gap-2">
                         <span className="font-medium text-ln-op-ink">

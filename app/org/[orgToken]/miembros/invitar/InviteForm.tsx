@@ -65,13 +65,13 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
           body="Compartí este link con la persona que querés sumar al equipo."
           icon={<Icon name="check-circle" decorative />}
         />
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
           <p className="break-all font-ln-mono text-sm text-ln-op-ink">{inviteUrl}</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={handleCopy}
-              className="inline-flex items-center gap-1 rounded-[4px] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
+              className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
             >
               {copied ? "¡Copiado!" : "Copiar link"}
             </button>
@@ -79,7 +79,7 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
               href={`https://wa.me/?text=${encodeURIComponent(inviteUrl)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-[4px] border border-ln-op-line px-4 py-[7px] text-sm font-semibold text-ln-op-ink transition-colors hover:bg-ln-op-stripe no-underline"
+              className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] border border-ln-op-line px-4 py-[7px] text-sm font-semibold text-ln-op-ink transition-colors hover:bg-ln-op-stripe no-underline"
             >
               WhatsApp
             </a>
@@ -153,7 +153,7 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
 
       {error && (
         <p
-          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
+          className="rounded-[var(--radius-sm)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
           role="alert"
         >
           {error}

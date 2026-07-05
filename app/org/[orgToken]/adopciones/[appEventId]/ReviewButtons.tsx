@@ -68,12 +68,12 @@ export function ReviewButtons({
 
   if (sent) {
     return (
-      <div className="space-y-3 rounded-[6px] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4">
+      <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4">
         <p className="text-[13px] font-medium text-ln-op-ok">Mensaje enviado a {applicantName}.</p>
         <button
           type="button"
           onClick={reset}
-          className="px-4 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           Volver a las acciones
         </button>
@@ -87,21 +87,21 @@ export function ReviewButtons({
         <button
           type="button"
           onClick={() => setMode("approve")}
-          className="px-4 py-2 rounded-[6px] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+          className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
         >
           Aprobar postulación
         </button>
         <button
           type="button"
           onClick={() => setMode("request_info")}
-          className="px-4 py-2 rounded-[6px] border border-ln-op-azul text-ln-op-azul bg-ln-op-card text-[13px] font-medium hover:bg-ln-op-blue-bg transition-colors"
+          className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-azul text-ln-op-azul bg-ln-op-card text-[13px] font-medium hover:bg-ln-op-blue-bg transition-colors"
         >
           Solicitar más información
         </button>
         <button
           type="button"
           onClick={() => setMode("reject")}
-          className="px-4 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           No avanzar
         </button>
@@ -142,7 +142,7 @@ export function ReviewButtons({
   } as const;
 
   return (
-    <div className="space-y-3 rounded-[6px] border border-ln-op-line bg-ln-op-card p-4">
+    <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4">
       <p className="text-[13px] font-medium text-ln-op-ink">{labelMap[mode]}</p>
       <p className="text-sm text-ln-op-mute">{hintMap[mode]}</p>
       <textarea
@@ -150,7 +150,7 @@ export function ReviewButtons({
         onChange={(e) => setNotes(e.target.value)}
         rows={3}
         placeholder={placeholderMap[mode]}
-        className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+        className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
       />
       {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
@@ -158,7 +158,7 @@ export function ReviewButtons({
           type="button"
           onClick={confirm}
           disabled={pending}
-          className={`px-4 py-2 rounded-[6px] text-[13px] font-medium text-white disabled:opacity-60 transition-opacity ${confirmStyleMap[mode]}`}
+          className={`px-4 py-2 rounded-[var(--radius-md)] text-[13px] font-medium text-white disabled:opacity-60 transition-opacity ${confirmStyleMap[mode]}`}
         >
           {pending ? "Procesando..." : confirmLabelMap[mode]}
         </button>
@@ -166,7 +166,7 @@ export function ReviewButtons({
           type="button"
           onClick={reset}
           disabled={pending}
-          className="px-4 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           Cancelar
         </button>

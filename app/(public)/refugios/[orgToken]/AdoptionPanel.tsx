@@ -55,7 +55,7 @@ export function AdoptionPanel({ orgToken, displayName, items, hasMore }: Props) 
               action={
                 <Link
                   href="/adoptar"
-                  className="inline-flex items-center justify-center rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
+                  className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
                 >
                   Ver mascotas de otros refugios
                 </Link>

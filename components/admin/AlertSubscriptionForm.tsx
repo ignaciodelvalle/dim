@@ -83,7 +83,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
           id="alert-metric-key"
           name="metricKey"
           required
-          className="h-11 w-full rounded-[6px] border border-ln-op-line bg-white px-3 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-white px-3 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           aria-required="true"
         >
           <option value="">Seleccioná una métrica…</option>
@@ -104,7 +104,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
           id="alert-direction"
           name="direction"
           required
-          className="h-11 w-full rounded-[6px] border border-ln-op-line bg-white px-3 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-white px-3 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           aria-required="true"
         >
           <option value="">Seleccioná…</option>
@@ -128,7 +128,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
           step="any"
           required
           placeholder="Ej.: 10"
-          className="h-11 w-full rounded-[6px] border border-ln-op-line bg-white px-3 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-white px-3 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           aria-required="true"
         />
       </div>
@@ -149,7 +149,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
           name="jurisdictionProvince"
           type="text"
           placeholder="Ej.: Buenos Aires"
-          className="h-11 w-full rounded-[6px] border border-ln-op-line bg-white px-3 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-white px-3 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <p className="text-[11px] text-ln-op-mute">
           Nota: "Días sin atender" siempre es global, independientemente de la provincia.
@@ -167,7 +167,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
           type="text"
           maxLength={120}
           placeholder="Ej.: Zoonosis CABA crítica"
-          className="h-11 w-full rounded-[6px] border border-ln-op-line bg-white px-3 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-white px-3 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
       </div>
 
@@ -175,7 +175,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
       <button
         type="submit"
         disabled={isPending}
-        className="h-11 w-full rounded-[6px] bg-ln-op-azul px-4 text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
+        className="h-11 w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
         aria-busy={isPending}
       >
         {isPending ? "Guardando…" : "Crear suscripción"}

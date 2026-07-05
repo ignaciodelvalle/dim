@@ -20,7 +20,7 @@ export function OutbreakHistoryTable({ rows }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-[6px] border border-ln-op-line">
+    <div className="overflow-x-auto rounded-[var(--radius-md)] border border-ln-op-line">
       <table className="min-w-full text-[13px]">
         <caption className="sr-only">
           Historial de brotes por enfermedad, localidad y período

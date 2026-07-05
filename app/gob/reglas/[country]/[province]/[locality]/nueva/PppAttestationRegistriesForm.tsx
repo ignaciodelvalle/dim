@@ -97,7 +97,7 @@ export function PppAttestationRegistriesForm({
         {registries.map((r) => (
           <div
             key={r.id}
-            className="flex items-start gap-2 rounded-[6px] border border-ln-op-line p-3"
+            className="flex items-start gap-2 rounded-[var(--radius-md)] border border-ln-op-line p-3"
           >
             <div className="flex-1 text-[13px]">
               <p className="font-medium text-ln-op-ink">{r.label}</p>
@@ -124,7 +124,7 @@ export function PppAttestationRegistriesForm({
         ))}
       </fieldset>
 
-      <fieldset className="space-y-2 rounded-[6px] border border-dashed border-ln-op-line p-3">
+      <fieldset className="space-y-2 rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-3">
         <legend className="text-[13px] font-medium text-ln-op-ink">Agregar registro</legend>
         {/* Inline add-registry row: compact grid alongside Checkbox — Field not used (rule #2) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">

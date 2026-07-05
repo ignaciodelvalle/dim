@@ -73,7 +73,7 @@ import { TriageActions } from "./TriageActions";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="w-full h-64 rounded-[6px] border border-ln-op-line bg-ln-op-stripe animate-pulse" />
+    <div className="w-full h-64 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe animate-pulse" />
   ),
 });
 
@@ -284,25 +284,25 @@ export default async function GobMaltratoDetailPage({
 
         {/* Summary chips row — case metadata at a glance */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
             <p className="text-xs uppercase tracking-wider text-ln-op-mute">Edad del caso</p>
             <p className="text-[13px] font-semibold text-ln-op-ink">
               {ageInDays === 0 ? "Hoy" : ageInDays === 1 ? "1 día" : `${ageInDays} días`}
             </p>
           </div>
-          <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
             <p className="text-xs uppercase tracking-wider text-ln-op-mute">Gravedad</p>
             <p className="text-[13px] font-semibold text-ln-op-ink">
               {welfareReportSeverityLabel(report.severity)}
             </p>
           </div>
-          <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
             <p className="text-xs uppercase tracking-wider text-ln-op-mute">Estado</p>
             <p className="text-[13px] font-semibold text-ln-op-ink">
               {welfareReportStatusLabel(report.status)}
             </p>
           </div>
-          <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
             <p className="text-xs uppercase tracking-wider text-ln-op-mute">Asignado a</p>
             <p className="text-[13px] font-semibold text-ln-op-ink truncate">
               {assignedToName ?? "Sin asignar"}
@@ -451,7 +451,7 @@ export default async function GobMaltratoDetailPage({
                 <p className="text-ln-op-ink">Cerrada el {formatDateTime(report.closedAt)}</p>
               )}
               {report.resolutionNotes && (
-                <div className="rounded-[4px] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 whitespace-pre-wrap">
+                <div className="rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 whitespace-pre-wrap">
                   {report.resolutionNotes}
                 </div>
               )}
@@ -477,7 +477,7 @@ export default async function GobMaltratoDetailPage({
               </p>
               {/* Org intervention state (UI-7) */}
               {report.orgInterventionStatus === "tomado" && (
-                <div className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe px-3 py-2">
+                <div className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe px-3 py-2">
                   <p className="text-sm text-ln-op-ink">
                     <span className="font-medium">En intervención</span> — la organización tomó la
                     denuncia
@@ -492,7 +492,7 @@ export default async function GobMaltratoDetailPage({
                 </div>
               )}
               {report.orgInterventionStatus === "devuelto" && (
-                <div className="rounded-[4px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2">
+                <div className="rounded-[var(--radius-sm)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2">
                   <p className="text-sm text-ln-op-warn">
                     <span className="font-medium">Devuelta por la organización</span>
                     {orgReturnReason ? `: ${orgReturnReason}` : "."} Volvé a derivarla a otra
@@ -520,7 +520,7 @@ export default async function GobMaltratoDetailPage({
               </p>
               <Link
                 href={`/gob/decomisos/nuevo?welfareReportId=${report.id}${subjectPetToken ? `&pet=${subjectPetToken}` : ""}`}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
               >
                 Iniciar decomiso →
               </Link>

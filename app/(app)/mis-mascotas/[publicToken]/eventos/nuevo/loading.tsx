@@ -20,12 +20,12 @@ export default function EventCaptureFormLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="mx-auto max-w-xl px-[24px] py-[28px] pb-[48px] block"
+      className="mx-auto max-w-xl px-6 py-7 pb-12 block"
     >
       <span className="sr-only">Cargando…</span>
 
       {/* Form title placeholder */}
-      <div className="mb-[24px] flex flex-col gap-[8px]">
+      <div className="mb-6 flex flex-col gap-2">
         <Skeleton w="55%" h="26px" radius="4px" />
         <Skeleton w="70%" h="13px" radius="3px" />
       </div>
@@ -33,7 +33,7 @@ export default function EventCaptureFormLoading() {
       {/* Field placeholders */}
       <div className="flex flex-col gap-[18px]">
         {FIELD_KEYS.map((k) => (
-          <div key={k} className="flex flex-col gap-[8px]">
+          <div key={k} className="flex flex-col gap-2">
             <Skeleton w="35%" h="12px" radius="3px" />
             <Skeleton w="100%" h="40px" radius="3px" />
           </div>
@@ -41,7 +41,7 @@ export default function EventCaptureFormLoading() {
       </div>
 
       {/* Submit button placeholder */}
-      <Skeleton w="140px" h="40px" radius="3px" className="mt-[28px]" />
+      <Skeleton w="140px" h="40px" radius="3px" className="mt-7" />
     </output>
   );
 }

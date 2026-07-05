@@ -247,7 +247,7 @@ export default async function GobVigilanciaPage({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Link
           href="/gob/vigilancia/zoonosis"
-          className="flex items-center gap-3 rounded-[6px] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
+          className="flex items-center gap-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
         >
           <span className="text-[22px]" aria-hidden="true">
             🦠
@@ -259,7 +259,7 @@ export default async function GobVigilanciaPage({
         </Link>
         <Link
           href="/gob/vigilancia/investigaciones"
-          className="flex items-center gap-3 rounded-[6px] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
+          className="flex items-center gap-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
         >
           <span className="text-[22px]" aria-hidden="true">
             🔬

@@ -51,7 +51,7 @@ export function ReplaceMicrochipForm({
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       {/* Current chip info row */}
-      <div className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-sm text-ln-op-ink-2">
+      <div className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-sm text-ln-op-ink-2">
         Chip actual: <span className="font-mono font-semibold text-ln-op-ink">{currentChip}</span>
       </div>
 
@@ -144,7 +144,7 @@ export function ReplaceMicrochipForm({
 
       {isFraud && (
         <div
-          className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-4 py-3 text-sm text-ln-op-danger"
+          className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-4 py-3 text-sm text-ln-op-danger"
           role="alert"
         >
           Esta acción notifica a todos los administradores activos y abre un caso de investigación

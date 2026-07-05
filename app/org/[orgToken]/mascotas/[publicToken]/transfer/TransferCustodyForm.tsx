@@ -110,13 +110,13 @@ export function TransferCustodyForm({
         </LnField>
       </section>
 
-      <p className="text-[11px] rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-ln-op-warn">
+      <p className="text-[11px] rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-ln-op-warn">
         Si el animal tiene tránsito activo, ese registro se cierra automáticamente y se notifica al
         tránsito.
       </p>
 
       {state.error && (
-        <p className="text-sm rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+        <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}
@@ -124,7 +124,7 @@ export function TransferCustodyForm({
       <button
         type="submit"
         disabled={isPending}
-        className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
+        className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
       >
         {isPending ? "Transfiriendo…" : "Transferir custodia"}
       </button>

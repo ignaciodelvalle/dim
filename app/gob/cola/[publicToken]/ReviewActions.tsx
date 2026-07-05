@@ -53,7 +53,7 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Notas para el aplicante (opcional)."
           rows={2}
-          className="w-full text-sm rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul text-ln-op-ink placeholder:text-ln-op-faint"
+          className="w-full text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul text-ln-op-ink placeholder:text-ln-op-faint"
         />
         <div className="flex items-center gap-2">
           <OpButton type="button" onClick={approve} disabled={pending} variant="ok" size="sm">
@@ -86,7 +86,7 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
           onChange={(e) => setReason(e.target.value)}
           placeholder="Razón del rechazo (mínimo 5 caracteres). Se envía al aplicante."
           rows={3}
-          className="w-full text-sm rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul text-ln-op-ink placeholder:text-ln-op-faint"
+          className="w-full text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul text-ln-op-ink placeholder:text-ln-op-faint"
         />
         <div className="flex items-center gap-2">
           <OpButton
@@ -125,7 +125,7 @@ export function ReviewActions({ publicToken }: { publicToken: string }) {
         type="button"
         onClick={() => setMode("rejecting")}
         disabled={pending}
-        className="text-[13px] px-4 py-2 rounded-[6px] border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors disabled:opacity-50"
+        className="text-[13px] px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors disabled:opacity-50"
       >
         Rechazar
       </button>

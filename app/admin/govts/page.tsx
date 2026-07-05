@@ -134,7 +134,7 @@ export default async function GovtsPage({
           </div>
           <Link
             href="/admin/govts/new"
-            className="px-4 py-2 text-sm font-semibold bg-ln-op-azul text-white rounded-[6px] hover:bg-ln-op-azul-700 shrink-0"
+            className="px-4 py-2 text-sm font-semibold bg-ln-op-azul text-white rounded-[var(--radius-md)] hover:bg-ln-op-azul-700 shrink-0"
           >
             + Crear govt
           </Link>
@@ -176,7 +176,7 @@ export default async function GovtsPage({
         </nav>
 
         {govts.length === 0 ? (
-          <div className="text-center py-12 rounded-[6px] border border-dashed border-ln-op-line">
+          <div className="text-center py-12 rounded-[var(--radius-md)] border border-dashed border-ln-op-line">
             <p className="text-sm text-ln-op-mute">
               {query || status !== "all"
                 ? "Ningún govt coincide con la búsqueda."

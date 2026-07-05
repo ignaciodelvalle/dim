@@ -72,7 +72,7 @@ export function VolunteerRow({
   }
 
   return (
-    <li className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+    <li className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
       <div className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">
           <p className="text-[13px] font-medium text-ln-op-ink">{row.displayName}</p>
@@ -110,7 +110,7 @@ export function VolunteerRow({
             type="button"
             onClick={() => setOpen(true)}
             disabled={orgPets.length === 0}
-            className="whitespace-nowrap rounded-[4px] bg-ln-op-azul px-3 py-[6px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700 disabled:opacity-50"
+            className="whitespace-nowrap rounded-[var(--radius-sm)] bg-ln-op-azul px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700 disabled:opacity-50"
           >
             Proponer tránsito
           </button>
@@ -131,7 +131,7 @@ export function VolunteerRow({
                 id={`propose-pet-${row.userId}`}
                 value={petToken}
                 onChange={(e) => setPetToken(e.target.value)}
-                className="w-full rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+                className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
               >
                 {orgPets.map((p) => (
                   <option key={p.id} value={p.publicToken}>
@@ -154,7 +154,7 @@ export function VolunteerRow({
                 value={durationWeeks}
                 onChange={(e) => setDurationWeeks(e.target.value)}
                 placeholder="Opcional"
-                className="w-full rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+                className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
               />
             </div>
           </div>
@@ -163,7 +163,7 @@ export function VolunteerRow({
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
             placeholder="Notas para el voluntario (opcional)"
-            className="w-full rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
           {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
           <div className="flex gap-2">
@@ -171,7 +171,7 @@ export function VolunteerRow({
               type="button"
               onClick={propose}
               disabled={pending}
-              className="rounded-[4px] bg-ln-op-ok px-4 py-[7px] text-sm font-semibold text-white transition-colors disabled:opacity-50"
+              className="rounded-[var(--radius-sm)] bg-ln-op-ok px-4 py-[7px] text-sm font-semibold text-white transition-colors disabled:opacity-50"
             >
               {pending ? "Enviando..." : "Enviar propuesta"}
             </button>
@@ -179,7 +179,7 @@ export function VolunteerRow({
               type="button"
               onClick={() => setOpen(false)}
               disabled={pending}
-              className="rounded-[4px] border border-ln-op-line px-4 py-[7px] text-sm text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
+              className="rounded-[var(--radius-sm)] border border-ln-op-line px-4 py-[7px] text-sm text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
             >
               Cancelar
             </button>

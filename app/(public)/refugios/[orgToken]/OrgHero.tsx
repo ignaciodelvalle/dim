@@ -48,7 +48,7 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
   const showStats = adoptionCount > 0 || serviceCount > 0;
 
   return (
-    <header className="overflow-hidden rounded-[8px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
+    <header className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
       {/* Guilloché top accent */}
       <LnGuilloche />
 
@@ -124,13 +124,13 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
           <div className="flex flex-col sm:flex-row gap-2">
             <Link
               href="?sheet=contactar"
-              className="inline-flex items-center justify-center gap-2 rounded-[4px] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
             >
               ✉ Contactar al refugio
             </Link>
             <Link
               href="?sheet=compartir-org"
-              className="inline-flex items-center justify-center gap-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-sm font-medium px-4 py-2.5 hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-sm font-medium px-4 py-2.5 hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
             >
               ↗ Compartir
             </Link>

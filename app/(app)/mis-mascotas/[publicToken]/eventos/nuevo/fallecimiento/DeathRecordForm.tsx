@@ -51,7 +51,7 @@ function LnCheckbox({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-[10px]">
+    <label className="flex cursor-pointer items-start gap-2.5">
       <input
         type="checkbox"
         name={name}
@@ -59,7 +59,7 @@ function LnCheckbox({
         required={required}
         checked={checked}
         onChange={onChange}
-        className="mt-[2px] h-[14px] w-[14px] flex-shrink-0 accent-[var(--color-ln-azul)]"
+        className="mt-0.5 h-[14px] w-[14px] flex-shrink-0 accent-[var(--color-ln-azul)]"
       />
       <span className="text-[13px] text-[var(--color-ln-ink)]">{children}</span>
     </label>
@@ -220,7 +220,7 @@ export function DeathRecordForm({
 
           {/* Death at clinic section */}
           <LnSheetAccordion num="+" title="¿Falleció en una veterinaria?">
-            <div className="flex flex-col gap-[10px]">
+            <div className="flex flex-col gap-2.5">
               <LnCheckbox
                 name="deathAtClinic"
                 value="true"
@@ -253,11 +253,11 @@ export function DeathRecordForm({
                     )}
                   </LnField>
 
-                  <div className="flex flex-col gap-[6px]">
+                  <div className="flex flex-col gap-1.5">
                     <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
                       ¿El veterinario logró contactarte?
                     </p>
-                    <div className="flex flex-col gap-[6px]">
+                    <div className="flex flex-col gap-1.5">
                       {[
                         { value: "yes", label: "Sí, me contactaron" },
                         { value: "no", label: "No, no lograron contactarme" },
@@ -333,7 +333,7 @@ export function DeathRecordForm({
           {showOwnerBurialHint && (
             <LnCallout tone="warn">
               <strong className="block">Si vas a enterrarlo, te recomendamos:</strong>
-              <ul className="mt-[6px] list-inside list-disc space-y-[3px]">
+              <ul className="mt-1.5 list-inside list-disc space-y-[3px]">
                 <li>Profundidad suficiente para que ningún carroñero pueda excavar.</li>
                 <li>
                   Asegurate que el animal no tenía enfermedades zoonóticas o contagiosas a otros

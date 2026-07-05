@@ -111,7 +111,7 @@ export function PanoramaShell({
         localityCentroids={localityCentroids}
         initialLevel={initialLevel}
         filtersSlot={
-          <div className="space-y-3 rounded-[8px] border border-ln-op-line bg-ln-op-card/40 p-3">
+          <div className="space-y-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/40 p-3">
             <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
             {/* Panorama defaults to a multi-year window (3 años) and exposes the 3a/5a
                 chips so the temporal reproduction spans the seeded history. The detail
@@ -128,7 +128,7 @@ export function PanoramaShell({
       {/* Methodology / "acerca de estas métricas" — for a government data product
           the operator must be able to see how each indicator is computed, its
           sources, and the privacy treatment (exec-gate E9 credibility). */}
-      <details className="rounded-[6px] border border-ln-op-line bg-ln-op-card/40 px-3 py-2 text-sm text-ln-op-ink-2">
+      <details className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/40 px-3 py-2 text-sm text-ln-op-ink-2">
         <summary className="cursor-pointer select-none font-medium text-ln-op-ink">
           Acerca de estas métricas
         </summary>

@@ -53,7 +53,7 @@ export function OrgCreateForm({ dniVerified }: Props) {
     return (
       <div className="space-y-3">
         {/* Requirements panel */}
-        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-4 py-3">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-4 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
             Requisitos para crear una organización
           </p>
@@ -81,7 +81,7 @@ export function OrgCreateForm({ dniVerified }: Props) {
         </div>
 
         {/* CTA */}
-        <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
           <p className="text-sm font-medium text-[var(--color-ln-warn)]">
             Antes de crear una organización, declará tu DNI.
           </p>
@@ -102,7 +102,7 @@ export function OrgCreateForm({ dniVerified }: Props) {
   return (
     <div className="space-y-4">
       {/* Requirements met indicator */}
-      <div className="rounded-[4px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-3">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-3">
         <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
           Requisitos para crear una organización
         </p>

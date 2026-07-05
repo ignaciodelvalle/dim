@@ -170,14 +170,14 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Success banner */}
       {successMessage && (
-        <div className="rounded-[4px] bg-[var(--color-ln-ok-050)] border border-[var(--color-ln-ok)] px-4 py-3">
+        <div className="rounded-[var(--radius-sm)] bg-[var(--color-ln-ok-050)] border border-[var(--color-ln-ok)] px-4 py-3">
           <p className="text-sm text-[var(--color-ln-ok)]">{successMessage}</p>
         </div>
       )}
 
       {/* Global error */}
       {globalError && (
-        <div className="rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-seal)] px-4 py-3">
+        <div className="rounded-[var(--radius-sm)] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-seal)] px-4 py-3">
           <p className="text-sm text-[var(--color-ln-seal)]">{globalError}</p>
         </div>
       )}
@@ -243,7 +243,7 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
           minLength={2}
           maxLength={80}
           placeholder="Tu nombre o apodo"
-          className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           aria-describedby={fieldErrors.displayName ? "displayName-error" : undefined}
         />
         {fieldErrors.displayName && (
@@ -268,7 +268,7 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="+54 9 11 1234-5678"
-          className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
         />
         {fieldErrors.phone && (

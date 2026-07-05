@@ -29,17 +29,17 @@ export default async function RenunciarPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Renunciar a rol veterinario/a
         </h1>
@@ -49,7 +49,7 @@ export default async function RenunciarPage() {
         </p>
       </div>
 
-      <LnCallout tone="warn" title="Esta acción es irreversible" className="mb-[24px]">
+      <LnCallout tone="warn" title="Esta acción es irreversible" className="mb-6">
         Al renunciar perdés acceso a las funciones veterinarias en MiMAR.
       </LnCallout>
 

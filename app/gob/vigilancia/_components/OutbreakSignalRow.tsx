@@ -47,7 +47,7 @@ export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
     <li className="border-b border-ln-op-line-2 last:border-b-0">
       <Link
         href={href}
-        className="flex items-start justify-between gap-3 px-1 py-3 rounded-[6px] hover:bg-ln-op-stripe transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul focus-visible:ring-offset-1"
+        className="flex items-start justify-between gap-3 px-1 py-3 rounded-[var(--radius-md)] hover:bg-ln-op-stripe transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul focus-visible:ring-offset-1"
       >
         <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2 flex-wrap">

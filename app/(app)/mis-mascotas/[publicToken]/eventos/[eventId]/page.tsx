@@ -22,7 +22,7 @@ import { AmendEventButton } from "./AmendEventButton";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="w-full h-[240px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] animate-pulse" />
+    <div className="w-full h-[240px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] animate-pulse" />
   ),
 });
 
@@ -95,28 +95,28 @@ export default async function EventDetailPage({
   const canAmend = accessPath === "owner";
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href={`/mis-mascotas/${pet.publicToken}?tab=historial`}
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Historial de {pet.name}
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
           {eventTypeLabel(eventType)}
         </p>
-        <h1 className="mt-[4px] font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+        <h1 className="mt-1 font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {heading}
         </h1>
         {summary.secondary && (
-          <p className="mt-[4px] text-[13px] text-[var(--color-ln-mute)]">{summary.secondary}</p>
+          <p className="mt-1 text-[13px] text-[var(--color-ln-mute)]">{summary.secondary}</p>
         )}
         {/* Author chip + amended badge */}
-        <div className="mt-[10px] flex flex-wrap items-center gap-[6px]">
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
           <AuthorChip role={event.authorRole} verified={event.authorVerified} />
           {latestAmendment && (
             <AmendedBadge
@@ -129,7 +129,7 @@ export default async function EventDetailPage({
 
       {/* Append-only banner + amend affordance */}
       <div
-        className="mb-[16px] flex flex-col gap-[10px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[14px] py-[10px]"
+        className="mb-4 flex flex-col gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3.5 py-2.5"
         role="note"
       >
         <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
@@ -145,12 +145,12 @@ export default async function EventDetailPage({
         />
       </div>
 
-      <div className="flex flex-col gap-[16px]">
+      <div className="flex flex-col gap-4">
         {/* Timestamps */}
         <LnCard>
           <LnCardHead title="Fechas" />
           <LnCardBody>
-            <div className="grid grid-cols-1 gap-[12px] sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Detail label="Ocurrió" value={formatDateTime(event.occurredAt)} />
               <Detail label="Registrado" value={formatDateTime(event.recordedAt)} />
             </div>
@@ -197,7 +197,7 @@ export default async function EventDetailPage({
                 {details.map((row) => (
                   <div
                     key={row.label}
-                    className="grid grid-cols-1 gap-[4px] py-[10px] first:pt-0 last:pb-0 sm:grid-cols-3 sm:gap-[12px]"
+                    className="grid grid-cols-1 gap-1 py-2.5 first:pt-0 last:pb-0 sm:grid-cols-3 sm:gap-3"
                   >
                     <dt className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
                       {row.label}
@@ -217,7 +217,7 @@ export default async function EventDetailPage({
           <LnCard>
             <LnCardHead title={`Adjuntos (${attachmentUrls.length})`} />
             <LnCardBody>
-              <ul className="grid grid-cols-1 gap-[10px] sm:grid-cols-2">
+              <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 {attachmentUrls.map((a) =>
                   a.url ? (
                     <li key={a.id}>
@@ -226,10 +226,10 @@ export default async function EventDetailPage({
                           <img
                             src={a.url}
                             alt="Adjunto"
-                            className="h-[192px] w-full rounded-[4px] border border-[var(--color-ln-line)] object-cover"
+                            className="h-[192px] w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] object-cover"
                           />
                         ) : (
-                          <span className="flex h-[96px] w-full items-center justify-center rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline">
+                          <span className="flex h-[96px] w-full items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline">
                             Ver adjunto ({a.mimeType})
                           </span>
                         )}
@@ -238,7 +238,7 @@ export default async function EventDetailPage({
                   ) : (
                     <li
                       key={a.id}
-                      className="flex h-[96px] w-full items-center justify-center rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)]"
+                      className="flex h-[96px] w-full items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)]"
                     >
                       Adjunto no disponible
                     </li>
@@ -263,7 +263,7 @@ function Detail({ label, value }: { label: string; value: string | null | undefi
       <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
-      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{value || "—"}</dd>
+      <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{value || "—"}</dd>
     </div>
   );
 }

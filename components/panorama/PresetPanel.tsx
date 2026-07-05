@@ -38,7 +38,7 @@ export function PresetPanel({ presets, activePresetId, onPreset, layout = "stack
                 type="button"
                 aria-pressed={isActive}
                 onClick={() => onPreset(preset.id)}
-                className={`w-full rounded-[6px] border px-2.5 py-2 text-left transition-colors ${
+                className={`w-full rounded-[var(--radius-md)] border px-2.5 py-2 text-left transition-colors ${
                   isActive
                     ? "border-ln-op-azul bg-ln-op-azul/10 text-ln-op-azul"
                     : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul/40 hover:bg-ln-op-card"

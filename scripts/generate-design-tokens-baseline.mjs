@@ -40,8 +40,8 @@ for (const f of filtered) {
 
 const output = {
   _meta: {
-    generatedAt: "2026-06-26",
-    branch: "integration/session-review",
+    generatedAt: "2026-07-05",
+    branch: "integration/all-20260703",
     totalViolations: grandTotal,
     description:
       "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. " +

@@ -68,14 +68,14 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
   }
 
   return (
-    <div className="rounded-[6px] border border-ln-op-line p-3 space-y-3">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-line p-3 space-y-3">
       <p className="text-[13px] font-medium text-ln-op-ink">Sumar parte a la disputa</p>
 
       <div className="flex gap-2 text-sm">
         <button
           type="button"
           onClick={() => setPartyKind("user")}
-          className={`px-2 py-1 rounded-[4px] border ${
+          className={`px-2 py-1 rounded-[var(--radius-sm)] border ${
             partyKind === "user"
               ? "bg-ln-op-azul text-white border-ln-op-azul"
               : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
@@ -86,7 +86,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
         <button
           type="button"
           onClick={() => setPartyKind("org")}
-          className={`px-2 py-1 rounded-[4px] border ${
+          className={`px-2 py-1 rounded-[var(--radius-sm)] border ${
             partyKind === "org"
               ? "bg-ln-op-azul text-white border-ln-op-azul"
               : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
@@ -108,7 +108,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
             partyKind === "user" ? setPartyUserId(e.target.value) : setPartyOrgId(e.target.value)
           }
           placeholder="00000000-0000-0000-0000-000000000000"
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
       </div>
 
@@ -120,7 +120,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
           id="party-role"
           value={partyRole}
           onChange={(e) => setPartyRole(e.target.value as RoleValue)}
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         >
           {ROLE_OPTIONS.map((r) => (
             <option key={r.value} value={r.value}>
@@ -140,7 +140,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
           onChange={(e) => setPositionSummary(e.target.value)}
           rows={2}
           placeholder="Resumen de la posicion de esta parte"
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
       </div>
 

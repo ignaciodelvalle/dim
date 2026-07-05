@@ -55,7 +55,7 @@ export function LnStatusFlag({ status, className = "" }: LnStatusFlagProps) {
   return (
     <span
       className={[
-        "inline-flex items-center gap-[5px] rounded-[2px] border px-[7px] py-[2px]",
+        "inline-flex items-center gap-[5px] rounded-[var(--radius-xs)] border px-[7px] py-0.5",
         "font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.12em]",
         cfg.bg,
         cfg.text,
@@ -108,7 +108,7 @@ export function LnVstamp({ variant, className = "" }: LnVstampProps) {
   return (
     <span
       className={[
-        "inline-flex items-center gap-[5px] rounded-[2px] border px-[8px] py-[3px]",
+        "inline-flex items-center gap-[5px] rounded-[var(--radius-xs)] border px-2 py-[3px]",
         "font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.08em]",
         cfg.bg,
         cfg.text,
@@ -137,7 +137,7 @@ export function LnMemorialChip({
   return (
     <span
       className={[
-        "inline-flex items-center gap-[6px] rounded-full border border-[var(--color-ln-memorial-chip-bd)] bg-[var(--color-ln-memorial-chip-bg)] px-[10px] py-[3px]",
+        "inline-flex items-center gap-1.5 rounded-full border border-[var(--color-ln-memorial-chip-bd)] bg-[var(--color-ln-memorial-chip-bg)] px-2.5 py-[3px]",
         "font-[var(--font-ln-mono)] text-xs uppercase tracking-[.1em] text-[var(--color-ln-memorial-chip-text)]",
         className,
       ]

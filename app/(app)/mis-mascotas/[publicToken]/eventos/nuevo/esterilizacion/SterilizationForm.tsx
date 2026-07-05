@@ -47,14 +47,14 @@ export function SterilizationForm({
       <LnSheetBody>
         <form id={FORM_ID} action={formAction} className="contents">
           <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-          <div className="flex flex-col gap-[6px]">
+          <div className="flex flex-col gap-1.5">
             <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               Procedimiento{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
               </span>
             </p>
-            <div className="flex flex-col gap-[6px]">
+            <div className="flex flex-col gap-1.5">
               <LnRadio name="procedure" value="castration" required>
                 Castración
               </LnRadio>

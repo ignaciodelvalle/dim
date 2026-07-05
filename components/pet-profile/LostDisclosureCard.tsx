@@ -87,7 +87,7 @@ const ROWS: Array<{
 export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirstName }: Props) {
   return (
     <section aria-labelledby="lp-discl-h">
-      <div className="mb-[12px] flex items-baseline justify-between">
+      <div className="mb-3 flex items-baseline justify-between">
         <h3
           id="lp-discl-h"
           className="m-0 font-[var(--font-ln-serif)] text-md font-semibold"
@@ -120,7 +120,7 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
       />
 
       <p
-        className="mt-[10px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em]"
+        className="mt-2.5 font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em]"
         style={{ color: "var(--color-ln-mute)" }}
       >
         {prefs.discloseFirstNameWhenLost

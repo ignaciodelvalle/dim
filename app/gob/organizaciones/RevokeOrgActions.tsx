@@ -190,7 +190,7 @@ function RevokeOrgForm({
   }
 
   return (
-    <div className="rounded-[6px] border border-ln-op-danger p-3 space-y-3 bg-ln-op-danger-bg">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-danger p-3 space-y-3 bg-ln-op-danger-bg">
       <p className="text-xs uppercase tracking-wider text-ln-op-danger">
         Revocar verificación — {org.displayName}
       </p>

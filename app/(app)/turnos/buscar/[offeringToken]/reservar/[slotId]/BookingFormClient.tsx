@@ -38,11 +38,11 @@ export function BookingFormClient({
   const [state, dispatch, pending] = useActionState(formAction, initialState);
 
   return (
-    <form action={dispatch} className="flex flex-col gap-[16px]">
+    <form action={dispatch} className="flex flex-col gap-4">
       <div>
         <label
           htmlFor="pet_select"
-          className="mb-[6px] block font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-1.5 block font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           ¿Para qué mascota?
         </label>
@@ -50,7 +50,7 @@ export function BookingFormClient({
           id="pet_select"
           name="petId"
           required
-          className="w-full appearance-none rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[12px] py-[10px] font-[var(--font-ln-sans)] text-[13.5px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full appearance-none rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2.5 font-[var(--font-ln-sans)] text-[13.5px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         >
           <option value="">Elegí una mascota…</option>
           {userPets.map((pet) => (

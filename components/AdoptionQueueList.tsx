@@ -116,7 +116,7 @@ function housingTypeLabel(value: string): string {
 
 function ResultPanel({ result, onDismiss }: { result: BulkResult; onDismiss: () => void }) {
   return (
-    <div className="rounded-[6px] border border-ln-op-line p-3 space-y-2 text-[13px]">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-line p-3 space-y-2 text-[13px]">
       <div className="flex items-baseline justify-between">
         <p className="font-medium text-ln-op-ink">
           {result.succeeded.length} OK · {result.failed.length} fallaron
@@ -298,7 +298,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
 
       {/* Empty state */}
       {rows.length === 0 ? (
-        <p className="rounded-[4px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
+        <p className="rounded-[var(--radius-sm)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
           {activeStatus === "pending"
             ? "No tenés postulaciones pendientes de revisión."
             : activeStatus === "approved"
@@ -321,7 +321,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
           )}
 
           {/* Row list */}
-          <ul className="divide-y divide-ln-op-line rounded-[4px] border border-ln-op-line">
+          <ul className="divide-y divide-ln-op-line rounded-[var(--radius-sm)] border border-ln-op-line">
             {rows.map((row, idx) => {
               const isSelected = selected.has(row.applicationEventId);
               const days = ageDays(row.submittedAt);
@@ -366,7 +366,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
                         {row.applicantName ?? "Postulante"}
                         <span className="text-sm font-normal text-ln-op-mute">→ {row.petName}</span>
                         {row.infoRequested && (
-                          <span className="inline-flex items-center rounded-[2px] border border-ln-op-azul bg-ln-op-celeste-050 px-[6px] py-[1px] text-[9px] font-semibold uppercase tracking-[.08em] text-ln-op-azul">
+                          <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-ln-op-azul bg-ln-op-celeste-050 px-1.5 py-[1px] text-[9px] font-semibold uppercase tracking-[.08em] text-ln-op-azul">
                             Info pedida
                           </span>
                         )}

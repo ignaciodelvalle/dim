@@ -67,7 +67,7 @@ export function MatchConfirmationCardVecino({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-1">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-1">
         <p className="text-sm font-semibold text-[var(--color-ln-warn)]">
           Posible coincidencia detectada
         </p>
@@ -76,7 +76,7 @@ export function MatchConfirmationCardVecino({
         </p>
       </div>
 
-      <div className="rounded-[4px] border border-[var(--color-ln-line)] overflow-hidden">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] overflow-hidden">
         {petPhotoUrl && (
           <div className="relative aspect-video overflow-hidden bg-[var(--color-ln-stripe)]">
             <Image
@@ -118,7 +118,7 @@ export function MatchConfirmationCardVecino({
       </div>
 
       {error && (
-        <p className="text-sm rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-3 py-2 text-[var(--color-ln-seal)]">
+        <p className="text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-3 py-2 text-[var(--color-ln-seal)]">
           {error}
         </p>
       )}

@@ -21,7 +21,7 @@ export default async function ReplaceMicrochipPage({
     return (
       <LnSheetWrap>
         <LnSheetCard>
-          <div className="px-[18px] py-[24px] space-y-[12px]">
+          <div className="px-[18px] py-6 space-y-[12px]">
             <p className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
               Sin microchip registrado
             </p>
@@ -31,7 +31,7 @@ export default async function ReplaceMicrochipPage({
             </p>
             <Link
               href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/microchip`}
-              className="inline-block rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-[14px] py-[8px] font-[var(--font-ln-mono)] text-[11.5px] font-semibold text-white"
+              className="inline-block rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-[var(--font-ln-mono)] text-[11.5px] font-semibold text-white"
             >
               Registrar microchip implantado
             </Link>

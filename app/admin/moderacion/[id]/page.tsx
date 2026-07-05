@@ -64,7 +64,7 @@ const SEVERITY_PILL: Record<string, SeverityTone> = {
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="h-64 w-full animate-pulse rounded-[6px] border border-ln-op-line bg-ln-op-stripe" />
+    <div className="h-64 w-full animate-pulse rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe" />
   ),
 });
 

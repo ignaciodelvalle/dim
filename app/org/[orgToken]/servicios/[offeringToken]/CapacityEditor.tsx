@@ -72,7 +72,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
           <button
             type="button"
             onClick={openEditor}
-            className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
+            className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
           >
             Editar cupos
           </button>
@@ -95,7 +95,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
           step={1}
           defaultValue={capacity}
           disabled={pending}
-          className="w-24 rounded-[4px] border border-ln-op-line px-2 py-[5px] text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul disabled:opacity-60"
+          className="w-24 rounded-[var(--radius-sm)] border border-ln-op-line px-2 py-[5px] text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul disabled:opacity-60"
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSave();
             if (e.key === "Escape") cancel();
@@ -105,7 +105,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
           type="button"
           onClick={handleSave}
           disabled={pending}
-          className="rounded-[4px] bg-ln-op-azul px-3 py-[5px] text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-60"
+          className="rounded-[var(--radius-sm)] bg-ln-op-azul px-3 py-[5px] text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-60"
         >
           {pending ? "Guardando..." : "Guardar"}
         </button>
@@ -113,7 +113,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
           type="button"
           onClick={cancel}
           disabled={pending}
-          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
+          className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
         >
           Cancelar
         </button>

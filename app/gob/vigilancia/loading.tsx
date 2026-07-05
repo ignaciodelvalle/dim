@@ -15,11 +15,11 @@ export default function VigilanciaLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="mx-auto max-w-5xl px-[32px] py-[28px] pb-[48px] block"
+      className="mx-auto max-w-5xl px-8 py-7 pb-12 block"
     >
       <span className="sr-only">Cargando…</span>
 
-      <div className="grid grid-cols-2 gap-[16px] md:grid-cols-4 mb-[24px]">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 mb-6">
         {KPI_KEYS.map((k) => (
           <OpKpiSkeleton key={k} />
         ))}
@@ -27,11 +27,11 @@ export default function VigilanciaLoading() {
 
       {/* Map placeholder */}
       <div
-        className="rounded-[6px] border border-ln-op-line bg-ln-op-card op-skeleton-shimmer h-[360px] mb-[24px]"
+        className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card op-skeleton-shimmer h-[360px] mb-6"
         aria-hidden="true"
       />
 
-      <div className="grid gap-[24px] md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         <OpCardSkeleton rows={5} />
         <OpCardSkeleton rows={4} />
       </div>

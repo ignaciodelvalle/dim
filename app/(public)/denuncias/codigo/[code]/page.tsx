@@ -151,7 +151,7 @@ export default async function WelfareReportByCodePage({
 
         {/* Fresh submission confirmation banner */}
         {nueva === "1" && (
-          <div className="rounded-[6px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-5 py-5 space-y-3">
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-5 py-5 space-y-3">
             <p className="text-sm font-semibold text-[var(--color-ln-ok)]">
               Tu denuncia fue registrada.
             </p>
@@ -163,7 +163,7 @@ export default async function WelfareReportByCodePage({
             </p>
             {/* pub-codecard pattern: mono code in a bordered box with copy action */}
             <div className="space-y-2">
-              <div className="rounded-[6px] border-2 border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-4 py-3 inline-block">
+              <div className="rounded-[var(--radius-md)] border-2 border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-4 py-3 inline-block">
                 <p
                   className="text-2xl font-semibold tracking-[.06em] text-[var(--color-ln-ink)]"
                   style={{ fontFamily: "var(--font-ln-mono)" }}
@@ -203,7 +203,7 @@ export default async function WelfareReportByCodePage({
           </div>
           <div className="flex flex-wrap gap-2">
             <span
-              className={`text-[9.5px] font-semibold px-2.5 py-0.5 rounded-[2px] ${statusBadgeClass(report.status)}`}
+              className={`text-[9.5px] font-semibold px-2.5 py-0.5 rounded-[var(--radius-xs)] ${statusBadgeClass(report.status)}`}
               style={{
                 fontFamily: "var(--font-ln-mono)",
                 letterSpacing: ".04em",
@@ -213,7 +213,7 @@ export default async function WelfareReportByCodePage({
               {welfareReportStatusLabel(report.status)}
             </span>
             <span
-              className={`text-[9.5px] font-semibold px-2.5 py-0.5 rounded-[2px] ${severityBadgeClass(report.severity)}`}
+              className={`text-[9.5px] font-semibold px-2.5 py-0.5 rounded-[var(--radius-xs)] ${severityBadgeClass(report.severity)}`}
               style={{
                 fontFamily: "var(--font-ln-mono)",
                 letterSpacing: ".04em",
@@ -342,7 +342,7 @@ export default async function WelfareReportByCodePage({
         {/* Integration-pending notice — only while the report is non-terminal.
             On closed / invalid / duplicate it contradicts the status badge. */}
         {!isTerminalStatus(report.status) && (
-          <div className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-5 py-4 text-sm text-[var(--color-ln-warn)] leading-relaxed">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-5 py-4 text-sm text-[var(--color-ln-warn)] leading-relaxed">
             Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
             canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
             enviado cuando la integración esté disponible.

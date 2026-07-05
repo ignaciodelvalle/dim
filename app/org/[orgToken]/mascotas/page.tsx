@@ -79,7 +79,7 @@ export default async function OrgMascotasPage({
           </p>
           <Link
             href={`/org/${orgToken}`}
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
           >
             Volver al panel
           </Link>
@@ -227,7 +227,7 @@ export default async function OrgMascotasPage({
           {canIntake && (
             <Link
               href={`/org/${orgToken}/intake`}
-              className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700"
+              className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700"
             >
               Registrar ingreso
             </Link>
@@ -252,7 +252,7 @@ export default async function OrgMascotasPage({
               type="text"
               defaultValue={sp.q ?? ""}
               placeholder="Ej. Rocky"
-              className="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+              className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
             />
           </div>
           <div>
@@ -266,7 +266,7 @@ export default async function OrgMascotasPage({
               id="filter-species"
               name="species"
               defaultValue={sp.species ?? ""}
-              className="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+              className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
             >
               <option value="">Todas</option>
               <option value="dog">Perros</option>
@@ -276,7 +276,7 @@ export default async function OrgMascotasPage({
           </div>
           <button
             type="submit"
-            className="rounded-[4px] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
+            className="rounded-[var(--radius-sm)] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
           >
             Filtrar
           </button>

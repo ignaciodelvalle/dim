@@ -163,7 +163,7 @@ export default async function AdminOutboxDetailPage({
               <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">
                 Ultimo error
               </p>
-              <pre className="rounded-[6px] bg-ln-op-danger-bg border border-ln-op-danger-bd p-3 text-[11px] text-ln-op-danger overflow-auto whitespace-pre-wrap break-words">
+              <pre className="rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd p-3 text-[11px] text-ln-op-danger overflow-auto whitespace-pre-wrap break-words">
                 {row.lastError}
               </pre>
             </div>
@@ -175,7 +175,7 @@ export default async function AdminOutboxDetailPage({
       <OpCard>
         <OpCardHead title="Payload snapshot" />
         <OpCardBody>
-          <pre className="rounded-[4px] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 overflow-auto whitespace-pre-wrap break-words">
+          <pre className="rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 overflow-auto whitespace-pre-wrap break-words">
             {JSON.stringify(row.payloadSnapshot, null, 2)}
           </pre>
         </OpCardBody>
@@ -228,7 +228,7 @@ export default async function AdminOutboxDetailPage({
                 <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">
                   Payload del evento
                 </p>
-                <pre className="rounded-[4px] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 overflow-auto whitespace-pre-wrap break-words">
+                <pre className="rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 overflow-auto whitespace-pre-wrap break-words">
                   {JSON.stringify(sourceEvent.payload, null, 2)}
                 </pre>
               </div>

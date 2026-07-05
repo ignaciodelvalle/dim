@@ -232,7 +232,7 @@ export default async function AdoptarFichaPage({
         }}
       />
 
-      <div className="max-w-3xl mx-auto px-[24px] py-[28px] space-y-[18px]">
+      <div className="max-w-3xl mx-auto px-6 py-7 space-y-[18px]">
         {/* Back link — mono eyebrow style */}
         <Link
           href="/adoptar"
@@ -247,7 +247,7 @@ export default async function AdoptarFichaPage({
           <div className="space-y-[8px]">
             {/* Hero — 4:3 aspect ratio */}
             <div
-              className="relative overflow-hidden rounded-[10px] border"
+              className="relative overflow-hidden rounded-[var(--radius-input)] border"
               style={{
                 aspectRatio: "4/3",
                 borderColor: "var(--color-ln-line)",
@@ -264,7 +264,7 @@ export default async function AdoptarFichaPage({
               />
               {/* "En adopción" status chip */}
               <span
-                className="absolute top-[12px] left-[12px] inline-flex items-center gap-[6px] rounded-full border px-[12px] py-[5px] text-sm font-semibold"
+                className="absolute top-[12px] left-[12px] inline-flex items-center gap-1.5 rounded-full border px-3 py-[5px] text-sm font-semibold"
                 style={{
                   background: "var(--color-ln-ok-050)",
                   color: "var(--color-ln-ok)",
@@ -280,10 +280,10 @@ export default async function AdoptarFichaPage({
                 En adopción
               </span>
               {/* Health rollup chips overlay */}
-              <div className="absolute bottom-[12px] left-[12px] flex gap-[6px] flex-wrap">
+              <div className="absolute bottom-[12px] left-[12px] flex gap-1.5 flex-wrap">
                 {hasVaccinations && (
                   <span
-                    className="inline-flex items-center gap-[5px] rounded-[4px] px-[10px] py-[4px] text-[11px] font-semibold"
+                    className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] font-semibold"
                     style={{ background: "rgba(255,255,255,.95)", color: "var(--color-ln-ink)" }}
                   >
                     ✓ Vacunas al día
@@ -291,7 +291,7 @@ export default async function AdoptarFichaPage({
                 )}
                 {isSterilized && (
                   <span
-                    className="inline-flex items-center gap-[5px] rounded-[4px] px-[10px] py-[4px] text-[11px] font-semibold"
+                    className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] font-semibold"
                     style={{ background: "rgba(255,255,255,.95)", color: "var(--color-ln-ink)" }}
                   >
                     ✓ Castrada
@@ -299,7 +299,7 @@ export default async function AdoptarFichaPage({
                 )}
                 {hasMicrochip && (
                   <span
-                    className="inline-flex items-center gap-[5px] rounded-[4px] px-[10px] py-[4px] text-[11px] font-semibold"
+                    className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] font-semibold"
                     style={{
                       background: "rgba(255,255,255,.95)",
                       color: "var(--color-ln-azul)",
@@ -312,11 +312,11 @@ export default async function AdoptarFichaPage({
             </div>
             {/* Thumbnails row */}
             {galleryUrls.length > 1 && (
-              <div className="grid grid-cols-4 gap-[6px]">
+              <div className="grid grid-cols-4 gap-1.5">
                 {galleryUrls.slice(1, 5).map((url, idx) => (
                   <div
                     key={url}
-                    className="overflow-hidden rounded-[6px] border"
+                    className="overflow-hidden rounded-[var(--radius-md)] border"
                     style={{
                       aspectRatio: "1/1",
                       borderColor: idx === 0 ? "var(--color-ln-azul)" : "var(--color-ln-line)",
@@ -335,7 +335,7 @@ export default async function AdoptarFichaPage({
           </div>
         ) : (
           <div
-            className="overflow-hidden rounded-[10px] border flex items-center justify-center"
+            className="overflow-hidden rounded-[var(--radius-input)] border flex items-center justify-center"
             style={{
               aspectRatio: "4/3",
               maxWidth: 480,
@@ -354,7 +354,7 @@ export default async function AdoptarFichaPage({
 
         {/* Identity card */}
         <div
-          className="rounded-[8px] border px-[22px] py-[20px]"
+          className="rounded-[var(--radius-lg)] border px-[22px] py-5"
           style={{
             background: "var(--color-ln-card)",
             borderColor: "var(--color-ln-line)",
@@ -368,16 +368,16 @@ export default async function AdoptarFichaPage({
           </h1>
           {pet.breed && (
             <p
-              className="mt-[4px] mb-[10px] text-md font-medium"
+              className="mt-1 mb-2.5 text-md font-medium"
               style={{ color: "var(--color-ln-ink-2)" }}
             >
               {pet.breed}
             </p>
           )}
           {/* Meta chips */}
-          <div className="flex flex-wrap gap-[6px]">
+          <div className="flex flex-wrap gap-1.5">
             <span
-              className="rounded-[4px] border px-[10px] py-[4px] text-sm"
+              className="rounded-[var(--radius-sm)] border px-2.5 py-1 text-sm"
               style={{
                 color: "var(--color-ln-ink-2)",
                 background: "var(--color-ln-stripe)",
@@ -387,7 +387,7 @@ export default async function AdoptarFichaPage({
               {speciesLabel(pet.species)}
             </span>
             <span
-              className="rounded-[4px] border px-[10px] py-[4px] text-sm"
+              className="rounded-[var(--radius-sm)] border px-2.5 py-1 text-sm"
               style={{
                 color: "var(--color-ln-ink-2)",
                 background: "var(--color-ln-stripe)",
@@ -399,7 +399,7 @@ export default async function AdoptarFichaPage({
             {facts.map((f) => (
               <span
                 key={f}
-                className="rounded-[4px] border px-[10px] py-[4px] text-sm"
+                className="rounded-[var(--radius-sm)] border px-2.5 py-1 text-sm"
                 style={{
                   color: "var(--color-ln-ink-2)",
                   background: "var(--color-ln-stripe)",
@@ -411,7 +411,7 @@ export default async function AdoptarFichaPage({
             ))}
           </div>
           {(pet.color || pet.distinguishingFeatures) && (
-            <p className="mt-[10px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
+            <p className="mt-2.5 text-sm" style={{ color: "var(--color-ln-mute)" }}>
               {[pet.color, pet.distinguishingFeatures].filter(Boolean).join(" · ")}
             </p>
           )}
@@ -420,7 +420,7 @@ export default async function AdoptarFichaPage({
         {/* Story — accent left-border card */}
         {pet.adoptionStory && (
           <div
-            className="rounded-[8px] border border-l-[3px] px-[20px] py-[18px]"
+            className="rounded-[var(--radius-lg)] border border-l-[3px] px-5 py-[18px]"
             style={{
               background: "var(--color-ln-card)",
               borderColor: "var(--color-ln-line)",
@@ -428,13 +428,13 @@ export default async function AdoptarFichaPage({
             }}
           >
             <p
-              className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
+              className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               Su historia
             </p>
             <h2
-              className="m-0 mb-[12px] font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
+              className="m-0 mb-3 font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
               style={{ color: "var(--color-ln-ink)" }}
             >
               Sobre {pet.name}
@@ -450,23 +450,23 @@ export default async function AdoptarFichaPage({
 
         {/* Health section */}
         <div
-          className="rounded-[8px] border px-[20px] py-[18px]"
+          className="rounded-[var(--radius-lg)] border px-5 py-[18px]"
           style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
         >
           <p
-            className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
+            className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
             style={{ color: "var(--color-ln-mute)" }}
           >
             Estado médico
           </p>
           <h2
-            className="m-0 mb-[14px] font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
+            className="m-0 mb-3.5 font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
             style={{ color: "var(--color-ln-ink)" }}
           >
             Salud
           </h2>
           <ul
-            className="grid grid-cols-1 sm:grid-cols-2 gap-[4px]"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-1"
             style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
             <HealthRow label="Vacunación al día" ok={hasVaccinations} />
@@ -481,7 +481,7 @@ export default async function AdoptarFichaPage({
               detail={microchipMasked ?? undefined}
             />
           </ul>
-          <p className="mt-[14px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
+          <p className="mt-3.5 text-sm" style={{ color: "var(--color-ln-mute)" }}>
             El detalle clínico completo se comparte al finalizar la adopción.
           </p>
         </div>
@@ -489,30 +489,30 @@ export default async function AdoptarFichaPage({
         {/* Requirements + convivencia */}
         {(pet.adoptionRequirements || convivencia.some((c) => c.value !== null)) && (
           <div
-            className="rounded-[8px] border px-[20px] py-[18px]"
+            className="rounded-[var(--radius-lg)] border px-5 py-[18px]"
             style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
           >
             <p
-              className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
+              className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               Cómo es en el día a día
             </p>
             <h2
-              className="m-0 mb-[12px] font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
+              className="m-0 mb-3 font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
               style={{ color: "var(--color-ln-ink)" }}
             >
               Qué necesita su nuevo hogar
             </h2>
             {pet.adoptionRequirements && (
               <p
-                className="mb-[12px] text-md leading-[1.6] whitespace-pre-wrap"
+                className="mb-3 text-md leading-[1.6] whitespace-pre-wrap"
                 style={{ color: "var(--color-ln-ink-2)" }}
               >
                 {pet.adoptionRequirements}
               </p>
             )}
-            <div className="flex flex-wrap gap-[6px]">
+            <div className="flex flex-wrap gap-1.5">
               {convivencia
                 .filter((c) => c.value !== null)
                 .map((c) => (
@@ -525,32 +525,32 @@ export default async function AdoptarFichaPage({
         {/* Permanent conditions */}
         {pet.discloseConditionsPublicly && pet.permanentConditions.length > 0 && (
           <div
-            className="rounded-[8px] border px-[20px] py-[18px]"
+            className="rounded-[var(--radius-lg)] border px-5 py-[18px]"
             style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
           >
             <p
-              className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
+              className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               A tener en cuenta
             </p>
             <h2
-              className="m-0 mb-[8px] font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
+              className="m-0 mb-2 font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
               style={{ color: "var(--color-ln-ink)" }}
             >
               Necesidades especiales
             </h2>
-            <p className="mb-[12px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
+            <p className="mb-3 text-sm" style={{ color: "var(--color-ln-mute)" }}>
               {pet.name} convive con condiciones permanentes que es importante que conozcas antes de
               postularte. El refugio puede contarte cómo cuidarla.
             </p>
-            <div className="flex flex-wrap gap-[6px]">
+            <div className="flex flex-wrap gap-1.5">
               {pet.permanentConditions
                 .filter(isPermanentCondition)
                 .map((code: PermanentCondition) => (
                   <span
                     key={code}
-                    className="inline-flex rounded-full border px-[10px] py-[4px] text-sm font-semibold"
+                    className="inline-flex rounded-full border px-2.5 py-1 text-sm font-semibold"
                     style={{
                       background: "var(--color-ln-celeste-050)",
                       color: "var(--color-ln-azul-700)",
@@ -562,10 +562,7 @@ export default async function AdoptarFichaPage({
                 ))}
             </div>
             {pet.permanentConditions.includes("otra") && pet.permanentConditionsOther && (
-              <p
-                className="mt-[10px] text-[13px] italic"
-                style={{ color: "var(--color-ln-ink-2)" }}
-              >
+              <p className="mt-2.5 text-[13px] italic" style={{ color: "var(--color-ln-ink-2)" }}>
                 {pet.permanentConditionsOther}
               </p>
             )}
@@ -574,18 +571,18 @@ export default async function AdoptarFichaPage({
 
         {/* Shelter */}
         <div
-          className="rounded-[8px] border px-[20px] py-[18px]"
+          className="rounded-[var(--radius-lg)] border px-5 py-[18px]"
           style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
         >
           <p
-            className="mb-[6px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
+            className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
             style={{ color: "var(--color-ln-mute)" }}
           >
             Refugio responsable
           </p>
-          <div className="flex items-flex-start gap-[14px]">
+          <div className="flex items-flex-start gap-3.5">
             <div
-              className="flex-shrink-0 w-[56px] h-[56px] rounded-[8px] grid place-items-center font-[var(--font-ln-serif)] text-2xl font-semibold text-white"
+              className="flex-shrink-0 w-[56px] h-[56px] rounded-[var(--radius-lg)] grid place-items-center font-[var(--font-ln-serif)] text-2xl font-semibold text-white"
               style={{ background: "var(--color-ln-azul)" }}
             >
               {org.displayName.charAt(0).toUpperCase()}
@@ -598,12 +595,12 @@ export default async function AdoptarFichaPage({
                 {org.displayName}
               </p>
               {(org.jurisdictionLocality || org.jurisdictionProvince) && (
-                <p className="mt-[4px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
+                <p className="mt-1 text-sm" style={{ color: "var(--color-ln-mute)" }}>
                   {[org.jurisdictionLocality, org.jurisdictionProvince].filter(Boolean).join(", ")}
                 </p>
               )}
               <p
-                className="mt-[6px] font-[var(--font-ln-mono)] text-[11px]"
+                className="mt-1.5 font-[var(--font-ln-mono)] text-[11px]"
                 style={{ color: "var(--color-ln-mute)" }}
               >
                 En custodia desde{" "}
@@ -615,7 +612,7 @@ export default async function AdoptarFichaPage({
               </p>
               <Link
                 href={`/refugios/${org.publicToken}`}
-                className="mt-[8px] inline-block text-sm font-semibold no-underline hover:underline"
+                className="mt-2 inline-block text-sm font-semibold no-underline hover:underline"
                 style={{ color: "var(--color-ln-azul)" }}
               >
                 Ver perfil del refugio →
@@ -630,7 +627,7 @@ export default async function AdoptarFichaPage({
         {/* Fee */}
         {pet.adoptionFeeArs != null && pet.adoptionFeeArs > 0 && (
           <div
-            className="rounded-[8px] border px-[20px] py-[16px] space-y-[4px]"
+            className="rounded-[var(--radius-lg)] border px-5 py-4 space-y-[4px]"
             style={{
               background: "var(--color-ln-stripe)",
               borderColor: "var(--color-ln-line-2)",
@@ -664,7 +661,7 @@ function HealthRow({
   detail?: string;
 }) {
   return (
-    <li className="grid gap-[10px] py-[8px]" style={{ gridTemplateColumns: "22px 1fr" }}>
+    <li className="grid gap-2.5 py-2" style={{ gridTemplateColumns: "22px 1fr" }}>
       <span
         className="w-[22px] h-[22px] rounded-full grid place-items-center text-[11px] font-bold flex-shrink-0"
         style={
@@ -720,7 +717,7 @@ function RecentlyAdopted({ name }: { name: string }) {
             "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
         }}
       />
-      <div className="max-w-md mx-auto px-[24px] py-[64px] text-center space-y-[16px]">
+      <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <p className="text-[56px]">🎉</p>
         <h1
           className="font-[var(--font-ln-serif)] font-semibold text-[30px] tracking-[-0.02em]"
@@ -733,7 +730,7 @@ function RecentlyAdopted({ name }: { name: string }) {
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-[20px] py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver otras en adopción
@@ -757,9 +754,9 @@ function PausedView({ name, orgName }: { name: string; orgName: string }) {
             "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
         }}
       />
-      <div className="max-w-md mx-auto px-[24px] py-[64px] text-center space-y-[16px]">
+      <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <div
-          className="inline-block rounded-full px-[16px] py-[7px] text-[13px] font-semibold"
+          className="inline-block rounded-full px-4 py-[7px] text-[13px] font-semibold"
           style={{
             background: "var(--color-ln-warn-050)",
             color: "var(--color-ln-warn)",
@@ -780,7 +777,7 @@ function PausedView({ name, orgName }: { name: string; orgName: string }) {
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-[20px] py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver otras en adopción

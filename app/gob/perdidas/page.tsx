@@ -159,7 +159,7 @@ export default async function GobPerdidasPage({
 
       {/* No-scope warning */}
       {noScope && (
-        <div className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-[13px] text-ln-op-warn">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-[13px] text-ln-op-warn">
           Tu cuenta no tiene localidades asignadas. Pedile a un administrador que te asigne al menos
           una.
         </div>

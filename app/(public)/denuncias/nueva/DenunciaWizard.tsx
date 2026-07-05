@@ -373,7 +373,7 @@ export function DenunciaWizard() {
             <button
               type="button"
               onClick={validateAndAdvance}
-              className="w-full px-4 py-[13px] rounded-[6px] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
+              className="w-full px-4 py-[13px] rounded-[var(--radius-md)] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
             >
               Continuar →
             </button>
@@ -402,7 +402,7 @@ export function DenunciaWizard() {
             <button
               type="button"
               onClick={validateAndAdvance}
-              className="w-full px-4 py-[13px] rounded-[6px] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
+              className="w-full px-4 py-[13px] rounded-[var(--radius-md)] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
             >
               Continuar →
             </button>
@@ -449,7 +449,7 @@ export function DenunciaWizard() {
               <button
                 type="button"
                 onClick={validateAndAdvance}
-                className="w-full px-4 py-[13px] rounded-[6px] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
+                className="w-full px-4 py-[13px] rounded-[var(--radius-md)] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
               >
                 Continuar →
               </button>
@@ -479,7 +479,7 @@ export function DenunciaWizard() {
             <button
               type="button"
               onClick={validateAndAdvance}
-              className="w-full px-4 py-[13px] rounded-[6px] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
+              className="w-full px-4 py-[13px] rounded-[var(--radius-md)] bg-[var(--color-ln-azul)] text-white font-semibold text-sm hover:bg-[var(--color-ln-azul-700)] transition-colors"
             >
               Continuar →
             </button>

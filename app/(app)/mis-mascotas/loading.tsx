@@ -19,13 +19,13 @@ export default function MisMascotasLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="mx-auto max-w-4xl px-[32px] py-[28px] pb-[48px] block"
+      className="mx-auto max-w-4xl px-8 py-7 pb-12 block"
     >
       <span className="sr-only">Cargando…</span>
 
       {/* Header placeholder */}
-      <div className="mb-[24px] flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-[8px]">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
           <Skeleton w="220px" h="30px" radius="4px" />
           <Skeleton w="180px" h="14px" radius="3px" />
         </div>
@@ -33,15 +33,15 @@ export default function MisMascotasLoading() {
       </div>
 
       {/* Registry rows placeholder — 72px rows to match LnRegRow */}
-      <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
+      <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
         {ROW_KEYS.map((k) => (
           <div
             key={k}
-            className="grid items-center gap-[16px] border-b border-[var(--color-ln-line-2)] px-[20px] py-[14px] last:border-b-0"
+            className="grid items-center gap-4 border-b border-[var(--color-ln-line-2)] px-5 py-3.5 last:border-b-0"
             style={{ gridTemplateColumns: "72px 1fr auto" }}
           >
             <Skeleton w="72px" h="72px" radius="50%" />
-            <div className="flex flex-col gap-[8px]">
+            <div className="flex flex-col gap-2">
               <Skeleton w="45%" h="16px" radius="3px" />
               <Skeleton w="30%" h="12px" radius="3px" />
             </div>

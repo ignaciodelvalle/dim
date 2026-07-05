@@ -20,7 +20,7 @@ export default function IntegracionMiArgPage() {
       <output
         aria-label="Aviso de vista ilustrativa"
         data-testid="miarg-disclaimer"
-        className="block rounded-[8px] border-2 border-ln-op-warn-bd bg-ln-op-warn-bg px-5 py-3 text-center text-[13px] font-semibold text-ln-op-ink"
+        className="block rounded-[var(--radius-lg)] border-2 border-ln-op-warn-bd bg-ln-op-warn-bg px-5 py-3 text-center text-[13px] font-semibold text-ln-op-ink"
       >
         Integración en desarrollo — vista ilustrativa
       </output>
@@ -54,7 +54,7 @@ export default function IntegracionMiArgPage() {
             <p className="text-sm text-ln-op-ink-2">DNI 30.485.211</p>
           </div>
 
-          <div className="rounded-[8px] border border-ln-op-line bg-ln-op-bg px-4 py-3 space-y-1">
+          <div className="rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-bg px-4 py-3 space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-ln-op-mute">
               Mascotas registradas en MiMAR
             </p>
@@ -64,7 +64,7 @@ export default function IntegracionMiArgPage() {
             </ul>
           </div>
 
-          <div className="rounded-[8px] border border-ln-op-line bg-ln-op-bg px-4 py-3 space-y-1">
+          <div className="rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-bg px-4 py-3 space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-ln-op-mute">
               Acciones disponibles
             </p>
@@ -80,7 +80,7 @@ export default function IntegracionMiArgPage() {
             type="button"
             disabled
             aria-disabled="true"
-            className="w-full cursor-not-allowed rounded-[8px] bg-ln-op-navy/60 px-4 py-2.5 text-sm font-semibold text-white opacity-60"
+            className="w-full cursor-not-allowed rounded-[var(--radius-lg)] bg-ln-op-navy/60 px-4 py-2.5 text-sm font-semibold text-white opacity-60"
           >
             Acceder con Mi Argentina (próximamente)
           </button>

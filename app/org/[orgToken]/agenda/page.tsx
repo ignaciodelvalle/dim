@@ -180,14 +180,14 @@ export default async function OrgAgendaPage({
       <div className="flex items-center gap-3">
         <Link
           href={`/org/${orgToken}/agenda?fecha=${prevDate}`}
-          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           ← Anterior
         </Link>
         {!isToday && (
           <Link
             href={`/org/${orgToken}/agenda`}
-            className="px-3 py-1.5 rounded-[6px] border border-ln-op-azul bg-ln-op-card text-sm font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors"
+            className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-card text-sm font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors"
           >
             Hoy
           </Link>
@@ -202,7 +202,7 @@ export default async function OrgAgendaPage({
         </span>
         <Link
           href={`/org/${orgToken}/agenda?fecha=${nextDate}`}
-          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           Siguiente →
         </Link>
@@ -307,7 +307,7 @@ export default async function OrgAgendaPage({
                       <div className="shrink-0">
                         <Link
                           href={`/org/${orgToken}/agenda/turnos/${appointment.publicToken}`}
-                          className="text-sm px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors text-ln-op-azul"
+                          className="text-sm px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors text-ln-op-azul"
                         >
                           Gestionar
                         </Link>

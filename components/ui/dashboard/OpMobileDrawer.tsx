@@ -83,7 +83,7 @@ export function OpMobileDrawer({
           aria-label="Menú principal"
         >
           {/* Brand header */}
-          <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-[16px] pb-[13px]">
+          <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-4 pb-[13px]">
             <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[5px] bg-ln-op-card font-ln-mono text-[13px] font-bold text-ln-op-navy">
               m·
             </div>
@@ -137,7 +137,7 @@ export function OpMobileDrawer({
                           key={item.href}
                           aria-disabled="true"
                           className={[
-                            "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-[8px]",
+                            "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-2",
                             "text-[12.5px] -ml-0.5 border-l-2 border-transparent",
                             "text-ln-op-rail-mute cursor-not-allowed select-none",
                           ].join(" ")}
@@ -162,7 +162,7 @@ export function OpMobileDrawer({
                         href={item.href}
                         aria-current={active ? "page" : undefined}
                         className={[
-                          "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-[8px]",
+                          "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-2",
                           "text-[12.5px] no-underline transition-colors -ml-0.5",
                           active
                             ? activeClasses

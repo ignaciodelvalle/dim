@@ -237,7 +237,7 @@ export default async function OrgTransitosPage({
                       </div>
                       <Link
                         href={`/org/${orgToken}/mascotas/${pet.publicToken}`}
-                        className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
+                        className="shrink-0 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
                       >
                         Ver ficha
                       </Link>

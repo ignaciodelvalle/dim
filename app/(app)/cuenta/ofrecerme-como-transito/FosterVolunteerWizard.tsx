@@ -157,7 +157,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
       {/* Status banner + pause/withdraw lives above the wizard — these are
           "out of band" actions that don't fit a linear flow. */}
       {initial && initial.status === "active" && (
-        <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
           <p className="text-[var(--color-ln-ok)]">
             Estás inscripto · <strong>{initial.availableSlots}</strong> slot(s) disponible(s)
           </p>
@@ -210,7 +210,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
         </div>
       )}
       {initial && initial.status === "paused" && (
-        <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
           <p className="text-[var(--color-ln-warn)]">
             Tu inscripción está <strong>pausada</strong>. No recibís propuestas nuevas.
           </p>
@@ -225,7 +225,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
         </div>
       )}
       {isWithdrawn && (
-        <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-3 text-sm text-[var(--color-ln-warn)]">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-3 text-sm text-[var(--color-ln-warn)]">
           Saliste del pool antes. Re-inscribirte va a sumar un slot fresh.
         </div>
       )}
@@ -288,7 +288,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                 value={maxDurationWeeks}
                 onChange={(e) => setMaxDurationWeeks(e.target.value)}
                 placeholder="Ej: 8"
-                className="w-32 px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+                className="w-32 px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
               <p className="text-xs text-[var(--color-ln-mute)]">
                 Dejalo vacío si podés acompañar el tránsito hasta el fin.
@@ -416,7 +416,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
                 placeholder="Algo que quieras que sepan: experiencia previa, horarios, etc."
-                className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+                className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
             </div>
 

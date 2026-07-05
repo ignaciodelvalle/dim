@@ -133,7 +133,7 @@ export function Step3Where({
           return (
             <label
               key={opt.value}
-              className={`flex items-center gap-3 rounded-[6px] border px-4 py-2.5 cursor-pointer transition-colors ${
+              className={`flex items-center gap-3 rounded-[var(--radius-md)] border px-4 py-2.5 cursor-pointer transition-colors ${
                 isSelected
                   ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)]"
                   : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:border-[var(--color-ln-line-strong)]"
@@ -181,7 +181,7 @@ export function Step3Where({
         </p>
         <LocationFields mode="l2" allowAnonymous onLocationPresenceChange={setHasLocation} />
         {!hasLocation && (
-          <output className="mt-2 block rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-3 py-2 text-[12.5px] text-[var(--color-ln-warn)] leading-snug">
+          <output className="mt-2 block rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-3 py-2 text-[12.5px] text-[var(--color-ln-warn)] leading-snug">
             Sin ubicación, la denuncia no puede dirigirse a la autoridad de tu zona. Podés enviarla
             igual, pero agregar el lugar ayuda a que llegue a quien corresponde.
           </output>
@@ -190,7 +190,7 @@ export function Step3Where({
 
       {error && (
         <p
-          className="text-sm text-[var(--color-ln-seal)] rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-err-100)] px-3 py-2"
+          className="text-sm text-[var(--color-ln-seal)] rounded-[var(--radius-sm)] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-err-100)] px-3 py-2"
           role="alert"
         >
           {error}

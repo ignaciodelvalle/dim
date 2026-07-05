@@ -199,7 +199,7 @@ export function OpKpi({
   drillHref,
 }: Props) {
   const cardCls = [
-    "flex flex-col rounded-[6px] border p-[14px_16px]",
+    "flex flex-col rounded-[var(--radius-md)] border p-[14px_16px]",
     "min-h-[112px] no-underline text-inherit",
     toneCard[tone],
   ].join(" ");
@@ -237,7 +237,7 @@ export function OpKpi({
 
       {/* Progress bar */}
       {bar !== undefined && (
-        <div className="mt-[10px] h-1 overflow-hidden rounded-sm bg-black/[0.07]">
+        <div className="mt-2.5 h-1 overflow-hidden rounded-sm bg-black/[0.07]">
           <span
             className="block h-full rounded-sm"
             style={{
@@ -316,7 +316,7 @@ type SmProps = Pick<Props, "label" | "value" | "tone" | "sub" | "href">;
  */
 export function OpKpiSm({ label, value, tone = "neutral", sub, href }: SmProps) {
   const cardCls = [
-    "flex flex-col rounded-[6px] border p-[11px_13px]",
+    "flex flex-col rounded-[var(--radius-md)] border p-[11px_13px]",
     "no-underline text-inherit",
     toneCard[tone],
   ].join(" ");

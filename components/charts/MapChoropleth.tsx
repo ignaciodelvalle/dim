@@ -772,7 +772,7 @@ export function MapChoropleth({
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-ln-ink-3">
                   <span
-                    className="inline-block w-2.5 h-2.5 rounded-[2px] border border-ln-line"
+                    className="inline-block w-2.5 h-2.5 rounded-[var(--radius-xs)] border border-ln-line"
                     style={{ background: COLOR_DIVERGENT_NEUTRAL }}
                     aria-hidden="true"
                   />

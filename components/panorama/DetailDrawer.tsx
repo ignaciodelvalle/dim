@@ -166,7 +166,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 const DRILL_CLS =
-  "inline-flex items-center gap-1 rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white no-underline hover:bg-ln-op-azul-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul";
+  "inline-flex items-center gap-1 rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white no-underline hover:bg-ln-op-azul-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul";
 
 /**
  * map-QOL no-silent-crossing: drill links to /gob/* surfaces get an explicit
@@ -240,7 +240,7 @@ function FeatureBody({
         .join(", ");
       return (
         <>
-          <p className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-sm text-ln-op-ink-2">
+          <p className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-sm text-ln-op-ink-2">
             Ubicación aproximada (centroide de localidad). No se muestra la ubicación exacta de la
             denuncia.
           </p>
@@ -468,7 +468,7 @@ function UnitHistorySection({
       )}
 
       {state.status === "ok" && state.data.suppressed && (
-        <p className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-sm text-ln-op-ink-2">
+        <p className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-sm text-ln-op-ink-2">
           Suprimido por k-anonimato (menos de 5 eventos en el período).
         </p>
       )}
@@ -594,7 +594,7 @@ export function DetailDrawer({ selected, onClose }: Props) {
               type="button"
               onClick={onClose}
               aria-label="Cerrar"
-              className="rounded-[6px] border border-ln-op-line px-2 py-1 text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
+              className="rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
             >
               ✕
             </button>

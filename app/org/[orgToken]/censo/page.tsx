@@ -32,7 +32,7 @@ export default async function OrgCensoPage({
     return (
       <div className="space-y-6">
         <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Censo" }]} />
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-6 text-[13px] text-ln-op-mute">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-6 text-[13px] text-ln-op-mute">
           El censo de ocupación solo está disponible para refugios y redes de rescate con acceso a
           ingresos.
         </div>
@@ -77,7 +77,7 @@ export default async function OrgCensoPage({
       {breakdown.anyOverCapacity && (
         <div
           role="alert"
-          className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-4 py-3 text-[13px] text-ln-op-danger font-medium"
+          className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-4 py-3 text-[13px] text-ln-op-danger font-medium"
         >
           Sobre capacidad — la organización tiene más animales de los que declaró como capacidad
           máxima. Esto no bloquea nuevos ingresos, es solo informativo.

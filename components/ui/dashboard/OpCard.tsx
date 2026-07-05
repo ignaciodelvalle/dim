@@ -40,7 +40,7 @@ export function OpCard({ children, accent, className = "" }: CardProps) {
   return (
     <div
       className={[
-        "overflow-hidden rounded-[6px] border border-ln-op-line bg-ln-op-card",
+        "overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card",
         accent ? accentClasses[accent] : "",
         className,
       ]

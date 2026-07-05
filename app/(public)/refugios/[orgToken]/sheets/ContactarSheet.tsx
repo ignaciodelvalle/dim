@@ -62,7 +62,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
         {/* Direct channels — when set, give the visitor the fastest path
             before the form. */}
         {(orgEmail || orgPhone) && (
-          <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3 text-sm space-y-1.5">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3 text-sm space-y-1.5">
             <p className="text-xs uppercase tracking-wider text-[var(--color-ln-mute)]">
               Canales directos
             </p>
@@ -84,7 +84,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
         )}
 
         {state.ok ? (
-          <div className="rounded-[4px] border border-[var(--color-ln-ok)]/40 bg-[var(--color-ln-ok)]/10 p-4 text-sm text-[var(--color-ln-ink)]">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)]/40 bg-[var(--color-ln-ok)]/10 p-4 text-sm text-[var(--color-ln-ink)]">
             <p className="font-medium">Mensaje enviado.</p>
             <p className="mt-1 text-xs text-[var(--color-ln-ink-2)]">
               El equipo de {orgDisplayName} te va a responder por email cuando pueda.
@@ -148,7 +148,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
             </div>
 
             {state.error && (
-              <p className="text-sm text-[var(--color-ln-err)] rounded-[4px] bg-[var(--color-ln-err)]/10 border border-[var(--color-ln-err)]/30 px-3 py-2">
+              <p className="text-sm text-[var(--color-ln-err)] rounded-[var(--radius-sm)] bg-[var(--color-ln-err)]/10 border border-[var(--color-ln-err)]/30 px-3 py-2">
                 {state.error}
               </p>
             )}
@@ -156,7 +156,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
             <button
               type="submit"
               disabled={isPending}
-              className="w-full rounded-[4px] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
+              className="w-full rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
             >
               {isPending ? "Enviando…" : "Enviar mensaje"}
             </button>

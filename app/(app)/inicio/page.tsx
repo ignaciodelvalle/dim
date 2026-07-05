@@ -114,11 +114,11 @@ export default async function InicioPage() {
   });
 
   return (
-    <div className="mx-auto max-w-5xl px-[32px] py-[28px] pb-[48px] md:px-[32px]">
+    <div className="mx-auto max-w-5xl px-8 py-7 pb-12 md:px-8">
       {/* ------------------------------------------------------------------ */}
       {/* Greeting                                                            */}
       {/* ------------------------------------------------------------------ */}
-      <div className="mb-[24px] flex items-start justify-between gap-4">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Buen día, {firstName}.
@@ -127,7 +127,7 @@ export default async function InicioPage() {
             // UX 3.5 item 6: cap large aggregate counts at "99+" so the greeting
             // does not read as alarming personal debt for high-volume owners.
             // "requieren atención" is also softened to "con novedades".
-            <p className="mt-[6px] text-md text-[var(--color-ln-ink-2)]">
+            <p className="mt-1.5 text-md text-[var(--color-ln-ink-2)]">
               {reminders.length > 0 && (
                 <>
                   Tenés{" "}
@@ -149,7 +149,7 @@ export default async function InicioPage() {
               )}
             </p>
           ) : (
-            <p className="mt-[6px] text-md text-[var(--color-ln-mute)]">Todo en orden.</p>
+            <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">Todo en orden.</p>
           )}
         </div>
         <div className="flex-shrink-0 text-right font-[var(--font-ln-mono)] text-[11px] uppercase leading-[1.6] tracking-[.06em] text-[var(--color-ln-mute)]">
@@ -171,10 +171,10 @@ export default async function InicioPage() {
       {/* decoration, no behavior. Outer wrapper is now the real LnCard      */}
       {/* component instead of a hand-copied duplicate of its own classes.  */}
       {/* ------------------------------------------------------------------ */}
-      <LnCard className="mb-[24px] border-t-[3px] border-t-[var(--color-ln-azul)]">
+      <LnCard className="mb-6 border-t-[3px] border-t-[var(--color-ln-azul)]">
         {/* Card header */}
-        <div className="flex items-center gap-[12px] px-[18px] pb-[12px] pt-[16px]">
-          <div className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[8px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]">
+        <div className="flex items-center gap-3 px-[18px] pb-3 pt-4">
+          <div className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]">
             {/* pencil/edit glyph */}
             <svg
               width="18"
@@ -195,14 +195,14 @@ export default async function InicioPage() {
             <h2 className="m-0 font-[var(--font-ln-serif)] text-[17px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
               Asentar un hecho en la libreta
             </h2>
-            <p className="mt-[2px] text-sm text-[var(--color-ln-mute)]">
+            <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
               Escribí en lenguaje natural — abrimos el formulario que corresponda.
             </p>
           </div>
         </div>
 
         {/* EventCatcher body — behavior untouched, only outer container styled above */}
-        <div className="border-t border-[var(--color-ln-line-2)] px-[18px] pb-[18px] pt-[14px]">
+        <div className="border-t border-[var(--color-ln-line-2)] px-[18px] pb-[18px] pt-3.5">
           <EventCatcher pets={eventCatcherPets} />
         </div>
       </LnCard>
@@ -210,7 +210,7 @@ export default async function InicioPage() {
       {/* ------------------------------------------------------------------ */}
       {/* 2-col grid                                                          */}
       {/* ------------------------------------------------------------------ */}
-      <div className="grid gap-[24px] lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* LEFT — Estado sanitario: the single per-pet surface (Item 5).
             Pet navigation lives in the top nav (/mis-mascotas); each strip row
             links to its pet. Zero pets → the "Cargar una mascota" CTA. */}
@@ -233,13 +233,13 @@ export default async function InicioPage() {
         </div>
 
         {/* RIGHT — stacked cards */}
-        <div className="flex flex-col gap-[20px]">
+        <div className="flex flex-col gap-5">
           {/* Próximos turnos */}
           {appointments.length > 0 && (
             <LnCard>
               <LnCardHead title="Próximos turnos" label="agenda" />
               <LnCardBody>
-                <div className="flex flex-col gap-[10px]">
+                <div className="flex flex-col gap-2.5">
                   {appointments.map(({ appointment, slot, offering, pet }) => (
                     <ApptRow
                       key={appointment.publicToken}
@@ -263,7 +263,7 @@ export default async function InicioPage() {
       </div>
 
       {/* Footer */}
-      <div className="mt-[40px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-3.5 font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
         <span>Documento sincronizado</span>
         <Link
           href="/denuncias/nueva"
@@ -310,9 +310,9 @@ function ApptRow({
   return (
     <Link
       href={`/mis-turnos/${token}`}
-      className="flex items-center gap-[12px] rounded-[4px] hover:bg-[var(--color-ln-stripe)] transition-colors no-underline -mx-[6px] px-[6px] py-[4px]"
+      className="flex items-center gap-3 rounded-[var(--radius-sm)] hover:bg-[var(--color-ln-stripe)] transition-colors no-underline -mx-1.5 px-1.5 py-1"
     >
-      <div className="flex h-[44px] w-[44px] flex-shrink-0 flex-col items-center justify-center rounded-[4px] border border-[var(--color-ln-line)] text-center">
+      <div className="flex h-[44px] w-[44px] flex-shrink-0 flex-col items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] text-center">
         <span className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
           {MONTH_ABBR[date.getMonth()]}
         </span>

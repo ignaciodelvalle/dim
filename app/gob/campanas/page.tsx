@@ -299,7 +299,7 @@ export default async function GobCampanasPage({
                   return (
                     <li
                       key={offering.offeringId}
-                      className="flex flex-col gap-1 rounded-[6px] border border-ln-op-line bg-ln-op-card p-[12px_14px]"
+                      className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-[12px_14px]"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -322,7 +322,7 @@ export default async function GobCampanasPage({
                       {/* Metrics row */}
                       <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                         {/* Enrollment */}
-                        <div className="rounded-[4px] bg-ln-op-stripe px-2 py-1.5">
+                        <div className="rounded-[var(--radius-sm)] bg-ln-op-stripe px-2 py-1.5">
                           <p className="text-lg font-semibold font-ln-serif text-ln-op-ink leading-none">
                             {offering.enrollment}
                           </p>
@@ -332,7 +332,7 @@ export default async function GobCampanasPage({
                         </div>
 
                         {/* Completion */}
-                        <div className="rounded-[4px] bg-ln-op-stripe px-2 py-1.5">
+                        <div className="rounded-[var(--radius-sm)] bg-ln-op-stripe px-2 py-1.5">
                           <p
                             className={[
                               "text-lg font-semibold font-ln-serif leading-none",
@@ -363,7 +363,7 @@ export default async function GobCampanasPage({
                         </div>
 
                         {/* No-show */}
-                        <div className="rounded-[4px] bg-ln-op-stripe px-2 py-1.5">
+                        <div className="rounded-[var(--radius-sm)] bg-ln-op-stripe px-2 py-1.5">
                           <p
                             className={[
                               "text-lg font-semibold font-ln-serif leading-none",

@@ -61,7 +61,7 @@ export function Step1Kind({ selected, onSelect }: Step1KindProps) {
             return (
               <li key={kind}>
                 <label
-                  className={`flex items-center gap-3 rounded-[6px] border px-4 py-3.5 cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3 rounded-[var(--radius-md)] border px-4 py-3.5 cursor-pointer transition-colors ${
                     isSelected
                       ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] shadow-[inset_0_0_0_1px_var(--color-ln-azul)]"
                       : "border-[var(--color-ln-line)] bg-[var(--color-ln-card)] hover:border-[var(--color-ln-line-strong)]"

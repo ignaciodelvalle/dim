@@ -104,7 +104,7 @@ export default async function VoluntariosPage({
             id="filter-species"
             name="species"
             defaultValue={filters.species ?? ""}
-            className="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             <option value="">Todas</option>
             <option value="dog">Perros</option>
@@ -118,7 +118,7 @@ export default async function VoluntariosPage({
           defaultProvince={filters.province ?? ""}
           defaultLocality={filters.locality ?? ""}
           labelClassName="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
-          selectClassName="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          selectClassName="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <div>
           <label
@@ -131,7 +131,7 @@ export default async function VoluntariosPage({
             id="filter-pet"
             name="pet"
             defaultValue={filters.pet ?? ""}
-            className="rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             <option value="">— sin mascota —</option>
             {orgPets.map((p) => (
@@ -143,7 +143,7 @@ export default async function VoluntariosPage({
         </div>
         <button
           type="submit"
-          className="rounded-[4px] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
+          className="rounded-[var(--radius-sm)] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
         >
           Filtrar
         </button>

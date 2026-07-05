@@ -93,32 +93,32 @@ export default async function AppointmentDetailPage({
     : null;
 
   return (
-    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-md px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/mis-turnos"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis turnos
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px] flex items-start justify-between gap-3">
+      <div className="mb-6 flex items-start justify-between gap-3">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {offering.displayName}
         </h1>
         <span
-          className={`flex-shrink-0 inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
+          className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
         >
           {statusConfig.label}
         </span>
       </div>
 
       {/* Details */}
-      <LnCard className="mb-[20px]">
+      <LnCard className="mb-5">
         <LnCardHead title="Detalle del turno" />
         <LnCardBody>
-          <dl className="flex flex-col gap-[12px]">
+          <dl className="flex flex-col gap-3">
             <DetailRow label="Mascota">
               <Link
                 href={`/mis-mascotas/${pet.publicToken}`}
@@ -149,14 +149,14 @@ export default async function AppointmentDetailPage({
 
       {/* QR check-in */}
       {showCheckInQr && qrSvg && (
-        <LnCard className="mb-[20px]">
+        <LnCard className="mb-5">
           <LnCardHead title="Check-in en la clínica" label="QR" />
-          <LnCardBody className="flex flex-col items-center gap-[10px]">
+          <LnCardBody className="flex flex-col items-center gap-2.5">
             <p className="self-start text-[12.5px] text-[var(--color-ln-ink-2)]">
               Mostrá este QR cuando llegues. Si el escáner no lo lee, dictá el código de abajo.
             </p>
             <div
-              className="rounded-[4px] border border-[var(--color-ln-line)] bg-white p-[8px]"
+              className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-white p-2"
               // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
@@ -169,7 +169,7 @@ export default async function AppointmentDetailPage({
 
       {/* Attended notice */}
       {appointment.status === "attended" && (
-        <div className="mb-[20px]">
+        <div className="mb-5">
           <LnCallout tone="azul">
             Asististe a este turno. El registro médico quedó guardado en la libreta de {pet.name}.
           </LnCallout>
@@ -178,7 +178,7 @@ export default async function AppointmentDetailPage({
 
       {/* Cancel */}
       {canCancel && (
-        <div className="border-t border-[var(--color-ln-line-2)] pt-[16px]">
+        <div className="border-t border-[var(--color-ln-line-2)] pt-4">
           <Suspense>
             <CancelButton />
           </Suspense>
@@ -203,7 +203,7 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
       <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
-      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+      <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
     </div>
   );
 }

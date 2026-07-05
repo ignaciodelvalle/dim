@@ -170,7 +170,7 @@ export function CaseDetailShell({
         {/* Parties */}
         <section
           aria-label="Partes del caso"
-          className="rounded-[4px] border border-ln-op-line bg-ln-op-card p-4"
+          className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card p-4"
         >
           <h2 className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-ln-op-mute">
             Partes
@@ -196,7 +196,7 @@ export function CaseDetailShell({
         {/* Jurisdiction */}
         <section
           aria-label="Jurisdicción"
-          className="rounded-[4px] border border-ln-op-line bg-ln-op-card p-4"
+          className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card p-4"
         >
           <h2 className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-ln-op-mute">
             Jurisdicción
@@ -211,7 +211,7 @@ export function CaseDetailShell({
         {/* Normativa */}
         <section
           aria-label="Normativa aplicable"
-          className="rounded-[4px] border border-ln-op-line bg-ln-op-card p-4"
+          className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card p-4"
         >
           <h2 className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-ln-op-mute">
             Normativa aplicable
@@ -250,7 +250,7 @@ export function CaseDetailShell({
       {!isPublic && openedReason ? (
         <section
           aria-label="Motivo de apertura"
-          className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe p-4"
+          className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe p-4"
         >
           <h2 className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-ln-op-mute">
             Motivo de apertura
@@ -276,7 +276,7 @@ function SubjectCard({ subject }: { subject: CaseSubjectDescriptor }) {
     return (
       <section
         aria-label="Mascota sujeto del caso"
-        className="flex items-center gap-4 rounded-[4px] border border-ln-op-line bg-ln-op-card p-5"
+        className="flex items-center gap-4 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card p-5"
       >
         {subject.petPhotoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -328,7 +328,7 @@ function SubjectCard({ subject }: { subject: CaseSubjectDescriptor }) {
   return (
     <section
       aria-label="Sujeto del caso"
-      className="rounded-[4px] border border-ln-op-line bg-ln-op-card p-5"
+      className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card p-5"
     >
       <p className="text-[13px] text-ln-op-mute">{descriptor}</p>
     </section>

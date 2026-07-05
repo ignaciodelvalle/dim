@@ -35,7 +35,7 @@ export function DecideForm({
         <button
           type="button"
           onClick={() => setShowReason(decision)}
-          className={`text-sm px-2 py-1 rounded-[4px] transition-colors ${baseClass}`}
+          className={`text-sm px-2 py-1 rounded-[var(--radius-sm)] transition-colors ${baseClass}`}
         >
           {label}
         </button>
@@ -50,20 +50,20 @@ export function DecideForm({
           rows={2}
           maxLength={500}
           placeholder="Motivo (opcional)"
-          className="text-sm w-full rounded-[4px] border border-ln-op-line bg-ln-op-card p-2 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+          className="text-sm w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card p-2 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
         />
         <div className="flex items-center gap-2">
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`text-sm px-2 py-1 rounded-[4px] transition-colors disabled:opacity-50 ${baseClass}`}
+            className={`text-sm px-2 py-1 rounded-[var(--radius-sm)] transition-colors disabled:opacity-50 ${baseClass}`}
           >
             {isSubmitting ? "Enviando…" : `Confirmar ${label.toLowerCase()}`}
           </button>
           <button
             type="button"
             onClick={() => setShowReason(null)}
-            className="text-sm px-2 py-1 rounded-[4px] text-ln-op-mute hover:underline"
+            className="text-sm px-2 py-1 rounded-[var(--radius-sm)] text-ln-op-mute hover:underline"
           >
             Cancelar
           </button>

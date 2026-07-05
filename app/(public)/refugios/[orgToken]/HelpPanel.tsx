@@ -82,7 +82,7 @@ export function HelpPanel({ org, isAuthed }: Props) {
               <Link
                 key={card.key}
                 href={card.href}
-                className="flex flex-col items-center justify-center gap-2 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-6 text-center hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
+                className="flex flex-col items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-6 text-center hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
               >
                 <span aria-hidden className="text-3xl">
                   {card.emoji}

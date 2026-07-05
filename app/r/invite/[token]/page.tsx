@@ -96,7 +96,7 @@ export default async function InviteAcceptPage({
 
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
-        <div className="w-full max-w-sm space-y-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
+        <div className="w-full max-w-sm space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
           {/* warning glyph — decorative, aria-hidden on both span and svg */}
           <span
             className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]"
@@ -164,7 +164,7 @@ export default async function InviteAcceptPage({
   if (!user) {
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
-        <div className="w-full max-w-sm space-y-5 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
+        <div className="w-full max-w-sm space-y-5 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
           <div className="space-y-1 text-center">
             <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
               Invitación
@@ -210,7 +210,7 @@ export default async function InviteAcceptPage({
   if (invite.email.toLowerCase() !== sessionEmail) {
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
-        <div className="w-full max-w-sm space-y-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
+        <div className="w-full max-w-sm space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
           {/* lock glyph */}
           <span
             className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)]"
@@ -253,7 +253,7 @@ export default async function InviteAcceptPage({
   // State 3: session + email matches → show accept button.
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
-      <div className="w-full max-w-sm space-y-5 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
+      <div className="w-full max-w-sm space-y-5 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
         <div className="space-y-1 text-center">
           <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
             Invitación

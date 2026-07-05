@@ -103,7 +103,7 @@ export function AppCitizenMasthead({
     // pt-safe: with viewport-fit=cover the installed PWA draws under the iOS
     // status bar — max(0.75rem, safe-area-inset-top) keeps the row clear of it
     // while staying at the design's 12px everywhere else.
-    <header className="pt-safe flex flex-shrink-0 items-center gap-[18px] bg-[var(--color-ln-azul-900)] px-[16px] py-[12px] text-white md:px-[32px]">
+    <header className="pt-safe flex flex-shrink-0 items-center gap-[18px] bg-[var(--color-ln-azul-900)] px-4 py-3 text-white md:px-8">
       {/* Mobile hamburger — hidden on md+ where the inline nav shows, and
           omitted entirely when the tab bar owns primary nav and there is no
           secondary content left for the drawer. */}
@@ -119,7 +119,7 @@ export function AppCitizenMasthead({
       {/* Brand/wordmark → public landing `/` (D5: distinct from the role Inicio). */}
       <Link
         href="/"
-        className="flex flex-shrink-0 items-center gap-[12px] no-underline transition-opacity hover:opacity-90"
+        className="flex flex-shrink-0 items-center gap-3 no-underline transition-opacity hover:opacity-90"
         aria-label={`${BRANDING.appName} — ${BRANDING.appNameLong}, ir al inicio`}
       >
         <span className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-full border-[2px] border-white/50 bg-white/[0.06] font-[var(--font-ln-serif)] text-[17px] font-semibold tracking-[-0.02em]">
@@ -144,10 +144,7 @@ export function AppCitizenMasthead({
 
       {/* Desktop nav — the resolved role/public items (D3). */}
       {nav.length > 0 && (
-        <nav
-          aria-label="Navegación principal"
-          className="ml-[24px] hidden items-center gap-[4px] md:flex"
-        >
+        <nav aria-label="Navegación principal" className="ml-6 hidden items-center gap-1 md:flex">
           {nav.map((item) => {
             const active = isNavItemActive(item, pathname);
             return (
@@ -156,7 +153,7 @@ export function AppCitizenMasthead({
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={[
-                  "rounded-[4px] px-[14px] py-[8px] text-[13px] font-medium tracking-[.01em] no-underline transition-colors",
+                  "rounded-[var(--radius-sm)] px-3.5 py-2 text-[13px] font-medium tracking-[.01em] no-underline transition-colors",
                   active
                     ? "bg-white/10 text-white shadow-[inset_0_-2px_0_var(--color-ln-celeste)]"
                     : "text-white/70 hover:text-white",
@@ -170,13 +167,13 @@ export function AppCitizenMasthead({
       )}
 
       {/* Right cluster */}
-      <div className="ml-auto flex items-center gap-[14px]">
+      <div className="ml-auto flex items-center gap-3.5">
         {/* Guaranteed role-return (D4) — the stranded-user escape hatch. Shown
             on desktop next to the user pill; the mobile drawer carries its own. */}
         {showReturn && returnHref && (
           <Link
             href={returnHref}
-            className="hidden items-center gap-1 rounded-[4px] border border-white/25 px-[12px] py-[6px] text-[12.5px] font-medium text-white/85 no-underline transition-colors hover:border-white/50 hover:text-white md:inline-flex"
+            className="hidden items-center gap-1 rounded-[var(--radius-sm)] border border-white/25 px-3 py-1.5 text-[12.5px] font-medium text-white/85 no-underline transition-colors hover:border-white/50 hover:text-white md:inline-flex"
           >
             ← Volver a mi app
           </Link>
@@ -213,7 +210,7 @@ export function AppCitizenMasthead({
               {unreadCount > 0 && (
                 <span
                   aria-hidden="true"
-                  className="absolute -right-[7px] -top-[5px] min-w-[15px] rounded-full bg-[var(--color-ln-celeste)] px-[4px] text-center font-[var(--font-ln-mono)] text-[9px] font-bold leading-[15px] text-[var(--color-ln-azul-900)]"
+                  className="absolute -right-[7px] -top-[5px] min-w-[15px] rounded-full bg-[var(--color-ln-celeste)] px-1 text-center font-[var(--font-ln-mono)] text-[9px] font-bold leading-[15px] text-[var(--color-ln-azul-900)]"
                 >
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
@@ -224,7 +221,7 @@ export function AppCitizenMasthead({
 
         {/* User pill (logged-in) → /cuenta, or a sign-in CTA (anonymous). */}
         {user ? (
-          <div className="flex items-center gap-[9px] border-l border-white/[0.18] pl-[16px]">
+          <div className="flex items-center gap-[9px] border-l border-white/[0.18] pl-4">
             <Link
               href="/cuenta"
               className="flex items-center gap-[9px] no-underline transition-opacity hover:opacity-80"
@@ -271,7 +268,7 @@ function CitizenSwitcher({ switcher }: { switcher: SwitcherTarget[] }) {
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-[4px] border border-white/25 px-[12px] py-[6px] text-[12.5px] font-medium text-white/85 transition-colors hover:border-white/50 hover:text-white"
+        className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-white/25 px-3 py-1.5 text-[12.5px] font-medium text-white/85 transition-colors hover:border-white/50 hover:text-white"
       >
         Portales
         <svg
@@ -294,7 +291,7 @@ function CitizenSwitcher({ switcher }: { switcher: SwitcherTarget[] }) {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-[6px] border border-ln-line bg-white py-1 shadow-md"
+          className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-[var(--radius-md)] border border-ln-line bg-white py-1 shadow-md"
         >
           {switcher.map((t) => (
             <Link
@@ -354,7 +351,7 @@ function CitizenMobileDrawer({
           aria-label="Menú principal"
         >
           {/* Brand header */}
-          <div className="flex items-center gap-2.5 border-b border-white/10 px-4 py-[14px]">
+          <div className="flex items-center gap-2.5 border-b border-white/10 px-4 py-3.5">
             <span className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-full border border-white/30 bg-white/[0.06] font-[var(--font-ln-serif)] text-[15px] font-semibold">
               m
             </span>

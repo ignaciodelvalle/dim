@@ -87,7 +87,7 @@ export default async function PetsNoAptasPage({
                     return (
                       <li
                         key={pet.id}
-                        className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe p-3 space-y-1"
+                        className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe p-3 space-y-1"
                       >
                         <div className="flex items-baseline justify-between gap-3">
                           <Link

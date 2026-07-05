@@ -33,7 +33,7 @@ export function CopyButton({
       type="button"
       onClick={handleCopy}
       aria-label={`${label}: ${text}`}
-      className="ml-1 inline-flex items-center rounded-[4px] border border-ln-op-line px-2 py-[2px] align-middle text-[11px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
+      className="ml-1 inline-flex items-center rounded-[var(--radius-sm)] border border-ln-op-line px-2 py-0.5 align-middle text-[11px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
     >
       {copied ? copiedLabel : label}
     </button>

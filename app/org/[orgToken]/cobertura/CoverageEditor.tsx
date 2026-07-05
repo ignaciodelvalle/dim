@@ -28,7 +28,7 @@ import {
 } from "@/src/modules/organizations/actions";
 
 const selectClasses =
-  "min-h-11 px-3 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink " +
+  "min-h-11 px-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink " +
   "focus:border-ln-op-azul focus:outline-none focus:ring-1 focus:ring-ln-op-azul " +
   "disabled:opacity-50 disabled:cursor-not-allowed w-full";
 
@@ -101,7 +101,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
   return (
     <div className="space-y-6">
       {canManage && (
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-5 space-y-4">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-5 space-y-4">
           <h2 className="text-md font-semibold text-ln-op-ink">Agregar zona de cobertura</h2>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -167,11 +167,11 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
         <h2 className="text-md font-semibold text-ln-op-ink">Zonas registradas ({zones.length})</h2>
 
         {zones.length === 0 ? (
-          <p className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-4 py-6 text-center text-[13px] text-ln-op-mute">
+          <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-6 text-center text-[13px] text-ln-op-mute">
             Esta organización aún no tiene zonas de cobertura configuradas.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-[6px] border border-ln-op-line bg-ln-op-card">
+          <div className="overflow-x-auto rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card">
             <table className="w-full text-[13px]">
               <caption className="sr-only">
                 Zonas de cobertura de la organización por provincia y localidad

@@ -46,10 +46,10 @@ export default async function TransferPage({
 
   if (!result.ok) {
     return (
-      <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+      <div className="mx-auto max-w-md px-8 py-7 pb-12">
         <Link
           href="/transferencias"
-          className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Transferencias
         </Link>
@@ -72,17 +72,17 @@ export default async function TransferPage({
         : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]";
 
   return (
-    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-md px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/transferencias"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Transferencias
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px] flex items-start justify-between gap-3">
+      <div className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="m-0 font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {transfer.isRecipient
@@ -90,23 +90,23 @@ export default async function TransferPage({
               : `Transferencia de ${transfer.petName}`}
           </h1>
           {transfer.fromDisplayName && transfer.isRecipient && (
-            <p className="mt-[4px] text-[13px] text-[var(--color-ln-mute)]">
+            <p className="mt-1 text-[13px] text-[var(--color-ln-mute)]">
               {transfer.fromDisplayName} te quiere transferir esta mascota.
             </p>
           )}
         </div>
         <span
-          className={`flex-shrink-0 inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass}`}
+          className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass}`}
         >
           {statusLabel}
         </span>
       </div>
 
       {/* Details */}
-      <LnCard className="mb-[20px]">
+      <LnCard className="mb-5">
         <LnCardHead title="Detalle de la transferencia" />
         <LnCardBody>
-          <dl className="flex flex-col gap-[12px]">
+          <dl className="flex flex-col gap-3">
             {reasonLabel && <DetailRow label="Motivo">{reasonLabel}</DetailRow>}
             {transfer.note && <DetailRow label="Comentario">{transfer.note}</DetailRow>}
             <DetailRow label="Vence">{formatExpiresAt(transfer.expiresAt)}</DetailRow>
@@ -140,7 +140,7 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
       <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
-      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+      <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
     </div>
   );
 }

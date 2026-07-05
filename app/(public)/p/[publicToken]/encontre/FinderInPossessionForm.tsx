@@ -86,7 +86,7 @@ export function FinderInPossessionForm({
   }
 
   const inputClass =
-    "w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]";
+    "w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]";
   const labelClass = "block text-sm font-medium text-[var(--color-ln-ink-2)]";
   const requiredMark = <span className="text-[var(--color-ln-seal)] ml-0.5">*</span>;
 
@@ -336,7 +336,7 @@ export function FinderInPossessionForm({
         <button
           type="submit"
           disabled={isPending}
-          className="w-full px-4 py-3 rounded-[4px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full px-4 py-3 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isPending ? "Enviando..." : "Avisar al dueño/a"}
         </button>

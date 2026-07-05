@@ -114,7 +114,7 @@ function ResetCredentialsForm({
   }
 
   return (
-    <div className="space-y-3 rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
+    <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
       <p className="text-xs font-bold uppercase tracking-wider text-ln-op-danger">
         Resetear credentials &mdash; {displayName}
       </p>

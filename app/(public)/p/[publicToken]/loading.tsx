@@ -14,19 +14,19 @@ export default function PublicPetLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="mx-auto max-w-xl px-[20px] py-[28px] pb-[48px] block"
+      className="mx-auto max-w-xl px-5 py-7 pb-12 block"
     >
       <span className="sr-only">Cargando…</span>
 
       {/* Pet hero — photo + name + species */}
-      <div className="flex flex-col items-center gap-[14px] mb-[28px]">
+      <div className="flex flex-col items-center gap-3.5 mb-7">
         <Skeleton w="112px" h="112px" radius="50%" />
         <Skeleton w="48%" h="26px" radius="4px" />
         <Skeleton w="32%" h="14px" radius="3px" />
       </div>
 
       {/* Credential / info card placeholders */}
-      <div className="flex flex-col gap-[20px]">
+      <div className="flex flex-col gap-5">
         <LnCardSkeleton />
         <LnCardSkeleton />
       </div>

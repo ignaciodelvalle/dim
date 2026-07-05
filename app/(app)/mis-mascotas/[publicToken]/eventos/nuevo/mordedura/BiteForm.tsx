@@ -92,14 +92,14 @@ export function BiteForm({
           </LnSheetAccordion>
 
           {/* Victim kind — pill radio group wrapped in fieldset for SR grouping */}
-          <fieldset className="flex flex-col gap-[6px] border-0 m-0 p-0">
-            <legend className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)] mb-[6px]">
+          <fieldset className="flex flex-col gap-1.5 border-0 m-0 p-0">
+            <legend className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)] mb-1.5">
               ¿A quién mordió {petName}?{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
               </span>
             </legend>
-            <div className="grid grid-cols-3 gap-[6px]">
+            <div className="grid grid-cols-3 gap-1.5">
               {(
                 [
                   { value: "human", label: "Persona" },
@@ -110,7 +110,7 @@ export function BiteForm({
                 <label
                   key={opt.value}
                   className={[
-                    "flex cursor-pointer items-center justify-center rounded-[3px] border px-[10px] py-[8px]",
+                    "flex cursor-pointer items-center justify-center rounded-[3px] border px-2.5 py-2",
                     "font-[var(--font-ln-mono)] text-[11px] font-semibold transition-colors",
                     victimKind === opt.value
                       ? "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)]"
@@ -219,8 +219,8 @@ export function BiteForm({
           </LnField>
 
           {/* Legal warning + observation checkbox */}
-          <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-[14px]">
-            <label className="flex cursor-pointer items-start gap-[10px]">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-3.5">
+            <label className="flex cursor-pointer items-start gap-2.5">
               <input
                 type="checkbox"
                 name="confirmObservation"
@@ -228,7 +228,7 @@ export function BiteForm({
                 required
                 checked={confirmObservation}
                 onChange={(e) => setConfirmObservation(e.target.checked)}
-                className="mt-[2px] h-[14px] w-[14px] flex-shrink-0 accent-[var(--color-ln-warn)]"
+                className="mt-0.5 h-[14px] w-[14px] flex-shrink-0 accent-[var(--color-ln-warn)]"
               />
               <span className="text-[12.5px] font-semibold text-[var(--color-ln-warn)]">
                 Entiendo que reportar esto inicia un período de observación antirrábica obligatorio

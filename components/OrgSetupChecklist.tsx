@@ -99,7 +99,7 @@ export function OrgSetupChecklist({ steps, orgToken, autoFocusFirst = false }: P
                     <Link
                       href={`/org/${orgToken}/${step.href}`}
                       className={[
-                        "shrink-0 rounded-[4px] border border-ln-op-azul px-3 py-1",
+                        "shrink-0 rounded-[var(--radius-sm)] border border-ln-op-azul px-3 py-1",
                         "text-sm font-semibold text-ln-op-azul no-underline",
                         "hover:bg-ln-op-azul hover:text-white transition-colors",
                         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ln-op-azul",

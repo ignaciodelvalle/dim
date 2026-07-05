@@ -86,7 +86,7 @@ export function LnField({
       {/* mono uppercase label */}
       <label
         htmlFor={id}
-        className="mb-[6px] flex items-center gap-[5px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+        className="mb-1.5 flex items-center gap-[5px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
       >
         {label}
         {required && (
@@ -216,8 +216,8 @@ function withMobileFocusScroll<E extends ValidatableControl>(rest: {
 // sm:text-[13.5px] restores the design-system size on wider viewports.
 // min-h-[44px] ensures touch targets meet WCAG 2.5.5 (44×44 CSS px).
 const controlBase =
-  "w-full min-h-[44px] rounded-[4px] border border-[var(--color-ln-line-strong)] " +
-  "bg-[var(--color-ln-card)] px-[12px] py-[10px] " +
+  "w-full min-h-[44px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] " +
+  "bg-[var(--color-ln-card)] px-3 py-2.5 " +
   "font-[var(--font-ln-sans)] text-base sm:text-[13.5px] text-[var(--color-ln-ink)] " +
   "placeholder:text-[var(--color-ln-faint)] outline-none " +
   "focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] " +
@@ -296,11 +296,7 @@ export function LnTextarea({ invalid = false, className = "", ...rest }: LnTexta
 
 export function LnRow({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div
-      className={["grid grid-cols-1 sm:grid-cols-2 gap-[12px]", className]
-        .filter(Boolean)
-        .join(" ")}
-    >
+    <div className={["grid grid-cols-1 sm:grid-cols-2 gap-3", className].filter(Boolean).join(" ")}>
       {children}
     </div>
   );
@@ -318,7 +314,7 @@ export function LnSuffixWrap({ suffix, children, className = "" }: LnSuffixWrapP
   return (
     <div
       className={[
-        "flex items-stretch overflow-hidden rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)]",
+        "flex items-stretch overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)]",
         "focus-within:border-[var(--color-ln-azul)] focus-within:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]",
         className,
       ]

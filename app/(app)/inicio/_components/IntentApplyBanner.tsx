@@ -71,7 +71,7 @@ export async function IntentApplyBanner() {
   return (
     <section
       aria-labelledby="intent-apply-banner-h"
-      className="rounded-[4px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] p-4 flex items-center gap-3"
+      className="rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] p-4 flex items-center gap-3"
       data-section="intent-apply-banner"
     >
       {photoUrl ? (

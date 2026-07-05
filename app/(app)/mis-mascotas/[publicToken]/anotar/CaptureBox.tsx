@@ -128,7 +128,7 @@ export function CaptureBox({
           }}
           rows={3}
           placeholder={PLACEHOLDER_EXAMPLES[placeholderIdx]}
-          className="w-full px-4 py-3 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-base outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full px-4 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-base outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
         <button
           type="submit"
@@ -162,7 +162,7 @@ export function CaptureBox({
             <Link
               key={qa.eventType}
               href={href}
-              className="text-center px-3 py-3 rounded-[4px] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] text-sm font-medium text-[var(--color-ln-ink)]"
+              className="text-center px-3 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] text-sm font-medium text-[var(--color-ln-ink)]"
             >
               {qa.label}
             </Link>

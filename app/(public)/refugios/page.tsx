@@ -104,7 +104,7 @@ export default async function RefugiosIndexPage() {
                       <li key={org.publicToken}>
                         <Link
                           href={`/refugios/${org.publicToken}`}
-                          className="flex items-start gap-3 rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-3 no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
+                          className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-3 no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
                         >
                           <div className="min-w-0 flex-1">
                             <p className="text-[13px] font-semibold text-[var(--color-ln-ink)] truncate">

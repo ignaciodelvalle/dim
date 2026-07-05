@@ -172,7 +172,7 @@ export default async function OrgMaltratoRecibidosPage({
         </div>
         <Link
           href={`/org/${orgToken}/maltrato/nuevo`}
-          className="inline-flex items-center rounded-[6px] bg-ln-op-danger px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+          className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-danger px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
         >
           + Nueva denuncia
         </Link>

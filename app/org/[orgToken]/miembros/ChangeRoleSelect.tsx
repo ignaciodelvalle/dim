@@ -50,7 +50,7 @@ export function ChangeRoleSelect({
         value={selectedRole}
         onChange={handleChange}
         disabled={pending}
-        className="rounded-[4px] border border-ln-op-line bg-ln-op-card px-2 py-[5px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul disabled:opacity-60"
+        className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2 py-[5px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul disabled:opacity-60"
       >
         {settableRoles.map((r) => (
           <option key={r.value} value={r.value}>

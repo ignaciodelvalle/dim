@@ -165,7 +165,7 @@ export default async function MiembrosPage({
         {canInvite && (
           <Link
             href={`/org/${orgToken}/miembros/invitar`}
-            className="inline-flex shrink-0 items-center gap-2 rounded-[6px] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700 no-underline"
+            className="inline-flex shrink-0 items-center gap-2 rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700 no-underline"
           >
             Invitar miembro
           </Link>

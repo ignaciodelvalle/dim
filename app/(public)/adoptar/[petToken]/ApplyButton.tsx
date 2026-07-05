@@ -72,7 +72,7 @@ export function ApplyButton({
       {/* Inline CTA — visible on all viewports */}
       <form
         action={formAction}
-        className="rounded-[6px] border px-[24px] py-[20px] space-y-[10px]"
+        className="rounded-[var(--radius-md)] border px-6 py-5 space-y-[10px]"
         style={{
           background: "var(--color-ln-card)",
           borderColor: "var(--color-ln-line-strong)",
@@ -80,7 +80,7 @@ export function ApplyButton({
       >
         <input type="hidden" name="petToken" value={petToken} />
         <SubmitButton
-          className="flex w-full items-center justify-center gap-[8px] rounded-[6px] border-0 px-[16px] py-[13px] text-[15px] font-semibold text-white transition-opacity disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border-0 px-4 py-[13px] text-[15px] font-semibold text-white transition-opacity disabled:opacity-60"
           pendingLabel="Procesando..."
           idleLabel={inlineIdleLabel}
           siblingPending={isPending}
@@ -102,7 +102,7 @@ export function ApplyButton({
           where the inline button above is already in view. */}
       <form
         action={formAction}
-        className="md:hidden fixed inset-x-0 bottom-0 z-30 px-[16px] pt-[12px] pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t"
+        className="md:hidden fixed inset-x-0 bottom-0 z-30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t"
         style={{
           background: "rgba(251,250,245,.95)",
           backdropFilter: "blur(6px)",
@@ -111,14 +111,14 @@ export function ApplyButton({
       >
         <input type="hidden" name="petToken" value={petToken} />
         <SubmitButton
-          className="block w-full rounded-[6px] border-0 px-[16px] py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          className="block w-full rounded-[var(--radius-md)] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
           pendingLabel="Procesando..."
           idleLabel={stickyIdleLabel}
           siblingPending={isPending}
         />
         {error && (
           <output
-            className="mt-[6px] block text-center text-sm"
+            className="mt-1.5 block text-center text-sm"
             style={{ color: "var(--color-ln-err)" }}
           >
             {error}

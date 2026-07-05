@@ -60,14 +60,14 @@ export function ReplaceMicrochipForm({
           </LnSubCard>
 
           {/* Reason */}
-          <div className="flex flex-col gap-[6px]">
+          <div className="flex flex-col gap-1.5">
             <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               Motivo del reemplazo{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
               </span>
             </p>
-            <div className="flex flex-col gap-[6px]">
+            <div className="flex flex-col gap-1.5">
               {OWNER_REASONS.map((r) => (
                 <LnRadio key={r.value} name="reason" value={r.value} required>
                   {r.label}

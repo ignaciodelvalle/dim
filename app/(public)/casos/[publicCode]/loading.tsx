@@ -10,20 +10,20 @@ export default function CasoLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="mx-auto max-w-3xl px-[24px] py-[28px] pb-[48px] block"
+      className="mx-auto max-w-3xl px-6 py-7 pb-12 block"
     >
       <span className="sr-only">Cargando…</span>
 
       {/* Case header placeholder */}
-      <div className="flex flex-col gap-[10px] mb-[24px]">
-        <div className="flex items-center gap-[10px]">
+      <div className="flex flex-col gap-2.5 mb-6">
+        <div className="flex items-center gap-2.5">
           <Skeleton w="90px" h="22px" radius="4px" />
           <Skeleton w="70px" h="22px" radius="9999px" />
         </div>
         <Skeleton w="65%" h="20px" radius="4px" />
       </div>
 
-      <div className="flex flex-col gap-[20px]">
+      <div className="flex flex-col gap-5">
         <LnCardSkeleton />
         <LnCardSkeleton />
       </div>

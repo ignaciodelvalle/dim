@@ -113,7 +113,7 @@ export function EventTimelineList({
         return (
           <li
             key={event.id}
-            className="border border-[var(--color-ln-line)] rounded-[4px] p-4 space-y-2"
+            className="border border-[var(--color-ln-line)] rounded-[var(--radius-sm)] p-4 space-y-2"
           >
             {publicToken ? (
               <Link
@@ -186,7 +186,7 @@ export function EventTimelineList({
                 <img
                   src={event.attachmentUrl}
                   alt="Foto adjunta"
-                  className="max-h-48 w-auto rounded-[4px] border border-[var(--color-ln-line)] object-cover"
+                  className="max-h-48 w-auto rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] object-cover"
                 />
               </a>
             )}

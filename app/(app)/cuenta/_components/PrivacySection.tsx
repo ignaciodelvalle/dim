@@ -44,7 +44,7 @@ export function PrivacySection({ prefs }: Props) {
   return (
     <section
       aria-labelledby="privacy-heading"
-      className="rounded-[4px] border border-[var(--color-ln-line)] p-6 space-y-4"
+      className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] p-6 space-y-4"
     >
       <div>
         <h2 id="privacy-heading" className="text-base font-semibold text-[var(--color-ln-ink)]">
@@ -65,7 +65,7 @@ export function PrivacySection({ prefs }: Props) {
                   "use server";
                   await updatePrivacyPrefAction(row.key, !value);
                 }}
-                className="flex items-center gap-3 rounded-[4px] bg-[var(--color-ln-stripe)] px-3 py-2"
+                className="flex items-center gap-3 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] px-3 py-2"
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-[var(--color-ln-ink)]">{row.label}</p>

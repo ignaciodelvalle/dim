@@ -42,7 +42,7 @@ export function ReplaceMicrochipForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-      <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-[13px] text-ln-op-ink-2">
+      <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-[13px] text-ln-op-ink-2">
         Chip actual: <span className="font-mono font-medium text-ln-op-ink">{currentChip}</span>
       </div>
 
@@ -126,7 +126,7 @@ export function ReplaceMicrochipForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-[6px] bg-ln-op-azul text-white font-medium hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-[var(--radius-md)] bg-ln-op-azul text-white font-medium hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isPending ? "Guardando..." : "Registrar reemplazo de chip"}
       </button>

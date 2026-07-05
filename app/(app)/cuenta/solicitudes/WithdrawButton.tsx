@@ -42,7 +42,7 @@ export function WithdrawButton({ requestId }: Props) {
   }
 
   return (
-    <div className="flex flex-col items-end gap-[6px]">
+    <div className="flex flex-col items-end gap-1.5">
       <p className="m-0 text-right text-xs text-[var(--color-ln-mute)]">
         ¿Seguro que querés retirar esta solicitud?
       </p>
@@ -51,7 +51,7 @@ export function WithdrawButton({ requestId }: Props) {
           {error}
         </p>
       )}
-      <div className="flex gap-[6px]">
+      <div className="flex gap-1.5">
         <button
           type="button"
           onClick={handleConfirm}

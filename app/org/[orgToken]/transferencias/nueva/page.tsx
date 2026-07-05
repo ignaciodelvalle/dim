@@ -114,7 +114,7 @@ export default async function OrgTransferenciaNuevaPage({
 
         {custodyPets.length === 0 ? (
           <div className="space-y-3">
-            <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
+            <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
               No tenés mascotas en custodia para transferir.
             </p>
             <Link

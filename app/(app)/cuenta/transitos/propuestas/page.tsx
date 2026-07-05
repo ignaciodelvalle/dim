@@ -31,17 +31,17 @@ export default async function PropuestasInboxPage() {
   const past = proposals.filter((p) => p.proposal.status !== "pending");
 
   return (
-    <div className="mx-auto max-w-3xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-3xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/cuenta/transitos"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Tránsitos
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px] flex items-start justify-between gap-4">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Propuestas de tránsito
@@ -53,13 +53,13 @@ export default async function PropuestasInboxPage() {
         </div>
         <Link
           href="/cuenta/ofrecerme-como-transito"
-          className="mt-[4px] flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-[14px] py-[8px] font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+          className="mt-1 flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-3.5 py-2 font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
         >
           Ofrecerme como tránsito
         </Link>
       </div>
 
-      <div className="flex flex-col gap-[32px]">
+      <div className="flex flex-col gap-8">
         {/* Active */}
         <section>
           <LnSectionHead
@@ -70,26 +70,26 @@ export default async function PropuestasInboxPage() {
                 ? `${active.length} pendiente${active.length !== 1 ? "s" : ""}`
                 : undefined
             }
-            className="mb-[16px]"
+            className="mb-4"
           />
           {active.length === 0 ? (
             <p className="text-[13px] text-[var(--color-ln-mute)]">
               No tenés propuestas pendientes.
             </p>
           ) : (
-            <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+            <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
               {active.map(({ proposal, pet, org }) => (
                 <Link
                   key={proposal.id}
                   href={`/cuenta/transitos/propuestas/${proposal.publicToken}`}
-                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   <div>
                     <p className="text-[13.5px] font-medium text-[var(--color-ln-ink)]">
                       {org.displayName}{" "}
                       <span className="font-normal text-[var(--color-ln-mute)]">→ {pet.name}</span>
                     </p>
-                    <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                    <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
                       {speciesLabel(pet.species)}
                       {proposal.proposedDurationWeeks &&
                         ` · ${proposal.proposedDurationWeeks} sem.`}{" "}
@@ -115,12 +115,12 @@ export default async function PropuestasInboxPage() {
         {/* History */}
         {past.length > 0 && (
           <section>
-            <LnSectionHead num="02" title="Historial" className="mb-[16px]" />
-            <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+            <LnSectionHead num="02" title="Historial" className="mb-4" />
+            <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
               {past.map(({ proposal, pet, org }) => (
                 <div
                   key={proposal.id}
-                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[12px] last:border-b-0"
+                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 last:border-b-0"
                 >
                   <p className="text-[13px] text-[var(--color-ln-ink-2)]">
                     {org.displayName} · {pet.name}

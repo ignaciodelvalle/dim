@@ -54,18 +54,18 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
           </LnField>
 
           {/* Outcome radio group */}
-          <div className="flex flex-col gap-[6px]">
+          <div className="flex flex-col gap-1.5">
             <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               Resultado{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
               </span>
             </p>
-            <div className="flex flex-col gap-[6px]">
+            <div className="flex flex-col gap-1.5">
               {OUTCOMES.map((o) => (
                 <label
                   key={o.value}
-                  className="flex cursor-pointer items-center gap-[8px] text-[13px] text-[var(--color-ln-ink)]"
+                  className="flex cursor-pointer items-center gap-2 text-[13px] text-[var(--color-ln-ink)]"
                 >
                   <input
                     type="radio"

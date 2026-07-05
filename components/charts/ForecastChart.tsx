@@ -165,7 +165,7 @@ export function ForecastChart({
 
       {cannotPlot ? (
         // Insufficient: actuals only, NO band, explicit message (no invented line).
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe px-4 py-6 text-center">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-4 py-6 text-center">
           <p className="text-[13px] font-medium text-ln-op-ink-2">
             Datos insuficientes para proyectar
           </p>

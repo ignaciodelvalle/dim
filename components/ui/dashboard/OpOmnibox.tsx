@@ -211,7 +211,7 @@ export function OpOmnibox({ orgToken }: { orgToken?: string } = {}) {
         }}
         onKeyDown={onInputKeyDown}
         placeholder={orgToken ? "Buscar mascota…" : "Buscar persona o caso…"}
-        className="w-48 rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:w-64 focus:outline-none focus:ring-2 focus:ring-ln-op-azul md:w-56 md:focus:w-72 transition-[width]"
+        className="w-48 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:w-64 focus:outline-none focus:ring-2 focus:ring-ln-op-azul md:w-56 md:focus:w-72 transition-[width]"
       />
 
       {/* Keyboard shortcut hint — only when empty + unfocused-ish (always shown
@@ -234,7 +234,7 @@ export function OpOmnibox({ orgToken }: { orgToken?: string } = {}) {
           role="listbox"
           tabIndex={-1}
           aria-label="Resultados de búsqueda"
-          className="absolute right-0 z-[var(--z-header)] mt-1 max-h-[60vh] w-80 overflow-y-auto rounded-[8px] border border-ln-op-line bg-ln-op-card shadow-[0_18px_50px_rgba(20,40,60,.22)]"
+          className="absolute right-0 z-[var(--z-header)] mt-1 max-h-[60vh] w-80 overflow-y-auto rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card shadow-[0_18px_50px_rgba(20,40,60,.22)]"
         >
           {loading && (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-ln-op-mute">

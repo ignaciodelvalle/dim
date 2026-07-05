@@ -49,7 +49,7 @@ export function AgendaRuleForm({
       <input type="hidden" name="orgToken" value={orgToken} />
 
       {state.error && (
-        <p className="text-[13px] rounded-[6px] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+        <p className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}
@@ -137,7 +137,7 @@ export function AgendaRuleForm({
         <button
           type="submit"
           disabled={isPending}
-          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+          className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
         >
           {isPending ? "Guardando…" : "Agregar regla"}
         </button>

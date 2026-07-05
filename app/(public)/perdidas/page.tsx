@@ -150,7 +150,7 @@ export default async function PerdidasPage({
               <div className="flex justify-center pt-4">
                 <Link
                   href={`/perdidas?${buildSearchParams(filters, nextCursor).toString()}`}
-                  className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-5 py-2.5 text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
+                  className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-5 py-2.5 text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
                 >
                   Mostrar más
                 </Link>
@@ -174,7 +174,7 @@ export default async function PerdidasPage({
           </div>
           <Link
             href="/mis-mascotas"
-            className="shrink-0 inline-flex items-center rounded-[4px] bg-[var(--color-ln-err)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+            className="shrink-0 inline-flex items-center rounded-[var(--radius-sm)] bg-[var(--color-ln-err)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
           >
             Reportar pérdida →
           </Link>
@@ -352,7 +352,7 @@ function LostListingCard({ item }: { item: LostListingItem }) {
 
           {/* Last-seen box — gated by privacy flag, only shown when present */}
           {item.lastSeenDescription && (
-            <div className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-3 py-2 space-y-0.5">
+            <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-3 py-2 space-y-0.5">
               <p className="font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-seal)]">
                 Visto por última vez
               </p>

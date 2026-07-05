@@ -36,7 +36,7 @@ export function CoFosterToggle({
   }
 
   return (
-    <div className="rounded-[4px] bg-[var(--color-ln-stripe)] border border-[var(--color-ln-line)] p-3 text-sm">
+    <div className="rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] border border-[var(--color-ln-line)] p-3 text-sm">
       <p className="text-[var(--color-ln-ink)] mb-2">
         ¿Permitís que la organización asigne un co-foster a esta mascota?
       </p>

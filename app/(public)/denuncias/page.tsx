@@ -40,9 +40,9 @@ export default function DenunciasPage() {
           {/* Primary CTA */}
           <Link
             href="/denuncias/nueva"
-            className="group flex items-start gap-4 rounded-[6px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-5 py-5 no-underline transition-colors hover:bg-[var(--color-ln-celeste-100)]"
+            className="group flex items-start gap-4 rounded-[var(--radius-md)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-5 py-5 no-underline transition-colors hover:bg-[var(--color-ln-celeste-100)]"
           >
-            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[4px] bg-[var(--color-ln-azul)] text-white">
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white">
               <svg
                 width="18"
                 height="18"
@@ -72,9 +72,9 @@ export default function DenunciasPage() {
           {/* Secondary CTA */}
           <Link
             href="/denuncias/buscar"
-            className="group flex items-start gap-4 rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-5 py-5 no-underline transition-colors hover:border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"
+            className="group flex items-start gap-4 rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-5 py-5 no-underline transition-colors hover:border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"
           >
-            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[4px] border border-[var(--color-ln-line-strong)] bg-white text-[var(--color-ln-ink-2)]">
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-white text-[var(--color-ln-ink-2)]">
               <svg
                 width="16"
                 height="16"
@@ -102,7 +102,7 @@ export default function DenunciasPage() {
         </div>
 
         {/* Legal note */}
-        <aside className="mt-10 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-5 py-4">
+        <aside className="mt-10 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-5 py-4">
           <p className="text-[12.5px] leading-relaxed text-[var(--color-ln-mute)]">
             <strong className="font-semibold text-[var(--color-ln-ink-2)]">Aviso:</strong> Las
             denuncias registradas en este portal son derivadas a las autoridades competentes

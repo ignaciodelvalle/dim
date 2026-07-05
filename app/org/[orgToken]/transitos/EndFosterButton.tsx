@@ -14,7 +14,7 @@ const SELECTABLE_END_REASONS = [
 type ReasonValue = (typeof SELECTABLE_END_REASONS)[number]["value"];
 
 const fieldCls =
-  "w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
 
 export function EndFosterButton({
   orgToken,
@@ -52,7 +52,7 @@ export function EndFosterButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors whitespace-nowrap"
+        className="shrink-0 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors whitespace-nowrap"
       >
         Finalizar tránsito
       </button>
@@ -60,7 +60,7 @@ export function EndFosterButton({
   }
 
   return (
-    <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-3 space-y-2 w-full sm:w-80">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe p-3 space-y-2 w-full sm:w-80">
       <label htmlFor={`end-reason-${publicToken}`} className="block text-sm text-ln-op-mute">
         Motivo
       </label>
@@ -98,7 +98,7 @@ export function EndFosterButton({
               type="button"
               onClick={submit}
               disabled={pending}
-              className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {pending ? "Cerrando..." : "Confirmar finalización"}
             </button>
@@ -106,7 +106,7 @@ export function EndFosterButton({
               type="button"
               onClick={() => setConfirming(false)}
               disabled={pending}
-              className="rounded-[6px] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
+              className="rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
             >
               Atrás
             </button>
@@ -118,7 +118,7 @@ export function EndFosterButton({
             type="button"
             onClick={() => setConfirming(true)}
             disabled={pending}
-            className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             Confirmar
           </button>
@@ -129,7 +129,7 @@ export function EndFosterButton({
               setConfirming(false);
             }}
             disabled={pending}
-            className="rounded-[6px] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
+            className="rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
           >
             Cancelar
           </button>

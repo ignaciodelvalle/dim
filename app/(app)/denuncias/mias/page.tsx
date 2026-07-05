@@ -42,7 +42,7 @@ export default async function MisDenunciasPage() {
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+      <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
         <LnCallout tone="warn" title="Necesitás iniciar sesión">
           <Link href="/login" className="text-[var(--color-ln-azul)] no-underline hover:underline">
             Iniciar sesión →
@@ -60,18 +60,18 @@ export default async function MisDenunciasPage() {
     .limit(50);
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back — this is a reports page, its parent is the home dashboard,
           not the pet roster (QA 2026-07-03). */}
       <Link
         href="/inicio"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Inicio
       </Link>
 
       {/* Header */}
-      <div className="mb-[28px] flex items-start justify-between gap-4">
+      <div className="mb-7 flex items-start justify-between gap-4">
         <div>
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis denuncias
@@ -82,7 +82,7 @@ export default async function MisDenunciasPage() {
               : `${reports.length} denuncia${reports.length === 1 ? "" : "s"} enviada${reports.length === 1 ? "" : "s"}.`}
           </p>
         </div>
-        <Link href="/denuncias/nueva" className="flex-shrink-0 mt-[4px]">
+        <Link href="/denuncias/nueva" className="flex-shrink-0 mt-1">
           <LnButton variant="primary" size="sm">
             Nueva denuncia
           </LnButton>
@@ -96,28 +96,28 @@ export default async function MisDenunciasPage() {
           description="Podés reportar maltrato, abandono u otras situaciones de riesgo para animales."
         />
       ) : (
-        <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+        <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
           {reports.map((report) => (
             <Link
               key={report.id}
               href={`/denuncias/${report.id}`}
-              className="flex items-start justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+              className="flex items-start justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
             >
               <div className="min-w-0 flex-1">
                 <p className="font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]">
                   {welfareReportKindLabel(report.kind)}
                 </p>
-                <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
                   {welfareReportSeverityLabel(report.severity)}
                   {" · "}
                   {report.referenceCode}
                 </p>
-                <p className="mt-[4px] text-[12.5px] text-[var(--color-ln-ink-2)] line-clamp-2">
+                <p className="mt-1 text-[12.5px] text-[var(--color-ln-ink-2)] line-clamp-2">
                   {report.description.length > 150
                     ? `${report.description.slice(0, 150)}…`
                     : report.description}
                 </p>
-                <p className="mt-[4px] font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
+                <p className="mt-1 font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
                   {formatDateTime(report.createdAt)}
                   {(report.jurisdictionLocality || report.jurisdictionProvince) && (
                     <>
@@ -129,9 +129,9 @@ export default async function MisDenunciasPage() {
                   )}
                 </p>
               </div>
-              <div className="flex flex-shrink-0 items-center gap-[8px]">
+              <div className="flex flex-shrink-0 items-center gap-2">
                 <span
-                  className={`inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
+                  className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
                 >
                   {welfareReportStatusLabel(report.status)}
                 </span>

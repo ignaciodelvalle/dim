@@ -33,7 +33,7 @@ export function VetUpgradeForm({ dniVerified }: Props) {
 
   if (state.ok) {
     return (
-      <p className="text-sm rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] px-3 py-2 text-[var(--color-ln-warn)]">
+      <p className="text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] px-3 py-2 text-[var(--color-ln-warn)]">
         Solicitud enviada — pendiente de revisión por el equipo de MiMAR.
       </p>
     );
@@ -48,7 +48,7 @@ export function VetUpgradeForm({ dniVerified }: Props) {
     return (
       <div className="space-y-3">
         {/* Requirements panel */}
-        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-4 py-3">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-4 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
             Requisitos para convertirte en profesional
           </p>
@@ -76,7 +76,7 @@ export function VetUpgradeForm({ dniVerified }: Props) {
         </div>
 
         {/* CTA */}
-        <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
           <p className="text-sm font-medium text-[var(--color-ln-warn)]">
             Antes de enviar tu solicitud, declará tu DNI.
           </p>
@@ -97,7 +97,7 @@ export function VetUpgradeForm({ dniVerified }: Props) {
   return (
     <div className="space-y-4">
       {/* Requirements met indicator */}
-      <div className="rounded-[4px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-3">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-3">
         <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
           Requisitos para convertirte en profesional
         </p>

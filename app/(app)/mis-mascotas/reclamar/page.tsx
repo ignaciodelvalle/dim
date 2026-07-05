@@ -11,17 +11,17 @@ export default async function ClaimPage() {
   await requireUserOrRedirect();
 
   return (
-    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-md px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/mis-mascotas"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis mascotas
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Reclamar una mascota
         </h1>
@@ -33,7 +33,7 @@ export default async function ClaimPage() {
 
       <ClaimWizard />
 
-      <div className="mt-[24px]">
+      <div className="mt-6">
         <LnCallout tone="azul" title="¿Te adoptó un refugio?">
           Si te registraron por DNI durante la adopción,{" "}
           <Link

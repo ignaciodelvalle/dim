@@ -176,7 +176,7 @@ export default async function AdminOutboxPage({
         <select
           name="status"
           defaultValue={filters.status ?? ""}
-          className="text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         >
           <option value="">Todos los estados</option>
           {OUTBOX_STATUS_VALUES.map((s) => (
@@ -189,7 +189,7 @@ export default async function AdminOutboxPage({
         <select
           name="target_kind"
           defaultValue={filters.target_kind ?? ""}
-          className="text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         >
           <option value="">Todos los destinos</option>
           {OUTBOX_TARGET_KIND_VALUES.map((k) => (
@@ -202,7 +202,7 @@ export default async function AdminOutboxPage({
         <select
           name="breach"
           defaultValue={filters.breach ?? ""}
-          className="text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         >
           <option value="">Todos (breach o no)</option>
           <option value="yes">Solo incumplimientos SLA</option>
@@ -212,7 +212,7 @@ export default async function AdminOutboxPage({
         <select
           name="province"
           defaultValue={filters.province ?? ""}
-          className="text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         >
           <option value="">Todas las provincias</option>
           {PROVINCES.map((p) => (

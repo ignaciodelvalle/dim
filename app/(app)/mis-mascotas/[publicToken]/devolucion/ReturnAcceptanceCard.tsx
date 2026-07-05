@@ -47,7 +47,7 @@ export function ReturnAcceptanceCard({
   // Accepted successfully — show success.
   if (acceptState.error === null && !acceptState.autoCancelled && acceptState !== acceptInitial) {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-2">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-2">
         <p className="text-[var(--color-ln-ok)] font-medium">
           Devolución confirmada. {petName} está de vuelta con vos.
         </p>
@@ -61,7 +61,7 @@ export function ReturnAcceptanceCard({
   // Auto-cancelled — show explanation banner.
   if (acceptState.autoCancelled) {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
         <p className="text-[var(--color-ln-warn)] font-medium">La propuesta ya no es válida</p>
         <p className="text-[var(--color-ln-warn)] text-sm">{acceptState.autoCancelReason}</p>
         <a href={backUrl} className="text-sm underline text-[var(--color-ln-warn)]">
@@ -74,7 +74,7 @@ export function ReturnAcceptanceCard({
   // Rejected successfully.
   if (rejectState.success) {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] p-4 space-y-2">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] p-4 space-y-2">
         <p className="text-[var(--color-ln-ink)] font-medium">
           Propuesta rechazada. {actorName} fue notificado.
         </p>
@@ -88,7 +88,7 @@ export function ReturnAcceptanceCard({
   return (
     <div className="space-y-4">
       {/* Proposal card */}
-      <div className="rounded-[4px] border border-[var(--color-ln-line)] p-4 space-y-3">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] p-4 space-y-3">
         <div className="space-y-1">
           <p className="text-sm text-[var(--color-ln-mute)] uppercase tracking-wide">
             Propuesta de devolución
@@ -105,7 +105,7 @@ export function ReturnAcceptanceCard({
         </div>
 
         {proposalNotes && (
-          <div className="rounded-[4px] bg-[var(--color-ln-stripe)] p-3 text-sm text-[var(--color-ln-ink-2)] whitespace-pre-line">
+          <div className="rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] p-3 text-sm text-[var(--color-ln-ink-2)] whitespace-pre-line">
             {proposalNotes}
           </div>
         )}
@@ -113,7 +113,7 @@ export function ReturnAcceptanceCard({
 
       {/* Accept action */}
       {acceptState.error && (
-        <p className="text-sm rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-3 py-2 text-[var(--color-ln-seal)]">
+        <p className="text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-3 py-2 text-[var(--color-ln-seal)]">
           {acceptState.error}
         </p>
       )}
@@ -142,7 +142,7 @@ export function ReturnAcceptanceCard({
       {showRejectForm && (
         <form
           action={rejectFormAction}
-          className="space-y-3 rounded-[4px] border border-[var(--color-ln-line)] p-4"
+          className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] p-4"
         >
           <div className="space-y-1">
             <label
@@ -158,7 +158,7 @@ export function ReturnAcceptanceCard({
               required
               maxLength={500}
               placeholder="Explicá por qué rechazás la propuesta..."
-              className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm resize-y outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+              className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm resize-y outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
           </div>
 

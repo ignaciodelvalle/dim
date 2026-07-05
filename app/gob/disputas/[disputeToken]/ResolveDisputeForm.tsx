@@ -108,7 +108,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
   }
 
   return (
-    <div className="space-y-3 rounded-[6px] border border-ln-op-line p-4">
+    <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-line p-4">
       <div>
         <label htmlFor="outcome" className="block text-sm text-ln-op-mute mb-1">
           Resolución
@@ -117,7 +117,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
           id="outcome"
           value={outcome}
           onChange={(e) => setOutcome(e.target.value as Outcome)}
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         >
           {OUTCOMES.map((o) => (
             <option key={o.value} value={o.value}>
@@ -128,12 +128,12 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
       </div>
 
       {outcome === "ownership_transferred" && (
-        <div className="space-y-2 rounded-[6px] border border-ln-op-line p-3">
+        <div className="space-y-2 rounded-[var(--radius-md)] border border-ln-op-line p-3">
           <div className="flex gap-2 text-sm">
             <button
               type="button"
               onClick={() => handleKindChange("user")}
-              className={`px-2 py-1 rounded-[4px] border ${
+              className={`px-2 py-1 rounded-[var(--radius-sm)] border ${
                 transferKind === "user"
                   ? "bg-ln-op-azul text-white border-ln-op-azul"
                   : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
@@ -144,7 +144,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
             <button
               type="button"
               onClick={() => handleKindChange("org")}
-              className={`px-2 py-1 rounded-[4px] border ${
+              className={`px-2 py-1 rounded-[var(--radius-sm)] border ${
                 transferKind === "org"
                   ? "bg-ln-op-azul text-white border-ln-op-azul"
                   : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
@@ -166,7 +166,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
                 value={currentTargetId}
                 onChange={(e) => handleTargetChange(e.target.value)}
                 placeholder="00000000-0000-0000-0000-000000000000"
-                className="flex-1 px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+                className="flex-1 px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
               />
               <OpButton
                 type="button"
@@ -208,7 +208,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
           onChange={(e) => setResolutionSummary(e.target.value)}
           rows={5}
           placeholder="Explicá el fundamento, evidencia considerada y decisión tomada."
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
         <p className="text-sm text-ln-op-mute mt-1 tabular-nums">
           {resolutionSummary.trim().length} / 100
@@ -225,7 +225,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
           placeholder="Notas que quedan en el payload del evento"
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
       </div>
 

@@ -35,7 +35,7 @@ export default async function NewPetPage() {
       stepLabels={[isFirstPet ? "Registrar tu primera mascota" : "Registrar mascota"]}
       mainId="main-content"
     >
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Registrar mascota
         </h1>

@@ -44,7 +44,7 @@ export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }
   }
 
   return (
-    <div className="space-y-3 rounded-[6px] border border-ln-op-danger p-4">
+    <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-danger p-4">
       <p className="text-[13px] font-medium text-ln-op-danger">Retirar disputa</p>
       <p className="text-sm text-ln-op-mute">
         Esto cierra la disputa sin resolución y desbloquea la mascota para transferencias.
@@ -59,7 +59,7 @@ export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }
           onChange={(e) => setReason(e.target.value)}
           rows={2}
           placeholder="Motivo (opcional)."
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-danger"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-danger"
         />
       </div>
 

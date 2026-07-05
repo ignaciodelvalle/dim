@@ -11,7 +11,7 @@ export const ForecastChartDynamic = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="w-full h-64 rounded-[6px] border border-ln-op-line bg-ln-op-stripe animate-pulse" />
+      <div className="w-full h-64 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe animate-pulse" />
     ),
   },
 );

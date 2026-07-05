@@ -129,7 +129,7 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
         <div
           role="alert"
           aria-live="assertive"
-          className="rounded-[6px] border-2 border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-4 py-4 space-y-2"
+          className="rounded-[var(--radius-md)] border-2 border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-4 py-4 space-y-2"
         >
           <p className="text-sm font-bold text-[var(--color-ln-seal)]">
             ⚠️ Si el animal está en peligro inmediato, llamá al{" "}

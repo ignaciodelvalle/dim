@@ -111,7 +111,7 @@ export function ConfirmDialog({
       aria-modal="true"
       onClose={onClose}
       className={[
-        "m-auto max-w-[360px] w-full rounded-[6px] p-0",
+        "m-auto max-w-[360px] w-full rounded-[var(--radius-md)] p-0",
         "border border-[var(--color-ln-line-strong)]",
         "bg-[var(--color-ln-card)] shadow-[0_18px_50px_rgba(20,40,60,.22)]",
         // Backdrop via CSS — the native ::backdrop pseudo-element

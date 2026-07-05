@@ -9,12 +9,12 @@ export default function LibroLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando libro de eventos…"
-      className="mx-auto block max-w-5xl px-[32px] py-[28px] pb-[48px]"
+      className="mx-auto block max-w-5xl px-8 py-7 pb-12"
     >
       <span className="sr-only">Cargando libro de eventos…</span>
 
       {/* Header placeholder */}
-      <div className="mb-[24px] space-y-2">
+      <div className="mb-6 space-y-2">
         <div className="h-[14px] w-[160px] animate-pulse rounded bg-ln-op-stripe" />
         <div className="h-[24px] w-[260px] animate-pulse rounded bg-ln-op-stripe" />
       </div>

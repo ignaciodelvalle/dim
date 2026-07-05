@@ -57,7 +57,7 @@ export default async function OrganizacionesPage({
           name="q"
           defaultValue={query}
           placeholder="Buscar por nombre, razón social o CUIT"
-          className="flex-1 text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="flex-1 text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <OpButton type="submit" variant="primary" size="sm">
           Buscar

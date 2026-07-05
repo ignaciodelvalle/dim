@@ -66,7 +66,7 @@ export default async function ServiciosPage({
         {canCreate && (
           <Link
             href={`/org/${orgToken}/servicios/nuevo`}
-            className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+            className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
           >
             + Crear servicio
           </Link>

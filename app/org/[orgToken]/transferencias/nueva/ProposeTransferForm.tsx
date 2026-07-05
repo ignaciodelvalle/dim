@@ -52,7 +52,7 @@ const TOTAL_STEPS = 3;
 const STEP_LABELS = ["Mascota", "Destino", "Razón y notas"];
 
 const selectCls =
-  "w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
 
 export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, receivers }: Props) {
   const [pending, startTransition] = useTransition();
@@ -116,7 +116,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
     >
       {/* Step 1 — Mascota recap */}
       <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-4">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe p-4">
           <p className="text-sm uppercase tracking-wider text-ln-op-mute">Vas a transferir</p>
           <p className="mt-1 text-base font-semibold text-ln-op-ink">{petName}</p>
           <p className="mt-2 text-sm text-ln-op-mute">
@@ -130,7 +130,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
         <button
           type="button"
           onClick={() => setStep(2)}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
         >
           Continuar
         </button>
@@ -168,7 +168,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           type="button"
           onClick={() => setStep(3)}
           disabled={!receiverOrgId}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Continuar
         </button>
@@ -207,11 +207,11 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
             rows={4}
             required={reasonRequiresNotes}
             placeholder="Contexto para que el destinatario evalúe — visible al receiver."
-            className="w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+            className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
           />
         </div>
 
-        <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2">
           <p>
             La propuesta expira en <strong>30 días</strong> si no recibe respuesta del destinatario.{" "}
             {petName} sigue bajo tu custodia hasta que la organización destinataria acepte.
@@ -219,7 +219,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
         </div>
 
         {error && (
-          <p className="rounded-[6px] border border-ln-op-danger bg-ln-op-danger/10 p-3 text-[13px] text-ln-op-danger">
+          <p className="rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger/10 p-3 text-[13px] text-ln-op-danger">
             {error}
           </p>
         )}
@@ -228,7 +228,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? "Enviando…" : "Confirmar transferencia"}
         </button>

@@ -41,7 +41,7 @@ const TOTAL_STEPS = 4;
 const STEP_LABELS = ["Identificación", "Identidad", "Estado", "Confirmar"];
 
 const inputCls =
-  "w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
 
 export function IntakeForm({ orgToken }: { orgToken: string }) {
   const action = createIntakeAction.bind(null, orgToken);
@@ -221,7 +221,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         <button
           type="button"
           onClick={() => setStep(2)}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
         >
           {microchipId ? "Continuar (chequearemos el chip al confirmar)" : "Continuar sin chip"}
         </button>
@@ -358,7 +358,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           type="button"
           onClick={() => setStep(3)}
           disabled={!name || !species}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Continuar
         </button>
@@ -455,7 +455,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           type="button"
           onClick={() => setStep(4)}
           disabled={!intakeReason}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Continuar
         </button>
@@ -463,7 +463,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
 
       {/* Step 4 — Confirmar */}
       <section className={step === 4 ? "space-y-5" : "sr-only"} aria-hidden={step !== 4}>
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-4 space-y-2">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe p-4 space-y-2">
           <p className="text-[13px] font-semibold text-ln-op-ink">Resumen del ingreso</p>
           <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-sm">
             <dt className="text-ln-op-mute">Nombre</dt>
@@ -492,14 +492,14 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </div>
 
         {state.warning === "CHIP_MATCH_ACTIVE" && (
-          <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2">
             El chip que ingresaste coincide con una mascota activa en otro registro. Revisá con un
             admin antes de continuar.
           </div>
         )}
 
         {state.warning === "TATTOO_MATCH_POSSIBLE" && state.matchedPetToken && (
-          <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2 space-y-2">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2 space-y-2">
             <p>
               <strong>Posible coincidencia por tatuaje.</strong> El código que ingresaste coincide
               con una mascota ya registrada en MiMAR. Verificá con la foto antes de continuar.
@@ -522,7 +522,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         )}
 
         {state.error && (
-          <p className="rounded-[6px] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-[13px] text-ln-op-danger">
+          <p className="rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-[13px] text-ln-op-danger">
             {state.error}
           </p>
         )}
@@ -531,7 +531,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Registrando…" : "Crear ingreso"}
         </button>

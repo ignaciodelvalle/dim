@@ -231,7 +231,7 @@ export default async function GobMaltratoPage({
 
         {/* No-scope warning */}
         {noScope && (
-          <div className="rounded-[6px] border border-ln-op-warn-bd border-l-[4px] border-l-ln-op-warn bg-ln-op-warn-bg px-4 py-3 text-sm text-ln-op-warn">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd border-l-[4px] border-l-ln-op-warn bg-ln-op-warn-bg px-4 py-3 text-sm text-ln-op-warn">
             Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos
             una.
           </div>

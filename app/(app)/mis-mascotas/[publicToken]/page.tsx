@@ -577,7 +577,7 @@ export default async function PetDetailPage({
 
   return (
     <div
-      className="mx-auto max-w-4xl pb-[48px] px-[16px] md:px-[32px]"
+      className="mx-auto max-w-4xl pb-12 px-4 md:px-8"
       style={{ fontFamily: "var(--font-ln-sans)" }}
     >
       {/* Back link — ORG viewers only. For owners the global AppShell nav
@@ -588,7 +588,7 @@ export default async function PetDetailPage({
       {accessPath === "org" && organization && (
         <Link
           href={`/org/${organization.publicToken}/mascotas`}
-          className="mb-[18px] mt-[16px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
+          className="mb-[18px] mt-4 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
           data-section="back-link"
         >
           ← Animales en custodia
@@ -597,7 +597,7 @@ export default async function PetDetailPage({
 
       {/* Org-mediated access notice */}
       {accessPath === "org" && organization && (
-        <div className="mb-[14px] rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[14px] py-[10px] text-[13px] text-[var(--color-ln-ink-2)]">
+        <div className="mb-3.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-3.5 py-2.5 text-[13px] text-[var(--color-ln-ink-2)]">
           Estás viendo {pet.name} como miembro de <strong>{organization.displayName}</strong>.
           Cualquier evento que registres queda atribuido a la organización.
         </div>
@@ -609,7 +609,9 @@ export default async function PetDetailPage({
       {/* rule 5 block order (design.md ADR-1/ADR-6).                        */}
       {/* ------------------------------------------------------------------ */}
       <Suspense
-        fallback={<div className="h-12 rounded-[4px] bg-[var(--color-ln-stripe)] animate-pulse" />}
+        fallback={
+          <div className="h-12 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] animate-pulse" />
+        }
       >
         <PetDetailTabsPanel
           petPublicToken={pet.publicToken}
@@ -758,7 +760,7 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
     observationUntil <= new Date();
 
   return (
-    <section className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[16px] py-[14px] space-y-[10px]">
+    <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5 space-y-[10px]">
       <p className="font-semibold text-[13px] text-[var(--color-ln-warn)]">
         Observación antirrábica en curso
       </p>
@@ -785,7 +787,7 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
         >
           <button
             type="submit"
-            className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-white px-[12px] py-[6px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-warn)] transition-opacity hover:opacity-80"
+            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-white px-3 py-1.5 font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-warn)] transition-opacity hover:opacity-80"
           >
             Confirmar fin de observación
           </button>
@@ -803,16 +805,16 @@ function TransitBanner({
   petPublicToken: string;
 }) {
   return (
-    <section className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[16px] py-[14px] space-y-[10px]">
+    <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5 space-y-[10px]">
       <p className="text-[13px] text-[var(--color-ln-warn)]">
         Estás cuidando a <strong>{petName}</strong> en tránsito. La libreta sanitaria que armes acá
         viaja con la mascota.
       </p>
-      <div className="flex flex-wrap gap-[8px]">
+      <div className="flex flex-wrap gap-2">
         <ConvertFosterButton petPublicToken={petPublicToken} petName={petName} />
         <Link
           href={`/mis-mascotas/${petPublicToken}/buscar-hogar`}
-          className="rounded-[4px] border border-[var(--color-ln-warn-100)] px-[10px] py-[5px] text-[13px] text-[var(--color-ln-warn)] no-underline hover:bg-white transition-colors"
+          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] px-2.5 py-[5px] text-[13px] text-[var(--color-ln-warn)] no-underline hover:bg-white transition-colors"
         >
           Buscar nuevo hogar
         </Link>

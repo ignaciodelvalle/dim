@@ -130,7 +130,7 @@ export default async function JurisdictionReglasPage({
               <p className="text-[11px] text-ln-op-mute mb-2">
                 Actualizado {formatDate(rule.updatedAt)} {"·"} {updatedBy ?? "Sistema"}
               </p>
-              <pre className="text-[11px] bg-ln-op-stripe rounded-[4px] p-3 overflow-x-auto text-ln-op-ink-2">
+              <pre className="text-[11px] bg-ln-op-stripe rounded-[var(--radius-sm)] p-3 overflow-x-auto text-ln-op-ink-2">
                 {JSON.stringify(rule.rulePayload, null, 2)}
               </pre>
               {rule.notes && <p className="text-sm text-ln-op-ink-2 mt-2">{rule.notes}</p>}

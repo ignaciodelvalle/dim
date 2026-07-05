@@ -45,7 +45,7 @@ export default async function IntakePage({
           </p>
           <Link
             href={`/org/${orgToken}`}
-            className="inline-block rounded-[6px] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+            className="inline-block rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
           >
             Volver al panel
           </Link>
@@ -92,7 +92,7 @@ export default async function IntakePage({
         {activeTab === "cola" && (
           <Link
             href={`/org/${orgToken}/intake?tab=registrar`}
-            className="inline-flex items-center rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+            className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
           >
             + Nuevo ingreso
           </Link>
@@ -122,7 +122,7 @@ export default async function IntakePage({
 
       {activeTab === "cola" ? (
         intakeRows.length === 0 ? (
-          <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
+          <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
             No hay ingresos registrados.{" "}
             <Link
               href={`/org/${orgToken}/intake?tab=registrar`}
@@ -152,7 +152,7 @@ export default async function IntakePage({
                     </div>
                     <Link
                       href={`/org/${orgToken}/mascotas/${row.petPublicToken}`}
-                      className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
+                      className="shrink-0 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
                     >
                       Ver ficha
                     </Link>

@@ -31,7 +31,7 @@ export function OpCardSkeleton({ rows = 4 }: OpCardSkeletonProps) {
   const keys = rowKeys(rows);
   return (
     <div
-      className="overflow-hidden rounded-[6px] border border-ln-op-line bg-ln-op-card"
+      className="overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card"
       aria-hidden="true"
     >
       {/* Card header */}
@@ -40,9 +40,9 @@ export function OpCardSkeleton({ rows = 4 }: OpCardSkeletonProps) {
       </div>
 
       {/* Card body */}
-      <div className="p-[14px_16px] flex flex-col gap-[10px]">
+      <div className="p-[14px_16px] flex flex-col gap-2.5">
         {keys.map((k, i) => (
-          <div key={k} className="flex items-center gap-[10px]">
+          <div key={k} className="flex items-center gap-2.5">
             <Skeleton
               className="op-skeleton-shimmer"
               w={`${55 + (i % 3) * 15}%`}

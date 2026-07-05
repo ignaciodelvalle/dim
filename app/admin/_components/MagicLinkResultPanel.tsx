@@ -88,7 +88,7 @@ export function MagicLinkResultPanel({
     copyState === "copied" ? "Copiado ✓" : copyState === "error" ? "Error al copiar" : "Copiar";
 
   return (
-    <div className="rounded-[6px] border border-ln-op-ok-bd bg-ln-op-ok-bg p-6 space-y-4">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-6 space-y-4">
       <div>
         <h3 className="text-base font-semibold text-ln-op-ok">{title}</h3>
         <p className="mt-1 text-[13px] text-ln-op-ok">
@@ -101,7 +101,7 @@ export function MagicLinkResultPanel({
         <div className="flex gap-2">
           <code
             aria-label={revealed ? "Link de acceso visible" : "Link de acceso oculto"}
-            className="flex-1 block overflow-hidden text-ellipsis whitespace-nowrap rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-2 font-ln-mono text-[11px] text-ln-op-ink select-none"
+            className="flex-1 block overflow-hidden text-ellipsis whitespace-nowrap rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-2 font-ln-mono text-[11px] text-ln-op-ink select-none"
           >
             {magicLink
               ? revealed
@@ -143,7 +143,7 @@ export function MagicLinkResultPanel({
       <div className="flex gap-3 pt-2">
         <a
           href={detailPath}
-          className="rounded-[6px] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
+          className="rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
         >
           Ver cuenta
         </a>

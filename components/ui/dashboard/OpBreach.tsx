@@ -20,7 +20,7 @@ export function OpBreach({ title, detail, icon }: Props) {
     <div
       role="alert"
       className={[
-        "mb-[18px] flex items-center gap-3.5 rounded-[6px]",
+        "mb-[18px] flex items-center gap-3.5 rounded-[var(--radius-md)]",
         "border border-ln-op-danger-bd border-l-[4px] border-l-ln-op-danger",
         "bg-ln-op-danger-bg px-4 py-3",
       ].join(" ")}

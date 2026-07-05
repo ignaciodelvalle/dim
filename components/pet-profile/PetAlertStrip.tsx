@@ -59,7 +59,7 @@ export function PetAlertStrip({ alerts }: { alerts: PetAlert[] }) {
     <section
       data-section="alert-strip"
       aria-label="Avisos de la mascota"
-      className="mb-[20px] flex flex-col gap-[10px]"
+      className="mb-5 flex flex-col gap-2.5"
     >
       {ordered.map((alert) => (
         <div key={alert.id} data-alert-id={alert.id} data-alert-tone={alert.tone}>

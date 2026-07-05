@@ -56,7 +56,7 @@ function ProviderFields({
   onProviderUrlChange: (v: string) => void;
 }) {
   return (
-    <fieldset className="space-y-2 rounded-[6px] border border-ln-op-line p-3">
+    <fieldset className="space-y-2 rounded-[var(--radius-md)] border border-ln-op-line p-3">
       <legend className="text-[13px] font-medium text-ln-op-ink">{legend}</legend>
       <LnCheckbox
         name={`enabled_${channelKey}`}

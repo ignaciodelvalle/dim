@@ -54,7 +54,7 @@ export function VerifyOrgButton({ org }: { org: Org }) {
 
   if (confirming) {
     return (
-      <div className="rounded-[6px] border border-ln-op-azul p-3 space-y-2 bg-ln-op-card">
+      <div className="rounded-[var(--radius-md)] border border-ln-op-azul p-3 space-y-2 bg-ln-op-card">
         <p className="text-[11px] text-ln-op-ink-2">
           ¿Confirmas la verificación de <span className="font-medium">{org.displayName}</span>? Esta
           acción queda registrada en el audit log y notifica a los administradores de la org.
@@ -65,7 +65,7 @@ export function VerifyOrgButton({ org }: { org: Org }) {
             type="button"
             onClick={handleVerify}
             disabled={pending}
-            className="text-sm px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white font-semibold hover:opacity-90 disabled:opacity-50"
+            className="text-sm px-3 py-1.5 rounded-[var(--radius-md)] bg-ln-op-azul text-white font-semibold hover:opacity-90 disabled:opacity-50"
           >
             {pending ? "Verificando..." : "Sí, verificar"}
           </button>
@@ -73,7 +73,7 @@ export function VerifyOrgButton({ org }: { org: Org }) {
             type="button"
             onClick={() => setConfirming(false)}
             disabled={pending}
-            className="text-sm px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
+            className="text-sm px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line hover:bg-ln-op-stripe"
           >
             Cancelar
           </button>
@@ -87,7 +87,7 @@ export function VerifyOrgButton({ org }: { org: Org }) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="text-sm px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white font-semibold hover:opacity-90"
+        className="text-sm px-3 py-1.5 rounded-[var(--radius-md)] bg-ln-op-azul text-white font-semibold hover:opacity-90"
       >
         Verificar organización
       </button>

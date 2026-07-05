@@ -45,7 +45,7 @@ export function LnEmptyState({
       className={[
         "flex flex-col items-center justify-center text-center py-12 px-4 gap-3",
         variant === "dashed"
-          ? "rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)]"
+          ? "rounded-[var(--radius-sm)] border border-dashed border-[var(--color-ln-line-strong)]"
           : "",
         className,
       ]

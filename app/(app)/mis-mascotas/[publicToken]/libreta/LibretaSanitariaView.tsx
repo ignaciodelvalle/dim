@@ -59,7 +59,7 @@ export function LibretaSanitariaView({ groupedEvents, publicToken, vista }: Prop
             num="01"
             title="Registro de vacunación"
             meta="Asientos certificados"
-            className="mb-[16px]"
+            className="mb-4"
           />
           <LnVaccineLedger rows={vaccinationEvents.map(eventToVaccineRow)} />
         </section>
@@ -72,7 +72,7 @@ export function LibretaSanitariaView({ groupedEvents, publicToken, vista }: Prop
             num={String(idx + (vaccinationEvents.length > 0 ? 2 : 1)).padStart(2, "0")}
             title={LIBRETA_GROUP_LABELS[group]}
             meta={`${groupedEvents[group].length} asiento${groupedEvents[group].length !== 1 ? "s" : ""}`}
-            className="mb-[16px]"
+            className="mb-4"
           />
           <LnTimelineSection events={groupedEvents[group]} publicToken={publicToken} />
         </section>
@@ -231,7 +231,7 @@ function LnTimelineSection({
           <div key={event.id} className="grid" style={{ gridTemplateColumns: "96px 34px 1fr" }}>
             {/* Date */}
             <div
-              className="flex flex-col items-end justify-start pr-[16px] pt-[11px]"
+              className="flex flex-col items-end justify-start pr-4 pt-[11px]"
               style={{ fontFamily: "var(--font-ln-mono)" }}
             >
               <span
@@ -269,7 +269,7 @@ function LnTimelineSection({
             </div>
 
             {/* Card */}
-            <div className="ml-[14px] mb-[14px] mt-[8px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[14px] py-[11px]">
+            <div className="ml-3.5 mb-3.5 mt-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3.5 py-[11px]">
               <div className="flex flex-wrap items-center gap-[7px]">
                 <p
                   className="m-0 text-[13px] font-semibold"
@@ -290,14 +290,14 @@ function LnTimelineSection({
               </div>
               {senasaNorma && (
                 <p
-                  className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px]"
+                  className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px]"
                   style={{ color: "var(--color-ln-mute)" }}
                 >
                   {senasaNorma}
                 </p>
               )}
               {summary.secondary && (
-                <p className="mt-[2px] text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
+                <p className="mt-0.5 text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
                   {summary.secondary}
                 </p>
               )}
@@ -307,7 +307,7 @@ function LnTimelineSection({
                 </p>
               )}
               <div
-                className="mt-[8px] flex flex-wrap items-center gap-[12px] font-[var(--font-ln-mono)] text-[10.5px]"
+                className="mt-2 flex flex-wrap items-center gap-3 font-[var(--font-ln-mono)] text-[10.5px]"
                 style={{ color: "var(--color-ln-mute)" }}
               >
                 <time dateTime={date.toISOString()}>{formatDate(event.occurredAt)}</time>
@@ -346,7 +346,7 @@ function ChronologicalView({
     <div className="space-y-[32px]">
       {vaccineEvents.length > 0 && (
         <section>
-          <LnSectionHead num="01" title="Registro de vacunación" className="mb-[16px]" />
+          <LnSectionHead num="01" title="Registro de vacunación" className="mb-4" />
           <LnVaccineLedger rows={vaccineEvents.map(eventToVaccineRow)} />
         </section>
       )}
@@ -356,7 +356,7 @@ function ChronologicalView({
             num="02"
             title="Historial clínico"
             meta="orden cronológico"
-            className="mb-[16px]"
+            className="mb-4"
           />
           <LnTimelineSection events={otherEvents} publicToken={publicToken} />
         </section>

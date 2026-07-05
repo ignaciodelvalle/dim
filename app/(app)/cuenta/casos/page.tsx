@@ -18,15 +18,15 @@ export default async function CasosPage() {
   const pastRows = previous.map(adaptWorkflow);
 
   return (
-    <div className="mx-auto max-w-4xl px-[32px] py-[28px] pb-[48px]">
-      <div className="mb-[24px]">
+    <div className="mx-auto max-w-4xl px-8 py-7 pb-12">
+      <div className="mb-6">
         <Link
           href="/inicio"
           className="text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al inicio
         </Link>
-        <h1 className="m-0 mt-[8px] font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 mt-2 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis casos
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">

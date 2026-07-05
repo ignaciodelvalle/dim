@@ -63,7 +63,7 @@ export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
   const statusTone = STATUS_TONE[report.status] ?? "neutral";
 
   return (
-    <li className="rounded-[6px] border border-ln-op-line bg-ln-op-card">
+    <li className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card">
       <Link
         href={`/gob/maltrato/${report.id}`}
         className="block px-4 py-3 hover:bg-ln-op-stripe transition"

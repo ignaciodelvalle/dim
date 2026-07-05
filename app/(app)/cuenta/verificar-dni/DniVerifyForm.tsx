@@ -21,7 +21,7 @@ export function DniVerifyForm({ next }: { next: string }) {
 
   if (state.ok) {
     return (
-      <p className="text-sm rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-[var(--color-ln-ok)]">
+      <p className="text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-[var(--color-ln-ok)]">
         DNI declarado. Redirigiendo...
       </p>
     );

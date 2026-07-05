@@ -111,7 +111,7 @@ export function PetCreatedAha({ petName, publicToken, credentialUrl, qrSvg }: Pr
             role=img + aria-label on the wrapper describes the QR purpose
             and the URL it encodes for screen-reader users. */}
         <div
-          className="rounded-[6px] border border-[var(--color-ln-line)] bg-white p-4 mx-auto inline-block"
+          className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-white p-4 mx-auto inline-block"
           aria-label={`Código QR que enlaza a la credencial pública de ${petName}: ${credentialUrl}`}
           role="img"
         >

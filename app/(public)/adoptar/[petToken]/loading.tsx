@@ -10,18 +10,18 @@ export default function AdoptarPetLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="mx-auto max-w-3xl px-[24px] py-[28px] pb-[48px] block"
+      className="mx-auto max-w-3xl px-6 py-7 pb-12 block"
     >
       <span className="sr-only">Cargando…</span>
 
       {/* Hero */}
-      <div className="flex flex-col items-center gap-[14px] mb-[28px]">
+      <div className="flex flex-col items-center gap-3.5 mb-7">
         <Skeleton w="140px" h="140px" radius="12px" />
         <Skeleton w="50%" h="24px" radius="4px" />
         <Skeleton w="35%" h="14px" radius="3px" />
       </div>
 
-      <div className="flex flex-col gap-[20px]">
+      <div className="flex flex-col gap-5">
         <LnCardSkeleton />
         <LnCardSkeleton />
       </div>

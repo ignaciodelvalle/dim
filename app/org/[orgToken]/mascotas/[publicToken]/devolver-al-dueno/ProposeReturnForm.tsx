@@ -81,7 +81,7 @@ export function ProposeReturnForm({
       >
         {/* Step 1 — Identidad */}
         <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
-          <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4">
             <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">Vas a devolver</p>
             <p className="mt-1 text-[17px] font-semibold text-ln-op-ink">
               {petName ?? "Esta mascota"}
@@ -97,7 +97,7 @@ export function ProposeReturnForm({
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="w-full px-4 py-3 rounded-[6px] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90"
+            className="w-full px-4 py-3 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90"
           >
             Continuar
           </button>
@@ -109,14 +109,14 @@ export function ProposeReturnForm({
             Coordiná lugar y momento de entrega con el dueño antes de enviar la propuesta. Podés
             anotar detalles abajo (opcional) — el dueño los ve cuando recibe la notificación.
           </p>
-          <div className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-[11px] text-ln-op-warn">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-[11px] text-ln-op-warn">
             Sugerencia: si no es posible reunirse, dejá un teléfono o canal de contacto en las notas
             de la próxima pantalla.
           </div>
           <button
             type="button"
             onClick={() => setStep(3)}
-            className="w-full px-4 py-3 rounded-[6px] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90"
+            className="w-full px-4 py-3 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90"
           >
             Continuar
           </button>
@@ -134,12 +134,12 @@ export function ProposeReturnForm({
               rows={4}
               maxLength={1000}
               placeholder="Ej: El animal está en buen estado, coordinamos horario de búsqueda…"
-              className="w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul resize-y"
+              className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul resize-y"
             />
           </div>
 
           {state.error && (
-            <p className="text-sm rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+            <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
               {state.error}
             </p>
           )}
@@ -147,7 +147,7 @@ export function ProposeReturnForm({
           <button
             type="submit"
             disabled={isPending}
-            className="w-full px-4 py-3 rounded-[6px] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-50"
+            className="w-full px-4 py-3 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-50"
           >
             {isPending ? "Enviando…" : "Confirmar propuesta"}
           </button>

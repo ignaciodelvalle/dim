@@ -49,7 +49,7 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
+          className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
         >
           Bloquear
         </button>
@@ -75,7 +75,7 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
           type="button"
           onClick={handleBlock}
           disabled={pending}
-          className="rounded-[4px] bg-ln-op-danger px-3 py-[5px] text-sm font-medium text-white transition-colors disabled:opacity-60"
+          className="rounded-[var(--radius-sm)] bg-ln-op-danger px-3 py-[5px] text-sm font-medium text-white transition-colors disabled:opacity-60"
         >
           {pending ? "Bloqueando..." : "Confirmar"}
         </button>
@@ -86,7 +86,7 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
             setError(null);
           }}
           disabled={pending}
-          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
+          className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
         >
           Cancelar
         </button>

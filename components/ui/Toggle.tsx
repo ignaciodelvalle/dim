@@ -39,7 +39,7 @@ export function LnToggle({
 
   if (inline) {
     return (
-      <div className={["flex items-center gap-[10px]", className].filter(Boolean).join(" ")}>
+      <div className={["flex items-center gap-2.5", className].filter(Boolean).join(" ")}>
         <Track checked={checked} trackOn={trackOn} onChange={onChange} label={label} />
         <span className="text-[12.5px] font-semibold text-[var(--color-ln-ink)]">{label}</span>
       </div>
@@ -54,7 +54,7 @@ export function LnToggle({
   return (
     <div
       className={[
-        "flex cursor-pointer items-start gap-[11px] rounded-[4px] border border-[var(--color-ln-line-2)] bg-[var(--color-ln-stripe)] px-[12px] py-[10px]",
+        "flex cursor-pointer items-start gap-[11px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line-2)] bg-[var(--color-ln-stripe)] px-3 py-2.5",
         className,
       ]
         .filter(Boolean)
@@ -138,7 +138,7 @@ export type LnToggleGroupProps = {
 
 export function LnToggleGroup({ heading, items, onChange, className = "" }: LnToggleGroupProps) {
   return (
-    <div className={["flex flex-col gap-[8px]", className].filter(Boolean).join(" ")}>
+    <div className={["flex flex-col gap-2", className].filter(Boolean).join(" ")}>
       {heading && (
         <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
           {heading}

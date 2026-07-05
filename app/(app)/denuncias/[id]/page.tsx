@@ -25,7 +25,7 @@ import { type CommentFormState, ReporterCommentForm } from "./_components/Report
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="w-full h-[240px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] animate-pulse" />
+    <div className="w-full h-[240px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] animate-pulse" />
   ),
 });
 
@@ -153,36 +153,36 @@ export default async function WelfareReportDetailPage({
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/denuncias/mias"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis denuncias
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <div className="flex items-start justify-between gap-3">
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {welfareReportKindLabel(report.kind)}
           </h1>
-          <div className="flex flex-shrink-0 flex-wrap gap-[6px]">
+          <div className="flex flex-shrink-0 flex-wrap gap-1.5">
             <span
-              className={`inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
+              className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
             >
               {welfareReportStatusLabel(report.status)}
             </span>
             <span
-              className={`inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${severityBadgeClass(report.severity)}`}
+              className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${severityBadgeClass(report.severity)}`}
             >
               {welfareReportSeverityLabel(report.severity)}
             </span>
           </div>
         </div>
 
-        <div className="mt-[8px] flex flex-wrap items-center gap-x-[14px] gap-y-[4px]">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1">
           <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
             Código <span className="text-[var(--color-ln-ink-2)]">{report.referenceCode}</span>
           </p>
@@ -195,14 +195,14 @@ export default async function WelfareReportDetailPage({
             Compartir link ↗
           </a>
         </div>
-        <p className="mt-[4px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+        <p className="mt-1 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
           Enviada {formatDateTime(report.createdAt)}
           {report.occurredAt && ` · Ocurrió el ${formatDate(report.occurredAt)}`}
         </p>
         {casePublicCode && (
           <Link
             href={`/casos/${casePublicCode}`}
-            className="mt-[4px] inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="mt-1 inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             Ver caso {casePublicCode} →
           </Link>
@@ -212,7 +212,7 @@ export default async function WelfareReportDetailPage({
       {/* Integration-pending notice — only while the report is non-terminal.
           On closed / invalid / duplicate it contradicts the status badge (UI-7 B7). */}
       {!isTerminalReportStatus(report.status) && (
-        <div className="mb-[24px]">
+        <div className="mb-6">
           <LnCallout tone="warn">
             Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
             canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
@@ -221,7 +221,7 @@ export default async function WelfareReportDetailPage({
         </div>
       )}
 
-      <div className="flex flex-col gap-[20px]">
+      <div className="flex flex-col gap-5">
         {/* Description */}
         <LnCard>
           <LnCardHead title="¿Qué pasó?" />
@@ -242,7 +242,7 @@ export default async function WelfareReportDetailPage({
             {report.subjectKind === "registered_pet" && subjectPet && (
               <Link
                 href={`/mis-mascotas/${subjectPet.publicToken}`}
-                className="mt-[6px] inline-flex items-center gap-[6px] text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 {subjectPet.name}
                 <span className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
@@ -251,7 +251,7 @@ export default async function WelfareReportDetailPage({
               </Link>
             )}
             {report.subjectDescription && (
-              <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
+              <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
                 {report.subjectDescription}
               </p>
             )}
@@ -263,7 +263,7 @@ export default async function WelfareReportDetailPage({
           <LnCard>
             <LnCardHead title="Lugar" />
             <LnCardBody>
-              <div className="flex flex-col gap-[8px]">
+              <div className="flex flex-col gap-2">
                 {report.locationAddress && (
                   <p className="text-[13px] text-[var(--color-ln-ink-2)]">
                     {report.locationAddress}
@@ -294,7 +294,7 @@ export default async function WelfareReportDetailPage({
           <LnCard>
             <LnCardHead title="Contacto que dejaste" />
             <LnCardBody>
-              <div className="flex flex-col gap-[6px]">
+              <div className="flex flex-col gap-1.5">
                 {report.reporterContactEmail && (
                   <p className="text-[13px] text-[var(--color-ln-ink-2)]">
                     {report.reporterContactEmail}
@@ -315,13 +315,13 @@ export default async function WelfareReportDetailPage({
           <LnCard>
             <LnCardHead title="Evidencia adjunta" />
             <LnCardBody>
-              <div className="grid grid-cols-2 gap-[10px] sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                 {attachments.map((a) =>
                   a.signedUrl ? (
                     a.mimeType.startsWith("video/") ? (
                       <div
                         key={a.id}
-                        className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]"
+                        className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]"
                       >
                         {/* biome-ignore lint/a11y/useMediaCaption: evidence video, no captions available */}
                         <video
@@ -330,7 +330,7 @@ export default async function WelfareReportDetailPage({
                           className="w-full aspect-video object-cover bg-[var(--color-ln-stripe)]"
                         />
                         {a.originalFilename && (
-                          <p className="px-[8px] py-[4px] font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)] truncate">
+                          <p className="px-2 py-1 font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)] truncate">
                             {a.originalFilename}
                           </p>
                         )}
@@ -341,7 +341,7 @@ export default async function WelfareReportDetailPage({
                         href={a.signedUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] hover:opacity-90 transition-opacity"
+                        className="block overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] hover:opacity-90 transition-opacity"
                       >
                         <img
                           src={a.signedUrl}
@@ -363,16 +363,16 @@ export default async function WelfareReportDetailPage({
             <LnCardHead title="Tus comentarios sobre el caso" />
             <LnCardBody>
               {reporterComments.length > 0 && (
-                <ol className="mb-[16px] flex flex-col gap-[10px]">
+                <ol className="mb-4 flex flex-col gap-2.5">
                   {reporterComments.map((c) => (
                     <li
                       key={c.id}
-                      className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[14px] py-[12px]"
+                      className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3.5 py-3"
                     >
                       <p className="text-[13px] text-[var(--color-ln-ink-2)] whitespace-pre-wrap">
                         {c.notes}
                       </p>
-                      <time className="mt-[4px] block font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
+                      <time className="mt-1 block font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
                         {formatDateTime(c.occurredAt)}
                       </time>
                     </li>

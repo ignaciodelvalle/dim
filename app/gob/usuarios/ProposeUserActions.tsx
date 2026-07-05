@@ -65,7 +65,7 @@ function ActionButton({
   tone?: "default" | "danger";
 }) {
   const base =
-    "text-sm px-3 py-1.5 rounded-[6px] transition-opacity hover:opacity-90 disabled:opacity-50";
+    "text-sm px-3 py-1.5 rounded-[var(--radius-md)] transition-opacity hover:opacity-90 disabled:opacity-50";
   const variant =
     tone === "danger"
       ? "border border-ln-op-warn text-ln-op-warn"
@@ -116,7 +116,7 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
   }
 
   return (
-    <div className="rounded-[6px] border border-ln-op-line p-3 space-y-2">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-line p-3 space-y-2">
       <p className="text-xs uppercase tracking-wider text-ln-op-mute">
         Proponer rol vet para {target.displayName}
       </p>
@@ -189,7 +189,7 @@ function Field({
         inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-sm rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+        className="w-full text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
       />
     </div>
   );
@@ -217,7 +217,7 @@ function Textarea({
         rows={rows}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-sm rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+        className="w-full text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
       />
     </div>
   );

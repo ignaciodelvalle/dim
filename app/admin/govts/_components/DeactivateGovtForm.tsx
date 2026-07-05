@@ -129,7 +129,7 @@ function DeactivateGovtForm({
       : null;
 
   return (
-    <div className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3 space-y-3">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3 space-y-3">
       <p className="text-xs uppercase tracking-wider font-bold text-ln-op-danger">
         Desactivar govt &mdash; {target.displayName}
       </p>

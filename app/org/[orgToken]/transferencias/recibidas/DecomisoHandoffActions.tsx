@@ -65,7 +65,7 @@ export function DecomisoHandoffActions({
 
   if (mode === "accept") {
     return (
-      <div className="space-y-3 rounded-[6px] border border-ln-op-line bg-ln-op-card p-4">
+      <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4">
         <p className="text-[13px] font-medium text-ln-op-ink">
           Aceptar la custodia estatal de {petName}.
         </p>
@@ -78,7 +78,7 @@ export function DecomisoHandoffActions({
             type="button"
             onClick={handleAccept}
             disabled={pending}
-            className="px-4 py-2 rounded-[6px] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-60 transition-opacity"
+            className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-60 transition-opacity"
           >
             {pending ? "Procesando..." : "Confirmar custodia"}
           </button>
@@ -89,7 +89,7 @@ export function DecomisoHandoffActions({
               setError(null);
             }}
             disabled={pending}
-            className="px-4 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+            className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
           >
             Cancelar
           </button>
@@ -100,7 +100,7 @@ export function DecomisoHandoffActions({
 
   if (mode === "reject") {
     return (
-      <div className="space-y-3 rounded-[6px] border border-ln-op-line bg-ln-op-card p-4">
+      <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4">
         <p className="text-[13px] font-medium text-ln-op-ink">
           Rechazar la custodia estatal de {petName}.
         </p>
@@ -112,7 +112,7 @@ export function DecomisoHandoffActions({
           onChange={(e) => setRejectReason(e.target.value)}
           rows={2}
           placeholder="Motivo del rechazo (opcional)"
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
         {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
         <div className="flex gap-2">
@@ -120,7 +120,7 @@ export function DecomisoHandoffActions({
             type="button"
             onClick={handleReject}
             disabled={pending}
-            className="px-4 py-2 rounded-[6px] border border-ln-op-danger text-ln-op-danger bg-ln-op-card text-[13px] font-medium hover:bg-ln-op-stripe disabled:opacity-60 transition-colors"
+            className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-danger text-ln-op-danger bg-ln-op-card text-[13px] font-medium hover:bg-ln-op-stripe disabled:opacity-60 transition-colors"
           >
             {pending ? "Procesando..." : "Confirmar rechazo"}
           </button>
@@ -132,7 +132,7 @@ export function DecomisoHandoffActions({
               setRejectReason("");
             }}
             disabled={pending}
-            className="px-4 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+            className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
           >
             Cancelar
           </button>
@@ -146,14 +146,14 @@ export function DecomisoHandoffActions({
       <button
         type="button"
         onClick={() => setMode("accept")}
-        className="px-3 py-1.5 rounded-[6px] bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 transition-opacity"
+        className="px-3 py-1.5 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 transition-opacity"
       >
         Aceptar custodia
       </button>
       <button
         type="button"
         onClick={() => setMode("reject")}
-        className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-sm font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+        className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-sm font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
       >
         Rechazar
       </button>

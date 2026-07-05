@@ -48,7 +48,7 @@ export function MpfExportButton({ welfareReportId }: Props) {
         type="button"
         onClick={handleClick}
         disabled={loading}
-        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-[6px] border border-ln-op-azul bg-ln-op-blue-bg text-ln-op-azul hover:bg-ln-op-celeste-050 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-blue-bg text-ln-op-azul hover:bg-ln-op-celeste-050 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {loading ? (
           <>

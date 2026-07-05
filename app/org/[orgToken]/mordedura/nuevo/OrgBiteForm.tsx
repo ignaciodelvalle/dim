@@ -158,7 +158,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           type="button"
           onClick={() => setStep(2)}
           disabled={!petPublicToken.trim()}
-          className="w-full rounded-[6px] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-[var(--radius-md)] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Continuar
         </button>
@@ -184,7 +184,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           type="button"
           onClick={() => setStep(3)}
           disabled={!occurredAt}
-          className="w-full rounded-[6px] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-[var(--radius-md)] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Continuar
         </button>
@@ -244,7 +244,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
                 key={opt.value}
                 type="button"
                 onClick={() => setVictimKind(opt.value)}
-                className={`flex items-center justify-center gap-2 rounded-[6px] border px-3 py-2 text-[13px] cursor-pointer transition-colors ${
+                className={`flex items-center justify-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-[13px] cursor-pointer transition-colors ${
                   victimKind === opt.value
                     ? "border-ln-op-azul bg-ln-op-azul/10 text-ln-op-ink"
                     : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
@@ -257,7 +257,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         </div>
 
         {victimKind === "human" && (
-          <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-4 space-y-3">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe p-4 space-y-3">
             <p className="text-sm text-ln-op-mute">
               Datos de contacto opcionales — para denuncia obligatoria a autoridad sanitaria si
               corresponde.
@@ -360,7 +360,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           type="button"
           onClick={() => setStep(4)}
           disabled={!severity}
-          className="w-full rounded-[6px] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-[var(--radius-md)] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Continuar
         </button>
@@ -368,7 +368,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
 
       {/* Step 4 — Confirmar + submit */}
       <section className={step === 4 ? "space-y-4" : "sr-only"} aria-hidden={step !== 4}>
-        <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-4 space-y-2">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 p-4 space-y-2">
           <LnCheckbox
             checked={confirmObservation}
             onChange={(e) => setConfirmObservation(e.target.checked)}
@@ -390,7 +390,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           type="button"
           onClick={submit}
           disabled={pending || !confirmObservation}
-          className="w-full rounded-[6px] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full rounded-[var(--radius-md)] bg-ln-op-warn px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {pending ? "Reportando..." : "Confirmar mordedura"}
         </button>

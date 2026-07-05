@@ -226,7 +226,7 @@ export default async function AdminAuditoriaPage({
             id="audit-action"
             name="action"
             defaultValue={actionFilter ?? ""}
-            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             <option value="">Todas las acciones</option>
             {actionOptions.map(([code, label]) => (
@@ -246,7 +246,7 @@ export default async function AdminAuditoriaPage({
             id="audit-actor"
             name="actor"
             defaultValue={actorFilter ?? ""}
-            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             <option value="">Todos los actores</option>
             {actorOptions.map((o) => (

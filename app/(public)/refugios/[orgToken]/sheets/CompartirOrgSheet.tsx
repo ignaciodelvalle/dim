@@ -59,7 +59,7 @@ export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
           Compartí este link con quien quieras: vecinos, redes, grupos de WhatsApp.
         </p>
 
-        <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3 text-xs font-[var(--font-ln-mono)] break-all text-[var(--color-ln-ink)]">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3 text-xs font-[var(--font-ln-mono)] break-all text-[var(--color-ln-ink)]">
           {url}
         </div>
 
@@ -67,7 +67,7 @@ export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
           <button
             type="button"
             onClick={copy}
-            className="w-full rounded-[4px] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
+            className="w-full rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
           >
             {copied ? "✓ Link copiado" : "Copiar link"}
           </button>
@@ -75,7 +75,7 @@ export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
             <button
               type="button"
               onClick={nativeShare}
-              className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] text-[var(--color-ln-ink)] text-sm font-medium px-4 py-2.5 hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
+              className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] text-[var(--color-ln-ink)] text-sm font-medium px-4 py-2.5 hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
             >
               Más opciones para compartir…
             </button>

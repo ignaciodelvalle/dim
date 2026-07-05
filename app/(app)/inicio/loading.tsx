@@ -15,13 +15,13 @@ export default function InicioLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="mx-auto max-w-5xl px-[32px] py-[28px] pb-[48px] md:px-[32px] block"
+      className="mx-auto max-w-5xl px-8 py-7 pb-12 md:px-8 block"
     >
       <span className="sr-only">Cargando…</span>
 
       {/* Greeting placeholder */}
-      <div className="mb-[24px] flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-[10px]">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-2.5">
           <Skeleton w="280px" h="34px" radius="4px" />
           <Skeleton w="200px" h="14px" radius="3px" />
         </div>
@@ -29,17 +29,17 @@ export default function InicioLoading() {
       </div>
 
       {/* Capture block placeholder */}
-      <div className="mb-[24px] overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] p-[18px]">
-        <Skeleton w="50%" h="17px" radius="3px" className="mb-[8px]" />
+      <div className="mb-6 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] p-[18px]">
+        <Skeleton w="50%" h="17px" radius="3px" className="mb-2" />
         <Skeleton w="75%" h="40px" radius="4px" />
       </div>
 
       {/* 2-col grid placeholder — left: Estado sanitario strip, right: sidebar cards */}
-      <div className="grid gap-[24px] lg:grid-cols-[1fr_320px]">
-        <div className="flex flex-col gap-[12px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <div className="flex flex-col gap-3">
           <LnCardSkeleton />
         </div>
-        <div className="flex flex-col gap-[20px]">
+        <div className="flex flex-col gap-5">
           {SIDEBAR_KEYS.map((k) => (
             <LnCardSkeleton key={k} />
           ))}

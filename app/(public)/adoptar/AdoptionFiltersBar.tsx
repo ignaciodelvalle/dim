@@ -118,7 +118,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
             maxLength={100}
             defaultValue={filters.searchQuery ?? ""}
             placeholder='Ej: "Laika" o "Labrador"'
-            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
+            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
           />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
@@ -133,7 +133,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
               id="species"
               name="species"
               defaultValue={filters.species ?? ""}
-              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
             >
               <option value="">Todas</option>
               {SPECIES_OPTIONS.map((o) => (
@@ -156,7 +156,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
               name="provincia"
               value={provinceName}
               onChange={(e) => setProvinceName(e.target.value)}
-              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
             >
               <option value="">Todas</option>
               {PROVINCES.map((p) => (
@@ -200,7 +200,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
               id="edad"
               name="edad"
               defaultValue={filters.ageBucket ?? ""}
-              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
             >
               <option value="">Cualquiera</option>
               {ADOPTION_AGE_BUCKETS.map((b) => (
@@ -222,7 +222,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
               id="talle"
               name="talle"
               defaultValue={filters.sizeEstimate ?? ""}
-              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
             >
               <option value="">Cualquiera</option>
               {ADOPTION_SIZE_ESTIMATES.map((s) => (
@@ -244,7 +244,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
               id="energia"
               name="energia"
               defaultValue={filters.energyLevel ?? ""}
-              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
             >
               <option value="">Cualquiera</option>
               {ADOPTION_ENERGY_LEVELS.map((e) => (
@@ -288,14 +288,14 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
           {hasActiveFilters && (
             <Link
               href="/adoptar"
-              className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
+              className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
             >
               Limpiar
             </Link>
           )}
           <button
             type="submit"
-            className="rounded-[4px] bg-[var(--color-ln-azul)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--color-ln-azul-700)]"
+            className="rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--color-ln-azul-700)]"
           >
             Aplicar filtros
           </button>
@@ -312,7 +312,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
               <Link
                 key={key}
                 href={urlWithout(filters, key)}
-                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-sm font-medium hover:bg-[var(--color-ln-stripe)]"
+                className="inline-flex items-center gap-[5px] rounded-full border px-2.5 py-1 text-sm font-medium hover:bg-[var(--color-ln-stripe)]"
                 style={{
                   background: "var(--color-ln-celeste-050)",
                   borderColor: "var(--color-ln-celeste-100)",

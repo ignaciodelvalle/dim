@@ -16,7 +16,7 @@ export const SituationalMapDynamic = dynamic(
     ssr: false,
     loading: () => (
       <div
-        className="w-full animate-pulse rounded-[8px] border border-ln-op-line"
+        className="w-full animate-pulse rounded-[var(--radius-lg)] border border-ln-op-line"
         style={{ height: 560, background: "#0b1020" }}
         aria-hidden="true"
       />

@@ -68,9 +68,9 @@ export default async function MisTurnosPage() {
   );
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Header */}
-      <div className="mb-[24px] flex items-start justify-between gap-4">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis turnos
@@ -95,11 +95,11 @@ export default async function MisTurnosPage() {
         />
       )}
 
-      <div className="flex flex-col gap-[32px]">
+      <div className="flex flex-col gap-8">
         {upcoming.length > 0 && (
           <section>
-            <LnSectionHead num="01" title="Próximos" className="mb-[14px]" />
-            <ul className="flex flex-col gap-[10px]">
+            <LnSectionHead num="01" title="Próximos" className="mb-3.5" />
+            <ul className="flex flex-col gap-2.5">
               {upcoming.map((r) => (
                 <AppointmentCard key={r.appointment.id} row={r} />
               ))}
@@ -109,8 +109,8 @@ export default async function MisTurnosPage() {
 
         {past.length > 0 && (
           <section>
-            <LnSectionHead num="02" title="Pasados" className="mb-[14px]" />
-            <ul className="flex flex-col gap-[10px]">
+            <LnSectionHead num="02" title="Pasados" className="mb-3.5" />
+            <ul className="flex flex-col gap-2.5">
               {past.map((r) => (
                 <AppointmentCard key={r.appointment.id} row={r} />
               ))}
@@ -120,8 +120,8 @@ export default async function MisTurnosPage() {
 
         {cancelled.length > 0 && (
           <section>
-            <LnSectionHead num="03" title="Cancelados" className="mb-[14px]" />
-            <ul className="flex flex-col gap-[10px]">
+            <LnSectionHead num="03" title="Cancelados" className="mb-3.5" />
+            <ul className="flex flex-col gap-2.5">
               {cancelled.map((r) => (
                 <AppointmentCard key={r.appointment.id} row={r} />
               ))}
@@ -131,7 +131,7 @@ export default async function MisTurnosPage() {
       </div>
 
       {/* Footer */}
-      <div className="mt-[40px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-3.5 font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
         <span>Agenda de turnos</span>
         <Link
           href="/mis-mascotas"

@@ -73,7 +73,7 @@ export function RankedUnitsPanel({
                   onFocus={() => onHover?.(row.key)}
                   onBlur={() => onHover?.(null)}
                   onClick={() => onSelect?.(row.key)}
-                  className={`flex w-full items-center gap-2 rounded-[4px] px-2 py-1 text-left text-sm transition-colors ${
+                  className={`flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1 text-left text-sm transition-colors ${
                     highlighted ? "bg-ln-op-line/50" : "hover:bg-ln-op-line/30"
                   }`}
                 >

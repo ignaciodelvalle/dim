@@ -76,7 +76,7 @@ export function Tier2PublicView({
         <strong>sólo la información médicamente relevante</strong>.
       </p>
 
-      <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-4 text-xs leading-relaxed text-[var(--color-ln-ink-2)]">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-4 text-xs leading-relaxed text-[var(--color-ln-ink-2)]">
         Al escanear el QR de la chapita, hoy se ve solo identidad básica (Tier 0). Con esta acción,
         durante el lapso elegido se muestra también vacunas vigentes, antiparasitario reciente,
         esterilización, condiciones permanentes y medicación activa.{" "}
@@ -101,7 +101,7 @@ export function Tier2PublicView({
 function DurationOption({ card, defaultChecked }: { card: DurationCard; defaultChecked: boolean }) {
   return (
     <label
-      className={`flex items-start gap-3 rounded-[4px] border px-4 py-3 ${
+      className={`flex items-start gap-3 rounded-[var(--radius-sm)] border px-4 py-3 ${
         card.enabled
           ? "cursor-pointer border-[var(--color-ln-line-strong)] has-[:checked]:border-[var(--color-ln-ok)] has-[:checked]:bg-[var(--color-ln-ok-050)]"
           : "border-dashed border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] opacity-60 cursor-not-allowed"
@@ -196,7 +196,7 @@ function ActiveStatusCard({
       })
     : null;
   return (
-    <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-3">
+    <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-3">
       <div className="space-y-1">
         <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-ln-ok)]">
           Tier 2 activo

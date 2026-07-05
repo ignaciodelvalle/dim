@@ -83,7 +83,7 @@ export function MatchConfirmationCard({
         detail="El microchip ya figura en MiMAR asociado a la siguiente mascota."
       />
 
-      <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card overflow-hidden">
+      <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card overflow-hidden">
         {petPhotoUrl && (
           <div className="relative aspect-video overflow-hidden bg-ln-op-stripe">
             <Image
@@ -129,7 +129,7 @@ export function MatchConfirmationCard({
       </div>
 
       {error && (
-        <p className="rounded-[6px] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-[13px] text-ln-op-danger">
+        <p className="rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-[13px] text-ln-op-danger">
           {error}
         </p>
       )}
@@ -139,7 +139,7 @@ export function MatchConfirmationCard({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("same")}
-          className="flex-1 rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="flex-1 rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {isPending ? "Procesando..." : "Es la misma mascota"}
         </button>
@@ -147,7 +147,7 @@ export function MatchConfirmationCard({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("not_same")}
-          className="flex-1 rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 px-4 py-3 text-[13px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-warn/20 disabled:opacity-50"
+          className="flex-1 rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 px-4 py-3 text-[13px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-warn/20 disabled:opacity-50"
         >
           {isPending ? "Procesando..." : "No es la misma"}
         </button>

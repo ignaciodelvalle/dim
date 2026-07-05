@@ -121,13 +121,13 @@ type OpFormAlertProps = {
  * Danger alert box rendered when a form has a top-level error.
  *
  * Emits:
- *   <p role="alert" className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger">
+ *   <p role="alert" className="rounded-[var(--radius-sm)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger">
  */
 export function OpFormAlert({ children }: OpFormAlertProps) {
   return (
     <p
       role="alert"
-      className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
+      className="rounded-[var(--radius-sm)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
     >
       {children}
     </p>

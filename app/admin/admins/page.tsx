@@ -54,14 +54,14 @@ export default async function AdminsPage() {
           </div>
           <Link
             href="/admin/admins/new"
-            className="px-4 py-2 text-sm font-semibold bg-ln-op-azul text-white rounded-[6px] hover:bg-ln-op-azul-700 shrink-0"
+            className="px-4 py-2 text-sm font-semibold bg-ln-op-azul text-white rounded-[var(--radius-md)] hover:bg-ln-op-azul-700 shrink-0"
           >
             + Crear admin
           </Link>
         </header>
 
         {humanActive.length === 0 ? (
-          <div className="text-center py-12 rounded-[6px] border border-dashed border-ln-op-line">
+          <div className="text-center py-12 rounded-[var(--radius-md)] border border-dashed border-ln-op-line">
             <p className="text-sm text-ln-op-mute">No hay administradores activos.</p>
             <p className="text-sm text-ln-op-mute mt-1">
               Para el bootstrap inicial, usa Supabase Studio para asignar el primer admin

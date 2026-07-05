@@ -45,8 +45,8 @@ export function AmendEventButton({
         type="button"
         onClick={() => setOpen(true)}
         className={[
-          "inline-flex items-center gap-[6px] rounded-[3px] border border-[var(--color-ln-line-strong)]",
-          "bg-[var(--color-ln-card)] px-[14px] py-[8px]",
+          "inline-flex items-center gap-1.5 rounded-[3px] border border-[var(--color-ln-line-strong)]",
+          "bg-[var(--color-ln-card)] px-3.5 py-2",
           "font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-ink-2)]",
           "hover:bg-[var(--color-ln-stripe)] transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)]",

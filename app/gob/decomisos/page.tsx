@@ -67,7 +67,7 @@ export default async function DecomisosDashboardPage() {
     if (!govtOrg) {
       return (
         <div className="space-y-6">
-          <p className="text-[13px] text-ln-op-mute rounded-[6px] border border-dashed border-ln-op-line p-8 text-center">
+          <p className="text-[13px] text-ln-op-mute rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center">
             Tu usuario no esta asociado a ninguna autoridad sanitaria. Contacta al administrador.
           </p>
         </div>
@@ -119,7 +119,7 @@ export default async function DecomisosDashboardPage() {
         </div>
         <Link
           href="/gob/decomisos/nuevo"
-          className="px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
+          className="px-3 py-1.5 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
         >
           {"+ Nuevo decomiso"}
         </Link>
@@ -166,7 +166,7 @@ export default async function DecomisosDashboardPage() {
       </section>
 
       {rows.length === 0 ? (
-        <div className="rounded-[6px] border border-dashed border-ln-op-line p-12 text-center space-y-2">
+        <div className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-12 text-center space-y-2">
           <p className="text-[13px] text-ln-op-mute">No hay decomisos registrados todavia.</p>
           <p className="text-sm text-ln-op-mute">
             {'Usa el boton "Nuevo decomiso" para registrar una incautacion por Ley 14.346.'}
@@ -241,7 +241,7 @@ export default async function DecomisosDashboardPage() {
                       <div className="flex gap-2">
                         <Link
                           href={`/casos/${c.publicCode}`}
-                          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline text-sm"
+                          className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline text-sm"
                         >
                           Ver caso
                         </Link>

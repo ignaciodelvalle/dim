@@ -20,17 +20,17 @@ export default async function TransitosHubPage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-4xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-4xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
 
       {/* Page header */}
-      <div className="mb-[28px]">
+      <div className="mb-7">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Tránsitos
         </h1>
@@ -40,9 +40,9 @@ export default async function TransitosHubPage() {
       </div>
 
       {/* Hub cards */}
-      <LnSectionHead num="01" title="Acciones" className="mb-[16px]" />
+      <LnSectionHead num="01" title="Acciones" className="mb-4" />
 
-      <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+      <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
         <HubRow
           href="/cuenta/ofrecerme-como-transito"
           label="Ofrecerme como hogar de tránsito"
@@ -68,7 +68,7 @@ export default async function TransitosHubPage() {
       </div>
 
       {/* Info card */}
-      <LnCard className="mt-[28px]">
+      <LnCard className="mt-7">
         <LnCardHead title="¿Qué es un tránsito?" />
         <LnCardBody>
           <p className="text-[13px] leading-[1.6] text-[var(--color-ln-ink-2)]">
@@ -100,15 +100,15 @@ function HubRow({
   return (
     <Link
       href={href}
-      className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-[14px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+      className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
     >
       <div className="min-w-0">
         <p className="text-[13.5px] font-medium leading-tight text-[var(--color-ln-ink)]">
           {label}
         </p>
-        <p className="mt-[2px] text-[11.5px] text-[var(--color-ln-mute)]">{description}</p>
+        <p className="mt-0.5 text-[11.5px] text-[var(--color-ln-mute)]">{description}</p>
       </div>
-      <div className="flex flex-shrink-0 items-center gap-[8px]">
+      <div className="flex flex-shrink-0 items-center gap-2">
         {badge !== undefined && (
           <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-[5px] font-[var(--font-ln-mono)] text-xs font-semibold text-white">
             {badge}

@@ -1088,7 +1088,7 @@ export function SituationalMap({
     <div className="relative w-full" style={{ height }}>
       <div
         ref={containerRef}
-        className="h-full w-full overflow-hidden rounded-[8px] border border-ln-op-line"
+        className="h-full w-full overflow-hidden rounded-[var(--radius-lg)] border border-ln-op-line"
         style={{ background: COLOR_CANVAS }}
         role="img"
         aria-label={`${label}. ${renderableCount} ${renderableCount === 1 ? "punto" : "puntos"} en la vista.`}
@@ -1128,7 +1128,7 @@ export function SituationalMap({
       )}
       {renderableCount === 0 && !hasProvChoro && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="rounded-[6px] bg-black/40 px-4 py-2 text-[13px] text-white/80">
+          <p className="rounded-[var(--radius-md)] bg-black/40 px-4 py-2 text-[13px] text-white/80">
             Sin datos para esta capa en tu cobertura.
           </p>
         </div>
@@ -1143,7 +1143,7 @@ export function SituationalMap({
           {provinceLegends.map(({ layer, bounds, isDivergent }) => (
             <div
               key={layer.id}
-              className="rounded-[6px] bg-black/55 px-3 py-2 text-[11px] text-white/90"
+              className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[11px] text-white/90"
             >
               <div className="mb-1 font-medium">{layer.label}</div>
               {isDivergent && typeof layer.complianceTarget === "number" ? (
@@ -1165,14 +1165,14 @@ export function SituationalMap({
                     />
                     <span className="tabular-nums text-white/70">100</span>
                   </div>
-                  <div className="flex justify-between text-[10px] text-white/55">
+                  <div className="flex justify-between text-[var(--text-xs)] text-white/55">
                     <span>bajo meta</span>
                     <span>sobre meta</span>
                   </div>
                   {/* Target anchor — the pivotal reference point */}
                   <div className="flex items-center gap-1.5 text-white/60">
                     <span
-                      className="inline-block h-2.5 w-2.5 rounded-[2px] border border-white/30"
+                      className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/30"
                       style={{ background: COLOR_DIVERGENT_NEUTRAL }}
                       aria-hidden="true"
                     />
@@ -1200,7 +1200,7 @@ export function SituationalMap({
               )}
               <div className="mt-1 flex items-center gap-1.5 text-white/70">
                 <span
-                  className="inline-block h-2.5 w-2.5 rounded-[2px]"
+                  className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)]"
                   style={{ background: COLOR_NO_DATA }}
                   aria-hidden="true"
                 />
@@ -1211,7 +1211,7 @@ export function SituationalMap({
           {/* F1 graduated-circle legend: fixed size → count-bucket mapping.
               Does NOT depend on zoom — circles are non-clustered, one per unit. */}
           {hasGraduatedLayer && (
-            <div className="rounded-[6px] bg-black/55 px-3 py-2 text-[11px] text-white/90">
+            <div className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[11px] text-white/90">
               <div className="mb-1.5 font-medium text-white/80">Eventos por unidad</div>
               <div className="flex flex-col gap-1">
                 {GRADUATED_BUCKETS.map((b) => (

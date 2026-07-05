@@ -16,19 +16,19 @@ export default function AdoptarLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="mx-auto max-w-5xl px-[24px] py-[28px] pb-[48px] block"
+      className="mx-auto max-w-5xl px-6 py-7 pb-12 block"
     >
       <span className="sr-only">Cargando…</span>
 
       {/* Filters bar placeholder */}
-      <div className="flex gap-[10px] mb-[24px] flex-wrap">
+      <div className="flex gap-2.5 mb-6 flex-wrap">
         {FILTER_KEYS.map((k) => (
           <Skeleton key={k} w="80px" h="32px" radius="9999px" />
         ))}
       </div>
 
       {/* Pet grid placeholder */}
-      <div className="grid grid-cols-1 gap-[20px] sm:grid-cols-2 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
         {PET_KEYS.map((k) => (
           <LnCardSkeleton key={k} />
         ))}

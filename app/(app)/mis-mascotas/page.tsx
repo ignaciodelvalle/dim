@@ -99,11 +99,11 @@ export default async function MisMascotasPage({
   );
 
   return (
-    <div className="mx-auto max-w-4xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-4xl px-8 py-7 pb-12">
       {/* ------------------------------------------------------------------ */}
       {/* Header                                                               */}
       {/* ------------------------------------------------------------------ */}
-      <div className="mb-[24px] flex items-start justify-between gap-4">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis mascotas
@@ -121,7 +121,7 @@ export default async function MisMascotasPage({
 
       {/* Claimed pets banner */}
       {claimedCount !== null && (
-        <p className="mb-[18px] rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-[14px] py-[10px] text-[13px] text-[var(--color-ln-ok)]">
+        <p className="mb-[18px] rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-3.5 py-2.5 text-[13px] text-[var(--color-ln-ok)]">
           {claimedCount > 0
             ? `Reclamaste ${claimedCount} mascota${claimedCount === 1 ? "" : "s"} adoptada${claimedCount === 1 ? "" : "s"} a tu cuenta.`
             : "Vinculamos tu DNI a tu cuenta. Si esperabas una adopción, pedile al refugio que verifique el DNI cargado."}
@@ -130,7 +130,7 @@ export default async function MisMascotasPage({
 
       {/* Scale guard notice — shown only when the list is capped */}
       {ownedPets.length < totalPetsCount && (
-        <p className="mb-[14px] rounded-[4px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[14px] py-[10px] text-[12.5px] text-[var(--color-ln-azul)]">
+        <p className="mb-3.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-3.5 py-2.5 text-[12.5px] text-[var(--color-ln-azul)]">
           Mostrando {ownedPets.length} de {totalPetsCount} mascotas. Para ver más usá el buscador o
           accedé directamente desde la chapita o QR de cada mascota.
         </p>
@@ -153,7 +153,7 @@ export default async function MisMascotasPage({
           }
         />
       ) : (
-        <LnRegistry className="mb-[32px]">
+        <LnRegistry className="mb-8">
           {activePets.map(({ pet, photo, ownershipRole }) => {
             const compliance = complianceByPet.get(pet.id);
             const st = compliance
@@ -191,13 +191,13 @@ export default async function MisMascotasPage({
       {/* In memoriam                                                          */}
       {/* ------------------------------------------------------------------ */}
       {deceasedPets.length > 0 && (
-        <div className="mb-[32px]">
+        <div className="mb-8">
           <LnSectionHead
             num="†"
             title="In memoriam"
             meta={`${deceasedPets.length} recordada${deceasedPets.length !== 1 ? "s" : ""}`}
           />
-          <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] bg-ln-paper">
+          <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-ln-paper">
             {deceasedPets.map(({ pet, photo }) => (
               <MemorialRow
                 key={pet.id}
@@ -214,8 +214,8 @@ export default async function MisMascotasPage({
       {/* ------------------------------------------------------------------ */}
       {/* More actions                                                         */}
       {/* ------------------------------------------------------------------ */}
-      <section className="mt-[32px] border-t border-[var(--color-ln-line)] pt-[24px]">
-        <p className="mb-[14px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.12em] text-[var(--color-ln-mute)]">
+      <section className="mt-8 border-t border-[var(--color-ln-line)] pt-6">
+        <p className="mb-3.5 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.12em] text-[var(--color-ln-mute)]">
           Más acciones
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -264,7 +264,7 @@ function MemorialRow({
   return (
     <a
       href={href}
-      className="grid items-center gap-[16px] border-b border-[var(--color-ln-line-2)] px-[20px] py-[18px] text-inherit no-underline last:border-b-0 hover:bg-ln-stripe"
+      className="grid items-center gap-4 border-b border-[var(--color-ln-line-2)] px-5 py-[18px] text-inherit no-underline last:border-b-0 hover:bg-ln-stripe"
       style={{ gridTemplateColumns: "72px 1fr auto" }}
     >
       {/* Sepia photo */}
@@ -288,11 +288,11 @@ function MemorialRow({
         <span className="font-[var(--font-ln-serif)] text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-memorial-sepia)]">
           {name}
         </span>
-        {breed && <p className="mt-[2px] text-[12.5px] text-[var(--color-ln-mute)]">{breed}</p>}
+        {breed && <p className="mt-0.5 text-[12.5px] text-[var(--color-ln-mute)]">{breed}</p>}
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-[6px] font-[var(--font-ln-mono)] text-[11px] whitespace-nowrap text-[var(--color-ln-mute)]">
+      <div className="flex items-center gap-1.5 font-[var(--font-ln-mono)] text-[11px] whitespace-nowrap text-[var(--color-ln-mute)]">
         <span>Ver memorial</span>
         <span aria-hidden="true">›</span>
       </div>

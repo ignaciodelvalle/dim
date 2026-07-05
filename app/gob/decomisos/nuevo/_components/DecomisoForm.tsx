@@ -315,7 +315,7 @@ export function DecomisoForm({
     <>
       <div className="space-y-6">
         {/* --- Sujeto del decomiso (mode toggle + conditional fields) --- */}
-        <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
+        <section className="rounded-[var(--radius-md)] border border-ln-op-line p-5 space-y-4">
           <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
             1. Sujeto del decomiso
           </h2>
@@ -325,7 +325,7 @@ export function DecomisoForm({
             <button
               type="button"
               onClick={() => setSubjectMode("registered_pet")}
-              className={`flex-1 py-2.5 px-4 rounded-[6px] border text-[13px] font-medium transition-colors ${
+              className={`flex-1 py-2.5 px-4 rounded-[var(--radius-md)] border text-[13px] font-medium transition-colors ${
                 subjectMode === "registered_pet"
                   ? "border-ln-op-azul bg-ln-op-blue-bg text-ln-op-azul"
                   : "border-ln-op-line bg-ln-op-card text-ln-op-mute hover:bg-ln-op-stripe"
@@ -336,7 +336,7 @@ export function DecomisoForm({
             <button
               type="button"
               onClick={() => setSubjectMode("unowned_animal")}
-              className={`flex-1 py-2.5 px-4 rounded-[6px] border text-[13px] font-medium transition-colors ${
+              className={`flex-1 py-2.5 px-4 rounded-[var(--radius-md)] border text-[13px] font-medium transition-colors ${
                 subjectMode === "unowned_animal"
                   ? "border-ln-op-azul bg-ln-op-blue-bg text-ln-op-azul"
                   : "border-ln-op-line bg-ln-op-card text-ln-op-mute hover:bg-ln-op-stripe"
@@ -376,7 +376,7 @@ export function DecomisoForm({
                       }
                     }}
                     placeholder="DIM-XXXX-XXXX"
-                    className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink placeholder-ln-op-faint focus:outline-none focus:border-ln-op-azul"
+                    className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink placeholder-ln-op-faint focus:outline-none focus:border-ln-op-azul"
                   />
                 </div>
                 <OpButton
@@ -391,14 +391,14 @@ export function DecomisoForm({
               </div>
 
               {petLookupError && (
-                <p className="text-[13px] text-ln-op-danger rounded-[6px] bg-ln-op-danger-bg border border-ln-op-danger-bd px-3 py-2">
+                <p className="text-[13px] text-ln-op-danger rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd px-3 py-2">
                   {petLookupError}
                 </p>
               )}
 
               {petPreview && (
                 <div
-                  className={`rounded-[6px] border p-4 space-y-1 ${
+                  className={`rounded-[var(--radius-md)] border p-4 space-y-1 ${
                     petPreview.hasOwner
                       ? "border-ln-op-warn-bd bg-ln-op-warn-bg"
                       : "border-ln-op-line bg-ln-op-stripe"
@@ -458,7 +458,7 @@ export function DecomisoForm({
                     id="unownedSpecies"
                     value={unownedSpecies}
                     onChange={(e) => setUnownedSpecies(e.target.value)}
-                    className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
+                    className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
                   >
                     <option value="">{"— Selecciona —"}</option>
                     <option value="dog">Perro</option>
@@ -478,7 +478,7 @@ export function DecomisoForm({
                     id="unownedSex"
                     value={unownedSex}
                     onChange={(e) => setUnownedSex(e.target.value as "male" | "female" | "unknown")}
-                    className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
+                    className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
                   >
                     <option value="unknown">Desconocido</option>
                     <option value="male">Macho</option>
@@ -501,7 +501,7 @@ export function DecomisoForm({
                     value={unownedBreed}
                     onChange={(e) => setUnownedBreed(e.target.value)}
                     placeholder="Mestizo, labrador, etc."
-                    className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+                    className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                   />
                 </div>
 
@@ -518,7 +518,7 @@ export function DecomisoForm({
                     value={unownedColor}
                     onChange={(e) => setUnownedColor(e.target.value)}
                     placeholder="Negro, blanco y marron, etc."
-                    className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+                    className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                   />
                 </div>
               </div>
@@ -536,7 +536,7 @@ export function DecomisoForm({
                   value={unownedFeatures}
                   onChange={(e) => setUnownedFeatures(e.target.value)}
                   placeholder="Cicatriz en lomo, mancha en ojo derecho, etc."
-                  className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+                  className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                 />
               </div>
 
@@ -556,7 +556,7 @@ export function DecomisoForm({
                   value={unownedAgeMonths}
                   onChange={(e) => setUnownedAgeMonths(e.target.value)}
                   placeholder="Ej: 24 (2 anios)"
-                  className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+                  className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                 />
               </div>
             </div>
@@ -564,7 +564,7 @@ export function DecomisoForm({
         </section>
 
         {/* --- Motivo --- */}
-        <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
+        <section className="rounded-[var(--radius-md)] border border-ln-op-line p-5 space-y-4">
           <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
             2. Motivo del decomiso
           </h2>
@@ -579,7 +579,7 @@ export function DecomisoForm({
               id="seizureMotive"
               value={seizureMotive}
               onChange={(e) => setSeizureMotive(e.target.value as SeizureMotive | "")}
-              className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
+              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
             >
               <option value="">{"— Selecciona un motivo —"}</option>
               {(Object.entries(SEIZURE_MOTIVE_LABELS) as [SeizureMotive, string][]).map(
@@ -606,7 +606,7 @@ export function DecomisoForm({
                 onChange={(e) => setSeizureMotiveOtherDetail(e.target.value)}
                 rows={3}
                 placeholder="Describe el motivo especifico del decomiso"
-                className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
+                className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
               />
             </div>
           )}
@@ -621,7 +621,7 @@ export function DecomisoForm({
               value={judicialRef}
               onChange={(e) => setJudicialRef(e.target.value)}
               placeholder="Ej: EXP-2025-123456"
-              className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
             />
           </div>
 
@@ -638,7 +638,7 @@ export function DecomisoForm({
               value={welfareReportId}
               onChange={(e) => setWelfareReportId(e.target.value)}
               placeholder="UUID de la denuncia que origino este decomiso"
-              className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
             />
             {prefillWelfareReportId && (
               <p className="text-sm text-ln-op-mute mt-1">
@@ -660,13 +660,13 @@ export function DecomisoForm({
               onChange={(e) => setIntakeCondition(e.target.value)}
               rows={2}
               placeholder="Descripcion de la condicion fisica / comportamental del animal"
-              className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
+              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
             />
           </div>
         </section>
 
         {/* --- Refugio destinatario --- */}
-        <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
+        <section className="rounded-[var(--radius-md)] border border-ln-op-line p-5 space-y-4">
           <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
             3. Refugio destinatario
           </h2>
@@ -676,7 +676,7 @@ export function DecomisoForm({
           </p>
 
           {selectedOrg ? (
-            <div className="flex items-center justify-between rounded-[6px] border border-ln-op-blue-bd bg-ln-op-blue-bg px-4 py-3">
+            <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-ln-op-blue-bd bg-ln-op-blue-bg px-4 py-3">
               <div>
                 <p className="text-[13px] font-medium text-ln-op-ink">{selectedOrg.displayName}</p>
                 <p className="text-sm text-ln-op-mute capitalize">
@@ -705,14 +705,14 @@ export function DecomisoForm({
                 value={receiverSearch}
                 onChange={(e) => setReceiverSearch(e.target.value)}
                 placeholder="Escribe para filtrar..."
-                className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+                className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
               />
               {receiverOrgs.length === 0 ? (
                 <p className="text-sm text-ln-op-mute py-2">
                   No hay refugios verificados disponibles. Contacta al administrador.
                 </p>
               ) : (
-                <ul className="max-h-48 overflow-y-auto divide-y divide-ln-op-line-2 rounded-[6px] border border-ln-op-line">
+                <ul className="max-h-48 overflow-y-auto divide-y divide-ln-op-line-2 rounded-[var(--radius-md)] border border-ln-op-line">
                   {filteredOrgs.slice(0, 50).map((org) => (
                     <li key={org.id}>
                       <button
@@ -745,7 +745,7 @@ export function DecomisoForm({
         </section>
 
         {/* --- Adjuntos --- */}
-        <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
+        <section className="rounded-[var(--radius-md)] border border-ln-op-line p-5 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
               4. Adjuntos
@@ -771,11 +771,11 @@ export function DecomisoForm({
             multiple
             accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif,application/pdf"
             onChange={(e) => handleFilesSelected(e.target.files)}
-            className="block w-full text-sm text-ln-op-mute file:mr-3 file:px-3 file:py-1.5 file:rounded-[6px] file:border-0 file:bg-ln-op-stripe file:text-ln-op-ink file:cursor-pointer"
+            className="block w-full text-sm text-ln-op-mute file:mr-3 file:px-3 file:py-1.5 file:rounded-[var(--radius-md)] file:border-0 file:bg-ln-op-stripe file:text-ln-op-ink file:cursor-pointer"
           />
 
           {attachmentError && (
-            <p className="text-sm text-ln-op-danger rounded-[6px] bg-ln-op-danger-bg px-3 py-2">
+            <p className="text-sm text-ln-op-danger rounded-[var(--radius-md)] bg-ln-op-danger-bg px-3 py-2">
               {attachmentError}
             </p>
           )}
@@ -786,16 +786,16 @@ export function DecomisoForm({
                 <li
                   // name+size+index is a stable-enough composite key for this append-only list.
                   key={`${entry.file.name}-${entry.file.size}-${i}`}
-                  className="flex items-center gap-3 rounded-[6px] border border-ln-op-line px-3 py-2"
+                  className="flex items-center gap-3 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-2"
                 >
                   {entry.objectUrl ? (
                     <img
                       src={entry.objectUrl}
                       alt={entry.file.name}
-                      className="w-10 h-10 object-cover rounded-[4px] flex-shrink-0 border border-ln-op-line"
+                      className="w-10 h-10 object-cover rounded-[var(--radius-sm)] flex-shrink-0 border border-ln-op-line"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-[4px] bg-ln-op-stripe flex items-center justify-center flex-shrink-0 text-lg">
+                    <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-ln-op-stripe flex items-center justify-center flex-shrink-0 text-lg">
                       {entry.file.type === "application/pdf" ? "📄" : "▶"}
                     </div>
                   )}
@@ -820,7 +820,7 @@ export function DecomisoForm({
         {/* --- Error global --- */}
         {formError && (
           <p
-            className="text-[13px] text-ln-op-danger rounded-[6px] bg-ln-op-danger-bg border border-ln-op-danger-bd px-4 py-3"
+            className="text-[13px] text-ln-op-danger rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd px-4 py-3"
             role="alert"
           >
             {formError}
@@ -860,11 +860,11 @@ export function DecomisoForm({
             onKeyDown={(e) => e.key === "Escape" && setShowConfirmModal(false)}
           />
           {/* Modal */}
-          <div className="relative z-10 w-full max-w-md rounded-[8px] bg-ln-op-card border border-ln-op-line shadow-xl p-6 space-y-4">
+          <div className="relative z-10 w-full max-w-md rounded-[var(--radius-lg)] bg-ln-op-card border border-ln-op-line shadow-xl p-6 space-y-4">
             <h3 id="confirm-modal-title" className="text-base font-semibold text-ln-op-ink">
               Confirmar decomiso
             </h3>
-            <div className="rounded-[6px] bg-ln-op-warn-bg border border-ln-op-warn-bd px-4 py-3 space-y-1">
+            <div className="rounded-[var(--radius-md)] bg-ln-op-warn-bg border border-ln-op-warn-bd px-4 py-3 space-y-1">
               <p className="text-[13px] font-medium text-ln-op-warn">
                 Esta mascota tiene un dueño registrado.
               </p>

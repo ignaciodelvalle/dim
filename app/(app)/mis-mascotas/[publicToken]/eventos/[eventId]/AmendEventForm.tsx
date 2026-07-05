@@ -152,26 +152,26 @@ export function AmendEventForm({
         onClose={onClose}
         className={[
           "m-auto w-full max-w-lg max-h-[90dvh] overflow-y-auto p-0",
-          "rounded-[6px] border border-[var(--color-ln-line-strong)]",
+          "rounded-[var(--radius-md)] border border-[var(--color-ln-line-strong)]",
           "bg-[var(--color-ln-card)] shadow-[0_18px_50px_rgba(20,40,60,.22)]",
           "[&::backdrop]:bg-black/40",
           "open:flex open:flex-col",
         ].join(" ")}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[20px] py-[16px]">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-5 py-4">
           <div>
             <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
               Corrección por enmienda
             </p>
-            <h2 className="mt-[2px] font-[var(--font-ln-serif)] text-lg font-semibold text-[var(--color-ln-ink)]">
+            <h2 className="mt-0.5 font-[var(--font-ln-serif)] text-lg font-semibold text-[var(--color-ln-ink)]">
               Corregir registro
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-[3px] p-[6px] text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)]"
+            className="rounded-[3px] p-1.5 text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)]"
             aria-label="Cerrar"
           >
             ✕
@@ -179,10 +179,10 @@ export function AmendEventForm({
         </div>
 
         {/* Body */}
-        <div className="flex flex-col gap-[16px] px-[20px] py-[20px]">
+        <div className="flex flex-col gap-4 px-5 py-5">
           {/* Info banner */}
           <div
-            className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[14px] py-[10px]"
+            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3.5 py-2.5"
             role="note"
           >
             <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)] leading-relaxed">
@@ -195,7 +195,7 @@ export function AmendEventForm({
           {error && (
             <div
               role="alert"
-              className="rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal-bg,var(--color-ln-stripe))] px-[14px] py-[10px]"
+              className="rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal-bg,var(--color-ln-stripe))] px-3.5 py-2.5"
             >
               <p className="text-[13px] text-[var(--color-ln-seal)]">{error}</p>
             </div>
@@ -207,28 +207,28 @@ export function AmendEventForm({
               Este evento no tiene campos editables.
             </p>
           ) : (
-            <div className="flex flex-col gap-[12px]">
+            <div className="flex flex-col gap-3">
               {editableFields.map((key) => (
                 <div
                   key={key}
-                  className="rounded-[4px] border border-[var(--color-ln-line)] p-[12px]"
+                  className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] p-3"
                 >
-                  <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-[6px]">
+                  <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-1.5">
                     {formatFieldLabel(key)}
                   </p>
-                  <div className="grid grid-cols-1 gap-[8px] sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div>
-                      <p className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-[2px]">
+                      <p className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-0.5">
                         Valor actual
                       </p>
-                      <p className="rounded-[3px] bg-[var(--color-ln-stripe)] px-[10px] py-[8px] text-sm text-[var(--color-ln-ink-2)] min-h-[36px] break-words">
+                      <p className="rounded-[3px] bg-[var(--color-ln-stripe)] px-2.5 py-2 text-sm text-[var(--color-ln-ink-2)] min-h-[36px] break-words">
                         {stringifyValue(currentPayload[key]) || (
                           <span className="italic text-[var(--color-ln-mute)]">vacío</span>
                         )}
                       </p>
                     </div>
                     <div>
-                      <p className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-[2px]">
+                      <p className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-0.5">
                         Nuevo valor
                       </p>
                       <LnInput
@@ -265,13 +265,13 @@ export function AmendEventForm({
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 flex justify-end gap-[8px] border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[20px] py-[14px]">
+        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-5 py-3.5">
           <button
             type="button"
             onClick={onClose}
             className={[
               "rounded-[3px] border border-[var(--color-ln-line-strong)]",
-              "bg-[var(--color-ln-card)] px-[16px] py-[8px] text-[13px] font-medium text-[var(--color-ln-ink)]",
+              "bg-[var(--color-ln-card)] px-4 py-2 text-[13px] font-medium text-[var(--color-ln-ink)]",
               "hover:bg-[var(--color-ln-stripe)] transition-colors min-h-[44px]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)]",
             ].join(" ")}
@@ -283,7 +283,7 @@ export function AmendEventForm({
             onClick={handleSubmitClick}
             disabled={isPending || editableFields.length === 0}
             className={[
-              "rounded-[3px] px-[16px] py-[8px] text-[13px] font-semibold text-white",
+              "rounded-[3px] px-4 py-2 text-[13px] font-semibold text-white",
               "bg-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700,var(--color-ln-azul))]",
               "disabled:opacity-50 transition-opacity min-h-[44px]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--color-ln-azul)]",

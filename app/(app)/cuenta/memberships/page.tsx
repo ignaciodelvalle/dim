@@ -55,17 +55,17 @@ export default async function MembershipsPage() {
   const adminCountByOrg = new Map(adminCounts.map((r) => [r.organizationId, Number(r.n)]));
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
 
       {/* Header */}
-      <div className="mb-[28px] flex items-baseline gap-[14px]">
+      <div className="mb-7 flex items-baseline gap-3.5">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis organizaciones
         </h1>
@@ -97,14 +97,14 @@ export default async function MembershipsPage() {
 
       {/* Memberships list */}
       {membershipCount > 0 && (
-        <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+        <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
           {memberships.map(({ membership, organization }) => {
             const isLastAdmin =
               membership.role === "admin" && (adminCountByOrg.get(organization.id) ?? 0) <= 1;
             return (
               <div
                 key={membership.id}
-                className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-[14px] last:border-b-0"
+                className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-3.5 last:border-b-0"
               >
                 <Link
                   href={`/org/${organization.publicToken}`}
@@ -113,7 +113,7 @@ export default async function MembershipsPage() {
                   <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)] truncate group-hover:underline">
                     {organization.displayName}
                   </p>
-                  <div className="mt-[6px] flex flex-wrap gap-[6px]">
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
                     <OrgTypeBadge orgType={organization.orgType} />
                     <VerifiedBadge verified={organization.verified} />
                     <RoleBadge role={membership.role} />
@@ -149,7 +149,7 @@ export default async function MembershipsPage() {
 function OrgTypeBadge({ orgType }: { orgType: string }) {
   const label = ORG_TYPE_LABELS[orgType] ?? orgType;
   return (
-    <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
+    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[7px] py-0.5 font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
       {label}
     </span>
   );
@@ -158,13 +158,13 @@ function OrgTypeBadge({ orgType }: { orgType: string }) {
 function VerifiedBadge({ verified }: { verified: boolean }) {
   if (verified) {
     return (
-      <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
+      <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[7px] py-0.5 font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
         Verificada
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
+    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[7px] py-0.5 font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
       Pendiente
     </span>
   );
@@ -173,7 +173,7 @@ function VerifiedBadge({ verified }: { verified: boolean }) {
 function RoleBadge({ role }: { role: string }) {
   const label = ROLE_LABELS[role] ?? role;
   return (
-    <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[7px] py-0.5 font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
       {label}
     </span>
   );

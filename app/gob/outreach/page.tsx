@@ -170,7 +170,7 @@ export default async function GobOutreachPage() {
                 return (
                   <li
                     key={pet.petId}
-                    className="flex items-center justify-between gap-3 rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-sm"
+                    className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-sm"
                   >
                     <div className="min-w-0 space-y-0.5">
                       <p className="font-medium text-ln-op-ink">{pet.petName}</p>

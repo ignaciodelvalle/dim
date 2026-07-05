@@ -75,7 +75,7 @@ export default async function AdminAlertasPage({
   await logAlertInboxView(session.user.id, filters, rows.length);
 
   const inputCls =
-    "h-11 rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-sm text-ln-op-ink";
+    "h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-sm text-ln-op-ink";
 
   return (
     <div className="space-y-6">

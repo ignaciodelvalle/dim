@@ -100,7 +100,7 @@ export function PosterPreview({
         data-testid="poster-body"
       >
         {/* PERDIDA banner */}
-        <div className="bg-[var(--color-ln-seal)] text-white text-center py-3 rounded-[4px]">
+        <div className="bg-[var(--color-ln-seal)] text-white text-center py-3 rounded-[var(--radius-sm)]">
           <p className="text-4xl font-black tracking-widest uppercase">PERDIDA</p>
         </div>
 
@@ -176,7 +176,7 @@ export function PosterPreview({
         {/* QR code */}
         <div className="flex flex-col items-center gap-2 pt-2">
           <div
-            className="w-36 h-36 p-1 bg-white rounded-[4px] border border-[var(--color-ln-line)]"
+            className="w-36 h-36 p-1 bg-white rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]"
             // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib
             dangerouslySetInnerHTML={{ __html: qrSvg }}
             data-testid="qr-container"
@@ -185,7 +185,7 @@ export function PosterPreview({
         </div>
 
         {/* Extra text — inline-editable, local state only */}
-        <div className="border border-dashed border-[var(--color-ln-line)] rounded-[4px] p-3">
+        <div className="border border-dashed border-[var(--color-ln-line)] rounded-[var(--radius-sm)] p-3">
           <textarea
             value={extraText}
             onChange={(e) => setExtraText(e.target.value)}

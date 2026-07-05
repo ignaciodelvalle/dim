@@ -119,7 +119,7 @@ export function TriageActions({
   };
 
   return (
-    <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
       <p className="text-[13px] font-medium text-ln-op-ink">{titles[mode]}</p>
       <textarea
         value={notes}
@@ -173,7 +173,7 @@ function ActionButton({
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-[4px] text-sm font-medium ${toneClass}`}
+      className={`px-3 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium ${toneClass}`}
     >
       {children}
     </button>

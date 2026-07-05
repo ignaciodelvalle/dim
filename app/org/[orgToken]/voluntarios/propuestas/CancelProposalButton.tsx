@@ -35,7 +35,7 @@ export function CancelProposalButton({ proposalPublicToken }: { proposalPublicTo
           type="button"
           onClick={() => setConfirming(true)}
           disabled={pending}
-          className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-sm text-ln-op-danger transition-colors hover:bg-ln-op-danger-bg disabled:opacity-50"
+          className="rounded-[var(--radius-sm)] border border-ln-op-danger px-3 py-[5px] text-sm text-ln-op-danger transition-colors hover:bg-ln-op-danger-bg disabled:opacity-50"
         >
           Cancelar
         </button>
@@ -56,7 +56,7 @@ export function CancelProposalButton({ proposalPublicToken }: { proposalPublicTo
           type="button"
           onClick={cancel}
           disabled={pending}
-          className="rounded-[4px] bg-ln-op-danger px-3 py-[5px] text-sm text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+          className="rounded-[var(--radius-sm)] bg-ln-op-danger px-3 py-[5px] text-sm text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           {pending ? "Cancelando..." : "Confirmar cancelación"}
         </button>
@@ -67,7 +67,7 @@ export function CancelProposalButton({ proposalPublicToken }: { proposalPublicTo
             setError(null);
           }}
           disabled={pending}
-          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
+          className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
         >
           No, volver
         </button>

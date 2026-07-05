@@ -103,14 +103,14 @@ export function PppBreedListForm({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
       <input type="hidden" name="portalBase" value={base} />
 
-      <p className="text-[13px] rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn">
+      <p className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn">
         Las mascotas con raza marcada se evalúan automáticamente al guardar. Los dueños afectados
         reciben notificación.
       </p>
 
       <fieldset className="space-y-2">
         <legend className="text-[13px] font-medium text-ln-op-ink">Razas consideradas PPP</legend>
-        <div className="max-h-72 overflow-y-auto rounded-[6px] border border-ln-op-line p-3 space-y-1.5">
+        <div className="max-h-72 overflow-y-auto rounded-[var(--radius-md)] border border-ln-op-line p-3 space-y-1.5">
           {ALL_BREEDS.map((b) => (
             <label key={b} className="flex items-center gap-2 text-[13px]">
               <input

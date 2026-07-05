@@ -140,7 +140,7 @@ export function TimeScrubber({ since, until, onChange }: Props) {
 
   return (
     <section
-      className="space-y-2 rounded-[8px] border border-ln-op-line bg-ln-op-card/40 p-3"
+      className="space-y-2 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/40 p-3"
       aria-labelledby={labelId}
     >
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -157,7 +157,7 @@ export function TimeScrubber({ since, until, onChange }: Props) {
           disabled={!scrubbable}
           aria-pressed={playing}
           aria-label={playing ? "Pausar reproducción" : "Reproducir la formación de la situación"}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
         >
           <span aria-hidden="true">{playing ? "⏸" : "▶"}</span>
         </button>
@@ -183,7 +183,7 @@ export function TimeScrubber({ since, until, onChange }: Props) {
           onClick={reset}
           disabled={atLive && !playing}
           aria-label="Volver a ahora (en vivo)"
-          className="inline-flex h-7 shrink-0 items-center justify-center rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-[11px] text-ln-op-ink-2 hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[11px] text-ln-op-ink-2 hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
         >
           Ahora
         </button>

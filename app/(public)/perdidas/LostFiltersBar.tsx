@@ -51,7 +51,7 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
             id="species"
             name="species"
             defaultValue={filters.species ?? ""}
-            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
           >
             <option value="">Todas</option>
             {SPECIES_OPTIONS.map((o) => (
@@ -74,7 +74,7 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
             name="provincia"
             value={provinceName}
             onChange={(e) => setProvinceName(e.target.value)}
-            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
           >
             <option value="">Todas</option>
             {PROVINCES.map((p) => (
@@ -120,7 +120,7 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
             name="color"
             defaultValue={filters.color ?? ""}
             placeholder="Ej: negro, atigrado"
-            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
+            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
           />
         </div>
 
@@ -135,7 +135,7 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
             id="visto"
             name="visto"
             defaultValue={filters.visto ?? ""}
-            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
+            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
           >
             <option value="">Cualquier momento</option>
             {LOST_TIME_BUCKETS.map((b) => (
@@ -170,14 +170,14 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
         {hasActiveFilters && (
           <Link
             href="/perdidas"
-            className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
+            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
           >
             Limpiar
           </Link>
         )}
         <button
           type="submit"
-          className="rounded-[4px] bg-[var(--color-ln-err)] px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+          className="rounded-[var(--radius-sm)] bg-[var(--color-ln-err)] px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90"
         >
           Buscar
         </button>

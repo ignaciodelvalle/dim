@@ -50,7 +50,7 @@ export default async function EditPetPage({
           title={`Editar ${pet.name}`}
           subtitle="Cualquier cambio queda registrado en la libreta"
         />
-        <div className="flex flex-col gap-[14px] px-[18px] py-[18px]">
+        <div className="flex flex-col gap-3.5 px-[18px] py-[18px]">
           <Link
             href={`/mis-mascotas/${pet.publicToken}`}
             className="font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"

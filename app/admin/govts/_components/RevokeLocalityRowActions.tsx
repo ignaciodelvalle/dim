@@ -117,7 +117,7 @@ function RevokeLocalityForm({
   }
 
   return (
-    <div className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3 space-y-3 mt-2">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3 space-y-3 mt-2">
       <p className="text-xs uppercase tracking-wider font-bold text-ln-op-danger">
         Revocar localidad &mdash; {localityLabel}
       </p>

@@ -60,7 +60,7 @@ export function AssignLocalityForm({
 
   if (mode === "confirming") {
     return (
-      <div className="rounded-[6px] border border-ln-op-blue-bd bg-ln-op-blue-bg p-3 space-y-3">
+      <div className="rounded-[var(--radius-md)] border border-ln-op-blue-bd bg-ln-op-blue-bg p-3 space-y-3">
         <p className="text-xs uppercase tracking-wider font-bold text-ln-op-azul">
           Asignar nueva localidad
         </p>
@@ -115,7 +115,7 @@ export function AssignLocalityForm({
     <button
       type="button"
       onClick={() => setMode("confirming")}
-      className="text-sm px-3 py-1.5 rounded-[6px] border border-ln-op-blue-bd text-ln-op-azul hover:bg-ln-op-blue-bg transition-colors"
+      className="text-sm px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-blue-bd text-ln-op-azul hover:bg-ln-op-blue-bg transition-colors"
     >
       Asignar nueva localidad
     </button>

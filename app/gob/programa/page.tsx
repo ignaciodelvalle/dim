@@ -601,7 +601,7 @@ export default async function GobProgramaPage({
                 {breachingAlerts.map((a) => (
                   <li
                     key={a.id}
-                    className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-[13px] text-ln-op-danger"
+                    className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-[13px] text-ln-op-danger"
                   >
                     <span className="font-semibold">
                       {a.label ?? ALERT_METRIC_LABEL[a.metricKey] ?? a.metricKey}

@@ -65,7 +65,7 @@ export function SearchFiltersForm({
             id="service_kind_sel"
             name="service_kind"
             defaultValue={currentServiceKind}
-            className="text-sm border border-[var(--color-ln-line)] rounded-[4px] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+            className="text-sm border border-[var(--color-ln-line)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           >
             {SERVICE_KINDS.map((k) => (
               <option key={k.code} value={k.code}>
@@ -122,7 +122,7 @@ export function SearchFiltersForm({
             name="fecha_desde"
             type="date"
             defaultValue={currentFechaDesde}
-            className="text-sm border border-[var(--color-ln-line)] rounded-[4px] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+            className="text-sm border border-[var(--color-ln-line)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           />
         </div>
         <LnCheckbox name="solo_gratis" value="true" defaultChecked={currentSoloGratis}>

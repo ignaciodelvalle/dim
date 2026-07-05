@@ -28,7 +28,10 @@ export type LnLedgerProps<T> = {
 export function LnLedger<T>({ columns, rows, rowKey, className = "" }: LnLedgerProps<T>) {
   return (
     <div
-      className={["overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]", className]
+      className={[
+        "overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]",
+        className,
+      ]
         .filter(Boolean)
         .join(" ")}
     >
@@ -38,7 +41,7 @@ export function LnLedger<T>({ columns, rows, rowKey, className = "" }: LnLedgerP
             {columns.map((col) => (
               <th
                 key={col.key}
-                className="border-b border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[16px] py-[10px] text-left font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+                className="border-b border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-4 py-2.5 text-left font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
                 style={col.width ? { width: col.width } : undefined}
               >
                 {col.header}
@@ -53,7 +56,7 @@ export function LnLedger<T>({ columns, rows, rowKey, className = "" }: LnLedgerP
               className="border-b border-[var(--color-ln-line-2)] last:border-b-0 hover:bg-[var(--color-ln-stripe)]"
             >
               {columns.map((col) => (
-                <td key={col.key} className="px-[16px] py-[13px] align-top">
+                <td key={col.key} className="px-4 py-[13px] align-top">
                   {col.render(row)}
                 </td>
               ))}

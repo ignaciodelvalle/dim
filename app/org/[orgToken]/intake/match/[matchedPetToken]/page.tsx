@@ -51,7 +51,7 @@ export default async function IntakeMatchPage({
           </p>
           <Link
             href={`/org/${orgToken}/intake`}
-            className="inline-block rounded-[6px] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+            className="inline-block rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
           >
             Volver al ingreso
           </Link>

@@ -147,7 +147,7 @@ export function AdoptionListingForm({
               onChange={(e) => setStory(e.target.value)}
               rows={5}
               placeholder="Contá quién es esta mascota, cómo llegó al refugio, qué la hace especial."
-              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
             <p className="text-[11px] text-ln-op-mute mt-1 tabular-nums">{story.length} / 5000</p>
           </div>
@@ -162,7 +162,7 @@ export function AdoptionListingForm({
               onChange={(e) => setRequirements(e.target.value)}
               rows={3}
               placeholder="Mayores de edad, entrevista previa, compromiso de castración, etc."
-              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
           </div>
 
@@ -175,7 +175,7 @@ export function AdoptionListingForm({
                 id="age"
                 value={ageBucket}
                 onChange={(e) => setAgeBucket(e.target.value as AgeBucket | "")}
-                className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+                className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_AGE_BUCKETS.map((b) => (
@@ -193,7 +193,7 @@ export function AdoptionListingForm({
                 id="size"
                 value={sizeEstimate}
                 onChange={(e) => setSizeEstimate(e.target.value as SizeEstimate | "")}
-                className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+                className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_SIZE_ESTIMATES.map((s) => (
@@ -211,7 +211,7 @@ export function AdoptionListingForm({
                 id="energy"
                 value={energyLevel}
                 onChange={(e) => setEnergyLevel(e.target.value as EnergyLevel | "")}
-                className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+                className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_ENERGY_LEVELS.map((e) => (
@@ -254,7 +254,7 @@ export function AdoptionListingForm({
               value={feeArs}
               onChange={(e) => setFeeArs(e.target.value)}
               placeholder="Ej: 15000"
-              className="w-40 px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+              className="w-40 px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
             <p className="text-[11px] text-ln-op-mute mt-1">
               Para cubrir vacunas, castración, traslado. Dejá vacío si no aplica.
@@ -267,7 +267,7 @@ export function AdoptionListingForm({
           <button
             type="submit"
             disabled={pending}
-            className="w-full px-4 py-3 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
+            className="w-full px-4 py-3 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
           >
             {pending ? "Guardando..." : "Guardar y continuar"}
           </button>
@@ -276,7 +276,7 @@ export function AdoptionListingForm({
 
       {/* Step 2 — Status / publish */}
       <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-2 text-[13px]">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-2 text-[13px]">
           <p className="font-semibold text-ln-op-ink">Lo que vas a publicar</p>
           <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-sm">
             <dt className="text-ln-op-mute">Historia</dt>
@@ -300,7 +300,7 @@ export function AdoptionListingForm({
           </dl>
         </div>
 
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
           <p className="text-[13px] font-medium text-ln-op-ink">Visibilidad pública</p>
           <div className="flex flex-wrap gap-2">
             {!initial.isPublished && (
@@ -308,7 +308,7 @@ export function AdoptionListingForm({
                 type="button"
                 onClick={() => runStatus("publish")}
                 disabled={pending || !canPublish}
-                className="px-3 py-1.5 rounded-[4px] text-[13px] bg-ln-op-ok text-white font-medium hover:opacity-90 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] bg-ln-op-ok text-white font-medium hover:opacity-90 disabled:opacity-50"
                 title={canPublish ? undefined : "Resolvé los bloqueos antes de publicar."}
               >
                 Publicar adopción
@@ -320,7 +320,7 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("pause")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[4px] text-[13px] border border-ln-op-warn-bd text-ln-op-warn font-medium hover:bg-ln-op-warn-bg disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-warn-bd text-ln-op-warn font-medium hover:bg-ln-op-warn-bg disabled:opacity-50"
                 >
                   Pausar
                 </button>
@@ -328,7 +328,7 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("unpublish")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[4px] text-[13px] border border-ln-op-danger-bd text-ln-op-danger font-medium hover:bg-ln-op-danger-bg disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-danger-bd text-ln-op-danger font-medium hover:bg-ln-op-danger-bg disabled:opacity-50"
                 >
                   Despublicar
                 </button>
@@ -340,7 +340,7 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("unpause")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[4px] text-[13px] bg-ln-op-ok text-white font-medium hover:opacity-90 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] bg-ln-op-ok text-white font-medium hover:opacity-90 disabled:opacity-50"
                 >
                   Reanudar
                 </button>
@@ -348,7 +348,7 @@ export function AdoptionListingForm({
                   type="button"
                   onClick={() => runStatus("unpublish")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[4px] text-[13px] border border-ln-op-danger-bd text-ln-op-danger font-medium hover:bg-ln-op-danger-bg disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-danger-bd text-ln-op-danger font-medium hover:bg-ln-op-danger-bg disabled:opacity-50"
                 >
                   Despublicar
                 </button>
@@ -398,7 +398,7 @@ function TriState({
             key={opt.l}
             type="button"
             onClick={() => onChange(opt.v)}
-            className={`px-2 py-1 rounded-[4px] border text-[11px] ${
+            className={`px-2 py-1 rounded-[var(--radius-sm)] border text-[11px] ${
               value === opt.v
                 ? "bg-ln-op-azul text-white border-ln-op-azul"
                 : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe"

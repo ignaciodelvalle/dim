@@ -39,7 +39,7 @@ export default async function GobInvestigacionesPage() {
         </div>
         <Link
           href="/gob/vigilancia/investigaciones/nuevo"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
         >
           Nueva investigación
         </Link>
@@ -101,7 +101,7 @@ export default async function GobInvestigacionesPage() {
                   </div>
                   <Link
                     href={`/gob/vigilancia/investigaciones/${inv.publicCode}`}
-                    className="shrink-0 px-3 py-1.5 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-azul hover:bg-ln-op-stripe transition-colors no-underline"
+                    className="shrink-0 px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line text-[13px] text-ln-op-azul hover:bg-ln-op-stripe transition-colors no-underline"
                   >
                     Ver &rarr;
                   </Link>

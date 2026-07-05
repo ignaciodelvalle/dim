@@ -91,7 +91,7 @@ export function CreateAdminForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="nuevo.admin@dim.gob.ar"
-            className="w-full text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="w-full text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
 
@@ -110,13 +110,13 @@ export function CreateAdminForm() {
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Admin MiMAR"
             maxLength={100}
-            className="w-full text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="w-full text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
       </div>
 
       {error && (
-        <div className="rounded-[6px] bg-ln-op-danger-bg border border-ln-op-danger-bd px-4 py-3">
+        <div className="rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd px-4 py-3">
           <p className="text-[13px] text-ln-op-danger">{error}</p>
         </div>
       )}
@@ -127,7 +127,7 @@ export function CreateAdminForm() {
         </OpButton>
         <a
           href="/admin/admins"
-          className="px-5 py-2 text-[13px] border border-ln-op-line rounded-[6px] hover:bg-ln-op-stripe"
+          className="px-5 py-2 text-[13px] border border-ln-op-line rounded-[var(--radius-md)] hover:bg-ln-op-stripe"
         >
           Cancelar
         </a>

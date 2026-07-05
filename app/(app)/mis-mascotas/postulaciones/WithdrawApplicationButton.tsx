@@ -38,7 +38,7 @@ export function WithdrawApplicationButton({ applicationEventId }: Props) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[10px] py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+        className="rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
       >
         Retirar postulación
       </button>
@@ -46,7 +46,7 @@ export function WithdrawApplicationButton({ applicationEventId }: Props) {
   }
 
   return (
-    <div className="flex flex-col items-start gap-[6px]">
+    <div className="flex flex-col items-start gap-1.5">
       <p className="m-0 text-[11.5px] text-[var(--color-ln-mute)]">
         ¿Confirmás que querés retirar esta postulación? No se puede deshacer.
       </p>
@@ -55,12 +55,12 @@ export function WithdrawApplicationButton({ applicationEventId }: Props) {
           {error}
         </p>
       )}
-      <div className="flex gap-[6px]">
+      <div className="flex gap-1.5">
         <button
           type="button"
           onClick={handleWithdraw}
           disabled={pending}
-          className="rounded-[3px] bg-[var(--color-ln-err)] px-[10px] py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-semibold text-white transition-colors disabled:opacity-60"
+          className="rounded-[3px] bg-[var(--color-ln-err)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-semibold text-white transition-colors disabled:opacity-60"
         >
           {pending ? "Retirando..." : "Sí, retirar"}
         </button>
@@ -71,7 +71,7 @@ export function WithdrawApplicationButton({ applicationEventId }: Props) {
             setError(null);
           }}
           disabled={pending}
-          className="rounded-[3px] border border-[var(--color-ln-line-strong)] px-[10px] py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-60"
+          className="rounded-[3px] border border-[var(--color-ln-line-strong)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-60"
         >
           Cancelar
         </button>

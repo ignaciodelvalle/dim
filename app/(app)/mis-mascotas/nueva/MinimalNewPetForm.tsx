@@ -53,7 +53,7 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
   }
 
   return (
-    <form action={formAction} onSubmit={handleSubmit} className="flex flex-col gap-[20px]">
+    <form action={formAction} onSubmit={handleSubmit} className="flex flex-col gap-5">
       {/* ── Name ─────────────────────────────────────────────────────── */}
       <LnField label="Nombre" required>
         {({ id, describedBy, invalid }) => (
@@ -75,11 +75,11 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
       <SpeciesField />
 
       {/* ── Sex ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-[6px]">
+      <div className="flex flex-col gap-1.5">
         <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
           Sexo
         </p>
-        <div className="flex flex-col gap-[6px]">
+        <div className="flex flex-col gap-1.5">
           <LnRadio name="sex" value="female">
             Hembra
           </LnRadio>
@@ -97,7 +97,7 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
           LocationFields renders its own <label>Localidad</label> for L1 mode,
           producing a duplicate label. The helper text below + the "Requerido"
           note already convey the required constraint. */}
-      <div className="flex flex-col gap-[6px]">
+      <div className="flex flex-col gap-1.5">
         <LocationFields mode="l1" required />
         <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
           Requerido. Ayuda a las campañas regionales de salud animal.
@@ -119,7 +119,7 @@ export function MinimalNewPetForm({ action }: { action: FormAction }) {
         type="submit"
         disabled={isPending}
         className={[
-          "inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border px-[16px] py-[10px] text-[13px] font-semibold text-white transition-colors",
+          "inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border px-4 py-2.5 text-[13px] font-semibold text-white transition-colors",
           "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)]",
           "disabled:cursor-not-allowed disabled:opacity-60",
         ]
@@ -150,14 +150,14 @@ function SpeciesField() {
   const [picked, setPicked] = useState<"dog" | "cat" | "other" | null>(null);
 
   const chipBase =
-    "flex cursor-pointer flex-col items-center justify-center gap-[4px] rounded-[6px] border-2 px-[14px] py-[14px] text-[13px] font-semibold transition-colors select-none";
+    "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[var(--radius-md)] border-2 px-3.5 py-3.5 text-[13px] font-semibold transition-colors select-none";
   const chipActive =
     "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]";
   const chipIdle =
     "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)] hover:border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-celeste-050)]";
 
   return (
-    <div className="flex flex-col gap-[10px]">
+    <div className="flex flex-col gap-2.5">
       <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         Especie{" "}
         <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
@@ -170,7 +170,7 @@ function SpeciesField() {
         <input type="hidden" name="species" value={picked} />
       )}
 
-      <div className="grid grid-cols-3 gap-[8px]">
+      <div className="grid grid-cols-3 gap-2">
         {(
           [
             { value: "dog", emoji: "🐶", label: "Perro/a" },

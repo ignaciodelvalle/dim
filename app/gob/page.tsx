@@ -212,19 +212,19 @@ export default async function GobiernoDashboardPage({
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <Link
             href="/gob/cola"
-            className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:bg-ln-op-azul-700 transition-colors no-underline"
+            className="rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:bg-ln-op-azul-700 transition-colors no-underline"
           >
             Cola de aprobaciones
           </Link>
           <Link
             href="/gob/organizaciones"
-            className="rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[13px] font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors no-underline"
+            className="rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-[13px] font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors no-underline"
           >
             Habilitación
           </Link>
           <Link
             href="/gob/maltrato"
-            className="rounded-[6px] border border-ln-op-danger px-3 py-1.5 text-[13px] font-medium text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors no-underline"
+            className="rounded-[var(--radius-md)] border border-ln-op-danger px-3 py-1.5 text-[13px] font-medium text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors no-underline"
           >
             Acta de infracción
           </Link>

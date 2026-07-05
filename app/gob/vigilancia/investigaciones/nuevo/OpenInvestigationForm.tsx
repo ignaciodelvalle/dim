@@ -58,7 +58,7 @@ export function OpenInvestigationForm({
           value={diseaseCode}
           onChange={(e) => setDiseaseCode(e.target.value)}
           required
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         >
           <option value="">Seleccionar enfermedad...</option>
           {diseases.map((d) => (
@@ -81,7 +81,7 @@ export function OpenInvestigationForm({
           required
           minLength={10}
           placeholder="Describe la situacion epidemiologica que motiva la apertura..."
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         />
         <p className="text-sm text-ln-op-mute tabular-nums">{reason.trim().length} caracteres</p>
       </div>
@@ -96,7 +96,7 @@ export function OpenInvestigationForm({
           value={signalId}
           onChange={(e) => setSignalId(e.target.value)}
           placeholder="ID del outbreak_signal event (si existe)"
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink"
         />
       </div>
 

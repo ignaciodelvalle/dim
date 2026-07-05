@@ -96,7 +96,7 @@ export function RuleImpactBanner({ input, onResult }: Props) {
 
   return (
     <p
-      className="text-[13px] rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn"
+      className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn"
       aria-live="polite"
     >
       Esta regla afecta a ~{count.toLocaleString("es-AR")} {count === 1 ? "mascota" : "mascotas"}{" "}

@@ -238,7 +238,7 @@ export default async function OfferingDetailPage({
         <div>
           <Link
             href={`/org/${orgToken}/servicios/${offeringToken}/agenda`}
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
           >
             Configurar agenda →
           </Link>

@@ -19,17 +19,17 @@ export default async function ScheduleVaccinePage({
   const boundAction = createVaccineReminderAction.bind(null, pet.publicToken);
 
   return (
-    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-md px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href={`/mis-mascotas/${pet.publicToken}`}
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← {pet.name}
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Programar vacuna
         </h1>
@@ -42,13 +42,13 @@ export default async function ScheduleVaccinePage({
       <ScheduleVaccineForm action={boundAction} species={pet.species} />
 
       {/* Secondary CTA */}
-      <div className="mt-[28px] border-t border-[var(--color-ln-line-2)] pt-[20px]">
+      <div className="mt-7 border-t border-[var(--color-ln-line-2)] pt-5">
         <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
           ¿Preferís ir directo a una clínica o campaña?
         </p>
         <Link
           href="/turnos/buscar?service_kind=vaccination_rabies"
-          className="mt-[4px] inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="mt-1 inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           Buscar turno con veterinario en mi zona →
         </Link>

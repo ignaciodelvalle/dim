@@ -137,7 +137,7 @@ export default async function PublicLibretaPage({
             follow-up on a vet write flow. */}
         <div
           role="note"
-          className="print:hidden rounded-[4px] border px-[16px] py-[12px]"
+          className="print:hidden rounded-[var(--radius-sm)] border px-4 py-3"
           style={{
             background: "var(--color-ln-celeste-050)",
             borderColor: "var(--color-ln-celeste-100)",
@@ -159,10 +159,10 @@ export default async function PublicLibretaPage({
 
         {/* "Compartido por" chip + relative expiry chip */}
         {(ownerFirstName || relativeExpiry) && (
-          <div className="print:hidden flex flex-wrap items-center gap-[8px]">
+          <div className="print:hidden flex flex-wrap items-center gap-2">
             {ownerFirstName && (
               <span
-                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-sm font-medium"
+                className="inline-flex items-center gap-[5px] rounded-full border px-2.5 py-1 text-sm font-medium"
                 style={{
                   background: "var(--color-ln-stripe)",
                   borderColor: "var(--color-ln-line-2)",
@@ -175,7 +175,7 @@ export default async function PublicLibretaPage({
             )}
             {relativeExpiry && (
               <span
-                className="inline-flex items-center gap-[5px] rounded-full border px-[10px] py-[4px] text-sm font-medium"
+                className="inline-flex items-center gap-[5px] rounded-full border px-2.5 py-1 text-sm font-medium"
                 style={{
                   background: "var(--color-ln-warn-025)",
                   borderColor: "var(--color-ln-warn-050)",

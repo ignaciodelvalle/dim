@@ -104,17 +104,17 @@ export default async function BuscarHogarPage({
   })();
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href={`/mis-mascotas/${publicToken}`}
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← {pet.name}
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           Buscar nuevo hogar para {pet.name}
         </h1>
@@ -144,17 +144,17 @@ export default async function BuscarHogarPage({
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+        <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
           {coveringOrgs.map((org) => (
             <div
               key={org.id}
-              className="flex flex-col gap-[10px] border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-2.5 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
                 <p className="font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]">
                   {org.displayName}
                 </p>
-                <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] capitalize text-[var(--color-ln-mute)]">
+                <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] capitalize text-[var(--color-ln-mute)]">
                   {org.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                   {" · "}
                   {org.jurisdictionLocality ?? org.jurisdictionProvince}
@@ -171,7 +171,7 @@ export default async function BuscarHogarPage({
         </div>
       )}
 
-      <p className="mt-[20px] text-sm text-[var(--color-ln-mute)]">
+      <p className="mt-5 text-sm text-[var(--color-ln-mute)]">
         Las organizaciones recibirán una notificación con tus datos de contacto para hacer el
         seguimiento. No se compromete ningún acuerdo — es un primer contacto.
       </p>

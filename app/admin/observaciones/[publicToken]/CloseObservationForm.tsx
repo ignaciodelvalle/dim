@@ -70,7 +70,7 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
 
       {/* C6 — typed confirmation for the public-health critical outcome. */}
       {isPositiveRabies && (
-        <div className="space-y-3 rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
+        <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
           <p className="text-sm font-semibold text-ln-op-danger">
             {"Confirmar rabia positiva dispara notificaciones de salud pública."}
           </p>

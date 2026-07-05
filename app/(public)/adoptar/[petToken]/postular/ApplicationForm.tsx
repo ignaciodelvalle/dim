@@ -81,7 +81,10 @@ function StepQuestion({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[8px] border px-[20px] py-[18px] space-y-[10px]" style={CARD_STYLE}>
+    <div
+      className="rounded-[var(--radius-lg)] border px-5 py-[18px] space-y-[10px]"
+      style={CARD_STYLE}
+    >
       <p className="text-[14.5px] font-semibold" style={LABEL_STYLE}>
         <span className="mr-[7px] text-[11px] font-semibold" style={STEP_NUM_STYLE}>
           {num}
@@ -117,11 +120,11 @@ function RadioCard<T extends string>({
   return (
     <fieldset className="border-0 m-0 p-0">
       <legend className="sr-only">{groupLabel}</legend>
-      <div className="grid grid-cols-1 gap-[8px]">
+      <div className="grid grid-cols-1 gap-2">
         {options.map((opt) => (
           <label
             key={opt.value}
-            className="flex items-center gap-[10px] rounded-[5px] border px-[12px] py-[10px] text-[13px] cursor-pointer"
+            className="flex items-center gap-2.5 rounded-[5px] border px-3 py-2.5 text-[13px] cursor-pointer"
             style={
               value === opt.value
                 ? {
@@ -317,7 +320,7 @@ export function ApplicationForm({
             onChange={(e) => setMotivation(e.target.value)}
             rows={4}
             placeholder={`Ej: "Siempre tuve perros y ahora que me mudé a una casa con patio quiero darle una familia a ${petName}..."`}
-            className="w-full rounded-[5px] border px-[12px] py-[10px] text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[5px] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
           <p
@@ -341,7 +344,7 @@ export function ApplicationForm({
           type="button"
           onClick={advanceStep1}
           disabled={motivationChars < MIN_MOTIVATION_LEN}
-          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[5px] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -371,7 +374,7 @@ export function ApplicationForm({
             onChange={(e) => setOtherPets(e.target.value)}
             rows={3}
             placeholder='Ej: "un gato castrado adulto, sociable"'
-            className="w-full rounded-[5px] border px-[12px] py-[10px] text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[5px] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
         </StepQuestion>
@@ -384,7 +387,7 @@ export function ApplicationForm({
           type="button"
           onClick={advanceStep2}
           disabled={!priorPets}
-          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[5px] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -412,7 +415,7 @@ export function ApplicationForm({
           type="button"
           onClick={() => setStep(4)}
           disabled={!housingType}
-          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[5px] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -432,7 +435,7 @@ export function ApplicationForm({
             onChange={(e) => setDailyRoutine(e.target.value)}
             rows={3}
             placeholder="¿Quién está en casa durante el día? ¿Hay nenes? ¿Alguien la cuida si viajás?"
-            className="w-full rounded-[5px] border px-[12px] py-[10px] text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[5px] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
         </StepQuestion>
@@ -442,14 +445,14 @@ export function ApplicationForm({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            className="w-full rounded-[5px] border px-[12px] py-[10px] text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[5px] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
         </StepQuestion>
         <button
           type="button"
           onClick={() => setStep(5)}
-          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-md font-semibold text-white"
+          className="w-full rounded-[5px] border-0 px-4 py-[13px] text-md font-semibold text-white"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -459,7 +462,10 @@ export function ApplicationForm({
       {/* Step 5 — Confirmar */}
       <section className={step === 5 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 5}>
         {/* Summary recap */}
-        <div className="rounded-[8px] border px-[20px] py-[16px] space-y-[10px]" style={CARD_STYLE}>
+        <div
+          className="rounded-[var(--radius-lg)] border px-5 py-4 space-y-[10px]"
+          style={CARD_STYLE}
+        >
           <p
             className="font-[var(--font-ln-serif)] text-[15px] font-semibold"
             style={{ color: "var(--color-ln-ink)" }}
@@ -467,7 +473,7 @@ export function ApplicationForm({
             Resumen
           </p>
           <dl
-            className="grid gap-x-[14px] gap-y-[6px] text-sm"
+            className="grid gap-x-3.5 gap-y-1.5 text-sm"
             style={{ gridTemplateColumns: "auto 1fr" }}
           >
             <dt
@@ -528,13 +534,13 @@ export function ApplicationForm({
         </div>
 
         {/* Consent */}
-        <div className="rounded-[8px] border px-[20px] py-[16px]" style={CARD_STYLE}>
-          <label className="flex items-start gap-[12px] cursor-pointer">
+        <div className="rounded-[var(--radius-lg)] border px-5 py-4" style={CARD_STYLE}>
+          <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={profileSharingConsent}
               onChange={(e) => setProfileSharingConsent(e.target.checked)}
-              className="mt-[2px] h-[16px] w-[16px] rounded border flex-shrink-0"
+              className="mt-0.5 h-[16px] w-[16px] rounded border flex-shrink-0"
               style={{
                 borderColor: "var(--color-ln-line-strong)",
                 accentColor: "var(--color-ln-azul)",
@@ -561,7 +567,7 @@ export function ApplicationForm({
             The ::backdrop pseudo-element provides the dimming overlay. */}
         <dialog
           ref={privacyDialogRef}
-          className="w-full overflow-y-auto rounded-[8px] border px-[24px] py-[22px] shadow-xl"
+          className="w-full overflow-y-auto rounded-[var(--radius-lg)] border px-6 py-[22px] shadow-xl"
           style={{
             maxWidth: 480,
             background: "var(--color-ln-card)",
@@ -572,7 +578,7 @@ export function ApplicationForm({
         >
           <h2
             id="privacy-modal-title"
-            className="font-[var(--font-ln-serif)] text-[17px] font-semibold mb-[14px]"
+            className="font-[var(--font-ln-serif)] text-[17px] font-semibold mb-3.5"
             style={{ color: "var(--color-ln-ink)" }}
           >
             Información sobre privacidad — Ley 25.326
@@ -597,7 +603,7 @@ export function ApplicationForm({
           <button
             type="button"
             onClick={() => setPrivacyModalOpen(false)}
-            className="mt-[18px] w-full rounded-[5px] border-0 px-[16px] py-[11px] text-[13px] font-semibold text-white"
+            className="mt-[18px] w-full rounded-[5px] border-0 px-4 py-[11px] text-[13px] font-semibold text-white"
             style={{ background: "var(--color-ln-azul)" }}
           >
             Entendido
@@ -614,7 +620,7 @@ export function ApplicationForm({
           type="button"
           onClick={submit}
           disabled={pending || !profileSharingConsent}
-          className="w-full rounded-[5px] border-0 px-[16px] py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[5px] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           {pending ? "Enviando postulación..." : "Enviar postulación"}

@@ -50,7 +50,7 @@ export default async function OrgIndexPage() {
           </p>
           <Link
             href="/mis-mascotas"
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium"
           >
             Volver a mis mascotas
           </Link>
@@ -79,7 +79,7 @@ export default async function OrgIndexPage() {
             <li key={org.id}>
               <Link
                 href={`/org/${org.publicToken}`}
-                className="block p-4 rounded-[6px] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors no-underline"
+                className="block p-4 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">{org.displayName}</p>
                 <p className="text-sm text-ln-op-mute mt-0.5">

@@ -211,7 +211,10 @@ export default async function CaseDetailPage({ params }: PageProps) {
           ) : (
             <ol className="space-y-3">
               {detail.events.map((e) => (
-                <li key={e.id} className="rounded-[4px] border border-ln-line bg-ln-card p-4">
+                <li
+                  key={e.id}
+                  className="rounded-[var(--radius-sm)] border border-ln-line bg-ln-card p-4"
+                >
                   <div className="flex items-baseline justify-between">
                     <span className="text-[13.5px] font-medium text-ln-ink">
                       {eventTypeLabel(e.eventType as EventType)}
@@ -265,7 +268,7 @@ function PublicTransparencyBanner({ caseKind }: { caseKind: string }) {
   return (
     <div
       role="note"
-      className="mb-6 rounded-[4px] border border-ln-celeste-100 px-[16px] py-[12px]"
+      className="mb-6 rounded-[var(--radius-sm)] border border-ln-celeste-100 px-4 py-3"
       style={{
         background: "var(--color-ln-celeste-050)",
         borderLeft: "3px solid var(--color-ln-azul)",

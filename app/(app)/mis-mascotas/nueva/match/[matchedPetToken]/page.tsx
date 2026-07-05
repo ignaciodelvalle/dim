@@ -32,14 +32,14 @@ export default async function VecinoMatchPage({
 
   if (pet.status !== "lost") {
     return (
-      <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px] text-center">
+      <div className="mx-auto max-w-md px-8 py-7 pb-12 text-center">
         <p className="font-[var(--font-ln-serif)] text-xl font-semibold text-[var(--color-ln-ink)]">
           Mascota ya no está perdida
         </p>
-        <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
+        <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
           {pet.name} ya fue encontrada o su estado cambió. Podés continuar registrando la mascota.
         </p>
-        <div className="mt-[20px] flex justify-center">
+        <div className="mt-5 flex justify-center">
           <Link href="/mis-mascotas/nueva">
             <LnButton variant="primary" size="md">
               Volver al registro
@@ -83,9 +83,9 @@ export default async function VecinoMatchPage({
   const ownerFirstName = ownerRow?.displayName?.split(" ")[0] ?? null;
 
   return (
-    <div className="mx-auto max-w-xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-xl px-8 py-7 pb-12">
       {/* Header */}
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Coincidencia de microchip
         </h1>
@@ -107,7 +107,7 @@ export default async function VecinoMatchPage({
         lastLocationDate={lastLocationDate}
       />
 
-      <div className="mt-[24px] border-t border-[var(--color-ln-line-2)] pt-[16px]">
+      <div className="mt-6 border-t border-[var(--color-ln-line-2)] pt-4">
         <Link
           href="/mis-mascotas/nueva"
           className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"

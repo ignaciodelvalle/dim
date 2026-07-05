@@ -162,7 +162,7 @@ export default async function AdminLibroPage({
   const viewRows = rows.map(toLedgerRowView);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-5xl space-y-6 px-8 py-7 pb-12">
       {/* Header */}
       <header className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
@@ -179,7 +179,7 @@ export default async function AdminLibroPage({
       <form
         method="get"
         action="/admin/libro"
-        className="flex flex-wrap items-end gap-3 rounded-[8px] border border-ln-op-line bg-ln-op-card p-3"
+        className="flex flex-wrap items-end gap-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-3"
         aria-label="Filtros del libro de eventos"
       >
         <label className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
@@ -187,7 +187,7 @@ export default async function AdminLibroPage({
           <select
             name="tipo"
             defaultValue={sp.tipo ?? ""}
-            className="h-11 rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
+            className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
           >
             <option value="">Todos</option>
             {FILTER_EVENT_TYPES.map((t) => (
@@ -203,7 +203,7 @@ export default async function AdminLibroPage({
           <select
             name="rol"
             defaultValue={sp.rol ?? ""}
-            className="h-11 rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
+            className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
           >
             <option value="">Todos</option>
             {FILTER_AUTHOR_ROLES.map((r) => (
@@ -223,7 +223,7 @@ export default async function AdminLibroPage({
           defaultProvince={sp.provincia ?? ""}
           defaultLocality={sp.localidad ?? ""}
           labelClassName="flex flex-col gap-1 text-[11px] text-ln-op-mute"
-          selectClassName="h-11 rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
+          selectClassName="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
         />
 
         <label className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
@@ -232,7 +232,7 @@ export default async function AdminLibroPage({
             type="date"
             name="desde"
             defaultValue={sp.desde ?? ""}
-            className="h-11 rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
+            className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
           />
         </label>
 
@@ -242,7 +242,7 @@ export default async function AdminLibroPage({
             type="date"
             name="hasta"
             defaultValue={sp.hasta ?? ""}
-            className="h-11 rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
+            className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
           />
         </label>
 
@@ -253,7 +253,7 @@ export default async function AdminLibroPage({
           {hasActiveFilters && (
             <Link
               href="/admin/libro"
-              className="h-11 rounded-[6px] border border-ln-op-line px-4 text-[13px] leading-[44px] text-ln-op-ink hover:bg-ln-op-hover"
+              className="h-11 rounded-[var(--radius-md)] border border-ln-op-line px-4 text-[13px] leading-[44px] text-ln-op-ink hover:bg-ln-op-hover"
             >
               Limpiar
             </Link>
@@ -285,7 +285,7 @@ export default async function AdminLibroPage({
                 <div className="mt-4 flex justify-center">
                   <Link
                     href={buildLoadMoreHref(sp, nextCursor)}
-                    className="h-11 rounded-[6px] border border-ln-op-line px-4 text-[13px] leading-[44px] text-ln-op-ink hover:bg-ln-op-hover"
+                    className="h-11 rounded-[var(--radius-md)] border border-ln-op-line px-4 text-[13px] leading-[44px] text-ln-op-ink hover:bg-ln-op-hover"
                   >
                     Cargar más
                   </Link>

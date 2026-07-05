@@ -57,14 +57,14 @@ export function PrivacyActions() {
     <div className="space-y-6">
       {error && (
         <p
-          className="rounded-[4px] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-err-050)] px-4 py-3 text-sm text-[var(--color-ln-seal)]"
+          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-err-050)] px-4 py-3 text-sm text-[var(--color-ln-seal)]"
           role="alert"
         >
           {error}
         </p>
       )}
 
-      <section className="rounded-[4px] border border-[var(--color-ln-line)] p-5 space-y-3">
+      <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] p-5 space-y-3">
         <div>
           <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">
             Descargar mis datos
@@ -89,7 +89,7 @@ export function PrivacyActions() {
         )}
       </section>
 
-      <section className="rounded-[4px] border border-[var(--color-ln-seal)]/30 bg-[var(--color-ln-err-050)]/30 p-5 space-y-3">
+      <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)]/30 bg-[var(--color-ln-err-050)]/30 p-5 space-y-3">
         <div>
           <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">Eliminar mi cuenta</h2>
           <p className="text-sm text-[var(--color-ln-ink-2)] mt-1">
@@ -112,7 +112,7 @@ export function PrivacyActions() {
               maxLength={500}
               value={eraseReason}
               onChange={(e) => setEraseReason(e.target.value)}
-              className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+              className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               placeholder="Ya no uso MiMAR / migración a otra plataforma / ..."
             />
             <div className="flex gap-2">

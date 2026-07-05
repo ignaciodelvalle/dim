@@ -180,7 +180,7 @@ export function MarkLostWizard({
       />
       <LnSheetBody>
         {/* Step progress bar */}
-        <div className="flex gap-[6px]">
+        <div className="flex gap-1.5">
           {Array.from({ length: totalSteps }, (_, i) => i + 1).map((n) => (
             <div
               key={`step-${n}`}
@@ -199,7 +199,7 @@ export function MarkLostWizard({
               uncontrolled field values across step transitions. */}
           <section
             data-section="step-location"
-            className={step === 1 ? "flex flex-col gap-[14px]" : "sr-only"}
+            className={step === 1 ? "flex flex-col gap-3.5" : "sr-only"}
             aria-hidden={step !== 1}
           >
             <p className="text-[12.5px] text-[var(--color-ln-mute)]">
@@ -231,7 +231,7 @@ export function MarkLostWizard({
           {showDetailsStep && (
             <section
               data-section="step-details"
-              className={step === 2 ? "flex flex-col gap-[14px]" : "sr-only"}
+              className={step === 2 ? "flex flex-col gap-3.5" : "sr-only"}
               aria-hidden={step !== 2}
             >
               <LnCallout tone="azul" title="Sin chip ni tatuaje, estos detalles son clave">
@@ -371,7 +371,7 @@ export function MarkLostWizard({
               pet is lost. PII toggles start OFF (opt-in, not opt-out). */}
           <section
             data-section="step-disclosure"
-            className={step === disclosureStep ? "flex flex-col gap-[14px]" : "sr-only"}
+            className={step === disclosureStep ? "flex flex-col gap-3.5" : "sr-only"}
             aria-hidden={step !== disclosureStep}
           >
             <p className="text-[var(--text-sm)] text-[var(--color-ln-mute)]">
@@ -428,12 +428,12 @@ export function MarkLostWizard({
       </LnSheetBody>
 
       {/* Footer — step navigation */}
-      <div className="flex items-center gap-[10px] border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
+      <div className="flex items-center gap-2.5 border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
         {step > 1 && (
           <button
             type="button"
             onClick={goBack}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[14px] py-[8px] text-[12.5px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2 text-[12.5px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
           >
             ← Atrás
           </button>
@@ -443,7 +443,7 @@ export function MarkLostWizard({
           <button
             type="button"
             onClick={goNext}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-[16px] py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Continuar →
           </button>
@@ -453,7 +453,7 @@ export function MarkLostWizard({
             onClick={handleSubmit}
             disabled={isPending}
             aria-busy={isPending || undefined}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-[16px] py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-4 py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPending ? (
               <>

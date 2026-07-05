@@ -70,7 +70,7 @@ export default async function NewMedicationEndPage({
     return (
       <LnSheetWrap>
         <LnSheetCard>
-          <div className="px-[18px] py-[24px] space-y-[10px]">
+          <div className="px-[18px] py-6 space-y-[10px]">
             <p className="text-[13px] text-[var(--color-ln-mute)]">
               No hay medicaciones abiertas para {pet.name}.
             </p>

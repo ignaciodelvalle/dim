@@ -28,14 +28,14 @@ const ROLE_LABELS: Record<string, string> = {
 function FriendlyOwnerOnlyPage({ pet, role }: { pet: Pet; role: string }) {
   const roleLabel = ROLE_LABELS[role] ?? role;
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       <Link
         href={`/mis-mascotas/${pet.publicToken}`}
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Volver al perfil
       </Link>
-      <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
+      <h1 className="m-0 mb-4 font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
         Devolución de {pet.name}
       </h1>
       <LnCallout tone="warn" title="Aceptar una devolución es acción del dueño legal.">
@@ -101,21 +101,21 @@ export default async function DevolucionPage({
 
     if (!fosterSourceOrgId || !fosterOrgDisplayName) {
       return (
-        <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
+        <div className="mx-auto max-w-lg px-8 py-7 pb-12">
           <Link
             href={`/mis-mascotas/${pet.publicToken}`}
-            className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             ← Volver al perfil
           </Link>
-          <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
+          <h1 className="m-0 mb-4 font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
             Devolución de {pet.name}
           </h1>
           <LnCallout tone="warn" title="Sin organización asociada.">
             No encontramos el refugio de origen para este tránsito. Contactá a la organización
             directamente para coordinar la devolución.
           </LnCallout>
-          <div className="mt-[24px] flex justify-start">
+          <div className="mt-6 flex justify-start">
             <Link href="/mis-mascotas">
               <LnButton variant="primary" size="md">
                 Volver a mis mascotas
@@ -127,14 +127,14 @@ export default async function DevolucionPage({
     }
 
     return (
-      <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
+      <div className="mx-auto max-w-lg px-8 py-7 pb-12">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al perfil
         </Link>
-        <div className="mb-[24px]">
+        <div className="mb-6">
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Devolver {pet.name}
           </h1>
@@ -143,7 +143,7 @@ export default async function DevolucionPage({
             <strong>{fosterOrgDisplayName}</strong>.
           </p>
         </div>
-        <div className="mb-[24px]">
+        <div className="mb-6">
           <LnCallout tone="warn" title="Esta acción notifica al refugio.">
             El refugio va a recibir tu propuesta y debe aceptarla. El tránsito sigue activo hasta
             que confirmen la recepción.
@@ -218,17 +218,17 @@ export default async function DevolucionPage({
 
     if (sourceOrgId && orgDisplayName) {
       return (
-        <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
+        <div className="mx-auto max-w-lg px-8 py-7 pb-12">
           {/* Back link */}
           <Link
             href={`/mis-mascotas/${pet.publicToken}`}
-            className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             ← Volver al perfil
           </Link>
 
           {/* Header */}
-          <div className="mb-[24px]">
+          <div className="mb-6">
             <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
               Devolver {pet.name}
             </h1>
@@ -239,7 +239,7 @@ export default async function DevolucionPage({
           </div>
 
           {/* Warning callout */}
-          <div className="mb-[24px]">
+          <div className="mb-6">
             <LnCallout tone="warn" title="Esta acción notifica al refugio.">
               El refugio va a recibir tu propuesta y debe aceptarla. La custodia de {pet.name} sigue
               siendo tuya hasta que ellos confirmen la recepción.
@@ -259,14 +259,14 @@ export default async function DevolucionPage({
 
     // No adoption found — show guidance only.
     return (
-      <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
+      <div className="mx-auto max-w-lg px-8 py-7 pb-12">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al perfil
         </Link>
-        <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
+        <h1 className="m-0 mb-4 font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
           Devolución de {pet.name}
         </h1>
         <LnCallout tone="warn" title="Sin propuestas activas.">
@@ -274,7 +274,7 @@ export default async function DevolucionPage({
           registrada a tu nombre. Si recibiste esta mascota de un refugio fuera de MiMAR, contactá
           al refugio directamente.
         </LnCallout>
-        <div className="mt-[24px] flex justify-start">
+        <div className="mt-6 flex justify-start">
           <Link href="/mis-mascotas">
             <LnButton variant="primary" size="md">
               Volver a mis mascotas
@@ -311,9 +311,9 @@ export default async function DevolucionPage({
   }
 
   return (
-    <div className="mx-auto max-w-lg px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-lg px-8 py-7 pb-12">
       {/* Header */}
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Devolución de {pet.name}
         </h1>
@@ -331,7 +331,7 @@ export default async function DevolucionPage({
         backUrl="/mis-mascotas"
       />
 
-      <div className="mt-[24px] border-t border-[var(--color-ln-line-2)] pt-[16px]">
+      <div className="mt-6 border-t border-[var(--color-ln-line-2)] pt-4">
         <Link
           href="/mis-mascotas"
           className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"

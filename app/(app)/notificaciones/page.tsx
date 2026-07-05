@@ -196,17 +196,17 @@ export default async function NotificacionesPage({
   const groups = groupNotifications(rows);
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/inicio"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Inicio
       </Link>
 
       {/* Header */}
-      <div className="mb-[20px] flex items-start justify-between gap-4">
+      <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Notificaciones
@@ -221,7 +221,7 @@ export default async function NotificacionesPage({
         </div>
         {unreadCount > 0 && (
           <Suspense>
-            <form action={markAllNotificationsReadAction} className="flex-shrink-0 mt-[6px]">
+            <form action={markAllNotificationsReadAction} className="flex-shrink-0 mt-1.5">
               <LnButton type="submit" variant="ghost" size="sm">
                 Marcar todas como leídas
               </LnButton>
@@ -233,7 +233,7 @@ export default async function NotificacionesPage({
       {/* Category tab bar — Link-based server navigation */}
       {visibleCategories.length > 1 && (
         <div
-          className="mb-[24px] flex gap-0 overflow-x-auto border-b border-[var(--color-ln-line)]"
+          className="mb-6 flex gap-0 overflow-x-auto border-b border-[var(--color-ln-line)]"
           role="tablist"
           aria-label="Filtrar notificaciones por categoría"
         >
@@ -247,7 +247,7 @@ export default async function NotificacionesPage({
                 role="tab"
                 aria-selected={isActive}
                 className={[
-                  "inline-flex flex-shrink-0 items-center gap-[7px] border-b-2 px-[16px] py-[10px] text-[13px] font-semibold no-underline transition-colors -mb-px",
+                  "inline-flex flex-shrink-0 items-center gap-[7px] border-b-2 px-4 py-2.5 text-[13px] font-semibold no-underline transition-colors -mb-px",
                   isActive
                     ? "border-b-[var(--color-ln-azul)] text-[var(--color-ln-azul)]"
                     : "border-b-transparent text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)]",
@@ -258,7 +258,7 @@ export default async function NotificacionesPage({
                 {CATEGORY_LABELS[c]}
                 <span
                   className={[
-                    "rounded-full px-[6px] py-[1px] font-[var(--font-ln-mono)] text-xs",
+                    "rounded-full px-1.5 py-[1px] font-[var(--font-ln-mono)] text-xs",
                     isActive
                       ? "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]"
                       : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
@@ -276,20 +276,20 @@ export default async function NotificacionesPage({
 
       {/* Notification list */}
       {rows.length === 0 ? (
-        <div className="py-[32px] text-center">
+        <div className="py-8 text-center">
           <p className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink-2)]">
             {EMPTY_CATEGORY_TITLES[activeCat]}
           </p>
           {(EMPTY_CATEGORY_DESCRIPTIONS[activeCat] ??
             "Tu bandeja está vacía. Te avisaremos por acá cuando haya algo nuevo.") && (
-            <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
+            <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
               {EMPTY_CATEGORY_DESCRIPTIONS[activeCat] ??
                 "Tu bandeja está vacía. Te avisaremos por acá cuando haya algo nuevo."}
             </p>
           )}
         </div>
       ) : (
-        <ul className="flex flex-col gap-[10px]">
+        <ul className="flex flex-col gap-2.5">
           {groups.map((entry) => {
             if (entry.kind === "single") {
               return (
@@ -307,11 +307,11 @@ export default async function NotificacionesPage({
                   notification={entry.leader.notification}
                   relatedPet={entry.leader.pet}
                 />
-                <details className="mt-[8px] ml-[12px] border-l-2 border-[var(--color-ln-line)] pl-[12px]">
+                <details className="mt-2 ml-3 border-l-2 border-[var(--color-ln-line)] pl-3">
                   <summary className="cursor-pointer font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] select-none hover:underline">
                     + {entry.rest.length} más del mismo tipo
                   </summary>
-                  <ul className="mt-[10px] flex flex-col gap-[8px]">
+                  <ul className="mt-2.5 flex flex-col gap-2">
                     {entry.rest.map(({ notification, pet }) => (
                       <li key={notification.id}>
                         <NotificationCard notification={notification} relatedPet={pet} />
@@ -329,7 +329,7 @@ export default async function NotificacionesPage({
       {(newerLink || olderLink) && (
         <nav
           aria-label="Paginación de notificaciones"
-          className="mt-[28px] flex items-center justify-between gap-4 border-t border-[var(--color-ln-line)] pt-[20px]"
+          className="mt-7 flex items-center justify-between gap-4 border-t border-[var(--color-ln-line)] pt-5"
         >
           <div>
             {newerLink && (

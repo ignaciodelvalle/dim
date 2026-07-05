@@ -85,7 +85,7 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
           onChange={(e) => setReason(e.target.value)}
           placeholder="Motivo del rechazo (mínimo 10 caracteres). Se envía al proveedor."
           rows={3}
-          className="w-full text-sm rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="w-full text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <div className="flex items-center gap-2">
           <OpButton
@@ -124,7 +124,7 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
         type="button"
         onClick={() => setMode("rejecting")}
         disabled={pending}
-        className="text-[13px] px-4 py-2 rounded-[6px] border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors disabled:opacity-50"
+        className="text-[13px] px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors disabled:opacity-50"
       >
         Rechazar
       </button>

@@ -35,7 +35,7 @@ export function AcceptTransferActions({
           </p>
         )}
         {showRejectReason ? (
-          <div className="space-y-2 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3">
+          <div className="space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3">
             <label
               htmlFor="reject-reason"
               className="block text-xs font-medium text-[var(--color-ln-ink)]"
@@ -48,7 +48,7 @@ export function AcceptTransferActions({
               maxLength={500}
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2 py-1 text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+              className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2 py-1 text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
             <div className="flex gap-2">
               <button
@@ -130,7 +130,7 @@ export function AcceptTransferActions({
         )}
         <p className="text-sm text-[var(--color-ln-ink-2)]">Esperando respuesta del receptor.</p>
         {confirmCancel ? (
-          <div className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3 space-y-2">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3 space-y-2">
             <p className="text-sm text-[var(--color-ln-ink-2)]">
               Si después querés transferir de nuevo tenés que iniciar otra propuesta.
             </p>

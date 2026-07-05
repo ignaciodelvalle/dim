@@ -136,7 +136,7 @@ export default async function ModeracionListPage({
             id="mod-status"
             name="status"
             defaultValue={statusFilter}
-            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             {MOD_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -154,7 +154,7 @@ export default async function ModeracionListPage({
             id="mod-kind"
             name="kind"
             defaultValue={kindFilter ?? ""}
-            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             <option value="">Todos los tipos</option>
             {WELFARE_REPORT_KINDS.map((k) => (
@@ -173,7 +173,7 @@ export default async function ModeracionListPage({
             id="mod-severity"
             name="severity"
             defaultValue={severityFilter ?? ""}
-            className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             <option value="">Todas las severidades</option>
             {WELFARE_REPORT_SEVERITIES.map((s) => (

@@ -78,17 +78,17 @@ export default async function TransferenciasHubPage() {
     .orderBy(desc(petTransfers.initiatedAt));
 
   return (
-    <div className="mx-auto max-w-3xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-3xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/mis-mascotas"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis mascotas
       </Link>
 
       {/* Header */}
-      <div className="mb-[28px]">
+      <div className="mb-7">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Transferencias
         </h1>
@@ -97,39 +97,39 @@ export default async function TransferenciasHubPage() {
         </p>
       </div>
 
-      <div className="flex flex-col gap-[32px]">
+      <div className="flex flex-col gap-8">
         {/* ------------------------------------------------------------------ */}
         {/* RECIBIDAS                                                           */}
         {/* ------------------------------------------------------------------ */}
         <section aria-labelledby="recibidas-heading">
           <h2
             id="recibidas-heading"
-            className="mb-[16px] font-[var(--font-ln-mono)] text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-ink-2)]"
+            className="mb-4 font-[var(--font-ln-mono)] text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-ink-2)]"
           >
             Recibidas
           </h2>
 
           {/* Pending */}
-          <div className="flex flex-col gap-[20px]">
+          <div className="flex flex-col gap-5">
             <div>
               <LnSectionHead
                 num="01"
                 title="Pendientes"
                 meta={activeRows.length > 0 ? `${activeRows.length}` : undefined}
-                className="mb-[16px]"
+                className="mb-4"
               />
               {activeRows.length === 0 ? (
                 <p className="text-[13px] text-[var(--color-ln-mute)]">
                   No tenés transferencias pendientes.
                 </p>
               ) : (
-                <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+                <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
                   {activeRows.map(
                     ({ transfer, petName, petToken, petSpecies, fromDisplayName }) => (
                       <Link
                         key={transfer.id}
                         href={`/transferencias/${transfer.publicToken}`}
-                        className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+                        className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
                       >
                         <div className="min-w-0">
                           <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold text-[var(--color-ln-ink)]">
@@ -139,11 +139,11 @@ export default async function TransferenciasHubPage() {
                             </span>
                           </p>
                           {fromDisplayName && (
-                            <p className="mt-[2px] text-sm text-[var(--color-ln-mute)]">
+                            <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
                               De: {fromDisplayName}
                             </p>
                           )}
-                          <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                          <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
                             Vence{" "}
                             {new Date(transfer.expiresAt).toLocaleDateString("es-AR", {
                               day: "numeric",
@@ -152,8 +152,8 @@ export default async function TransferenciasHubPage() {
                             })}
                           </p>
                         </div>
-                        <div className="flex flex-shrink-0 items-center gap-[8px]">
-                          <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
+                        <div className="flex flex-shrink-0 items-center gap-2">
+                          <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
                             Pendiente
                           </span>
                           <span
@@ -173,13 +173,13 @@ export default async function TransferenciasHubPage() {
             {/* History */}
             {historyRows.length > 0 && (
               <div>
-                <LnSectionHead num="02" title="Historial" className="mb-[16px]" />
-                <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+                <LnSectionHead num="02" title="Historial" className="mb-4" />
+                <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
                   {historyRows.map(({ transfer, petName, fromDisplayName }) => (
                     <Link
                       key={transfer.id}
                       href={`/transferencias/${transfer.publicToken}`}
-                      className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[12px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+                      className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
                     >
                       <p className="text-[13px] text-[var(--color-ln-ink-2)]">
                         {petName}
@@ -217,24 +217,24 @@ export default async function TransferenciasHubPage() {
         <section aria-labelledby="enviadas-heading">
           <h2
             id="enviadas-heading"
-            className="mb-[16px] font-[var(--font-ln-mono)] text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-ink-2)]"
+            className="mb-4 font-[var(--font-ln-mono)] text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-ink-2)]"
           >
             Enviadas
           </h2>
 
-          <LnSectionHead num="03" title="Mis transferencias enviadas" className="mb-[16px]" />
+          <LnSectionHead num="03" title="Mis transferencias enviadas" className="mb-4" />
 
           {outgoingRows.length === 0 ? (
             <p className="text-[13px] text-[var(--color-ln-mute)]">
               No enviaste ninguna transferencia todavía.
             </p>
           ) : (
-            <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+            <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
               {outgoingRows.map(({ transfer, petName, toDisplayName }) => (
                 <Link
                   key={transfer.id}
                   href={`/transferencias/${transfer.publicToken}`}
-                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[12px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   <div className="min-w-0">
                     <p className="text-[13px] text-[var(--color-ln-ink-2)]">
@@ -246,7 +246,7 @@ export default async function TransferenciasHubPage() {
                         </span>
                       )}
                     </p>
-                    <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                    <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
                       {new Date(transfer.initiatedAt).toLocaleDateString("es-AR", {
                         day: "numeric",
                         month: "short",
@@ -254,14 +254,14 @@ export default async function TransferenciasHubPage() {
                       })}
                     </p>
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-[8px]">
+                  <div className="flex flex-shrink-0 items-center gap-2">
                     <span
                       className={
                         transfer.status === "pending"
-                          ? "inline-flex items-center rounded-[2px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]"
+                          ? "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]"
                           : transfer.status === "accepted"
-                            ? "inline-flex items-center rounded-[2px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"
-                            : "inline-flex items-center rounded-[2px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+                            ? "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"
+                            : "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
                       }
                     >
                       {STATUS_LABELS[transfer.status] ?? transfer.status}

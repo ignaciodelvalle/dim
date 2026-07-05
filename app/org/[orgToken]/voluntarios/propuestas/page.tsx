@@ -119,7 +119,7 @@ export default async function OrgPropuestasPage({
             {filtered.map(({ proposal, pet, volunteer }) => (
               <li
                 key={proposal.id}
-                className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4"
+                className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4"
               >
                 <div className="flex items-baseline justify-between gap-3">
                   <div className="space-y-1">

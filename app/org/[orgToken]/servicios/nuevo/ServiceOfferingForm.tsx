@@ -49,7 +49,7 @@ export function ServiceOfferingForm({
         onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
       >
         {state.error && (
-          <p className="text-[13px] rounded-[6px] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+          <p className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
             {state.error}
           </p>
         )}
@@ -102,7 +102,7 @@ export function ServiceOfferingForm({
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="w-full px-5 py-3 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+            className="w-full px-5 py-3 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
           >
             Continuar
           </button>
@@ -165,7 +165,7 @@ export function ServiceOfferingForm({
           <button
             type="button"
             onClick={() => setStep(3)}
-            className="w-full px-5 py-3 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+            className="w-full px-5 py-3 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
           >
             Continuar
           </button>
@@ -224,7 +224,7 @@ export function ServiceOfferingForm({
             <button
               type="submit"
               disabled={isPending}
-              className="flex-1 px-5 py-3 rounded-[6px] bg-ln-op-ok text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+              className="flex-1 px-5 py-3 rounded-[var(--radius-md)] bg-ln-op-ok text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
             >
               {isPending ? "Enviando…" : "Crear servicio"}
             </button>

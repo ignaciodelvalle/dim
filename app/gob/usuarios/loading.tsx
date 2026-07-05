@@ -9,7 +9,7 @@ export default function GobUsuariosLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="mx-auto max-w-5xl px-[32px] py-[28px] pb-[48px] block"
+      className="mx-auto max-w-5xl px-8 py-7 pb-12 block"
     >
       <span className="sr-only">Cargando…</span>
       <OpCardSkeleton rows={8} />

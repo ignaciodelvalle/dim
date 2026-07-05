@@ -102,7 +102,7 @@ export default async function AdoptarPage({
               <div className="flex justify-center pt-4">
                 <Link
                   href={`/adoptar?${buildSearchParams(filters, nextCursor).toString()}`}
-                  className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-5 py-2.5 text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
+                  className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-5 py-2.5 text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
                 >
                   Mostrar más
                 </Link>

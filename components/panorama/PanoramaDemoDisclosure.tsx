@@ -16,7 +16,7 @@ export function PanoramaDemoDisclosure({ hidden = false }: Props) {
   if (hidden) return null;
 
   return (
-    <p className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-1.5 text-[11px] text-ln-op-ink-2">
+    <p className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-1.5 text-[11px] text-ln-op-ink-2">
       <span className="font-semibold">Datos de demostración.</span> El dataset cargado es sintético
       (densidad ponderada por Censo 2022); no representa casos reales.
     </p>

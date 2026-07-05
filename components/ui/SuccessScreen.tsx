@@ -85,7 +85,7 @@ export function LnSuccessScreen({
 
         {/* Confirmation code block */}
         {code ? (
-          <div className="rounded-[4px] border-2 border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-6 py-6 space-y-3">
+          <div className="rounded-[var(--radius-sm)] border-2 border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-6 py-6 space-y-3">
             <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-widest text-[var(--color-ln-mute)] font-medium">
               Tu código de seguimiento
             </p>

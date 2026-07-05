@@ -230,17 +230,17 @@ export default async function MisPostulacionesPage({
     }));
 
   return (
-    <div className="mx-auto max-w-3xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-3xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/mis-mascotas"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis mascotas
       </Link>
 
       {/* Header */}
-      <div className="mb-[28px]">
+      <div className="mb-7">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis postulaciones para adoptar
         </h1>
@@ -250,7 +250,7 @@ export default async function MisPostulacionesPage({
       </div>
 
       {justSubmittedId && (
-        <div className="mb-[20px]">
+        <div className="mb-5">
           <LnCallout tone="azul">
             ¡Postulación enviada! El refugio la recibió y te va a contactar por mail. Mientras tanto
             podés seguir viendo otras mascotas en{" "}
@@ -273,28 +273,28 @@ export default async function MisPostulacionesPage({
           action={
             <Link
               href="/adoptar"
-              className="inline-flex items-center rounded-[4px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[16px] py-[8px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-ok)] no-underline hover:opacity-80 transition-opacity"
+              className="inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-2 font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-ok)] no-underline hover:opacity-80 transition-opacity"
             >
               Ver mascotas en adopción
             </Link>
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+        <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
           {applications.map((app) => {
             const config = STATUS_CONFIG[app.status];
             const isHighlight = app.applicationId === justSubmittedId;
             return (
               <div
                 key={app.applicationId}
-                className={`flex flex-col gap-[6px] border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] last:border-b-0 ${isHighlight ? "bg-[var(--color-ln-celeste-050)]" : ""}`}
+                className={`flex flex-col gap-1.5 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 last:border-b-0 ${isHighlight ? "bg-[var(--color-ln-celeste-050)]" : ""}`}
               >
                 <div className="flex items-baseline justify-between gap-3">
                   <p className="font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]">
                     {app.petName}
                   </p>
                   <span
-                    className={`flex-shrink-0 inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] ${config.cls}`}
+                    className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] ${config.cls}`}
                   >
                     {config.label}
                   </span>
@@ -312,7 +312,7 @@ export default async function MisPostulacionesPage({
                 </p>
                 <StatusBody status={app.status} app={app} />
                 {(app.status === "pending" || app.status === "info_requested") && (
-                  <div className="mt-[4px]">
+                  <div className="mt-1">
                     <WithdrawApplicationButton applicationEventId={app.applicationId} />
                   </div>
                 )}

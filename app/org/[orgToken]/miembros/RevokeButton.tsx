@@ -42,7 +42,7 @@ export function RevokeButton({ organizationId, invitationToken, email, orgToken 
         ref={triggerRef}
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-sm font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white"
+        className="rounded-[var(--radius-sm)] border border-ln-op-danger px-3 py-[5px] text-sm font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white"
       >
         Revocar
       </button>

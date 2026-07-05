@@ -104,7 +104,7 @@ export function ProposalActions({
 
   if (okMessage) {
     return (
-      <p className="text-sm rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-[var(--color-ln-ok)]">
+      <p className="text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-[var(--color-ln-ok)]">
         {okMessage}
       </p>
     );
@@ -112,7 +112,7 @@ export function ProposalActions({
 
   if (mode === "accept") {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-3">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-3">
         <h3 className="font-medium text-[var(--color-ln-ok)]">Aceptar tránsito de {petName}</h3>
         <LnCheckbox checked={allowCoFoster} onChange={(e) => setAllowCoFoster(e.target.checked)}>
           Permito que la organización asigne otro co-foster mientras yo lo cuide. Podés cambiarlo
@@ -123,7 +123,7 @@ export function ProposalActions({
           onChange={(e) => setAcceptNotes(e.target.value)}
           rows={2}
           placeholder="Notas para el refugio (opcional)"
-          className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
         {error && <output className="block text-sm text-[var(--color-ln-err)]">{error}</output>}
         <div className="flex gap-2">
@@ -150,7 +150,7 @@ export function ProposalActions({
 
   if (mode === "reject") {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-line-strong)] p-4 space-y-3">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] p-4 space-y-3">
         <h3 className="font-medium text-[var(--color-ln-ink)]">Rechazar propuesta</h3>
         <div>
           <label
@@ -163,7 +163,7 @@ export function ProposalActions({
             id="reject-reason"
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value as RejectionReason)}
-            className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           >
             {REJECTION_REASONS.map((r) => (
               <option key={r.value} value={r.value}>
@@ -177,7 +177,7 @@ export function ProposalActions({
           onChange={(e) => setRejectNotes(e.target.value)}
           rows={2}
           placeholder="Notas (opcional)"
-          className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
         {error && <output className="block text-sm text-[var(--color-ln-err)]">{error}</output>}
         <div className="flex gap-2">

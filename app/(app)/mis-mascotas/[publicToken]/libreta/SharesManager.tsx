@@ -109,7 +109,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
       {creating && (
         <form
           action={createAction}
-          className="space-y-3 rounded-[4px] border border-[var(--color-ln-line)] p-4"
+          className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] p-4"
         >
           <div className="space-y-1">
             <label className="text-xs text-[var(--color-ln-ink-2)]" htmlFor="share-label">
@@ -122,7 +122,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="Ej: Para Dra. Perez"
-              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3 py-1.5 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+              className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3 py-1.5 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
           </div>
 
@@ -168,7 +168,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                 <input
                   readOnly
                   value={buildShareUrl(newShareToken)}
-                  className="flex-1 text-xs font-mono rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3 py-1.5 focus:outline-none"
+                  className="flex-1 text-xs font-mono rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3 py-1.5 focus:outline-none"
                 />
                 <button
                   type="button"
@@ -211,7 +211,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
           {localShares.map((share) => (
             <li
               key={share.id}
-              className="flex items-start justify-between gap-3 rounded-[4px] border border-[var(--color-ln-line)] px-3 py-2.5"
+              className="flex items-start justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] px-3 py-2.5"
             >
               <div className="space-y-0.5 min-w-0">
                 <p className="text-xs font-medium text-[var(--color-ln-ink)] truncate">

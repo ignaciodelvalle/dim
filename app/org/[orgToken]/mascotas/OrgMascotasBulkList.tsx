@@ -242,7 +242,7 @@ export function OrgMascotasBulkList({
         )}
         {!canBulkSelect && <div />}
 
-        <fieldset className="inline-flex rounded-[6px] border border-ln-op-line overflow-hidden text-sm p-0">
+        <fieldset className="inline-flex rounded-[var(--radius-md)] border border-ln-op-line overflow-hidden text-sm p-0">
           <legend className="sr-only">Vista</legend>
           <button
             type="button"
@@ -315,7 +315,7 @@ export function OrgMascotasBulkList({
             return (
               <li
                 key={card.petId}
-                className={`rounded-[6px] border p-3 space-y-2 ${
+                className={`rounded-[var(--radius-md)] border p-3 space-y-2 ${
                   isSelected
                     ? "border-ln-op-azul bg-ln-op-blue-bg"
                     : "border-ln-op-line bg-ln-op-card"
@@ -378,7 +378,7 @@ export function OrgMascotasBulkList({
                     {showFosterCta && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}/foster`}
-                        className="inline-block text-sm px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
                         Asignar tránsito
                       </Link>
@@ -386,7 +386,7 @@ export function OrgMascotasBulkList({
                     {canEndFoster && hasFoster && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=fin-transito`}
-                        className="inline-block text-sm px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
                         Cerrar tránsito
                       </Link>
@@ -394,7 +394,7 @@ export function OrgMascotasBulkList({
                     {canIntake && card.ownershipRole === "shelter_custody" && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=elegibilidad`}
-                        className="inline-block text-sm px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
                         {card.adoptionEligible === true
                           ? "Apta ✓"
@@ -406,7 +406,7 @@ export function OrgMascotasBulkList({
                     {canManageAdoptionListing && card.ownershipRole === "shelter_custody" && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}/adoptar`}
-                        className="inline-block text-sm px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
                         {card.adoptionListedAt && !card.adoptionListingPausedAt
                           ? "Publicada ✓"
@@ -418,7 +418,7 @@ export function OrgMascotasBulkList({
                     {canFinalizeAdoption && card.ownershipRole === "shelter_custody" && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}/adoption`}
-                        className="inline-block text-sm px-2 py-1 rounded-[4px] bg-ln-op-ok text-white hover:opacity-90"
+                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] bg-ln-op-ok text-white hover:opacity-90"
                       >
                         Finalizar adopción
                       </Link>
@@ -426,7 +426,7 @@ export function OrgMascotasBulkList({
                     {showReturnToOwnerCta && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=devolver-al-dueno`}
-                        className="inline-block text-sm px-2 py-1 rounded-[4px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
+                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
                       >
                         Devolver al dueño
                       </Link>
@@ -434,7 +434,7 @@ export function OrgMascotasBulkList({
                     {showTransferCta && (
                       <Link
                         href={`/org/${orgToken}/mascotas/${card.publicToken}/transfer`}
-                        className="inline-block text-sm px-2 py-1 rounded-[4px] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
+                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
                         Transferir
                       </Link>
@@ -482,7 +482,7 @@ export function OrgMascotasBulkList({
                       type="button"
                       onClick={() => setMode("vaccinate")}
                       disabled={selected.size > BULK_MAX}
-                      className="px-3 py-1.5 rounded-[4px] text-[13px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Vacunar selección
                     </button>
@@ -492,7 +492,7 @@ export function OrgMascotasBulkList({
                       type="button"
                       onClick={() => setMode("eligibility")}
                       disabled={selected.size > BULK_MAX}
-                      className="px-3 py-1.5 rounded-[4px] text-[13px] bg-ln-op-celeste text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] bg-ln-op-celeste text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Marcar elegibilidad
                     </button>
@@ -502,7 +502,7 @@ export function OrgMascotasBulkList({
                       type="button"
                       onClick={() => setMode("listing")}
                       disabled={selected.size > BULK_MAX}
-                      className="px-3 py-1.5 rounded-[4px] text-[13px] bg-ln-op-ok text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] bg-ln-op-ok text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Publicar en adopción
                     </button>
@@ -646,7 +646,7 @@ function BulkVaccinationForm({
             value={vaccineName}
             onChange={(e) => setVaccineName(e.target.value)}
             placeholder="Ej. Cuádruple canina"
-            className="w-full px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
           />
         </div>
 
@@ -659,7 +659,7 @@ function BulkVaccinationForm({
             type="date"
             value={occurredAt}
             onChange={(e) => setOccurredAt(e.target.value)}
-            className="w-full px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
           />
         </div>
 
@@ -673,7 +673,7 @@ function BulkVaccinationForm({
             value={brand}
             onChange={(e) => setBrand(e.target.value)}
             placeholder="Ej. Nobivac"
-            className="w-full px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
           />
         </div>
 
@@ -687,7 +687,7 @@ function BulkVaccinationForm({
             value={batch}
             onChange={(e) => setBatch(e.target.value)}
             placeholder="Ej. L-2024-07"
-            className="w-full px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
           />
         </div>
 
@@ -701,7 +701,7 @@ function BulkVaccinationForm({
             value={administeredBy}
             onChange={(e) => setAdministeredBy(e.target.value)}
             placeholder="Ej. Dr. Gómez MP 1234"
-            className="w-full px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
           />
         </div>
 
@@ -714,7 +714,7 @@ function BulkVaccinationForm({
             type="date"
             value={nextDueAt}
             onChange={(e) => setNextDueAt(e.target.value)}
-            className="w-full px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
           />
         </div>
       </div>
@@ -724,7 +724,7 @@ function BulkVaccinationForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="px-3 py-1.5 rounded-[4px] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
+          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
         >
           Cancelar
         </button>
@@ -732,7 +732,7 @@ function BulkVaccinationForm({
           type="button"
           onClick={handleSubmit}
           disabled={pending || !canSubmit}
-          className="px-3 py-1.5 rounded-[4px] text-[13px] font-medium bg-ln-op-azul text-white hover:bg-ln-op-azul-700 disabled:opacity-50"
+          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] font-medium bg-ln-op-azul text-white hover:bg-ln-op-azul-700 disabled:opacity-50"
         >
           {pending ? "Registrando..." : "Confirmar vacunación"}
         </button>
@@ -832,7 +832,7 @@ function BulkEligibilityForm({
               onChange={(e) =>
                 setIneligibleReason(e.target.value as (typeof BULK_INELIGIBLE_REASONS)[number] | "")
               }
-              className="w-full px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+              className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
             >
               <option value="">Seleccioná una razón</option>
               {BULK_INELIGIBLE_REASONS.map((r) => (
@@ -852,7 +852,7 @@ function BulkEligibilityForm({
               type="date"
               value={ineligibleUntilIso}
               onChange={(e) => setIneligibleUntilIso(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+              className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
             />
           </div>
 
@@ -867,7 +867,7 @@ function BulkEligibilityForm({
                 value={ineligibleReasonNotes}
                 onChange={(e) => setIneligibleReasonNotes(e.target.value)}
                 placeholder="Describí la situación"
-                className="w-full px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+                className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
               />
             </div>
           )}
@@ -879,7 +879,7 @@ function BulkEligibilityForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="px-3 py-1.5 rounded-[4px] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
+          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
         >
           Cancelar
         </button>
@@ -887,7 +887,7 @@ function BulkEligibilityForm({
           type="button"
           onClick={handleSubmit}
           disabled={pending || !canSubmit}
-          className="px-3 py-1.5 rounded-[4px] text-[13px] font-medium bg-ln-op-celeste text-white hover:opacity-90 disabled:opacity-50"
+          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] font-medium bg-ln-op-celeste text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Guardando..." : "Confirmar elegibilidad"}
         </button>
@@ -924,7 +924,7 @@ function BulkListingForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="px-3 py-1.5 rounded-[4px] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
+          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
         >
           Cancelar
         </button>
@@ -932,7 +932,7 @@ function BulkListingForm({
           type="button"
           onClick={() => onSubmit(false)}
           disabled={pending}
-          className="px-3 py-1.5 rounded-[4px] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50"
+          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50"
         >
           {pending ? "Procesando..." : "Despublicar selección"}
         </button>
@@ -940,7 +940,7 @@ function BulkListingForm({
           type="button"
           onClick={() => onSubmit(true)}
           disabled={pending}
-          className="px-3 py-1.5 rounded-[4px] text-[13px] font-medium bg-ln-op-ok text-white hover:opacity-90 disabled:opacity-50"
+          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] font-medium bg-ln-op-ok text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Publicando..." : "Confirmar publicación"}
         </button>
@@ -979,7 +979,7 @@ function ResultPanel({
   const noun = result.succeeded.length === 1 ? nounSingular : nounPlural;
 
   return (
-    <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-3 space-y-2 text-[13px]">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-3 space-y-2 text-[13px]">
       <div className="flex items-baseline justify-between">
         <p className="font-medium text-ln-op-ink">
           {result.succeeded.length} {noun} · {result.failed.length} fallaron

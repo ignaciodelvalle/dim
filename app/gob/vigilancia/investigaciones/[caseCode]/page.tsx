@@ -132,18 +132,18 @@ export default async function InvestigacionDetailPage({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {diseaseCode && (
-          <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
             <p className="text-xs uppercase tracking-wider text-ln-op-mute">Enfermedad</p>
             <p className="text-[13px] font-semibold text-ln-op-ink">{diseaseCode}</p>
           </div>
         )}
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
           <p className="text-xs uppercase tracking-wider text-ln-op-mute">Estado</p>
           <p className="text-[13px] font-semibold text-ln-op-ink">
             {STATUS_LABEL[detail.status] ?? detail.status}
           </p>
         </div>
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
           <p className="text-xs uppercase tracking-wider text-ln-op-mute">Jurisdicción</p>
           <p className="text-[13px] font-semibold text-ln-op-ink">
             {[detail.jurisdictionLocality, detail.jurisdictionProvince]

@@ -590,7 +590,7 @@ export default async function OrgDashboardPage({
           {canReadHeld && (
             <Link
               href={`/org/${orgToken}/mascotas`}
-              className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+              className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
               <p className="text-[13px] font-semibold text-ln-op-ink">Animales en custodia</p>
               <p className="text-sm text-ln-op-mute mt-1">
@@ -601,7 +601,7 @@ export default async function OrgDashboardPage({
           {canIntake && (
             <Link
               href={`/org/${orgToken}/intake`}
-              className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+              className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
               <p className="text-[13px] font-semibold text-ln-op-ink">Registrar ingreso</p>
               <p className="text-sm text-ln-op-mute mt-1">
@@ -612,7 +612,7 @@ export default async function OrgDashboardPage({
           {canReviewAdoptions && (
             <Link
               href={`/org/${orgToken}/checkins`}
-              className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+              className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
               <p className="text-[13px] font-semibold text-ln-op-ink">Check-ins post-adopción</p>
               <p className="text-sm text-ln-op-mute mt-1">
@@ -624,7 +624,7 @@ export default async function OrgDashboardPage({
             <>
               <Link
                 href={`/org/${orgToken}/voluntarios`}
-                className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+                className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">Pool de voluntarios</p>
                 <p className="text-sm text-ln-op-mute mt-1">
@@ -633,7 +633,7 @@ export default async function OrgDashboardPage({
               </Link>
               <Link
                 href={`/org/${orgToken}/voluntarios/propuestas`}
-                className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+                className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">Propuestas emitidas</p>
                 <p className="text-sm text-ln-op-mute mt-1">
@@ -642,7 +642,7 @@ export default async function OrgDashboardPage({
               </Link>
               <Link
                 href={`/org/${orgToken}/transitos`}
-                className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+                className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">Tránsitos activos</p>
                 <p className="text-sm text-ln-op-mute mt-1">
@@ -654,7 +654,7 @@ export default async function OrgDashboardPage({
           {canIntake && (
             <Link
               href={`/org/${orgToken}/pets/no-aptas`}
-              className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+              className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
               <p className="text-[13px] font-semibold text-ln-op-ink">
                 Mascotas no aptas para adopción
@@ -680,7 +680,7 @@ export default async function OrgDashboardPage({
             {granted.has("appointment.manage") && (
               <Link
                 href={`/org/${orgToken}/agenda`}
-                className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+                className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">Agenda</p>
                 <p className="text-sm text-ln-op-mute mt-1">
@@ -691,7 +691,7 @@ export default async function OrgDashboardPage({
             {canCreateServices && (
               <Link
                 href={`/org/${orgToken}/servicios`}
-                className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+                className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">Servicios</p>
                 <p className="text-sm text-ln-op-mute mt-1">
@@ -709,7 +709,7 @@ export default async function OrgDashboardPage({
         >
           <Link
             href={`/org/${orgToken}/casos`}
-            className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+            className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
           >
             <p className="text-[13px] font-semibold text-ln-op-ink">Casos</p>
             <p className="text-sm text-ln-op-mute mt-1">Expedientes abiertos por la autoridad.</p>
@@ -717,7 +717,7 @@ export default async function OrgDashboardPage({
           {granted.has("bite.report") && (
             <Link
               href={`/org/${orgToken}/mordedura/nuevo`}
-              className="block rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+              className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
               <p className="text-[13px] font-semibold text-ln-op-ink">Mordeduras</p>
               <p className="text-sm text-ln-op-mute mt-1">

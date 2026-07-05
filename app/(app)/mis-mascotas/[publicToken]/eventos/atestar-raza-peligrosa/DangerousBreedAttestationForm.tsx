@@ -99,7 +99,7 @@ function Step1({ onContinue }: { onContinue: () => void }) {
       <LnSheetBody>
         <div className="space-y-[16px]">
           {/* Legal context */}
-          <div className="rounded-[4px] border border-[var(--color-ln-warn-050)] bg-[var(--color-ln-warn-025)] px-[14px] py-[12px] space-y-[8px]">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-050)] bg-[var(--color-ln-warn-025)] px-3.5 py-3 space-y-[8px]">
             <p className="font-semibold text-[13px] text-[var(--color-ln-warn)]">
               Régimen de Animales Potencialmente Peligrosos
             </p>
@@ -115,14 +115,14 @@ function Step1({ onContinue }: { onContinue: () => void }) {
 
           {/* Acknowledgement checkboxes */}
           <fieldset className="space-y-[10px] border-0 p-0 m-0">
-            <legend className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.1em] font-semibold text-[var(--color-ln-mute)] mb-[6px]">
+            <legend className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.1em] font-semibold text-[var(--color-ln-mute)] mb-1.5">
               Confirmaciones requeridas
             </legend>
             {LEGAL_CHECKS.map((c) => (
-              <label key={c.id} className="flex items-start gap-[10px] cursor-pointer select-none">
+              <label key={c.id} className="flex items-start gap-2.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  className="mt-[2px] h-[14px] w-[14px] flex-shrink-0 rounded-[2px] accent-[var(--color-ln-warn)]"
+                  className="mt-0.5 h-[14px] w-[14px] flex-shrink-0 rounded-[var(--radius-xs)] accent-[var(--color-ln-warn)]"
                   checked={!!checked[c.id]}
                   onChange={() => toggle(c.id)}
                 />
@@ -135,17 +135,17 @@ function Step1({ onContinue }: { onContinue: () => void }) {
         </div>
       </LnSheetBody>
       {/* Step 1 footer — advance only when all boxes are checked */}
-      <div className="border-t border-[var(--color-ln-line)] px-[20px] py-[16px]">
+      <div className="border-t border-[var(--color-ln-line)] px-5 py-4">
         <button
           type="button"
           disabled={!allChecked}
           onClick={onContinue}
-          className="w-full rounded-[4px] bg-[var(--color-ln-warn)] px-[16px] py-[12px] font-[var(--font-ln-sans)] text-md font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="w-full rounded-[var(--radius-sm)] bg-[var(--color-ln-warn)] px-4 py-3 font-[var(--font-ln-sans)] text-md font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Continuar con la atestación →
         </button>
         {!allChecked && (
-          <p className="mt-[8px] text-center font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+          <p className="mt-2 text-center font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
             Confirmá todas las obligaciones para continuar
           </p>
         )}
@@ -190,14 +190,14 @@ function Step2({
       <LnSheetBody>
         <form id={FORM_ID} action={formAction} className="contents">
           {/* Registry radio group */}
-          <div className="flex flex-col gap-[6px]">
+          <div className="flex flex-col gap-1.5">
             <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               Registro{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
               </span>
             </p>
-            <div className="flex flex-col gap-[6px]">
+            <div className="flex flex-col gap-1.5">
               {registryOptions.map((opt) => (
                 <LnRadio
                   key={opt.value}
@@ -271,12 +271,12 @@ function Step2({
           )}
         </form>
       </LnSheetBody>
-      <div className="border-t border-[var(--color-ln-line)] px-[20px] py-[16px] space-y-[8px]">
+      <div className="border-t border-[var(--color-ln-line)] px-5 py-4 space-y-[8px]">
         <button
           type="submit"
           form={FORM_ID}
           disabled={isPending}
-          className="w-full rounded-[4px] bg-[var(--color-ln-warn)] px-[16px] py-[12px] font-[var(--font-ln-sans)] text-md font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-[var(--radius-sm)] bg-[var(--color-ln-warn)] px-4 py-3 font-[var(--font-ln-sans)] text-md font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isPending ? "Registrando..." : "Registrar atestación"}
         </button>
@@ -284,7 +284,7 @@ function Step2({
           type="button"
           onClick={onBack}
           disabled={isPending}
-          className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[16px] py-[10px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-40"
+          className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-2.5 font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-40"
         >
           ← Volver al paso anterior
         </button>

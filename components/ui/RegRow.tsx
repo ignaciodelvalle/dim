@@ -27,7 +27,7 @@ export type LnPetPhotoProps = {
 };
 
 export function LnPetPhoto({ src, alt, status, size = 56, radius = "full" }: LnPetPhotoProps) {
-  const radiusClass = radius === "full" ? "rounded-full" : "rounded-[6px]";
+  const radiusClass = radius === "full" ? "rounded-full" : "rounded-[var(--radius-md)]";
   return (
     <div
       className={[
@@ -55,7 +55,7 @@ export function LnPetPhoto({ src, alt, status, size = 56, radius = "full" }: LnP
             "absolute bottom-[2px] right-[2px] h-[12px] w-[12px] rounded-full border-2 border-[var(--color-ln-card)]",
             status === "ok" && "bg-[var(--color-ln-ok)]",
             status === "registered" && "bg-[var(--color-ln-mute)]",
-            status === "sick" && "rounded-[2px] bg-[var(--color-ln-warn)]",
+            status === "sick" && "rounded-[var(--radius-xs)] bg-[var(--color-ln-warn)]",
             status === "lost" && "rounded-[1px] bg-[var(--color-ln-err)]",
             status === "pregnant" && "bg-[var(--color-ln-rosa)]",
           ]
@@ -104,7 +104,7 @@ export function LnRegRow({
   const leftBorder = leftBorderByStatus[status] ?? "";
 
   const rowClasses = [
-    "relative grid items-center gap-[16px] border-b border-[var(--color-ln-line-2)] px-[18px] py-[15px]",
+    "relative grid items-center gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-[15px]",
     "text-inherit no-underline transition-colors hover:bg-[var(--color-ln-stripe)]",
     "last:border-b-0",
     // Left accent border via ::before
@@ -123,7 +123,7 @@ export function LnRegRow({
 
       {/* Info column */}
       <div className="min-w-0">
-        <div className="flex items-center gap-[10px]">
+        <div className="flex items-center gap-2.5">
           <span className="font-[var(--font-ln-serif)] text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {name}
           </span>
@@ -138,7 +138,7 @@ export function LnRegRow({
       </div>
 
       {/* Right column */}
-      <div className="flex items-center gap-[6px] font-[var(--font-ln-mono)] text-[11px] whitespace-nowrap text-[var(--color-ln-mute)]">
+      <div className="flex items-center gap-1.5 font-[var(--font-ln-mono)] text-[11px] whitespace-nowrap text-[var(--color-ln-mute)]">
         {species && <span>{species}</span>}
         <span aria-hidden="true">›</span>
       </div>
@@ -181,7 +181,7 @@ export function LnRegistry({
   return (
     <div
       className={[
-        "overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]",
+        "overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]",
         className,
       ]
         .filter(Boolean)

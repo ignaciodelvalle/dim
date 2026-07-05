@@ -144,7 +144,7 @@ export default async function PostularPage({
         }}
       />
 
-      <div className="max-w-2xl mx-auto px-[24px] py-[28px] space-y-[18px]">
+      <div className="max-w-2xl mx-auto px-6 py-7 space-y-[18px]">
         {/* Back link */}
         <Link
           href={`/adoptar/${petToken}`}
@@ -156,7 +156,7 @@ export default async function PostularPage({
 
         {/* Pet context strip */}
         <div
-          className="flex items-center gap-[14px] rounded-[8px] border px-[18px] py-[16px]"
+          className="flex items-center gap-3.5 rounded-[var(--radius-lg)] border px-[18px] py-4"
           style={{
             background: "var(--color-ln-card)",
             borderColor: "var(--color-ln-line)",
@@ -164,7 +164,7 @@ export default async function PostularPage({
         >
           {/* Pet thumbnail */}
           <div
-            className="flex-shrink-0 w-[64px] h-[64px] rounded-[8px] overflow-hidden border"
+            className="flex-shrink-0 w-[64px] h-[64px] rounded-[var(--radius-lg)] overflow-hidden border"
             style={{
               background: "repeating-linear-gradient(135deg,#e7e2d6 0 7px,#f1eee5 7px 14px)",
               borderColor: "var(--color-ln-line)",
@@ -189,7 +189,7 @@ export default async function PostularPage({
           </div>
           <div>
             <p
-              className="mb-[4px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.14em]"
+              className="mb-1 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.14em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               Postulación de adopción
@@ -200,7 +200,7 @@ export default async function PostularPage({
             >
               Adoptar a {pet.name}
             </p>
-            <p className="mt-[2px] text-sm" style={{ color: "var(--color-ln-mute)" }}>
+            <p className="mt-0.5 text-sm" style={{ color: "var(--color-ln-mute)" }}>
               {org.displayName}
             </p>
           </div>
@@ -208,14 +208,14 @@ export default async function PostularPage({
 
         {/* Contact card — what the refugio will see */}
         <div
-          className="rounded-[8px] border px-[18px] py-[14px]"
+          className="rounded-[var(--radius-lg)] border px-[18px] py-3.5"
           style={{
             background: "var(--color-ln-stripe)",
             borderColor: "var(--color-ln-line-2)",
           }}
         >
           <p
-            className="mb-[6px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em]"
+            className="mb-1.5 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em]"
             style={{ color: "var(--color-ln-mute)" }}
           >
             Lo que verá el refugio de vos
@@ -237,7 +237,7 @@ export default async function PostularPage({
 
         {intentExpired && (
           <output
-            className="block rounded-[5px] border border-l-[4px] px-[16px] py-[14px] text-[13px]"
+            className="block rounded-[5px] border border-l-[4px] px-4 py-3.5 text-[13px]"
             style={{
               background: "var(--color-ln-celeste-050)",
               borderColor: "var(--color-ln-celeste-100)",
@@ -274,7 +274,7 @@ function InstitutionalBlocked({ petToken }: { petToken: string }) {
             "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
         }}
       />
-      <div className="max-w-md mx-auto px-[24px] py-[64px] text-center space-y-[16px]">
+      <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <h1
           className="font-[var(--font-ln-serif)] font-semibold text-[26px] tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
@@ -287,7 +287,7 @@ function InstitutionalBlocked({ petToken }: { petToken: string }) {
         </p>
         <Link
           href={`/adoptar/${petToken}`}
-          className="inline-block px-[20px] py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Volver a la ficha
@@ -311,7 +311,7 @@ function NoLongerAvailable({ name }: { name: string }) {
             "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
         }}
       />
-      <div className="max-w-md mx-auto px-[24px] py-[64px] text-center space-y-[16px]">
+      <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <h1
           className="font-[var(--font-ln-serif)] font-semibold text-[26px] tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
@@ -324,7 +324,7 @@ function NoLongerAvailable({ name }: { name: string }) {
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-[20px] py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver otras en adopción
@@ -348,7 +348,7 @@ function AlreadyApplied({ name }: { name: string }) {
             "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
         }}
       />
-      <div className="max-w-md mx-auto px-[24px] py-[64px] text-center space-y-[16px]">
+      <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <h1
           className="font-[var(--font-ln-serif)] font-semibold text-[26px] tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
@@ -361,7 +361,7 @@ function AlreadyApplied({ name }: { name: string }) {
         </p>
         <Link
           href="/mis-mascotas/postulaciones"
-          className="inline-block px-[20px] py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver mis postulaciones

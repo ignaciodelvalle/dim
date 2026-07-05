@@ -48,14 +48,14 @@ export function VetSelfResignForm() {
       {error && (
         <div
           role="alert"
-          className="rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-seal)] px-4 py-3"
+          className="rounded-[var(--radius-sm)] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-seal)] px-4 py-3"
         >
           <p className="text-sm text-[var(--color-ln-seal)]">{error}</p>
         </div>
       )}
 
       {/* Warning — consequence list (warning-first design) */}
-      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 space-y-3">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 space-y-3">
         <p className="text-sm font-semibold text-[var(--color-ln-warn)]">
           Estas son las consecuencias de renunciar:
         </p>
@@ -90,7 +90,7 @@ export function VetSelfResignForm() {
           onChange={(e) => setReason(e.target.value)}
           rows={3}
           placeholder="Contanos por qué renunciás..."
-          className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] resize-none"
+          className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] resize-none"
         />
       </div>
 

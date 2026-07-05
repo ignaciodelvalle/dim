@@ -73,7 +73,7 @@ export function DerivationPanel({
   }
 
   return (
-    <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
       <p className="text-[13px] font-medium text-ln-op-ink">Derivar a refugio u org de rescate</p>
       {availableOrgs.length === 0 ? (
         <p className="text-sm text-ln-op-mute">

@@ -122,7 +122,7 @@ export function LnSectionHead({ num, title, meta, className = "" }: LnSectionHea
   return (
     <div
       className={[
-        "mb-[16px] flex items-baseline gap-[14px] border-b-2 border-[var(--color-ln-ink)] pb-[10px]",
+        "mb-4 flex items-baseline gap-3.5 border-b-2 border-[var(--color-ln-ink)] pb-2.5",
         className,
       ]
         .filter(Boolean)
@@ -164,12 +164,12 @@ export function LnCallout({ tone = "azul", title, children, className = "" }: Ln
 
   return (
     <div
-      className={["rounded-[4px] border border-l-[3px] px-[14px] py-[12px]", colors, className]
+      className={["rounded-[var(--radius-sm)] border border-l-[3px] px-3.5 py-3", colors, className]
         .filter(Boolean)
         .join(" ")}
     >
       {title && (
-        <p className="mb-[4px] flex items-center gap-[7px] text-[12.5px] font-semibold text-[var(--color-ln-ink)]">
+        <p className="mb-1 flex items-center gap-[7px] text-[12.5px] font-semibold text-[var(--color-ln-ink)]">
           {title}
         </p>
       )}

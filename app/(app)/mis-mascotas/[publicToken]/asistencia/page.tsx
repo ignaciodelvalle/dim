@@ -22,14 +22,14 @@ const ROLE_LABELS: Record<string, string> = {
 function FriendlyOwnerOnlyPage({ pet, role }: { pet: Pet; role: string }) {
   const roleLabel = ROLE_LABELS[role] ?? role;
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       <Link
         href={`/mis-mascotas/${pet.publicToken}`}
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Volver al perfil
       </Link>
-      <h1 className="m-0 mb-[16px] font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
+      <h1 className="m-0 mb-4 font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
         Perro de asistencia · {pet.name}
       </h1>
       <LnCallout
@@ -99,17 +99,17 @@ export default async function AsistenciaPage({
     .limit(1);
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href={`/mis-mascotas/${publicToken}`}
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← {pet.name}
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           Perro de asistencia · {pet.name}
         </h1>
@@ -120,7 +120,7 @@ export default async function AsistenciaPage({
         </p>
       </div>
 
-      <div className="flex flex-col gap-[20px]">
+      <div className="flex flex-col gap-5">
         {pet.species !== "dog" && (
           <LnCallout tone="warn">
             Ley 26.858 reconoce este derecho de acceso solo para perros. Esta sección no aplica a{" "}
@@ -142,38 +142,38 @@ export default async function AsistenciaPage({
                   .
                 </p>
                 <span
-                  className={`flex-shrink-0 inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(serviceDog.credentialStatus)}`}
+                  className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(serviceDog.credentialStatus)}`}
                 >
                   {STATUS_LABELS[serviceDog.credentialStatus] ?? serviceDog.credentialStatus}
                 </span>
               </div>
               {serviceDog.credentialStatus === "revocada" && serviceDog.revocationReason && (
-                <p className="mt-[8px] text-[12.5px] text-[var(--color-ln-err)]">
+                <p className="mt-2 text-[12.5px] text-[var(--color-ln-err)]">
                   Motivo de revocación: {serviceDog.revocationReason}
                 </p>
               )}
               {serviceDog.credentialStatus === "pendiente_verificacion" && (
-                <p className="mt-[8px] text-[12.5px] leading-relaxed text-[var(--color-ln-warn)]">
+                <p className="mt-2 text-[12.5px] leading-relaxed text-[var(--color-ln-warn)]">
                   Reportado a RUPGA (ANDIS) — pendiente de sincronización y validación por la
                   autoridad. La credencial no puede presentarse como vigente hasta que ANDIS la
                   valide.
                 </p>
               )}
               {serviceDog.credentialStatus === "en_entrenamiento" && (
-                <p className="mt-[8px] text-[12.5px] leading-relaxed text-[var(--color-ln-ink-2)]">
+                <p className="mt-2 text-[12.5px] leading-relaxed text-[var(--color-ln-ink-2)]">
                   En entrenamiento. Una vez finalizado, enviá la solicitud de verificación para que
                   RUPGA (ANDIS) valide la credencial.
                 </p>
               )}
               {serviceDog.credentialStatus === "vigente" && (
-                <div className="mt-[8px]">
+                <div className="mt-2">
                   <p className="text-[12.5px] text-[var(--color-ln-ok)]">
                     Tu banner público está activo cuando elegís mostrarlo. Lo podés presentar en la
                     puerta de un local, transporte o servicio público.
                   </p>
                   <Link
                     href={`/mis-mascotas/${publicToken}/asistencia/presentar`}
-                    className="mt-[6px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                    className="mt-1.5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
                   >
                     Presentar credencial →
                   </Link>

@@ -139,7 +139,7 @@ export function AttendanceFormDispatcher({
         {actionError && (
           <p
             role="alert"
-            className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
+            className="rounded-[var(--radius-sm)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
           >
             {actionError}
           </p>
@@ -150,14 +150,14 @@ export function AttendanceFormDispatcher({
             <button
               type="button"
               onClick={() => setActionMode("noshow")}
-              className="px-4 py-2 rounded-[6px] border border-ln-op-warn text-ln-op-warn text-[13px] font-medium hover:bg-ln-op-warn-bg transition-colors"
+              className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-warn text-ln-op-warn text-[13px] font-medium hover:bg-ln-op-warn-bg transition-colors"
             >
               No vino
             </button>
             <button
               type="button"
               onClick={() => setActionMode("cancel")}
-              className="px-4 py-2 rounded-[6px] border border-ln-op-danger text-ln-op-danger text-[13px] font-medium hover:bg-ln-op-danger-bg transition-colors"
+              className="px-4 py-2 rounded-[var(--radius-md)] border border-ln-op-danger text-ln-op-danger text-[13px] font-medium hover:bg-ln-op-danger-bg transition-colors"
             >
               Cancelar turno
             </button>
@@ -165,7 +165,7 @@ export function AttendanceFormDispatcher({
         )}
 
         {actionMode === "noshow" && (
-          <div className="space-y-2 rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3">
+          <div className="space-y-2 rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3">
             <label htmlFor="noshow-reason" className="block text-sm font-medium text-ln-op-ink">
               Motivo de la ausencia (opcional)
             </label>
@@ -175,14 +175,14 @@ export function AttendanceFormDispatcher({
               value={noShowReason}
               onChange={(e) => setNoShowReason(e.target.value)}
               placeholder="Ej: No se presentó sin aviso"
-              className="w-full rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-warn"
+              className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-warn"
             />
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={submitNoShow}
                 disabled={pending}
-                className="rounded-[4px] bg-ln-op-warn px-4 py-1.5 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                className="rounded-[var(--radius-sm)] bg-ln-op-warn px-4 py-1.5 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
                 {pending ? "Guardando…" : "Confirmar ausencia"}
               </button>
@@ -190,7 +190,7 @@ export function AttendanceFormDispatcher({
                 type="button"
                 onClick={resetAction}
                 disabled={pending}
-                className="rounded-[4px] border border-ln-op-line px-4 py-1.5 text-[13px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
+                className="rounded-[var(--radius-sm)] border border-ln-op-line px-4 py-1.5 text-[13px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
               >
                 Cancelar
               </button>
@@ -199,7 +199,7 @@ export function AttendanceFormDispatcher({
         )}
 
         {actionMode === "cancel" && (
-          <div className="space-y-2 rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
+          <div className="space-y-2 rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
             <label htmlFor="cancel-reason" className="block text-sm font-medium text-ln-op-ink">
               Motivo de la cancelación (opcional)
             </label>
@@ -209,14 +209,14 @@ export function AttendanceFormDispatcher({
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
               placeholder="Ej: Cancelado por el profesional"
-              className="w-full rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-danger"
+              className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-danger"
             />
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={submitCancel}
                 disabled={pending}
-                className="rounded-[4px] bg-ln-op-danger px-4 py-1.5 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                className="rounded-[var(--radius-sm)] bg-ln-op-danger px-4 py-1.5 text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
                 {pending ? "Cancelando…" : "Confirmar cancelación"}
               </button>
@@ -224,7 +224,7 @@ export function AttendanceFormDispatcher({
                 type="button"
                 onClick={resetAction}
                 disabled={pending}
-                className="rounded-[4px] border border-ln-op-line px-4 py-1.5 text-[13px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
+                className="rounded-[var(--radius-sm)] border border-ln-op-line px-4 py-1.5 text-[13px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
               >
                 Volver
               </button>

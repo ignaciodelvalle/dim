@@ -52,7 +52,7 @@ export function ClaimWizard() {
 
   if (state.phase === "claimed") {
     return (
-      <section className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
+      <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
         <p className="text-base font-semibold text-[var(--color-ln-ok)]">
           {state.petName} ahora está a tu nombre
         </p>
@@ -72,7 +72,7 @@ export function ClaimWizard() {
 
   if (state.phase === "submitted") {
     return (
-      <section className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
+      <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
         <p className="text-base font-semibold text-[var(--color-ln-ok)]">Reclamo enviado</p>
         <p className="mt-1 text-[var(--color-ln-ok)]">
           Una autoridad local va a revisar tu reclamo por {state.petName}. Te avisaremos cuando haya
@@ -105,7 +105,7 @@ export function ClaimWizard() {
             setState({ phase: "result", kind: state.kind, lookup: result, error: null });
           });
         }}
-        className="space-y-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-5"
+        className="space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-5"
       >
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium text-[var(--color-ln-ink)]">
@@ -145,7 +145,7 @@ export function ClaimWizard() {
             onChange={(e) => setState({ ...state, value: e.target.value, error: null })}
             placeholder={state.kind === "microchip" ? "123456789012345" : "ABC-1234"}
             required
-            className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+            className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           />
         </div>
 
@@ -220,7 +220,7 @@ export function ClaimWizard() {
           });
         });
       }}
-      className="space-y-4 rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm"
+      className="space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm"
     >
       <div className="space-y-1">
         <p className="text-base font-semibold text-[var(--color-ln-warn)]">
@@ -249,7 +249,7 @@ export function ClaimWizard() {
           required
           value={state.reason}
           onChange={(e) => setState({ ...state, reason: e.target.value, error: null })}
-          className="w-full rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
         <p className="text-xs text-[var(--color-ln-warn)]">Mínimo 20, máximo 2000.</p>
       </div>
@@ -316,7 +316,7 @@ function ResultStep({
   // Variant D — free pet (no active custody) → direct claim
   if (lookup.variant === "free") {
     return (
-      <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-5 text-sm">
+      <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-5 text-sm">
         <p className="font-medium text-[var(--color-ln-ok)]">
           Encontramos a {lookup.petName} y no tiene dueño/a registrado/a.
         </p>
@@ -352,7 +352,7 @@ function ResultStep({
   // Variant A — not found → invite to register
   if (lookup.variant === "not_found") {
     return (
-      <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-5 text-sm">
+      <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-5 text-sm">
         <p className="font-medium text-[var(--color-ln-ink)]">
           No encontramos una mascota con ese identificador.
         </p>
@@ -381,7 +381,7 @@ function ResultStep({
   // Deceased gate
   if (lookup.variant === "deceased") {
     return (
-      <section className="space-y-2 rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] p-5 text-sm">
+      <section className="space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] p-5 text-sm">
         <p className="font-medium text-[var(--color-ln-seal)]">
           Esta mascota figura como fallecida en MiMAR.
         </p>
@@ -400,7 +400,7 @@ function ResultStep({
   // Variant C — pet is marked lost → encourage sighting
   if (lookup.variant === "lost") {
     return (
-      <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] p-5 text-sm">
+      <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] p-5 text-sm">
         <p className="font-medium text-[var(--color-ln-azul)]">
           {lookup.petName} está reportada como perdida.
         </p>
@@ -429,7 +429,7 @@ function ResultStep({
 
   // Variant B — active owner → offer dispute
   return (
-    <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm">
+    <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm">
       <p className="font-medium text-[var(--color-ln-warn)]">
         {lookup.petName} ya tiene dueño/a registrado/a
         {lookup.ownerInitials ? ` (${lookup.ownerInitials})` : ""}.

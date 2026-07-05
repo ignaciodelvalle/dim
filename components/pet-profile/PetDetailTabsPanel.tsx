@@ -49,15 +49,11 @@ export type TabKey = PetFace;
 
 function TabLoadingSkeleton() {
   return (
-    <div
-      className="space-y-[14px] py-[24px] animate-pulse"
-      aria-busy="true"
-      aria-label="Cargando..."
-    >
-      <div className="h-[18px] w-1/3 rounded-[4px] bg-[var(--color-ln-stripe)]" />
-      <div className="h-[14px] w-full rounded-[4px] bg-[var(--color-ln-stripe)]" />
-      <div className="h-[14px] w-5/6 rounded-[4px] bg-[var(--color-ln-stripe)]" />
-      <div className="h-[14px] w-4/5 rounded-[4px] bg-[var(--color-ln-stripe)]" />
+    <div className="space-y-[14px] py-6 animate-pulse" aria-busy="true" aria-label="Cargando...">
+      <div className="h-[18px] w-1/3 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)]" />
+      <div className="h-[14px] w-full rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)]" />
+      <div className="h-[14px] w-5/6 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)]" />
+      <div className="h-[14px] w-4/5 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)]" />
     </div>
   );
 }
@@ -65,7 +61,7 @@ function TabLoadingSkeleton() {
 function TabErrorState({ message }: { message: string }) {
   return (
     <div
-      className="py-[32px] text-center font-[var(--font-ln-mono)] text-sm uppercase tracking-[.06em]"
+      className="py-8 text-center font-[var(--font-ln-mono)] text-sm uppercase tracking-[.06em]"
       style={{ color: "var(--color-ln-err)" }}
       role="alert"
     >

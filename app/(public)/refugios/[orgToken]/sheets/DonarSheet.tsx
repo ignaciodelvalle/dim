@@ -81,7 +81,7 @@ export function DonarSheet({ orgDisplayName, methods }: Props) {
               {rows.map((row) => (
                 <li
                   key={row.label}
-                  className="rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3"
+                  className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3"
                 >
                   <p className="text-xs uppercase tracking-wider text-[var(--color-ln-mute)]">
                     {row.label}

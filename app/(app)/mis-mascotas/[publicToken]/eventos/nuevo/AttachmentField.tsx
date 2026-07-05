@@ -21,7 +21,7 @@ export function AttachmentField() {
       </span>
       <label
         htmlFor="attachment"
-        className="flex cursor-pointer items-center justify-center gap-[9px] rounded-[5px] border-[1.5px] border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[16px] py-[16px] text-sm text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-line-2)]"
+        className="flex cursor-pointer items-center justify-center gap-[9px] rounded-[5px] border-[1.5px] border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-4 py-4 text-sm text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-line-2)]"
       >
         {/* Paperclip */}
         <svg

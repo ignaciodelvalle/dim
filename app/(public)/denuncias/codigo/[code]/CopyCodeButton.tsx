@@ -29,7 +29,7 @@ export function CopyCodeButton({ code }: Props) {
       type="button"
       onClick={handleCopy}
       aria-label={copied ? "Código copiado" : `Copiar código ${code}`}
-      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)] border border-[var(--color-ln-line)] rounded-[4px] px-2.5 py-1 transition-colors print:hidden"
+      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)] border border-[var(--color-ln-line)] rounded-[var(--radius-sm)] px-2.5 py-1 transition-colors print:hidden"
     >
       {copied ? (
         <>

@@ -90,7 +90,7 @@ export function OfferingActions({ orgToken, offeringToken, status }: Props) {
             type="button"
             onClick={() => run(confirming)}
             disabled={pending}
-            className={`rounded-[4px] px-3 py-[5px] text-sm font-medium text-white transition-colors disabled:opacity-60 ${
+            className={`rounded-[var(--radius-sm)] px-3 py-[5px] text-sm font-medium text-white transition-colors disabled:opacity-60 ${
               isDestructive ? "bg-ln-op-danger" : "bg-ln-op-azul"
             }`}
           >
@@ -103,7 +103,7 @@ export function OfferingActions({ orgToken, offeringToken, status }: Props) {
               setError(null);
             }}
             disabled={pending}
-            className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
+            className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
           >
             Cancelar
           </button>
@@ -122,14 +122,14 @@ export function OfferingActions({ orgToken, offeringToken, status }: Props) {
       <button
         type="button"
         onClick={() => setConfirming(isPaused ? "unpause" : "pause")}
-        className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
+        className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-[5px] text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
       >
         {isPaused ? "Reactivar servicio" : "Pausar servicio"}
       </button>
       <button
         type="button"
         onClick={() => setConfirming("archive")}
-        className="rounded-[4px] px-3 py-[5px] text-sm font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger-bg"
+        className="rounded-[var(--radius-sm)] px-3 py-[5px] text-sm font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger-bg"
       >
         Eliminar
       </button>

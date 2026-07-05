@@ -45,17 +45,17 @@ export default async function UpgradePage() {
     .limit(1);
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
 
       {/* Header */}
-      <div className="mb-[28px]">
+      <div className="mb-7">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Tu rol en MiMAR
         </h1>
@@ -64,7 +64,7 @@ export default async function UpgradePage() {
         </p>
       </div>
 
-      <div className="flex flex-col gap-[20px]">
+      <div className="flex flex-col gap-5">
         {/* Card A — Profesional veterinario */}
         <LnCard>
           <LnCardHead title="Profesional veterinario" />
@@ -75,13 +75,13 @@ export default async function UpgradePage() {
               </p>
             ) : (
               <>
-                <p className="mb-[16px] text-[13px] text-[var(--color-ln-ink-2)]">
+                <p className="mb-4 text-[13px] text-[var(--color-ln-ink-2)]">
                   Registrá tu matrícula para que la autoridad de tu localidad la verifique. Una vez
                   aprobada, tu rol pasa a veterinario.
                 </p>
 
                 {latestVetRequest?.status === "pending" ? (
-                  <div className="rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[12px] py-[10px] text-[13px] text-[var(--color-ln-warn)]">
+                  <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-3 py-2.5 text-[13px] text-[var(--color-ln-warn)]">
                     Solicitud enviada — pendiente de revisión.
                     {profile?.matriculaNumber && (
                       <>
@@ -93,11 +93,11 @@ export default async function UpgradePage() {
                 ) : latestVetRequest?.status === "approved" ? (
                   // Approved but profile.role not yet "vet" — role update may be in-flight
                   // (e.g. session cache stale). Show a success state instead of the blank form.
-                  <div className="rounded-[4px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[12px] py-[10px]">
+                  <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-3 py-2.5">
                     <p className="text-[13px] font-semibold text-[var(--color-ln-ok)]">
                       ¡Solicitud aprobada!
                     </p>
-                    <p className="mt-[2px] text-sm text-[var(--color-ln-ok)]">
+                    <p className="mt-0.5 text-sm text-[var(--color-ln-ok)]">
                       Tu matrícula fue verificada. Tu cuenta va a reflejar el rol veterinario en tu
                       próxima sesión.{" "}
                       <a href="/cuenta" className="underline hover:no-underline">
@@ -107,16 +107,16 @@ export default async function UpgradePage() {
                   </div>
                 ) : latestVetRequest?.status === "rejected" ? (
                   <>
-                    <div className="mb-[16px] rounded-[4px] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-[12px] py-[10px]">
+                    <div className="mb-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-3 py-2.5">
                       <p className="text-[13px] font-semibold text-[var(--color-ln-err)]">
                         Tu última solicitud fue rechazada.
                       </p>
                       {latestVetRequest.decisionNotes && (
-                        <p className="mt-[2px] text-sm text-[var(--color-ln-err)]">
+                        <p className="mt-0.5 text-sm text-[var(--color-ln-err)]">
                           Motivo: {latestVetRequest.decisionNotes}
                         </p>
                       )}
-                      <p className="mt-[2px] text-sm text-[var(--color-ln-err)]">
+                      <p className="mt-0.5 text-sm text-[var(--color-ln-err)]">
                         Corregí los datos y volvé a enviar.
                       </p>
                     </div>
@@ -134,14 +134,14 @@ export default async function UpgradePage() {
         <LnCard>
           <LnCardHead title="Crear Organización" />
           <LnCardBody>
-            <p className="mb-[16px] text-[13px] text-[var(--color-ln-ink-2)]">
+            <p className="mb-4 text-[13px] text-[var(--color-ln-ink-2)]">
               Refugios, clínicas y redes de rescate pueden crear su panel organizacional en MiMAR.
             </p>
 
             {adminMembership ? (
               <Link
                 href={`/org/${adminMembership.organization.publicToken}`}
-                className="flex items-center justify-between rounded-[4px] border border-[var(--color-ln-line)] px-[14px] py-[12px] no-underline hover:bg-[var(--color-ln-stripe)] transition-colors"
+                className="flex items-center justify-between rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] px-3.5 py-3 no-underline hover:bg-[var(--color-ln-stripe)] transition-colors"
               >
                 <div>
                   <p className="text-[13px] font-semibold text-[var(--color-ln-ink)]">
