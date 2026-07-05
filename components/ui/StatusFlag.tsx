@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Icon } from "@/components/Icon";
+import { LIST_STATUS_SITUATION_ICON } from "@/lib/ui/pet-situation";
 import type { LnPetStatus } from "./Chip";
 
 /**
@@ -52,6 +54,12 @@ export type LnStatusFlagProps = {
 
 export function LnStatusFlag({ status, className = "" }: LnStatusFlagProps) {
   const cfg = flagConfig[status];
+  // Situation icon — the shape-based signal that pairs with the tone + label so
+  // the flag never relies on color alone (WCAG). Shared with the credential
+  // skin via lib/ui/pet-situation, so a lost pet reads the SAME siren on the
+  // list row and on its credential. `registered` is the quiet passive base — no
+  // situation, no icon.
+  const iconName = LIST_STATUS_SITUATION_ICON[status];
   return (
     <span
       className={[
@@ -65,6 +73,7 @@ export function LnStatusFlag({ status, className = "" }: LnStatusFlagProps) {
         .filter(Boolean)
         .join(" ")}
     >
+      {iconName && <Icon name={iconName} size={11} decorative />}
       {cfg.label}
     </span>
   );
