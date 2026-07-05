@@ -21,6 +21,12 @@ Panorama IA v2 (SDD, archived) · notifications reinforce (createNotification si
 - **Bundle** — maplibre-gl lazy-loaded + recharts code-split (lighter first-load on Vercel).
 - **st-token ratchet** — value-preserving px→token codemod, design-token baseline 4719→2493 (−47%); raw-button/skin-purity left tracked (no value-preserving swap exists — a design decision, not a codemod).
 
+**Autonomous finish pass (post-queue, PO: "terminá todas las autónomas"):**
+- **Regression armor** — a11y CI (`e2e/a11y-regression.spec.ts`: axe WCAG-AA on /, public credential, /inicio, pet profile → **0 violations everywhere** + keyboard-nav on the credential tablist); `lint:authz-scoping` (report-only ratchet, baseline 48 guard-called-but-not-scoped offenders, wired into `verify`); `__tests__/rls/write-path-matrix.test.ts` (proves the anon/auth PostgREST WRITE surface is closed — only welfare_reports + pets self-service intake allowlisted).
+- **Follow-ups** — PPP jurisdiction breed-list now threaded into the in-profile edit SHEET too (not just the standalone page); shared `CaseHeader` primitive applied to case + welfare detail; CaseBadge delegated to the canonical status map. (deriveHeroPetStatus was already centralized; GovtHomeKpiStrip N/A.)
+- **Scale** — **migration 0126** (`cases` keyset composite indexes for the govt/admin case queues — sha256 `a39d2463bd78f4b396333a1ad8c4ce208998dcbb466407be1faec8d8901b66a5`, add to the 0108-0126 apply order). OFFSET→keyset already fully converted; KPI/panorama rollup tables deferred as premature for a single-jurisdiction pilot.
+- **Repo-hygiene (safe part)** — 8 merged local branches pruned. STILL YOURS: remote-branch prune + un-committing docs/demo/videos (42MB).
+
 ---
 
 ## HUMAN-GATED — the exact steps that are YOURS (in order)
