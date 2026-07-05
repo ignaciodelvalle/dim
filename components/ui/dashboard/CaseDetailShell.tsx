@@ -22,7 +22,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { CaseStatusBadge } from "@/components/ui/dashboard/CaseStatusBadge";
+import { CaseHeader } from "@/components/ui/dashboard/CaseHeader";
+import { caseStatusDisplay } from "@/components/ui/dashboard/CaseStatusBadge";
 import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
 import type { CaseStatus } from "@/db/schema";
 import { type LawReference, getNormativesForCase } from "@/lib/domain/case-normatives";
@@ -142,21 +143,19 @@ export function CaseDetailShell({
       {breadcrumb}
 
       {/* ------------------------------------------------------------------ */}
-      {/* Header                                                               */}
+      {/* Header (shared CaseHeader primitive)                                 */}
       {/* ------------------------------------------------------------------ */}
-      <header className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <OpCodeBadge tone="blue">{publicCode}</OpCodeBadge>
-          <CaseStatusBadge status={status} />
-        </div>
-        <h1 className="font-ln-serif text-2xl font-semibold tracking-[-0.02em] text-ln-op-ink">
-          {caseKindLabel(kind)}
-        </h1>
-        <p className="font-ln-mono text-[11px] text-ln-op-mute">
-          Abierto el {formatDateTime(openedAt)}
-          {closedAt ? ` · Cerrado el ${formatDateTime(closedAt)}` : ""}
-        </p>
-      </header>
+      <CaseHeader
+        code={<OpCodeBadge tone="blue">{publicCode}</OpCodeBadge>}
+        status={caseStatusDisplay(status)}
+        title={caseKindLabel(kind)}
+        meta={
+          <>
+            Abierto el {formatDateTime(openedAt)}
+            {closedAt ? ` · Cerrado el ${formatDateTime(closedAt)}` : ""}
+          </>
+        }
+      />
 
       {/* ------------------------------------------------------------------ */}
       {/* Subject card                                                         */}

@@ -19,7 +19,12 @@ interface Props {
   label?: string;
 }
 
-const STATUS_CONFIG: Record<CaseStatus, { label: string; tone: StatusTone }> = {
+/**
+ * Canonical case-status → { label, tone } map. The single source of truth for
+ * the case color grammar; delegate to it (or `caseStatusDisplay`) instead of
+ * re-implementing the mapping (see CaseBadge, CaseHeader callers).
+ */
+export const CASE_STATUS_CONFIG: Record<CaseStatus, { label: string; tone: StatusTone }> = {
   open: { label: "Abierto", tone: "st-warn" },
   escalated: { label: "Escalado", tone: "st-err" },
   closed: { label: "Cerrado", tone: "st-ok" },
@@ -27,10 +32,22 @@ const STATUS_CONFIG: Record<CaseStatus, { label: string; tone: StatusTone }> = {
 };
 
 /**
+ * Resolve a `CaseStatus` to an already-mapped `{ label, tone }` chip descriptor.
+ * Use when feeding a primitive that takes a resolved status (e.g. CaseHeader).
+ */
+export function caseStatusDisplay(
+  status: CaseStatus,
+  label?: string,
+): { label: string; tone: StatusTone } {
+  const cfg = CASE_STATUS_CONFIG[status];
+  return { label: label ?? cfg.label, tone: cfg.tone };
+}
+
+/**
  * Consistent status badge for case (expediente) records.
  * Tones are shared cross-kind: no per-screen overrides.
  */
 export function CaseStatusBadge({ status, label }: Props) {
-  const { label: defaultLabel, tone } = STATUS_CONFIG[status];
+  const { label: defaultLabel, tone } = CASE_STATUS_CONFIG[status];
   return <OpStatusPill tone={tone}>{label ?? defaultLabel}</OpStatusPill>;
 }

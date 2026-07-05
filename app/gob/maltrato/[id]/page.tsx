@@ -63,7 +63,13 @@ import {
 } from "@/src/modules/welfare/domain/types";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
-import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import {
+  CaseHeader,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type StatusTone,
+} from "@/components/ui/dashboard";
 
 import { AssignmentActions } from "./AssignmentActions";
 import { DerivationPanel } from "./DerivationPanel";
@@ -77,13 +83,17 @@ const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   ),
 });
 
-type StatusTone = "open" | "triaged" | "progress" | "closed" | "neutral";
-
-const STATUS_TONE: Record<string, StatusTone> = {
-  open: "open",
-  triaged: "triaged",
-  in_progress: "progress",
-  closed: "closed",
+// welfareReports status → canonical StatusTone. The welfare enum
+// (open/triaged/in_progress/closed/duplicate/invalid) does NOT match
+// CaseStatus, so this caller maps its own status to the shared vocabulary and
+// feeds CaseHeader an already-resolved chip (see CaseHeader's docblock).
+// triaged + in_progress both read as "in review" (st-info); their distinct
+// labels disambiguate.
+const WELFARE_STATUS_TONE: Record<string, StatusTone> = {
+  open: "st-warn",
+  triaged: "st-info",
+  in_progress: "st-info",
+  closed: "st-ok",
   invalid: "neutral",
   duplicate: "neutral",
 };
@@ -257,7 +267,7 @@ export default async function GobMaltratoDetailPage({
     ? (actorNames.get(report.assignedToUserId) ?? "un agente")
     : null;
 
-  const statusTone = STATUS_TONE[report.status] ?? "neutral";
+  const statusTone = WELFARE_STATUS_TONE[report.status] ?? "neutral";
 
   return (
     <main className="px-6 py-8">
@@ -267,20 +277,16 @@ export default async function GobMaltratoDetailPage({
           ← Volver al listado
         </Link>
 
-        <header className="space-y-2">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-[22px] font-semibold text-ln-op-ink">
-              {welfareReportKindLabel(report.kind)}
-            </h1>
-            <OpPill tone={statusTone}>{welfareReportStatusLabel(report.status)}</OpPill>
+        <CaseHeader
+          title={welfareReportKindLabel(report.kind)}
+          status={{ label: welfareReportStatusLabel(report.status), tone: statusTone }}
+          aside={
             <span className="text-xs uppercase tracking-wider text-ln-op-mute">
               {welfareReportSeverityLabel(report.severity)}
             </span>
-          </div>
-          <p className="text-xs font-mono text-ln-op-mute">
-            {report.referenceCode} · creada {formatDateTime(report.createdAt)}
-          </p>
-        </header>
+          }
+          meta={`${report.referenceCode} · creada ${formatDateTime(report.createdAt)}`}
+        />
 
         {/* Summary chips row — case metadata at a glance */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
