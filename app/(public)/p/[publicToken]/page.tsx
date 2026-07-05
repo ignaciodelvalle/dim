@@ -48,6 +48,12 @@ import { notFound } from "next/navigation";
 import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
 import { Tier2MedicalView } from "./Tier2MedicalView";
+import {
+  type CredentialEvent,
+  countActiveVaccineNames,
+  deriveActiveMedications,
+  isRabiesAtRisk,
+} from "./credential-badges";
 
 // The page calls headers() at runtime — mark it dynamic explicitly so Next.js
 // does not attempt to statically render it (matches the sibling encontre /
@@ -160,6 +166,27 @@ export default async function PublicCredentialPage({
   if (!result) notFound();
   const { pet, photo } = result;
   const photoUrl = petPhotoUrl(photo?.storagePath);
+
+  // WAVE D1 (Invariant #3): every clinical badge below folds `event_amended`
+  // corrections via overlayAmendments so a stranger scanning the QR sees the
+  // CORRECTED value — same projection the authenticated libreta applies. The
+  // pet's amendment rows are rare, fetched at most ONCE, and only when a badge
+  // that reads amendable payload is actually rendered (Tier 2 / service-dog).
+  let amendmentEventsCache: CredentialEvent[] | null = null;
+  const getAmendmentEvents = async (): Promise<CredentialEvent[]> => {
+    if (amendmentEventsCache === null) {
+      amendmentEventsCache = await db
+        .select({
+          id: petEvents.id,
+          eventType: petEvents.eventType,
+          occurredAt: petEvents.occurredAt,
+          payload: petEvents.payload,
+        })
+        .from(petEvents)
+        .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "event_amended")));
+    }
+    return amendmentEventsCache;
+  };
 
   // ---------------------------------------------------------------------------
   // Stage 1 — independent reads keyed only off pet.id, run concurrently.
@@ -278,13 +305,21 @@ export default async function PublicCredentialPage({
   const tier2ActiveMedications: string[] = [];
   if (tier2Active) {
     const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
-    // Run all three tier2 queries concurrently — none depends on the others.
-    const [recentVaccines, sterilRows, medRows] = await Promise.all([
+    // Run the tier2 queries concurrently — none depends on the others. Each
+    // clinical query selects the full overlay shape (id/eventType/occurredAt/
+    // payload) and is folded with the pet's `event_amended` rows (WAVE D1) so a
+    // corrected vaccine/medication supersedes on the public credential too.
+    const [recentVaccines, sterilRows, medRows, amendmentEvents] = await Promise.all([
       // Vacunación "vigente" v1: unique vaccine_name applied in the last 12
       // months. Conservative — a future PR can wire computeVaccinationSummary
       // (catalog interval-aware) once the libreta health-status helpers land.
       db
-        .select({ payload: petEvents.payload })
+        .select({
+          id: petEvents.id,
+          eventType: petEvents.eventType,
+          occurredAt: petEvents.occurredAt,
+          payload: petEvents.payload,
+        })
         .from(petEvents)
         .where(
           and(
@@ -299,12 +334,13 @@ export default async function PublicCredentialPage({
         .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "sterilization_performed")))
         .limit(1),
       // Active medications: started without a referencing stop. Same shape
-      // as computeMedicationsActive (lib/libreta-health-status.ts) but
+      // as computeMedicationsActive (lib/domain/libreta-health-status.ts) but
       // inlined to avoid coupling this page to that PR until both ship.
       db
         .select({
           id: petEvents.id,
           eventType: petEvents.eventType,
+          occurredAt: petEvents.occurredAt,
           payload: petEvents.payload,
         })
         .from(petEvents)
@@ -314,33 +350,17 @@ export default async function PublicCredentialPage({
             sql`${petEvents.eventType} IN ('medication_started','medication_stopped')`,
           ),
         ),
+      getAmendmentEvents(),
     ]);
 
-    const seen = new Set<string>();
-    for (const row of recentVaccines) {
-      const name =
-        typeof (row.payload as { vaccine_name?: unknown })?.vaccine_name === "string"
-          ? (row.payload as { vaccine_name: string }).vaccine_name.trim().toLowerCase()
-          : "";
-      if (name) seen.add(name);
-    }
-    tier2VaccineActive = seen.size;
+    // Fold corrections BEFORE deriving each badge (overlayAmendments inside the
+    // pure helpers). A corrected vaccine_name / drug_name changes what the QR
+    // scanner sees, not just the owner's timeline.
+    tier2VaccineActive = countActiveVaccineNames([...recentVaccines, ...amendmentEvents]);
 
     tier2IsSterilized = sterilRows.length > 0;
 
-    const stoppedIds = new Set<string>();
-    for (const r of medRows) {
-      if (r.eventType !== "medication_stopped") continue;
-      const sid = (r.payload as { medication_started_event_id?: unknown })
-        ?.medication_started_event_id;
-      if (typeof sid === "string") stoppedIds.add(sid);
-    }
-    for (const r of medRows) {
-      if (r.eventType !== "medication_started") continue;
-      if (stoppedIds.has(r.id)) continue;
-      const drug = (r.payload as { drug_name?: unknown })?.drug_name;
-      if (typeof drug === "string" && drug.trim()) tier2ActiveMedications.push(drug.trim());
-    }
+    tier2ActiveMedications.push(...deriveActiveMedications([...medRows, ...amendmentEvents]));
   }
 
   // Service dog banner (Ley 26.858). Renders ONLY when the owner has opted
@@ -364,23 +384,27 @@ export default async function PublicCredentialPage({
   // without auto-revoking (revocation belongs to ANDIS).
   let rabiesAtRisk = false;
   if (showServiceDogBanner) {
-    const [latestRabies] = await db
-      .select({ occurredAt: petEvents.occurredAt, payload: petEvents.payload })
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
-      .orderBy(desc(petEvents.occurredAt))
-      .limit(50);
-    // Heuristic: any vaccine row referencing "rabia" in name + valid_until
-    // older than 60 days flags risk. The exact catalog lookup lives in
-    // lib/vaccines.ts; we keep this conservative — false negatives are OK,
+    const [rabiesVaccinations, rabiesAmendments] = await Promise.all([
+      db
+        .select({
+          id: petEvents.id,
+          eventType: petEvents.eventType,
+          occurredAt: petEvents.occurredAt,
+          payload: petEvents.payload,
+        })
+        .from(petEvents)
+        .where(
+          and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")),
+        )
+        .orderBy(desc(petEvents.occurredAt))
+        .limit(50),
+      getAmendmentEvents(),
+    ]);
+    // Heuristic: the most recent rabies vaccine with a past `valid_until` flags
+    // risk. The CORRECTED name/expiry is read (WAVE D1) so amending a mistyped
+    // rabies dose flips the public warning. Conservative — false negatives OK,
     // false positives only show a soft warning.
-    if (latestRabies) {
-      const payload = latestRabies.payload as { vaccine_name?: string; valid_until?: string };
-      if (payload?.vaccine_name?.toLowerCase().includes("rabia") && payload.valid_until) {
-        const validUntil = new Date(payload.valid_until);
-        rabiesAtRisk = !Number.isNaN(validUntil.getTime()) && validUntil < new Date();
-      }
-    }
+    rabiesAtRisk = isRabiesAtRisk([...rabiesVaccinations, ...rabiesAmendments], new Date());
   }
 
   // Tier 1 reveal: only when the pet is marked lost. Each field is gated by
