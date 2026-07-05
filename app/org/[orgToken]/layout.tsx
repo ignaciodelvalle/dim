@@ -10,6 +10,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { logoutAction } from "@/app/actions/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { buildOrgNav } from "@/components/layout/nav-presets";
@@ -55,10 +56,18 @@ export default async function OrgLayout({
   // Omnibox: show only for members with pet read access.
   const canSearchPets = granted.has("pet.read_held") || membership.role === "admin";
 
-  // Right-side topbar actions: personal cross-portal links (owner portal + account).
+  // Right-side topbar actions: personal cross-portal links + a reliable sign-out.
   // ContextSwitcher is not added here: owner/vet with no additional org memberships
-  // returns an empty switcher. The explicit "Salir" escape preserves 1:1 parity
-  // with the previous layout until Phase C adds full org-membership enumeration.
+  // returns an empty switcher.
+  //
+  // Two distinct affordances (portal-logout consistency, PO QA §4): the old
+  // "← Salir" pointed at /mis-mascotas — an ambiguous label whose back-arrow
+  // read as "sign out" but actually only switched to the personal app, leaving
+  // the org portal with NO real logout. Now:
+  //   - "Ir a mi app" → the personal owner surface (/mis-mascotas), labelled for
+  //     what it does (navigate, not sign out).
+  //   - "Cerrar sesión" → logoutAction, matching /gob and /admin so every
+  //     operator portal owns a reliable, consistently-placed sign-out.
   const topbarActions = (
     <div className="flex items-center gap-3">
       <Link href="/cuenta" className="text-xs text-ln-op-mute no-underline hover:text-ln-op-ink">
@@ -68,8 +77,16 @@ export default async function OrgLayout({
         href="/mis-mascotas"
         className="text-xs text-ln-op-mute no-underline hover:text-ln-op-ink"
       >
-        ← Salir
+        Ir a mi app
       </Link>
+      <form action={logoutAction}>
+        <button
+          type="submit"
+          className="cursor-pointer border-0 bg-transparent p-0 text-xs text-ln-op-mute hover:text-ln-op-ink"
+        >
+          Cerrar sesión →
+        </button>
+      </form>
     </div>
   );
 
