@@ -108,14 +108,18 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
                     key={row.id}
                     view={toAsientoView(row, petPublicToken, now)}
                     eventHref={`/mis-mascotas/${petPublicToken}/eventos/${row.id}`}
-                    // A weight asiento's sparkline shows the trend UP TO its own
-                    // date — not future weigh-ins the owner logged later (a past
+                    // A weight asiento's sparkline shows the TRAILING 12-MONTH
+                    // curve ending at its own date — every weigh-in in the year
+                    // before this record (chronological), not just prev+current,
+                    // and never future weigh-ins the owner logged later (a past
                     // record must not depend on data that didn't exist yet).
                     weightSamples={
                       row.eventType === "weight_recorded"
-                        ? data.weightSamples.filter(
-                            (s) => s.date.getTime() <= new Date(row.occurredAt).getTime(),
-                          )
+                        ? data.weightSamples.filter((s) => {
+                            const t = s.date.getTime();
+                            const end = new Date(row.occurredAt).getTime();
+                            return t <= end && t >= end - 365 * 86_400_000;
+                          })
                         : undefined
                     }
                   />

@@ -52,14 +52,18 @@ function AsientoSparkline({ samples }: { samples: WeightSample[] }) {
     Math.round((last.date.getTime() - first.date.getTime()) / (30 * 86_400_000)),
   );
   const kgLabel = `${last.kg.toLocaleString("es-AR")} kg`;
+  const spanLabel = months === 1 ? "1 mes" : `${months} meses`;
   const deltaLabel = `${delta >= 0 ? "+" : ""}${delta.toLocaleString("es-AR", {
     maximumFractionDigits: 1,
-  })} kg en ${months === 1 ? "1 mes" : `${months} meses`}`;
+  })} kg en ${spanLabel}`;
+  // Full trend as an accessible label (the curve is the visual; screen readers
+  // get the numbers). Names the current weight, the change, the span, and how
+  // many weigh-ins the trailing-12-month curve is built from.
+  const ariaLabel = `Tendencia de peso: ${kgLabel}, ${deltaLabel}, ${sorted.length} registros en el último año`;
 
   return (
     <>
-      <svg viewBox="0 0 130 34" preserveAspectRatio="none" aria-hidden>
-        <title>Tendencia de peso</title>
+      <svg viewBox="0 0 130 34" preserveAspectRatio="none" role="img" aria-label={ariaLabel}>
         <polyline
           points={points}
           fill="none"
@@ -70,7 +74,7 @@ function AsientoSparkline({ samples }: { samples: WeightSample[] }) {
         />
         <circle cx={lastX} cy={lastY} r="3" fill="var(--color-ln-ok)" />
       </svg>
-      <span className="ln-trend">
+      <span className="ln-trend" aria-hidden>
         <b>{kgLabel}</b> · {deltaLabel}
       </span>
     </>
