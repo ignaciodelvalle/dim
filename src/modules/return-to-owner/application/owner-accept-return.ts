@@ -203,6 +203,20 @@ export async function ownerAcceptReturnUseCase({
 
   try {
     await db.transaction(async (tx) => {
+      // Concurrency guard (parity with every sibling writer — propose-return-as-*,
+      // owner-propose-return-to-org, actor-cancel-proposal, owner-reject-return,
+      // org-accept-owner-return): serialize on the pet's advisory key and re-verify
+      // the proposal is STILL pending under the lock. Without it, this accept can
+      // interleave with a concurrent actor cancel/reject — having read the proposal
+      // as pending before the cancel committed — and execute an already-cancelled
+      // proposal into the immutable log.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pet.id}))`);
+
+      const stillPending = await hasPendingProposal(pet.id, tx);
+      if (!stillPending) {
+        throw new Error("Esta propuesta ya fue procesada o cancelada.");
+      }
+
       // 1. Insert custody_transferred event.
       const transferPayload = validateEventPayload("custody_transferred", {
         from_user_id: fromUserId,

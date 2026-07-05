@@ -502,6 +502,72 @@ describe("ownerAcceptReturnUseCase — auto-cancel", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 4b. ownerAcceptReturnUseCase — concurrency guard (WAVE D3-#4)
+// ---------------------------------------------------------------------------
+
+describe("ownerAcceptReturnUseCase — concurrency guard", () => {
+  it("refuses to execute an accept after the proposal was cancelled (no custody flip)", async () => {
+    const { petId, publicToken } = await insertLostPet({
+      ownerUserId,
+      shelterCustodyUserId: vecinoUserId,
+    });
+
+    await proposeReturnAsVecinoUseCase({
+      userId: vecinoUserId,
+      petPublicToken: publicToken,
+      notes: null,
+    });
+
+    // The proposer cancels the proposal (commits) — models the cancel winning
+    // the race against the owner's in-flight accept. The accept's outer reads
+    // (which only look for a subsequent custody_transferred, never a
+    // cancellation) still see the proposal as live; only the in-tx advisory
+    // lock + hasPendingProposal re-check can catch this.
+    const cancel = await actorCancelProposalUseCase({
+      userId: vecinoUserId,
+      petPublicToken: publicToken,
+      reason: "UC: cambio de planes.",
+    });
+    expect("ok" in cancel && cancel.ok).toBe(true);
+
+    const accept = await ownerAcceptReturnUseCase({
+      userId: ownerUserId,
+      petPublicToken: publicToken,
+    });
+
+    // Accept must fail — the cancelled proposal is NOT executed.
+    expect("error" in accept).toBe(true);
+
+    // No custody_transferred emitted.
+    const transfers = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transferred")));
+    expect(transfers.length).toBe(0);
+
+    // Vecino's shelter_custody remains active; pet still lost.
+    const activeCustody = await db
+      .select()
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerUserId, vecinoUserId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      );
+    expect(activeCustody.length).toBe(1);
+
+    const [currentPet] = await db
+      .select({ status: pets.status })
+      .from(pets)
+      .where(eq(pets.id, petId));
+    expect(currentPet.status).toBe("lost");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 5. ownerRejectReturnUseCase
 // ---------------------------------------------------------------------------
 
