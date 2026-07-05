@@ -2484,21 +2484,10 @@ body {
 .ln-doc-wrap {
   position: relative;
 }
-/* ONE very subtle back edge — a hint of physical thickness, NOT a stack of
-   offset sheets (PO: "must read as ONE credential, not several stacked DNIs").
-   A single 2px-offset paper edge peeks at the bottom-right; the two visible
-   offset sheets were removed. */
-.ln-doc-wrap::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: var(--radius-card);
-  border: 1px solid var(--color-ln-line);
-  background: var(--color-ln-paper);
-  transform: translate(2px, 3px);
-  pointer-events: none;
-}
+/* No fixed back-edge on the wrapper: it does NOT rotate with .ln-doc-turn, so a
+   peeking ::after edge stayed put while the face flipped and read as a fixed
+   outer border (PO QA). The credential is now ONE sheet that turns as a whole —
+   its depth comes from the .ln-face box-shadow, which rotates with it. */
 @keyframes ln-doc-in {
   from {
     opacity: 0;
