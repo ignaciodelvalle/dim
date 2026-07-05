@@ -580,18 +580,20 @@ export default async function PetDetailPage({
       className="mx-auto max-w-4xl pb-[48px] px-[16px] md:px-[32px]"
       style={{ fontFamily: "var(--font-ln-sans)" }}
     >
-      {/* Back link */}
-      <Link
-        href={
-          accessPath === "org" && organization
-            ? `/org/${organization.publicToken}/mascotas`
-            : "/mis-mascotas"
-        }
-        className="mb-[18px] mt-[16px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
-        data-section="back-link"
-      >
-        ← {accessPath === "org" ? "Animales en custodia" : "Mis mascotas"}
-      </Link>
+      {/* Back link — ORG viewers only. For owners the global AppShell nav
+          already carries "Mis mascotas", so a second page-level "← Mis
+          mascotas" right under it read as confusing duplication (PO). Org
+          viewers need it because "Animales en custodia" is a distinct
+          destination the global nav doesn't cover. */}
+      {accessPath === "org" && organization && (
+        <Link
+          href={`/org/${organization.publicToken}/mascotas`}
+          className="mb-[18px] mt-[16px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
+          data-section="back-link"
+        >
+          ← Animales en custodia
+        </Link>
+      )}
 
       {/* Org-mediated access notice */}
       {accessPath === "org" && organization && (
