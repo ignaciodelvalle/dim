@@ -15,6 +15,12 @@ Panorama IA v2 (SDD, archived) · notifications reinforce (createNotification si
 
 **Operational note:** an agent running `pnpm build` clobbers the `.next` a live `next start` :3000 serves → JS chunks 400 → the app looks broken (all client interactivity dies at once) though the code is fine. Always rebuild+restart :3000 after any build; diagnose "broken page" reports headlessly first (Playwright, look for 400 + MIME-text/html on chunks).
 
+**Later marathon additions (queue-to-close, PO-driven):**
+- **Pet-profile "Una sola libreta" redesign** — the owner's core screen rebuilt as ONE cohesive 3-D credential/document with a Credencial/Libreta flip (not disconnected boxes): blue band, certificate frame, photo overlapping the band, real QR, borderless hairline-divided compliance rows, and a Libreta ledger whose asientos show the full field-set per event type with verified-vs-declared provenance stamps. Adversarial Cursor review + fixes (lost-owner capture, tab a11y, PPP dedup, sparkline). **Critical paint-bug caught + fixed**: the flip originally mounted both faces in `preserve-3d` + `backface-visibility:hidden` → Chromium didn't composite the visible face (empty frame); reworked to the mockup's single-painted-face edge-on swap. **Lesson: UI changes must be screenshot-verified — DOM tests passed while paint failed.**
+- **Crisis-path Playwright e2e** (`e2e/crisis-*.spec.ts`, 6 specs) — public lost-credential + code-lookup + the authenticated owner→lost→public flow.
+- **Bundle** — maplibre-gl lazy-loaded + recharts code-split (lighter first-load on Vercel).
+- **st-token ratchet** — value-preserving px→token codemod, design-token baseline 4719→2493 (−47%); raw-button/skin-purity left tracked (no value-preserving swap exists — a design decision, not a codemod).
+
 ---
 
 ## HUMAN-GATED — the exact steps that are YOURS (in order)
