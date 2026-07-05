@@ -43,7 +43,7 @@ const baseSheetMounterProps = {
   tier2PublicPermanent: false,
   markLostData: null,
   physicalCredentialChannels: null,
-  editPetData: { existingPet: {} as never, existingPhotoUrl: null },
+  editPetData: { existingPet: {} as never, existingPhotoUrl: null, pppBreedList: [] },
   petStatus: "active" as const,
   accessPath: "owner" as const,
   ownershipRole: "owner" as const,

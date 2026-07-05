@@ -75,6 +75,7 @@ import {
   fetchPetEventsForProfileV2,
 } from "@/lib/analytics/owner-dashboard";
 import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-face-nav";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
 import { requirePetAccess } from "@/lib/infra/pet-access";
@@ -311,6 +312,16 @@ export default async function PetDetailPage({
     chapitaData = chapitaState;
     physicalCredentialChannels = channels;
   }
+
+  // Jurisdiction-resolved PPP breed list for the in-profile edit sheet, so a
+  // locality that ADDED a breed via the admin console flags it in the sheet's
+  // inline "raza peligrosa" warning too — parity with the standalone /editar
+  // page (2026-07-04). Display-only; submit-time classification stays
+  // authoritative regardless.
+  const pppBreedRule = await resolveBusinessRule("ppp_breed_list", {
+    province: pet.jurisdictionProvince,
+    locality: pet.jurisdictionLocality,
+  });
 
   // Lost-episode + scans fetch — relocated out of the old early-return into
   // the mainline (pet-document-redesign REQ-5.1/ADR-7): runs unconditionally
@@ -709,7 +720,11 @@ export default async function PetDetailPage({
               }
             : null
         }
-        editPetData={{ existingPet: pet, existingPhotoUrl: editPhotoUrl }}
+        editPetData={{
+          existingPet: pet,
+          existingPhotoUrl: editPhotoUrl,
+          pppBreedList: pppBreedRule.payload.breeds,
+        }}
         chapitaData={chapitaData}
         physicalCredentialChannels={physicalCredentialChannels}
         emergencyContacts={

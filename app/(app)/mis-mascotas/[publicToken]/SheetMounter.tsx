@@ -103,6 +103,13 @@ type Props = {
   editPetData: {
     existingPet: Pet;
     existingPhotoUrl: string | null;
+    /**
+     * Jurisdiction-resolved PPP breed list (resolveBusinessRule for the pet's
+     * jurisdiction) so the sheet's inline "raza peligrosa" warning flags a
+     * breed a locality ADDED via the admin console — parity with the
+     * standalone /editar page. Display-only.
+     */
+    pppBreedList: readonly string[];
   };
   /** Pet status — needed to gate the marcar-encontrada sheet. */
   petStatus: "active" | "lost" | "deceased";
@@ -420,6 +427,7 @@ export function SheetMounter({
           action={action}
           existingPet={editPetData.existingPet}
           existingPhotoUrl={editPetData.existingPhotoUrl}
+          pppBreedList={editPetData.pppBreedList}
         />
       </Sheet>
     );
