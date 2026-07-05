@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { MapChoropleth } from "@/components/charts/MapChoropleth";
+import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -232,7 +232,7 @@ export default async function GobPerdidasPage({
       <OpCard aria-labelledby={panelMapId}>
         <OpCardHead title={<span id={panelMapId}>Episodios por jurisdicción</span>} />
         <OpCardBody>
-          <MapChoropleth
+          <MapChoroplethDynamic
             data={choroplethData}
             scaleLabel="Mascotas perdidas"
             fallbackTableLabel="Mascotas perdidas por provincia"

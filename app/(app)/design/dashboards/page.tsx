@@ -4,7 +4,7 @@
 
 import { Suspense } from "react";
 
-import { MapChoropleth } from "@/components/charts/MapChoropleth";
+import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
@@ -120,15 +120,13 @@ export default async function DashboardPrimitivasPage() {
               </code>
               .
             </p>
-            {/* MapChoropleth es client component — Suspense necesario en el server component padre. */}
-            <Suspense fallback={null}>
-              <MapChoropleth
-                data={SAMPLE_MAP_DATA}
-                colorScale={["#bfdbfe", "#1e40af"]}
-                height={400}
-                fallbackTableLabel="Mascotas registradas por provincia"
-              />
-            </Suspense>
+            {/* MapChoroplethDynamic already wraps next/dynamic({ ssr: false }) — no Suspense needed. */}
+            <MapChoroplethDynamic
+              data={SAMPLE_MAP_DATA}
+              colorScale={["#bfdbfe", "#1e40af"]}
+              height={400}
+              fallbackTableLabel="Mascotas registradas por provincia"
+            />
           </LnCardBody>
         </LnCard>
 
