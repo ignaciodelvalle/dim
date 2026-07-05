@@ -39,11 +39,12 @@ export type ExpirePetTransfersStats = {
 
 export async function expirePetTransfers(
   deps: Deps,
+  opts?: { limit?: number },
 ): Promise<UseCaseResult<ExpirePetTransfersStats>> {
   const { repo } = deps;
 
   const now = new Date();
-  const stale = await repo.expirablePetTransfers(now);
+  const stale = await repo.expirablePetTransfers(now, opts?.limit);
 
   let expired = 0;
   let errors = 0;

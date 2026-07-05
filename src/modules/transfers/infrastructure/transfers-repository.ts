@@ -3,7 +3,7 @@
 // db.transaction(), mirroring the openCase(input, tx) pattern from foster.
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 
 import {
   cases,
@@ -284,10 +284,17 @@ export const TransfersRepository = {
   },
 
   /**
-   * Returns all pending transfers whose expiresAt is before `now`.
+   * Returns pending transfers whose expiresAt is before `now`.
    * Per-row (not single tx) — callers iterate and expire one at a time.
+   *
+   * `limit` bounds the result (review 23 item 12): the scan used to load ALL
+   * expired pending transfers, unbounded at scale. Expired rows flip out of the
+   * 'pending' scope, so the caller drains the backlog across bounded passes.
    */
-  async expirablePetTransfers(now: Date): Promise<
+  async expirablePetTransfers(
+    now: Date,
+    limit?: number,
+  ): Promise<
     Array<{
       id: string;
       petId: string;
@@ -295,7 +302,7 @@ export const TransfersRepository = {
       publicToken: string;
     }>
   > {
-    return db
+    const base = db
       .select({
         id: petTransfers.id,
         petId: petTransfers.petId,
@@ -308,7 +315,10 @@ export const TransfersRepository = {
           eq(petTransfers.status, "pending"),
           sql`${petTransfers.expiresAt} < ${now.toISOString()}`,
         ),
-      );
+      )
+      .orderBy(asc(petTransfers.id));
+
+    return limit ? base.limit(limit) : base;
   },
 
   // -------------------------------------------------------------------------
@@ -712,6 +722,10 @@ export const TransfersRepository = {
   async findExpirableCrossOrgCases(options?: {
     now?: Date;
     staleAfterDays?: number;
+    /** Keyset cursor: only return cases whose id sorts after this value. */
+    afterId?: string | null;
+    /** Max rows to return (keyset page size). Omit for no limit. */
+    limit?: number;
   }): Promise<
     Array<{
       id: string;
@@ -725,7 +739,7 @@ export const TransfersRepository = {
     const staleAfterMs = (options?.staleAfterDays ?? 30) * 24 * 60 * 60 * 1000;
     const openedBefore = new Date(now.getTime() - staleAfterMs);
 
-    return db
+    const base = db
       .select({
         id: cases.id,
         publicCode: cases.publicCode,
@@ -739,8 +753,12 @@ export const TransfersRepository = {
           eq(cases.caseKind, "custody_transfer_handshake"),
           eq(cases.status, "open"),
           lt(cases.openedAt, openedBefore),
+          ...(options?.afterId ? [gt(cases.id, options.afterId)] : []),
         ),
-      );
+      )
+      .orderBy(asc(cases.id));
+
+    return options?.limit ? base.limit(options.limit) : base;
   },
 
   /**
