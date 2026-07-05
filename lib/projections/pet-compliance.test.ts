@@ -247,6 +247,66 @@ describe("deriveComplianceState — sterilization, microchip, PPP", () => {
   });
 });
 
+// PPP indeterminado (2026-07-04): a DOG missing breed and/or weight surfaces the
+// obligation instead of hiding it. Strong-but-optional — alta is never blocked.
+describe("deriveComplianceState — PPP indeterminado (dog missing breed/weight)", () => {
+  it("dog missing both breed and weight → 'Faltan datos' (due), with a nudge", () => {
+    const state = deriveComplianceState(baseInput({ species: "dog" }));
+    const ppp = state.cards.find((c) => c.key === "ppp");
+    expect(ppp?.state).toBe("Faltan datos");
+    expect(ppp?.tone).toBe("due");
+    expect(ppp?.hint).toContain("raza y el peso");
+    // It counts against "al día" — never silently satisfied.
+    expect(state.summary.total).toBe(4);
+    expect(state.summary.ok).toBe(0);
+  });
+
+  it("dog with a breed but no weight → still indeterminado", () => {
+    const state = deriveComplianceState(baseInput({ species: "dog", breed: "Beagle" }));
+    expect(state.cards.find((c) => c.key === "ppp")?.state).toBe("Faltan datos");
+  });
+
+  it("dog with a weight but no breed → still indeterminado", () => {
+    const state = deriveComplianceState(baseInput({ species: "dog", estimatedWeightKg: "12.5" }));
+    expect(state.cards.find((c) => c.key === "ppp")?.state).toBe("Faltan datos");
+  });
+
+  it("blank breed and zero weight are treated as missing", () => {
+    const state = deriveComplianceState(
+      baseInput({ species: "dog", breed: "   ", estimatedWeightKg: 0 }),
+    );
+    expect(state.cards.find((c) => c.key === "ppp")?.tone).toBe("due");
+  });
+
+  it("dog with breed AND weight but not flagged PPP → no PPP card (genuinely non-PPP)", () => {
+    const state = deriveComplianceState(
+      baseInput({ species: "dog", breed: "Beagle", estimatedWeightKg: 12, pppApplies: false }),
+    );
+    expect(state.cards.some((c) => c.key === "ppp")).toBe(false);
+    expect(state.summary.total).toBe(3);
+  });
+
+  it("dog with a PPP breed (flagged) → attestation card, even if weight is absent", () => {
+    const state = deriveComplianceState(
+      baseInput({ species: "dog", breed: "Dogo Argentino", pppApplies: true }),
+    );
+    const ppp = state.cards.find((c) => c.key === "ppp");
+    expect(ppp?.label).toBe("Atestación PPP");
+    expect(ppp?.state).toBe("Atestación requerida");
+    expect(ppp?.tone).toBe("due");
+  });
+
+  it("cat is never PPP — no card regardless of missing breed/weight", () => {
+    const state = deriveComplianceState(baseInput({ species: "cat" }));
+    expect(state.cards.some((c) => c.key === "ppp")).toBe(false);
+  });
+
+  it("other species (rabbit) is never PPP — no card", () => {
+    const state = deriveComplianceState(baseInput({ species: "rabbit" }));
+    expect(state.cards.some((c) => c.key === "ppp")).toBe(false);
+  });
+});
+
 describe("deriveComplianceState — ordering + summary", () => {
   it("orders cards worst-state first", () => {
     const state = deriveComplianceState(

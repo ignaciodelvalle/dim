@@ -473,6 +473,11 @@ export default async function PetDetailPage({
       : null,
     microchipCode: canonicalIds.microchip?.code ?? null,
     pppApplies: Boolean(pet.potentiallyDangerousBreed),
+    // PPP-indeterminado inputs: a DOG missing breed and/or weight surfaces the
+    // obligation instead of hiding it (2026-07-04).
+    species: pet.species,
+    breed: pet.breed,
+    estimatedWeightKg: pet.estimatedWeightKg,
   });
 
   // Hero "chip" tag — same provenance gate as the compliance card (see the

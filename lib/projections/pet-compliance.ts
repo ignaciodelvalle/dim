@@ -75,7 +75,18 @@ export type ComplianceInput = {
   rabiesReminder: RabiesReminder | null;
   reservedRabiesTurno: ReservedRabiesTurno | null; // WS-2
   microchipCode: string | null; // from fetchActiveIdentifications().microchip
-  pppApplies: boolean; // jurisdiction gate (pet.potentiallyDangerousBreed)
+  pppApplies: boolean; // authoritative jurisdiction gate (pet.potentiallyDangerousBreed)
+  // PPP-determinability inputs (2026-07-04). PPP is dogs-only, and the size rule
+  // needs the pet's WEIGHT while the breed rule needs its BREED. A dog registered
+  // through the fast path has neither (both live in the optional "Otros" block),
+  // so `pppApplies` is false and the PPP obligation used to vanish silently. When
+  // a DOG is missing breed and/or weight we surface an "indeterminado" obligation
+  // instead of hiding it — strong-but-optional (PO 2026-07-04): the alta is never
+  // blocked, but the obligation GRITA until the two fields are completed. Optional
+  // so pre-existing callers/tests default to "not a dog / no data" (no card).
+  species?: string | null;
+  breed?: string | null;
+  estimatedWeightKg?: number | string | null;
 };
 
 // Legal footnotes — real norms per docs/legal-framework-full.md / AGENTS.md.
@@ -299,17 +310,58 @@ function deriveMicrochip(input: ComplianceInput): ObligationCard {
   };
 }
 
-// PPP is only appended when the jurisdiction gate applies (handoff D2: hide when
-// the breed is not on the jurisdiction's ppp_breed_list).
-function derivePpp(input: ComplianceInput): ObligationCard {
-  const attested = hasEvent(input.events, "dangerous_breed_attested");
+// es-AR nudge shown on the "PPP indeterminado" card — the two fields that decide
+// whether the pet enters the regime.
+const PPP_INDETERMINADO_HINT =
+  "Completá la raza y el peso para saber si tu mascota entra en el régimen PPP.";
+
+function breedIsKnown(breed: string | null | undefined): boolean {
+  return typeof breed === "string" && breed.trim().length > 0;
+}
+
+// numeric() weights arrive as strings from the driver; a present, positive number
+// counts as "known". Blank / 0 / null are all "not provided".
+function weightIsKnown(value: number | string | null | undefined): boolean {
+  if (value == null) return false;
+  const n = typeof value === "number" ? value : Number.parseFloat(String(value).trim());
+  return Number.isFinite(n) && n > 0;
+}
+
+// The PPP obligation, with three outcomes:
+//   1. `pppApplies` (the authoritative pet.potentiallyDangerousBreed flag, already
+//      resolved against the jurisdiction's ppp_breed_list + ppp_weight_threshold)
+//      -> the attestation card (required / attested).
+//   2. Not flagged, DOG, and breed and/or weight missing -> "PPP indeterminado":
+//      the pet cannot be ruled IN or OUT of the regime, so instead of hiding the
+//      obligation we nudge the owner to complete the two deciding fields. Tone
+//      `due` so it GRITA in the panel and does not count as "al día".
+//   3. Not flagged, and (not a dog OR breed+weight both known) -> no card. A dog
+//      with both fields known and no flag was genuinely classified as non-PPP;
+//      cats and other species are never PPP.
+function derivePpp(input: ComplianceInput): ObligationCard | null {
+  if (input.pppApplies) {
+    const attested = hasEvent(input.events, "dangerous_breed_attested");
+    return {
+      key: "ppp",
+      label: "Atestación PPP",
+      state: attested ? "Atestada" : "Atestación requerida",
+      tone: attested ? "ok" : "due",
+      detail: null,
+      legalFootnote: FOOTNOTE.ppp,
+    };
+  }
+
+  if (input.species !== "dog") return null;
+  if (breedIsKnown(input.breed) && weightIsKnown(input.estimatedWeightKg)) return null;
+
   return {
     key: "ppp",
-    label: "Atestación PPP",
-    state: attested ? "Atestada" : "Atestación requerida",
-    tone: attested ? "ok" : "due",
+    label: "Régimen PPP",
+    state: "Faltan datos",
+    tone: "due",
     detail: null,
     legalFootnote: FOOTNOTE.ppp,
+    hint: PPP_INDETERMINADO_HINT,
   };
 }
 
@@ -358,9 +410,10 @@ export function lnPetStatusFromCompliance(
 }
 
 /**
- * Compose the four owner obligations into an ordered, summarized compliance
- * view. Cards are sorted worst-state first; the PPP card is omitted entirely
- * when it does not apply to the pet's jurisdiction.
+ * Compose the owner obligations into an ordered, summarized compliance view.
+ * Cards are sorted worst-state first. The PPP card is attestation when the pet
+ * is a flagged PPP, "indeterminado" when a DOG is missing breed and/or weight,
+ * and omitted otherwise (non-dog, or a dog with both fields known and no flag).
  */
 export function deriveComplianceState(input: ComplianceInput): ComplianceState {
   const cards: ObligationCard[] = [
@@ -368,8 +421,9 @@ export function deriveComplianceState(input: ComplianceInput): ComplianceState {
     deriveSterilization(input),
     deriveMicrochip(input),
   ];
-  if (input.pppApplies) {
-    cards.push(derivePpp(input));
+  const pppCard = derivePpp(input);
+  if (pppCard) {
+    cards.push(pppCard);
   }
 
   cards.sort((a, b) => TONE_SEVERITY[a.tone] - TONE_SEVERITY[b.tone]);
