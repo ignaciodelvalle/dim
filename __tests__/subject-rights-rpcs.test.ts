@@ -24,6 +24,7 @@ import {
   organizationMemberships,
   organizations,
   ownerships,
+  petEvents,
   petTransfers,
   pets,
   profiles,
@@ -544,6 +545,124 @@ describe("erase_subject_data — negative: third-party welfare reports are untou
     expect(row.reporterContactEmail).toBe("third-party-reporter@dim-test.local");
     expect(row.reporterContactPhone).toBe("+5491177770000");
     expect(row.description).toBe("Descripción original del tercero denunciante.");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave D2 (migration 0129): third-party PII in event payloads is redacted.
+// ---------------------------------------------------------------------------
+// Finding 27-#3: an incident_reported event carries the victim's identifying
+// contact details (victim_contact_name / victim_contact_phone) as free text.
+// erase_subject_data must redact those keys for events tied to the erasing
+// subject, while leaving sanitary event payloads (vaccination/medical) intact
+// for retention. The redaction runs under the append-only override, so each
+// redacted row must also emit a pet_events_mutation_override audit row.
+
+describe("erase_subject_data — redacts third-party PII in event payloads (0129)", () => {
+  let incidentEventId: string | undefined;
+  let sanitaryEventId: string | undefined;
+
+  beforeAll(async () => {
+    // Re-seed the subject to an erasable state (prior suites already erased it).
+    await resetProfilePIIToFresh(ownerUserId, "SR Test Owner Events");
+
+    const petId = createdPetIds[0];
+    if (!petId) throw new Error("createdPetIds[0] not set");
+
+    // Incident report the subject filed on their own pet — carries a THIRD
+    // party's (the bite victim's) contact PII.
+    const [incident] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "incident_reported",
+        occurredAt: new Date(),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: {
+          incident_type: "bite_inflicted",
+          severity: "moderate",
+          injuries_summary: "Herida leve en la mano.",
+          victim_kind: "human",
+          victim_contact_name: "Vecino Tercero",
+          victim_contact_phone: "+5491188889999",
+          reporter_role: "owner",
+        },
+      })
+      .returning({ id: petEvents.id });
+    incidentEventId = incident.id;
+
+    // Sanitary event on the same pet — must be retained verbatim.
+    const [sanitary] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "vaccination_administered",
+        occurredAt: new Date(),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: {
+          vaccine: "antirrábica",
+          lote_biologico: "LOTE-2026-XYZ",
+          laboratorio: "Lab Fixture",
+        },
+      })
+      .returning({ id: petEvents.id });
+    sanitaryEventId = sanitary.id;
+  });
+
+  it("removes victim contact keys from the incident payload but keeps sanitary payloads", async () => {
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'event pii redaction'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    if (!incidentEventId) throw new Error("incidentEventId not set");
+    const [incidentRow] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, incidentEventId));
+    const incidentPayload = incidentRow.payload as Record<string, unknown>;
+    // Third-party contact PII gone.
+    expect("victim_contact_name" in incidentPayload).toBe(false);
+    expect("victim_contact_phone" in incidentPayload).toBe(false);
+    // Non-PII incident fields retained.
+    expect(incidentPayload.incident_type).toBe("bite_inflicted");
+    expect(incidentPayload.severity).toBe("moderate");
+    expect(incidentPayload.injuries_summary).toBe("Herida leve en la mano.");
+
+    // Sanitary payload untouched (retention).
+    if (!sanitaryEventId) throw new Error("sanitaryEventId not set");
+    const [sanitaryRow] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, sanitaryEventId));
+    const sanitaryPayload = sanitaryRow.payload as Record<string, unknown>;
+    expect(sanitaryPayload.lote_biologico).toBe("LOTE-2026-XYZ");
+    expect(sanitaryPayload.laboratorio).toBe("Lab Fixture");
+  });
+
+  it("emits a pet_events_mutation_override audit row for the redacted event", async () => {
+    if (!incidentEventId) throw new Error("incidentEventId not set");
+    const overrides = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(eq(auditLog.action, "pet_events_mutation_override"));
+    const forOurEvent = overrides.some(
+      (a) => (a.payload as Record<string, unknown>).pet_event_id === incidentEventId,
+    );
+    expect(forOurEvent).toBe(true);
+  });
+
+  it("is idempotent — re-erasing matches no event rows the second time", async () => {
+    // The first erase already stripped the keys; a re-run's key-presence guard
+    // must match nothing and not error.
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'event pii redaction rerun'::text) AS result`,
+    );
+    expect(error).toBeNull();
   });
 });
 
