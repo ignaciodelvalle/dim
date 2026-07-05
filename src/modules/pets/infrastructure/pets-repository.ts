@@ -60,6 +60,17 @@ type UpdatePetProfileArgs = {
   now: Date;
 };
 
+type CorrectSpeciesArgs = {
+  petId: string;
+  oldSpecies: string;
+  newSpecies: string;
+  /** Recomputed PPP flag for the corrected species (a non-dog clears PPP). */
+  potentiallyDangerousBreed: boolean;
+  userId: string;
+  eventAuthorship: EventAuthorship;
+  now: Date;
+};
+
 // ---------------------------------------------------------------------------
 // Repository
 // ---------------------------------------------------------------------------
@@ -268,11 +279,17 @@ export const PetsRepository = {
     // Legacy chip columns (microchipId, microchipCountryCode, microchipImplantedAt,
     // microchipImplantedBy, microchipLocation) omitted — ARCH-R; canonical rows
     // are managed via pet_identifications (see chipNewlyAdded block below).
+    //
+    // FULL-LOCK (PO decision #40, review 14 items 5/6): `species`,
+    // `jurisdictionProvince`, and `jurisdictionLocality` are intentionally NOT in
+    // this SET. The profile-edit path can never mutate them — even for a crafted
+    // request. Jurisdiction moves route exclusively through recordMovementWriter
+    // (movement_recorded / jurisdiction_changed); species corrections route
+    // through PetsRepository.correctSpecies below. Both emit an event first.
     await tx
       .update(pets)
       .set({
         name: parsed.name,
-        species: parsed.species,
         sex: parsed.sex,
         breed: parsed.breed,
         dateOfBirth: parsed.dateOfBirth,
@@ -285,8 +302,6 @@ export const PetsRepository = {
         potentiallyDangerousBreed,
         insuranceCompany: parsed.insuranceCompany,
         insurancePolicyNumber: parsed.insurancePolicyNumber,
-        jurisdictionProvince: parsed.jurisdictionProvince,
-        jurisdictionLocality: parsed.jurisdictionLocality,
         acquisitionMethod: parsed.acquisitionMethod,
         emergencyInfoVisible: parsed.emergencyInfoVisible,
         permanentConditions: parsed.permanentConditions,
@@ -381,5 +396,56 @@ export const PetsRepository = {
     }
 
     return { eventId };
+  },
+
+  /**
+   * Event-governed species correction (FULL-LOCK path, PO decision #40).
+   * Species is locked on the profile-edit path; a genuine correction (e.g. a
+   * cat registered as a dog) flows here. Must be called inside a
+   * db.transaction().
+   *
+   * Write order mirrors recordMovementWriter: the immutable fact (a
+   * pet_profile_updated event carrying the single species change) is inserted
+   * FIRST, then the pets.species denormalization + recomputed PPP flag. This
+   * keeps an audit trail and prevents a species change with no corresponding
+   * event (the same divergence class the movement writer guards against).
+   */
+  async correctSpecies(args: CorrectSpeciesArgs, tx: Tx): Promise<{ eventId: string }> {
+    const {
+      petId,
+      oldSpecies,
+      newSpecies,
+      potentiallyDangerousBreed,
+      userId,
+      eventAuthorship,
+      now,
+    } = args;
+
+    const payload = validateEventPayload("pet_profile_updated", {
+      changes: [{ field: "species", old: oldSpecies, new: newSpecies }],
+      photo_replaced: false,
+    });
+
+    const [event] = await tx
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "pet_profile_updated",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: userId,
+        authorRole: eventAuthorship.authorRole,
+        authorOrganizationId: eventAuthorship.authorOrganizationId,
+        authorVerified: eventAuthorship.authorVerified,
+        payload,
+      })
+      .returning();
+
+    await tx
+      .update(pets)
+      .set({ species: newSpecies, potentiallyDangerousBreed, updatedAt: now })
+      .where(eq(pets.id, petId));
+
+    return { eventId: event.id };
   },
 };

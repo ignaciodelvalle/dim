@@ -20,7 +20,6 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
 import {
   custodyDisputes,
   db,
@@ -33,6 +32,7 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { CHECKED_COLUMN_NAMES, hasDrift, rederivePetCache } from "@/lib/infra/rederive-pet-cache";
+import { recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
 import { createTattooForUser } from "@/src/modules/pets/application/tattoo/create-tattoo";
 import { sql } from "drizzle-orm";
 import { withMutationOverride } from "./_helpers/db-overrides";

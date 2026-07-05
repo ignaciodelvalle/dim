@@ -81,9 +81,17 @@ export function diffPet(
   // microchip_implanted_at, microchip_implanted_by, microchip_location) removed.
   // Legacy pets.* columns dropped. Chip presence is tracked via ExistingCanonicalIds
   // and chipNewlyAdded flag; chip events continue to be emitted by the repository.
+  //
+  // FULL-LOCK (PO decision #40, review 14 items 5/6): `species`,
+  // `jurisdiction_province`, and `jurisdiction_locality` are NOT diffable profile
+  // fields. Once a pet is established they change ONLY through event-governed
+  // paths — jurisdiction via `recordMovementWriter` (movement_recorded /
+  // jurisdiction_changed), species via the dedicated `correctSpecies` correction
+  // (a `pet_profile_updated` with an explicit species change + audit trail).
+  // Keeping them out of the diff means a crafted profile-edit request can never
+  // silently mutate them; the repository writer also omits these columns.
   const fields: Array<{ field: string; oldVal: unknown; newVal: unknown }> = [
     { field: "name", oldVal: existing.name, newVal: parsed.name },
-    { field: "species", oldVal: existing.species, newVal: parsed.species },
     { field: "sex", oldVal: existing.sex, newVal: parsed.sex },
     { field: "breed", oldVal: existing.breed, newVal: parsed.breed },
     { field: "date_of_birth", oldVal: existing.dateOfBirth, newVal: parsed.dateOfBirth },
@@ -118,16 +126,6 @@ export function diffPet(
       field: "insurance_policy_number",
       oldVal: existing.insurancePolicyNumber,
       newVal: parsed.insurancePolicyNumber,
-    },
-    {
-      field: "jurisdiction_province",
-      oldVal: existing.jurisdictionProvince,
-      newVal: parsed.jurisdictionProvince,
-    },
-    {
-      field: "jurisdiction_locality",
-      oldVal: existing.jurisdictionLocality,
-      newVal: parsed.jurisdictionLocality,
     },
     {
       field: "acquisition_method",

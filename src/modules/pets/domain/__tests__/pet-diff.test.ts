@@ -138,6 +138,48 @@ describe("diffPet — changed-fields detection", () => {
 });
 
 // ---------------------------------------------------------------------------
+// FULL-LOCK: species + jurisdiction are NOT diffable (PO decision #40)
+// ---------------------------------------------------------------------------
+
+describe("diffPet — FULL-LOCK excludes species and jurisdiction", () => {
+  it("does NOT include species in the diff even when it differs", () => {
+    const existing = makeExisting({ species: "dog" });
+    const parsed = makeParsed({ species: "cat" });
+    const result = diffPet(existing, parsed, false);
+    expect(result.find((e) => e.field === "species")).toBeUndefined();
+  });
+
+  it("does NOT include jurisdiction_province in the diff even when it differs", () => {
+    const existing = makeExisting({ jurisdictionProvince: "Buenos Aires" });
+    const parsed = makeParsed({ jurisdictionProvince: "CABA" });
+    const result = diffPet(existing, parsed, false);
+    expect(result.find((e) => e.field === "jurisdiction_province")).toBeUndefined();
+  });
+
+  it("does NOT include jurisdiction_locality in the diff even when it differs", () => {
+    const existing = makeExisting({ jurisdictionLocality: "La Plata" });
+    const parsed = makeParsed({ jurisdictionLocality: "Quilmes" });
+    const result = diffPet(existing, parsed, false);
+    expect(result.find((e) => e.field === "jurisdiction_locality")).toBeUndefined();
+  });
+
+  it("returns an empty diff when ONLY species and jurisdiction differ", () => {
+    const existing = makeExisting({
+      species: "dog",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "La Plata",
+    });
+    const parsed = makeParsed({
+      species: "cat",
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Palermo",
+    });
+    const result = diffPet(existing, parsed, false);
+    expect(result).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // JSON-equality skip (arrays compared by value, not reference)
 // ---------------------------------------------------------------------------
 

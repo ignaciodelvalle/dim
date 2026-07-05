@@ -223,60 +223,84 @@ export function PetForm({
         )}
       </LnField>
 
-      {/* Species */}
+      {/* Species — FULL-LOCK (PO decision #40): editable only at registration.
+          For an established pet it drives PPP/compliance and is read-only; a
+          genuine correction routes through the dedicated "corregir especie"
+          affordance below, which emits an event with an audit trail. The hidden
+          input still carries the (unchanged) species so parsePetForm validates. */}
       <input type="hidden" name="species" value={species} />
-      <LnField label="Especie" required>
-        {({ id, describedBy, invalid }) => (
-          <LnSelect
-            id={id}
-            name="speciesGroup"
-            required
-            value={speciesGroup}
-            onChange={(e) => {
-              const next = e.target.value;
-              if (next === "dog" || next === "cat") {
-                setSpecies(next);
-              } else if (next === "other") {
-                setSpecies("");
-              } else {
-                setSpecies("");
-              }
-              setBreed("");
-            }}
-            aria-describedby={describedBy}
-            invalid={invalid}
-          >
-            <option value="">Elegí una</option>
-            <option value="dog">Perro</option>
-            <option value="cat">Gato</option>
-            <option value="other">Otra</option>
-          </LnSelect>
-        )}
-      </LnField>
-      {speciesGroup === "other" && (
-        <LnField label='Tipo de "Otra"' required>
-          {({ id, describedBy, invalid }) => (
-            <LnSelect
-              id={id}
-              name="speciesSubgroup"
-              required
-              value={subSpecies}
-              onChange={(e) => {
-                const next = e.target.value;
-                setSpecies(next === "other_unlisted" ? "other" : next);
-                setBreed("");
-              }}
-              aria-describedby={describedBy}
-              invalid={invalid}
-            >
-              <option value="">Elegí una</option>
-              <option value="rabbit">Conejo</option>
-              <option value="guinea_pig">Cobayo</option>
-              <option value="ferret">Hurón</option>
-              <option value="other_unlisted">Otro / no listado</option>
-            </LnSelect>
+      {isEdit ? (
+        <LnReadOnlyField
+          label="Especie"
+          value={speciesLabel(existingPet?.species ?? species)}
+          hint="La especie queda fija para no romper las reglas PPP y de compatibilidad."
+          action={
+            existingPet ? (
+              <a
+                href={`/mis-mascotas/${existingPet.publicToken}/corregir-especie`}
+                className="font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
+              >
+                ¿Especie incorrecta?
+              </a>
+            ) : null
+          }
+        />
+      ) : (
+        <>
+          <LnField label="Especie" required>
+            {({ id, describedBy, invalid }) => (
+              <LnSelect
+                id={id}
+                name="speciesGroup"
+                required
+                value={speciesGroup}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (next === "dog" || next === "cat") {
+                    setSpecies(next);
+                  } else if (next === "other") {
+                    setSpecies("");
+                  } else {
+                    setSpecies("");
+                  }
+                  setBreed("");
+                }}
+                aria-describedby={describedBy}
+                invalid={invalid}
+              >
+                <option value="">Elegí una</option>
+                <option value="dog">Perro</option>
+                <option value="cat">Gato</option>
+                <option value="other">Otra</option>
+              </LnSelect>
+            )}
+          </LnField>
+          {speciesGroup === "other" && (
+            <LnField label='Tipo de "Otra"' required>
+              {({ id, describedBy, invalid }) => (
+                <LnSelect
+                  id={id}
+                  name="speciesSubgroup"
+                  required
+                  value={subSpecies}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setSpecies(next === "other_unlisted" ? "other" : next);
+                    setBreed("");
+                  }}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                >
+                  <option value="">Elegí una</option>
+                  <option value="rabbit">Conejo</option>
+                  <option value="guinea_pig">Cobayo</option>
+                  <option value="ferret">Hurón</option>
+                  <option value="other_unlisted">Otro / no listado</option>
+                </LnSelect>
+              )}
+            </LnField>
           )}
-        </LnField>
+        </>
       )}
 
       {/* Sex */}
@@ -311,8 +335,49 @@ export function PetForm({
         )}
       </LnField>
 
-      {/* Location — REQUIRED in the full (non-compact) form */}
-      {!compact && (
+      {/* Location — FULL-LOCK (PO decision #40): jurisdiction is canonical once a
+          pet is established. It changes ONLY by registering a movement (event
+          movement_recorded / jurisdiction_changed), never through a profile edit.
+          Read-only here for an established pet, with hidden inputs so parsePetForm
+          still validates the (unchanged) locality. Editable only at registration. */}
+      {!compact && isEdit && (
+        <LnReadOnlyField
+          label="Localidad"
+          value={
+            [existingPet?.jurisdictionLocality, existingPet?.jurisdictionProvince]
+              .filter(Boolean)
+              .join(", ") || "Sin localidad"
+          }
+          hint="La localidad se actualiza registrando un movimiento."
+          action={
+            existingPet ? (
+              <a
+                href={`/mis-mascotas/${existingPet.publicToken}/mudanza`}
+                className="font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
+              >
+                Registrar mudanza
+              </a>
+            ) : null
+          }
+        >
+          <input
+            type="hidden"
+            name="provinceCode"
+            value={provinceByName(existingPet?.jurisdictionProvince)?.code ?? ""}
+          />
+          <input
+            type="hidden"
+            name="provinceName"
+            value={existingPet?.jurisdictionProvince ?? ""}
+          />
+          <input
+            type="hidden"
+            name="localityName"
+            value={existingPet?.jurisdictionLocality ?? ""}
+          />
+        </LnReadOnlyField>
+      )}
+      {!compact && !isEdit && (
         <div className="flex flex-col gap-1.5">
           <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
             Localidad{" "}
@@ -320,13 +385,8 @@ export function PetForm({
               *
             </span>
           </p>
-          <LocationFields
-            mode="l1"
-            defaultValue={{
-              provinceCode: provinceByName(existingPet?.jurisdictionProvince)?.code ?? null,
-              localityName: existingPet?.jurisdictionLocality ?? null,
-            }}
-          />
+          {/* Create mode: no established pet yet, so the picker starts empty. */}
+          <LocationFields mode="l1" defaultValue={{ provinceCode: null, localityName: null }} />
           <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
             Requerido. Ayuda a las campañas regionales de salud animal.
           </p>
@@ -752,6 +812,63 @@ function SensitiveFields({
 // ============================================================================
 // Helpers
 // ============================================================================
+
+const SPECIES_LABELS: Record<string, string> = {
+  dog: "Perro",
+  cat: "Gato",
+  rabbit: "Conejo",
+  guinea_pig: "Cobayo",
+  ferret: "Hurón",
+  other: "Otra",
+};
+
+function speciesLabel(species: string): string {
+  return SPECIES_LABELS[species] ?? species;
+}
+
+/**
+ * Read-only display for a locked field (FULL-LOCK: species, jurisdiction).
+ * Shows the current value plus a hint explaining the governed change path and
+ * an optional action link to that path. `children` carries hidden inputs so the
+ * server-side parse still receives the (unchanged) value.
+ */
+function LnReadOnlyField({
+  label,
+  value,
+  hint,
+  action,
+  children,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  action?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+        {label}
+      </p>
+      <div className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3 py-2.5">
+        <span className="text-[13px] text-[var(--color-ln-ink-2)]">{value}</span>
+        <span
+          aria-hidden="true"
+          className="font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.12em] text-[var(--color-ln-faint)]"
+        >
+          Fijo
+        </span>
+      </div>
+      {hint && (
+        <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+          {hint}
+        </p>
+      )}
+      {action}
+      {children}
+    </div>
+  );
+}
 
 function CustodyKindToggle({
   value,

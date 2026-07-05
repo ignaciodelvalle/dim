@@ -36,6 +36,7 @@ import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { openCase } from "@/lib/infra/case-helpers";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { generateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
 import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
 import { resolvePppClassificationForJurisdiction } from "@/lib/infra/ppp-classification";
 import { generatePublicToken } from "@/lib/infra/publicToken";
@@ -214,7 +215,13 @@ export async function createIntake(
     if (match) {
       if (match.pet.status === "lost") {
         // BLOCK: redirect to match-confirmation page so the org can confirm.
-        redirect(`/org/${orgToken}/intake/match/${match.pet.publicToken}`);
+        // Attach an HMAC claim binding THIS org + THIS matched pet so the match
+        // page / confirm writer can gate on it (review 24 HIGH #6/#7): loading
+        // the lost pet by token alone leaked owner PII cross-org.
+        const claim = generateIntakeMatchClaim(orgToken, match.pet.publicToken);
+        redirect(
+          `/org/${orgToken}/intake/match/${match.pet.publicToken}?claim=${encodeURIComponent(claim)}`,
+        );
       }
 
       if (match.pet.status === "active") {

@@ -24,6 +24,7 @@ import {
   JurisdictionValidationError,
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
 import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
@@ -47,11 +48,16 @@ function parseEstimatedWeightKg(raw: string | null): number | null {
 }
 
 import type { NewNotification } from "@/src/modules/adoption/application/set-adoption-eligibility";
+import { recordMovementWriter } from "./application/movement/record-movement";
 import { registerPet } from "./application/register-pet";
 import { updatePet } from "./application/update-pet";
 import { parsePetForm } from "./domain/pet-form";
 import type { NewPetFormState } from "./domain/types";
 import { PetsRepository } from "./infrastructure/pets-repository";
+
+// Species accepted by the credential (must match parsePetForm / the register
+// forms). Used by the FULL-LOCK species-correction path to reject junk.
+const ALLOWED_SPECIES = ["dog", "cat", "rabbit", "guinea_pig", "ferret", "other"] as const;
 
 // Re-export for consumers that import the type from this module.
 export type { NewPetFormState } from "./domain/types";
@@ -319,6 +325,150 @@ export async function updatePetAction(
   }
 
   await flushNotifications(result.notifications);
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// MOVE (FULL-LOCK jurisdiction path — PO decision #40)
+// ---------------------------------------------------------------------------
+//
+// The profile-edit path no longer mutates jurisdiction. A locality change for an
+// established pet flows through here, which is the ONLY owner-facing writer of
+// movement_recorded / jurisdiction_changed. The destination is canonicalized
+// strictly at the edge (friendly rejection on an off-catalog pair) and again,
+// defensively, inside recordMovementWriter before the pets denormalization.
+
+export async function recordMoveAction(
+  publicToken: string,
+  _previous: NewPetFormState,
+  formData: FormData,
+): Promise<NewPetFormState> {
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, eventAuthorship } = access;
+
+  const loc = parseLocationFromFormData(formData);
+  const rawProvince = loc.provinceCode ?? "";
+  const rawLocality = loc.locality ?? "";
+  if (!rawLocality) return { error: "Seleccioná la localidad de destino." };
+
+  // Strict canonicalization at the edge — reject an off-catalog destination
+  // with a user-facing message before it ever reaches the writer.
+  let toProvince: string | null;
+  let toLocality: string | null;
+  try {
+    const normalized = await normalizeLocationForWrite(
+      {
+        province: rawProvince,
+        provinceCode: rawProvince,
+        locality: rawLocality,
+        localityIndecId: loc.localityIndecId,
+        lat: null,
+        lng: null,
+        address: null,
+      },
+      { locality: "strict" },
+    );
+    toProvince = normalized.province;
+    toLocality = normalized.locality;
+  } catch (err) {
+    if (err instanceof JurisdictionValidationError) return { error: err.message };
+    throw err;
+  }
+
+  const result = await recordMovementWriter({
+    pet: { id: pet.id, publicToken: pet.publicToken },
+    recordedByUserId: user.id,
+    eventAuthorship,
+    occurredAt: new Date(),
+    movement: {
+      sub_kind: "jurisdiction_changed",
+      from_country: pet.jurisdictionCountry ?? "AR",
+      from_province: pet.jurisdictionProvince,
+      from_locality: pet.jurisdictionLocality,
+      to_country: "AR",
+      to_province: toProvince,
+      to_locality: toLocality,
+      effective_date: new Date().toISOString().slice(0, 10),
+      reason: String(formData.get("reason") ?? "").trim() || null,
+    },
+    notes: null,
+  });
+
+  if (!result.ok) {
+    // The schema rejects a no-op move (destination === origin) — surface it.
+    return {
+      error:
+        result.error.includes("no-op") || result.error.includes("differ")
+          ? "El destino es igual a la localidad actual."
+          : `No se pudo registrar el movimiento: ${result.error}`,
+    };
+  }
+
+  redirect(`/mis-mascotas/${publicToken}`);
+}
+
+// ---------------------------------------------------------------------------
+// CORRECT SPECIES (FULL-LOCK species path — PO decision #40)
+// ---------------------------------------------------------------------------
+//
+// Species is locked on the profile-edit path (it drives PPP/compliance). A
+// genuine correction flows here and emits a pet_profile_updated event carrying
+// the single species change (audit trail) before updating the column. PPP is
+// recomputed for the corrected species — a non-dog clears the flag.
+
+export async function correctPetSpeciesAction(
+  publicToken: string,
+  _previous: NewPetFormState,
+  formData: FormData,
+): Promise<NewPetFormState> {
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, eventAuthorship } = access;
+
+  const newSpecies = String(formData.get("species") ?? "").trim();
+  if (!(ALLOWED_SPECIES as readonly string[]).includes(newSpecies)) {
+    return { error: "Elegí una especie válida." };
+  }
+  if (newSpecies === pet.species) {
+    return { error: "La especie es la misma; no hay nada que corregir." };
+  }
+
+  // Recompute PPP for the corrected species (a cat/rabbit/etc. clears it).
+  const potentiallyDangerousBreed = await resolvePppClassificationForJurisdiction(
+    newSpecies,
+    pet.breed,
+    parseEstimatedWeightKg(pet.estimatedWeightKg),
+    {
+      country: "AR",
+      province: pet.jurisdictionProvince,
+      locality: pet.jurisdictionLocality,
+    },
+  );
+
+  try {
+    await db.transaction(async (tx) => {
+      await PetsRepository.correctSpecies(
+        {
+          petId: pet.id,
+          oldSpecies: pet.species,
+          newSpecies,
+          potentiallyDangerousBreed,
+          userId: user.id,
+          eventAuthorship,
+          now: new Date(),
+        },
+        tx as Parameters<typeof PetsRepository.correctSpecies>[1],
+      );
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo corregir la especie: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
 
   redirect(`/mis-mascotas/${publicToken}`);
 }
