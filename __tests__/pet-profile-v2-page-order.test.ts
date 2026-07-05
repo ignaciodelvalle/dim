@@ -1,59 +1,64 @@
-// Tests for the pet-profile section ordering.
+// Tests for the pet-profile block ordering (AGENTS.md rule 5).
 //
-// REWRITTEN for the "two-face" redesign (2026-07-01, spec
-// docs/design/handoffs/2026-07-01-pet-profile-two-face-lean-handoff.md) and
-// AGENTS.md §"Pet profile order: identity/credential → alerts (lost leads) →
-// capture → faces" (rule 5). The old pet-profile v2.1 flat 11-section order
-// this file used to guard (identity → cases → current-state → upcoming-care
-// → credentials → ppp-card → service-dog-card → health-timeline →
-// actions-menu → achievements) no longer exists: the two-face redesign
-// collapsed almost all of it into ONE credential object (CredentialFace)
-// plus a single prioritized avisos strip (PetAlertStrip), each owning their
-// OWN internal data-section markers in their own files — page.tsx itself now
-// carries only 3 data-section attributes.
+// REWRITTEN for the "Una sola libreta" redesign (2026-07-04). The credential-
+// before-alerts invariant this file has always guarded is unchanged in INTENT
+// but has MOVED: page.tsx used to render the identity block itself (behind
+// `data-section="hero"`) with the avisos strip as a sibling below it. It no
+// longer does. The whole front face is now delegated to `PetDetailTabsPanel`
+// via its `credencialContent` prop — a single `<CredentialFace>` element — and
+// CredentialFace owns the block order internally:
 //
-// AGENTS.md rule 5, block order:
+//   identity  →  Cumplimiento  →  Avisos (slot)  →  Anotar (slot)  →  actions
+//
+// So `data-section="hero"` is gone from page.tsx, and the prioritized alert
+// strip (`PetAlertStrip`) is passed INTO CredentialFace as its `avisos` slot
+// (rendered below the identity/compliance, never as a banner above the
+// credential). page.tsx itself now carries only `data-section="cases"` (the
+// open-cases alert node, built into the `petAlerts` array) and the ORG-only
+// `data-section="back-link"` — their SOURCE order no longer mirrors render
+// order (the alerts array is assembled above the return), so a page.tsx
+// source-order-of-data-sections guard is no longer meaningful.
+//
+// AGENTS.md rule 5, block order (unchanged doctrine):
 //   1. Credencial first (Face 1) — identity/credential is the first content
-//      block in every non-terminal state. No conditional banner precedes it.
+//      block. No conditional banner precedes it.
 //   2. Avisos in one prioritized strip, BELOW the credential (lost leads it).
-//   3. Capture, then the two-face tabs (Credencial · Libreta).
+//   3. Capture (Anotar), then the two-face tabs.
 //   4. Everything else lives behind "⋯ Más".
 //
-// This test guards ONLY page.tsx's own data-section attributes (per repo
-// convention — see the source-DOM-guard technique below), which cover blocks
-// 1 and 2: "hero" (the CredentialFace mount point, block 1) and "cases" (the
-// open-cases alert inside PetAlertStrip, block 2). Blocks 3 and 4 render
-// through PetActionRow.tsx / PetDetailTabs.tsx, which own their OWN
-// data-section markers ("action-row", "pet-detail-tabs") in their own
-// files — out of scope for a page.tsx-level guard.
-//
-// Two levels of guard (kept from the original file):
-//
-//  1. Constant-level guard — SECTION_ORDER is the ground truth other code
-//     can import.
-//
-//  2. Source-level DOM guard — reads the actual page.tsx source and extracts
-//     data-section="…" attribute positions, asserting they match the
-//     constant. Catches a reorder of page.tsx that forgets to update it.
+// This file now guards the invariant WHERE IT LIVES:
+//   - page.tsx: delegates the front face to PetDetailTabsPanel/CredentialFace
+//     and passes PetAlertStrip as the `avisos` slot (not a sibling above the
+//     credential); AND the pre-redesign flat v2.1 section names must not
+//     resurface (negative guard, unchanged).
+//   - CredentialFace.tsx: the block order identity → cumplimiento → avisos →
+//     anotar → actions, guarded by source position.
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// Authoritative two-face section order for page.tsx's OWN data-section
-// attributes — matches AGENTS.md rule 5 blocks 1 (hero) and 2 (cases, the
-// one avisos entry with a page.tsx-level marker; the others — lost, rabies,
-// transit, pregnancy — render through components that don't take a
-// data-section prop at this call site).
-const SECTION_ORDER = ["back-link", "hero", "cases"] as const;
+const PAGE_TSX = resolve(__dirname, "../app/(app)/mis-mascotas/[publicToken]/page.tsx");
+const CREDENTIAL_FACE_TSX = resolve(__dirname, "../components/pet-profile/CredentialFace.tsx");
 
-// Page-level section names from the pre-two-face v2.1 flat order. None of
-// these exist in page.tsx anymore — the two-face redesign absorbed identity,
-// PPP, service-dog, achievements, and the action bar into sub-components
-// (CredentialFace.tsx, PetActionRow.tsx, PetDetailTabs.tsx) that own their
-// own, differently-named, internal markers. Kept here as a negative-case
-// regression guard: if any of these resurface in page.tsx, the flat v2.1
-// structure is creeping back.
+function read(filePath: string): string {
+  return readFileSync(filePath, "utf-8");
+}
+
+/** First source index of `needle`, asserted present. */
+function sourceIndex(src: string, needle: string): number {
+  const i = src.indexOf(needle);
+  expect(i, `expected to find \`${needle}\` in source`).toBeGreaterThanOrEqual(0);
+  return i;
+}
+
+// Page-level section names from the pre-two-face pet-profile v2.1 flat order.
+// None of these belong in page.tsx anymore — the redesign absorbed identity,
+// PPP, service-dog, achievements, and the action bar into sub-components. Kept
+// as a negative-case regression guard: if any resurface in page.tsx, the flat
+// v2.1 structure is creeping back. (Note: some of these names legitimately live
+// on markers INSIDE sub-components now — e.g. CredentialFace's own
+// `data-section="credentials"` — so this guard is scoped to page.tsx only.)
 const OBSOLETE_V21_PAGE_SECTIONS = [
   "current-state",
   "upcoming-care",
@@ -65,82 +70,99 @@ const OBSOLETE_V21_PAGE_SECTIONS = [
   "achievements",
 ] as const;
 
-// ---------------------------------------------------------------------------
-// Source reader — extracts data-section attribute values in source order
-// ---------------------------------------------------------------------------
-
-function extractDataSectionsFromSource(filePath: string): string[] {
-  const src = readFileSync(filePath, "utf-8");
-  const regex = /data-section="([^"]+)"/g;
-  return Array.from(src.matchAll(regex), (m) => m[1]);
-}
-
-const PAGE_TSX = resolve(__dirname, "../app/(app)/mis-mascotas/[publicToken]/page.tsx");
+// CredentialFace's internal block order (AGENTS.md rule 5). Source markers are
+// CODE, not comment text, so a reordered comment can't mask a reordered render.
+const CREDENTIAL_BLOCK_ORDER = [
+  { name: "identity", marker: 'className="ln-idrow"' },
+  { name: "cumplimiento", marker: "<ComplianceObligationsPanel" },
+  { name: "avisos", marker: "{avisos && (" },
+  { name: "anotar", marker: "{anotar && (" },
+  { name: "actions", marker: "{actions && (" },
+] as const;
 
 // ---------------------------------------------------------------------------
-// Constant-level guard — two-face doctrine invariants (AGENTS.md rule 5)
+// page.tsx — front face is delegated; alerts go INTO the credential
 // ---------------------------------------------------------------------------
 
-describe("pet-profile two-face section order — constant guard (AGENTS.md rule 5)", () => {
-  const idx = (id: string) => SECTION_ORDER.indexOf(id as (typeof SECTION_ORDER)[number]);
-
-  it("hero (Credencial, block 1) is the first content block — no banner precedes it", () => {
-    expect(idx("back-link")).toBe(0);
-    expect(idx("hero")).toBe(1);
+describe("pet-profile page.tsx — front-face delegation (AGENTS.md rule 5)", () => {
+  it("delegates the front face to PetDetailTabsPanel via a single <CredentialFace>", () => {
+    const src = read(PAGE_TSX);
+    sourceIndex(src, "<PetDetailTabsPanel");
+    sourceIndex(src, "credencialContent={");
+    sourceIndex(src, "<CredentialFace");
   });
 
-  it("cases (avisos, block 2) comes AFTER hero — alerts sit below the credential, not above", () => {
-    expect(idx("hero")).toBeLessThan(idx("cases"));
+  it("passes the alert strip as CredentialFace's `avisos` slot — never as a banner above the credential", () => {
+    const src = read(PAGE_TSX);
+    const credentialFaceAt = sourceIndex(src, "<CredentialFace");
+    // Match the JSX usage with its prop, not the `<PetAlertStrip>` mention in
+    // the file header comment.
+    const alertStripAt = sourceIndex(src, "<PetAlertStrip alerts=");
+    const avisosSlotAt = sourceIndex(src, "avisos={");
+
+    // PetAlertStrip is rendered INSIDE the CredentialFace element (as the avisos
+    // prop), so it appears after the <CredentialFace opening tag in source —
+    // i.e. the alerts sit below the credential, not as a preceding sibling.
+    expect(
+      alertStripAt,
+      "PetAlertStrip appears before <CredentialFace — an alert banner is being rendered ABOVE the credential (rule 5 violation)",
+    ).toBeGreaterThan(credentialFaceAt);
+    expect(alertStripAt).toBeGreaterThan(avisosSlotAt);
+  });
+
+  it("no longer renders the old page-level `data-section=\"hero\"` identity wrapper (moved into CredentialFace)", () => {
+    const src = read(PAGE_TSX);
+    expect(src).not.toContain('data-section="hero"');
+  });
+
+  it("none of the obsolete pet-profile v2.1 flat-order page sections have resurfaced", () => {
+    const src = read(PAGE_TSX);
+    for (const obsolete of OBSOLETE_V21_PAGE_SECTIONS) {
+      expect(
+        src,
+        `data-section="${obsolete}" found in page.tsx — this is a pre-redesign v2.1 flat section name; the flat structure must not resurface (AGENTS.md rule 5)`,
+      ).not.toContain(`data-section="${obsolete}"`);
+    }
   });
 });
 
 // ---------------------------------------------------------------------------
-// Source-level DOM guard — reads page.tsx data-section attributes in order
+// CredentialFace.tsx — the credential-first block order now lives here
 // ---------------------------------------------------------------------------
 
-describe("pet-profile two-face section order — source DOM guard (AGENTS.md rule 5)", () => {
-  it("page.tsx contains all two-face page-level data-section attributes", () => {
-    const found = extractDataSectionsFromSource(PAGE_TSX);
-    for (const section of SECTION_ORDER) {
-      expect(
-        found,
-        `data-section="${section}" not found in page.tsx — was the wrapper div removed?`,
-      ).toContain(section);
+describe("CredentialFace block order — source guard (AGENTS.md rule 5)", () => {
+  it("renders every block: identity → cumplimiento → avisos → anotar → actions", () => {
+    const src = read(CREDENTIAL_FACE_TSX);
+    for (const { marker } of CREDENTIAL_BLOCK_ORDER) {
+      sourceIndex(src, marker);
     }
   });
 
-  it("data-section attributes appear in page.tsx in the exact two-face order", () => {
-    const found = extractDataSectionsFromSource(PAGE_TSX);
-    // Filter to only the guarded sections (ignore any auxiliary data-section
-    // attrs that might exist for other reasons, e.g. org-notice banners).
-    const guardedSections = new Set(SECTION_ORDER as readonly string[]);
-    const filtered = found.filter((s) => guardedSections.has(s));
-
-    expect(filtered).toEqual([...SECTION_ORDER]);
-  });
-
-  it("no guarded section appears more than once in page.tsx", () => {
-    const found = extractDataSectionsFromSource(PAGE_TSX);
-    const guardedSections = new Set(SECTION_ORDER as readonly string[]);
-    const filtered = found.filter((s) => guardedSections.has(s));
-    const unique = new Set(filtered);
-    expect(filtered.length).toBe(unique.size);
-  });
-
-  it("the hero data-section precedes the cases data-section in source (no banner-above-credential regression)", () => {
-    const found = extractDataSectionsFromSource(PAGE_TSX);
-    const heroPos = found.indexOf("hero");
-    expect(heroPos).toBeGreaterThanOrEqual(0);
-    expect(found.indexOf("cases")).toBeGreaterThan(heroPos);
-  });
-
-  it("none of the obsolete pet-profile v2.1 flat-order page sections have resurfaced", () => {
-    const found = extractDataSectionsFromSource(PAGE_TSX);
-    for (const obsolete of OBSOLETE_V21_PAGE_SECTIONS) {
+  it("identity is the FIRST block — no compliance/avisos/anotar precedes it", () => {
+    const src = read(CREDENTIAL_FACE_TSX);
+    const identityAt = sourceIndex(src, 'className="ln-idrow"');
+    for (const { name, marker } of CREDENTIAL_BLOCK_ORDER) {
+      if (name === "identity") continue;
       expect(
-        found,
-        `data-section="${obsolete}" found in page.tsx — this is a pre-two-face v2.1 section name; the flat 11-section structure should not resurface (AGENTS.md rule 5)`,
-      ).not.toContain(obsolete);
+        sourceIndex(src, marker),
+        `\`${marker}\` (${name}) appears before the identity row — the credential must lead (rule 5)`,
+      ).toBeGreaterThan(identityAt);
     }
+  });
+
+  it("avisos (alerts) come AFTER identity and compliance — below the credential, not above", () => {
+    const src = read(CREDENTIAL_FACE_TSX);
+    const identityAt = sourceIndex(src, 'className="ln-idrow"');
+    const cumplimientoAt = sourceIndex(src, "<ComplianceObligationsPanel");
+    const avisosAt = sourceIndex(src, "{avisos && (");
+    expect(avisosAt).toBeGreaterThan(identityAt);
+    expect(avisosAt).toBeGreaterThan(cumplimientoAt);
+  });
+
+  it("the blocks appear in the exact rule-5 order", () => {
+    const src = read(CREDENTIAL_FACE_TSX);
+    const positions = CREDENTIAL_BLOCK_ORDER.map(({ marker }) => sourceIndex(src, marker));
+    const sorted = [...positions].sort((a, b) => a - b);
+    expect(positions).toEqual(sorted);
   });
 });
