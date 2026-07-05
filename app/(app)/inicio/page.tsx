@@ -30,6 +30,7 @@ import {
   fetchPetsForOwner,
   fetchUpcomingAppointments,
 } from "@/lib/analytics/owner-dashboard";
+import { countProximosReminders } from "@/lib/domain/vaccine-reminder-state";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
 import { getProfileCached } from "@/lib/infra/request-cache";
@@ -104,6 +105,12 @@ export default async function InicioPage() {
   const eventCatcherPets = pets.map(adaptPet);
   const cases = openWf.map(adaptWorkflow);
 
+  // "Vencimientos próximos" counts only reminders due within the horizon (plus
+  // overdue) — a dose due in ~1 year is NOT "próximo" and must not inflate the
+  // greeting's urgency count (#45, PO QA §2). The full list (RemindersSection)
+  // still renders every active reminder, near and far.
+  const proximosCount = countProximosReminders(reminders);
+
   // Today's date for the greeting datestamp
   const today = new Date();
   const dateLabel = today.toLocaleDateString("es-AR", {
@@ -123,18 +130,18 @@ export default async function InicioPage() {
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Buen día, {firstName}.
           </h1>
-          {reminders.length > 0 || cases.length > 0 ? (
+          {proximosCount > 0 || cases.length > 0 ? (
             // UX 3.5 item 6: cap large aggregate counts at "99+" so the greeting
             // does not read as alarming personal debt for high-volume owners.
             // "requieren atención" is also softened to "con novedades".
             <p className="mt-1.5 text-md text-[var(--color-ln-ink-2)]">
-              {reminders.length > 0 && (
+              {proximosCount > 0 && (
                 <>
                   Tenés{" "}
                   <strong>
-                    {capCount(reminders.length)} vencimiento
-                    {reminders.length !== 1 ? "s" : ""} próximo
-                    {reminders.length !== 1 ? "s" : ""}
+                    {capCount(proximosCount)} vencimiento
+                    {proximosCount !== 1 ? "s" : ""} próximo
+                    {proximosCount !== 1 ? "s" : ""}
                   </strong>
                   {cases.length > 0 ? " y " : "."}
                 </>

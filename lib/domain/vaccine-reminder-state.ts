@@ -36,6 +36,49 @@ export function getReminderVariant(daysUntilDue: number, isReportable: boolean):
 }
 
 /**
+ * Horizonte (en días) dentro del cual un vencimiento de vacuna cuenta como
+ * "próximo" en el saludo del home del dueño (#45, PO QA §2).
+ *
+ * El QA detectó que el contador "N vencimientos próximos" incluía recordatorios
+ * a 363/364 días (la próxima dosis anual recién registrada), inflando la
+ * urgencia: una dosis que vence dentro de ~1 año NO es "próxima". Con este
+ * horizonte, sólo los recordatorios vencidos o que vencen dentro de 60 días
+ * cuentan como próximos. Los que están más lejos siguen apareciendo en la lista
+ * completa de recordatorios; simplemente no inflan el contador.
+ *
+ * 60 días (≈ 2 meses) da margen accionable sin arrastrar dosis del año que
+ * viene. Los vencidos (daysUntilDue negativo) siempre cuentan: son lo más
+ * urgente, nunca "lejanos".
+ */
+export const PROXIMOS_HORIZON_DAYS = 60;
+
+/**
+ * True cuando un recordatorio es "próximo": vencido o dentro del horizonte.
+ */
+export function isReminderProximo(
+  daysUntilDue: number,
+  horizonDays: number = PROXIMOS_HORIZON_DAYS,
+): boolean {
+  return daysUntilDue <= horizonDays;
+}
+
+/**
+ * Cuenta los recordatorios que son realmente "próximos" (vencidos + los que
+ * vencen dentro del horizonte). Genérico sobre cualquier fila que exponga
+ * `daysUntilDue`, así el home puede pasar sus `ActiveReminderRow[]` sin acoplar
+ * este módulo puro a la capa de datos.
+ */
+export function countProximosReminders<T extends { daysUntilDue: number }>(
+  reminders: readonly T[],
+  horizonDays: number = PROXIMOS_HORIZON_DAYS,
+): number {
+  return reminders.reduce(
+    (n, r) => n + (isReminderProximo(r.daysUntilDue, horizonDays) ? 1 : 0),
+    0,
+  );
+}
+
+/**
  * Deriva la variante `success` cuando el recordatorio está marcado como completado.
  *
  * Decisión de API (C1): el caller pasa un booleano `completed` en lugar de `completedAt`
