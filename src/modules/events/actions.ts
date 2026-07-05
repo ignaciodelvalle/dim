@@ -37,6 +37,7 @@ import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/infra/pet-access";
 import type { SupabaseServerClient } from "@/lib/infra/pet-access";
+import { getProfileCached } from "@/lib/infra/request-cache";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { findDisease } from "@/lib/reference/diseases";
 import { findDrugByLabel } from "@/lib/reference/drugs";
@@ -600,6 +601,13 @@ export async function markMedicationDoseTakenAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sesión expirada." };
+
+  // Right-to-erasure lockout (Ley 25.326 art. 16, Wave E2). This reminder-keyed
+  // path resolves the pet via the reminder + userId and bypasses requireAlive-
+  // PetAccess, so it must reject an erased account (still-valid JWT) itself —
+  // otherwise it could append a medication_dose_taken event.
+  const profile = await getProfileCached(user.id);
+  if (profile?.deletedAt != null) return { error: "Tu cuenta fue eliminada." };
 
   const repo = new EventsRepository();
 
