@@ -34,3 +34,10 @@ claims — each MUST-FIX is verified before/while remediating.
 
 ## Remediation plan
 Wave D (before Vercel close): the corrections-superseding CTE (27-#7/#8/#11), the erasure completion (27-#1/#2/#3), the ownership races/consent (26-#4/closeCase/#5), the share-surface rate limits (25). The auth rate-limit parity (28) → cutover checklist. MEDs + fast-follow → surfaced to PO.
+
+---
+## Re-run validation (post-Wave-D) — corrections to this doc
+Cursor re-audit of 25/26/27 after remediation found Wave D INCOMPLETE on some points (this doc's "MUST-FIX remediated" claims corrected):
+- **25**: both HIGH CLOSED ✓ (logScan + libreta rate-limits verified). MEDs (logLibretaShareView telemetry, /denuncias/codigo lookup throttle) remain → fast-follow.
+- **26**: STILL-OPEN HIGH — (a) `expire-pet-transfers.ts` blind status update (no expectedStatus guard → cron stomps a resolved transfer to "expired"); (b) `accept-cross-org-transfer.ts` — the closeCase guard runs AFTER destructive writes + return discarded, so an accept still executes after a concurrent reject/cancel closed the case (needs a lock + pre-write pending re-check, like owner-accept-return got). transfer-custody unilateral remains PO-gated (+ it's the only custody writer with no open-dispute check). → WAVE E1.
+- **27**: #1 PARTIAL — `deletedAt` guards `requireUserOrRedirect` but NOT `lib/infra/pet-access.ts` `requirePetAccess`/`requireAlivePetAccess` (the real pet-mutation boundary) nor ~18 raw-`auth.getUser()` action files → erased account can still mutate pets. → WAVE E2. #8 (govt/analyst KPI aggregates don't overlay `event_amended`) is STILL OPEN — D1's `amendedPayloadText` covers priority rabies KPIs only, not all metrics fetchers; this doc's earlier "refuted/already-fixed" was premature. → WAVE E3. #4/#5/#6/#9/#10/#12 (dispute-erasure asymmetry, attachments/storage purge, vet_name anonymization, projections self-overlay, rederivePetCache, cache-drift cron) unchanged → fast-follow/surface.
