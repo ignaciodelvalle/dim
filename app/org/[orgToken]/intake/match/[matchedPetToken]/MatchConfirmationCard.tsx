@@ -29,6 +29,10 @@ type Props = {
   // Routing after decision
   actorMode: "refugio" | "vecino";
   orgToken?: string; // required when actorMode='refugio'
+  // HMAC intake-match claim binding (orgToken, matchedPetToken). Required for
+  // the refugio path — forwarded to the action so the writer can re-verify the
+  // org-scoped claim before mutating (review 24 HIGH #7).
+  claim?: string;
   // Where to go after confirmation
   successRedirect: string;
   cancelRedirect: string;
@@ -47,6 +51,7 @@ export function MatchConfirmationCard({
   lastLocationDate,
   actorMode,
   orgToken,
+  claim,
   successRedirect,
   cancelRedirect,
 }: Props) {
@@ -61,6 +66,7 @@ export function MatchConfirmationCard({
         matchedPetToken,
         actorMode,
         orgToken,
+        claim,
         decision,
       });
       if ("error" in result) {

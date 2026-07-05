@@ -581,32 +581,34 @@ describe("resolveGovtOrgForUser — edge cases", () => {
 // We test the domain logic directly: build the same in-scope check the action
 // performs and assert it returns false for the Mendoza pet.
 
-describe("executeDecomisoAction — out-of-jurisdiction rejection (Fix 1)", () => {
-  it("CABA-only govt user is rejected for a pet with jurisdictionProvince=Mendoza", async () => {
-    // Simulate the jurisdiction check the action performs:
-    //   if (session.profile.role === "govt") {
-    //     const petProvince = pet.jurisdictionProvince;
-    //     const inScope = !petProvince || session.jurisdictions.some(j => j.province === petProvince);
-    //     if (!inScope) return { error: "..." };
-    //   }
-    const cabaJurisdictions = [{ province: "CABA", locality: "Buenos Aires" }];
-    const petProvince = "Mendoza";
-    const inScope = !petProvince || cabaJurisdictions.some((j) => j.province === petProvince);
-    expect(inScope).toBe(false);
+describe("executeDecomisoAction — out-of-jurisdiction rejection (Fix 1 / review 24 HIGH #4)", () => {
+  // The registered-pet check now requires the FULL (province, locality) pair to
+  // match an assignment — province-only / null-province allowed a govt to seize
+  // a pet outside their locality (and revoke its owner's custody).
+  const pairInScope = (
+    jurisdictions: { province: string; locality: string }[],
+    petProvince: string | null,
+    petLocality: string | null,
+  ) => jurisdictions.some((j) => j.province === petProvince && j.locality === petLocality);
+
+  it("CABA/Buenos Aires govt is rejected for a pet in Mendoza (province mismatch)", async () => {
+    const jurisdictions = [{ province: "CABA", locality: "Buenos Aires" }];
+    expect(pairInScope(jurisdictions, "Mendoza", "Mendoza")).toBe(false);
   });
 
-  it("CABA-only govt user is allowed for a pet with jurisdictionProvince=CABA", async () => {
-    const cabaJurisdictions = [{ province: "CABA", locality: "Buenos Aires" }];
-    const petProvince = "CABA";
-    const inScope = !petProvince || cabaJurisdictions.some((j) => j.province === petProvince);
-    expect(inScope).toBe(true);
+  it("CABA/Buenos Aires govt is allowed for a CABA/Buenos Aires pet (pair match)", async () => {
+    const jurisdictions = [{ province: "CABA", locality: "Buenos Aires" }];
+    expect(pairInScope(jurisdictions, "CABA", "Buenos Aires")).toBe(true);
   });
 
-  it("CABA-only govt user is allowed for a pet with null jurisdictionProvince (no violation)", async () => {
-    const cabaJurisdictions = [{ province: "CABA", locality: "Buenos Aires" }];
-    const petProvince: string | null = null;
-    const inScope = !petProvince || cabaJurisdictions.some((j) => j.province === petProvince);
-    expect(inScope).toBe(true);
+  it("CABA/Buenos Aires govt is rejected for a CABA/La Boca pet (locality mismatch)", async () => {
+    const jurisdictions = [{ province: "CABA", locality: "Buenos Aires" }];
+    expect(pairInScope(jurisdictions, "CABA", "La Boca")).toBe(false);
+  });
+
+  it("null pet jurisdiction is now OUT of scope for govt (fail-closed)", async () => {
+    const jurisdictions = [{ province: "CABA", locality: "Buenos Aires" }];
+    expect(pairInScope(jurisdictions, null, null)).toBe(false);
   });
 
   it("oojPetId fixture was created with jurisdictionProvince=Mendoza", async () => {

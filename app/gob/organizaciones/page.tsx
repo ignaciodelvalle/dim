@@ -1,11 +1,11 @@
 import Link from "next/link";
 
-import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { OpButton, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { searchOrganizations } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";
+import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
 import { ProposeOrgActions } from "./ProposeOrgActions";
 import { RevokeOrgActions } from "./RevokeOrgActions";

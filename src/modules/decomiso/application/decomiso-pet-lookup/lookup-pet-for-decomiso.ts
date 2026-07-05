@@ -40,6 +40,7 @@ export async function lookupPetForDecomiso(
       sex: pets.sex,
       status: pets.status,
       jurisdictionProvince: pets.jurisdictionProvince,
+      jurisdictionLocality: pets.jurisdictionLocality,
     })
     .from(pets)
     .where(eq(pets.publicToken, trimmed))
@@ -52,16 +53,18 @@ export async function lookupPetForDecomiso(
     };
   }
 
-  // Jurisdiction scope check — mirrors executeDecomisoAction Fix 1.
+  // Jurisdiction scope check — mirrors executeDecomisoAction (review 24 HIGH #3).
   // Admin role has universal scope (session.jurisdictions is empty by design).
-  // For govt, the pet's registered province must appear in the user's assigned
-  // jurisdictions. A null pet province means no jurisdiction was recorded at
-  // registration — allow the lookup (no jurisdiction can be violated if none
-  // is recorded). If the pet IS out of scope, return an error WITHOUT exposing
-  // owner PII (ownerDisplayName / hasOwner).
+  // For govt, the pet's FULL (province, locality) pair must match one of the
+  // user's assigned jurisdictions. A province-only check let a CABA-Palermo
+  // operator read a CABA-other-locality owner's PII; a null-province allowance
+  // let any govt read jurisdiction-less pets. Both are closed here: fail-closed
+  // on any pair that isn't an exact assignment. If out of scope, return an
+  // error WITHOUT exposing owner PII (ownerDisplayName / hasOwner).
   if (session.profile.role === "govt") {
-    const petProvince = pet.jurisdictionProvince;
-    const inScope = !petProvince || session.jurisdictions.some((j) => j.province === petProvince);
+    const inScope = session.jurisdictions.some(
+      (j) => j.province === pet.jurisdictionProvince && j.locality === pet.jurisdictionLocality,
+    );
     if (!inScope) {
       return {
         found: false,

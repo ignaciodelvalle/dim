@@ -69,15 +69,17 @@ export default async function InvestigacionDetailPage({
   const { caseCode } = await params;
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
-  const detail = await getOutbreakInvestigationDetail(caseCode);
+  // Scope is enforced INSIDE the query (review 24 HIGH #1/#2): a govt reader
+  // only resolves a case whose (province, locality) matches one of their
+  // assignments — a province-only / null-province check let a CABA-Palermo
+  // operator read another locality's case notes (owner PII). Out of scope →
+  // detail is null → notFound (no existence leak).
+  const detail = await getOutbreakInvestigationDetail(
+    caseCode,
+    jurisdictions,
+    profile.role === "admin",
+  );
   if (!detail) notFound();
-
-  if (profile.role === "govt") {
-    const inScope =
-      !detail.jurisdictionProvince ||
-      jurisdictions.some((j) => j.province === detail.jurisdictionProvince);
-    if (!inScope) notFound();
-  }
 
   const diseaseCode = parseDiseaseCode(detail.openedReason);
   const isClosed = detail.status === "closed";

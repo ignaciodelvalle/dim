@@ -17,6 +17,7 @@ vi.mock("next/cache", () => ({
 
 import { auditLog, caseEvents, cases, db, govtAssignments, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { getOutbreakInvestigationDetail } from "@/lib/infra/case-queries";
 import {
   addInvestigationNoteAction,
   closeInvestigationAction,
@@ -550,6 +551,81 @@ describe("closeInvestigationAction", () => {
 // ---------------------------------------------------------------------------
 // escalateInvestigationAction
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// getOutbreakInvestigationDetail — jurisdiction scoping (review 24 HIGH #1/#2)
+// ---------------------------------------------------------------------------
+//
+// The detail query loads the full case_events timeline (epidemiological notes,
+// which can carry PII). It must be scoped IN SQL to the reader's (province,
+// locality) assignments so an out-of-jurisdiction govt reader gets null.
+
+describe("getOutbreakInvestigationDetail — jurisdiction scoping", () => {
+  let scopedCaseCode: string;
+  // Unique disease + jurisdiction so the per-(disease, jurisdiction) dedup guard
+  // can't collide with cases other describes in this file open.
+  // Valid ENO code + a jurisdiction (Chubut/Rawson) no other describe uses, so
+  // the per-(disease, jurisdiction) dedup guard can't collide.
+  const SCOPE_DISEASE = "leptospirosis";
+  const CASE_PROVINCE = "Chubut";
+  const CASE_LOCALITY = "Rawson";
+
+  beforeAll(async () => {
+    await cleanupOpenOutbreakCasesForJurisdiction(SCOPE_DISEASE, CASE_PROVINCE, CASE_LOCALITY);
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId, CASE_PROVINCE, CASE_LOCALITY),
+    );
+    const result = await openOutbreakInvestigationAction({
+      diseaseCode: SCOPE_DISEASE,
+      reason: "Caso para test de scoping de detalle de investigacion.",
+    });
+    if (!("ok" in result)) throw new Error(`Setup failed: ${JSON.stringify(result)}`);
+    scopedCaseCode = result.publicCode;
+  });
+
+  afterAll(async () => {
+    await cleanupOpenOutbreakCasesForJurisdiction(SCOPE_DISEASE, CASE_PROVINCE, CASE_LOCALITY);
+  });
+
+  it("in-scope govt (matching province + locality) resolves the case", async () => {
+    const detail = await getOutbreakInvestigationDetail(
+      scopedCaseCode,
+      [{ province: CASE_PROVINCE, locality: CASE_LOCALITY }],
+      false,
+    );
+    expect(detail).not.toBeNull();
+    expect(detail?.publicCode).toBe(scopedCaseCode);
+  });
+
+  it("wrong-locality govt (same province) gets null — no notes leaked", async () => {
+    const detail = await getOutbreakInvestigationDetail(
+      scopedCaseCode,
+      [{ province: CASE_PROVINCE, locality: "Mar del Plata" }],
+      false,
+    );
+    expect(detail).toBeNull();
+  });
+
+  it("out-of-province govt gets null", async () => {
+    const detail = await getOutbreakInvestigationDetail(
+      scopedCaseCode,
+      [{ province: "Mendoza", locality: "Mendoza" }],
+      false,
+    );
+    expect(detail).toBeNull();
+  });
+
+  it("govt with no assignments gets null (no nationwide leak)", async () => {
+    const detail = await getOutbreakInvestigationDetail(scopedCaseCode, [], false);
+    expect(detail).toBeNull();
+  });
+
+  it("admin (isAdmin=true, empty jurisdictions) resolves the case (universal scope)", async () => {
+    const detail = await getOutbreakInvestigationDetail(scopedCaseCode, [], true);
+    expect(detail).not.toBeNull();
+    expect(detail?.publicCode).toBe(scopedCaseCode);
+  });
+});
 
 describe("escalateInvestigationAction", () => {
   it("escalates an open investigation and writes case_event + audit row atomically", async () => {

@@ -273,8 +273,7 @@ function actorParamIn(paramList: string): string | null {
 export function findImpersonationExports(relPath: string, src: string): string[] {
   if (!src.startsWith('"use server"') && !src.startsWith("'use server'")) return [];
   const offenders: string[] = [];
-  const isSafe = (name: string) =>
-    IMPERSONATION_SAFE_EXPORTS[`${relPath}#${name}`] !== undefined;
+  const isSafe = (name: string) => IMPERSONATION_SAFE_EXPORTS[`${relPath}#${name}`] !== undefined;
   const offendSuffix = (name: string, line: number) => {
     if (isSafe(name)) return;
     offenders.push(

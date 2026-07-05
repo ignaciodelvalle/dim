@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import {
   OpBreach,
@@ -19,6 +18,7 @@ import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { deriveTargetHref } from "@/lib/ui/audit-target-link";
 import { portalBase } from "@/lib/ui/portal-base";
+import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
 import { ProposeUserActions } from "./ProposeUserActions";
 import { RevokeUserActions } from "./RevokeUserActions";

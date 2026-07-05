@@ -15,7 +15,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { confirmChipMatchAsRefugioWriter as _confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
 import { confirmChipMatchAsVecinoWriter as _confirmChipMatchAsVecinoWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-vecino";
@@ -34,12 +34,14 @@ export async function confirmChipMatchAction({
   matchedPetToken,
   actorMode,
   orgToken,
+  claim,
   decision,
   notes,
 }: {
   matchedPetToken: string;
   actorMode: "refugio" | "vecino";
   orgToken?: string;
+  claim?: string;
   decision: "same" | "not_same";
   notes?: string;
 }) {
@@ -51,9 +53,21 @@ export async function confirmChipMatchAction({
     if (!orgToken) {
       return { error: "orgToken requerido para actorMode='refugio'." };
     }
-    const auth = await requireCapability("intake.create");
+    // Resolve the org from the URL token FIRST (review 24 HIGH #7 / MED #11):
+    // requireCapability("intake.create") alone resolves the session's default
+    // (last-joined) membership, so a multi-org user could confirm a match as
+    // the wrong org. Pin the capability check to the org named in the URL.
+    const orgAccess = await requireOrgAccessByToken(orgToken);
+    const auth = await requireCapability("intake.create", orgAccess.organization.id);
     if (auth.error !== null) return { error: auth.error };
-    return _confirmChipMatchAsRefugioWriter({ auth, orgToken, matchedPetToken, decision, notes });
+    return _confirmChipMatchAsRefugioWriter({
+      auth,
+      orgToken,
+      claim,
+      matchedPetToken,
+      decision,
+      notes,
+    });
   }
 
   if (actorMode === "vecino") {

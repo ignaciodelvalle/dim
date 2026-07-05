@@ -801,7 +801,28 @@ export async function listOutbreakInvestigationsForGovt(
 
 export async function getOutbreakInvestigationDetail(
   publicCode: string,
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }> = [],
+  isAdmin = false,
 ): Promise<OutbreakInvestigationDetail | null> {
+  // Cross-tenant PII guard (review 24 HIGH #1/#2): this loads the full
+  // case_events timeline (epidemiological notes). Scope it in SQL — mirroring
+  // listOutbreakInvestigationsForGovt — so an out-of-jurisdiction govt reader
+  // gets null (→ notFound) and the notes are NEVER fetched. Admin has universal
+  // scope (jurisdictions is []); a govt with no assignments sees nothing.
+  if (!isAdmin && jurisdictions.length === 0) return null;
+
+  const jurisdictionFilter =
+    !isAdmin && jurisdictions.length > 0
+      ? or(
+          ...jurisdictions.map((j) =>
+            and(
+              eq(cases.jurisdictionProvince, j.province),
+              eq(cases.jurisdictionLocality, j.locality),
+            ),
+          ),
+        )
+      : undefined;
+
   const [row] = await db
     .select({
       c: CASE_OUTBREAK_DETAIL_SELECT,
@@ -812,7 +833,13 @@ export async function getOutbreakInvestigationDetail(
     })
     .from(cases)
     .leftJoin(profiles, eq(profiles.id, cases.openedByUserId))
-    .where(and(eq(cases.publicCode, publicCode), eq(cases.caseKind, "outbreak_investigation")))
+    .where(
+      and(
+        eq(cases.publicCode, publicCode),
+        eq(cases.caseKind, "outbreak_investigation"),
+        jurisdictionFilter,
+      ),
+    )
     .limit(1);
 
   if (!row) return null;

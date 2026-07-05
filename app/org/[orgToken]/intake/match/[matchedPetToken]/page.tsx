@@ -15,19 +15,33 @@ import { notFound } from "next/navigation";
 import { OpBreach, OpCrumbs } from "@/components/ui/dashboard";
 import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { validateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
 import { petPhotoUrl } from "@/lib/infra/storage";
 
 import { MatchConfirmationCard } from "./MatchConfirmationCard";
 
 export default async function IntakeMatchPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgToken: string; matchedPetToken: string }>;
+  searchParams: Promise<{ claim?: string }>;
 }) {
   const { orgToken, matchedPetToken } = await params;
+  const { claim } = await searchParams;
 
   // Auth — must be an active member of this org.
   const { organization } = await requireOrgAccessByToken(orgToken);
+
+  // Cross-tenant PII guard (review 24 HIGH #6): the lost pet's owner name +
+  // last-seen location are exposed below. Loading by publicToken alone let any
+  // member of any org open this page for any lost-pet token. Require a valid
+  // intake-match claim — issued only by THIS org's own intake chip cross-check
+  // against THIS pet — before revealing anything. No claim → notFound (never
+  // leak whether the pet exists).
+  if (!claim || !validateIntakeMatchClaim(orgToken, matchedPetToken, claim)) {
+    notFound();
+  }
 
   // Load the matched pet.
   const [petResult] = await db
@@ -127,6 +141,7 @@ export default async function IntakeMatchPage({
         lastLocationDate={lastLocationDate}
         actorMode="refugio"
         orgToken={orgToken}
+        claim={claim}
         successRedirect={`/org/${orgToken}/intake?matched=true&token=${matchedPetToken}`}
         cancelRedirect={`/org/${orgToken}/intake`}
       />

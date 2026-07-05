@@ -154,10 +154,14 @@ export async function executeDecomisoAction(
       return { error: "Mascota no encontrada. Verificá el token público." };
     }
 
-    // Jurisdiction scope check (spec §9).
+    // Jurisdiction scope check (spec §9; review 24 HIGH #4). Require the pet's
+    // FULL (province, locality) pair to match an assignment before seizing —
+    // province-only / null-province let a govt seize an animal (and revoke its
+    // owner's custody) outside their jurisdiction. Fail-closed on any mismatch.
     if (session.profile.role === "govt") {
-      const petProvince = pet.jurisdictionProvince;
-      const inScope = !petProvince || session.jurisdictions.some((j) => j.province === petProvince);
+      const inScope = session.jurisdictions.some(
+        (j) => j.province === pet.jurisdictionProvince && j.locality === pet.jurisdictionLocality,
+      );
       if (!inScope) {
         return { error: "Esta mascota no está en tu jurisdicción asignada." };
       }
@@ -171,10 +175,16 @@ export async function executeDecomisoAction(
 
     existingPet = pet;
   } else {
-    // Unowned path jurisdiction check (C1).
+    // Unowned path jurisdiction check (C1; review 24 HIGH #5). Require the govt
+    // org's FULL (province, locality) pair to match an assignment — a
+    // province-only check let a govt seize an unowned animal outside their
+    // assigned locality. Fail-closed on any mismatch (incl. null org locality).
     if (session.profile.role === "govt") {
-      const orgProvince = govtOrg.jurisdictionProvince;
-      const inScope = session.jurisdictions.some((j) => j.province === orgProvince);
+      const inScope = session.jurisdictions.some(
+        (j) =>
+          j.province === govtOrg.jurisdictionProvince &&
+          j.locality === govtOrg.jurisdictionLocality,
+      );
       if (!inScope) {
         return {
           error: "Tu organización sanitaria no está en tu jurisdicción asignada.",

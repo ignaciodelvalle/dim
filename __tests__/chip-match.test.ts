@@ -17,10 +17,6 @@ import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
-// Writers import from the application modules, not the "use server" shim
-// (impersonation triage, review 07).
-import { confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
-import { confirmChipMatchAsVecinoWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-vecino";
 import {
   db,
   notifications,
@@ -33,8 +29,13 @@ import {
   profiles,
 } from "@/db";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { generateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
 import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
 import { generatePublicToken } from "@/lib/infra/publicToken";
+// Writers import from the application modules, not the "use server" shim
+// (impersonation triage, review 07).
+import { confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
+import { confirmChipMatchAsVecinoWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-vecino";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -369,6 +370,7 @@ describe("confirmChipMatchAction", () => {
         organization: { id: orgId, displayName: "Chip Match Refugio", verified: true },
       },
       orgToken,
+      claim: generateIntakeMatchClaim(orgToken, matchedToken),
       matchedPetToken: matchedToken,
       decision: "same",
     });
@@ -490,6 +492,7 @@ describe("confirmChipMatchAction", () => {
         organization: { id: orgId, displayName: "Chip Match Refugio", verified: true },
       },
       orgToken,
+      claim: generateIntakeMatchClaim(orgToken, matchedToken),
       matchedPetToken: matchedToken,
       decision: "not_same",
     });
@@ -523,6 +526,7 @@ describe("confirmChipMatchAction", () => {
         organization: { id: orgId, displayName: "Chip Match Refugio", verified: true },
       },
       orgToken,
+      claim: generateIntakeMatchClaim(orgToken, matchedToken),
       matchedPetToken: matchedToken,
       decision: "same",
     });
@@ -564,12 +568,87 @@ describe("confirmChipMatchAction", () => {
         organization: { id: orgId, displayName: "Chip Match Refugio", verified: true },
       },
       orgToken,
+      claim: generateIntakeMatchClaim(orgToken, "DIM-DOES-NOT-EXIST"),
       matchedPetToken: "DIM-DOES-NOT-EXIST",
       decision: "not_same",
     });
     expect("error" in result).toBe(true);
     if (!("error" in result)) throw new Error("Expected error");
     expect(result.error).toMatch(/no encontrada/i);
+  });
+
+  // Review 24 HIGH #7 — cross-tenant write guard. Without a valid intake-match
+  // claim (or with one minted for a different org / pet), the refugio writer
+  // must refuse to mutate the lost pet — no shelter_custody, no owner notify.
+  it("refugio decision='same' with NO claim → error, no custody created", async () => {
+    const chip = `CHIP-NOCLAIM-${Date.now()}`;
+    const { petId, publicToken: matchedToken } = await insertPetWithChip({
+      microchipId: chip,
+      status: "lost",
+      ownerUserId: ownerUserId,
+      tokenSuffix: "NOCLAIM",
+    });
+
+    const result = await confirmChipMatchAsRefugioWriter({
+      auth: {
+        user: { id: refugioMemberUserId },
+        organization: { id: orgId, displayName: "Chip Match Refugio", verified: true },
+      },
+      orgToken,
+      // claim intentionally omitted
+      matchedPetToken: matchedToken,
+      decision: "same",
+    });
+
+    expect("error" in result).toBe(true);
+
+    const custodyRows = await db
+      .select()
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+        ),
+      );
+    expect(custodyRows.length).toBe(0);
+  });
+
+  it("refugio decision='same' with a claim for a DIFFERENT org → error, no custody", async () => {
+    const chip = `CHIP-XORG-${Date.now()}`;
+    const { petId, publicToken: matchedToken } = await insertPetWithChip({
+      microchipId: chip,
+      status: "lost",
+      ownerUserId: ownerUserId,
+      tokenSuffix: "XORG",
+    });
+
+    const result = await confirmChipMatchAsRefugioWriter({
+      auth: {
+        user: { id: refugioMemberUserId },
+        organization: { id: orgId, displayName: "Chip Match Refugio", verified: true },
+      },
+      orgToken,
+      // Claim minted for a different org's token — must not authorize this org.
+      claim: generateIntakeMatchClaim("DIM-OTHER-ORG1", matchedToken),
+      matchedPetToken: matchedToken,
+      decision: "same",
+    });
+
+    expect("error" in result).toBe(true);
+
+    const custodyRows = await db
+      .select()
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+        ),
+      );
+    expect(custodyRows.length).toBe(0);
   });
 });
 

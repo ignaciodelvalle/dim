@@ -13,6 +13,7 @@
 
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { validateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import type { ConfirmChipMatchResult } from "./types";
@@ -20,6 +21,7 @@ import type { ConfirmChipMatchResult } from "./types";
 export async function confirmChipMatchAsRefugioWriter({
   auth,
   orgToken,
+  claim,
   matchedPetToken,
   decision,
   notes,
@@ -29,12 +31,23 @@ export async function confirmChipMatchAsRefugioWriter({
     organization: { id: string; displayName: string; verified: boolean };
   };
   orgToken: string;
+  claim?: string;
   matchedPetToken: string;
   decision: "same" | "not_same";
   notes?: string;
 }): Promise<ConfirmChipMatchResult> {
   const { user, organization } = auth;
   const now = new Date();
+
+  // Cross-tenant write guard (review 24 HIGH #7): both decisions mutate the
+  // matched (lost) pet — 'same' creates shelter_custody + notifies the owner,
+  // 'not_same' writes a note event. Confirming from the token alone let any
+  // org member act on any lost-pet token cross-org. Require the same HMAC
+  // intake-match claim the page gated on: it binds THIS org (by URL token) to
+  // THIS pet and is minted only by the org's own intake chip cross-check.
+  if (!claim || !validateIntakeMatchClaim(orgToken, matchedPetToken, claim)) {
+    return { error: "Coincidencia de intake no válida o expirada. Reintentá el ingreso." };
+  }
 
   // Look up matched pet and its active owner.
   const [petRow] = await db
