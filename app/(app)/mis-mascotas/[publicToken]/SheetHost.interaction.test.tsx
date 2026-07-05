@@ -23,7 +23,7 @@
 
 import "@testing-library/jest-dom/vitest";
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -200,6 +200,10 @@ describe("PetActionRow + SheetMounter — client-driven sheet open/close (router
   it("direct load with ?sheet= already in the URL renders the sheet open without any click", () => {
     window.history.replaceState(null, "", "/mis-mascotas/abc123?sheet=chapita");
     render(<Harness />);
-    expect(screen.getByText("Chapa física")).toBeInTheDocument();
+    // Scope to the opened sheet container: "Chapa física" also labels the
+    // action-row trigger, so a bare getByText is ambiguous once the sheet mounts.
+    const sheet = document.querySelector('[data-sheet-id="chapita"]');
+    expect(sheet).toBeInTheDocument();
+    expect(within(sheet as HTMLElement).getAllByText("Chapa física").length).toBeGreaterThan(0);
   });
 });
