@@ -6,7 +6,7 @@
 // for the receiver combobox, then renders the client DecomisoForm component.
 // Auth is enforced by requireDecomisoPrincipal (govt | admin).
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import Link from "next/link";
 
 import { db, organizations } from "@/db";
@@ -21,26 +21,46 @@ interface PageProps {
 export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
   const { welfareReportId, pet } = await searchParams;
 
-  await requireDecomisoPrincipal();
+  const { profile, jurisdictions } = await requireDecomisoPrincipal();
 
-  // Load verified shelters + rescue_networks for the receiver combobox (DC6).
-  const receiverOrgs = await db
-    .select({
-      id: organizations.id,
-      displayName: organizations.displayName,
-      orgType: organizations.orgType,
-      jurisdictionProvince: organizations.jurisdictionProvince,
-      jurisdictionLocality: organizations.jurisdictionLocality,
-    })
-    .from(organizations)
-    .where(
-      and(
-        inArray(organizations.orgType, ["shelter", "rescue_network"]),
-        eq(organizations.verified, true),
-        eq(organizations.status, "active"),
-      ),
-    )
-    .orderBy(organizations.displayName);
+  // Receiver combobox scope (DC6): a govt agent only sees verified shelters /
+  // rescue_networks inside their assigned (province, locality) jurisdiction
+  // pairs — never the nationwide roster. Admin has universal scope (empty
+  // jurisdictions ⇒ no jurisdiction predicate). A govt with zero active
+  // assignments sees no orgs (cannot leak the nationwide list).
+  const jurisdictionPredicate =
+    profile.role === "govt"
+      ? or(
+          ...jurisdictions.map((j) =>
+            and(
+              eq(organizations.jurisdictionProvince, j.province),
+              eq(organizations.jurisdictionLocality, j.locality),
+            ),
+          ),
+        )
+      : undefined;
+
+  const receiverOrgs =
+    profile.role === "govt" && jurisdictions.length === 0
+      ? []
+      : await db
+          .select({
+            id: organizations.id,
+            displayName: organizations.displayName,
+            orgType: organizations.orgType,
+            jurisdictionProvince: organizations.jurisdictionProvince,
+            jurisdictionLocality: organizations.jurisdictionLocality,
+          })
+          .from(organizations)
+          .where(
+            and(
+              inArray(organizations.orgType, ["shelter", "rescue_network"]),
+              eq(organizations.verified, true),
+              eq(organizations.status, "active"),
+              ...(jurisdictionPredicate ? [jurisdictionPredicate] : []),
+            ),
+          )
+          .orderBy(organizations.displayName);
 
   return (
     <div className="max-w-2xl space-y-6">
