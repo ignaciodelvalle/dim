@@ -153,6 +153,22 @@ function monthsBack(n: number): Date {
   return d;
 }
 
+/**
+ * Guarantee a libreta event date is in the PAST. The day-of-month stagger
+ * (`setUTCDate(10 + m)`) can push an event past `now` when the series month is
+ * the current month and today is earlier than the staggered day — e.g. on the
+ * 6th, day 10 of this month is 4 days in the FUTURE, which the profile then
+ * labels "hoy". These are historical asientos, so shift back whole months until
+ * the date is strictly before the anchor (UX gate M3 / §7 fechas futuras).
+ */
+function clampToPast(d: Date): Date {
+  const out = new Date(d);
+  while (out.getTime() >= ANCHOR_DATE.getTime()) {
+    out.setUTCMonth(out.getUTCMonth() - 1);
+  }
+  return out;
+}
+
 type LogTag = "STEP" | "OK" | "SKIP" | "WARN" | "INFO" | "DONE" | "FAIL";
 function log(tag: LogTag, msg: string): void {
   // eslint-disable-next-line no-console
@@ -461,6 +477,10 @@ async function seedFocalSeries(ownerUserId: string): Promise<{
     // Stagger day slightly per month to avoid same-day dedup collision.
     occurredAt.setUTCDate(10 + m);
     occurredAt.setUTCHours(12 + m, 0, 0, 0);
+    // Never emit a future-dated asiento (UX gate M3): if the stagger landed the
+    // event on/after today, shift it back whole months until it is in the past.
+    const occurredPast = clampToPast(occurredAt);
+    occurredAt.setTime(occurredPast.getTime());
 
     const sRes = await ensurePetEvent(
       petId,
@@ -477,8 +497,13 @@ async function seedFocalSeries(ownerUserId: string): Promise<{
 
     // Use a different pet for vaccination (spread coverage).
     const vacPetId = petIds[(m + 3) % petIds.length];
-    const vaccOccurredAt = new Date(occurredAt);
-    vaccOccurredAt.setUTCDate(vaccOccurredAt.getUTCDate() + 1);
+    const vaccOccurredAt = clampToPast(
+      (() => {
+        const v = new Date(occurredAt);
+        v.setUTCDate(v.getUTCDate() + 1);
+        return v;
+      })(),
+    );
 
     const vRes = await ensurePetEvent(
       vacPetId,
@@ -807,7 +832,11 @@ async function backfillMicrochipEvents(adminUserId: string): Promise<void> {
        author_role, author_verified, payload)
     SELECT pi.pet_id,
            'microchip_implanted',
-           (pi.recorded_at::timestamptz + interval '12 hours'),
+           -- Never emit a future-dated implant event (UX gate M3): the +12h
+           -- freshness nudge can cross the current time for a chip recorded
+           -- today, which the libreta then renders as "hoy" on a future day.
+           -- Clamp to now().
+           LEAST(pi.recorded_at::timestamptz + interval '12 hours', now()),
            ${adminUserId}::uuid,
            'owner',
            false,
