@@ -13,6 +13,7 @@ import {
   type DashboardJurisdiction,
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
+  RABIES_VACCINATION_RATE_LABEL_ES,
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
   fetchCasesPerCapita,
@@ -212,17 +213,19 @@ export default async function GobAnalyticsPage({
           }}
         />
         <OpKpi
-          label="Cobertura antirrábica (mascotas)"
+          label={RABIES_VACCINATION_RATE_LABEL_ES}
           value={`${metrics.rabiesVaccinationRate}%`}
-          tone={toneForTarget(metrics.rabiesVaccinationRate, TARGETS.RABIES_COVERAGE_PCT)}
+          tone="blue"
           bar={metrics.rabiesVaccinationRate}
-          sub={`meta ${TARGETS.RABIES_COVERAGE_PCT}% · pets con ≥1 vacuna antirrábica`}
+          sub="histórico · toda especie con ≥1 dosis registrada"
           href="/gob/vigilancia"
           info={{
-            definition: `Porcentaje de mascotas activas con al menos una vacunación antirrábica registrada. Meta de salud pública: ${TARGETS.RABIES_COVERAGE_PCT}%.`,
+            definition:
+              "Vista histórica: porcentaje de mascotas activas de CUALQUIER especie con al menos una vacunación antirrábica registrada alguna vez. NO es la métrica de cumplimiento — esa es la cobertura antirrábica del Panel/Panorama (perros con dosis en los últimos 12 meses, Ley 22.953). Por eso este número es más alto.",
             formula:
-              "COUNT(pets con vaccination_administered ~* 'antirr[áa]bica|rabies') / COUNT(pets activos) × 100",
-            caveat: "Solo vacunas registradas en MiMAR. La cobertura real puede ser mayor.",
+              "COUNT(pets activos, toda especie, con ≥1 vaccination_administered ~ 'rabi' alguna vez) / COUNT(pets activos) × 100",
+            caveat:
+              "Sin ventana temporal ni scope de perros: cuenta cualquier dosis histórica. Para el cumplimiento legal usá la tile del Panel.",
           }}
         />
         <OpKpi
