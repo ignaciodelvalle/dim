@@ -30,14 +30,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       () => expireFosterProposals(),
       (s) => ({
         itemsProcessed: s.expired,
+        // Per-row expiry failures must NOT report success (review 23 fleet
+        // extension): flip the run to failed so it alerts and Vercel retries.
+        failed: s.errors > 0,
         details: { candidates: s.candidates, expired: s.expired, errors: s.errors },
       }),
     );
-    return NextResponse.json({
-      ok: true,
-      ...stats,
-      durationMs: Date.now() - start,
-    });
+    const failed = stats.errors > 0;
+    return NextResponse.json(
+      {
+        ok: !failed,
+        ...stats,
+        durationMs: Date.now() - start,
+      },
+      { status: failed ? 500 : 200 },
+    );
   } catch (err) {
     console.error("[cron/expire-foster-proposals] failed:", err);
     return NextResponse.json(

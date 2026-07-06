@@ -3,8 +3,8 @@
 // Branches:
 //   1. Auth failure → 401
 //   2. Auth success + purge succeeds → 200 { ok: true }
-//   3. Auth success + purge throws → 200 { ok: false } (error is captured in cron_runs,
-//      the route does NOT re-throw; it returns ok: false with runId)
+//   3. Auth success + purge throws → 500 { ok: false } (error captured in cron_runs;
+//      the route returns HTTP 500 so Vercel flags/retries — review 23 fleet extension)
 //
 // Both @/db (cronRuns, db) and @/lib/infra/scan-retention (purgeExpiredScanEvents) are mocked.
 
@@ -102,13 +102,15 @@ describe("GET /api/cron/purge-scan-events", () => {
     expect(body.scanEventsDeleted).toBe(7);
   });
 
-  it("returns 200 with ok:false when purge throws (route captures error, does not 500)", async () => {
+  it("returns 500 with ok:false when purge throws (Vercel must flag + retry)", async () => {
     mockDeps(() => Promise.reject(new Error("purge failed")));
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await callRoute({ "x-cron-secret": "test-secret" });
-    // The route catches the error and returns ok:false (not a 500) so cron dashboards
-    // can read the runId and correlate the failure in cron_runs.
-    expect(res.status).toBe(200);
+    // The route captures the error in cron_runs AND returns HTTP 500 so Vercel's
+    // cron dashboard flags the run as failed and retries (a cron must not report
+    // success on failure — review 23 fleet extension). runId is still returned
+    // so the failure can be correlated in cron_runs.
+    expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.ok).toBe(false);
     expect(body.runId).toBe(FAKE_RUN_ID);

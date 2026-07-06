@@ -50,6 +50,7 @@ import { and, asc, desc, eq, gt, isNotNull } from "drizzle-orm";
 
 import { cronRuns, db, pets } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { sendCronAlert } from "@/lib/infra/cron-alert";
 import { driftedColumns, hasDrift, rederivePetCache } from "@/lib/infra/rederive-pet-cache";
 
 export const dynamic = "force-dynamic";
@@ -222,6 +223,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     console.error("[cron/reconcile-pet-status] fatal error:", err);
   }
 
+  // Per-pet rederivation failures (not just the fatal outer catch) mean the run
+  // was not fully healthy: flip it to failed so the route returns HTTP 500,
+  // Vercel retries, and a human is paged — a cron must not report success on
+  // failure (review 23 fleet extension). Drift detection itself is idempotent,
+  // so a retry is safe.
+  if (cronStatus === "ok" && errors.length > 0) {
+    cronStatus = "failed";
+  }
+
   const durationMs = Date.now() - start;
 
   // ---------------------------------------------------------------------------
@@ -244,11 +254,23 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     })
     .where(eq(cronRuns.id, run.id));
 
-  return NextResponse.json({
-    ok: cronStatus === "ok",
-    scanned,
-    divergent,
-    sample,
-    durationMs,
-  });
+  if (cronStatus === "failed") {
+    await sendCronAlert({
+      job: CRON_NAME,
+      severity: "critical",
+      error: `${errors.length} error(s) during reconcile — see cron_runs.details`,
+      details: { scanned, divergent, errors: errors.slice(0, 20) },
+    });
+  }
+
+  return NextResponse.json(
+    {
+      ok: cronStatus === "ok",
+      scanned,
+      divergent,
+      sample,
+      durationMs,
+    },
+    { status: cronStatus === "ok" ? 200 : 500 },
+  );
 }

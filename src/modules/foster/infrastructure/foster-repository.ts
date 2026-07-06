@@ -3,7 +3,7 @@
 // db.transaction(), mirroring the openCase(input, tx) pattern.
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 
 import {
   db,
@@ -49,6 +49,12 @@ export type ExpireStats = {
   expired: number;
   errors: number;
 };
+
+// Keyset/drain bounds for expirePendingProposals (review 23 fleet extension):
+// bound each SELECT and drain the backlog within the run instead of loading ALL
+// expired pending proposals at once.
+const EXPIRE_PROPOSALS_BATCH_SIZE = 500;
+const EXPIRE_PROPOSALS_MAX_DURATION_MS = 45_000;
 
 // ---------------------------------------------------------------------------
 // Helper — org foster coordinator user ids
@@ -529,100 +535,135 @@ export const FosterRepository = {
    * Parity: recordedByUserId = null (system), authorRole = 'system',
    * auto_expired close reason, notifications emitted but NOT awaited here
    * (caller can choose to flush or ignore them).
+   *
+   * Bounded (review 23 fleet extension): previously this loaded EVERY expired
+   * pending proposal into memory in one unbounded SELECT. It now keyset-paginates
+   * over id in batches of EXPIRE_PROPOSALS_BATCH_SIZE, draining until the scope is
+   * empty or the wall-clock budget elapses. The cursor advances past every row
+   * fetched (expired OR errored) so an errored row is not re-fetched within the
+   * same run — expired rows also drop out of the `pending` scope, so a backlog
+   * drains across successive runs.
    */
-  async expirePendingProposals(now: Date): Promise<ExpireStats> {
-    const candidates = await db
-      .select()
-      .from(fosterProposals)
-      .where(and(eq(fosterProposals.status, "pending"), lt(fosterProposals.expiresAt, now)));
+  async expirePendingProposals(
+    now: Date,
+    opts?: { batchSize?: number; maxDurationMs?: number },
+  ): Promise<ExpireStats> {
+    const batchSize = opts?.batchSize ?? EXPIRE_PROPOSALS_BATCH_SIZE;
+    const maxDurationMs = opts?.maxDurationMs ?? EXPIRE_PROPOSALS_MAX_DURATION_MS;
+    const startedAt = Date.now();
 
+    let candidateCount = 0;
     let expired = 0;
     let errors = 0;
+    let cursor: string | null = null;
 
-    for (const p of candidates) {
-      try {
-        await db.transaction(async (tx) => {
-          // Status recheck — defense against race with accept/reject/cancel.
-          const [fresh] = await tx
-            .select({ status: fosterProposals.status })
-            .from(fosterProposals)
-            .where(eq(fosterProposals.id, p.id))
-            .limit(1);
-          if (!fresh || fresh.status !== "pending") return;
+    for (;;) {
+      if (Date.now() - startedAt >= maxDurationMs) break;
 
-          await tx
-            .update(fosterProposals)
-            .set({ status: "expired", updatedAt: now })
-            .where(eq(fosterProposals.id, p.id));
+      const candidates = await db
+        .select()
+        .from(fosterProposals)
+        .where(
+          and(
+            eq(fosterProposals.status, "pending"),
+            lt(fosterProposals.expiresAt, now),
+            ...(cursor ? [gt(fosterProposals.id, cursor)] : []),
+          ),
+        )
+        .orderBy(asc(fosterProposals.id))
+        .limit(batchSize);
 
-          // Resolve case_id (new rows have it directly; pre-migration rows
-          // fall back to open-case query).
-          const proposalCaseId =
-            p.caseId ??
-            (await findOpenCaseForPetAndKind(p.petId, "foster_proposal", tx))?.id ??
-            null;
+      if (candidates.length === 0) break;
 
-          const payload = validateEventPayload("foster_proposal_resolved", {
-            proposal_public_token: p.publicToken,
-            outcome: "expired",
-          });
-          await tx.insert(petEvents).values({
-            petId: p.petId,
-            eventType: "foster_proposal_resolved",
-            occurredAt: now,
-            recordedAt: now,
-            recordedByUserId: null,
-            authorRole: "system",
-            authorOrganizationId: p.organizationId,
-            authorVerified: false,
-            payload,
-            caseId: proposalCaseId,
-          });
+      for (const p of candidates) {
+        candidateCount += 1;
+        cursor = p.id;
+        try {
+          await db.transaction(async (tx) => {
+            // Status recheck — defense against race with accept/reject/cancel.
+            const [fresh] = await tx
+              .select({ status: fosterProposals.status })
+              .from(fosterProposals)
+              .where(eq(fosterProposals.id, p.id))
+              .limit(1);
+            if (!fresh || fresh.status !== "pending") return;
 
-          if (proposalCaseId) {
-            await closeCase({ caseId: proposalCaseId, reason: "auto_expired" }, tx);
-          }
+            await tx
+              .update(fosterProposals)
+              .set({ status: "expired", updatedAt: now })
+              .where(eq(fosterProposals.id, p.id));
 
-          // Notifications (best-effort — emitted inside tx, flushed by caller).
-          await tx.insert(notifications).values({
-            userId: p.volunteerUserId,
-            notificationType: "foster_proposal_expired",
-            severity: "info",
-            title: "Una propuesta de tránsito expiró",
-            body: "La propuesta que recibiste expiró sin respuesta. Si te interesa, pedile al refugio que vuelva a proponer.",
-            relatedPetId: p.petId,
-            ctaLabel: "Ver propuestas",
-            ctaUrl: "/cuenta/transitos/propuestas",
-          });
+            // Resolve case_id (new rows have it directly; pre-migration rows
+            // fall back to open-case query).
+            const proposalCaseId =
+              p.caseId ??
+              (await findOpenCaseForPetAndKind(p.petId, "foster_proposal", tx))?.id ??
+              null;
 
-          // Resolve the org token so coordinators get a working CTA into the pool.
-          const [orgRow] = await tx
-            .select({ publicToken: organizations.publicToken })
-            .from(organizations)
-            .where(eq(organizations.id, p.organizationId))
-            .limit(1);
-          const orgCoordinators = await getOrgFosterCoordinatorUserIds(p.organizationId, tx);
-          for (const uid of orgCoordinators) {
+            const payload = validateEventPayload("foster_proposal_resolved", {
+              proposal_public_token: p.publicToken,
+              outcome: "expired",
+            });
+            await tx.insert(petEvents).values({
+              petId: p.petId,
+              eventType: "foster_proposal_resolved",
+              occurredAt: now,
+              recordedAt: now,
+              recordedByUserId: null,
+              authorRole: "system",
+              authorOrganizationId: p.organizationId,
+              authorVerified: false,
+              payload,
+              caseId: proposalCaseId,
+            });
+
+            if (proposalCaseId) {
+              await closeCase({ caseId: proposalCaseId, reason: "auto_expired" }, tx);
+            }
+
+            // Notifications (best-effort — emitted inside tx, flushed by caller).
             await tx.insert(notifications).values({
-              userId: uid,
+              userId: p.volunteerUserId,
               notificationType: "foster_proposal_expired",
               severity: "info",
-              title: "Tu propuesta de tránsito expiró",
-              body: "El voluntario no respondió en 7 días. Probá con otro candidato del pool.",
+              title: "Una propuesta de tránsito expiró",
+              body: "La propuesta que recibiste expiró sin respuesta. Si te interesa, pedile al refugio que vuelva a proponer.",
               relatedPetId: p.petId,
               ctaLabel: "Ver propuestas",
-              ctaUrl: orgRow ? `/org/${orgRow.publicToken}/voluntarios/propuestas` : "/org",
+              ctaUrl: "/cuenta/transitos/propuestas",
             });
-          }
-        });
-        expired += 1;
-      } catch (err) {
-        console.error("[FosterRepository.expirePendingProposals] failed for", p.id, err);
-        errors += 1;
+
+            // Resolve the org token so coordinators get a working CTA into the pool.
+            const [orgRow] = await tx
+              .select({ publicToken: organizations.publicToken })
+              .from(organizations)
+              .where(eq(organizations.id, p.organizationId))
+              .limit(1);
+            const orgCoordinators = await getOrgFosterCoordinatorUserIds(p.organizationId, tx);
+            for (const uid of orgCoordinators) {
+              await tx.insert(notifications).values({
+                userId: uid,
+                notificationType: "foster_proposal_expired",
+                severity: "info",
+                title: "Tu propuesta de tránsito expiró",
+                body: "El voluntario no respondió en 7 días. Probá con otro candidato del pool.",
+                relatedPetId: p.petId,
+                ctaLabel: "Ver propuestas",
+                ctaUrl: orgRow ? `/org/${orgRow.publicToken}/voluntarios/propuestas` : "/org",
+              });
+            }
+          });
+          expired += 1;
+        } catch (err) {
+          console.error("[FosterRepository.expirePendingProposals] failed for", p.id, err);
+          errors += 1;
+        }
       }
+
+      if (candidates.length < batchSize) break; // last page
     }
 
-    return { candidates: candidates.length, expired, errors };
+    return { candidates: candidateCount, expired, errors };
   },
 
   // -------------------------------------------------------------------------

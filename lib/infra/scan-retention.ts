@@ -44,26 +44,27 @@ import { db } from "@/db";
 /** TTL for credential_scanned / scanner-role events (owner-approved, Item 28). */
 export const SCAN_RETENTION_DAYS = 90;
 
-/** Maximum rows deleted per purge call. Matches lib/data-lifecycle.ts. */
+/** Maximum rows deleted per DELETE batch. Matches lib/data-lifecycle.ts. */
 const PURGE_BATCH_SIZE = 500;
+
+/** Wall-clock budget for the drain loop (ms). Keeps the run inside Vercel's
+ *  60 s function budget while still draining a large backlog in one pass. */
+const PURGE_MAX_DURATION_MS = 45_000;
 
 // ---------------------------------------------------------------------------
 // Purge helper
 // ---------------------------------------------------------------------------
 
 /**
- * Deletes credential_scanned events authored by the 'scanner' role that are
- * older than SCAN_RETENTION_DAYS.
+ * Deletes a single bounded batch of credential_scanned events authored by the
+ * 'scanner' role that are older than SCAN_RETENTION_DAYS.
  *
  * Runs inside a transaction with app.allow_scan_purge = 'true' so the
  * append-only trigger (migration 0104 exception path) permits the DELETE.
  *
- * Returns the count of deleted rows.
+ * Returns the count of deleted rows (≤ PURGE_BATCH_SIZE).
  */
-export async function purgeExpiredScanEvents(opts?: { now?: Date }): Promise<number> {
-  const now = opts?.now ?? new Date();
-  const cutoff = new Date(now.getTime() - SCAN_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
-
+async function purgeOneScanBatch(cutoff: string): Promise<number> {
   // The append-only trigger refuses DELETE unless app.allow_scan_purge = 'true'
   // is set within the same transaction.  set_config(key, value, is_local=true)
   // scopes the GUC to the transaction duration — it resets automatically on
@@ -73,7 +74,7 @@ export async function purgeExpiredScanEvents(opts?: { now?: Date }): Promise<num
   // postgres.js sends tagged literals as prepared statements, which cannot
   // contain SET LOCAL.  select set_config(key, value, true) is the idiomatic
   // workaround (same pattern used in scripts/seed-perf.ts).
-  const result = await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.allow_scan_purge', 'true', true)`);
 
     // Batched subquery DELETE: postgres.js does not support DELETE ... LIMIT
@@ -95,6 +96,35 @@ export async function purgeExpiredScanEvents(opts?: { now?: Date }): Promise<num
 
     return deleted.length;
   });
+}
 
-  return result;
+/**
+ * Deletes credential_scanned events authored by the 'scanner' role that are
+ * older than SCAN_RETENTION_DAYS.
+ *
+ * Drains the full backlog in one run (review 23 fleet extension): previously a
+ * single 500-row batch per day meant a backlog above 500 could never catch up,
+ * leaving location fields on scanner rows past their TTL. Each batch is its own
+ * transaction (bounded lock duration); the loop stops when a batch deletes fewer
+ * than PURGE_BATCH_SIZE (drained) or the wall-clock budget elapses.
+ *
+ * Returns the total count of deleted rows across all batches.
+ */
+export async function purgeExpiredScanEvents(opts?: {
+  now?: Date;
+  maxDurationMs?: number;
+}): Promise<number> {
+  const now = opts?.now ?? new Date();
+  const maxDurationMs = opts?.maxDurationMs ?? PURGE_MAX_DURATION_MS;
+  const cutoff = new Date(now.getTime() - SCAN_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const start = Date.now();
+
+  let total = 0;
+  for (;;) {
+    const deleted = await purgeOneScanBatch(cutoff);
+    total += deleted;
+    if (deleted < PURGE_BATCH_SIZE || Date.now() - start >= maxDurationMs) break;
+  }
+
+  return total;
 }

@@ -28,14 +28,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       () => expirePetTransfersOnce(),
       (s) => ({
         itemsProcessed: s.expired,
-        details: { expired: s.expired },
+        // Per-row failures must NOT report success (review 23 fleet extension):
+        // flip the run to failed so it alerts and Vercel retries.
+        failed: s.errors > 0,
+        details: { expired: s.expired, errors: s.errors },
       }),
     );
-    return NextResponse.json({
-      ok: true,
-      ...stats,
-      durationMs: Date.now() - start,
-    });
+    const failed = stats.errors > 0;
+    return NextResponse.json(
+      {
+        ok: !failed,
+        ...stats,
+        durationMs: Date.now() - start,
+      },
+      { status: failed ? 500 : 200 },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });

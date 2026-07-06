@@ -26,10 +26,22 @@ export type CloseRabiesObservationsStats = {
   flaggedForReview: number;
   skippedNotYetDue: number;
   errors: { petId: string; reason: string }[];
+  /**
+   * Keyset resume point (review 23 fleet extension): the last pet id on this
+   * page when a FULL page was returned (more may remain), else null when the
+   * in_progress set was drained. The cron route persists this in
+   * cron_runs.details and passes it back as `afterId` next run, so a registry
+   * with more concurrent observations than one page is swept fairly across runs.
+   */
+  nextCursor: string | null;
 };
 
 export type CloseEligibleObservationsOptions = {
   now?: Date;
+  /** Keyset cursor: process in_progress pets whose id sorts after this value. */
+  afterId?: string | null;
+  /** Max pets to scan this run. Defaults to the repo's page size (500). */
+  limit?: number;
 };
 
 type Deps = {
@@ -69,10 +81,20 @@ export async function closeEligibleObservations(
     flaggedForReview: 0,
     skippedNotYetDue: 0,
     errors: [],
+    nextCursor: null,
   };
 
-  const eligible = await repo.findPetsInProgress();
+  const PAGE_LIMIT = options.limit ?? 500;
+  const eligible = await repo.findPetsInProgress({
+    afterId: options.afterId ?? null,
+    limit: PAGE_LIMIT,
+  });
   stats.scanned = eligible.length;
+  // A full page means more in_progress pets may remain past this cursor — the
+  // route resumes AFTER the last id next run. A partial page means drained →
+  // null wraps the sweep back to the top.
+  stats.nextCursor =
+    eligible.length >= PAGE_LIMIT ? (eligible[eligible.length - 1]?.id ?? null) : null;
 
   for (const pet of eligible) {
     try {

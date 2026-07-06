@@ -27,6 +27,8 @@ describe("GET /api/cron/close-rabies-observations", () => {
     // pure route test doesn't need a cron_runs-capable db mock.
     vi.doMock("@/lib/infra/case-cron", () => ({
       withCronRun: (_name: string, fn: () => Promise<unknown>) => fn(),
+      // Route reads the keyset resume cursor before the sweep (fleet extension).
+      readLastRunDetail: vi.fn().mockResolvedValue(null),
     }));
     const { GET } = await import("@/app/api/cron/close-rabies-observations/route");
     const req = new Request("http://test.local/api/cron/close-rabies-observations", { headers });

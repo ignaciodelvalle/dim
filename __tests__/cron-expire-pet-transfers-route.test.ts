@@ -76,6 +76,20 @@ describe("GET /api/cron/expire-pet-transfers", () => {
     expect(body.ok).toBe(true);
   });
 
+  it("returns 500 when the run had per-row errors (partial failure must not report success)", async () => {
+    // The action resolves normally but reports errors > 0 (some transfers failed
+    // to expire). The route must surface HTTP 500 so Vercel retries — a cron
+    // must not report success on failure (review 23 fleet extension).
+    const expireMock = vi.fn().mockResolvedValue({ expired: 2, errors: 1 });
+    vi.doMock("@/src/modules/transfers/actions", () => ({
+      expirePetTransfersAction: expireMock,
+    }));
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toMatchObject({ ok: false, expired: 2, errors: 1 });
+  });
+
   it("returns 500 with the error message when the helper throws", async () => {
     vi.doMock("@/src/modules/transfers/actions", () => ({
       expirePetTransfersAction: vi.fn().mockRejectedValue(new Error("transfer db error")),

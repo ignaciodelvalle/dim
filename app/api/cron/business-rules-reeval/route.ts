@@ -96,6 +96,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         ? resumeIndexRaw
         : 0;
 
+    // Pet-level resume cursor (review 23 fleet residual): when a run's deadline
+    // interrupted a scope mid-sweep, the previous run persisted the last pet id
+    // it processed. We resume that SAME scope AFTER that pet instead of
+    // re-scanning it from pet 0.
+    const resumePetIdRaw =
+      lastRun?.details && typeof lastRun.details === "object"
+        ? (lastRun.details as Record<string, unknown>).nextPetId
+        : undefined;
+    const resumePetId = typeof resumePetIdRaw === "string" ? resumePetIdRaw : null;
+
     const totals = await withCronRun(
       CRON_NAME,
       async () => {
@@ -136,6 +146,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         let processedCount = 0;
         let earlyStop = false;
         let index = resumeIndex < scopes.length ? resumeIndex : 0;
+        // Only the FIRST scope processed this run resumes mid-sweep (from the
+        // persisted pet cursor); every subsequent scope starts from its top.
+        let scopeAfterPetId: string | null = resumeIndex < scopes.length ? resumePetId : null;
+        let nextPetId: string | null = null;
 
         while (processedCount < scopes.length) {
           if (processedCount >= MAX_SCOPES_PER_RUN || Date.now() - start >= MAX_DURATION_MS) {
@@ -146,22 +160,35 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           const scope: JurisdictionScope = scopes[index];
           // Pass a wall-clock deadline so a single large scope's in-scope pet
           // sweep is keyset-batched AND time-bounded (review 23 item 10) — it
-          // can't blow the 60s function budget. An interrupted scope is
-          // re-covered idempotently by a later run (scope-level resume cursor).
+          // can't blow the 60s function budget.
           const result = await reEvaluatePppClassificationChange(scope, {
             deadlineMs: start + MAX_DURATION_MS,
+            afterPetId: scopeAfterPetId,
           });
           totalScanned += result.scanned;
           totalFlippedToPpp += result.flippedToPpp;
           totalFlippedToNonPpp += result.flippedToNonPpp;
           totalNotified += result.notified;
 
+          if (result.nextPetId) {
+            // The deadline interrupted this scope mid-sweep. Resume the SAME
+            // scope from this pet cursor next run instead of re-scanning it from
+            // pet 0 (review 23 fleet residual). Do NOT advance the scope index
+            // or processedCount — this scope is not yet fully covered.
+            earlyStop = true;
+            nextPetId = result.nextPetId;
+            break;
+          }
+
+          // Scope fully covered — consume its pet cursor and move to the next.
+          scopeAfterPetId = null;
           processedCount += 1;
           index = (index + 1) % scopes.length;
         }
 
-        // earlyStop → resume at `index` next run. Otherwise every scope in
-        // this cycle was covered → wrap back to the top for the next cycle.
+        // earlyStop mid-scope → resume {index, nextPetId}. earlyStop between
+        // scopes → resume {index, null}. Otherwise every scope in this cycle
+        // was covered → wrap back to the top for the next cycle.
         const nextScopeIndex = earlyStop ? index : 0;
 
         return {
@@ -169,6 +196,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           scopes: processedCount,
           earlyStop,
           nextScopeIndex,
+          nextPetId,
           scanned: totalScanned,
           flippedToPpp: totalFlippedToPpp,
           flippedToNonPpp: totalFlippedToNonPpp,
@@ -182,6 +210,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           scopesProcessed: r.scopes,
           earlyStop: r.earlyStop,
           nextScopeIndex: r.nextScopeIndex,
+          nextPetId: r.nextPetId,
           flippedToPpp: r.flippedToPpp,
           flippedToNonPpp: r.flippedToNonPpp,
           notified: r.notified,

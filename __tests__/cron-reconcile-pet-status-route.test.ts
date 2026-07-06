@@ -314,15 +314,19 @@ describe("GET /api/cron/reconcile-pet-status", () => {
   // Per-pet error does not abort the batch
   // ---------------------------------------------------------------------------
 
-  it("captures per-pet rederive errors without failing the whole run", async () => {
+  it("captures per-pet rederive errors AND fails the run (HTTP 500 so Vercel retries)", async () => {
     mockRederiveThrows([[PET_CLEAN], []]);
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await callRoute({ "x-cron-secret": "test-secret" });
-    // Route should still return 200 ok:true (errors are per-pet, captured in details)
-    expect(res.status).toBe(200);
+    // Per-pet rederive errors are still isolated (the batch is not aborted mid-run
+    // and each error is captured in cron_runs.details), but the run is NOT healthy:
+    // it now returns HTTP 500 with ok:false so Vercel flags/retries — a cron must
+    // not report success on failure (review 23 fleet extension). Drift detection is
+    // idempotent, so the retry is safe.
+    expect(res.status).toBe(500);
     const body = await res.json();
     // scanned increments before rederive call; divergent stays 0
-    expect(body.ok).toBe(true);
+    expect(body.ok).toBe(false);
     expect(body.scanned).toBe(1);
     expect(body.divergent).toBe(0);
     errSpy.mockRestore();

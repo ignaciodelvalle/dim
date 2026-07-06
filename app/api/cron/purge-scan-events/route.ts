@@ -23,6 +23,7 @@ import { eq } from "drizzle-orm";
 
 import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { sendCronAlert } from "@/lib/infra/cron-alert";
 import { purgeExpiredScanEvents } from "@/lib/infra/scan-retention";
 
 export const dynamic = "force-dynamic";
@@ -69,10 +70,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     })
     .where(eq(cronRuns.id, run.id));
 
-  return NextResponse.json({
-    ok: status === "ok",
-    scanEventsDeleted,
-    durationMs,
-    runId: run.id,
-  });
+  // A failed purge must return HTTP 500 so Vercel's cron dashboard flags it and
+  // retries — previously the route returned 200 with ok:false, which reads as a
+  // successful run to Vercel (review 23 fleet extension).
+  if (status === "failed") {
+    await sendCronAlert({
+      job: CRON_NAME,
+      severity: "critical",
+      error: errors[0]?.reason ?? "scan-event purge failed",
+      details: { scanEventsDeleted, errors },
+    });
+  }
+
+  return NextResponse.json(
+    {
+      ok: status === "ok",
+      scanEventsDeleted,
+      durationMs,
+      runId: run.id,
+    },
+    { status: status === "ok" ? 200 : 500 },
+  );
 }

@@ -19,7 +19,7 @@
 import { and, lt, sql } from "drizzle-orm";
 
 import { cronRuns, db, notifications } from "@/db";
-import { cleanupExpiredBuckets } from "@/lib/infra/rate-limit";
+import { RATE_LIMIT_CLEANUP_BATCH_SIZE, cleanupExpiredBuckets } from "@/lib/infra/rate-limit";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -31,6 +31,31 @@ export const CRON_RUNS_TTL_DAYS = 90;
 
 /** Maximum rows deleted per purge DELETE call. */
 const PURGE_BATCH_SIZE = 500;
+
+/** Wall-clock budget for the composite drain (ms). Keeps the daily run inside
+ *  Vercel's 60 s function budget while still draining a large backlog. */
+const MAX_DURATION_MS = 45_000;
+
+/**
+ * Repeatedly runs a single-batch purge `step` until it deletes fewer than
+ * `batchSize` rows (backlog drained) or the wall-clock deadline passes. Each
+ * step is its own bounded DELETE, so lock duration stays small even while a
+ * large backlog drains across many iterations within one run (review 23 fleet
+ * extension — previously each target ran ONE 500-row batch per day).
+ */
+async function drainPurge(
+  step: () => Promise<number>,
+  batchSize: number,
+  deadlineMs: number,
+): Promise<number> {
+  let total = 0;
+  for (;;) {
+    const deleted = await step();
+    total += deleted;
+    if (deleted < batchSize || Date.now() >= deadlineMs) break;
+  }
+  return total;
+}
 
 // ---------------------------------------------------------------------------
 // Purge helpers
@@ -117,9 +142,20 @@ export interface DataLifecycleResult {
  * Returns per-section counts for the cron_runs.details payload.
  */
 export async function runDataLifecyclePurge(): Promise<DataLifecycleResult> {
-  const notificationsDeleted = await purgeExpiredNotifications();
-  const rateLimitBucketsDeleted = await purgeExpiredRateLimitBuckets();
-  const cronRunsDeleted = await purgeOldCronRuns();
+  const deadlineMs = Date.now() + MAX_DURATION_MS;
+  // Each target drains its full backlog (bounded per-batch) within the shared
+  // wall-clock budget instead of clearing at most one 500-row batch per day.
+  const notificationsDeleted = await drainPurge(
+    purgeExpiredNotifications,
+    PURGE_BATCH_SIZE,
+    deadlineMs,
+  );
+  const rateLimitBucketsDeleted = await drainPurge(
+    purgeExpiredRateLimitBuckets,
+    RATE_LIMIT_CLEANUP_BATCH_SIZE,
+    deadlineMs,
+  );
+  const cronRunsDeleted = await drainPurge(purgeOldCronRuns, PURGE_BATCH_SIZE, deadlineMs);
 
   return { notificationsDeleted, rateLimitBucketsDeleted, cronRunsDeleted };
 }

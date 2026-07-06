@@ -18,7 +18,7 @@
 // ---------------------------------------------------------------------------
 
 import { db, rateLimitBuckets } from "@/db";
-import { lt, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // callerIp — derive the trusted client IP from request headers.
@@ -141,12 +141,27 @@ async function consumeOrThrow(bucketKey: string, expiresAt: Date, limit: number)
   }
 }
 
-// Cleanup helper — optional. The bucket table grows slowly (one row per
-// window per (endpoint, identifier)); call from a daily cron if needed.
+/** Maximum expired rate-limit buckets deleted per cleanup call. */
+export const RATE_LIMIT_CLEANUP_BATCH_SIZE = 500;
+
+// Cleanup helper — deletes ONE bounded batch of expired buckets and returns the
+// count. An unbounded DELETE on this table can hold locks past the cron's
+// function budget when a backlog accumulates (review 23 fleet extension), so
+// each call is capped at RATE_LIMIT_CLEANUP_BATCH_SIZE and the caller drains
+// (see runDataLifecyclePurge). drizzle does not expose DELETE … LIMIT, so we use
+// the same subquery-LIMIT pattern as lib/infra/data-lifecycle.ts.
 export async function cleanupExpiredBuckets(): Promise<number> {
-  const result = await db
-    .delete(rateLimitBuckets)
-    .where(lt(rateLimitBuckets.expiresAt, new Date()))
-    .returning({ key: rateLimitBuckets.bucketKey });
+  const cutoff = new Date().toISOString();
+  const result = (await db.execute(
+    sql`
+      DELETE FROM rate_limit_buckets
+      WHERE bucket_key IN (
+        SELECT bucket_key FROM rate_limit_buckets
+        WHERE expires_at < ${cutoff}::timestamptz
+        LIMIT ${RATE_LIMIT_CLEANUP_BATCH_SIZE}
+      )
+      RETURNING bucket_key
+    `,
+  )) as Array<{ bucket_key: string }>;
   return result.length;
 }

@@ -37,6 +37,7 @@ import { eq, isNull } from "drizzle-orm";
 
 import { cronRuns, db, notificationDeadLetter } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { sendCronAlert } from "@/lib/infra/cron-alert";
 import { type CreateNotificationInput, createNotification } from "@/lib/infra/notification-service";
 
 export const dynamic = "force-dynamic";
@@ -164,6 +165,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // A run that left payloads still failing redelivery OR could not replay
+  // (invalid) is NOT healthy: any accumulated error flips the run to failed so
+  // it returns HTTP 500 (Vercel retries) and pages a human — a cron must not
+  // report success on failure (review 23 fleet extension).
+  if (cronStatus === "ok" && errors.length > 0) {
+    cronStatus = "failed";
+  }
+
   await db
     .update(cronRuns)
     .set({
@@ -181,6 +190,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             },
     })
     .where(eq(cronRuns.id, run.id));
+
+  if (cronStatus === "failed") {
+    await sendCronAlert({
+      job: CRON_NAME,
+      severity: "critical",
+      error: `${stillFailing} still failing, ${invalid} invalid — see cron_runs.details`,
+      details: { scanned, resolved, stillFailing, invalid, errors: errors.slice(0, 20) },
+    });
+  }
 
   return NextResponse.json(
     { ok: cronStatus === "ok", scanned, resolved, stillFailing, invalid, runId: run.id },

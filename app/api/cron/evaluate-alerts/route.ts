@@ -14,7 +14,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { evaluateAndRecordFiringsForAllAdmins } from "@/app/actions/alert-firings";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import { withCronRun } from "@/lib/infra/case-cron";
+import { readLastRunDetail, withCronRun } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
 
@@ -28,12 +28,24 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const start = Date.now();
   try {
+    // Resume the per-owner sweep after the last owner processed by the previous
+    // run (keyset cursor piggy-backed on cron_runs.details — no new table) so a
+    // large admin population is swept fairly across runs (review 23 fleet ext).
+    const resumeCursor = await readLastRunDetail<string | null>(CRON_NAME, "nextOwnerCursor");
     const result = await withCronRun(
       CRON_NAME,
-      () => evaluateAndRecordFiringsForAllAdmins(),
+      () => evaluateAndRecordFiringsForAllAdmins({ afterUserId: resumeCursor }),
       (r) => ({
         itemsProcessed: r.evaluated,
-        details: { evaluated: r.evaluated, breaching: r.breaching, opened: r.opened },
+        details: {
+          evaluated: r.evaluated,
+          breaching: r.breaching,
+          opened: r.opened,
+          ownersTotal: r.ownersTotal,
+          ownersEvaluated: r.ownersEvaluated,
+          budgetExhausted: r.budgetExhausted,
+          nextOwnerCursor: r.nextOwnerCursor ?? null,
+        },
       }),
     );
     return NextResponse.json({

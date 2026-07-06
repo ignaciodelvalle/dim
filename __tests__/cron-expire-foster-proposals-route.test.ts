@@ -66,6 +66,20 @@ describe("GET /api/cron/expire-foster-proposals", () => {
     expect(expireMock).toHaveBeenCalledOnce();
   });
 
+  it("returns 500 when the run had per-row errors (partial failure must not report success)", async () => {
+    // The action resolves normally but reports errors > 0 (some proposals failed
+    // to expire). The route must surface HTTP 500 so Vercel retries — a cron
+    // must not report success on failure (review 23 fleet extension).
+    const expireMock = vi.fn().mockResolvedValue({ candidates: 5, expired: 3, errors: 2 });
+    vi.doMock("@/src/modules/foster/actions", () => ({
+      expireFosterProposalsAction: expireMock,
+    }));
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toMatchObject({ ok: false, candidates: 5, expired: 3, errors: 2 });
+  });
+
   it("returns 500 with the error message when the helper throws", async () => {
     vi.doMock("@/src/modules/foster/actions", () => ({
       expireFosterProposalsAction: vi.fn().mockRejectedValue(new Error("db down")),
