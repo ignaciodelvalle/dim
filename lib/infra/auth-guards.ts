@@ -86,9 +86,10 @@ export type AdminOrGovtSession = AuthenticatedSession & {
 
 // Gate the /gob/* segment (also used for the admin+govt server actions in
 // app/actions/admin-proposals.ts). Redirects unauthenticated to /login and
-// authenticated non-authorities to /mis-mascotas (no point sending them
-// somewhere they can't act). The returned `jurisdictions` is the govt's
-// active scope — empty for admin, who has universal scope.
+// authenticated non-authorities to /acceso-denegado?portal=gob (an explained
+// no-access screen with a link home — A4; previously a silent bounce to
+// /mis-mascotas). The returned `jurisdictions` is the govt's active scope —
+// empty for admin, who has universal scope.
 //
 // Rejects deactivated institutional accounts (deactivated_at IS NOT NULL) by
 // redirecting to / — mirrors requireAdminOrRedirect. Without this check a
@@ -123,7 +124,9 @@ export async function requireAdminOrGovtOrRedirect(): Promise<AdminOrGovtSession
   const session = await requireUserOrRedirect();
   const profile = await loadActiveInstitutionalProfile(session.user.id, {
     allow: ["admin", "govt"],
-    roleRejectRedirect: "/mis-mascotas",
+    // A4: a personal-role account is bounced to the explained access-denied
+    // landing (not silently to /mis-mascotas) so it learns WHY it was moved.
+    roleRejectRedirect: "/acceso-denegado?portal=gob",
   });
 
   const jurisdictions: AdminOrGovtJurisdiction[] =

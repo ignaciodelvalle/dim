@@ -159,7 +159,9 @@ describe("requireAdminOrGovtOrRedirect", () => {
     expect(mockRedirect).toHaveBeenCalledWith("/login");
   });
 
-  it("redirects to /mis-mascotas when role is owner", async () => {
+  // A4: a personal-role account hitting /gob lands on the explained access-denied
+  // screen (not a silent bounce to /mis-mascotas) so it learns WHY it was moved.
+  it("redirects to the explained access-denied screen when role is owner", async () => {
     mockGetUser.mockResolvedValue(userSession("user-owner"));
     mockGetProfileCached.mockResolvedValue({
       id: "user-owner",
@@ -168,11 +170,13 @@ describe("requireAdminOrGovtOrRedirect", () => {
       accountType: "personal",
       deactivatedAt: null,
     });
-    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/mis-mascotas");
-    expect(mockRedirect).toHaveBeenCalledWith("/mis-mascotas");
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow(
+      "NEXT_REDIRECT:/acceso-denegado?portal=gob",
+    );
+    expect(mockRedirect).toHaveBeenCalledWith("/acceso-denegado?portal=gob");
   });
 
-  it("redirects to /mis-mascotas when role is vet", async () => {
+  it("redirects to the explained access-denied screen when role is vet", async () => {
     mockGetUser.mockResolvedValue(userSession("user-vet"));
     mockGetProfileCached.mockResolvedValue({
       id: "user-vet",
@@ -181,13 +185,17 @@ describe("requireAdminOrGovtOrRedirect", () => {
       accountType: "personal",
       deactivatedAt: null,
     });
-    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/mis-mascotas");
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow(
+      "NEXT_REDIRECT:/acceso-denegado?portal=gob",
+    );
   });
 
-  it("redirects to /mis-mascotas when profile is null (profile not found)", async () => {
+  it("redirects to the explained access-denied screen when profile is null", async () => {
     mockGetUser.mockResolvedValue(userSession("user-noprofile"));
     mockGetProfileCached.mockResolvedValue(null);
-    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/mis-mascotas");
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow(
+      "NEXT_REDIRECT:/acceso-denegado?portal=gob",
+    );
   });
 
   it("passes for role=admin and returns empty jurisdictions", async () => {
