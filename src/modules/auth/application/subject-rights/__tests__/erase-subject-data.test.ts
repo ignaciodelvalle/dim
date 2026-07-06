@@ -8,12 +8,47 @@
 // first, then deleteUser) and the failure-tolerance contract (a deleteUser
 // failure logs but still completes the erasure).
 
+import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockRequireUser = vi.fn();
 vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: () => mockRequireUser(),
 }));
+
+// Drizzle client stub. Keeps the REAL schema (so column refs are genuine and the
+// role-filter regression can be asserted via serialized SQL) and swaps only the
+// `db` client. `purgeOwnedPetAttachments` runs three queries in order:
+//   1. select owned pets from ownerships (where captured for the role assertion)
+//   2. select attachments for those pets
+//   3. delete those attachment rows
+const mockOwnedRows: { petId: string }[] = [];
+const mockAttachmentRows: { id: string; storagePath: string; eventId: string | null }[] = [];
+const mockWhere: { ownerships?: unknown; attachments?: unknown; del?: unknown } = {};
+vi.mock("@/db", async () => {
+  const schema = await vi.importActual<typeof import("@/db/schema")>("@/db/schema");
+  const db = {
+    select: () => ({
+      from: (table: unknown) => ({
+        where: (cond: unknown) => {
+          if (table === schema.ownerships) {
+            mockWhere.ownerships = cond;
+            return Promise.resolve(mockOwnedRows);
+          }
+          mockWhere.attachments = cond;
+          return Promise.resolve(mockAttachmentRows);
+        },
+      }),
+    }),
+    delete: () => ({
+      where: (cond: unknown) => {
+        mockWhere.del = cond;
+        return Promise.resolve();
+      },
+    }),
+  };
+  return { ...schema, db };
+});
 
 const mockRpc = vi.fn();
 const mockSignOut = vi.fn();
@@ -25,9 +60,15 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 const mockDeleteUser = vi.fn();
+const mockStorageRemove = vi.fn();
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
     auth: { admin: { deleteUser: (...args: unknown[]) => mockDeleteUser(...args) } },
+    storage: {
+      from: (bucket: string) => ({
+        remove: (paths: string[]) => mockStorageRemove(bucket, paths),
+      }),
+    },
   })),
 }));
 
@@ -43,6 +84,11 @@ beforeEach(() => {
   mockRpc.mockResolvedValue({ error: null });
   mockSignOut.mockResolvedValue({ error: null });
   mockDeleteUser.mockResolvedValue({ error: null });
+  mockOwnedRows.length = 0;
+  mockAttachmentRows.length = 0;
+  mockWhere.ownerships = undefined;
+  mockWhere.attachments = undefined;
+  mockWhere.del = undefined;
 });
 
 describe("eraseMySubjectDataAction", () => {
@@ -94,5 +140,52 @@ describe("eraseMySubjectDataAction", () => {
     expect(result.ok).toBe(true);
     expect(errSpy).toHaveBeenCalled();
     errSpy.mockRestore();
+  });
+
+  // Adversarial-review HIGH: the Storage purge resolved "owned pets" as
+  // `ownerships WHERE owner_user_id = subject` with NO role filter. But fosters
+  // and caretakers are stored under the SAME owner_user_id (role = 'foster' /
+  // 'caretaker'), so the irreversible admin.storage.remove over-reached into
+  // third-party pets. The fix scopes the query to role = 'owner'.
+  //
+  // Only Site 1 (the JS Storage/attachment purge) is observable here — the pet
+  // soft-delete (Site 2) and incident_reported PII redaction (Site 3) live
+  // inside the mocked SQL RPC and are guarded by migration 0131, not by JS.
+  describe("owned-pet Storage purge is scoped to role = 'owner'", () => {
+    const OWNED_PET_Y = "pet-owned-y-0000-0000-000000000002";
+
+    it("purges only the subject's OWNED pet's attachments, never a fostered pet's", async () => {
+      // The ownerships query returns ONLY owner-role pet Y — mirroring the
+      // role = 'owner' filter the production query now applies. Fostered pet X
+      // (same owner_user_id, role = 'foster') never reaches this list, so its
+      // attachments are never seen by the purge.
+      mockOwnedRows.push({ petId: OWNED_PET_Y });
+      mockAttachmentRows.push(
+        { id: "att-y-event", storagePath: "events/y-1.jpg", eventId: "evt-1" },
+        { id: "att-y-photo", storagePath: "photos/y-2.jpg", eventId: null },
+      );
+
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      expect(result.ok).toBe(true);
+
+      // Storage purge touches ONLY pet Y's objects, split by bucket shape.
+      expect(mockStorageRemove).toHaveBeenCalledWith("event-attachments", ["events/y-1.jpg"]);
+      expect(mockStorageRemove).toHaveBeenCalledWith("pet-photos", ["photos/y-2.jpg"]);
+      expect(mockStorageRemove).toHaveBeenCalledTimes(2);
+
+      // Regression guard: the ownerships query MUST filter by role = 'owner'.
+      // Without it, fostered/caretaken pets (same owner_user_id) get purged too.
+      const { sql, params } = new PgDialect().sqlToQuery(mockWhere.ownerships as never);
+      expect(sql).toMatch(/"role"/);
+      expect(params).toContain("owner");
+    });
+
+    it("removes nothing when the subject owns no pets (only fosters)", async () => {
+      // A subject who ONLY fosters resolves to zero owner-role pets → the purge
+      // early-returns before touching Storage.
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      expect(result.ok).toBe(true);
+      expect(mockStorageRemove).not.toHaveBeenCalled();
+    });
   });
 });

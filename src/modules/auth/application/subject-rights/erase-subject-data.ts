@@ -16,10 +16,23 @@ import type { EraseSubjectDataResult } from "./types";
 async function purgeOwnedPetAttachments(userId: string): Promise<void> {
   // Owned pets (active custody). ownerships rows survive the RPC (only pets are
   // soft-deleted), so this resolves correctly whether run before or after it.
+  //
+  // role = 'owner' is load-bearing: ownerships also holds foster / caretaker /
+  // shelter_custody rows under the SAME owner_user_id (foster-repository.ts
+  // inserts role:'foster'). Without this filter the irreversible Storage delete
+  // would purge the photos + event attachments of pets the subject merely
+  // fosters/caretakes — third-party data. A true owner erasing their account is
+  // correct; a foster is not.
   const owned = await db
     .select({ petId: ownerships.petId })
     .from(ownerships)
-    .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)));
+    .where(
+      and(
+        eq(ownerships.ownerUserId, userId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+      ),
+    );
   const petIds = owned.map((o) => o.petId);
   if (petIds.length === 0) return;
 
