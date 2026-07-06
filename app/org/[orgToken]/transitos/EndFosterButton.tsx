@@ -78,6 +78,7 @@ export function EndFosterButton({
         onChange={(e) => setNotes(e.target.value)}
         rows={2}
         placeholder="Notas (opcional)"
+        aria-label="Notas"
         className={fieldCls}
       />
       {error && (

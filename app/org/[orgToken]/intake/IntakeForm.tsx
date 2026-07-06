@@ -27,6 +27,7 @@ import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpButton } from "@/components/ui/dashboard";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { speciesLabel } from "@/lib/utils/format";
 
 // "seizure" is intentionally absent: a decomiso is a State act (DC1),
 // not something a refugio self-records through this form. Seizures go
@@ -456,7 +457,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             <dt className="text-ln-op-mute">Nombre</dt>
             <dd className="col-span-2 text-ln-op-ink">{name || "—"}</dd>
             <dt className="text-ln-op-mute">Especie</dt>
-            <dd className="col-span-2 text-ln-op-ink">{species || "—"}</dd>
+            <dd className="col-span-2 text-ln-op-ink">{species ? speciesLabel(species) : "—"}</dd>
             <dt className="text-ln-op-mute">Peso</dt>
             <dd className="col-span-2 text-ln-op-ink">
               {estimatedWeightKg ? `${estimatedWeightKg} kg` : "—"}
