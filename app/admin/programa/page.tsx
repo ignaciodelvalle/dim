@@ -85,6 +85,13 @@ const ALERT_DIRECTION_LABEL: Record<string, string> = {
   below: "debajo de",
 };
 
+// es-AR labels for the PII-oversight "surface" dimension (operator search origin).
+const SURFACE_LABEL: Record<string, string> = {
+  users: "Usuarios",
+  organizations: "Organizaciones",
+  omnibox: "Buscador",
+};
+
 export default async function AdminProgramaPage({
   searchParams,
 }: {
@@ -474,7 +481,9 @@ export default async function AdminProgramaPage({
                       <td className="py-2 pr-4 text-ln-op-ink-2" title={row.action}>
                         {auditActionLabel(row.action)}
                       </td>
-                      <td className="py-2 pr-4 text-ln-op-mute">{row.surface ?? "—"}</td>
+                      <td className="py-2 pr-4 text-ln-op-mute">
+                        {row.surface ? (SURFACE_LABEL[row.surface] ?? row.surface) : "—"}
+                      </td>
                       <td className="py-2 pr-4 text-right tabular-nums font-medium">
                         {row.count.toLocaleString("es-AR")}
                       </td>

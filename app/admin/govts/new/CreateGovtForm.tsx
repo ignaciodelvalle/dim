@@ -203,7 +203,7 @@ export function CreateGovtForm() {
 
       <div className="flex gap-3">
         <OpButton type="submit" disabled={loading} loading={loading} variant="primary">
-          {loading ? "Creando..." : "Crear cuenta govt"}
+          {loading ? "Creando..." : "Crear cuenta de gobierno"}
         </OpButton>
         <a
           href="/admin/govts"

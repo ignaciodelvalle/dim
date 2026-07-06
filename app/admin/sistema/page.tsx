@@ -235,7 +235,7 @@ export default async function AdminSistemaPage() {
 
       <section className="space-y-3">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Actividad por govt
+          Actividad por gobierno
         </p>
         {(() => {
           // Surface the most active operators first, then cap the render so a
@@ -244,13 +244,14 @@ export default async function AdminSistemaPage() {
           const visibleGovts = sortedGovts.slice(0, GOVT_ACTIVITY_LIMIT);
           const govtsTruncated = sortedGovts.length > GOVT_ACTIVITY_LIMIT;
           return govts.length === 0 ? (
-            <p className="text-[var(--text-md)] text-ln-op-mute">No hay govts activos.</p>
+            <p className="text-[var(--text-md)] text-ln-op-mute">No hay gobiernos activos.</p>
           ) : (
             <OpCard>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <caption className="sr-only">
-                    Actividad de operadores govt: localidades asignadas, decisiones y última acción
+                    Actividad de operadores de gobierno: localidades asignadas, decisiones y última
+                    acción
                   </caption>
                   <thead>
                     <tr className="border-b border-ln-op-line">
@@ -258,7 +259,7 @@ export default async function AdminSistemaPage() {
                         scope="col"
                         className="px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute"
                       >
-                        Govt
+                        Gobierno
                       </th>
                       <th
                         scope="col"

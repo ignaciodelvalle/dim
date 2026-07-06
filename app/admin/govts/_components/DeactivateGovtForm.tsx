@@ -42,7 +42,7 @@ export function DeactivateGovtActions({
   if (mode === "done") {
     return (
       <p className="text-sm text-ln-op-ok font-medium">
-        Govt desactivado. {target.displayName} fue notificado.
+        Gobierno desactivado. {target.displayName} fue notificado.
       </p>
     );
   }
@@ -59,7 +59,7 @@ export function DeactivateGovtActions({
 
   return (
     <OpButton type="button" onClick={() => setMode("confirming")} variant="danger" size="sm">
-      Desactivar govt
+      Desactivar gobierno
     </OpButton>
   );
 }
@@ -131,7 +131,7 @@ function DeactivateGovtForm({
   return (
     <div className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3 space-y-3">
       <p className="text-xs uppercase tracking-wider font-bold text-ln-op-danger">
-        Desactivar govt &mdash; {target.displayName}
+        Desactivar gobierno &mdash; {target.displayName}
       </p>
       <p className="text-xs text-ln-op-danger">
         Esta acción es irreversible desde esta interfaz. El usuario quedará desactivado y recibirá

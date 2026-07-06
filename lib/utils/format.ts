@@ -109,6 +109,34 @@ export function statusLabel(status: string): string {
   }
 }
 
+/** es-AR label for a profile account type (`personal` | `institutional`). */
+export function accountTypeLabel(accountType: string): string {
+  switch (accountType) {
+    case "personal":
+      return "Personal";
+    case "institutional":
+      return "Institucional";
+    default:
+      return accountType;
+  }
+}
+
+/** es-AR label for an operator role (`owner` | `vet` | `govt` | `admin`). */
+export function roleLabel(role: string): string {
+  switch (role) {
+    case "owner":
+      return "Dueño/a";
+    case "vet":
+      return "Veterinario/a";
+    case "govt":
+      return "Gobierno";
+    case "admin":
+      return "Administrador/a";
+    default:
+      return role;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Sex-aware lost-mode copy (UI-4)
 // ---------------------------------------------------------------------------

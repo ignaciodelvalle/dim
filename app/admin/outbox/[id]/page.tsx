@@ -29,7 +29,7 @@ import { eventTypeLabel } from "@/lib/utils/format";
 import { retryOutboxRowAction } from "../actions";
 
 const TARGET_KIND_LABEL: Record<string, string> = {
-  govt_webhook: "Webhook govt",
+  govt_webhook: "Webhook de gobierno",
   eno_authority: "Autoridad ENO",
   audit_export: "Exportación auditoría",
   internal_dashboard: "Dashboard interno",

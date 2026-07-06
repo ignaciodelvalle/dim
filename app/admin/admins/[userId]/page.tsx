@@ -10,6 +10,7 @@ import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
+import { accountTypeLabel } from "@/lib/utils/format";
 
 // Scaling note: auth.admin.getUserById() called once per page load.
 // Safe at v1 institutional volume. See ADR-8.
@@ -132,7 +133,7 @@ export default async function AdminDetailPage({
             <p className="text-sm text-ln-op-mute mb-3">{email}</p>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
               <dt className="text-ln-op-mute">Tipo de cuenta</dt>
-              <dd className="text-ln-op-ink capitalize">{target.accountType}</dd>
+              <dd className="text-ln-op-ink">{accountTypeLabel(target.accountType)}</dd>
               <dt className="text-ln-op-mute">Rol</dt>
               <dd className="text-ln-op-ink">Administrador</dd>
               <dt className="text-ln-op-mute">Creado</dt>

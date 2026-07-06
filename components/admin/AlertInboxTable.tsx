@@ -177,7 +177,7 @@ export function AlertInboxTable({ rows }: { rows: AlertInboxRow[] }) {
                       title={`Sin reconocer hace ${days} días (SLA ${BREACH_DAYS} días)`}
                     >
                       <span aria-hidden="true">!</span>
-                      Breach
+                      Vencido
                     </span>
                   ) : null}
                 </td>

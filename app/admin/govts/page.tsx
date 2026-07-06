@@ -136,7 +136,7 @@ export default async function GovtsPage({
             href="/admin/govts/new"
             className="px-4 py-2 text-sm font-semibold bg-ln-op-azul text-white rounded-[var(--radius-md)] hover:bg-ln-op-azul-700 shrink-0"
           >
-            + Crear govt
+            + Crear gobierno
           </Link>
         </header>
 
@@ -179,15 +179,15 @@ export default async function GovtsPage({
           <div className="text-center py-12 rounded-[var(--radius-md)] border border-dashed border-ln-op-line">
             <p className="text-sm text-ln-op-mute">
               {query || status !== "all"
-                ? "Ningún govt coincide con la búsqueda."
-                : "Aun no hay govts."}
+                ? "Ningún gobierno coincide con la búsqueda."
+                : "Aún no hay gobiernos."}
             </p>
             {!query && status === "all" && (
               <Link
                 href="/admin/govts/new"
                 className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
               >
-                Crear el primer govt
+                Crear el primer gobierno
               </Link>
             )}
           </div>

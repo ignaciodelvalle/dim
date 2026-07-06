@@ -10,6 +10,7 @@ import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrum
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import type { ShellSession } from "@/lib/ui/shell-nav";
+import { roleLabel } from "@/lib/utils/format";
 
 // Gate the /gob/* segment. Both admin and govt can access this surface.
 // Admin has universal scope; govt is scoped to their assigned localities.
@@ -46,7 +47,7 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
   const topbarActions = (
     <div className="flex items-center gap-3">
       <span className="text-xs text-ln-op-mute">
-        <span className="font-semibold text-ln-op-ink-2">{profile.role}</span>
+        <span className="font-semibold text-ln-op-ink-2">{roleLabel(profile.role)}</span>
         <span className="mx-1">·</span>
         {scopeCode}
       </span>
@@ -75,7 +76,7 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
           brandSubtitle="Gobierno"
           user={{
             name: displayName,
-            role: profile.role.toUpperCase(),
+            role: roleLabel(profile.role).toUpperCase(),
           }}
         />
       }

@@ -15,6 +15,7 @@ import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
 import type { ShellSession } from "@/lib/ui/shell-nav";
+import { roleLabel } from "@/lib/utils/format";
 
 // Gate the /admin/* segment. Admin-only — govt and everyone else gets sent
 // to / (root). Uses the strict requireAdminOrRedirect guard which also rejects
@@ -79,7 +80,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const topbarActions = (
     <div className="flex items-center gap-3">
       <span className="text-xs text-ln-op-mute">
-        <span className="font-semibold text-ln-op-ink-2">{profile.role}</span>
+        <span className="font-semibold text-ln-op-ink-2">{roleLabel(profile.role)}</span>
         <span className="mx-1">·</span>
         Universal
       </span>
@@ -111,10 +112,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <OpRail
           sections={sections}
           variant="gob"
-          brandSubtitle="Admin"
+          brandSubtitle="Administración"
           user={{
             name: displayName,
-            role: profile.role.toUpperCase(),
+            role: roleLabel(profile.role).toUpperCase(),
           }}
         />
       }
@@ -124,7 +125,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 flex-nowrap items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]"
         >
           {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
-          <AppShellDrawer sections={sections} variant="gob" brandSubtitle="Admin" />
+          <AppShellDrawer sections={sections} variant="gob" brandSubtitle="Administración" />
           {/* Left group: breadcrumbs + scope chip. Grows to fill (pushing the
                 omnibox + actions right) and is the ONLY shrinkable region, so the
                 breadcrumb truncates rather than wrapping the topbar (D1). */}

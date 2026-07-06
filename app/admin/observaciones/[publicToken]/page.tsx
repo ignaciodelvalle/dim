@@ -14,6 +14,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { PET_OBSERVATION_SELECT } from "@/lib/infra/pet-projections";
 import { speciesLabel } from "@/lib/utils/format";
 import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
+import { diseaseCodeToEnoCode, getEnoDisease } from "@/src/modules/surveillance/domain/eno-catalog";
 
 import { CloseObservationForm } from "./CloseObservationForm";
 
@@ -142,7 +143,9 @@ export default async function ObservationDetailPage({
             <ul className="mt-1 space-y-0.5">
               {escalatingSymptoms.map((s) => {
                 const payload = s.payload as Record<string, unknown>;
-                const alerted = (payload.alerted_disease_codes as string[]) ?? [];
+                const alerted = ((payload.alerted_disease_codes as string[]) ?? []).map(
+                  (code) => getEnoDisease(diseaseCodeToEnoCode(code))?.label ?? code,
+                );
                 const text = (payload.free_text as string) ?? "—";
                 return (
                   <li key={s.id}>
