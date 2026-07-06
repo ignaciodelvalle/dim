@@ -372,7 +372,7 @@ export default async function GobVigilanciaPage({
           }
           info={{
             definition:
-              "Porcentaje de notificaciones ENO (Enfermedades de Notificación Obligatoria) entregadas dentro de su SLA (A7). Mide la cola interna del outbox, no la entrega externa a la autoridad.",
+              "Porcentaje de notificaciones ENO (Enfermedades de Notificación Obligatoria) entregadas dentro de su SLA (A7). Mide la cola interna de la bandeja de salida, no la entrega externa a la autoridad.",
             formula:
               "outbox rows (target_kind='eno_authority') con delivered_at ≤ sla_due_at / total delivered en período",
             caveat:
@@ -441,13 +441,13 @@ export default async function GobVigilanciaPage({
 
         <OpCard aria-labelledby={panelEnoId}>
           <OpCardHead
-            title={<span id={panelEnoId}>Notificación ENO (SLA del outbox)</span>}
+            title={<span id={panelEnoId}>Notificación ENO (SLA de la bandeja de salida)</span>}
             actions={
               <Link
                 href="/admin/outbox"
                 className="text-sm text-ln-op-azul hover:underline no-underline"
               >
-                Ver outbox →
+                Ver bandeja de salida →
               </Link>
             }
           />
@@ -559,7 +559,7 @@ export default async function GobVigilanciaPage({
 
         <OpCard aria-labelledby={panelSignalsId}>
           <OpCardHead
-            title={<span id={panelSignalsId}>Signals recientes</span>}
+            title={<span id={panelSignalsId}>Señales recientes</span>}
             actions={
               <Link
                 href="/gob/vigilancia/brotes"
@@ -574,7 +574,7 @@ export default async function GobVigilanciaPage({
               <div className="px-4 py-3">
                 <LnEmptyState
                   icon="shield-check"
-                  title="Sin signals activos en este período"
+                  title="Sin señales activas en este período"
                   description="No se detectaron señales de zoonosis en el rango seleccionado."
                 />
               </div>

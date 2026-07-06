@@ -40,7 +40,7 @@ export function OutbreakHistoryTable({ rows }: Props) {
               Pico
             </th>
             <th scope="col" className="px-3 py-2 text-right">
-              Signals
+              Señales
             </th>
           </tr>
         </thead>

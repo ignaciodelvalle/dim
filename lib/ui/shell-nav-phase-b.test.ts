@@ -190,7 +190,7 @@ describe("Phase B operator parity — admin", () => {
     const allItems = ADMIN_NAV_SECTIONS.flatMap((s) => s.items);
     const outbox = allItems.find((i) => i.href === "/admin/outbox");
     expect(outbox).toBeDefined();
-    expect(outbox?.label).toBe("Outbox");
+    expect(outbox?.label).toBe("Bandeja de salida");
     // No badge property set statically — badge is runtime-injected in admin layout
     expect(outbox?.badge).toBeUndefined();
   });

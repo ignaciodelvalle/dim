@@ -44,14 +44,16 @@ export default async function GobOutreachPage() {
       <div className="space-y-4">
         <header className="space-y-1">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            MiMAR Gobierno · Outreach
+            MiMAR Gobierno · Alcance comunitario
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Pipelines de outreach</h1>
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+            Pipelines de alcance comunitario
+          </h1>
         </header>
         <LnEmptyState
           icon="lock"
           title="Sin acceso"
-          description="Tu rol no tiene acceso a los pipelines de outreach. Pedile al admin que te asigne cobertura jurisdiccional."
+          description="Tu rol no tiene acceso a los pipelines de alcance comunitario. Pedile al admin que te asigne cobertura jurisdiccional."
         />
       </div>
     );
@@ -85,8 +87,12 @@ export default async function GobOutreachPage() {
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Outreach</p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Pipelines de outreach</h1>
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Alcance comunitario
+        </p>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          Pipelines de alcance comunitario
+        </h1>
         <p className="text-[13px] text-ln-op-mute">
           Del dato a la acción: cada pipeline convierte un indicador en una lista objetivo para
           campañas de contacto. Las consultas quedan registradas en el audit log.

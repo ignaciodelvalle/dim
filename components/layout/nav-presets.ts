@@ -262,7 +262,7 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
       { href: "/gob/mortalidad", label: "Mortalidad", matchPrefix: "/gob/mortalidad" },
       { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
       { href: "/gob/campanas", label: "Campañas", matchPrefix: "/gob/campanas" },
-      { href: "/gob/outreach", label: "Outreach", matchPrefix: "/gob/outreach" },
+      { href: "/gob/outreach", label: "Alcance comunitario", matchPrefix: "/gob/outreach" },
       { href: "/gob/poblacion", label: "Población", matchPrefix: "/gob/poblacion" },
     ],
   },
@@ -296,7 +296,7 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     items: [
       // Paquete gov-vis — operational health + notification SLA monitor
       { href: "/gob/sistema", label: "Sistema", matchPrefix: "/gob/sistema" },
-      { href: "/gob/outbox", label: "Outbox", matchPrefix: "/gob/outbox" },
+      { href: "/gob/outbox", label: "Bandeja de salida", matchPrefix: "/gob/outbox" },
     ],
   },
   {
@@ -370,7 +370,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
     label: "Confiabilidad",
     items: [
       { href: "/admin/sistema", label: "Sistema", matchPrefix: "/admin/sistema" },
-      { href: "/admin/outbox", label: "Outbox", matchPrefix: "/admin/outbox" },
+      { href: "/admin/outbox", label: "Bandeja de salida", matchPrefix: "/admin/outbox" },
       { href: "/admin/auditoria", label: "Auditoría", matchPrefix: "/admin/auditoria" },
     ],
   },

@@ -99,7 +99,7 @@ export default async function AdminOutboxDetailPage({
     <div className="max-w-3xl space-y-6">
       <OpCrumbs
         items={[
-          { label: "Outbox", href: "/admin/outbox" },
+          { label: "Bandeja de salida", href: "/admin/outbox" },
           { label: TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind },
         ]}
       />

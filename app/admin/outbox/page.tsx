@@ -153,13 +153,15 @@ export default async function AdminOutboxPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Admin {"·"} Outbox
+          Admin {"·"} Bandeja de salida
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Outbox de notificaciones</h1>
+        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          Bandeja de salida de notificaciones
+        </h1>
         <p className="text-[13px] text-ln-op-ink-2">
           {hasFilters
             ? `${rows.length} fila${rows.length === 1 ? "" : "s"} con los filtros aplicados.`
-            : `Últimas ${rows.length} filas del outbox de eventos de notificación ENO/govt.`}
+            : `Últimas ${rows.length} filas de la bandeja de salida de eventos de notificación ENO/govt.`}
         </p>
       </header>
 
@@ -238,7 +240,7 @@ export default async function AdminOutboxPage({
         <p className="text-[13px] text-ln-op-mute">
           {hasFilters
             ? "No hay items que coincidan con los filtros aplicados."
-            : "No hay items en el outbox."}
+            : "No hay items en la bandeja de salida."}
         </p>
       ) : (
         <OpCard>
@@ -254,7 +256,7 @@ export default async function AdminOutboxPage({
       {/* Pagination footer */}
       {(newerLink || olderLink) && (
         <nav
-          aria-label="Paginación de outbox"
+          aria-label="Paginación de la bandeja de salida"
           className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
         >
           <div>

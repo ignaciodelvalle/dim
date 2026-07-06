@@ -118,12 +118,12 @@ export default async function GobVigilanciaBrotesPage({
           Vigilancia · Brotes
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">
-          Brotes y signals epidemiológicos
+          Brotes y señales epidemiológicas
         </h1>
         <p className="text-[13px] text-ln-op-mute">
           {profile.role === "admin"
             ? "Vista universal — todas las jurisdicciones."
-            : "Lista completa de outbreak signals en tu cobertura."}
+            : "Lista completa de señales de brote en tu cobertura."}
         </p>
       </header>
 
@@ -156,7 +156,7 @@ export default async function GobVigilanciaBrotesPage({
         <OpCardHead
           title={
             <span id={panelId}>
-              {signals.length} signal{signals.length !== 1 ? "s" : ""}
+              {signals.length} señal{signals.length !== 1 ? "es" : ""}
             </span>
           }
         />
@@ -165,7 +165,7 @@ export default async function GobVigilanciaBrotesPage({
             <div className="px-4 py-3">
               <LnEmptyState
                 icon="shield-check"
-                title="Sin signals activos en este período"
+                title="Sin señales activas en este período"
                 description="No se detectaron señales de zoonosis en el rango seleccionado."
               />
             </div>

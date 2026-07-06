@@ -37,7 +37,7 @@ const ENTRY_LABEL: Record<string, string> = {
   contact_tracing: "Rastreo de contactos",
   final_report: "Informe final",
   external_notification: "Notificación externa registrada",
-  signal_link: "Signal vinculada",
+  signal_link: "Señal vinculada",
   system: "Nota",
 };
 

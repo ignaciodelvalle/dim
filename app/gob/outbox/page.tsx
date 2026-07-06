@@ -183,7 +183,7 @@ export default async function GobOutboxPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Gobierno · Outbox
+          Gobierno · Bandeja de salida
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">
           Cola de notificaciones — tu jurisdicción
@@ -191,7 +191,7 @@ export default async function GobOutboxPage({
         <p className="text-[13px] text-ln-op-ink-2">
           {hasFilters
             ? `${rows.length} fila${rows.length === 1 ? "" : "s"} con los filtros aplicados.`
-            : `Últimas ${rows.length} filas del outbox en tu jurisdicción asignada.`}
+            : `Últimas ${rows.length} filas de la bandeja de salida en tu jurisdicción asignada.`}
         </p>
       </header>
 
@@ -273,7 +273,7 @@ export default async function GobOutboxPage({
         <p className="text-[13px] text-ln-op-mute">
           {hasFilters
             ? "No hay items que coincidan con los filtros aplicados."
-            : "No hay items en el outbox para tu jurisdicción."}
+            : "No hay items en la bandeja de salida para tu jurisdicción."}
         </p>
       ) : (
         <OpCard>
@@ -293,7 +293,7 @@ export default async function GobOutboxPage({
       {/* Pagination footer */}
       {(newerLink || olderLink) && (
         <nav
-          aria-label="Paginación de outbox"
+          aria-label="Paginación de la bandeja de salida"
           className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
         >
           <div>
