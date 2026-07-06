@@ -15,6 +15,7 @@ import type { PetEventAuthorship } from "@/lib/infra/pet-access";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+import { refreshPetCacheAfterAmendment } from "./refresh-pet-cache-after-amendment";
 import type { AmendEventInput, AmendEventResult } from "./types";
 
 export async function amendEvent(
@@ -108,73 +109,95 @@ export async function amendEvent(
     unknown
   >;
 
-  // --- 7. Insert the amendment event ----------------------------------------
+  // --- 7. Insert the amendment event + refresh the denormalized pets cache --
+  // ONE transaction: the amendment fact and the cache refresh it invalidates
+  // commit together (Invariant #3 — a correction must supersede in the pets.*
+  // caches too, not only in the projection read boundaries). The D5 audit +
+  // notify writes join the same tx so a partial correction can never surface.
   const now = new Date();
-  const [amendmentEvent] = await db
-    .insert(petEvents)
-    .values({
-      petId: pet.id,
-      eventType: "event_amended",
-      occurredAt: now,
-      recordedAt: now,
-      recordedByUserId: user.id,
-      authorRole: eventAuthorship.authorRole,
-      authorOrganizationId: eventAuthorship.authorOrganizationId,
-      authorVerified: eventAuthorship.authorVerified,
-      payload: validatedPayload,
-      notes: null,
-    })
-    .returning({ id: petEvents.id });
+  let amendmentEventId: string;
+  try {
+    amendmentEventId = await db.transaction(async (tx) => {
+      const [amendmentEvent] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "event_amended",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: user.id,
+          authorRole: eventAuthorship.authorRole,
+          authorOrganizationId: eventAuthorship.authorOrganizationId,
+          authorVerified: eventAuthorship.authorVerified,
+          payload: validatedPayload,
+          notes: null,
+        })
+        .returning({ id: petEvents.id });
 
-  if (!amendmentEvent) {
-    return { ok: false, error: "Error al guardar la enmienda. Intentá de nuevo." };
-  }
+      if (!amendmentEvent) {
+        throw new Error("amendment insert returned no row");
+      }
 
-  // --- 8. D5 sensitive path: audit_log + notify owner ----------------------
-  if (isSensitive) {
-    // Audit log row.
-    await db.insert(auditLog).values({
-      actorUserId: user.id,
-      action: "event_amended_sensitive",
-      targetUserId: null,
-      targetOrganizationId: null,
-      payload: {
-        pet_id: pet.id,
-        target_event_id: resolvedTargetEventId,
-        amendment_event_id: amendmentEvent.id,
-        reason: reason?.trim(),
-        changes,
-        actor_role: rawPayload.actor_role,
-      },
+      // Re-derive any pets cache column the corrected (root) event feeds. Reads
+      // the full stream INCLUDING the row just inserted, so the correction is
+      // already overlaid. Keyed by the root event's type — no pets.* UPDATE is
+      // append-only-guarded (only pet_events is), so a plain UPDATE is fine.
+      await refreshPetCacheAfterAmendment(tx, pet.id, resolvedTargetEventId);
+
+      // --- D5 sensitive path: audit_log + notify owner ---------------------
+      if (isSensitive) {
+        await tx.insert(auditLog).values({
+          actorUserId: user.id,
+          action: "event_amended_sensitive",
+          targetUserId: null,
+          targetOrganizationId: null,
+          payload: {
+            pet_id: pet.id,
+            target_event_id: resolvedTargetEventId,
+            amendment_event_id: amendmentEvent.id,
+            reason: reason?.trim(),
+            changes,
+            actor_role: rawPayload.actor_role,
+          },
+        });
+
+        // Find the active owner of the pet to notify.
+        const [ownerRow] = await tx
+          .select({ userId: ownerships.ownerUserId })
+          .from(ownerships)
+          .where(
+            and(
+              eq(ownerships.petId, pet.id),
+              eq(ownerships.role, "owner"),
+              isNull(ownerships.endedAt),
+            ),
+          )
+          .limit(1);
+
+        if (ownerRow?.userId && ownerRow.userId !== user.id) {
+          await tx.insert(notifications).values({
+            userId: ownerRow.userId,
+            notificationType: ADMIN_AMENDMENT_NOTIFICATION_TYPE,
+            title: "Un administrador corrigió un registro de tu mascota",
+            body: `Se corrigió un registro de **${pet.name}**. El original sigue visible en el historial. Motivo: ${reason?.trim() ?? "(sin especificar)"}.`,
+            severity: "warning",
+            ctaLabel: "Ver historial",
+            ctaUrl: `/mis-mascotas/${pet.publicToken}?tab=historial`,
+            relatedPetId: pet.id,
+            relatedEventId: amendmentEvent.id,
+          });
+        }
+      }
+
+      return amendmentEvent.id;
     });
-
-    // Find the active owner of the pet to notify.
-    const [ownerRow] = await db
-      .select({ userId: ownerships.ownerUserId })
-      .from(ownerships)
-      .where(
-        and(eq(ownerships.petId, pet.id), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
-      )
-      .limit(1);
-
-    if (ownerRow?.userId && ownerRow.userId !== user.id) {
-      await db.insert(notifications).values({
-        userId: ownerRow.userId,
-        notificationType: ADMIN_AMENDMENT_NOTIFICATION_TYPE,
-        title: "Un administrador corrigió un registro de tu mascota",
-        body: `Se corrigió un registro de **${pet.name}**. El original sigue visible en el historial. Motivo: ${reason?.trim() ?? "(sin especificar)"}.`,
-        severity: "warning",
-        ctaLabel: "Ver historial",
-        ctaUrl: `/mis-mascotas/${pet.publicToken}?tab=historial`,
-        relatedPetId: pet.id,
-        relatedEventId: amendmentEvent.id,
-      });
-    }
+  } catch {
+    return { ok: false, error: "Error al guardar la enmienda. Intentá de nuevo." };
   }
 
   // --- 9. Revalidate paths --------------------------------------------------
   revalidatePath(`/mis-mascotas/${publicToken}`);
   revalidatePath(`/mis-mascotas/${publicToken}/eventos/${targetEventId}`);
 
-  return { ok: true, amendmentEventId: amendmentEvent.id };
+  return { ok: true, amendmentEventId };
 }
