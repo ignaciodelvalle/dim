@@ -699,15 +699,16 @@ export default async function OrgDashboardPage({
                 is demoted (hidden entirely for clinics by the org-type filter). */}
             {canWriteEvents && (
               <Link
-                href={`/org/${orgToken}/mascotas`}
+                href={`/org/${orgToken}/atender`}
                 className="block rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline sm:col-span-2"
               >
                 <p className="text-[13px] font-semibold text-ln-op-ink">
                   Registrar / firmar evento clínico
                 </p>
                 <p className="text-sm text-ln-op-mute mt-1">
-                  Cargá una vacuna, cirugía u otro evento clínico. Si tenés matrícula verificada, se
-                  firma como verificado por profesional.
+                  Ingresá el código de la credencial que te muestra el dueño y cargá una vacuna,
+                  cirugía u otro evento clínico. Si tenés matrícula verificada, se firma como
+                  verificado por profesional.
                 </p>
               </Link>
             )}
