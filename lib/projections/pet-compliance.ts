@@ -231,7 +231,11 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
       // it directly contradicts the libreta (UX gate M5a). A professional/
       // institutional dose reads "Registrada"; a self-reported one reads
       // "Declarada · sin verificar" (H1), both with the application date.
-      const applied = `Aplicada ${formatDate(dose.occurredAt)}`;
+      // Compute the Date on its own line (not inside the ${} interpolation) so
+      // the no-raw-date-in-sql guard doesn't flag this display string as a sql``
+      // Date bind — and so formatDate gets the Date it expects.
+      const appliedAt = new Date(dose.occurredAt);
+      const applied = `Aplicada ${formatDate(appliedAt)}`;
       base = clearsObligation(dose)
         ? {
             key: "rabies",
