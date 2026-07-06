@@ -17,7 +17,10 @@ import { randomUUID } from "node:crypto";
 import { db, notifications } from "@/db";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createClient } from "@/lib/supabase/server";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import {
+  requireCapability,
+  requireCapabilityForOrgToken,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -311,13 +314,13 @@ export async function approveAdoptionApplicationAction(
   orgToken: string,
   input: ReviewAdoptionInput,
 ): Promise<ReviewAdoptionResult> {
-  const auth = await requireCapability("adoption.review");
+  // Resolve + authorize against the org in the URL BEFORE the mutation. Pinning
+  // by token replaces the fragile post-hoc `organization.publicToken !== orgToken`
+  // compare, which authorized against the session-default org and then rejected
+  // on mismatch (denying legitimate members whose default org differs).
+  const auth = await requireCapabilityForOrgToken("adoption.review", orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
-
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
 
   const result = await approveAdoptionApplication(
     {
@@ -347,13 +350,10 @@ export async function rejectAdoptionApplicationAction(
   orgToken: string,
   input: ReviewAdoptionInput,
 ): Promise<ReviewAdoptionResult> {
-  const auth = await requireCapability("adoption.review");
+  // Authorize against the URL org up front (see approve sibling for rationale).
+  const auth = await requireCapabilityForOrgToken("adoption.review", orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
-
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
 
   const result = await rejectAdoptionApplication(
     {
@@ -392,13 +392,10 @@ export async function requestInfoAdoptionApplicationAction(
   orgToken: string,
   input: RequestInfoAdoptionInput,
 ): Promise<RequestInfoAdoptionResult> {
-  const auth = await requireCapability("adoption.review");
+  // Authorize against the URL org up front (see approve sibling for rationale).
+  const auth = await requireCapabilityForOrgToken("adoption.review", orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
-
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
 
   const message = input.message.trim();
   if (!message || message.length < 5) {
@@ -477,16 +474,11 @@ export async function finalizeAdoptionAction(
   _previous: FinalizeAdoptionFormState,
   formData: FormData,
 ): Promise<FinalizeAdoptionFormState> {
-  const auth = await requireCapability("adoption.finalize");
+  // Authorize against the org in the URL up front, before any upload or write.
+  // Pinning by token replaces the prior post-hoc publicToken compare.
+  const auth = await requireCapabilityForOrgToken("adoption.finalize", orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
-
-  // Defense-in-depth: the orgToken URL param must match the capability-resolved
-  // org — same cross-check as approve/reject/requestInfo siblings (authz triage
-  // 2026-07-04).
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
 
   // Parse formData.
   const adopterUserIdInput = String(formData.get("adopterUserId") ?? "").trim() || null;

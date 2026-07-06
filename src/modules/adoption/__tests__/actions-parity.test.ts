@@ -24,9 +24,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Module mocks (hoisted — must come before any import of the tested module)
 // ---------------------------------------------------------------------------
 
-vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
-  requireCapability: vi.fn(),
-}));
+vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => {
+  const requireCapability = vi.fn();
+  return {
+    requireCapability,
+    // review/finalize actions now pin the capability to the URL orgToken via
+    // requireCapabilityForOrgToken. Delegate to the same mock so the existing
+    // mockRequireCapability.mockResolvedValue(...) drives both auth paths.
+    requireCapabilityForOrgToken: vi.fn(() => requireCapability()),
+  };
+});
 
 vi.mock("@/db", () => ({
   db: {
@@ -380,16 +387,6 @@ describe("thin actions parity — approveAdoptionApplicationAction", () => {
       applicationEventId: "evt-1",
     });
     expect(result).toEqual({ error: "No tenés permiso." });
-  });
-
-  it("returns org-token mismatch error", async () => {
-    mockRequireCapability.mockResolvedValue(
-      makeAuth({ organization: { ...makeAuth().organization, publicToken: "other-tok" } }),
-    );
-    const result = await approveAdoptionApplicationAction("org-tok", {
-      applicationEventId: "evt-1",
-    });
-    expect(result).toEqual({ error: "No tenés acceso a esta organización." });
   });
 
   it("returns use-case error on ok:false", async () => {
