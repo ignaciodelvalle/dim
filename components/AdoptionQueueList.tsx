@@ -229,6 +229,12 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
       key: "approve",
       label: "Aprobar seleccionadas",
       tone: "neutral",
+      // Approving notifies the applicants — gate it behind a confirm so it can't
+      // fire on a single misclick (parity with the Rechazar confirm).
+      requireConfirm: true,
+      confirmTitle: "Aprobar postulaciones seleccionadas",
+      confirmDescription:
+        "Las postulantes seleccionadas recibirán una notificación de aprobación. Confirmá que querés aprobar estas adopciones.",
       onRun: (_reason: string) => {
         const ids = Array.from(selected);
         setLastResult(null);

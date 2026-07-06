@@ -38,6 +38,13 @@ export type OpBulkAction = {
    * is called immediately with an empty string.
    */
   requireReason?: boolean;
+  /**
+   * When true, clicking opens a ConfirmDialog with NO reason field — a plain
+   * "are you sure?" gate before `onRun("")`. Use for consequential-but-not-
+   * destructive bulk actions that shouldn't fire on a single misclick (e.g. a
+   * bulk approval that notifies applicants). Implied by `requireReason`.
+   */
+  requireConfirm?: boolean;
   /** Minimum reason length in chars. Defaults to 5. Ignored unless requireReason. */
   minReasonLength?: number;
   /** Confirm dialog title (defaults to the action label). */
@@ -84,7 +91,9 @@ export function OpBulkBar({ count, actions, onClear }: Props) {
   }
 
   function handleClick(action: OpBulkAction, e: React.MouseEvent<HTMLButtonElement>) {
-    if (action.requireReason) {
+    // A reason OR a plain confirm both gate the action behind the dialog; only
+    // an action that declares neither fires immediately.
+    if (action.requireReason || action.requireConfirm) {
       triggerRef.current = e.currentTarget;
       setActiveAction(action);
       setReason("");
@@ -137,7 +146,12 @@ export function OpBulkBar({ count, actions, onClear }: Props) {
             }
           }}
           onConfirm={() => {
-            if (reasonValid && !pending) void runAction(activeAction, reason.trim());
+            // Reason actions require a valid motivo; confirm-only actions just
+            // need the click-through (they pass an empty reason).
+            const canConfirm = activeAction.requireReason ? reasonValid : true;
+            if (canConfirm && !pending) {
+              void runAction(activeAction, activeAction.requireReason ? reason.trim() : "");
+            }
           }}
           title={activeAction.confirmTitle ?? activeAction.label}
           description={activeAction.confirmDescription}
@@ -146,27 +160,29 @@ export function OpBulkBar({ count, actions, onClear }: Props) {
           pending={pending}
           triggerRef={triggerRef}
         >
-          <div className="px-5 pb-2">
-            <label
-              htmlFor="op-bulk-reason"
-              className="mb-1 block text-sm font-medium text-[var(--color-ln-ink-2)]"
-            >
-              Motivo (mínimo {minReason} caracteres)
-            </label>
-            <textarea
-              id="op-bulk-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={3}
-              disabled={pending}
-              className="w-full rounded-md border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-2 text-[13px] text-[var(--color-ln-ink)] disabled:opacity-50"
-              placeholder="Describí el motivo de esta acción."
-            />
-            <p className="mt-1 text-[11px] text-[var(--color-ln-ink-2)]">
-              {reason.trim().length}/{minReason}
-              {!reasonValid && reason.length > 0 && " — motivo demasiado corto"}
-            </p>
-          </div>
+          {activeAction.requireReason && (
+            <div className="px-5 pb-2">
+              <label
+                htmlFor="op-bulk-reason"
+                className="mb-1 block text-sm font-medium text-[var(--color-ln-ink-2)]"
+              >
+                Motivo (mínimo {minReason} caracteres)
+              </label>
+              <textarea
+                id="op-bulk-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                disabled={pending}
+                className="w-full rounded-md border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-2 text-[13px] text-[var(--color-ln-ink)] disabled:opacity-50"
+                placeholder="Describí el motivo de esta acción."
+              />
+              <p className="mt-1 text-[11px] text-[var(--color-ln-ink-2)]">
+                {reason.trim().length}/{minReason}
+                {!reasonValid && reason.length > 0 && " — motivo demasiado corto"}
+              </p>
+            </div>
+          )}
         </ConfirmDialog>
       )}
     </>
