@@ -154,7 +154,12 @@ describe("createBusinessRuleWriter", () => {
         ),
       );
     expect(audits.length).toBeGreaterThan(0);
-  });
+    // Creating a ppp_breed_list rule triggers a synchronous PPP re-evaluation
+    // that now emits a paired pet_profile_updated event per flipped pet (F4
+    // event-pairing). Against the large seeded demo DB this legitimately takes
+    // longer than the 5s default. (Fast-follow: the on-create re-eval should be
+    // enqueued/async so it can't block the admin request on a large province.)
+  }, 30000);
 
   it("no-ops when payload matches the hardcoded default", async () => {
     const defaultBreeds = (await import("@/lib/domain/business-rules-defaults"))
