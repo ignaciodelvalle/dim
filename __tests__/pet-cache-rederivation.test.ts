@@ -258,6 +258,50 @@ describe("pet-cache writer round-trips", () => {
     expect(report.tattooRecordedAt.matches).toBe(true);
   });
 
+  it("adoption_eligibility_set dual-write re-derives with no drift", async () => {
+    const pet = await insertTestPet("ADOPT-ELIG");
+    const now = new Date();
+    // Drive the dual-write seam: append the event AND fold it into the cache
+    // (adoptionEligible + adoptionEligibilitySetAt = event.recordedAt, mirroring
+    // replayPetAdoptionEligibility). Capture the DB-assigned recordedAt so the
+    // instant comparison is exact.
+    let recordedAt: Date | undefined;
+    await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "adoption_eligibility_set",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: ownerUserId,
+          ...ownerAuthorship,
+          payload: validateEventPayload("adoption_eligibility_set", {
+            eligible: true,
+            ineligible_reason: null,
+            ineligible_reason_notes: null,
+            ineligible_until: null,
+          }),
+        })
+        .returning({ recordedAt: petEvents.recordedAt });
+      recordedAt = inserted.recordedAt;
+      await tx
+        .update(pets)
+        .set({ adoptionEligible: true, adoptionEligibilitySetAt: inserted.recordedAt })
+        .where(eq(pets.id, pet.id));
+    });
+
+    const report = await rederivePetCache(pet.id);
+    expect(hasDrift(report)).toBe(false);
+    expect(report.adoptionEligible.stored).toBe(true);
+    expect(report.adoptionEligible.derived).toBe(true);
+    expect(report.adoptionEligibilitySetAt.matches).toBe(true);
+    // The setAt witness must equal the event's recordedAt instant.
+    expect(new Date(report.adoptionEligibilitySetAt.derived as string).getTime()).toBe(
+      recordedAt?.getTime(),
+    );
+  });
+
   it("custody dispute (table-sourced) re-derives true while open, false after close", async () => {
     const pet = await insertTestPet("DISPUTE");
     const now = new Date();
@@ -382,6 +426,48 @@ describe("pet-cache non-vacuity (harness detects skew)", () => {
     await db.update(pets).set({ estimatedWeightKg: "9.90" }).where(eq(pets.id, pet.id));
     const report = await rederivePetCache(pet.id);
     expect(report.estimatedWeightKg.matches).toBe(false);
+  });
+
+  it("detects a skewed adoptionEligible cache (event says true, cache forced null)", async () => {
+    const pet = await insertTestPet("SKEW-ADOPT-ELIG");
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "adoption_eligibility_set",
+          occurredAt: now,
+          recordedAt: now,
+          recordedByUserId: ownerUserId,
+          ...ownerAuthorship,
+          payload: validateEventPayload("adoption_eligibility_set", {
+            eligible: true,
+            ineligible_reason: null,
+            ineligible_reason_notes: null,
+            ineligible_until: null,
+          }),
+        })
+        .returning({ recordedAt: petEvents.recordedAt });
+      await tx
+        .update(pets)
+        .set({ adoptionEligible: true, adoptionEligibilitySetAt: inserted.recordedAt })
+        .where(eq(pets.id, pet.id));
+    });
+    expect(hasDrift(await rederivePetCache(pet.id))).toBe(false);
+
+    // SKEW: force both cache columns null (simulates a seed/writer that emitted
+    // the event but forgot the cache dual-write — the exact DIM-S009/S012 drift).
+    await db
+      .update(pets)
+      .set({ adoptionEligible: null, adoptionEligibilitySetAt: null })
+      .where(eq(pets.id, pet.id));
+
+    const report = await rederivePetCache(pet.id);
+    expect(report.adoptionEligible.matches).toBe(false);
+    expect(report.adoptionEligible.stored).toBeNull();
+    expect(report.adoptionEligible.derived).toBe(true);
+    expect(report.adoptionEligibilitySetAt.matches).toBe(false);
   });
 
   it("detects a skewed inCustodyDispute flag (no open dispute but flag true)", async () => {

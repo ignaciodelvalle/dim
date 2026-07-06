@@ -881,6 +881,10 @@ async function loadStoryline(
 
   // Insert events
   let eventCount = 0;
+  // Track the LATEST adoption_eligibility_set event so the cache dual-write
+  // below can mirror replayPetAdoptionEligibility (latest-wins). We capture the
+  // DB-assigned recordedAt so adoptionEligibilitySetAt matches the event instant.
+  let lastAdoptionEligibility: { recordedAt: Date; payload: Record<string, unknown> } | null = null;
   for (const e of story.events) {
     const author = pickAuthorFromRole(e.author_role, ownerResolved.user ?? null, userIds);
     // If the event author_role is 'shelter' or the pet is org-owned, attribute
@@ -891,16 +895,25 @@ async function loadStoryline(
         : ownerOrgId && e.author_role === "owner"
           ? ownerOrgId
           : null;
-    await db.insert(schemas.petEvents).values({
-      petId: pet.id,
-      eventType: e.event_type,
-      occurredAt: dateAtNoonUtc(e.date),
-      recordedByUserId: author,
-      authorRole: e.author_role ?? "system",
-      authorOrganizationId: authorOrgId,
-      authorVerified: true,
-      payload: e.payload ?? {},
-    });
+    const [inserted] = await db
+      .insert(schemas.petEvents)
+      .values({
+        petId: pet.id,
+        eventType: e.event_type,
+        occurredAt: dateAtNoonUtc(e.date),
+        recordedByUserId: author,
+        authorRole: e.author_role ?? "system",
+        authorOrganizationId: authorOrgId,
+        authorVerified: true,
+        payload: e.payload ?? {},
+      })
+      .returning({ recordedAt: schemas.petEvents.recordedAt });
+    if (e.event_type === "adoption_eligibility_set") {
+      lastAdoptionEligibility = {
+        recordedAt: inserted.recordedAt,
+        payload: (e.payload ?? {}) as Record<string, unknown>,
+      };
+    }
     eventCount++;
   }
 
@@ -1156,6 +1169,38 @@ async function loadStoryline(
     .update(schemas.pets)
     .set({ rabiesObservationStatus: rabiesStatus, updatedAt: new Date() })
     .where(drizzle.eq(schemas.pets.id, pet.id));
+
+  // Cache: adoptionEligible / adoptionEligibilitySetAt must mirror the
+  // re-derivation projection (replayPetAdoptionEligibility). A storyline that
+  // emits an adoption_eligibility_set event but leaves the pets row at its
+  // default null drifts the pet-cache fitness sweep (stored=null vs
+  // derived=<event>). Fold the LATEST event's payload into the cache, dual-
+  // writing all five columns the projection derives. The CHECK constraints
+  // require both eligible+setAt non-null together, and a reason when eligible
+  // is false — both satisfied here.
+  if (lastAdoptionEligibility) {
+    const p = lastAdoptionEligibility.payload;
+    const eligible = typeof p.eligible === "boolean" ? p.eligible : null;
+    if (eligible !== null) {
+      const untilRaw = p.ineligible_until;
+      await db
+        .update(schemas.pets)
+        .set({
+          adoptionEligible: eligible,
+          adoptionEligibilitySetAt: lastAdoptionEligibility.recordedAt,
+          adoptionIneligibleReason:
+            eligible || typeof p.ineligible_reason !== "string" ? null : p.ineligible_reason,
+          adoptionIneligibleReasonNotes:
+            eligible || typeof p.ineligible_reason_notes !== "string"
+              ? null
+              : p.ineligible_reason_notes,
+          adoptionIneligibleUntil:
+            eligible || typeof untilRaw !== "string" ? null : new Date(untilRaw),
+          updatedAt: new Date(),
+        })
+        .where(drizzle.eq(schemas.pets.id, pet.id));
+    }
+  }
 
   log("OK", `${publicToken} (${story.pet.display_name}) — ${eventCount} events`);
 }
