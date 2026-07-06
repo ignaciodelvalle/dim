@@ -17,7 +17,10 @@
 
 import { db, notifications } from "@/db";
 import { createClient } from "@/lib/supabase/server";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import {
+  requireCapability,
+  requireCapabilityForOrgToken,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -73,7 +76,9 @@ export async function assignFosterAction(
   _previous: AssignFosterFormState,
   formData: FormData,
 ): Promise<AssignFosterFormState> {
-  const auth = await requireCapability("foster.assign");
+  // Pin the capability check to the org in the URL, not the session-default
+  // membership — the actor org flows into the foster ownership + events.
+  const auth = await requireCapabilityForOrgToken("foster.assign", orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
@@ -110,7 +115,8 @@ export async function endFosterAction(
   _previous: EndFosterFormState,
   formData: FormData,
 ): Promise<EndFosterFormState> {
-  const auth = await requireCapability("foster.end");
+  // Pin to the URL org, not the session-default membership.
+  const auth = await requireCapabilityForOrgToken("foster.end", orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
@@ -148,9 +154,9 @@ export type ProposeFosterInput = {
 export type ProposeFosterResult = { proposalPublicToken: string } | { error: string };
 
 export async function proposeFosterAction(input: ProposeFosterInput): Promise<ProposeFosterResult> {
-  // requireCapability defaults to the session's active org. The org is resolved
-  // from the orgToken before calling, matching the original pattern.
-  const auth = await requireCapability("foster.assign");
+  // Pin the capability check to the org named by input.orgToken (the URL org),
+  // never the session-default membership — the actor org authors the proposal.
+  const auth = await requireCapabilityForOrgToken("foster.assign", input.orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
@@ -448,7 +454,9 @@ export type SearchFosterVolunteersResult = { rows: FosterVolunteerSearchRow[] } 
 export async function searchFosterVolunteers(
   input: SearchFosterVolunteersInput,
 ): Promise<SearchFosterVolunteersResult> {
-  const auth = await requireCapability("foster.assign");
+  // Pin the read to the org named by input.orgToken (the URL org), so a
+  // multi-org member can only search volunteers scoped to the org they act as.
+  const auth = await requireCapabilityForOrgToken("foster.assign", input.orgToken);
   if (auth.error !== null) return { error: auth.error };
 
   // Build optional petShape from petPublicToken if provided.

@@ -17,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
   requireCapability: vi.fn(),
+  requireCapabilityForOrgToken: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -81,7 +82,10 @@ vi.mock("../application/search-foster-volunteers", () => ({
 
 import { db } from "@/db";
 import { createClient } from "@/lib/supabase/server";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import {
+  requireCapability,
+  requireCapabilityForOrgToken,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -125,17 +129,24 @@ const MOCK_ORG = {
 };
 
 function mockAuth() {
-  vi.mocked(requireCapability).mockResolvedValue({
+  // assign/end/propose/search pin the capability to the URL org via
+  // requireCapabilityForOrgToken; cancel still uses requireCapability (scoped to
+  // proposal.organizationId). Stub both to the same success actor.
+  const ok = {
     error: null,
     user: MOCK_USER,
     organization: MOCK_ORG,
-  } as ReturnType<typeof requireCapability> extends Promise<infer U> ? U : never);
+  } as ReturnType<typeof requireCapability> extends Promise<infer U> ? U : never;
+  vi.mocked(requireCapability).mockResolvedValue(ok);
+  vi.mocked(requireCapabilityForOrgToken).mockResolvedValue(ok);
 }
 
 function mockAuthError(error: string) {
-  vi.mocked(requireCapability).mockResolvedValue({
+  const fail = {
     error,
-  } as ReturnType<typeof requireCapability> extends Promise<infer U> ? U : never);
+  } as ReturnType<typeof requireCapability> extends Promise<infer U> ? U : never;
+  vi.mocked(requireCapability).mockResolvedValue(fail);
+  vi.mocked(requireCapabilityForOrgToken).mockResolvedValue(fail);
 }
 
 function mockSession(userId: string | null) {
