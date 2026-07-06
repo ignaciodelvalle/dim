@@ -6,7 +6,7 @@ Drop real photos here named by the pet's **public token**:
 DIM-9HAK-D5Z4.jpg   → Firulais (caniche, owner@)
 DIM-4SUZ-U2HT.jpg   → Michi (gata blanco y negro, owner@)
 DIM-VT3V-SEA3.jpg   → Atún (siamés, owner@)
-DEMO-PET-001.jpg    → Rocco (boxer/mestizo, owner@ — amended-event beat pet)
+DIM-DEMO-0001.jpg   → Rocco (boxer/mestizo, owner@ — amended-event beat pet)
 ```
 
 - Accepted extensions: `.jpg`, `.jpeg`, `.png`, `.webp`.
