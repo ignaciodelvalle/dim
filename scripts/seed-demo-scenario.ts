@@ -28,6 +28,7 @@
  *         row in state "disparada".
  *   D0-5  Fresh occurredAt/recordedAt so "calculado al…" footers aren't stale.
  *   D1    govt@dim.test created (idempotent) with govt_assignments to CABA.
+ *   D1b   govt@ linked to mascotas-ba-centro sanitary_authority + focal decomisos.
  *
  * ─── LOCAL-ONLY GUARD ───────────────────────────────────────────────────────
  *   Refuses to run against a non-local DATABASE_URL host unless --allow-remote.
@@ -115,12 +116,15 @@ if (!ALLOW_REMOTE && (!isLocalDb || !isLocalSupabase)) {
 // ---------------------------------------------------------------------------
 
 const { createClient: createSdkClient } = await import("@supabase/supabase-js");
-const { and, eq, inArray, isNull, sql } = await import("drizzle-orm");
+const { and, eq, inArray, isNull, like, sql } = await import("drizzle-orm");
 const {
   db,
   alertSubscriptions,
   alertFirings,
+  cases,
   govtAssignments,
+  organizationMemberships,
+  organizations,
   petEvents,
   pets,
   ownerships,
@@ -309,6 +313,135 @@ async function ensureFocalGovt(adminId: string): Promise<string> {
   }
 
   return id;
+}
+
+// ---------------------------------------------------------------------------
+// 7b. D1b — Link govt@ to mascotas-ba-centro + seed focal decomisos
+// ---------------------------------------------------------------------------
+
+const MASCOTAS_BA_CUIT = "30-71000004-4";
+const PATITAS_CUIT = "30-71000001-1";
+
+async function resolveOrgIdByCuit(cuit: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.cuit, cuit))
+    .limit(1);
+  return row?.id ?? null;
+}
+
+async function ensureGovtSanitaryMembership(govtUserId: string): Promise<string | null> {
+  log("STEP", "D1b: linking govt@dim.test to mascotas-ba-centro sanitary authority");
+
+  const orgId = await resolveOrgIdByCuit(MASCOTAS_BA_CUIT);
+  if (!orgId) {
+    log("WARN", "  mascotas-ba-centro not found — run pnpm seed:demo first");
+    return null;
+  }
+
+  const [existing] = await db
+    .select({ id: organizationMemberships.id })
+    .from(organizationMemberships)
+    .where(
+      and(
+        eq(organizationMemberships.organizationId, orgId),
+        eq(organizationMemberships.userId, govtUserId),
+        isNull(organizationMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+
+  if (!existing) {
+    await db.insert(organizationMemberships).values({
+      organizationId: orgId,
+      userId: govtUserId,
+      role: "admin",
+      title: "Operador autoridad sanitaria CABA",
+      canWritePetEvents: false,
+    });
+    log("OK", "  govt@ → mascotas-ba-centro membership created");
+  } else {
+    log("SKIP", "  govt@ already member of mascotas-ba-centro");
+  }
+
+  return orgId;
+}
+
+async function seedFocalDecomisos(govtUserId: string, sanitaryOrgId: string): Promise<number> {
+  log("STEP", "D1b: seeding focal CABA decomisos for /gob/decomisos");
+
+  const receiverOrgId = await resolveOrgIdByCuit(PATITAS_CUIT);
+
+  const demoPets = await db
+    .select({
+      id: pets.id,
+      publicToken: pets.publicToken,
+    })
+    .from(pets)
+    .where(like(pets.publicToken, "DIM-DEMO-%"))
+    .limit(2);
+
+  if (demoPets.length === 0) {
+    log("WARN", "  no DIM-DEMO pets found — skipping decomiso cases");
+    return 0;
+  }
+
+  const specs: Array<{
+    publicCode: string;
+    petIndex: number;
+    motive: string;
+    withReceiver: boolean;
+  }> = [
+    {
+      publicCode: "DEMO-DECOMISO-0001",
+      petIndex: 0,
+      motive: "abandono_extremo",
+      withReceiver: true,
+    },
+    {
+      publicCode: "DEMO-DECOMISO-0002",
+      petIndex: Math.min(1, demoPets.length - 1),
+      motive: "maltrato_fisico",
+      withReceiver: false,
+    },
+  ];
+
+  let created = 0;
+
+  for (const spec of specs) {
+    const pet = demoPets[spec.petIndex];
+    const [existing] = await db
+      .select({ id: cases.id })
+      .from(cases)
+      .where(eq(cases.publicCode, spec.publicCode))
+      .limit(1);
+
+    if (existing) {
+      log("SKIP", `  ${spec.publicCode} already exists`);
+      continue;
+    }
+
+    await db.insert(cases).values({
+      publicCode: spec.publicCode,
+      caseKind: "custody_episode",
+      status: "open",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: pet.id,
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: FOCAL_PROVINCE,
+      jurisdictionLocality: FOCAL_LOCALITY,
+      openedByUserId: govtUserId,
+      openedByOrganizationId: sanitaryOrgId,
+      receiverOrganizationId: spec.withReceiver && receiverOrgId ? receiverOrgId : null,
+      openedReason: `auto: decomiso motivo=${spec.motive} judicial_ref=sin_ref (seed-demo-scenario)`,
+      openedAt: new Date(Date.now() - 5 * 24 * 3600 * 1000),
+    });
+    created++;
+    log("OK", `  ${spec.publicCode} → ${pet.publicToken}`);
+  }
+
+  return created;
 }
 
 // ---------------------------------------------------------------------------
@@ -889,7 +1022,13 @@ async function main(): Promise<void> {
   const adminId = await resolveAdminUserId();
 
   // D1: ensure focal govt with CABA assignment.
-  await ensureFocalGovt(adminId);
+  const govtId = await ensureFocalGovt(adminId);
+
+  // D1b: sanitary authority membership + focal decomisos for /gob/decomisos.
+  const sanitaryOrgId = await ensureGovtSanitaryMembership(govtId);
+  if (sanitaryOrgId) {
+    await seedFocalDecomisos(govtId, sanitaryOrgId);
+  }
 
   // Personal owner for the demo pets (institutional accounts can't own pets).
   const ownerId = await ensureDemoOwner();
