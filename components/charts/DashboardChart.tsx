@@ -1,6 +1,7 @@
 "use client";
 
 import { CHART_COLORS, type ChartColorKey } from "@/lib/analytics/viz-scales";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { useCallback, useEffect, useState } from "react";
 import {
   Area,
