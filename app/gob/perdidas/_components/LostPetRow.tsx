@@ -64,7 +64,7 @@ export function LostPetRow({ pet }: LostPetRowProps) {
           )}
           {pet.lastSeenLat != null && pet.lastSeenLng != null && (
             <p className="text-sm text-ln-op-mute">
-              {"Ultima ubicación:"}{" "}
+              {"Última ubicación:"}{" "}
               <a
                 href={`https://www.openstreetmap.org/?mlat=${pet.lastSeenLat}&mlon=${pet.lastSeenLng}#map=16/${pet.lastSeenLat}/${pet.lastSeenLng}`}
                 target="_blank"

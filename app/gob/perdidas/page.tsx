@@ -250,7 +250,7 @@ export default async function GobPerdidasPage({
           type="search"
           name="q"
           defaultValue={q ?? ""}
-          placeholder="Buscar por nombre de mascota o dueno/a"
+          placeholder="Buscar por nombre de mascota o dueño/a"
           className="flex-1"
           aria-label="Buscar mascotas"
         />
@@ -289,7 +289,7 @@ export default async function GobPerdidasPage({
                         {tab.value === "all" && "Todas las mascotas"} ({lostPets.length})
                         {q && (
                           <span className="ml-2 text-[11px] font-normal text-ln-op-mute">
-                            {"—"} busqueda: &ldquo;{q}&rdquo;
+                            {"—"} búsqueda: &ldquo;{q}&rdquo;
                           </span>
                         )}
                       </span>

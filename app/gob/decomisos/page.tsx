@@ -39,7 +39,7 @@ const SEIZURE_MOTIVE_LABELS: Record<string, string> = {
 // Phase label for a custody_episode case based on spec section 13.2
 function phaseLabel(status: string, receiverOrgId: string | null): string {
   if (status === "closed") return "Cerrado";
-  if (status === "open" && receiverOrgId) return "Esperando aceptacion del refugio";
+  if (status === "open" && receiverOrgId) return "Esperando aceptación del refugio";
   if (status === "open" && !receiverOrgId) return "En custodia oficial (sin refugio asignado)";
   return status;
 }
@@ -68,7 +68,7 @@ export default async function DecomisosDashboardPage() {
       return (
         <div className="space-y-6">
           <p className="text-[13px] text-ln-op-mute rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center">
-            Tu usuario no esta asociado a ninguna autoridad sanitaria. Contacta al administrador.
+            Tu usuario no está asociado a ninguna autoridad sanitaria. Contactá al administrador.
           </p>
         </div>
       );
@@ -167,9 +167,9 @@ export default async function DecomisosDashboardPage() {
 
       {rows.length === 0 ? (
         <div className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-12 text-center space-y-2">
-          <p className="text-[13px] text-ln-op-mute">No hay decomisos registrados todavia.</p>
+          <p className="text-[13px] text-ln-op-mute">No hay decomisos registrados todavía.</p>
           <p className="text-sm text-ln-op-mute">
-            {'Usa el boton "Nuevo decomiso" para registrar una incautacion por Ley 14.346.'}
+            {'Usá el botón "Nuevo decomiso" para registrar una incautación por Ley 14.346.'}
           </p>
         </div>
       ) : (
