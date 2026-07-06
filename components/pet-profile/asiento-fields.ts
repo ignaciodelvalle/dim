@@ -86,7 +86,10 @@ function formatAbsolute(date: Date): string {
   });
 }
 
-function formatRelative(date: Date, now: Date): string {
+// Exported for focused purity tests: given a fixed `now`, the label is a pure
+// function of (date, now) — the property the hydration-determinism fix relies
+// on (LibretaFace threads a single mount-stable `now` into every call).
+export function formatRelative(date: Date, now: Date): string {
   if (!isValidDate(date)) return "";
   const days = Math.floor((now.getTime() - date.getTime()) / 86_400_000);
   if (days <= 0) return "hoy";

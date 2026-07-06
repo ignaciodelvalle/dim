@@ -20,6 +20,7 @@ import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { VacunasStatusBadges } from "@/components/pet-profile/VacunasStatusBadges";
 import { speciesLabel } from "@/lib/utils/format";
 import type { LibretaFaceData } from "@/src/modules/pets/application/tab-data/types";
+import { useState } from "react";
 import { toAsientoView } from "./asiento-fields";
 import { pastEventMatchesAudience } from "./libreta-lens";
 
@@ -56,7 +57,16 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
   const past = data.past.filter((row) => pastEventMatchesAudience(row.eventType, audience));
 
   const isEmpty = future.length === 0 && past.length === 0;
-  const now = new Date();
+  // Compute `now` ONCE at mount and thread the SAME value into every relative
+  // renderer (toAsientoView → formatRelative). A bare `const now = new Date()`
+  // recomputes on every re-render (e.g. a ?tab= change re-renders this face),
+  // so a card sitting on a day boundary could silently flip "hace 2 días" →
+  // "hace 3 días" between renders. Freezing it with a lazy useState makes the
+  // face's relative labels deterministic for the mount's lifetime and keeps
+  // the initial render pure (the F1 `now`-subclass residual: the initial tree
+  // must not depend on a value that drifts between renders). The absolute
+  // dates are already tz-pinned (AR_TIME_ZONE) for the sibling #418 subclass.
+  const [now] = useState(() => new Date());
   const speciesLine = [
     speciesLabel(data.identity.species),
     data.identity.sex === "male" ? "macho" : data.identity.sex === "female" ? "hembra" : null,
