@@ -31,6 +31,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/vigilancia",
   "/gob/mortalidad",
   "/gob/casos",
+  "/gob/moderacion", // Phase 0 placeholder — jurisdiction-scoped denuncia moderation
   "/gob/reglas",
   "/gob/servicios",
   "/gob/historial",
