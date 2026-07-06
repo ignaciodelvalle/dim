@@ -421,8 +421,33 @@ export const PetsRepository = {
       now,
     } = args;
 
+    // A species correction can also flip the derived PPP classification (a dog
+    // corrected to a cat clears it; a cat corrected to a PPP-breed dog sets it).
+    // The pets.potentiallyDangerousBreed column is dual-written below, so the
+    // event MUST carry that change too — otherwise the correction is not fully
+    // event-derivable and the flag flip has no corresponding fact (Invariant #3
+    // / event-pairing). Read the prior flag inside the tx (before the update)
+    // and include the change ONLY when it actually differs.
+    const [currentRow] = await tx
+      .select({ potentiallyDangerousBreed: pets.potentiallyDangerousBreed })
+      .from(pets)
+      .where(eq(pets.id, petId))
+      .limit(1);
+    const oldPpp = currentRow?.potentiallyDangerousBreed ?? false;
+
+    const changes: Array<{ field: string; old: unknown; new: unknown }> = [
+      { field: "species", old: oldSpecies, new: newSpecies },
+    ];
+    if (oldPpp !== potentiallyDangerousBreed) {
+      changes.push({
+        field: "potentially_dangerous_breed",
+        old: oldPpp,
+        new: potentiallyDangerousBreed,
+      });
+    }
+
     const payload = validateEventPayload("pet_profile_updated", {
-      changes: [{ field: "species", old: oldSpecies, new: newSpecies }],
+      changes,
       photo_replaced: false,
     });
 

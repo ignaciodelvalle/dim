@@ -595,6 +595,52 @@ describe("PetsRepository.updatePetProfile", () => {
     expect(changes).toEqual([{ field: "species", old: before.species, new: newSpecies }]);
   });
 
+  it("correctSpecies: carries the potentially_dangerous_breed change when the flag flips", async () => {
+    // Baseline: this pet's PPP flag is false. A species correction that also
+    // flips PPP to true must record BOTH changes so the correction is fully
+    // event-derivable (F5 — the dual-written flag needs its paired fact).
+    const [before] = await db
+      .select({ species: pets.species, ppp: pets.potentiallyDangerousBreed })
+      .from(pets)
+      .where(eq(pets.id, updatePetId));
+    const newSpecies = before.species === "cat" ? "dog" : "cat";
+    const now = new Date();
+
+    const result = await db.transaction(async (tx) => {
+      return PetsRepository.correctSpecies(
+        {
+          petId: updatePetId,
+          oldSpecies: before.species,
+          newSpecies,
+          potentiallyDangerousBreed: true,
+          userId,
+          eventAuthorship: {
+            authorRole: "owner" as const,
+            authorOrganizationId: null,
+            authorVerified: false,
+          },
+          now,
+        },
+        tx,
+      );
+    });
+
+    const [event] = await db.select().from(petEvents).where(eq(petEvents.id, result.eventId));
+    const changes = (event.payload as { changes: { field: string; old: unknown; new: unknown }[] })
+      .changes;
+    expect(changes).toEqual([
+      { field: "species", old: before.species, new: newSpecies },
+      { field: "potentially_dangerous_breed", old: before.ppp ?? false, new: true },
+    ]);
+
+    // Column dual-written to match.
+    const [after] = await db
+      .select({ ppp: pets.potentiallyDangerousBreed })
+      .from(pets)
+      .where(eq(pets.id, updatePetId));
+    expect(after.ppp).toBe(true);
+  });
+
   it("emits microchip_implanted event when chipNewlyAdded=true", async () => {
     const parsed = makeParsedBase({
       name: "UpdatedName",
