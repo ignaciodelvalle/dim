@@ -55,7 +55,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
     if (!id) return;
     setVerifyState({ status: "loading" });
     startTransition(async () => {
-      const result = await lookupTransferTargetAction({ kind: transferKind, id });
+      const result = await lookupTransferTargetAction({ kind: transferKind, id, disputeToken });
       if (!result.found) {
         setVerifyState({ status: "error", message: result.error });
       } else {

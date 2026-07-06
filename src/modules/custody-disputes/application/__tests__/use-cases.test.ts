@@ -868,8 +868,15 @@ describe("withdrawDisputeUseCase", () => {
 describe("lookupTransferTargetUseCase", () => {
   let testOrgId!: string;
   let inactiveOrgId!: string;
+  // A dispute in the govt session's jurisdiction (La Plata) to bind lookups to.
+  let scopedDisputeToken!: string;
 
   beforeAll(async () => {
+    ({ disputeToken: scopedDisputeToken } = await seedOpenDispute(
+      generatePublicToken(),
+      "UC CD Lookup Scope",
+    ));
+
     const [activeOrg] = await db
       .insert(organizations)
       .values({
@@ -905,40 +912,86 @@ describe("lookupTransferTargetUseCase", () => {
   });
 
   it("user found: returns displayName + active=true", async () => {
-    const result = await lookupTransferTargetUseCase({ kind: "user", id: transfereeUserId });
+    const result = await lookupTransferTargetUseCase(adminSession(), {
+      kind: "user",
+      id: transfereeUserId,
+      disputeToken: scopedDisputeToken,
+    });
     expect(result).toMatchObject({ found: true, active: true });
     expect((result as { found: true; displayName: string }).displayName).toBeTruthy();
   });
 
   it("user not found: returns error", async () => {
-    const result = await lookupTransferTargetUseCase({
+    const result = await lookupTransferTargetUseCase(adminSession(), {
       kind: "user",
       id: "00000000-0000-0000-0000-000000000000",
+      disputeToken: scopedDisputeToken,
     });
     expect(result).toMatchObject({ found: false, error: "Usuario no encontrado." });
   });
 
   it("org found and active: returns active=true", async () => {
-    const result = await lookupTransferTargetUseCase({ kind: "org", id: testOrgId });
+    const result = await lookupTransferTargetUseCase(adminSession(), {
+      kind: "org",
+      id: testOrgId,
+      disputeToken: scopedDisputeToken,
+    });
     expect(result).toMatchObject({ found: true, active: true });
   });
 
   it("org found but not active: returns active=false", async () => {
-    const result = await lookupTransferTargetUseCase({ kind: "org", id: inactiveOrgId });
+    const result = await lookupTransferTargetUseCase(adminSession(), {
+      kind: "org",
+      id: inactiveOrgId,
+      disputeToken: scopedDisputeToken,
+    });
     expect(result).toMatchObject({ found: true, active: false });
   });
 
   it("org not found: returns error", async () => {
-    const result = await lookupTransferTargetUseCase({
+    const result = await lookupTransferTargetUseCase(adminSession(), {
       kind: "org",
       id: "00000000-0000-0000-0000-000000000000",
+      disputeToken: scopedDisputeToken,
     });
     expect(result).toMatchObject({ found: false, error: "Organización no encontrada." });
   });
 
   it("empty id: returns error", async () => {
-    const result = await lookupTransferTargetUseCase({ kind: "user", id: "   " });
+    const result = await lookupTransferTargetUseCase(adminSession(), {
+      kind: "user",
+      id: "   ",
+      disputeToken: scopedDisputeToken,
+    });
     expect(result).toMatchObject({ found: false, error: "ID vacío." });
+  });
+
+  it("govt in scope: resolves within their jurisdiction", async () => {
+    const result = await lookupTransferTargetUseCase(govtSession(), {
+      kind: "user",
+      id: transfereeUserId,
+      disputeToken: scopedDisputeToken,
+    });
+    expect(result).toMatchObject({ found: true, active: true });
+  });
+
+  it("rejects govt caller outside the dispute's jurisdiction (no identity oracle)", async () => {
+    const result = await lookupTransferTargetUseCase(govtOojSession(), {
+      kind: "user",
+      id: transfereeUserId,
+      disputeToken: scopedDisputeToken,
+    });
+    expect(result).toMatchObject({ found: false });
+    expect((result as { found: false; error: string }).error).toContain("jurisdicción");
+  });
+
+  it("rejects an unknown dispute token before any lookup", async () => {
+    const result = await lookupTransferTargetUseCase(adminSession(), {
+      kind: "user",
+      id: transfereeUserId,
+      disputeToken: "DIS-NOPE-LOOKUP",
+    });
+    expect(result).toMatchObject({ found: false, error: "Disputa no encontrada." });
   });
 });
 

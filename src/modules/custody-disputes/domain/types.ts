@@ -65,6 +65,10 @@ export type WithdrawDisputeResult = { withdrawnAt: Date } | { error: string };
 export type LookupTransferTargetInput = {
   kind: "user" | "org";
   id: string;
+  // The dispute this lookup is bound to. The use-case resolves a UUID →
+  // displayName only for a caller in scope of THIS dispute (admin, or a govt
+  // agent whose jurisdiction covers it) — never as an open identity oracle.
+  disputeToken: string;
 };
 
 export type LookupTransferTargetResult =

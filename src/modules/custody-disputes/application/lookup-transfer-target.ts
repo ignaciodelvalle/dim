@@ -3,18 +3,61 @@
 // Quick existence + active-state check. The ResolveDisputeForm calls this
 // before submitting so the operator sees a human-readable confirmation rather
 // than a raw UUID.
+//
+// Tenant isolation (review 24): the lookup is bound to an in-scope dispute.
+// Without a dispute binding, any admin/govt caller could resolve an arbitrary
+// user/org UUID → displayName + active-state, turning this into an identity
+// enumeration oracle. We load the dispute first, enforce the same govt
+// jurisdiction gate as resolve/escalate/withdraw, and only then look up.
 
 import { eq } from "drizzle-orm";
 
-import { db, organizations, profiles } from "@/db";
+import { custodyDisputes, db, organizations, profiles } from "@/db";
+import type { CustodyDispute } from "@/db";
 
 import type { LookupTransferTargetInput, LookupTransferTargetResult } from "../domain/types";
 
+type Session = {
+  profile: { role: string };
+  jurisdictions: { province: string; locality: string }[];
+};
+
+function isGovtInScope(
+  jurisdictions: { province: string; locality: string }[],
+  dispute: Pick<CustodyDispute, "jurisdictionProvince" | "jurisdictionLocality">,
+): boolean {
+  return jurisdictions.some(
+    (j) =>
+      j.province === dispute.jurisdictionProvince && j.locality === dispute.jurisdictionLocality,
+  );
+}
+
 export async function lookupTransferTargetUseCase(
+  session: Session,
   input: LookupTransferTargetInput,
 ): Promise<LookupTransferTargetResult> {
   const id = input.id.trim();
   if (!id) return { found: false, error: "ID vacío." };
+
+  const disputeToken = input.disputeToken.trim();
+  if (!disputeToken) return { found: false, error: "Falta la disputa." };
+
+  // Scope gate: bind the lookup to a dispute the caller may act on.
+  if (session.profile.role !== "admin" && session.profile.role !== "govt") {
+    return { found: false, error: "No tenés permiso para esta acción." };
+  }
+  const [dispute] = await db
+    .select({
+      jurisdictionProvince: custodyDisputes.jurisdictionProvince,
+      jurisdictionLocality: custodyDisputes.jurisdictionLocality,
+    })
+    .from(custodyDisputes)
+    .where(eq(custodyDisputes.publicToken, disputeToken))
+    .limit(1);
+  if (!dispute) return { found: false, error: "Disputa no encontrada." };
+  if (session.profile.role === "govt" && !isGovtInScope(session.jurisdictions, dispute)) {
+    return { found: false, error: "Esta disputa está fuera de tu jurisdicción." };
+  }
 
   try {
     if (input.kind === "user") {

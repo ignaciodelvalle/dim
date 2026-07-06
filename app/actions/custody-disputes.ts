@@ -100,8 +100,8 @@ export async function withdrawDisputeAction(
 export async function lookupTransferTargetAction(
   input: LookupTransferTargetInput,
 ): Promise<LookupTransferTargetResult> {
-  await requireAdminOrGovtOrRedirect();
-  return lookupTransferTargetUseCase(input);
+  const session = await requireAdminOrGovtOrRedirect();
+  return lookupTransferTargetUseCase(session, input);
 }
 
 export async function escalateDisputeAction(
