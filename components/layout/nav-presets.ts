@@ -57,9 +57,18 @@ export type OrgNavOptions = {
    * when their capability is present. Omit to build the membership-only nav.
    */
   granted?: ReadonlySet<string>;
+  /**
+   * The organization's type (organizations.orgType). A clinic admin implicitly
+   * holds every capability, so capability gating alone can't hide the
+   * shelter-only modules (Tránsitos, Voluntarios, Adopciones, Check-ins) — they
+   * are noise on a veterinary clinic. Passing orgType filters them out for a
+   * clinic, mirroring the page-level `capabilityAppliesToOrgType` used by the
+   * org home cards (UX gate M2).
+   */
+  orgType?: string;
 };
 
-type OrgNavItem = NavItem & { requiredCapability?: string };
+type OrgNavItem = NavItem & { requiredCapability?: string; shelterOnly?: boolean };
 
 /**
  * Returns the org nav as grouped NavSection[].
@@ -68,6 +77,7 @@ type OrgNavItem = NavItem & { requiredCapability?: string };
  */
 export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSection[] {
   const granted = opts.granted ?? new Set<string>();
+  const isClinic = opts.orgType === "clinic";
 
   // All candidate items with their section assignment and optional capability gate.
   const allItems: Array<OrgNavItem & { section: string }> = [
@@ -99,12 +109,14 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       label: "Tránsitos",
       matchPrefix: `/org/${orgToken}/transitos`,
       section: "Operación",
+      shelterOnly: true,
     },
     {
       href: `/org/${orgToken}/voluntarios`,
       label: "Voluntarios",
       matchPrefix: `/org/${orgToken}/voluntarios`,
       section: "Operación",
+      shelterOnly: true,
     },
     // Animales
     {
@@ -125,6 +137,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       label: "Operaciones",
       matchPrefix: `/org/${orgToken}/adopciones`,
       section: "Adopciones",
+      shelterOnly: true,
     },
     {
       href: `/org/${orgToken}/checkins`,
@@ -132,6 +145,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       matchPrefix: `/org/${orgToken}/checkins`,
       requiredCapability: "adoption.review",
       section: "Adopciones",
+      shelterOnly: true,
     },
     // Casos
     {
@@ -191,10 +205,16 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
   // Section order determines render order — must match the spec exactly.
   const SECTION_ORDER = ["Operación", "Animales", "Adopciones", "Casos", "Administración"] as const;
 
-  // Filter by capability, then strip internal fields.
+  // Filter by capability AND org type (a clinic admin implicitly holds every
+  // capability, so the shelter-only modules must be dropped by org type — not
+  // capability), then strip internal fields.
   const filtered = allItems
     .filter((item) => !item.requiredCapability || granted.has(item.requiredCapability))
-    .map(({ requiredCapability: _cap, section: _sec, ...item }) => ({ ...item, section: _sec }));
+    .filter((item) => !(item.shelterOnly && isClinic))
+    .map(({ requiredCapability: _cap, shelterOnly: _so, section: _sec, ...item }) => ({
+      ...item,
+      section: _sec,
+    }));
 
   // Partition into sections, preserving order. Drop empty sections.
   const sections: NavSection[] = [];

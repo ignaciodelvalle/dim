@@ -51,7 +51,10 @@ export default async function OrgLayout({
     console.error("[OrgLayout] getGrantedCapabilities failed", err);
     return new Set<OrganizationCapability>();
   });
-  const orgNavSections = buildOrgNav(orgToken, { granted });
+  const orgNavSections = buildOrgNav(orgToken, {
+    granted,
+    orgType: organization.orgType,
+  });
 
   // Omnibox: show only for members with pet read access.
   const canSearchPets = granted.has("pet.read_held") || membership.role === "admin";
