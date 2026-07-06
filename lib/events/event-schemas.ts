@@ -1483,6 +1483,15 @@ const custodyTransferProposed = z
       to_user_id: z.string().uuid().nullable(),
       to_organization_id: z.string().uuid().nullable(),
       reason: custodyTransferReason,
+      // Roles carried through the handshake so ACCEPT can honor the requested
+      // outcome. `from_role` is the source ownership role being handed off;
+      // `to_role` is the role the destination will hold once accepted
+      // (shelter_custody = temporary custody, owner = permanent owner). Both
+      // optional for backwards-compat: pre-extension proposals (and the
+      // return-to-owner / owner→owner handshakes) omit them and ACCEPT defaults
+      // to shelter_custody.
+      from_role: z.enum(["shelter_custody", "owner"]).optional(),
+      to_role: z.enum(["shelter_custody", "owner"]).optional(),
       // Links the proposal to a chip-match flow when applicable.
       matched_against_pet_id: z.string().uuid().nullable().optional(),
       // ISO-8601 datetime when the proposal was created (server-generated).

@@ -516,6 +516,27 @@ export const TransfersRepository = {
   },
 
   /**
+   * Ends the active `owner`-role ownership held by an org on a pet (endedAt=now).
+   * Mirrors endShelterCustody but for the permanent-owner source side — a
+   * santuario/decomiso org handing off a pet it held as `owner`. Used by
+   * acceptCrossOrgTransfer when the proposal's from_role is `owner`.
+   */
+  async endOwnerOwnershipForOrg(petId: string, orgId: string, tx: Tx): Promise<void> {
+    const now = new Date();
+    await tx
+      .update(ownerships)
+      .set({ endedAt: now })
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "owner"),
+          isNull(ownerships.endedAt),
+        ),
+      );
+  },
+
+  /**
    * Inserts a new shelter_custody row for an org.
    */
   async insertShelterCustody(args: InsertShelterCustodyArgs, tx: Tx): Promise<{ id: string }> {
