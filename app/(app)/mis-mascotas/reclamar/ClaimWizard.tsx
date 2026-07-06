@@ -23,6 +23,10 @@ type Step1State = { phase: "idle"; kind: IdKind; value: string; error: string | 
 type Step2State = {
   phase: "result";
   kind: IdKind;
+  // The raw identifier value entered in step 1. Carried forward so the free-claim
+  // submit can re-prove knowledge of the private identifier server-side (the
+  // public pet token is NOT evidence — see submit-free-claim.ts).
+  value: string;
   lookup: Extract<ClaimLookupResult, { variant: string }>;
   error: string | null;
 };
@@ -102,7 +106,13 @@ export function ClaimWizard() {
               setState({ ...state, error: result.error });
               return;
             }
-            setState({ phase: "result", kind: state.kind, lookup: result, error: null });
+            setState({
+              phase: "result",
+              kind: state.kind,
+              value: state.value,
+              lookup: result,
+              error: null,
+            });
           });
         }}
         className="space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-5"
@@ -176,11 +186,11 @@ export function ClaimWizard() {
         onClaim={(t, n) =>
           setState({ phase: "dispute", petToken: t, petName: n, reason: "", error: null })
         }
-        onFreeClaim={(petToken) => {
+        onFreeClaim={() => {
           startTransition(async () => {
             const result = await submitFreeClaimAction({
-              petToken,
               identifierKind: state.kind,
+              identifierValue: state.value,
             });
             if ("error" in result) {
               setState({ ...state, error: result.error });
@@ -311,7 +321,7 @@ function ResultStep({
   error: string | null;
   onBack: () => void;
   onClaim: (petToken: string, petName: string) => void;
-  onFreeClaim: (petToken: string) => void;
+  onFreeClaim: () => void;
 }) {
   // Variant D — free pet (no active custody) → direct claim
   if (lookup.variant === "free") {
@@ -339,7 +349,7 @@ function ResultStep({
           </button>
           <button
             type="button"
-            onClick={() => onFreeClaim(lookup.petToken)}
+            onClick={() => onFreeClaim()}
             disabled={pending}
             className="flex-1 rounded-[3px] bg-[var(--color-ln-azul)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
           >

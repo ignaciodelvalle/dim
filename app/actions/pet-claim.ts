@@ -58,14 +58,16 @@ export async function submitClaimDisputeAction(input: ClaimDisputeInput, files: 
 }
 
 export async function submitFreeClaimAction(input: {
-  petToken: string;
   identifierKind: "microchip" | "tattoo";
+  identifierValue: string;
 }) {
   const { user } = await requireUserOrRedirect();
   const result = await _submitFreeClaim(user.id, input);
   if (!("error" in result)) {
     revalidatePath("/mis-mascotas");
-    revalidatePath(`/mis-mascotas/${input.petToken}`);
+    // The pet token is derived server-side from the verified identifier — never
+    // trusted from the caller — so revalidate using the resolved token.
+    revalidatePath(`/mis-mascotas/${result.petToken}`);
   }
   return result;
 }

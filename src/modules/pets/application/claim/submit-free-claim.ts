@@ -4,10 +4,23 @@
 // owner ownership + ownership_claimed event in one tx. The pet row is locked
 // (SELECT ... FOR UPDATE) so two concurrent claims on the same pet serialize
 // and the second one fails the re-check.
+//
+// EVIDENCE GATE (audit 26-#6, pilot MED)
+// -------------------------------------
+// A free claim is an ownership grant. The ONLY thing that makes it legitimate
+// is knowledge of the pet's PRIVATE identifier — the 15-digit microchip number
+// or the tattoo code — which is NOT shown on the public credential page. The
+// public token (`DIM-XXXX-XXXX`) is printed on the physical tag and resolvable
+// by anyone who scans the QR, so it is NOT evidence. This writer therefore
+// resolves the pet FROM the supplied identifier value against the canonical
+// `pet_identifications` table and never trusts a caller-supplied pet token for
+// authorization. A caller who does not know the private identifier cannot reach
+// a pet: the lookup returns nothing and the claim is rejected. Mirrors the
+// chip/tattoo proof the dispute path (submit-claim-dispute) already requires.
 
 import { and, eq, isNull } from "drizzle-orm";
 
-import { auditLog, db, notifications, ownerships, petEvents, pets } from "@/db";
+import { auditLog, db, notifications, ownerships, petEvents, petIdentifications, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 
@@ -17,13 +30,27 @@ import type { FreeClaimResult } from "./types";
 // errors so the latter are never surfaced verbatim to the client.
 class FreeClaimGuardError extends Error {}
 
+const MICROCHIP_PATTERN = /^\d{15}$/;
+
 export async function submitFreeClaimForUser(
   userId: string,
   input: {
-    petToken: string;
     identifierKind: "microchip" | "tattoo";
+    identifierValue: string;
   },
 ): Promise<FreeClaimResult> {
+  const identifierValue = input.identifierValue.trim();
+
+  // Evidence gate — the private identifier value is mandatory. An empty value
+  // (or a malformed microchip) can never resolve to a pet, so reject early
+  // before spending a rate-limit token or opening a transaction.
+  if (!identifierValue) {
+    return { error: "Ingresá el número de microchip o el código del tatuaje." };
+  }
+  if (input.identifierKind === "microchip" && !MICROCHIP_PATTERN.test(identifierValue)) {
+    return { error: "El microchip debe tener exactamente 15 dígitos." };
+  }
+
   // Rate limit — same key as lookup so a burst of probes counts together.
   try {
     await enforceRateLimit("claim_lookup", userId, { maxPerMinute: 30, maxPerHour: 200 });
@@ -34,17 +61,36 @@ export async function submitFreeClaimForUser(
     throw err;
   }
 
+  // Map the wizard's identifier kind to the canonical pet_identifications kind.
+  const identificationKind = input.identifierKind === "microchip" ? "microchip_iso" : "tattoo";
+
   try {
     const claimed = await db.transaction(async (tx) => {
+      // Resolve the pet FROM the private identifier — this is the evidence.
+      // The active-status partial unique index guarantees at most one match.
+      const [ident] = await tx
+        .select({ petId: petIdentifications.petId })
+        .from(petIdentifications)
+        .where(
+          and(
+            eq(petIdentifications.kind, identificationKind),
+            eq(petIdentifications.code, identifierValue),
+            eq(petIdentifications.status, "active"),
+          ),
+        )
+        .limit(1);
+      if (!ident) throw new FreeClaimGuardError("No encontramos la mascota.");
+
       const [pet] = await tx
         .select({
           id: pets.id,
+          publicToken: pets.publicToken,
           name: pets.name,
           status: pets.status,
           inCustodyDispute: pets.inCustodyDispute,
         })
         .from(pets)
-        .where(eq(pets.publicToken, input.petToken))
+        .where(eq(pets.id, ident.petId))
         .limit(1)
         .for("update");
       if (!pet) throw new FreeClaimGuardError("No encontramos la mascota.");
@@ -102,7 +148,7 @@ export async function submitFreeClaimForUser(
         severity: "info",
         relatedPetId: pet.id,
         ctaLabel: "Ver mi mascota",
-        ctaUrl: `/mis-mascotas/${input.petToken}`,
+        ctaUrl: `/mis-mascotas/${pet.publicToken}`,
         category: "custody",
       });
 
@@ -115,10 +161,10 @@ export async function submitFreeClaimForUser(
         },
       });
 
-      return { petName: pet.name };
+      return { petToken: pet.publicToken, petName: pet.name };
     });
 
-    return { petToken: input.petToken, petName: claimed.petName };
+    return { petToken: claimed.petToken, petName: claimed.petName };
   } catch (err) {
     if (err instanceof FreeClaimGuardError) {
       return { error: err.message };

@@ -57,6 +57,7 @@ import {
   notifications,
   ownerships,
   petEvents,
+  petIdentifications,
   pets,
   profiles,
 } from "@/db";
@@ -127,6 +128,18 @@ async function insertFreePet(token: string, name: string): Promise<string> {
     .returning({ id: pets.id });
   insertedPetIds.push(pet.id);
   return pet.id;
+}
+
+// Register a microchip identification (the private evidence a free claim now
+// requires — the public token is no longer accepted server-side).
+const TODAY = new Date().toISOString().slice(0, 10);
+async function addMicrochip(petId: string, code: string): Promise<void> {
+  await db.insert(petIdentifications).values({
+    petId,
+    kind: "microchip_iso",
+    code,
+    recordedAt: TODAY,
+  });
 }
 
 // Insert a pet with an active owner — direct claim must fail, dispute is the
@@ -211,10 +224,15 @@ beforeEach(() => {
 describe("submitFreeClaimAction", () => {
   it("claims a free pet: creates owner ownership + ownership_claimed event + audit row", async () => {
     const token = "DIM-CLAIM-FREE-1";
+    const chip = "100000000000001";
     const petId = await insertFreePet(token, "Libre Uno");
+    await addMicrochip(petId, chip);
     mockSessionAs(claimantUserId);
 
-    const result = await submitFreeClaimAction({ petToken: token, identifierKind: "microchip" });
+    const result = await submitFreeClaimAction({
+      identifierKind: "microchip",
+      identifierValue: chip,
+    });
 
     expect(result).toEqual({ petToken: token, petName: "Libre Uno" });
 
@@ -250,21 +268,31 @@ describe("submitFreeClaimAction", () => {
 
   it("rejects when the rate limit is exceeded", async () => {
     const token = "DIM-CLAIM-FREE-RL";
-    await insertFreePet(token, "Rate Limited");
+    const chip = "100000000000002";
+    const petId = await insertFreePet(token, "Rate Limited");
+    await addMicrochip(petId, chip);
     mockSessionAs(claimantUserId);
     mockEnforceRateLimit.mockRejectedValueOnce(new MockRateLimitError(new Date(), "minute"));
 
-    const result = await submitFreeClaimAction({ petToken: token, identifierKind: "microchip" });
+    const result = await submitFreeClaimAction({
+      identifierKind: "microchip",
+      identifierValue: chip,
+    });
 
     expect(result).toEqual({ error: "Demasiados intentos. Probá en unos minutos." });
   });
 
   it("rejects claiming a pet that already has active custody (FOR UPDATE re-check)", async () => {
     const token = "DIM-CLAIM-OWNED-1";
+    const chip = "100000000000003";
     const petId = await insertOwnedPet(token, "Ya Tiene Dueño", ownerUserId);
+    await addMicrochip(petId, chip);
     mockSessionAs(claimantUserId);
 
-    const result = await submitFreeClaimAction({ petToken: token, identifierKind: "microchip" });
+    const result = await submitFreeClaimAction({
+      identifierKind: "microchip",
+      identifierValue: chip,
+    });
 
     expect(result).toHaveProperty("error");
     expect((result as { error: string }).error).toContain("custodia activa");
@@ -277,13 +305,38 @@ describe("submitFreeClaimAction", () => {
     expect(claimantRows).toHaveLength(0);
   });
 
-  it("rejects an unknown pet token", async () => {
+  // EVIDENCE GATE (audit 26-#6). Knowing a pet's PUBLIC token is NOT enough to
+  // claim it — the writer resolves the pet from the PRIVATE identifier value and
+  // never trusts a caller-supplied token. An unknown identifier resolves to
+  // nothing and the claim is rejected, even for a real free pet.
+  it("rejects a claim when the identifier value does not resolve to any pet", async () => {
+    const token = "DIM-CLAIM-NOEVIDENCE";
+    await insertFreePet(token, "Sin Evidencia");
+    // No microchip registered → the free pet exists but the bare token is useless.
     mockSessionAs(claimantUserId);
+
     const result = await submitFreeClaimAction({
-      petToken: "DIM-DOES-NOT-EXIST",
-      identifierKind: "tattoo",
+      identifierKind: "microchip",
+      identifierValue: "199999999999999",
     });
     expect(result).toEqual({ error: "No encontramos la mascota." });
+
+    // The pet was NOT claimed — no ownership row exists for the claimant.
+    const [pet] = await db.select({ id: pets.id }).from(pets).where(eq(pets.publicToken, token));
+    const rows = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(and(eq(ownerships.petId, pet.id), eq(ownerships.ownerUserId, claimantUserId)));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("rejects a microchip that is not exactly 15 digits before any lookup", async () => {
+    mockSessionAs(claimantUserId);
+    const result = await submitFreeClaimAction({
+      identifierKind: "microchip",
+      identifierValue: "12345",
+    });
+    expect(result).toEqual({ error: "El microchip debe tener exactamente 15 dígitos." });
   });
 });
 
