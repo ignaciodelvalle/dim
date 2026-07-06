@@ -41,13 +41,23 @@ export default async function OrgTransitosPage({
 
   const { organization } = await requireOrgAccessByToken(orgToken);
 
-  // Find all pets this org ever held via shelter_custody (active + ended),
-  // so historial can reach past pets too.
+  // Pets in range for this org. Historial needs every pet the org EVER held
+  // (active + ended custody) so it can reach transferred-out pets. Activos must
+  // only consider pets the org CURRENTLY holds (active custody ownership):
+  // otherwise a pet the org already transferred out stays in petIds, and a
+  // foster row still open under its NEW holder would surface on this org's
+  // active tab — a cross-tenant leak (review 24). The endedAt filter is applied
+  // only for the activos tab.
   const orgPets = await db
     .select({ id: pets.id, publicToken: pets.publicToken, name: pets.name, species: pets.species })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(eq(ownerships.ownerOrganizationId, organization.id));
+    .where(
+      and(
+        eq(ownerships.ownerOrganizationId, organization.id),
+        ...(activeTab === "activos" ? [isNull(ownerships.endedAt)] : []),
+      ),
+    );
 
   const petIds = [...new Set(orgPets.map((p) => p.id))];
   const petMap = new Map(orgPets.map((p) => [p.id, p]));
