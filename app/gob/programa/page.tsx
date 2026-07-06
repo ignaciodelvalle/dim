@@ -50,6 +50,7 @@ import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { createClient } from "@/lib/supabase/server";
+import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -447,7 +448,7 @@ export default async function GobProgramaPage({
                       <td className="py-2 pr-4 font-mono text-[11px] text-ln-op-ink-2">
                         {row.actorUserId ? `${row.actorUserId.slice(0, 8)}…` : "Usuario eliminado"}
                       </td>
-                      <td className="py-2 pr-4 text-ln-op-ink-2">{row.action}</td>
+                      <td className="py-2 pr-4 text-ln-op-ink-2">{auditActionLabel(row.action)}</td>
                       <td className="py-2 pr-4 text-ln-op-mute">{row.surface ?? "—"}</td>
                       <td className="py-2 pr-4 text-right tabular-nums font-medium">
                         {row.count.toLocaleString("es-AR")}

@@ -47,16 +47,8 @@ import {
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { formatDate } from "@/lib/utils/format";
-
-const ACTION_LABELS: Record<string, string> = {
-  request_viewed: "Vio una solicitud",
-  evidence_viewed: "Vio evidencia",
-  request_approved: "Aprobó una solicitud",
-  request_rejected: "Rechazó una solicitud",
-  pii_queried: "Buscó por PII",
-  admin_seeded: "Admin inicializado",
-};
 
 export default async function GobiernoDashboardPage({
   searchParams,
@@ -507,9 +499,7 @@ export default async function GobiernoDashboardPage({
                       key={entry.id}
                       className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
                     >
-                      <p className="text-[13px] text-ln-op-ink">
-                        {ACTION_LABELS[entry.action] ?? entry.action}
-                      </p>
+                      <p className="text-[13px] text-ln-op-ink">{auditActionLabel(entry.action)}</p>
                       <time className="text-sm text-ln-op-mute tabular-nums whitespace-nowrap">
                         {new Date(entry.performedAt).toLocaleString("es-AR", {
                           dateStyle: "short",

@@ -62,6 +62,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   welfare_report_confirmed_spam: "Denuncia marcada como spam",
   welfare_report_submitted_by_org: "Denuncia enviada por organización",
   welfare_report_derived_to_org: "Denuncia derivada a organización",
+  welfare_location_viewed: "Ubicación de caso consultada",
   welfare_mpf_export_generated: "Exportación MPF generada",
   // Decomisos
   decomiso_executed: "Decomiso ejecutado",
