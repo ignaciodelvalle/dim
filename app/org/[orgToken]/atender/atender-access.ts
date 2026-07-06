@@ -25,9 +25,21 @@
 
 import { db, organizationMemberships, organizations, pets, profiles } from "@/db";
 import type { PetEventAuthorship } from "@/lib/infra/pet-access";
+import {
+  type RateLimitConfig,
+  RateLimitError,
+  callerIp,
+  enforceRateLimit,
+} from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, isNull } from "drizzle-orm";
+import { headers } from "next/headers";
+
+// Lookup throttle: stricter than the public /p page (60/400) since the legit
+// caller pool is small (a clinic looking up the pet in front of them), but it
+// must exist because the DIM code is public → the lookup is an existence-oracle.
+const ATENDER_LOOKUP_LIMIT: RateLimitConfig = { maxPerMinute: 20, maxPerHour: 100 };
 
 // DIM credential token shape: DIM-XXXX-XXXX (case-insensitive). Mirrors the
 // pattern used by the govt decomiso lookup (lookup-pet-for-decomiso.ts).
@@ -191,6 +203,29 @@ export async function resolveAtenderPet(
   const normalized = normalizeAtenderToken(publicToken);
   if (!ATENDER_TOKEN_PATTERN.test(normalized)) {
     return { ok: false, error: "El formato del código es DIM-XXXX-XXXX." };
+  }
+
+  // Throttle the code lookup. The DIM code is DIM's PUBLIC Tier-0 credential, so
+  // this authenticated lookup doubles as a national existence-oracle (confirms a
+  // code is live + returns name/species). Rate-limit per acting org + IP —
+  // mirrors the /p/[publicToken] public-page limiter — so it can't be used for
+  // token-space enumeration. Fail-open on limiter-infra error (never block a
+  // legit clinical sign because the bucket store hiccuped).
+  try {
+    const ip = callerIp(await headers());
+    await enforceRateLimit(
+      "atender_lookup",
+      `${context.organizationId}:${ip}`,
+      ATENDER_LOOKUP_LIMIT,
+    );
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        error: "Demasiados intentos de búsqueda. Esperá un momento e intentá de nuevo.",
+      };
+    }
+    // non-RateLimitError → limiter infra failure → fail open.
   }
 
   // Resolve ONLY pet identity — no ownerships join, no owner PII.
