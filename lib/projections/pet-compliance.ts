@@ -219,19 +219,30 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
     const p = (dose.payload ?? {}) as Record<string, unknown>;
     const nextDueRaw = typeof p.next_due_at === "string" ? p.next_due_at : null;
     const nextDue = nextDueRaw ? new Date(nextDueRaw) : null;
-    base =
-      nextDue && Number.isFinite(nextDue.getTime())
-        ? nextDue <= input.now
+    if (nextDue && Number.isFinite(nextDue.getTime())) {
+      base =
+        nextDue <= input.now
           ? rabiesFromVariant("overdue", nextDue)
-          : rabiesFromVariant("upcoming", nextDue)
-        : {
+          : rabiesFromVariant("upcoming", nextDue);
+    } else {
+      // A dose IS on record but its payload carries no next_due_at, so we can't
+      // judge currency. This must NOT read "Sin registro" — the libreta shows a
+      // real antirrábica asiento, and a credential that says "sin registro" for
+      // it directly contradicts the libreta (UX gate M5a). A professional/
+      // institutional dose reads "Registrada"; a self-reported one reads
+      // "Declarada · sin verificar" (H1), both with the application date.
+      const applied = `Aplicada ${formatDate(new Date(dose.occurredAt))}`;
+      base = clearsObligation(dose)
+        ? {
             key: "rabies",
             label: "Vacuna antirrábica",
-            state: "Sin registro",
-            tone: "neutral",
-            detail: null,
+            state: "Registrada",
+            tone: "ok",
+            detail: applied,
             legalFootnote: FOOTNOTE.rabies,
-          };
+          }
+        : declaradaCard("rabies", "Vacuna antirrábica", FOOTNOTE.rabies, HINT.rabies, applied);
+    }
   } else {
     base = {
       key: "rabies",

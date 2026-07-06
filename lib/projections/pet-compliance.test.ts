@@ -135,6 +135,27 @@ describe("deriveComplianceState — rabies state machine", () => {
     expect(rabies?.state).toBe("Sin registro");
     expect(rabies?.tone).toBe("neutral");
   });
+
+  // UX gate M5a: a recorded antirrábica dose with no next_due_at must NOT read
+  // "Sin registro" — that contradicts the libreta asiento the owner can see.
+  it("self-reported rabies dose without next_due_at → 'Declarada · sin verificar', never 'Sin registro'", () => {
+    const state = deriveComplianceState(
+      baseInput({ events: [vaccination("Antirrábica", null, SELF)] }),
+    );
+    const rabies = state.cards.find((c) => c.key === "rabies");
+    expect(rabies?.state).toBe("Declarada · sin verificar");
+    expect(rabies?.tone).toBe("neutral");
+    expect(rabies?.detail).toBeTruthy();
+  });
+
+  it("vet-verified rabies dose without next_due_at → 'Registrada' (ok), never 'Sin registro'", () => {
+    const state = deriveComplianceState(
+      baseInput({ events: [vaccination("Antirrábica", null, VET)] }),
+    );
+    const rabies = state.cards.find((c) => c.key === "rabies");
+    expect(rabies?.state).toBe("Registrada");
+    expect(rabies?.tone).toBe("ok");
+  });
 });
 
 // H1 — provenance gates compliance: only professional/institutional events clear.
