@@ -128,8 +128,16 @@ export function MergedShareSheet({
 
       <hr className="border-[var(--color-ln-line)]" />
 
+      {/* Share type 1 — private libreta link. Its "Vencimiento" (expiry) radio
+          is the ONLY duration control shown by default; the Tier-2 duration is
+          gated behind the expander below so the two windows are never stacked
+          side by side (adversarial-citizen C2, 2026-07-06: two duration blocks
+          in one panel were easy to confuse). */}
       <section className="space-y-2">
         <SectionHeading>Compartir con vencimiento</SectionHeading>
+        <p className="text-sm text-[var(--color-ln-ink-2)]">
+          Link privado a la libreta sanitaria — vos elegís cuándo vence.
+        </p>
         <ShareLibretaSheet
           petPublicToken={petPublicToken}
           petName={petName}
@@ -139,17 +147,54 @@ export function MergedShareSheet({
 
       <hr className="border-[var(--color-ln-line)]" />
 
+      {/* Share type 2 — Tier-2 public medical view. Progressive disclosure: the
+          duration radios only appear once the owner opts in (task C2). While
+          Tier 2 is ACTIVE the status/revoke card renders directly (no expander)
+          so the owner can see and revoke it without a hidden click. */}
       <section className="space-y-2">
-        <SectionHeading>Mostrar libreta médica (Tier 2)</SectionHeading>
-        <Tier2PublicView
-          petPublicToken={petPublicToken}
-          petName={petName}
-          isActive={tier2.isActive}
-          isPermanent={tier2.isPermanent}
-          activeUntil={tier2.activeUntil}
-          enableAction={tier2.enableAction}
-          revokeAction={tier2.revokeAction}
-        />
+        {tier2.isActive ? (
+          <>
+            <SectionHeading>Mostrar libreta médica (Tier 2)</SectionHeading>
+            <Tier2PublicView
+              petPublicToken={petPublicToken}
+              petName={petName}
+              isActive={tier2.isActive}
+              isPermanent={tier2.isPermanent}
+              activeUntil={tier2.activeUntil}
+              enableAction={tier2.enableAction}
+              revokeAction={tier2.revokeAction}
+            />
+          </>
+        ) : (
+          <details className="group">
+            <summary className="flex cursor-pointer list-none flex-col gap-1 [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center gap-1.5 text-xs uppercase tracking-wider font-semibold text-[var(--color-ln-mute)]">
+                <span
+                  aria-hidden="true"
+                  className="inline-block transition-transform group-open:rotate-90"
+                >
+                  ▸
+                </span>
+                Mostrar libreta médica (Tier 2)
+              </span>
+              <span className="text-sm text-[var(--color-ln-ink-2)]">
+                Exponé temporalmente la info médica en el QR público. Elegí la duración al
+                activarlo.
+              </span>
+            </summary>
+            <div className="mt-3">
+              <Tier2PublicView
+                petPublicToken={petPublicToken}
+                petName={petName}
+                isActive={tier2.isActive}
+                isPermanent={tier2.isPermanent}
+                activeUntil={tier2.activeUntil}
+                enableAction={tier2.enableAction}
+                revokeAction={tier2.revokeAction}
+              />
+            </div>
+          </details>
+        )}
       </section>
 
       {/* ADR-14: SharesManager (active/revocable links) folded in here —
