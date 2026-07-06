@@ -206,6 +206,40 @@ describe("deriveComplianceState — H1 provenance gate", () => {
     expect(state.summary.ok).toBe(1);
   });
 
+  // Seal/footnote agreement: a declared (unverified) sterilization must NEVER
+  // carry a footnote claiming the event is "verificado" — the seal reads
+  // "Declarada · sin verificar", so a "Evento verificado en la libreta" footer
+  // is a direct self-contradiction (adversarial-citizen 2026-07-06).
+  it("self-reported sterilization footnote never claims 'verificado'", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...SELF }],
+      }),
+    );
+    const card = state.cards.find((c) => c.key === "sterilization");
+    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.legalFootnote).not.toMatch(/verificad/i);
+    expect(card?.legalFootnote).toBe("Declarado por el titular, sin verificación profesional");
+  });
+
+  it("vet-verified sterilization footnote says 'verificado en la libreta'", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...VET }],
+      }),
+    );
+    const card = state.cards.find((c) => c.key === "sterilization");
+    expect(card?.state).toBe("Registrada");
+    expect(card?.legalFootnote).toBe("Evento verificado en la libreta");
+  });
+
+  it("sterilization with no record has a footnote that does not claim 'verificado'", () => {
+    const state = deriveComplianceState(baseInput());
+    const card = state.cards.find((c) => c.key === "sterilization");
+    expect(card?.state).toBe("Sin registro");
+    expect(card?.legalFootnote).not.toMatch(/verificad/i);
+  });
+
   it("rabies currency from a self-reported dose → 'Declarada · sin verificar' (not Vigente)", () => {
     const state = deriveComplianceState(
       baseInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", SELF)] }),

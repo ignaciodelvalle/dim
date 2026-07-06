@@ -93,9 +93,20 @@ export type ComplianceInput = {
 // Kept as one muted line each; never a banner (handoff §5).
 const FOOTNOTE = {
   rabies: "Obligación del propietario · Ord. CABA 41.831 · Ley 22.953",
-  sterilization: "Evento verificado en la libreta",
   microchip: "Identificación · Ord. CABA 41.831 art. 4°",
   ppp: "Régimen perros potencialmente peligrosos · regla jurisdiccional",
+} as const;
+
+// The sterilization footnote must AGREE with the card's verification state. A
+// "Declarada · sin verificar" seal cannot sit above "Evento verificado en la
+// libreta" — that is the credential contradicting itself (adversarial-citizen
+// 2026-07-06, same class as the rabies "Registrada"/"Declarada" split). Each
+// state carries its own provenance line so the seal, the footnote and the
+// "N de M al día" summary always tell the same story.
+const STERILIZATION_FOOTNOTE = {
+  verified: "Evento verificado en la libreta",
+  declared: "Declarado por el titular, sin verificación profesional",
+  none: "Sin registro en la libreta",
 } as const;
 
 // Worst-first ordering. Lower number = more urgent = shown first.
@@ -276,7 +287,7 @@ function deriveSterilization(input: ComplianceInput): ObligationCard {
       state: "Sin registro",
       tone: "neutral",
       detail: null,
-      legalFootnote: FOOTNOTE.sterilization,
+      legalFootnote: STERILIZATION_FOOTNOTE.none,
     };
   }
   if (clearsObligation(event)) {
@@ -286,13 +297,13 @@ function deriveSterilization(input: ComplianceInput): ObligationCard {
       state: "Registrada",
       tone: "ok",
       detail: null,
-      legalFootnote: FOOTNOTE.sterilization,
+      legalFootnote: STERILIZATION_FOOTNOTE.verified,
     };
   }
   return declaradaCard(
     "sterilization",
     "Esterilización",
-    FOOTNOTE.sterilization,
+    STERILIZATION_FOOTNOTE.declared,
     HINT.sterilization,
   );
 }
