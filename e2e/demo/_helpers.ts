@@ -225,8 +225,15 @@ export async function pickLocality(
  *   4 subject (optional) → Continuar
  *   5 "Enviar anónima" + evidence file → "Enviar denuncia →" (server redirect)
  */
-export async function walkDenunciaWizard(page: Page): Promise<string> {
+export async function walkDenunciaWizard(
+  page: Page,
+  opts?: { triggerModerationFlag?: boolean },
+): Promise<string> {
   await visit(page, "/denuncias/nueva");
+
+  const description = opts?.triggerModerationFlag
+    ? "PERRO ATADO SIN AGUA NI COMIDA EN LA CALLE DESDE HACE VARIOS DIAS"
+    : "Perro atado a la intemperie sin agua ni comida hace varios días. Se lo ve muy delgado y sin ningún refugio contra la lluvia.";
 
   // Step 1 — Qué pasó
   await fullScroll(page);
@@ -239,11 +246,7 @@ export async function walkDenunciaWizard(page: Page): Promise<string> {
   await clickContinuar(page);
 
   // Step 3 — Dónde y cuándo
-  await page
-    .locator("textarea#description")
-    .fill(
-      "Perro atado a la intemperie sin agua ni comida hace varios días. Se lo ve muy delgado y sin ningún refugio contra la lluvia.",
-    );
+  await page.locator("textarea#description").fill(description);
   await pickCard(page, "occurredAtOption", "today_yesterday");
   // Location is optional but great on camera — LocationFields L2 address input.
   await page.locator('input[name="locationAddress"]').fill("Av. Corrientes 1234, CABA");

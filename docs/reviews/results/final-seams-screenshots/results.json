@@ -3,10 +3,11 @@
     "id": "d-adopcion",
     "pass": false,
     "entityCodes": {
-      "org": "DIM-SUMP-M8CC"
+      "org": "DIM-9M26-5HFN",
+      "pet": "DIM-YMZK-DDMU"
     },
     "notes": [
-      "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('a[href^=\"/org/DIM-SUMP-M8CC/mascotas/\"]').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('a[href^=\"/org/DIM-SUMP-M8CC/mascotas/\"]').first()\u001b[22m\n"
+      "Error: locator.click: Test timeout of 120000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('link', { name: /postularme|postular/i })\u001b[22m\n"
     ]
   }
 ]

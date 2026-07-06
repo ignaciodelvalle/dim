@@ -1,0 +1,50 @@
+[
+  {
+    "id": "a-perdida",
+    "pass": false,
+    "entityCodes": {
+      "pet": "DIM-DEMO-0010",
+      "case": "CAS-WJKK-W9T5"
+    },
+    "notes": [
+      "Selected pet token: DIM-DEMO-0010",
+      "Pet already lost — using open episode for cross-POV checks",
+      "CAS on owner profile: CAS-WJKK-W9T5",
+      "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('[data-section=\"lost-urgent-banner\"]').or(getByText(/estoy perdida|está perdida|SE BUSCA/i)).first()\nExpected: visible\nReceived: hidden\nTimeout:  25000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 25000ms\u001b[22m\n\u001b[2m  - waiting for locator('[data-section=\"lost-urgent-banner\"]').or(getByText(/estoy perdida|está perdida|SE BUSCA/i)).first()\u001b[22m\n\u001b[2m    54 × locator resolved to <title>SE BUSCA: Pipa | MiMAR</title>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n"
+    ]
+  },
+  {
+    "id": "b-vacuna-atender",
+    "pass": false,
+    "entityCodes": {
+      "pet": "DIM-DEMO-0001",
+      "org": "DIM-ZVD8-FEMN"
+    },
+    "notes": [
+      "Rabies KPI before: n/a",
+      "Owner libreta shows verified/MP: false",
+      "Rabies KPI after: 42"
+    ]
+  },
+  {
+    "id": "c-denuncia",
+    "pass": false,
+    "entityCodes": {
+      "den": "DEN-AS5Q-PGQQ"
+    },
+    "notes": [
+      "Govt /gob/maltrato shows DEN-AS5Q-PGQQ: false"
+    ]
+  },
+  {
+    "id": "d-adopcion",
+    "pass": false,
+    "entityCodes": {
+      "org": "DIM-9M26-5HFN",
+      "pet": "DIM-YMZK-DDMU"
+    },
+    "notes": [
+      "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /postular/i }).first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /postular/i }).first()\u001b[22m\n"
+    ]
+  }
+]
