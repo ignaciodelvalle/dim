@@ -309,7 +309,7 @@ export default async function AdminSistemaPage() {
               </div>
               {govtsTruncated && (
                 <p className="px-3 py-2 text-[var(--text-sm)] text-ln-op-mute">
-                  Mostrando los {GOVT_ACTIVITY_LIMIT} govts más activos de {sortedGovts.length}.
+                  Mostrando los {GOVT_ACTIVITY_LIMIT} gobiernos más activos de {sortedGovts.length}.
                 </p>
               )}
             </OpCard>

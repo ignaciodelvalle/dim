@@ -380,8 +380,8 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       // Usuarios/Organizaciones exist under both portals (portal-follows-
       // viewer) — admin nav points at the /admin/* copy.
       { href: "/admin/usuarios", label: "Usuarios", matchPrefix: "/admin/usuarios" },
-      { href: "/admin/govts", label: "Govts", matchPrefix: "/admin/govts" },
-      { href: "/admin/admins", label: "Admins", matchPrefix: "/admin/admins" },
+      { href: "/admin/govts", label: "Gobiernos", matchPrefix: "/admin/govts" },
+      { href: "/admin/admins", label: "Administradores", matchPrefix: "/admin/admins" },
       {
         href: "/admin/organizaciones",
         label: "Organizaciones",

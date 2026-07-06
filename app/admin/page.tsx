@@ -66,13 +66,13 @@ export default async function AdminDashboardPage() {
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <AccountCard
           label="Gobiernos"
-          description="Listado de govts activos. Crea cuentas, asigna localidades y revoca accesos."
+          description="Listado de gobiernos activos. Crea cuentas, asigna localidades y revoca accesos."
           cta={{ href: "/admin/govts", label: "Ir a Gobiernos" }}
         />
         <AccountCard
-          label="Admins"
-          description="Listado de admins activos. Crea cuentas y administra el acceso universal."
-          cta={{ href: "/admin/admins", label: "Ir a Admins" }}
+          label="Administradores"
+          description="Listado de administradores activos. Crea cuentas y administra el acceso universal."
+          cta={{ href: "/admin/admins", label: "Ir a Administradores" }}
         />
       </section>
 
@@ -81,7 +81,7 @@ export default async function AdminDashboardPage() {
         <OpCardHead title="Analítica nacional" />
         <OpCardBody>
           <p className="text-[13px] text-ln-op-ink-2">
-            Vista de analytics con cobertura de todas las provincias. Ranking cross-region, mapa
+            Vista de analítica con cobertura de todas las provincias. Ranking entre regiones, mapa
             nacional y métricas agregadas del sistema.
           </p>
           <Link
