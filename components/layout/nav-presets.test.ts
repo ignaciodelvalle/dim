@@ -407,6 +407,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/perdidas",
   "/gob/disputas",
   "/gob/maltrato",
+  "/gob/moderacion", // Phase 0 placeholder — jurisdiction-scoped denuncia moderation
   "/gob/decomisos",
   "/gob/campanas", // Item 20 — campaign performance
   "/gob/outreach", // Item 21 — actionable outreach pipelines
@@ -435,6 +436,14 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
     for (const href of sectionHrefs) {
       expect(GOB_HREF_SNAPSHOT).toContain(href);
     }
+  });
+
+  it("includes /gob/moderacion in the Casos y cumplimiento section (Phase 0 placeholder)", () => {
+    const casosSection = GOB_NAV_SECTIONS.find((s) => s.label === "Casos y cumplimiento");
+    expect(casosSection?.items.map((i) => i.href)).toContain("/gob/moderacion");
+    const moderacion = casosSection?.items.find((i) => i.href === "/gob/moderacion");
+    expect(moderacion?.label).toBe("Moderación");
+    expect(moderacion?.matchPrefix).toBe("/gob/moderacion");
   });
 
   it("includes /gob/mortalidad in the Vigilancia sanitaria section (Item 2)", () => {
