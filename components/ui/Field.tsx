@@ -70,22 +70,42 @@ export function LnField({
   const invalid = Boolean(error);
   const showOptional = optional ?? !required;
 
-  // The visual `*` alone doesn't reach assistive tech (WCAG 3.3.2). Inject
-  // aria-required onto whatever control the render-prop returns so every
-  // LnField caller gets it automatically, without having to wire it by hand.
+  // The label carries htmlFor={id}, but that association only holds if the
+  // control carries the matching id. Rather than depend on every caller wiring
+  // id={id} by hand (a forgotten id silently breaks screen-reader announcement
+  // AND click-to-focus), inject it here; an explicit caller id still wins.
+  // The visual `*` / red border likewise don't reach assistive tech
+  // (WCAG 3.3.2 / 3.3.1), so aria-required / aria-invalid are injected too —
+  // caller-set values always take precedence.
   const renderedControl = children({ id, describedBy, invalid });
-  const control =
-    required && isValidElement(renderedControl)
-      ? cloneElement(renderedControl as ReactElement<{ "aria-required"?: boolean }>, {
-          "aria-required": true,
-        })
-      : renderedControl;
+  const controlEl = isValidElement(renderedControl)
+    ? (renderedControl as ReactElement<{
+        id?: string;
+        "aria-required"?: boolean;
+        "aria-invalid"?: boolean;
+      }>)
+    : null;
+  // Effective id used for BOTH the label htmlFor and the control id so the two
+  // never desync — even if a caller passes an explicit id instead of the
+  // generated one handed to them via the render-prop.
+  const controlId = controlEl?.props.id ?? id;
+  const control = controlEl
+    ? cloneElement(controlEl, {
+        id: controlId,
+        ...(required && controlEl.props["aria-required"] === undefined
+          ? { "aria-required": true }
+          : {}),
+        ...(invalid && controlEl.props["aria-invalid"] === undefined
+          ? { "aria-invalid": true }
+          : {}),
+      })
+    : renderedControl;
 
   return (
     <div className={["flex flex-col", className].filter(Boolean).join(" ")}>
       {/* mono uppercase label */}
       <label
-        htmlFor={id}
+        htmlFor={controlId}
         className="mb-1.5 flex items-center gap-[5px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
       >
         {label}
