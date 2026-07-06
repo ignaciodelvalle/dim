@@ -86,6 +86,20 @@ export async function seedDemoComplianceCoverage(database: {
           SELECT 1 FROM pet_identifications pi
           WHERE pi.pet_id = p.id AND pi.kind = 'microchip_iso' AND pi.status = 'active'
         )
+        -- Invariant #3 (every view is a projection): aggregate map-coverage must
+        -- NOT overwrite a pet whose microchip state is already authoritative from
+        -- its event log. A storyline pet whose chip was revoked
+        -- (microchip_replaced with new_chip_number=null) correctly ends with NO
+        -- active canonical row, but re-chipping it here mints a canonical chip
+        -- with no backing microchip_implanted event — and step (1b) below skips it
+        -- because it already carries a microchip event — so the pet-cache fitness
+        -- sweep rightly flags stored(code) vs derived(null) drift. Coverage is
+        -- synthetic aggregate data ONLY for pets with no event-owned chip state.
+        AND NOT EXISTS (
+          SELECT 1 FROM pet_events e
+          WHERE e.pet_id = p.id
+            AND e.event_type IN ('microchip_implanted', 'microchip_replaced')
+        )
         AND (abs(hashtext(p.id::text || 'chip')) % 100)
             < (20 + (abs(hashtext(p.jurisdiction_province)) % 35))
     ) s
