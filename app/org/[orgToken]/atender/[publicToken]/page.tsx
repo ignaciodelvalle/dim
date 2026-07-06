@@ -17,7 +17,8 @@ import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpCrumbs } from "@/compone
 import { speciesLabel } from "@/lib/utils/format";
 
 import { resolveAtenderPet } from "../atender-access";
-import { ATENDER_EVENTOS, AtenderCaptureMounter } from "./AtenderCaptureMounter";
+import { AtenderCaptureMounter } from "./AtenderCaptureMounter";
+import { ATENDER_EVENTOS } from "./atender-eventos";
 
 export default async function AtenderSignPage({
   params,

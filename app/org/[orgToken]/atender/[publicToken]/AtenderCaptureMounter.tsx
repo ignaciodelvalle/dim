@@ -29,15 +29,9 @@ import {
   atenderVaccinationAction,
 } from "../actions";
 
-export const ATENDER_EVENTOS = [
-  { key: "vacuna", label: "Vacuna" },
-  { key: "desparasitacion", label: "Desparasitación" },
-  { key: "cirugia", label: "Cirugía / estudio" },
-  { key: "medicacion", label: "Medicación" },
-  { key: "nota", label: "Nota clínica" },
-] as const;
-
-export type AtenderEvento = (typeof ATENDER_EVENTOS)[number]["key"];
+// ATENDER_EVENTOS + AtenderEvento moved to ./atender-eventos (server-safe) so
+// the Server Component page.tsx can import the array without the client-boundary
+// proxy that crashed `.map` (val-4-org blocker).
 
 export function AtenderCaptureMounter({
   orgToken,
