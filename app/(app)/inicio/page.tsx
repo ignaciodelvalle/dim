@@ -139,6 +139,21 @@ export default async function InicioPage() {
   // still renders every active reminder, near and far.
   const proximosCount = countProximosReminders(reminders);
 
+  // Compliance summary derived from the SAME source the health strip's
+  // "N de M al día" label reads (complianceByPet / deriveComplianceState) —
+  // NOT a new projection. The greeting previously derived "Todo en orden" only
+  // from proximosCount + open cases, ignoring compliance entirely: a pet fully
+  // registered but with vaccine slots not yet up to date (no near-term active
+  // reminder) yields proximosCount=0, so the greeting read "Todo en orden"
+  // while the strip showed "0 de N al día" — a direct contradiction. Matching
+  // the strip's exact computation (pets whose compliance status is "ok", over
+  // the total pets the strip renders) keeps the two honest.
+  const petsTracked = healthStatus.length;
+  const alDiaCount = healthStatus.filter(
+    (h) => complianceByPet.get(h.petId)?.status === "ok",
+  ).length;
+  const compliancePending = petsTracked - alDiaCount;
+
   // Today's date for the greeting datestamp
   const today = new Date();
   const dateLabel = today.toLocaleDateString("es-AR", {
@@ -183,7 +198,20 @@ export default async function InicioPage() {
                 </>
               )}
             </p>
+          ) : compliancePending > 0 ? (
+            // No imminent vencimientos and no open cases, but not every pet is
+            // al día — say so truthfully instead of "Todo en orden", mirroring
+            // the health strip's "N de M al día".
+            <p className="mt-1.5 text-md text-[var(--color-ln-ink-2)]">
+              Tenés{" "}
+              <strong>
+                {capCount(alDiaCount)} de {capCount(petsTracked)} mascotas
+              </strong>{" "}
+              al día.
+            </p>
           ) : (
+            // Genuinely nothing pending: no próximos vencimientos, no open
+            // cases, and every tracked pet is al día.
             <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">Todo en orden.</p>
           )}
         </div>
