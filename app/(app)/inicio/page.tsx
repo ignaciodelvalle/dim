@@ -26,6 +26,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { DashboardPet } from "@/lib/analytics/owner-dashboard";
 import {
   fetchActiveReminders,
+  fetchComplianceStatesForPets,
   fetchOpenWorkflows,
   fetchPetsForOwner,
   fetchUpcomingAppointments,
@@ -35,10 +36,12 @@ import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { petPhotoUrl } from "@/lib/infra/storage";
+import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
 import { BRANDING } from "@/lib/ui/branding";
 import { capCount } from "@/lib/utils/format";
 import { greetingFirstName } from "@/lib/utils/greeting";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
+import type { PetComplianceSummary } from "./_components/PetHealthStatusStrip";
 import { PetHealthStatusStrip } from "./_components/PetHealthStatusStrip";
 import { RemindersSection } from "./_components/RemindersSection";
 
@@ -94,6 +97,31 @@ export default async function InicioPage() {
   );
 
   const { pets } = petsResult;
+
+  // Compliance projection for the health-status pets — the SAME source the pet
+  // profile and /mis-mascotas read (deriveComplianceState). The strip renders
+  // the AL DÍA / REGISTRADA chip from this so /inicio and the profile can never
+  // disagree about whether a pet is compliant (UX gate M5b). One extra bounded
+  // read (4 indexed queries) after the fan-out, since it needs the pet ids.
+  const complianceByPet = new Map<string, PetComplianceSummary>();
+  const healthPetIds = healthStatus.map((h) => h.petId);
+  if (healthPetIds.length > 0) {
+    const complianceStates = await fetchComplianceStatesForPets(user.id, healthPetIds);
+    const petMetaById = new Map(pets.map((p) => [p.id, p]));
+    for (const h of healthStatus) {
+      const c = complianceStates.get(h.petId);
+      if (!c) continue;
+      const meta = petMetaById.get(h.petId);
+      complianceByPet.set(h.petId, {
+        status: lnPetStatusFromCompliance(
+          { status: meta?.status ?? "active", pregnancyStatus: meta?.pregnancyStatus ?? null },
+          c,
+        ),
+        ok: c.summary.ok,
+        total: c.summary.total,
+      });
+    }
+  }
 
   // Deactivated profiles greet generically — parity with the pre-cache query,
   // which filtered deactivated_at IS NULL.
@@ -223,7 +251,7 @@ export default async function InicioPage() {
             links to its pet. Zero pets → the "Cargar una mascota" CTA. */}
         <div>
           {healthStatus.length > 0 ? (
-            <PetHealthStatusStrip pets={healthStatus} />
+            <PetHealthStatusStrip pets={healthStatus} complianceByPet={complianceByPet} />
           ) : (
             <LnEmptyState
               variant="dashed"

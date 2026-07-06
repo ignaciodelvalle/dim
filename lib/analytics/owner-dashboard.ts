@@ -943,6 +943,22 @@ async function fetchActiveRemindersBase(
     })
     .from(reminders)
     .innerJoin(pets, eq(pets.id, reminders.petId))
+    // Re-scope to pets the user CURRENTLY owns. A reminder carries the userId of
+    // whoever created it, but ownership can move (transfer, seed reassignment):
+    // a reminder left behind on a since-reassigned pet must NOT surface on the
+    // creator's /inicio, or the owner sees an alert for a pet they no longer own
+    // and cannot act on (UX gate M4 — "Firulais" non-owned-pet alert). The
+    // ownership join makes the reminder query obey the same owner-scope as every
+    // other dashboard read.
+    .innerJoin(
+      ownerships,
+      and(
+        eq(ownerships.petId, reminders.petId),
+        eq(ownerships.ownerUserId, userId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+      ),
+    )
     .where(
       and(
         eq(reminders.userId, userId),
@@ -1021,6 +1037,17 @@ export async function countActiveReminders(userId: string): Promise<number> {
   const [row] = await db
     .select({ n: count() })
     .from(reminders)
+    // Same current-ownership re-scope as fetchActiveRemindersBase so the KPI
+    // count never includes a reminder for a since-reassigned pet (UX gate M4).
+    .innerJoin(
+      ownerships,
+      and(
+        eq(ownerships.petId, reminders.petId),
+        eq(ownerships.ownerUserId, userId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+      ),
+    )
     .where(
       and(
         eq(reminders.userId, userId),

@@ -12,25 +12,14 @@
 import Link from "next/link";
 
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import type { LnPetStatus } from "@/components/ui/Chip";
+import { LnStatusFlag } from "@/components/ui/StatusFlag";
 import type { Nudge, PetHealthStatus } from "@/lib/infra/owner-nudges";
 import { capCount, speciesLabel } from "@/lib/utils/format";
 
-function StatusBadge({ pending }: { pending: number }) {
-  const ok = pending === 0;
-  const cls = ok
-    ? "border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ink)]"
-    : "border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-ink)]";
-  return (
-    <span
-      className={`inline-flex flex-shrink-0 items-center rounded-full border px-2 py-[1px] font-[var(--font-ln-mono)] text-xs uppercase tracking-[.05em] ${cls}`}
-    >
-      {/* "Sin pendientes", not "Al día" — AL DÍA is a compliance claim owned by
-          deriveComplianceState; this badge only says no nudges are pending
-          (QA round 2 2026-07-03 #4: three status truths for one pet). */}
-      {ok ? "Sin pendientes" : `${pending} pendiente${pending !== 1 ? "s" : ""}`}
-    </span>
-  );
-}
+/** Per-pet compliance summary, derived by the SAME projection the pet profile
+ *  and /mis-mascotas read (deriveComplianceState). */
+export type PetComplianceSummary = { status: LnPetStatus; ok: number; total: number };
 
 function NudgeRow({ nudge }: { nudge: Nudge }) {
   const dotClass =
@@ -55,7 +44,13 @@ function NudgeRow({ nudge }: { nudge: Nudge }) {
   );
 }
 
-function PetStatusRow({ pet }: { pet: PetHealthStatus }) {
+function PetStatusRow({
+  pet,
+  compliance,
+}: {
+  pet: PetHealthStatus;
+  compliance?: PetComplianceSummary;
+}) {
   return (
     <div className="flex flex-col gap-2 border-b border-[var(--color-ln-line-2)] py-2.5 last:border-b-0 last:pb-0">
       <div className="flex items-center justify-between gap-2.5">
@@ -68,7 +63,21 @@ function PetStatusRow({ pet }: { pet: PetHealthStatus }) {
             {speciesLabel(pet.species)}
           </span>
         </Link>
-        <StatusBadge pending={pet.pendingCount} />
+        {/* Authoritative status = the compliance chip, the SAME AL DÍA / REGISTRADA
+            the pet profile and /mis-mascotas show. The old per-row badge said
+            "Sin pendientes" (a nudge rollup) which read as compliance-OK and
+            directly contradicted a profile showing "0 de 4 al día" (UX gate M5b:
+            one pet, two status truths). The nudges below stay as owner actions. */}
+        {compliance && (
+          <span className="flex flex-shrink-0 items-center gap-2">
+            {compliance.status === "registered" && compliance.total > 0 && (
+              <span className="font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.05em] text-[var(--color-ln-mute)]">
+                {compliance.ok} de {compliance.total} al día
+              </span>
+            )}
+            <LnStatusFlag status={compliance.status} />
+          </span>
+        )}
       </div>
       {pet.nudges.length > 0 && (
         <div className="flex flex-col gap-0.5">
@@ -85,29 +94,35 @@ function PetStatusRow({ pet }: { pet: PetHealthStatus }) {
  * Owner health-status strip. Renders nothing when the owner has no pets — the
  * /inicio empty state already prompts to register a pet.
  */
-export function PetHealthStatusStrip({ pets }: { pets: PetHealthStatus[] }) {
+export function PetHealthStatusStrip({
+  pets,
+  complianceByPet,
+}: {
+  pets: PetHealthStatus[];
+  /** petId → compliance summary from deriveComplianceState. When absent, the
+   *  row shows no status chip (graceful degradation). */
+  complianceByPet?: Map<string, PetComplianceSummary>;
+}) {
   if (pets.length === 0) return null;
 
-  const pendingTotal = pets.reduce((sum, p) => sum + p.pendingCount, 0);
+  // Header now reflects the compliance projection (the same source the per-row
+  // chip and the pet profile read), not the nudge rollup — "N de M al día"
+  // instead of "sin pendientes" (UX gate M5b). Capped so a high-volume owner
+  // never sees an alarming raw total.
+  const alDia = pets.filter((p) => complianceByPet?.get(p.petId)?.status === "ok").length;
 
   return (
     <LnCard aria-labelledby="estado-sanitario-heading">
       <LnCardHead
         title={<span id="estado-sanitario-heading">Estado sanitario</span>}
-        // UX 3.5 item 1: cap the aggregate at "99+" so a high-volume owner does
-        // not see an alarming raw total (e.g. "1459 PENDIENTES") uppercased by
-        // LnCardHead. Per-pet badges stay uncapped — those counts are bounded
-        // and actionable. Pluralization still uses the real total.
         label={
-          pendingTotal === 0
-            ? "sin pendientes"
-            : `${capCount(pendingTotal)} pendiente${pendingTotal !== 1 ? "s" : ""}`
+          complianceByPet ? `${capCount(alDia)} de ${capCount(pets.length)} al día` : undefined
         }
       />
       <LnCardBody>
         <div className="flex flex-col">
           {pets.map((pet) => (
-            <PetStatusRow key={pet.petId} pet={pet} />
+            <PetStatusRow key={pet.petId} pet={pet} compliance={complianceByPet?.get(pet.petId)} />
           ))}
         </div>
       </LnCardBody>
