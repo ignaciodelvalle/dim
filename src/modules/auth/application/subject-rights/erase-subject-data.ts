@@ -1,10 +1,59 @@
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+import { attachments, db, ownerships } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 import type { EraseSubjectDataResult } from "./types";
+
+// Storage objects the RPC cannot reach (SQL has no object-store access): pet
+// photos and event attachments hanging off the subject's owned pets. Each
+// attachment row's bucket is inferred from its shape — an attachment carrying an
+// event_id is an event attachment (private bucket); one with only a pet_id is a
+// pet photo (public bucket), mirroring lib/infra/storage.ts.
+async function purgeOwnedPetAttachments(userId: string): Promise<void> {
+  // Owned pets (active custody). ownerships rows survive the RPC (only pets are
+  // soft-deleted), so this resolves correctly whether run before or after it.
+  const owned = await db
+    .select({ petId: ownerships.petId })
+    .from(ownerships)
+    .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)));
+  const petIds = owned.map((o) => o.petId);
+  if (petIds.length === 0) return;
+
+  // Event attachments carry pet_id too (schema.ts), so `pet_id IN (owned)`
+  // captures both pet photos and event attachments on the subject's pets.
+  const rows = await db
+    .select({
+      id: attachments.id,
+      storagePath: attachments.storagePath,
+      eventId: attachments.eventId,
+    })
+    .from(attachments)
+    .where(inArray(attachments.petId, petIds));
+  if (rows.length === 0) return;
+
+  const eventPaths = rows.filter((r) => r.eventId !== null).map((r) => r.storagePath);
+  const photoPaths = rows.filter((r) => r.eventId === null).map((r) => r.storagePath);
+
+  const admin = createAdminClient();
+  if (eventPaths.length > 0) {
+    await admin.storage.from("event-attachments").remove(eventPaths);
+  }
+  if (photoPaths.length > 0) {
+    await admin.storage.from("pet-photos").remove(photoPaths);
+  }
+
+  // Drop the DB rows too — storage_path + caption are the subject's data.
+  await db.delete(attachments).where(
+    inArray(
+      attachments.id,
+      rows.map((r) => r.id),
+    ),
+  );
+}
 
 export async function eraseMySubjectDataAction(reason: string): Promise<EraseSubjectDataResult> {
   const { user } = await requireUserOrRedirect();
@@ -46,6 +95,19 @@ export async function eraseMySubjectDataAction(reason: string): Promise<EraseSub
     }
   } catch (err) {
     console.error("[erase-subject-data] auth.users deletion threw", {
+      userId: user.id,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Step 3 — purge Storage objects the RPC cannot reach (pet photos + event
+  // attachments on the subject's owned pets, Ley 25.326 art. 16 — audit 27-#5).
+  // Best-effort like the auth deletion: a Storage hiccup must not leave the
+  // subject staring at an error after their DB data is already gone.
+  try {
+    await purgeOwnedPetAttachments(user.id);
+  } catch (err) {
+    console.error("[erase-subject-data] attachment/storage purge failed", {
       userId: user.id,
       message: err instanceof Error ? err.message : String(err),
     });

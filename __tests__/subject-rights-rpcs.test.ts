@@ -18,6 +18,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { completeIdentityAction } from "@/app/actions/auth";
 import {
   auditLog,
+  caseEvents,
+  cases,
+  custodyDisputeParties,
+  custodyDisputes,
   db,
   notifications,
   orgContactMessages,
@@ -663,6 +667,193 @@ describe("erase_subject_data — redacts third-party PII in event payloads (0129
       sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'event pii redaction rerun'::text) AS result`,
     );
     expect(error).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Migration 0130: dispute-party / case_events / notification PII redaction.
+// ---------------------------------------------------------------------------
+// The subject's own free-text contributions across the remaining PII holders
+// (custody_dispute_parties.party_position_summary, case_events reporter_comment
+// notes, notifications title/body/cta) must all be scrubbed on erasure. Seeds a
+// row in every holder, erases, and asserts nothing identifying remains — while
+// a counterparty's dispute-party row is left intact.
+
+describe("erase_subject_data — scrubs dispute/case/notification PII (0130)", () => {
+  let disputeId: string | undefined;
+  let subjectPartyId: string | undefined;
+  let otherPartyId: string | undefined;
+  let caseId: string | undefined;
+  let caseEventId: string | undefined;
+  let notificationId: string | undefined;
+
+  beforeAll(async () => {
+    await resetProfilePIIToFresh(ownerUserId, "SR Test Owner 0130");
+
+    const petId = createdPetIds[0];
+    if (!petId) throw new Error("createdPetIds[0] not set");
+
+    // A raising pet_event for the dispute FK.
+    const [raising] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "custody_dispute_raised",
+        occurredAt: new Date(),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: { raised_by_role: "owner" },
+      })
+      .returning({ id: petEvents.id });
+
+    const [dispute] = await db
+      .insert(custodyDisputes)
+      .values({
+        publicToken: `DIS-0130-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        petId,
+        raisedByUserId: ownerUserId,
+        raisedByRole: "owner",
+        raisingEventId: raising.id,
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+      })
+      .returning({ id: custodyDisputes.id });
+    disputeId = dispute.id;
+
+    // The subject's own party row — position statement carries their PII.
+    const [subjectParty] = await db
+      .insert(custodyDisputeParties)
+      .values({
+        disputeId: dispute.id,
+        partyUserId: ownerUserId,
+        partyRole: "claimant_owner",
+        partyPositionSummary: "Soy SR Test Owner, teléfono +5491100000000, la mascota es mía.",
+      })
+      .returning({ id: custodyDisputeParties.id });
+    subjectPartyId = subjectParty.id;
+
+    // A counterparty party row — MUST survive erasure of the subject.
+    const [otherParty] = await db
+      .insert(custodyDisputeParties)
+      .values({
+        disputeId: dispute.id,
+        partyUserId: otherUserId,
+        partyRole: "current_owner",
+        partyPositionSummary: "Posición de la contraparte — no debe borrarse.",
+      })
+      .returning({ id: custodyDisputeParties.id });
+    otherPartyId = otherParty.id;
+
+    // A welfare-denuncia case + reporter_comment authored by the subject.
+    const [c] = await db
+      .insert(cases)
+      .values({
+        publicCode: `CAS-0130-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        caseKind: "welfare_denuncia",
+        primarySubjectKind: "general",
+        status: "open",
+        openedReason: "Fixture for 0130 reporter-comment redaction",
+      })
+      .returning({ id: cases.id });
+    caseId = c.id;
+
+    const [ce] = await db
+      .insert(caseEvents)
+      .values({
+        caseId: c.id,
+        entryType: "reporter_comment",
+        payload: { source: "reporter" },
+        notes: "Mi nombre es SR Test Owner y mi teléfono es +5491100000000.",
+        recordedByUserId: ownerUserId,
+      })
+      .returning({ id: caseEvents.id });
+    caseEventId = ce.id;
+
+    // A notification addressed to the subject with free-text content + CTA.
+    const [n] = await db
+      .insert(notifications)
+      .values({
+        userId: ownerUserId,
+        notificationType: "custody_update_0130",
+        title: "Novedad sobre Firulais",
+        body: "Tu mascota Firulais tiene una actualización.",
+        ctaLabel: "Ver",
+        ctaUrl: "/mis-mascotas/DIM-SECRET-TOKEN",
+      })
+      .returning({ id: notifications.id });
+    notificationId = n.id;
+  });
+
+  afterAll(async () => {
+    await withMutationOverride(async (tx) => {
+      if (caseEventId) await tx.delete(caseEvents).where(eq(caseEvents.id, caseEventId));
+    });
+    if (disputeId) {
+      await db.delete(custodyDisputeParties).where(eq(custodyDisputeParties.disputeId, disputeId));
+      await db.delete(custodyDisputes).where(eq(custodyDisputes.id, disputeId));
+    }
+    if (caseId) await db.delete(cases).where(eq(cases.id, caseId));
+    if (notificationId) await db.delete(notifications).where(eq(notifications.id, notificationId));
+    await withMutationOverride(async (tx) => {
+      await tx.delete(petEvents).where(eq(petEvents.eventType, "custody_dispute_raised"));
+    });
+  });
+
+  it("nulls the subject's dispute position, redacts their case comment + notifications, keeps the counterparty", async () => {
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, '0130 redaction'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    // Subject's own dispute-party position statement → nulled.
+    if (!subjectPartyId) throw new Error("subjectPartyId not set");
+    const [subjRow] = await db
+      .select({ summary: custodyDisputeParties.partyPositionSummary })
+      .from(custodyDisputeParties)
+      .where(eq(custodyDisputeParties.id, subjectPartyId));
+    expect(subjRow.summary).toBeNull();
+
+    // Counterparty's position statement → untouched.
+    if (!otherPartyId) throw new Error("otherPartyId not set");
+    const [otherRow] = await db
+      .select({ summary: custodyDisputeParties.partyPositionSummary })
+      .from(custodyDisputeParties)
+      .where(eq(custodyDisputeParties.id, otherPartyId));
+    expect(otherRow.summary).toBe("Posición de la contraparte — no debe borrarse.");
+
+    // case_events reporter_comment notes → redacted to the sentinel.
+    if (!caseEventId) throw new Error("caseEventId not set");
+    const [ceRow] = await db
+      .select({ notes: caseEvents.notes })
+      .from(caseEvents)
+      .where(eq(caseEvents.id, caseEventId));
+    expect(ceRow.notes).toBe("[contenido eliminado a pedido del titular]");
+
+    // Notification content → scrubbed, CTA dropped.
+    if (!notificationId) throw new Error("notificationId not set");
+    const [nRow] = await db
+      .select({
+        title: notifications.title,
+        body: notifications.body,
+        ctaUrl: notifications.ctaUrl,
+        ctaLabel: notifications.ctaLabel,
+      })
+      .from(notifications)
+      .where(eq(notifications.id, notificationId));
+    expect(nRow.title).toBe("[eliminado]");
+    expect(nRow.body).toBe("[contenido eliminado a pedido del titular]");
+    expect(nRow.ctaUrl).toBeNull();
+    expect(nRow.ctaLabel).toBeNull();
+
+    // A case_events_mutation_override audit row was emitted for the redaction.
+    const overrides = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(eq(auditLog.action, "case_events_mutation_override"));
+    expect(
+      overrides.some((a) => (a.payload as Record<string, unknown>).case_event_id === caseEventId),
+    ).toBe(true);
   });
 });
 
