@@ -515,7 +515,9 @@ describe("expirePetTransfersAction — auth-scope: NONE (CRON_SECRET at route)",
       notifications: [],
     });
     const result = await expirePetTransfersAction();
-    expect(result).toEqual({ expired: 3 });
+    // errors is now surfaced (was discarded) so the cron route can 500 on
+    // partial failure (review 23 fleet extension).
+    expect(result).toEqual({ expired: 3, errors: 0 });
   });
 });
 

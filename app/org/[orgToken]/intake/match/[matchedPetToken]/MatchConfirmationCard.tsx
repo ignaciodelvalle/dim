@@ -12,7 +12,7 @@ import { useState, useTransition } from "react";
 
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
 import { OpBreach, OpButton, OpPill } from "@/components/ui/dashboard";
-import { speciesLabel } from "@/lib/utils/format";
+import { AR_TIME_ZONE, speciesLabel } from "@/lib/utils/format";
 import { useRouter } from "next/navigation";
 
 type Props = {
@@ -126,7 +126,11 @@ export function MatchConfirmationCard({
               <span>{lastLocationText}</span>
               {lastLocationDate && (
                 <span className="text-ln-op-mute ml-1">
-                  ({new Date(lastLocationDate).toLocaleDateString("es-AR")})
+                  (
+                  {new Date(lastLocationDate).toLocaleDateString("es-AR", {
+                    timeZone: AR_TIME_ZONE,
+                  })}
+                  )
                 </span>
               )}
             </p>

@@ -39,6 +39,7 @@ import { usePathname } from "next/navigation";
 import type React from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
 
 import { Sparkline } from "./Sparkline";
@@ -149,7 +150,12 @@ function shortDate(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
+  return d.toLocaleDateString("es-AR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: AR_TIME_ZONE,
+  });
 }
 
 // ---------------------------------------------------------------------------

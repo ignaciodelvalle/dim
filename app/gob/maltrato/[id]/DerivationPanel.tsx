@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { deriveWelfareToOrgAction } from "@/src/modules/welfare/actions";
 
 type OrgOption = {
@@ -61,6 +62,7 @@ export function DerivationPanel({
                 day: "numeric",
                 month: "short",
                 year: "numeric",
+                timeZone: AR_TIME_ZONE,
               })}
             </span>
           </p>

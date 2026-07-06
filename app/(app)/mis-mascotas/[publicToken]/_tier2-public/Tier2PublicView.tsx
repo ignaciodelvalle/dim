@@ -5,6 +5,7 @@
 // standalone /mostrar-libreta page that also used this now just redirects
 // here (lean audit 2026-07-03).
 
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import Link from "next/link";
 
 type DurationCard = {
@@ -193,6 +194,7 @@ function ActiveStatusCard({
         month: "short",
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: AR_TIME_ZONE,
       })
     : null;
   return (

@@ -10,6 +10,7 @@ import {
 } from "@/app/actions/libreta-share";
 import { LnCheckbox } from "@/components/ui/Field";
 import type { LibretaShareToken } from "@/db/schema";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 type Props = {
   petPublicToken: string;
@@ -219,14 +220,14 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                 </p>
                 <p className="text-xs text-[var(--color-ln-mute)]">
                   {share.expiresAt
-                    ? `Vence ${new Date(share.expiresAt).toLocaleDateString("es-AR")}`
+                    ? `Vence ${new Date(share.expiresAt).toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}`
                     : "Sin vencimiento"}
                   {" · "}
                   {share.viewCountCached === 0
                     ? "Sin vistas"
                     : `${share.viewCountCached} vista${share.viewCountCached !== 1 ? "s" : ""}`}
                   {share.lastViewedAtCached &&
-                    ` · Ultima: ${new Date(share.lastViewedAtCached).toLocaleDateString("es-AR")}`}
+                    ` · Ultima: ${new Date(share.lastViewedAtCached).toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}`}
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">

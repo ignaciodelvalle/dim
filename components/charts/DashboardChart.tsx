@@ -281,6 +281,7 @@ export function DashboardChart({
                   year: "numeric",
                   hour: "2-digit",
                   minute: "2-digit",
+                  timeZone: AR_TIME_ZONE,
                 })}
               </time>
             </span>

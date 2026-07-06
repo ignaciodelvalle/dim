@@ -3,10 +3,30 @@
 
 import type { EventType } from "@/db/schema";
 
+/**
+ * The one timezone every UI date is formatted in. MiMAR is an Argentina-only
+ * service, so a calendar day is always the Argentine calendar day.
+ *
+ * WHY THIS MUST BE PINNED (React #418): date formatters run BOTH during SSR
+ * (in the server process — UTC on Vercel/CI) and again during client
+ * hydration (in the browser — the viewer's zone). Without an explicit
+ * `timeZone`, `Intl.DateTimeFormat`/`toLocaleDateString` use the AMBIENT zone,
+ * so a date stored near local midnight (e.g. a date-only value at T00:00:00Z)
+ * renders as one calendar day on the server and the previous day on the
+ * client → the server HTML and client render disagree → hydration mismatch
+ * (React error #418), which cascades into blank/frozen paints. Pinning the
+ * zone makes SSR and hydration produce byte-identical strings.
+ *
+ * ANY client-side date formatter MUST pass this as its `timeZone`. Import this
+ * constant instead of hardcoding the string so the decision stays in one place.
+ */
+export const AR_TIME_ZONE = "America/Argentina/Buenos_Aires";
+
 const SPANISH_DATE_FORMAT = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
   month: "long",
   year: "numeric",
+  timeZone: AR_TIME_ZONE,
 });
 
 const SPANISH_DATETIME_FORMAT = new Intl.DateTimeFormat("es-AR", {
@@ -15,6 +35,7 @@ const SPANISH_DATETIME_FORMAT = new Intl.DateTimeFormat("es-AR", {
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  timeZone: AR_TIME_ZONE,
 });
 
 export function formatDate(value: Date | string | null | undefined): string {

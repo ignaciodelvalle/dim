@@ -9,13 +9,21 @@
 // semantics + aria-expanded/aria-controls.
 
 import type { VaccinationSummary, VaccineSnapshot } from "@/lib/domain/libreta-health-status";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { useState } from "react";
 
 type BadgeKey = "vigente" | "por-vencer" | "vencida";
 
 function fmtDate(d: Date | null): string {
   if (!d) return "—";
-  return d.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
+  // timeZone pinned — SSR (UTC) and hydration (browser) must agree on the
+  // calendar day, otherwise a due date near midnight triggers React #418.
+  return d.toLocaleDateString("es-AR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: AR_TIME_ZONE,
+  });
 }
 
 function metaFor(v: VaccineSnapshot): string {

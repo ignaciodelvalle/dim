@@ -16,6 +16,7 @@
 import { useId, useRef, useState } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { type AmendmentChainEntry, fetchEventAmendmentChainAction } from "./actions";
 import { AUTHOR_ROLE_LABELS, type LedgerRowView } from "./view";
 
@@ -154,6 +155,7 @@ export function EventLedgerRow({ row }: Props) {
                             year: "numeric",
                             hour: "2-digit",
                             minute: "2-digit",
+                            timeZone: AR_TIME_ZONE,
                           })}
                         </span>
                       </div>

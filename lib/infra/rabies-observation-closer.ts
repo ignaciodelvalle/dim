@@ -21,6 +21,8 @@ const repo = new SurveillanceRepository();
 
 export async function closeEligibleRabiesObservations(options?: {
   now?: Date;
+  afterId?: string | null;
+  limit?: number;
 }): Promise<CloseRabiesObservationsStats> {
   return closeEligibleObservations(options ?? {}, {
     repo,

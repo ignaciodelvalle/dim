@@ -16,6 +16,7 @@ import {
   ownerAcceptReturnFormAction,
   ownerRejectReturnFormAction,
 } from "@/app/actions/return-to-owner-form";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { useActionState, useState } from "react";
 
 const acceptInitial: AcceptReturnFormState = { error: null };
@@ -100,6 +101,7 @@ export function ReturnAcceptanceCard({
             Propuesta el{" "}
             {new Date(proposedAt).toLocaleDateString("es-AR", {
               dateStyle: "long",
+              timeZone: AR_TIME_ZONE,
             })}
           </p>
         </div>

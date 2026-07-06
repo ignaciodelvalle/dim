@@ -14,6 +14,7 @@ import { useState, useTransition } from "react";
 
 import { togglePhysicalTagInterestAction } from "@/app/actions/physical-tag-interest";
 import type { PhysicalCredentialChannels } from "@/lib/domain/business-rules-defaults";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 type Props = {
   petPublicToken: string;
@@ -33,6 +34,7 @@ const DATE_FMT = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
   month: "long",
   year: "numeric",
+  timeZone: AR_TIME_ZONE,
 });
 
 export function PhysicalTagInterestSheet({

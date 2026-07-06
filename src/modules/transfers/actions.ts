@@ -363,7 +363,7 @@ export async function getTransferForViewerAction(
 // @no-auth-required: invoked only from /api/cron/expire-pet-transfers
 // ---------------------------------------------------------------------------
 
-export type ExpirePetTransfersStats = { expired: number };
+export type ExpirePetTransfersStats = { expired: number; errors: number };
 
 // Keyset/drain bounds (review 23 item 12): bound each pass and drain the
 // backlog within the run instead of loading ALL expired transfers at once.
@@ -376,6 +376,7 @@ const EXPIRE_TRANSFERS_MAX_ITERATIONS = 50;
 export async function expirePetTransfersAction(): Promise<ExpirePetTransfersStats> {
   const start = Date.now();
   let totalExpired = 0;
+  let totalErrors = 0;
   let iterations = 0;
 
   for (;;) {
@@ -408,6 +409,7 @@ export async function expirePetTransfersAction(): Promise<ExpirePetTransfersStat
     }
 
     totalExpired += result.value.expired;
+    totalErrors += result.value.errors;
     iterations += 1;
 
     // A partial batch means no more expirable rows this pass (expired rows drop
@@ -415,7 +417,11 @@ export async function expirePetTransfersAction(): Promise<ExpirePetTransfersStat
     if (result.value.expired < EXPIRE_TRANSFERS_BATCH_SIZE) break;
   }
 
-  return { expired: totalExpired };
+  // Surface per-row failures to the caller (cron route) so a run where rows
+  // failed to expire reports HTTP 500 instead of a silent success (review 23
+  // fleet extension). The use-case already tracks per-row errors; this action
+  // previously discarded them.
+  return { expired: totalExpired, errors: totalErrors };
 }
 
 // ---------------------------------------------------------------------------

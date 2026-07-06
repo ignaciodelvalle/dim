@@ -4,7 +4,7 @@
 // Extracted as a thin wrapper so the vecino page can stay a pure server component.
 
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
-import { speciesLabel } from "@/lib/utils/format";
+import { AR_TIME_ZONE, speciesLabel } from "@/lib/utils/format";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -109,7 +109,11 @@ export function MatchConfirmationCardVecino({
               <span>{lastLocationText}</span>
               {lastLocationDate && (
                 <span className="text-[var(--color-ln-mute)] ml-1">
-                  ({new Date(lastLocationDate).toLocaleDateString("es-AR")})
+                  (
+                  {new Date(lastLocationDate).toLocaleDateString("es-AR", {
+                    timeZone: AR_TIME_ZONE,
+                  })}
+                  )
                 </span>
               )}
             </p>

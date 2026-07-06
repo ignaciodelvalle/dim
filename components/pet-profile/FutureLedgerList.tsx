@@ -8,6 +8,7 @@
 
 import { LnLinkButton } from "@/components/ui/LinkButton";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { type EventFormState, markMedicationDoseTakenAction } from "@/src/modules/events/actions";
 import Link from "next/link";
 import { useActionState } from "react";
@@ -20,7 +21,15 @@ const KIND_ICON: Record<FutureLedgerItem["kind"], string> = {
 };
 
 function formatDueAt(date: Date): string {
-  return date.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
+  // timeZone pinned — see AR_TIME_ZONE. This runs during SSR (UTC) and again on
+  // hydration (browser zone); without the pin, a due date near midnight flips
+  // calendar day between the two renders → React #418.
+  return date.toLocaleDateString("es-AR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: AR_TIME_ZONE,
+  });
 }
 
 // MarkDoseForm — "Marcar dada" per medication row. The action returns

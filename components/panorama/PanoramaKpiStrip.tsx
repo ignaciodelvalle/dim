@@ -21,6 +21,7 @@
 //   plain client fetches — no reload, the map never unmounts.
 
 import { OpKpi } from "@/components/ui/dashboard";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { KpiDelta, PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 
 // Direction glyph, NEVER a valence color. Several panorama KPIs are
@@ -91,6 +92,7 @@ export function PanoramaKpiStrip({ kpis, onRefresh, refreshing = false }: Props)
               month: "2-digit",
               hour: "2-digit",
               minute: "2-digit",
+              timeZone: AR_TIME_ZONE,
             })}
           </span>
         )}

@@ -7,6 +7,7 @@
 // inline-editable reward + extra text, QR, MiMAR footer.
 // All inline-editable fields are local state only — they never persist.
 
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -59,6 +60,7 @@ export function PosterPreview({
         day: "numeric",
         month: "long",
         year: "numeric",
+        timeZone: AR_TIME_ZONE,
       })
     : null;
 

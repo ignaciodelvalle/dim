@@ -3,6 +3,7 @@
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { usePathname, useSearchParams } from "next/navigation";
 
 // "Qué significa verificado" — educational text. No form. Handoff P2-9.
@@ -13,7 +14,12 @@ interface Props {
 }
 
 function formatVerifiedDate(d: Date): string {
-  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
+  return d.toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: AR_TIME_ZONE,
+  });
 }
 
 export function VerificacionInfoSheet({ verifiedByName, verifiedAt }: Props) {

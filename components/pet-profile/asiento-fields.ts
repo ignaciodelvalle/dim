@@ -21,7 +21,7 @@ import type { EventType } from "@/db/schema";
 import { computeConfidence } from "@/lib/events/event-confidence";
 import { upcastPayload } from "@/lib/events/event-upcasters";
 import { eventPayloadDetails, eventPayloadSummary } from "@/lib/events/events";
-import { eventTypeLabel } from "@/lib/utils/format";
+import { AR_TIME_ZONE, eventTypeLabel } from "@/lib/utils/format";
 import type { HistorialEventRow } from "@/src/modules/pets/application/tab-data/types";
 
 export type AsientoFact = {
@@ -75,7 +75,15 @@ function isValidDate(date: Date): boolean {
 
 function formatAbsolute(date: Date): string {
   if (!isValidDate(date)) return "sin fecha";
-  return date.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
+  // timeZone pinned — this projection feeds AsientoCard inside the client
+  // LibretaFace, so it runs on both SSR and hydration. Without the pin a record
+  // dated near midnight flips calendar day between renders → React #418.
+  return date.toLocaleDateString("es-AR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: AR_TIME_ZONE,
+  });
 }
 
 function formatRelative(date: Date, now: Date): string {
