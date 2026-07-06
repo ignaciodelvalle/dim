@@ -8,7 +8,7 @@
  *   1. Curates owner@dim.test down to exactly 4 pets (Firulais, Michi, Atún,
  *      Rocco). Every other active ownership is reassigned round-robin to the
  *      seeded companion accounts (seed-level UPDATE, no transfer events).
- *   2. Renames placeholder pets (DEMO-PET-*, Firulais dupes, QA leftovers)
+ *   2. Renames placeholder pets (DIM-DEMO-*, Firulais dupes, QA leftovers)
  *      to culturally-appropriate es-AR names, and fills missing identity
  *      data (breed, color, sex, date_of_birth, estimated_weight_kg) with
  *      deterministic realistic values. Never overwrites non-null fields.
@@ -85,7 +85,7 @@ const OWNER_KEEP_TOKENS = [
   "DIM-9HAK-D5Z4", // Firulais
   "DIM-4SUZ-U2HT", // Michi
   "DIM-VT3V-SEA3", // Atún
-  "DEMO-PET-001", // Rocco (renamed in Step 2; amended-event beat pet)
+  "DIM-DEMO-0001", // Rocco (renamed in Step 2; amended-event beat pet)
 ] as const;
 
 /** Round-robin recipients for owner@'s surplus ownerships. */
@@ -101,16 +101,16 @@ const REASSIGN_EMAILS = [
 
 /** public_token → new es-AR name. Matching by token makes reruns no-ops. */
 const RENAMES: Record<string, string> = {
-  "DEMO-PET-001": "Rocco",
-  "DEMO-PET-002": "Greta",
-  "DEMO-PET-003": "Simón",
-  "DEMO-PET-004": "Tango",
-  "DEMO-PET-005": "Frida",
-  "DEMO-PET-006": "Camilo",
-  "DEMO-PET-007": "Renata",
-  "DEMO-PET-008": "Bianca",
-  "DEMO-PET-009": "Morocho",
-  "DEMO-PET-010": "Pipa",
+  "DIM-DEMO-0001": "Rocco",
+  "DIM-DEMO-0002": "Greta",
+  "DIM-DEMO-0003": "Simón",
+  "DIM-DEMO-0004": "Tango",
+  "DIM-DEMO-0005": "Frida",
+  "DIM-DEMO-0006": "Camilo",
+  "DIM-DEMO-0007": "Renata",
+  "DIM-DEMO-0008": "Bianca",
+  "DIM-DEMO-0009": "Morocho",
+  "DIM-DEMO-0010": "Pipa",
   "DIM-K6MK-GW65": "Bruno", // Firulais dupe
   "DIM-Y9AF-SRSB": "Canela",
   "DIM-CMDV-N5T4": "Ramón", // Firulais1
@@ -454,14 +454,14 @@ async function main(): Promise<void> {
     log("OK", `${token}: "${pet.name}" → "${newName}"`);
   }
 
-  // Species coherence — the DEMO-PET-* cohort is created exclusively as dogs
+  // Species coherence — the DIM-DEMO-* cohort is created exclusively as dogs
   // (scripts/seed-demo-scenario.ts `ensureDemoPet` hardcodes species='dog' and
   // every DEMO_PET_IDENTITY entry is a dog breed). A raw DB edit that flipped
   // one to 'cat' leaves its stored species contradicting its dog-sized weights,
   // canine vaccines, and the `pet_species` baked into its `outbreak_signal`
   // payload — an incoherence the fleet/surveillance demo views surface. Force
   // the cohort back to 'dog' idempotently (no-op once every row is coherent).
-  const demoDogTokens = Object.keys(RENAMES).filter((t) => t.startsWith("DEMO-PET-"));
+  const demoDogTokens = Object.keys(RENAMES).filter((t) => t.startsWith("DIM-DEMO-"));
   const speciesFixed = await db
     .update(pets)
     .set({ species: "dog" })
@@ -470,7 +470,7 @@ async function main(): Promise<void> {
   if (speciesFixed.length > 0) {
     log("OK", `species → dog for ${speciesFixed.map((r) => r.publicToken).join(", ")}`);
   } else {
-    log("SKIP", "DEMO-PET-* species already coherent (dog).");
+    log("SKIP", "DIM-DEMO-* species already coherent (dog).");
   }
 
   // E2E leftovers → "Turrón" (matched by name pattern, so RETURNING captures

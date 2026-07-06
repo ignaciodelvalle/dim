@@ -3,7 +3,7 @@
  *
  * Produces a deterministic, idempotent focal CABA scenario so every beat in the
  * executive demo has the data it needs. Composes *on top of* seed:panorama (adds
- * DEMO- prefixed rows; never duplicates the national universe).
+ * DIM-DEMO- prefixed rows; never duplicates the national universe).
  *
  * ─── CREDENTIALS ────────────────────────────────────────────────────────────
  *   admin@dim.test  /  Test1234!   role=admin   (created by seed:test)
@@ -13,7 +13,7 @@
  *   Province : CABA
  *   Locality : CABA  (canonical name in ar_localities)
  *
- * ─── GUARANTEES (DEMO- prefix, idempotent, local-only guard) ────────────────
+ * ─── GUARANTEES (DIM-DEMO- prefix, idempotent, local-only guard) ────────────
  *   D0-1  ≥4 buckets in sterilization_performed + vaccination_administered
  *         series spread over ≥6 months so WS-J projectSeries never falls
  *         into "insufficient".
@@ -34,7 +34,7 @@
  *   ALWAYS refuses when NODE_ENV=production.
  *
  * ─── IDEMPOTENCY ────────────────────────────────────────────────────────────
- *   Every entity is looked up by its DEMO- token / email before insert.
+ *   Every entity is looked up by its DIM-DEMO- token / email before insert.
  *   Re-running converges to the same state without duplicating rows.
  *
  * Usage:
@@ -326,17 +326,20 @@ async function ensureFocalGovt(adminId: string): Promise<string> {
 // (coverage 0.34) — we don't need to add extra data for it.
 // ---------------------------------------------------------------------------
 
+// DIM-shaped tokens (DIM-XXXX-XXXX): "DEMO"=4 chars, "000N"=4 chars → valid
+// against the public-token / Atender ATENDER_TOKEN_PATTERN, so the vet Atender
+// flow can resolve these demo pets. Memorable by design (PO decision 2026-07-06).
 const DEMO_PET_TOKENS = [
-  "DEMO-PET-001",
-  "DEMO-PET-002",
-  "DEMO-PET-003",
-  "DEMO-PET-004",
-  "DEMO-PET-005",
-  "DEMO-PET-006",
-  "DEMO-PET-007",
-  "DEMO-PET-008",
-  "DEMO-PET-009",
-  "DEMO-PET-010",
+  "DIM-DEMO-0001",
+  "DIM-DEMO-0002",
+  "DIM-DEMO-0003",
+  "DIM-DEMO-0004",
+  "DIM-DEMO-0005",
+  "DIM-DEMO-0006",
+  "DIM-DEMO-0007",
+  "DIM-DEMO-0008",
+  "DIM-DEMO-0009",
+  "DIM-DEMO-0010",
 ] as const;
 
 // Human names + identity per token — the synthetic marker lives ONLY in the
@@ -347,21 +350,26 @@ const DEMO_PET_IDENTITY: Record<
   string,
   { name: string; breed: string; color: string; sex: "male" | "female" }
 > = {
-  "DEMO-PET-001": { name: "Rocco", breed: "Boxer", color: "atigrado", sex: "male" },
-  "DEMO-PET-002": { name: "Greta", breed: "Ovejero alemán", color: "negro y fuego", sex: "female" },
-  "DEMO-PET-003": { name: "Simón", breed: "Mestizo", color: "marrón", sex: "male" },
-  "DEMO-PET-004": { name: "Tango", breed: "Galgo", color: "gris", sex: "male" },
-  "DEMO-PET-005": { name: "Frida", breed: "Salchicha", color: "marrón", sex: "female" },
-  "DEMO-PET-006": { name: "Camilo", breed: "Beagle", color: "tricolor", sex: "male" },
-  "DEMO-PET-007": {
+  "DIM-DEMO-0001": { name: "Rocco", breed: "Boxer", color: "atigrado", sex: "male" },
+  "DIM-DEMO-0002": {
+    name: "Greta",
+    breed: "Ovejero alemán",
+    color: "negro y fuego",
+    sex: "female",
+  },
+  "DIM-DEMO-0003": { name: "Simón", breed: "Mestizo", color: "marrón", sex: "male" },
+  "DIM-DEMO-0004": { name: "Tango", breed: "Galgo", color: "gris", sex: "male" },
+  "DIM-DEMO-0005": { name: "Frida", breed: "Salchicha", color: "marrón", sex: "female" },
+  "DIM-DEMO-0006": { name: "Camilo", breed: "Beagle", color: "tricolor", sex: "male" },
+  "DIM-DEMO-0007": {
     name: "Renata",
     breed: "Border collie",
     color: "blanco y negro",
     sex: "female",
   },
-  "DEMO-PET-008": { name: "Bianca", breed: "Caniche toy", color: "blanco", sex: "female" },
-  "DEMO-PET-009": { name: "Morocho", breed: "Mestizo", color: "negro", sex: "male" },
-  "DEMO-PET-010": { name: "Pipa", breed: "Golden retriever", color: "dorado", sex: "female" },
+  "DIM-DEMO-0008": { name: "Bianca", breed: "Caniche toy", color: "blanco", sex: "female" },
+  "DIM-DEMO-0009": { name: "Morocho", breed: "Mestizo", color: "negro", sex: "male" },
+  "DIM-DEMO-0010": { name: "Pipa", breed: "Golden retriever", color: "dorado", sex: "female" },
 };
 
 // Month offsets for the series — 7 distinct months (≥6) gives us ≥4 buckets

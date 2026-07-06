@@ -106,7 +106,10 @@ async function checkSeriesBuckets(): Promise<void> {
     .select({ id: pets.id })
     .from(pets)
     .where(
-      and(eq(pets.jurisdictionProvince, FOCAL_PROVINCE), sql`${pets.publicToken} LIKE 'DEMO-%'`),
+      and(
+        eq(pets.jurisdictionProvince, FOCAL_PROVINCE),
+        sql`${pets.publicToken} LIKE 'DIM-DEMO-%'`,
+      ),
     );
 
   if (demoPets.length === 0) {
@@ -162,7 +165,10 @@ async function checkOutlierBelow(): Promise<void> {
     .select({ id: pets.id })
     .from(pets)
     .where(
-      and(eq(pets.jurisdictionProvince, FOCAL_PROVINCE), sql`${pets.publicToken} LIKE 'DEMO-%'`),
+      and(
+        eq(pets.jurisdictionProvince, FOCAL_PROVINCE),
+        sql`${pets.publicToken} LIKE 'DIM-DEMO-%'`,
+      ),
     );
 
   const sterilized =
@@ -196,7 +202,7 @@ async function checkEventAmended(): Promise<void> {
   const demoPets = await db
     .select({ id: pets.id })
     .from(pets)
-    .where(sql`${pets.publicToken} LIKE 'DEMO-%'`);
+    .where(sql`${pets.publicToken} LIKE 'DIM-DEMO-%'`);
 
   if (demoPets.length === 0) {
     check("≥1 event_amended in DEMO- pets", false, "No DEMO- pets found");

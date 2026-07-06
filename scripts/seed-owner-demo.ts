@@ -390,7 +390,7 @@ const VACCINE_TARGETS = [
     ],
   },
   {
-    token: "DEMO-PET-001",
+    token: "DIM-DEMO-0001",
     vaccines: [
       {
         vaccine_name: "Coronavirus canino",
@@ -403,7 +403,7 @@ const VACCINE_TARGETS = [
     ],
   },
   {
-    token: "DEMO-PET-002",
+    token: "DIM-DEMO-0002",
     vaccines: [
       {
         vaccine_name: "Antirrábica",
@@ -740,13 +740,13 @@ async function seedNotifications(ownerUserId: string): Promise<void> {
 // pet_transfers columns: publicToken, petId, fromOwnerId, toOwnerId (null for
 // non-account recipient), toOwnerEmail, status='pending', reason, expiresAt.
 //
-// Uses DEMO-PET-001 as the transferred pet (a secondary pet, not Firulais
+// Uses DIM-DEMO-0001 as the transferred pet (a secondary pet, not Firulais
 // which is already in lost-mode).
 //
-// Idempotency: checks for pending transfer from owner for DEMO-PET-001.
+// Idempotency: checks for pending transfer from owner for DIM-DEMO-0001.
 // ---------------------------------------------------------------------------
 
-const TRANSFER_PET_TOKEN = "DEMO-PET-001";
+const TRANSFER_PET_TOKEN = "DIM-DEMO-0001";
 const TRANSFER_TO_EMAIL = "nuevodueño@example.com";
 const TRANSFER_EXPIRY_DAYS = 7;
 

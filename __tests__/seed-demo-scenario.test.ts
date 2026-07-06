@@ -60,7 +60,10 @@ describe("D0 — focal CABA series invariants", () => {
       .select({ id: pets.id })
       .from(pets)
       .where(
-        and(eq(pets.jurisdictionProvince, FOCAL_PROVINCE), sql`${pets.publicToken} LIKE 'DEMO-%'`),
+        and(
+          eq(pets.jurisdictionProvince, FOCAL_PROVINCE),
+          sql`${pets.publicToken} LIKE 'DIM-DEMO-%'`,
+        ),
       );
 
     expect(demoPets.length).toBeGreaterThan(0);
@@ -88,7 +91,10 @@ describe("D0 — focal CABA series invariants", () => {
       .select({ id: pets.id })
       .from(pets)
       .where(
-        and(eq(pets.jurisdictionProvince, FOCAL_PROVINCE), sql`${pets.publicToken} LIKE 'DEMO-%'`),
+        and(
+          eq(pets.jurisdictionProvince, FOCAL_PROVINCE),
+          sql`${pets.publicToken} LIKE 'DIM-DEMO-%'`,
+        ),
       );
 
     const petIds = demoPets.map((p) => p.id);
@@ -114,7 +120,10 @@ describe("D0 — focal CABA series invariants", () => {
       .select({ id: pets.id })
       .from(pets)
       .where(
-        and(eq(pets.jurisdictionProvince, FOCAL_PROVINCE), sql`${pets.publicToken} LIKE 'DEMO-%'`),
+        and(
+          eq(pets.jurisdictionProvince, FOCAL_PROVINCE),
+          sql`${pets.publicToken} LIKE 'DIM-DEMO-%'`,
+        ),
       );
 
     expect(demoPets.length).toBeGreaterThanOrEqual(5);
@@ -138,7 +147,10 @@ describe("D0 — focal CABA series invariants", () => {
       .select({ id: pets.id })
       .from(pets)
       .where(
-        and(eq(pets.jurisdictionProvince, FOCAL_PROVINCE), sql`${pets.publicToken} LIKE 'DEMO-%'`),
+        and(
+          eq(pets.jurisdictionProvince, FOCAL_PROVINCE),
+          sql`${pets.publicToken} LIKE 'DIM-DEMO-%'`,
+        ),
       );
 
     const petIds = demoPets.map((p) => p.id);
