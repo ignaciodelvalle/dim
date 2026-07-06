@@ -134,11 +134,20 @@ export default async function PerdidasPage({
           </div>
         ) : (
           <>
+            {/* Count line. The grid is a filtered, paginated PAGE — it must not
+                read as a total that contradicts the "Activas ahora" KPI (a page
+                of 24 next to "107 activas" looked like a discrepancy; citizen
+                validation 2026-07-06). When there are more pages we lead with
+                "Mostrando …" and, on an unfiltered view, tie it to the universe
+                total so 24 and 107 are visibly the same scope (page vs total),
+                not two conflicting counts. */}
             <p className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
               <strong className="text-[var(--color-ln-ink)] font-semibold">
-                {items.length} mascota{items.length === 1 ? "" : "s"}
+                {nextCursor
+                  ? `Mostrando las ${items.length} más recientes`
+                  : `${items.length} mascota${items.length === 1 ? "" : "s"}`}
               </strong>
-              {nextCursor ? " · mostrando las más recientes" : ""}
+              {nextCursor && !hasActiveFilters ? ` de ${totalActive} activas en total` : ""}
             </p>
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[18px]">
               {items.map((item) => (
