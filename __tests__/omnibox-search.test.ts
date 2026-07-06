@@ -307,10 +307,20 @@ describe("searchOmnibox — case scoping (govt)", () => {
     expect(ids).toContain(mendozaCaseId);
   });
 
-  it("a case result links to its own canonical /casos/[publicCode] detail page, not the /gob/casos list", async () => {
+  it("an admin case result links to the canonical /casos/[publicCode] detail page", async () => {
     const r = await searchOmnibox(`CASO-${TAG}`, ADMIN_SCOPE);
     const cabaResult = r.cases.find((c) => c.id === cabaCaseId);
     expect(cabaResult?.href).toBe(`/casos/${CABA_CASE_CODE}`);
+  });
+
+  it("a govt case result links INTO the /gob operator shell, not the public citizen route", async () => {
+    // Shell-loss fix (task #47 class): a govt operator navigating from the
+    // omnibox must land on /gob/casos/[publicCode] — which keeps the operator
+    // rail/topbar and re-gates via canReadCase — not the public /casos route
+    // that renders under the citizen layout and strips the operator chrome.
+    const r = await searchOmnibox(`CASO-${TAG}`, GOVT_CABA);
+    const cabaResult = r.cases.find((c) => c.id === cabaCaseId);
+    expect(cabaResult?.href).toBe(`/gob/casos/${CABA_CASE_CODE}`);
   });
 
   it("govt with zero assignments returns empty", async () => {

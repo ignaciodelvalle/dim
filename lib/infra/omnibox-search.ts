@@ -210,12 +210,14 @@ async function searchCases(
     publicCode: r.publicCode,
     caseKind: r.caseKind,
     status: r.status,
-    // Canonical case-detail route (app/casos/[publicCode]) — same one every
-    // other case link in the app resolves to (CaseBadge, CaseQueue, org
-    // casos/transferencias pages, notification ctaUrl builders, etc.). The
-    // /gob/casos list page has no per-case deep link, so a case result must
-    // point here, not at the list.
-    href: `/casos/${r.publicCode}`,
+    // A govt operator must land on the case detail INSIDE the /gob shell, not
+    // the public citizen route (app/(public)/casos/[publicCode]) which renders
+    // under the citizen layout and strips the operator rail/topbar — the same
+    // shell-loss class fixed for the /gob CaseQueue in task #47. /gob/casos/
+    // [publicCode] renders the identical CaseDetailView and re-gates via
+    // canReadCase, so nothing is widened. Admin keeps the canonical
+    // /casos/[publicCode] (mirrors the admin CaseQueue detailHref).
+    href: scope.role === "govt" ? `/gob/casos/${r.publicCode}` : `/casos/${r.publicCode}`,
   }));
 }
 
