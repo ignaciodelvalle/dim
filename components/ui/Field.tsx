@@ -7,6 +7,7 @@
  *  - inputMode / enterKeyHint forwarded from callers via standard HTML attrs
  */
 import {
+  Fragment,
   type InputHTMLAttributes,
   type ReactElement,
   type ReactNode,
@@ -78,13 +79,18 @@ export function LnField({
   // (WCAG 3.3.2 / 3.3.1), so aria-required / aria-invalid are injected too —
   // caller-set values always take precedence.
   const renderedControl = children({ id, describedBy, invalid });
-  const controlEl = isValidElement(renderedControl)
-    ? (renderedControl as ReactElement<{
-        id?: string;
-        "aria-required"?: boolean;
-        "aria-invalid"?: boolean;
-      }>)
-    : null;
+  // isValidElement() is true for Fragments too, but a Fragment only accepts
+  // key/children — cloning id/aria onto it is a no-op that warns in dev. Callers
+  // that wrap the control in a Fragment keep the id on the inner control they
+  // built, so skip the injection here (the label htmlFor still resolves to `id`).
+  const controlEl =
+    isValidElement(renderedControl) && renderedControl.type !== Fragment
+      ? (renderedControl as ReactElement<{
+          id?: string;
+          "aria-required"?: boolean;
+          "aria-invalid"?: boolean;
+        }>)
+      : null;
   // Effective id used for BOTH the label htmlFor and the control id so the two
   // never desync — even if a caller passes an explicit id instead of the
   // generated one handed to them via the render-prop.
