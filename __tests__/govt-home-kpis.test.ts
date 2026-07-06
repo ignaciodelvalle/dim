@@ -443,3 +443,94 @@ describe("fetchRabiesCoverage — event_amended corrections project into the agg
     expect(kpi.current).toBe(100);
   });
 });
+
+// ---------------------------------------------------------------------------
+// INVARIANT (val-2-govt B1): the rabies-coverage numerator window is a FIXED
+// trailing 12 months intrinsic to the metric (annual vaccination, Ley 22.953) —
+// NOT the caller's display period. Two surfaces sharing the "(perros, 12m)"
+// label MUST show the SAME number: the /gob Panel (true trailing-12m ctx) and
+// the Panorama console (whose "cumplimiento" preset commits ?period=90d) once
+// rendered 42% vs 11% for the identical scope+label. This suite locks the fix:
+// a dog vaccinated 180 days ago (older than 90d, within 12m) counts the same
+// under a 90-day display window as under a 12-month one.
+// ---------------------------------------------------------------------------
+
+describe("fetchRabiesCoverage — numerator window is intrinsic 12m, not the display period", () => {
+  const WIN_PROVINCE = "Santa Fe";
+  const WIN_LOCALITY = "RabiesWindowVille"; // unique to this suite
+  const WIN_TOKEN = "HK-RABIES-WINDOW-01";
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  let winPetId: string;
+
+  const scopedCtxForPeriod = (period: { since: Date; until: Date }) =>
+    buildProjectionContext(
+      { role: "govt" },
+      [{ province: WIN_PROVINCE, locality: WIN_LOCALITY }],
+      period,
+    );
+
+  async function cleanup() {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        DELETE FROM pet_events
+        WHERE pet_id IN (SELECT id FROM pets WHERE public_token = ${WIN_TOKEN})
+      `);
+      await tx.execute(sql`DELETE FROM pets WHERE public_token = ${WIN_TOKEN}`);
+    });
+  }
+
+  beforeAll(async () => {
+    await cleanup();
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: WIN_TOKEN,
+        name: "RabiesWindowDog",
+        species: "dog",
+        status: "active",
+        jurisdictionProvince: WIN_PROVINCE,
+        jurisdictionLocality: WIN_LOCALITY,
+      })
+      .returning({ id: pets.id });
+    winPetId = pet.id;
+
+    // Rabies vaccination 180 days ago: inside a trailing-12m window, OUTSIDE a
+    // trailing-90d window. Before the fix this dog was uncounted under a 90d
+    // display period → 0% coverage; after the fix it counts under both.
+    await db.insert(petEvents).values({
+      petId: winPetId,
+      eventType: "vaccination_administered",
+      occurredAt: new Date(Date.now() - 180 * DAY_MS),
+      payload: {
+        payload_version: 1,
+        vaccine_name: "Antirrábica",
+        brand: null,
+        batch: null,
+        administered_by: null,
+        next_due_at: null,
+        pet_jurisdiction_province: WIN_PROVINCE,
+        pet_jurisdiction_locality: WIN_LOCALITY,
+      },
+      authorRole: "owner",
+      recordedByUserId: null,
+    });
+  });
+
+  afterAll(cleanup);
+
+  it("returns the SAME coverage for a 90-day and a 12-month display window", async () => {
+    const now = Date.now();
+    const period90d = { since: new Date(now - 90 * DAY_MS), until: new Date(now) };
+    const period12m = windows.trailing12m();
+
+    const kpi90d = await fetchRabiesCoverage(scopedCtxForPeriod(period90d));
+    const kpi12m = await fetchRabiesCoverage(scopedCtxForPeriod(period12m));
+
+    // 1 dog in scope, vaccinated 180d ago → 100% under BOTH windows (the metric
+    // is a fixed trailing-12m, so the shorter display window cannot shrink it).
+    expect(kpi90d.current).toBe(100);
+    expect(kpi12m.current).toBe(100);
+    expect(kpi90d.current).toBe(kpi12m.current);
+  });
+});

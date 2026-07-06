@@ -9,7 +9,7 @@
 // single-sourced there; k-anonymity suppression is enforced by
 // lib/metrics/anonymity.ts where applicable.
 
-import { and, count, countDistinct, gte, inArray, lt, not, sql, sum } from "drizzle-orm";
+import { and, count, countDistinct, gte, inArray, lt, lte, not, sql, sum } from "drizzle-orm";
 import { eq } from "drizzle-orm";
 
 import { cases, db, jurisdictionsCensus, petEvents, pets, welfareReports } from "@/db";
@@ -132,10 +132,12 @@ export type RabiesCoverageKpi = {
  * NUMERATOR:   COUNT DISTINCT dogs with ≥1 vaccination_administered event
  *              whose vaccine_name matches /(antirr[áa]bica|rabies)/i (accent-
  *              aware, amendment-overlay-aware), occurred_at in the trailing
- *              12 months.
+ *              12 months ending at ctx.period.until.
  * DENOMINATOR: COUNT active/lost dogs (pets.species = 'dog') in scope.
  * SOURCE:      pets, pet_events (vaccination_administered).
- * CADENCE:     trailing 12 months (ctx.period.since), recomputed per render.
+ * CADENCE:     FIXED trailing 12 months ending at ctx.period.until — the window
+ *              is INTRINSIC to the metric (annual rabies vaccination, Ley 22.953),
+ *              NOT the caller's display period. See the since12m note below.
  * SUPPRESSION: none.
  *
  * @param ctx - ProjectionContext (actor + scope + period).
@@ -145,7 +147,19 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
     return { current: 0, target: TARGETS.RABIES_COVERAGE_PCT, partidos: 0, hasData: false };
   }
 
-  const since12m = ctx.period.since;
+  // The numerator window is a FIXED 12 months ending at ctx.period.until, NOT
+  // ctx.period.since. Rabies coverage is definitionally "share of dogs with a
+  // valid (annual) rabies vaccine" — the 12-month window is intrinsic to the
+  // metric (Ley 22.953), not a display choice. Before this, the numerator used
+  // ctx.period.since, so a caller with a shorter display window (e.g. the
+  // Panorama console's 90-day "cumplimiento" preset) computed coverage over 90
+  // days — yielding 11% under the SAME "(perros, 12m)" label the /gob Panel
+  // rendered as 42% over a true trailing-12m window (val-2-govt B1). Anchoring
+  // to `until` keeps the metric period-aware for the time-scrubber's as-of view
+  // and the period-over-period delta (prior window ends at period.since) while
+  // guaranteeing every surface computes the SAME 12-month coverage.
+  const coverageUntil = ctx.period.until;
+  const since12m = new Date(coverageUntil.getTime() - 365 * DAY_MS);
 
   const eventsScope = petEventsScopeClause(ctx);
   const dogsCondition = dogsInScopeCondition(ctx);
@@ -165,6 +179,7 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
     eq(petEvents.eventType, "vaccination_administered"),
     sql`(${amendedPayloadText("vaccine_name")}) ~* ${RABIES_VACCINE_NAME_REGEX}`,
     gte(petEvents.occurredAt, since12m),
+    lte(petEvents.occurredAt, coverageUntil),
   ];
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
   // Scope to dogs only by joining pets.
@@ -246,7 +261,12 @@ export async function fetchRabiesCoverageByProvince(
     return [];
   }
 
-  const since12m = ctx.period.since;
+  // FIXED trailing-12m window ending at ctx.period.until — SAME anchoring as
+  // fetchRabiesCoverage (the metric's 12-month window is intrinsic, not the
+  // display period), so the choropleth per-province rates never diverge from
+  // the national KPI tile under a shorter display window (val-2-govt B1).
+  const coverageUntil = ctx.period.until;
+  const since12m = new Date(coverageUntil.getTime() - 365 * DAY_MS);
 
   const eventsScope = petEventsScopeClause(ctx);
   const dogsCondition = dogsInScopeCondition(ctx);
@@ -258,6 +278,7 @@ export async function fetchRabiesCoverageByProvince(
     eq(petEvents.eventType, "vaccination_administered"),
     sql`(${amendedPayloadText("vaccine_name")}) ~* ${RABIES_VACCINE_NAME_REGEX}`,
     gte(petEvents.occurredAt, since12m),
+    lte(petEvents.occurredAt, coverageUntil),
   ];
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
   if (ctx.scope.kind === "jurisdictions") {
