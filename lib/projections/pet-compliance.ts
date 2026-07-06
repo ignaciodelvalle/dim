@@ -321,10 +321,18 @@ function deriveMicrochip(input: ComplianceInput): ObligationCard {
   };
 }
 
-// es-AR nudge shown on the "PPP indeterminado" card — the two fields that decide
-// whether the pet enters the regime.
-const PPP_INDETERMINADO_HINT =
-  "Completá la raza y el peso para saber si tu mascota entra en el régimen PPP.";
+// es-AR nudge shown on the "PPP indeterminado" card. It names ONLY the fields
+// actually missing — the projection receives the pet's free-text breed, so when
+// a breed IS shown in the header the seal must never tell the owner to "completá
+// la raza" (adversarial-citizen C1, 2026-07-06: a Boxer with a visible breed but
+// no weight read "completá la raza y el peso", directly contradicting the
+// header). Copy stays consistent with what's on screen.
+function pppIndeterminadoHint(breedKnown: boolean, weightKnown: boolean): string {
+  const missing: string[] = [];
+  if (!breedKnown) missing.push("la raza");
+  if (!weightKnown) missing.push("el peso");
+  return `Completá ${missing.join(" y ")} para saber si tu mascota entra en el régimen PPP.`;
+}
 
 function breedIsKnown(breed: string | null | undefined): boolean {
   return typeof breed === "string" && breed.trim().length > 0;
@@ -363,7 +371,9 @@ function derivePpp(input: ComplianceInput): ObligationCard | null {
   }
 
   if (input.species !== "dog") return null;
-  if (breedIsKnown(input.breed) && weightIsKnown(input.estimatedWeightKg)) return null;
+  const breedKnown = breedIsKnown(input.breed);
+  const weightKnown = weightIsKnown(input.estimatedWeightKg);
+  if (breedKnown && weightKnown) return null;
 
   return {
     key: "ppp",
@@ -372,7 +382,7 @@ function derivePpp(input: ComplianceInput): ObligationCard | null {
     tone: "due",
     detail: null,
     legalFootnote: FOOTNOTE.ppp,
-    hint: PPP_INDETERMINADO_HINT,
+    hint: pppIndeterminadoHint(breedKnown, weightKnown),
   };
 }
 

@@ -307,14 +307,23 @@ describe("deriveComplianceState — PPP indeterminado (dog missing breed/weight)
     expect(state.summary.ok).toBe(0);
   });
 
-  it("dog with a breed but no weight → still indeterminado", () => {
-    const state = deriveComplianceState(baseInput({ species: "dog", breed: "Beagle" }));
-    expect(state.cards.find((c) => c.key === "ppp")?.state).toBe("Faltan datos");
+  it("dog with a breed but no weight → hint names ONLY the weight, never the breed (C1)", () => {
+    // Adversarial-citizen C1 (2026-07-06): a Boxer (breed visible in the header)
+    // with no weight must NOT read "completá la raza" — that contradicts the
+    // shown breed. The seal names exactly what's missing: the weight.
+    const state = deriveComplianceState(baseInput({ species: "dog", breed: "Boxer" }));
+    const ppp = state.cards.find((c) => c.key === "ppp");
+    expect(ppp?.state).toBe("Faltan datos");
+    expect(ppp?.hint).toContain("el peso");
+    expect(ppp?.hint).not.toContain("la raza");
   });
 
-  it("dog with a weight but no breed → still indeterminado", () => {
+  it("dog with a weight but no breed → hint names ONLY the breed, never the weight", () => {
     const state = deriveComplianceState(baseInput({ species: "dog", estimatedWeightKg: "12.5" }));
-    expect(state.cards.find((c) => c.key === "ppp")?.state).toBe("Faltan datos");
+    const ppp = state.cards.find((c) => c.key === "ppp");
+    expect(ppp?.state).toBe("Faltan datos");
+    expect(ppp?.hint).toContain("la raza");
+    expect(ppp?.hint).not.toContain("el peso");
   });
 
   it("blank breed and zero weight are treated as missing", () => {
