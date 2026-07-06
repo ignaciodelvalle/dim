@@ -34,7 +34,7 @@ Screenshots: `docs/reviews/results/uxgate-adversarial-cowork-screenshots/` (`c01
 | Público `/p/DIM-NO-EXISTE` | anónimo | ✅ “No encontramos esa credencial” + CTAs | — | `c02-public-credential-not-found.png` |
 | Público `/denuncias/codigo/DEN-MALFORMADO` | anónimo | ⚠️ Mismo copy de credencial, no de denuncia | Menor | — |
 | Auth → `/mis-mascotas/DIM-NO-EXISTE` | owner@ | ✅ 404 genérico + volver | — | `c09-auth-pet-token-not-found.png` |
-| Auth → `?sheet=inexistente` | owner@ DEMO-PET-001 | ✅ Perfil carga; sheet ignorado | Menor | `c12-sheet-inexistente-silent.png` |
+| Auth → `?sheet=inexistente` | owner@ DIM-DEMO-0001 | ✅ Perfil carga; sheet ignorado | Menor | `c12-sheet-inexistente-silent.png` |
 | Auth → `?sheet=compartir` | owner@ | ✅ Sheet abre; cierre limpia URL | — | `c14-compartir-sheet-privacy.png` |
 | Landing CrisisBand — buscar vacío | anónimo | ✅ Alert “Ingresá un código para buscar.” | — | `c10-crisis-search-empty.png` |
 | Landing CrisisBand — `DEN-ABC` malformado | anónimo | ✅ (cliente valida formato DEN; no navega) | — | (observado en sesión) |

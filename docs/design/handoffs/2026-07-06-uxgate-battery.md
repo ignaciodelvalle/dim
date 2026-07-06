@@ -3,7 +3,7 @@
 Run these on the FIXED instance AFTER Wave F + the re-gate (running on a half-remediated build = noise). Builds on the two v1 cohorts (fixture citizen/operator) — these are NEW dimensions, not repeats.
 
 ## Common contract (every prompt inherits this)
-- Server: `http://localhost:3000` (built, not dev). Creds all `Test1234!`: owner@dim.test (10 pets, DEMO-PET-001=Rocco), owner2@, govt@, admin@, orgadmin@, alejo@/vet@.
+- Server: `http://localhost:3000` (built, not dev). Creds all `Test1234!`: owner@dim.test (10 pets, DIM-DEMO-0001=Rocco), owner2@, govt@, admin@, orgadmin@, alejo@/vet@.
 - **Rubric per key screen** (4 questions): ¿Sobra? · ¿Falta? · ¿Autocontenido? · ¿De un vistazo?
 - **Severity:** Blocker (rompe tarea/promesa) / Mayor (confunde o hace adivinar) / Menor (pulido). **PASS = 0 Blockers AND Mayores ≤ 5.**
 - Screenshot every key screen. Mark `[POCO INTUITIVO]`. Log every side-effect (for revert). **NO irreversible actions** (account delete, hard-delete, payments) — stop at the confirmation.
@@ -29,7 +29,7 @@ Precondition: `pnpm db:reset && pnpm db:bootstrap` then create ONLY admin@dim.te
 ---
 ## 2. COSTURAS cross-POV (populated, 1 agent) — "the system is ONE"
 [common contract]. Verify that a citizen action PROPAGATES to the operator side (and back), end-to-end, moving the shared state. Drive BOTH sides (you may log in/out across accounts). For EACH seam: do the citizen half, then confirm the operator half shows it + is actionable + the aggregate moved — screenshot both ends.
-Seams: (a) **owner marks a pet lost** (owner@) → it appears in **govt** /gob/perdidas as a case AND on public /perdidas; owner marks found → the case closes. (b) **vet signs a vaccine** (alejo@ via Atender, DEMO-PET-001 code) → owner@'s libreta flips that vaccine declarada→verificada (MP) → govt rabies-coverage KPI moves. (c) **public denuncia** (anon, 5-step wizard, save the code) → **admin** moderation → **govt** welfare case; follow by code. (d) **org publishes adoption** (orgadmin@) → owner2@ applies → org finalizes → owner2@ becomes the owner + custody closes. For each: does the same entity/code (CAS-/DIM-/DEN-) cross portals consistently? Output → `docs/reviews/results/uxgate-costuras.md` with a seam-by-seam PASS/FAIL.
+Seams: (a) **owner marks a pet lost** (owner@) → it appears in **govt** /gob/perdidas as a case AND on public /perdidas; owner marks found → the case closes. (b) **vet signs a vaccine** (alejo@ via Atender, DIM-DEMO-0001 code) → owner@'s libreta flips that vaccine declarada→verificada (MP) → govt rabies-coverage KPI moves. (c) **public denuncia** (anon, 5-step wizard, save the code) → **admin** moderation → **govt** welfare case; follow by code. (d) **org publishes adoption** (orgadmin@) → owner2@ applies → org finalizes → owner2@ becomes the owner + custody closes. For each: does the same entity/code (CAS-/DIM-/DEN-) cross portals consistently? Output → `docs/reviews/results/uxgate-costuras.md` with a seam-by-seam PASS/FAIL.
 
 ---
 ## 3. MOBILE / responsive (populated, pair) — real usage is the phone

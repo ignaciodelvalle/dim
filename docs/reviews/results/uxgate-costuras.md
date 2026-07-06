@@ -4,7 +4,7 @@
 **Entorno:** `http://localhost:3000` (build producción vía `scripts/qa-up.ps1`; Playwright auxiliar en `:3333` para flujos largos)  
 **Cuentas:** `owner@dim.test`, `owner2@dim.test`, `govt@dim.test`, `admin@dim.test`, `orgadmin@dim.test`, `alejo@dim.test` — contraseña `Test1234!`  
 **Screenshots:** `docs/reviews/results/uxgate-costuras-screenshots/`  
-**Side-effects (reversibles):** Pipa (`DEMO-PET-010`) marcada perdida → encontrada; denuncia anónima `DEN-RK7T-94YM` creada (moderación pendiente si no se completó manualmente).
+**Side-effects (reversibles):** Pipa (`DIM-DEMO-0010`) marcada perdida → encontrada; denuncia anónima `DEN-RK7T-94YM` creada (moderación pendiente si no se completó manualmente).
 
 ---
 
@@ -22,13 +22,13 @@
 
 ## (a) Perdida — owner@ → gob + /perdidas → owner@ encontrada
 
-**Entidad:** `DEMO-PET-010` (Pipa) · caso **`CAS-SYHA-3P8Z`**
+**Entidad:** `DIM-DEMO-0010` (Pipa) · caso **`CAS-SYHA-3P8Z`**
 
 | Punta | Screenshot | ¿Propagó? |
 |---|---|---|
 | Owner marca perdida | `a01-owner-pipa-lost-success` | ✅ SuccessScreen “Activamos la búsqueda de Pipa” |
 | Owner perfil perdida | `a02-owner-pipa-profile-lost` | ✅ Banner “Perdida”, `LostCaseBlock` con **CAS-SYHA-3P8Z**, CTA encontrada |
-| Público `/p/DEMO-PET-010` | `a03-public-credential-lost` | ✅ “ESTÁ PERDIDA”, CTAs ubicación |
+| Público `/p/DIM-DEMO-0010` | `a03-public-credential-lost` | ✅ “ESTÁ PERDIDA”, CTAs ubicación |
 | Público `/perdidas` | `a05-public-perdidas-list` | ✅ Pipa en grilla con badge PERDIDO |
 | Gob `/gob/perdidas` | `a04-gob-perdidas-list` | ✅ KPI “Activas: 7” (episodio sumado al agregado) |
 | Owner marca encontrada | `a09-owner-pipa-after-found-retry` | ✅ Perfil vuelve a activo; botón “Marcar como perdida” otra vez |
@@ -45,7 +45,7 @@
 
 ### Códigos cross-POV
 
-- **`DEMO-PET-010`** consistente owner ↔ público.
+- **`DIM-DEMO-0010`** consistente owner ↔ público.
 - **`CAS-SYHA-3P8Z`** aparece en owner `LostCaseBlock`; no cruzado en gob (vista agregada, no detalle de caso en captura).
 
 ### Notas
@@ -59,20 +59,20 @@
 
 ## (b) Vacuna vía Atender — alejo@ → owner libreta MP → gob KPI
 
-**Handoff pedía:** código **`DEMO-PET-001`** (Rocco).
+**Handoff pedía:** código **`DIM-DEMO-0001`** (Rocco).
 
 | Punta | Screenshot | ¿Propagó? |
 |---|---|---|
 | Gob KPI antes | `b01-gob-panel-before` | Baseline antirrábica ~**43%** parseado |
 | Atender entry | `b02-atender-entry` | ✅ |
-| Lookup `DEMO-PET-001` | `b02b-atender-demo-token-rejected` | ❌ “El formato del código es **DIM-XXXX-XXXX**” |
+| Lookup `DIM-DEMO-0001` | `b02b-atender-demo-token-rejected` | ❌ “El formato del código es **DIM-XXXX-XXXX**” |
 | Firma vacuna | — | ❌ No alcanzado |
 | Owner libreta MP | — | ❌ |
 | Gob KPI después | — | ❌ |
 
 ### Hallazgo blocker
 
-`ATENDER_TOKEN_PATTERN` en `app/org/[orgToken]/atender/atender-access.ts` **solo acepta `DIM-*-*`**. El seed demo asigna tokens **`DEMO-PET-*`** a las mascotas de `owner@` (incl. Rocco). El handoff de la batería y el seed **no alinean** — Atender no puede resolver Rocco en este entorno.
+`ATENDER_TOKEN_PATTERN` en `app/org/[orgToken]/atender/atender-access.ts` **solo acepta `DIM-*-*`**. El seed demo asigna tokens **`DIM-DEMO-*`** a las mascotas de `owner@` (incl. Rocco). El handoff de la batería y el seed **no alinean** — Atender no puede resolver Rocco en este entorno.
 
 Intento con `DIM-9HAK-D5Z4` (Firulais del plan seed-demo-polish) → “No se encontró ninguna mascota” (no presente en DB poblada actual).
 
@@ -84,7 +84,7 @@ Intento con `DIM-9HAK-D5Z4` (Firulais del plan seed-demo-polish) → “No se en
 
 **Veredicto (b): FAIL** — costura no ejecutable con el código pedido; no es posible verificar declarada→verificada ni movimiento KPI.
 
-**Recomendación PO:** o bien (1) ampliar Atender a tokens `DEMO-PET-*` en local, o (2) cambiar handoff a una mascota con token `DIM-*` real en seed, o (3) re-seed Rocco con token DIM.
+**Recomendación PO:** o bien (1) ampliar Atender a tokens `DIM-DEMO-*` en local, o (2) cambiar handoff a una mascota con token `DIM-*` real en seed, o (3) re-seed Rocco con token DIM.
 
 ---
 
@@ -141,12 +141,12 @@ Intento con `DIM-9HAK-D5Z4` (Firulais del plan seed-demo-polish) → “No se en
 
 **Lo que sí se siente unificado**
 
-- Perdida: el mismo animal (`DEMO-PET-010`) salta de owner a credencial pública Tier-1 y al listado `/perdidas` con estado coherente; el owner ve el **CAS-** en su perfil mientras está perdida.
+- Perdida: el mismo animal (`DIM-DEMO-0010`) salta de owner a credencial pública Tier-1 y al listado `/perdidas` con estado coherente; el owner ve el **CAS-** en su perfil mientras está perdida.
 - Denuncia anónima: comprobante autocontenido con código trazable.
 
 **Lo que rompe la ilusión**
 
-- **Atender vs seed demo:** el vet no puede atender la mascota que el handoff nombra — el sistema “legal” (DIM) y el “demo” (DEMO-PET) divergen en la costura clínica.
+- **Atender vs seed demo:** el vet no puede atender la mascota que el handoff nombra — el sistema “legal” (DIM) y el “demo” (DIM-DEMO) divergen en la costura clínica.
 - **Gob perdidas:** operador ve agregados, no el hilo CAS↔DIM en la captura — hay que buscar en detalle.
 - **Denuncia / adopción:** sin completar el tramo operador, no se demuestra que admin y gob leen el mismo código que el ciudadano.
 
@@ -177,6 +177,6 @@ docs/reviews/results/uxgate-costuras-screenshots/
 
 ## Próximos pasos sugeridos (PO)
 
-1. **Desbloquear (b):** alinear token Rocco (`DEMO-PET-001` ↔ `DIM-*`) o actualizar handoff.
+1. **Desbloquear (b):** alinear token Rocco (`DIM-DEMO-0001` ↔ `DIM-*`) o actualizar handoff.
 2. **Re-correr (c) y (d)** en sesión dedicada: moderar `DEN-RK7T-94YM` → verificar fila en `/gob/maltrato`; adopción con pet de refugio no adoptado.
 3. **(a) menor:** considerar fila/caso visible en `/gob/perdidas` con **CAS-** + **DIM-** sin drill-down.

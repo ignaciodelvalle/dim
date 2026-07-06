@@ -14,7 +14,7 @@ left pets alive-and-dead for two days; untagged rows cost hours of forensics).
    recognizable tokens/names elsewhere. Untagged residue is treated as
    corruption and deleted.
 4. **Never touch the curated demo set**: owner@dim.test's pets
-   (DIM-9HAK-D5Z4, DIM-4SUZ-U2HT, DIM-VT3V-SEA3, DEMO-PET-001), the demo-beat
+   (DIM-9HAK-D5Z4, DIM-4SUZ-U2HT, DIM-VT3V-SEA3, DIM-DEMO-0001), the demo-beat
    tokens in the active handoff, or `Refugio Esperanza Animal` /
    `Clínica Veterinaria Recoleta` fixtures. Create your own subjects.
 5. **Local only.** Refuse to run against any non-127.0.0.1 DATABASE_URL.

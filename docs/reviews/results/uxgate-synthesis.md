@@ -68,4 +68,4 @@ Net: **3 clean PASS + 1 env-artifact.** All reported majors were triaged; the re
 - **free-claim deleted_at** — deliberately NOT blocked: a soft-deleted pet keeps a live chip; a finder may legitimately re-claim it. PO decision.
 
 ## Demo-path verification (headless, TZ=UTC = the Vercel condition)
-Citizen loop: login owner@ → /inicio → DEMO-PET-001 → **credential mounts ✓, 3D flip works ✓, public /p QR resolves ✓, React#418 = 0, console errors = 0.** The flagship works clean in the prod-equivalent timezone.
+Citizen loop: login owner@ → /inicio → DIM-DEMO-0001 → **credential mounts ✓, 3D flip works ✓, public /p QR resolves ✓, React#418 = 0, console errors = 0.** The flagship works clean in the prod-equivalent timezone.

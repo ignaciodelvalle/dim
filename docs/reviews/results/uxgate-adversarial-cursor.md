@@ -30,7 +30,7 @@ Screenshots: `docs/reviews/results/uxgate-adversarial-cursor-screenshots/` (`a01
 | Sin auth → `/gob/casos`, `/admin`, `/gob/casos/CAS-NO-EXISTE` | anónimo | ✅ Redirect limpio a `/login` | — | `a01-unauth-gob-casos-redirect-login.png` |
 | Auth → `/org/TOKEN-FALSO/mascotas` | alejo@ | ✅ 404 “No encontramos esta página” + volver | — | `a02-org-fake-token-404.png` |
 | Auth → `/gob/casos/CAS-NO-EXISTE` | govt@ | ✅ 404 con “Volver al panel” | — | `a10-gob-caso-fake-404.png` |
-| Auth → `/mis-mascotas/DEMO-PET-001` sin ownership | orgadmin@ | ✅ 404 (authz, no crash) | — | `a12-sheet-inexistente-no-access-404.png` |
+| Auth → `/mis-mascotas/DIM-DEMO-0001` sin ownership | orgadmin@ | ✅ 404 (authz, no crash) | — | `a12-sheet-inexistente-no-access-404.png` |
 | `?sheet=inexistente` en perfil dueño | owner@ | ✅ Perfil carga; sheet ignorado (sin crash) | Menor | `a13-sheet-inexistente-silent-ignore.png` |
 | Empty — clínica sin animales | alejo@ `/org/DIM-UBHY-TCH5/mascotas` | ✅ Copy claro | — | `a03-clinic-mascotas-empty.png` |
 | Empty — cola gob | govt@ `/gob/cola` | ✅ “No hay solicitudes pendientes en tu scope” | Menor* | `a09-gob-cola-empty.png` |
@@ -127,7 +127,7 @@ Todos los códigos malos probados fallan con mensaje claro en `role=alert` (es-A
 | `/gob/casos/CAS-NO-EXISTE` | no | → `/login` |
 | `/gob/casos/CAS-NO-EXISTE` | govt | 404 |
 | `/org/TOKEN-FALSO/mascotas` | alejo | 404 |
-| `/mis-mascotas/DEMO-PET-001?sheet=inexistente` | owner | Perfil OK, sheet ignorado |
+| `/mis-mascotas/DIM-DEMO-0001?sheet=inexistente` | owner | Perfil OK, sheet ignorado |
 | `/org/DIM-HSPR-M285/intake/nuevo` | orgadmin | 404 (ruta incorrecta) |
 
 ### Sesión
@@ -157,7 +157,7 @@ Todos los códigos malos probados fallan con mensaje claro en `role=alert` (es-A
 | Clínica Alejo | `DIM-UBHY-TCH5` (no `DIM-6TZM-DUJZ`) |
 | Refugio orgadmin | `DIM-HSPR-M285` |
 | Mascota fallecida (Atender) | `DIM-TOMC-0008` |
-| Dueño demo + sheet test | `owner@dim.test` → `DEMO-PET-001` |
+| Dueño demo + sheet test | `owner@dim.test` → `DIM-DEMO-0001` |
 
 ---
 

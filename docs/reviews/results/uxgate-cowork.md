@@ -111,10 +111,10 @@ Legend: ✅ pass · ⚠ issue · ❌ fail. Each cell = ¿Sobra? / ¿Falta? / ¿A
 | # | Side-effect | Revert |
 |---|---|---|
 | 1 | Denuncia anónima **DEN-7HQY-RYGP** (Abandono / Moderado·MEDIA / desc "[PRUEBA UX-GATE / COWORK…]" / anónima, sin ubicación). Estado ABIERTA. | Admin/Gob descarta la denuncia de test |
-| 2 | Peso **30.00 kg @ 2026-05-05** en Pipa (DEMO-PET-010) — evento inmutable | reseed DB |
-| 3 | Peso **28.50 kg @ 2026-07-05** en Pipa (DEMO-PET-010) — evento inmutable | reseed DB |
+| 2 | Peso **30.00 kg @ 2026-05-05** en Pipa (DIM-DEMO-0010) — evento inmutable | reseed DB |
+| 3 | Peso **28.50 kg @ 2026-07-05** en Pipa (DIM-DEMO-0010) — evento inmutable | reseed DB |
 | 4 | Mascota creada **"ZZ UXGate Test" — DIM-TVKM-4CP6** (Perro/Macho/La Plata), dueño owner@dim.test | eliminar/desactivar la mascota de test (o reseed) |
-| 5 | Rocco (DEMO-PET-001) **PERDIDO→ENCONTRADO** — estado neto restaurado (Tier 0). Eventos perdido/avistaje/encontrado quedan en el ledger inmutable | reseed para limpiar el historial |
+| 5 | Rocco (DIM-DEMO-0001) **PERDIDO→ENCONTRADO** — estado neto restaurado (Tier 0). Eventos perdido/avistaje/encontrado quedan en el ledger inmutable | reseed para limpiar el historial |
 | 6 | Avistaje en Rocco (Plaza de Mayo, msg "[PRUEBA UX-GATE]…") → notificación al dueño | reseed |
 | — | Reclamar: búsqueda de chip falso 999888777666555 (no encontrado) | sin efecto — no revert |
 

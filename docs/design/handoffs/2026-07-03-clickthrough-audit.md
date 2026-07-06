@@ -22,7 +22,7 @@
 ### Gates HTTP pre-browser (CC, curl @ 71fe2bb0)
 
 `/login` `/adoptar` `/perdidas` `/refugios` `/denuncias/nueva` → **200** ·
-`/p/DEMO-PET-001` `/p/DIM-4SUZ-U2HT` `/p/DIM-BU4K-QRZU` → **200**.
+`/p/DIM-DEMO-0001` `/p/DIM-4SUZ-U2HT` `/p/DIM-BU4K-QRZU` → **200**.
 
 **qa-up warning:** `refugio@dim.test` missing from seed — use `orgadmin@dim.test`
 for the Segmento 3 org actor (exists, password universal). Filed with the seed
@@ -60,7 +60,7 @@ residue accounts from e2e; ignore those.)
 
 | Beat | Token |
 |---|---|
-| Pet con `event_amended` (beat Libro / D0-3) | `DEMO-PET-001` — **"Rocco"** post-polish |
+| Pet con `event_amended` (beat Libro / D0-3) | `DIM-DEMO-0001` — **"Rocco"** post-polish |
 | Pet perdido (credencial Tier-1) | `DIM-4SUZ-U2HT` (Michi) |
 | Org refugio verificado | `DIM-EE4N-G2M9` (**Refugio Esperanza Animal**, ex "Refugio Test") |
 | Pet activo (credencial Tier-0) | `DIM-BU4K-QRZU` |
@@ -187,7 +187,7 @@ build; Fase 0 header still cites `71fe2bb0` for qa-up origin) · **When:**
 | `/perdidas` | 200 |
 | `/refugios` | 200 |
 | `/denuncias/nueva` | 200 |
-| `/p/DEMO-PET-001` | 200 |
+| `/p/DIM-DEMO-0001` | 200 |
 | `/p/DIM-4SUZ-U2HT` | 200 |
 | `/p/DIM-BU4K-QRZU` | 200 |
 
@@ -219,7 +219,7 @@ navega de forma confiable en automatización). Token clínica correcto:
 | `/inicio` — vencimiento Atún antirrábica 9 días | ✅ | Card "Estado sanitario" amber due-soon |
 | `/inicio` — caso Michi perdida | ✅ | Lost-case block visible |
 | Notificación `vaccine_due` (Antirrábica anual, Atún, 9 días) | ✅ | Shape exacto del beat fix-C |
-| `DEMO-PET-001` (Rocco) — overlay `event_amended` | ✅ | "Corregido… Ver original" en antirrábica libreta |
+| `DIM-DEMO-0001` (Rocco) — overlay `event_amended` | ✅ | "Corregido… Ver original" en antirrábica libreta |
 | `DIM-4SUZ-U2HT` (Michi) — perfil perdido + credencial Tier-1 | ✅ | LostCaseBlock + `/p/DIM-4SUZ-U2HT` contacto dueño |
 | Fotos reales owner@ (Firulais, Rocco, Atún) | ✅ | Michi placeholder (esperado) |
 | Banner demo en superficies citizen | ✅ (ausente) | Correcto: banner global solo en `/admin/*` |
@@ -351,7 +351,7 @@ coherentes con el 1/4-reservado del picker público · banner demo 1× en
 **🔴 Rompe-beat / rompe-confianza**
 
 1. **El detalle del evento corregido muestra el payload viejo** (gap fix-A):
-   en `/mis-mascotas/DEMO-PET-001/eventos/333e786f…` el título/brand es
+   en `/mis-mascotas/DIM-DEMO-0001/eventos/333e786f…` el título/brand es
    "**Defensor 3 (incorrecto)**" aunque el timeline ya muestra "Nobivac
    Rabies" con el badge ✎. El mismo detalle expone `source:
    seed-demo-scenario` y `payload_version` crudos. Un click en "Ver detalle"

@@ -3,7 +3,7 @@
     "id": "a-perdida",
     "pass": false,
     "entityCodes": {
-      "pet": "DEMO-PET-010"
+      "pet": "DIM-DEMO-0010"
     },
     "notes": [
       "Public lost banner visible: true",

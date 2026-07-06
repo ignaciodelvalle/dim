@@ -3,7 +3,7 @@
 Purpose: browser-verify the overnight fixes + sweep the whole system, producing reports Claude can remediate from directly. Run on a **freshly rebuilt** `:3000` (stale-build hazard: a cohort hitting an old build reports phantom bugs — always `rm -rf .next && pnpm build && pnpm start` first, or confirm the build is newer than HEAD).
 
 ## Common contract (every prompt inherits this)
-- Server `http://localhost:3000` (built, not dev). Accounts, all `Test1234!`: `owner@dim.test` (10 pets, DEMO-PET-001), `owner2@`, `govt@` (focal CABA), `admin@`, `orgadmin@`, `alejo@` (vet, clinic `DIM-UBHY-TCH5`).
+- Server `http://localhost:3000` (built, not dev). Accounts, all `Test1234!`: `owner@dim.test` (10 pets, DIM-DEMO-0001), `owner2@`, `govt@` (focal CABA), `admin@`, `orgadmin@`, `alejo@` (vet, clinic `DIM-UBHY-TCH5`).
 - **Rubric per screen:** ¿Sobra? ¿Falta? ¿Autocontenido? ¿De un vistazo?
 - **Severity:** Blocker (breaks a task/promise) · Mayor (confuses / forces guessing) · Menor (polish).
 - **NO irreversible actions** — stop at the confirmation dialog (no real account-delete, hard-delete, payment).
@@ -40,14 +40,14 @@ Goal: confirm each fix Claude made last night actually works in a real browser. 
 3. **Bulk-approve confirm:** orgadmin@ → /org/…/adopciones. Select ≥1 postulación → the bulk bar. Click **"Aprobar seleccionadas"** → it must open a **confirmation dialog** (parity with "Rechazar"), not fire immediately. Cancel it. Then confirm "Rechazar" still asks for a motivo.
 4. **A2 — count honesty:** govt@ /gob Panel — the "Cola de aprobaciones" count must match `/gob/cola` in the same jurisdiction scope (empty scope → 0, not a stale number; a deep queue → "200+").
 5. **Clinic nav:** alejo@ (clinic org) — the nav must NOT show shelter-only modules (Tránsitos / Voluntarios / Adopciones-operaciones / Check-ins).
-6. **Atender sign:** alejo@ atender → code DEMO-PET-001 → sign a vaccine. It should succeed + be attributed. (This mutates — it's OK, it's the flow.)
+6. **Atender sign:** alejo@ atender → code DIM-DEMO-0001 → sign a vaccine. It should succeed + be attributed. (This mutates — it's OK, it's the flow.)
 
 ---
 
 ## TRACK B — the 4 seams (1 agent, solo, after Track A) → `docs/reviews/results/final-seams.md`
 "The system is ONE." Costuras stalled last night — re-run it. Drive both sides; for each seam do the citizen half then confirm the operator half + the aggregate moved; screenshot both ends.
 - (a) owner@ marks a pet **lost** → appears in `/gob/perdidas` + public `/perdidas` → marks **found** → the case closes.
-- (b) alejo@ signs a vaccine via **Atender** (DEMO-PET-001) → owner@'s libreta flips it **declarada→verificada (MP)** → govt rabies-coverage KPI moves.
+- (b) alejo@ signs a vaccine via **Atender** (DIM-DEMO-0001) → owner@'s libreta flips it **declarada→verificada (MP)** → govt rabies-coverage KPI moves.
 - (c) anon **denuncia** (5-step wizard, save the DEN- code) → admin@ moderation → govt welfare case; follow the code across portals.
 - (d) orgadmin@ publishes an **adoption** → owner2@ applies → orgadmin@ **finalizes** (now behind the new confirm) → owner2@ becomes owner + custody closes.
 Verify the same code/entity (CAS-/DIM-/DEN-) is consistent across portals.
