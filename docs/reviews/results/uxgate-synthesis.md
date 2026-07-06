@@ -31,3 +31,41 @@ Product blockers + majors + the systemic prod-risks: **CLOSED and verified** (he
 
 ## Next: v2 test battery
 `docs/design/handoffs/2026-07-06-uxgate-battery.md` — Génesis (from empty), cross-POV costuras, mobile/responsive, adversarial — ready to run on the fixed instance.
+
+---
+
+# v2 battery + overnight close (2026-07-06 → 07, pre-deploy)
+
+## v2 battery verdict
+| Dimension | Cohort | Verdict |
+|---|---|---|
+| Mobile | operator (Cursor) | **PASS** (0 blockers, 5 mobile-polish majors) |
+| Mobile | citizen (Cowork) | FAIL on 1 "blocker" — credential 3D freeze — but it **does NOT reproduce in clean Playwright** (8/8 default + 6/6 at 390 with flip, 0 errors). Root: Cowork's Chrome-extension viewport-lock × FlipCard 3D compositing. **Test-environment artifact, not a product bug** (same class as the login-prefill false-positive). PO kept the 3D flip. |
+| Adversarial | operator (Cursor) | **PASS** (0 blockers, 4 majors) |
+| Adversarial | citizen (Cursor) | **PASS** (0 blockers, 2 majors) |
+| Costuras | 1 agent | Did not finish (Cursor stalled ~seam c, no verdict). Seams a/b partially screenshotted. Self-verified headless instead. |
+| Génesis | relay | Deferred by PO (later). |
+
+Net: **3 clean PASS + 1 env-artifact.** All reported majors were triaged; the real ones are fixed below.
+
+## Overnight remediation — all committed, tsc 0, lint:tokens green
+- **5 real-user majors:** C1 Boxer-PPP seal names only the missing field (6427f61a) · C2 share-sheet progressive disclosure (bcdefb9b) · A2 was ALREADY correct — the cohorts hit a STALE :3000 build; test-locked (f7eff574) · A3 atender error clears on edit (a28b6156) · A4 /acceso-denegado explains the redirect (cb616811).
+- **Data-integrity (event-sourcing):** microchip-coverage seed no longer re-chips revoked pets (25d172a8) · adoption_eligibility folded into the pets cache (66e37418) — both green post-re-seed.
+- **Pilot security MEDs:** erasure completeness +migration 0130 (3523a1d7) · **free-claim was a REAL hole — public-token claim without the private identifier** (60b28a16) · signup no longer leaks account/DNI existence (bb166ab0).
+- **My own adversarial review** (the cloud /code-review ultra timed out at 30 min → I ran 2 review agents over the diff): found **1 HIGH — account erasure destroyed THIRD-PARTY (fostered) pets' photos/certificates** (role-less ownership filter) → fixed with a role='owner' scope + migration 0131 (55f8bf7e). Everything else CONFIRMED clean.
+- **UI/a11y:** LnField label↔input association (eef5dab3) + Fragment-guard follow-up · omnibox keeps the govt shell (b46cc5b0) · F1-residual now-drift defensive (a127f05e).
+- **st-token #41:** value-preserving codemod was already exhausted; converted the last 21 hits + **fixed a pre-existing RED lint:tokens gate that was failing `verify`** (70cd05f2).
+- **Dashboards audit #39:** 4 safe /gob+/org copy/count fixes incl. /gob/cola count-lie → "200+" (74c241ea, d324164c, 88bac5ac).
+
+## Deferred-WITH-EVIDENCE (not risked the night before a demo)
+- **#22 bundle-size** — dynamic-importing maplibre-gl risks SSR-breaking the Panorama centerpiece; unverifiable without a daylight screenshot pass.
+- **st-token range-snap bulk (~2394)** — shifts pixels app-wide (no 1:1 token by design); daylight screenshot job, documented per-category.
+- **#35 crisis-e2e** — test-infra, can't verify against a moving build tonight.
+- **#21 repo hygiene** — branch pruning is destructive, low demo-value.
+- **sync-PPP-async** — the test timeout bump is correct + tested; async refactor is a follow-up.
+- **rls/matrix** — intentional admin-reads-all doctrine (app-layer scoping is the defense); documented, not a bug.
+- **Dashboards structural** — /org bulk-"Aprobar" has no confirm (Reject does); /admin "Decisiones 7d" drills to an unfiltered log; /org "Disponibles" KPI links unfiltered; Home cola card uses limit-as-count past 200. All /org+/admin (not the primary govt demo path), structural — flagged for daylight.
+- **free-claim deleted_at** — deliberately NOT blocked: a soft-deleted pet keeps a live chip; a finder may legitimately re-claim it. PO decision.
+
+## Demo-path verification (headless, TZ=UTC = the Vercel condition)
+Citizen loop: login owner@ → /inicio → DEMO-PET-001 → **credential mounts ✓, 3D flip works ✓, public /p QR resolves ✓, React#418 = 0, console errors = 0.** The flagship works clean in the prod-equivalent timezone.
