@@ -129,7 +129,7 @@ export function LnRegRow({
           </span>
           {status && <LnStatusFlag status={status} />}
         </div>
-        {breed && <p className="mt-[1px] text-[12.5px] text-[var(--color-ln-mute)]">{breed}</p>}
+        {breed && <p className="mt-px text-[12.5px] text-[var(--color-ln-mute)]">{breed}</p>}
         {nextLine && (
           <div className="mt-[7px] inline-flex items-center gap-[7px] text-sm text-[var(--color-ln-ink-2)]">
             {nextLine}

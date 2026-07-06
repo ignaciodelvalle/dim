@@ -66,7 +66,7 @@ export function LnToggle({
           {label}
         </p>
         {description && (
-          <p className="mt-[1px] text-[11px] leading-[1.4] text-[var(--color-ln-mute)]">
+          <p className="mt-px text-[11px] leading-[1.4] text-[var(--color-ln-mute)]">
             {description}
           </p>
         )}
@@ -98,7 +98,7 @@ function Track({
         onChange(!checked);
       }}
       className={[
-        "relative mt-[1px] h-[21px] w-[38px] flex-shrink-0 rounded-full transition-colors duration-150",
+        "relative mt-px h-[21px] w-[38px] flex-shrink-0 rounded-full transition-colors duration-150",
         "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
         checked ? trackOn : "bg-[var(--color-ln-line-strong)]",
       ]

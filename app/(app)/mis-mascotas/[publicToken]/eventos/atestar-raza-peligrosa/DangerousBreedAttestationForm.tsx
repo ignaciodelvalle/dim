@@ -207,7 +207,7 @@ function Step2({
                   checked={registry === opt.value}
                   onChange={(e) => setRegistry(e.target.value)}
                 >
-                  <span className="flex flex-col gap-[1px]">
+                  <span className="flex flex-col gap-px">
                     {opt.label}
                     <span className="text-[11px] text-[var(--color-ln-mute)]">{opt.help}</span>
                   </span>

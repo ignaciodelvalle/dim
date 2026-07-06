@@ -147,7 +147,7 @@ export default async function UpgradePage() {
                   <p className="text-[13px] font-semibold text-[var(--color-ln-ink)]">
                     Ya administrás una organización
                   </p>
-                  <p className="mt-[1px] text-sm text-[var(--color-ln-mute)]">
+                  <p className="mt-px text-sm text-[var(--color-ln-mute)]">
                     {adminMembership.organization.displayName}
                   </p>
                 </div>

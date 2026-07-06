@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-07-05",
     "branch": "integration/all-20260703",
-    "totalViolations": 2431,
+    "totalViolations": 2415,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -15,7 +15,7 @@
     },
     "components/AdoptionQueueList.tsx": {
       "text": 5,
-      "space": 1,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -99,7 +99,7 @@
     },
     "components/ui/Card.tsx": {
       "text": 3,
-      "space": 7,
+      "space": 6,
       "rounded": 1,
       "shadow": 2,
       "hexStyle": 0
@@ -155,7 +155,7 @@
     },
     "components/ui/Ledger.tsx": {
       "text": 5,
-      "space": 4,
+      "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -169,14 +169,14 @@
     },
     "components/ui/RegRow.tsx": {
       "text": 3,
-      "space": 5,
+      "space": 4,
       "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/ui/Sheet.tsx": {
       "text": 6,
-      "space": 13,
+      "space": 12,
       "rounded": 4,
       "shadow": 1,
       "hexStyle": 0
@@ -197,21 +197,21 @@
     },
     "components/ui/Tabs.tsx": {
       "text": 3,
-      "space": 7,
+      "space": 6,
       "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/ui/Toggle.tsx": {
       "text": 4,
-      "space": 3,
+      "space": 1,
       "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
     "components/ui/UrlTabs.tsx": {
       "text": 1,
-      "space": 3,
+      "space": 2,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -512,7 +512,7 @@
     },
     "components/admin/AlertInboxTable.tsx": {
       "text": 4,
-      "space": 3,
+      "space": 2,
       "rounded": 2,
       "shadow": 0,
       "hexStyle": 0
@@ -778,7 +778,7 @@
     },
     "app/org/[orgToken]/mascotas/OrgMascotasPipelineBoard.tsx": {
       "text": 5,
-      "space": 1,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -982,6 +982,20 @@
     "app/org/[orgToken]/casos/page.tsx": {
       "text": 2,
       "space": 1,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/org/[orgToken]/atender/page.tsx": {
+      "text": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/org/[orgToken]/atender/[publicToken]/page.tsx": {
+      "text": 3,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -1807,7 +1821,7 @@
     },
     "app/(public)/p/[publicToken]/page.tsx": {
       "text": 21,
-      "space": 13,
+      "space": 11,
       "rounded": 0,
       "shadow": 2,
       "hexStyle": 1
@@ -2045,7 +2059,7 @@
     },
     "app/(app)/turnos/buscar/[offeringToken]/page.tsx": {
       "text": 8,
-      "space": 2,
+      "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -2087,7 +2101,7 @@
     },
     "app/(app)/notificaciones/page.tsx": {
       "text": 7,
-      "space": 3,
+      "space": 2,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -2206,7 +2220,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/libreta/LibretaSanitariaView.tsx": {
       "text": 5,
-      "space": 7,
+      "space": 6,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -2402,7 +2416,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/atestar-raza-peligrosa/DangerousBreedAttestationForm.tsx": {
       "text": 7,
-      "space": 1,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -2604,8 +2618,8 @@
       "hexStyle": 0
     },
     "app/(app)/inicio/_components/PetHealthStatusStrip.tsx": {
-      "text": 3,
-      "space": 1,
+      "text": 4,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -2675,7 +2689,7 @@
     },
     "app/(app)/cuenta/upgrade/page.tsx": {
       "text": 9,
-      "space": 2,
+      "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -2717,7 +2731,7 @@
     },
     "app/(app)/cuenta/transitos/historial/page.tsx": {
       "text": 9,
-      "space": 2,
+      "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0

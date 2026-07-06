@@ -169,7 +169,7 @@ export default async function OfferingDetailPage({
                           {timeLabel}
                         </span>
                         {slot.capacity > 1 && (
-                          <span className="mt-[1px] font-[var(--font-ln-mono)] text-[9.5px] text-[var(--color-ln-mute)]">
+                          <span className="mt-px font-[var(--font-ln-mono)] text-[9.5px] text-[var(--color-ln-mute)]">
                             {remaining} lugar{remaining === 1 ? "" : "es"}
                           </span>
                         )}

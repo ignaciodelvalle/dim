@@ -366,7 +366,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
                         {row.applicantName ?? "Postulante"}
                         <span className="text-sm font-normal text-ln-op-mute">→ {row.petName}</span>
                         {row.infoRequested && (
-                          <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-ln-op-azul bg-ln-op-celeste-050 px-1.5 py-[1px] text-[9px] font-semibold uppercase tracking-[.08em] text-ln-op-azul">
+                          <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-ln-op-azul bg-ln-op-celeste-050 px-1.5 py-px text-[9px] font-semibold uppercase tracking-[.08em] text-ln-op-azul">
                             Info pedida
                           </span>
                         )}

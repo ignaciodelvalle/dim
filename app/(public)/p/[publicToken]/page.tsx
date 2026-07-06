@@ -657,7 +657,7 @@ export default async function PublicCredentialPage({
             className="sticky top-0 z-30 -mx-4 mb-4 flex items-start gap-[11px] border-b border-ln-err-100 bg-ln-err-050 px-[18px] py-[13px] md:static md:mx-0 md:mb-4 md:rounded-[var(--radius-sm)]"
           >
             {/* Heartbeat icon */}
-            <span aria-hidden="true" className="mt-[1px] flex-shrink-0 text-lg text-ln-seal">
+            <span aria-hidden="true" className="mt-px flex-shrink-0 text-lg text-ln-seal">
               ♥
             </span>
             <div>
@@ -960,7 +960,7 @@ function CredField({
         {label}
       </p>
       <p
-        className={`mt-[1px] break-words font-medium text-ln-ink ${
+        className={`mt-px break-words font-medium text-ln-ink ${
           mono ? "font-[var(--font-ln-mono)] text-sm" : "font-[var(--font-ln-sans)] text-[13.5px]"
         }`}
       >

@@ -163,7 +163,7 @@ function PipelineColumn({
           {label}
         </h2>
         <span
-          className={`text-xs font-ln-mono font-bold px-1.5 py-[1px] rounded-full ${style.countBadge}`}
+          className={`text-xs font-ln-mono font-bold px-1.5 py-px rounded-full ${style.countBadge}`}
           aria-label={`${cards.length} animales`}
         >
           {cards.length}

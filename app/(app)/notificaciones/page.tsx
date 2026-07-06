@@ -262,7 +262,7 @@ export default async function NotificacionesPage({
                 {CATEGORY_LABELS[c]}
                 <span
                   className={[
-                    "rounded-full px-1.5 py-[1px] font-[var(--font-ln-mono)] text-xs",
+                    "rounded-full px-1.5 py-px font-[var(--font-ln-mono)] text-xs",
                     isActive
                       ? "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]"
                       : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",

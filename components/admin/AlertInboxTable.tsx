@@ -173,7 +173,7 @@ export function AlertInboxTable({ rows }: { rows: AlertInboxRow[] }) {
                   </span>
                   {isBreach ? (
                     <span
-                      className="ml-2 inline-flex items-center gap-[3px] rounded-[3px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-1.5 py-[1px] font-ln-mono text-[9px] font-bold uppercase text-ln-op-danger"
+                      className="ml-2 inline-flex items-center gap-[3px] rounded-[3px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-1.5 py-px font-ln-mono text-[9px] font-bold uppercase text-ln-op-danger"
                       title={`Sin reconocer hace ${days} días (SLA ${BREACH_DAYS} días)`}
                     >
                       <span aria-hidden="true">!</span>

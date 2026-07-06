@@ -95,7 +95,7 @@ export function LnVaccineLedger({
       render: (r) => (
         <div>
           <p className="font-semibold text-[var(--color-ln-ink)]">{r.name}</p>
-          {r.dose && <p className="mt-[1px] text-[11px] text-[var(--color-ln-mute)]">{r.dose}</p>}
+          {r.dose && <p className="mt-px text-[11px] text-[var(--color-ln-mute)]">{r.dose}</p>}
         </div>
       ),
     },
@@ -108,7 +108,7 @@ export function LnVaccineLedger({
             {r.appliedAt}
           </p>
           {r.nextDue && (
-            <p className="mt-[1px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+            <p className="mt-px font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
               próx: {r.nextDue}
             </p>
           )}
@@ -128,7 +128,7 @@ export function LnVaccineLedger({
         <div>
           <p className="text-[11.5px] text-[var(--color-ln-ink-2)]">{r.vet}</p>
           {r.vetLicense && (
-            <p className="mt-[1px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+            <p className="mt-px font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
               {r.vetLicense}
             </p>
           )}

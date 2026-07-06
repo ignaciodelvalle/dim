@@ -87,7 +87,7 @@ export default async function TransitosHistorialPage() {
                     >
                       {pet.name}
                     </Link>
-                    <p className="mt-[1px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                    <p className="mt-px font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
                       {ownership.startedAt
                         ? new Date(ownership.startedAt).toLocaleDateString("es-AR", {
                             day: "numeric",

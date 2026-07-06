@@ -367,7 +367,7 @@ export function LnSheetPetRow({ name, meta, photoUrl, onChangePet }: LnSheetPetR
         <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)]">
           {name}
         </p>
-        {meta && <p className="mt-[1px] text-[11.5px] text-[var(--color-ln-mute)]">{meta}</p>}
+        {meta && <p className="mt-px text-[11.5px] text-[var(--color-ln-mute)]">{meta}</p>}
       </div>
       {/* Change */}
       {onChangePet && (
