@@ -29,6 +29,7 @@
  *   D0-5  Fresh occurredAt/recordedAt so "calculado al…" footers aren't stale.
  *   D1    govt@dim.test created (idempotent) with govt_assignments to CABA.
  *   D1b   govt@ linked to mascotas-ba-centro sanitary_authority + focal decomisos.
+ *   D1c   Active CABA vaccination campaign scoped to govt focal locality → /gob/campanas.
  *
  * ─── LOCAL-ONLY GUARD ───────────────────────────────────────────────────────
  *   Refuses to run against a non-local DATABASE_URL host unless --allow-remote.
@@ -121,6 +122,7 @@ const {
   db,
   alertSubscriptions,
   alertFirings,
+  appointments,
   cases,
   govtAssignments,
   organizationMemberships,
@@ -129,6 +131,9 @@ const {
   pets,
   ownerships,
   profiles,
+  serviceOfferings,
+  serviceScheduleRules,
+  timeSlots,
   ALERT_FIRING_OPEN_STATUSES,
 } = await import("../db");
 
@@ -442,6 +447,148 @@ async function seedFocalDecomisos(govtUserId: string, sanitaryOrgId: string): Pr
   }
 
   return created;
+}
+
+// ---------------------------------------------------------------------------
+// 7c. D1c — Focal CABA vaccination campaign for /gob/campanas
+// ---------------------------------------------------------------------------
+
+const FOCAL_CAMPAIGN_TOKEN = "DEMO-SVO-CABA-RABIES";
+
+async function seedFocalVaccinationCampaign(ownerUserId: string): Promise<number> {
+  log("STEP", "D1c: seeding focal CABA vaccination campaign");
+
+  const clinicOrgId = await resolveOrgIdByCuit("30-71000002-2");
+  if (!clinicOrgId) {
+    log("WARN", "  clinica-recoleta not found — run pnpm seed:demo first");
+    return 0;
+  }
+
+  const [existingOffering] = await db
+    .select({ id: serviceOfferings.id })
+    .from(serviceOfferings)
+    .where(eq(serviceOfferings.publicToken, FOCAL_CAMPAIGN_TOKEN))
+    .limit(1);
+
+  if (existingOffering) {
+    log("SKIP", `  ${FOCAL_CAMPAIGN_TOKEN} already seeded`);
+    return 0;
+  }
+
+  const demoPetRows = await db
+    .select({ id: pets.id })
+    .from(pets)
+    .where(like(pets.publicToken, "DIM-DEMO-%"))
+    .limit(6);
+
+  if (demoPetRows.length === 0) {
+    log("WARN", "  no DIM-DEMO pets for campaign appointments");
+    return 0;
+  }
+
+  const [offeringRow] = await db
+    .insert(serviceOfferings)
+    .values({
+      publicToken: FOCAL_CAMPAIGN_TOKEN,
+      organizationId: clinicOrgId,
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: FOCAL_PROVINCE,
+      jurisdictionLocality: FOCAL_LOCALITY,
+      serviceKind: "vaccination_rabies",
+      displayName: "Campaña antirrábica CABA (demo focal)",
+      description: "Campaña sanitaria focal para govt@ — seed-demo-scenario",
+      durationMinutes: 15,
+      slotCapacity: 6,
+      eligibilitySpecies: ["dog", "cat"],
+      status: "approved",
+      isPublic: true,
+    })
+    .returning({ id: serviceOfferings.id });
+
+  const effFrom = new Date(ANCHOR_DATE.getTime() - 45 * 24 * 3600 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const effUntil = new Date(ANCHOR_DATE.getTime() + 30 * 24 * 3600 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  const [ruleRow] = await db
+    .insert(serviceScheduleRules)
+    .values({
+      serviceOfferingId: offeringRow.id,
+      daysOfWeek: [1, 3, 5],
+      startTimeLocal: "09:00:00",
+      endTimeLocal: "12:00:00",
+      effectiveFrom: effFrom,
+      effectiveUntil: effUntil,
+      status: "active",
+    })
+    .returning({ id: serviceScheduleRules.id });
+
+  const appointmentStatuses = ["attended", "attended", "no_show", "confirmed"] as const;
+  let aptCount = 0;
+
+  for (let i = 0; i < appointmentStatuses.length; i++) {
+    const daysAgo = 3 + i * 4;
+    const startsAt = new Date(ANCHOR_DATE.getTime() - daysAgo * 24 * 3600 * 1000);
+    startsAt.setUTCHours(12 + i, 0, 0, 0);
+    const endsAt = new Date(startsAt.getTime() + 15 * 60 * 1000);
+    const aptToken = `DEMO-APT-CABA-${String(i).padStart(4, "0")}`;
+
+    const [existingApt] = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(eq(appointments.publicToken, aptToken))
+      .limit(1);
+
+    if (existingApt) {
+      log("SKIP", `  ${aptToken} already exists`);
+      continue;
+    }
+
+    const [slotRow] = await db
+      .insert(timeSlots)
+      .values({
+        serviceOfferingId: offeringRow.id,
+        ruleId: ruleRow.id,
+        startsAt,
+        endsAt,
+        capacity: 6,
+        bookingsCount: 1,
+        status: "open",
+      })
+      .returning({ id: timeSlots.id });
+
+    const status = appointmentStatuses[i];
+    const createdAt = new Date(startsAt.getTime() - 2 * 24 * 3600 * 1000);
+
+    await db.insert(appointments).values({
+      publicToken: aptToken,
+      slotId: slotRow.id,
+      petId: demoPetRows[i % demoPetRows.length].id,
+      ownerUserId,
+      serviceOfferingId: offeringRow.id,
+      organizationId: clinicOrgId,
+      status,
+      ...(status === "attended"
+        ? {
+            attendedAt: endsAt,
+            attendedByUserId: ownerUserId,
+          }
+        : {}),
+      ...(status === "no_show"
+        ? {
+            noShowMarkedAt: new Date(endsAt.getTime() + 30 * 60 * 1000),
+          }
+        : {}),
+      createdAt,
+      updatedAt: createdAt,
+    });
+    aptCount++;
+  }
+
+  log("OK", `  ${FOCAL_CAMPAIGN_TOKEN}: 1 offering, ${aptCount} appointments`);
+  return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -1032,6 +1179,9 @@ async function main(): Promise<void> {
 
   // Personal owner for the demo pets (institutional accounts can't own pets).
   const ownerId = await ensureDemoOwner();
+
+  // D1c: focal vaccination campaign scoped to govt locality → /gob/campanas.
+  await seedFocalVaccinationCampaign(ownerId);
 
   // D0-1 + D0-2: focal series with ≥4 buckets (owned by the personal owner).
   const { petIds } = await seedFocalSeries(ownerId);
