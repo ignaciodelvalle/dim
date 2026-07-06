@@ -145,7 +145,11 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
     );
     const res = await callRoute({ "x-cron-secret": "test-secret" });
     const body = await res.json();
-    expect(body).toMatchObject({ ok: true, scanned: 1, resolved: 0, stillFailing: 1 });
+    // A run that left a payload still failing redelivery is NOT healthy: it now
+    // returns HTTP 500 with ok:false so Vercel flags/retries (review 23 fleet
+    // extension). The counters are still surfaced for triage.
+    expect(res.status).toBe(500);
+    expect(body).toMatchObject({ ok: false, scanned: 1, resolved: 0, stillFailing: 1 });
     // resolved_at IS stamped on the original even when re-dead-lettered (bounded).
     const stampedResolved = updateSetMock.mock.calls.some(
       (c) => (c[0] as { resolvedAt?: unknown }).resolvedAt instanceof Date,
@@ -153,11 +157,15 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
     expect(stampedResolved).toBe(true);
   });
 
-  it("marks a malformed payload as invalid and resolves it", async () => {
+  it("marks a malformed payload as invalid and resolves it (run fails, HTTP 500)", async () => {
     const { createMock } = mockDeps([{ id: "dl-4", payload: { userId: "u1" } }], []);
     const res = await callRoute({ "x-cron-secret": "test-secret" });
     const body = await res.json();
-    expect(body).toMatchObject({ ok: true, scanned: 1, invalid: 1, resolved: 0 });
+    // An unreplayable payload counts as an error, so the run fails (HTTP 500) and
+    // Vercel retries — a cron must not report success on failure (review 23 fleet
+    // extension). The row is still resolved so it stops blocking the scan.
+    expect(res.status).toBe(500);
+    expect(body).toMatchObject({ ok: false, scanned: 1, invalid: 1, resolved: 0 });
     // Never attempted a replay for an unreplayable payload.
     expect(createMock).not.toHaveBeenCalled();
   });
