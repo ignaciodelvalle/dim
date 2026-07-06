@@ -21,8 +21,9 @@
 
 import { and, asc, eq, gt, isNotNull, isNull, or } from "drizzle-orm";
 
-import { db, ownerships, pets } from "@/db";
+import { db, ownerships, petEvents, pets } from "@/db";
 
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import {
   type PppRules,
@@ -177,7 +178,37 @@ export async function reEvaluatePppClassificationChange(
       const nowPpp = classifyPpp("dog", pet.breed, Number.isNaN(weightKg) ? null : weightKg, rules);
       if (nowPpp === pet.potentiallyDangerousBreed) continue;
 
-      await db.update(pets).set({ potentiallyDangerousBreed: nowPpp }).where(eq(pets.id, pet.id));
+      // Flip the flag AND emit the paired fact in ONE tx: the pets.* column is a
+      // dual-write cache, so a flip with no corresponding pet_events row would
+      // violate event-pairing (Invariant #3) — the classification change would
+      // exist only in the cache, unauditable and non-replayable. The event is a
+      // system-authored pet_profile_updated carrying the single flag change. The
+      // notify below stays OUTSIDE this tx on purpose: the flag must COMMIT
+      // before the notify so a failed insert dead-letters (ARCH-P) rather than
+      // rolling back the flip and losing the urgent alert forever.
+      const flipEventPayload = validateEventPayload("pet_profile_updated", {
+        changes: [
+          {
+            field: "potentially_dangerous_breed",
+            old: pet.potentiallyDangerousBreed,
+            new: nowPpp,
+          },
+        ],
+        photo_replaced: false,
+      });
+      const flipNow = new Date();
+      await db.transaction(async (tx) => {
+        await tx.update(pets).set({ potentiallyDangerousBreed: nowPpp }).where(eq(pets.id, pet.id));
+        await tx.insert(petEvents).values({
+          petId: pet.id,
+          eventType: "pet_profile_updated",
+          occurredAt: flipNow,
+          recordedAt: flipNow,
+          recordedByUserId: null,
+          authorRole: "system",
+          payload: flipEventPayload,
+        });
+      });
 
       if (nowPpp) counters.flippedToPpp += 1;
       else counters.flippedToNonPpp += 1;
