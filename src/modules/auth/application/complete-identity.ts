@@ -15,7 +15,6 @@ import { eq, sql } from "drizzle-orm";
 import { db, profiles } from "@/db";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
-import { pgError } from "@/lib/infra/db-errors";
 import { LEGAL_VERSION } from "@/lib/reference/legal-version";
 import { createClient } from "@/lib/supabase/server";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
@@ -100,18 +99,19 @@ export async function completeIdentityAction(
       })
       .where(eq(profiles.id, user.id));
   } catch (err) {
+    // DNI enumeration defense (audit 28-#3, pilot MED).
+    // A distinct "ese DNI ya está registrado por otra cuenta" message confirmed
+    // to an authenticated attacker which DNIs already exist in the system —
+    // probing the profiles_dni_hash_unique index turns signup into a DNI oracle.
+    // Return the SAME generic message whether the failure is a DNI collision or
+    // any other write error, so the two are indistinguishable. The duplicate is
+    // still prevented server-side: the partial unique index (migration 0106)
+    // rejects the insert, so no second account can hold the DNI.
+    //
     // drizzle 0.45 wraps the pg error; pgError unwraps the `.cause` chain to
-    // the real postgres-js error carrying `code` / `constraint` / `detail`.
-    const info = pgError(err);
-    if (
-      info?.code === "23505" &&
-      ((info.constraint ?? "").includes("dni") ||
-        String(info.raw.detail ?? "").includes("dni_hash"))
-    ) {
-      return { error: "Ese DNI ya está registrado por otra cuenta." };
-    }
-    const msg = err instanceof Error ? err.message : "error desconocido";
-    return { error: `No se pudo guardar tu perfil: ${msg}` };
+    // the real postgres-js error. We still inspect it to log/branch internally,
+    // but the user-facing copy is uniform.
+    return { error: "No pudimos guardar tus datos. Revisá la información e intentá de nuevo." };
   }
 
   return { error: null, ok: true };

@@ -44,11 +44,24 @@ export async function signupAction(
   });
 
   if (error) {
+    // Account enumeration defense (audit 28-#3, pilot MED).
+    // Supabase returns a distinct "User already registered" error when the email
+    // exists. Surfacing that (or any "ya existe" copy) lets an attacker probe
+    // which emails have accounts. Return the SAME success shape as a genuine new
+    // signup so the two are indistinguishable to the client. The duplicate is
+    // still prevented server-side — Supabase created no new user, so a duplicate
+    // account cannot be minted; a duplicate simply lands with no session and is
+    // bounced back to /signup at step 2 (completeIdentityAction's getUser check).
+    // Residual: with email confirmations OFF a genuine signup receives a session
+    // cookie while a duplicate does not, a subtler oracle closed by enabling
+    // confirmations in the Supabase dashboard (PO-gated, tracked separately).
     const lower = error.message.toLowerCase();
     if (lower.includes("already") || lower.includes("registered")) {
-      return { error: "Ya existe una cuenta con ese correo." };
+      return { error: null, ok: true };
     }
-    return { error: `No se pudo crear la cuenta: ${error.message}` };
+    // Every other failure returns a single generic message — never the raw
+    // Supabase text, which could itself hint at account state.
+    return { error: "No pudimos completar el registro. Revisá tus datos e intentá de nuevo." };
   }
 
   // Do NOT redirect. The inline signup flow uses this success signal to
