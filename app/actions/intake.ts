@@ -11,7 +11,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { createIntake } from "@/src/modules/pets/application/intake/create-intake";
 import type { IntakeFormState } from "@/src/modules/pets/application/intake/types";
 
@@ -30,7 +30,11 @@ export async function createIntakeAction(
   _previous: IntakeFormState,
   formData: FormData,
 ): Promise<IntakeFormState> {
-  const auth = await requireCapability("intake.create");
+  // Pin the capability check to the org identified by the URL orgToken — never
+  // the session-default membership. Otherwise a multi-org member acting under
+  // /org/{orgToken}/intake would author the intake (ownership.ownerOrganizationId
+  // + pet_registered authorOrganizationId) against their last-joined org.
+  const auth = await requireCapabilityForOrgToken("intake.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
   return createIntake(orgToken, user, organization, formData);

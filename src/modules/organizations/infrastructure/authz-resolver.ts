@@ -194,3 +194,41 @@ export async function requireCapability(
     error: null,
   };
 }
+
+// ---------------------------------------------------------------------------
+// requireCapabilityForOrgToken
+//
+// Confused-deputy guard for org-scoped server actions reached through an
+// /org/{orgToken}/… URL. Resolves the acting organization from the URL
+// publicToken FIRST, then pins the capability check to THAT org.id — never the
+// session-default (most-recently-joined) membership that bare requireCapability
+// falls back to. A member of several orgs acting under /org/{A} is authorized
+// against org A, not whichever org they happened to join last.
+//
+// Returns the same RequireCapabilityResult shape as requireCapability. When the
+// token matches no organization the standard "no access" failure is returned —
+// indistinguishable from "not a member", so org existence is never leaked.
+// ---------------------------------------------------------------------------
+
+export async function requireCapabilityForOrgToken(
+  capability: OrganizationCapability,
+  orgToken: string,
+): Promise<RequireCapabilityResult> {
+  const [org] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.publicToken, orgToken))
+    .limit(1);
+
+  if (!org) {
+    return {
+      user: null,
+      membership: null,
+      organization: null,
+      granted: null,
+      error: "No tenés acceso a esta organización.",
+    };
+  }
+
+  return requireCapability(capability, org.id);
+}
