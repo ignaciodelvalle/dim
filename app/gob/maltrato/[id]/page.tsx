@@ -173,10 +173,15 @@ export default async function GobMaltratoDetailPage({
     subjectPetToken = subjectPet?.publicToken ?? null;
   }
 
-  // Fetch verified shelters / rescue_networks for the derivation panel.
-  // Prefer same jurisdiction; fall back to all verified orgs if none found.
+  // Fetch verified shelters / rescue_networks for the derivation panel, scoped
+  // to the report's jurisdiction — which, for a govt viewer, is guaranteed to be
+  // inside their own assignments by the scope guard above (a govt only reaches
+  // this page for a report whose (province, locality) is in `jurisdictions`).
+  // The previous nationwide fallback leaked the full verified-org roster to a
+  // provincial agent whenever no in-jurisdiction org existed; it is removed. An
+  // empty list is the correct secure outcome (no in-scope org to derive to).
   const ORG_DERIVATION_TYPES = ["shelter", "rescue_network"] as const;
-  let derivableOrgs = await db
+  const derivableOrgs = await db
     .select({
       id: organizations.id,
       displayName: organizations.displayName,
@@ -194,25 +199,6 @@ export default async function GobMaltratoDetailPage({
       ),
     )
     .limit(50);
-
-  // If no in-jurisdiction orgs found, broaden to all verified orgs of those types.
-  if (derivableOrgs.length === 0) {
-    derivableOrgs = await db
-      .select({
-        id: organizations.id,
-        displayName: organizations.displayName,
-        publicToken: organizations.publicToken,
-        orgType: organizations.orgType,
-      })
-      .from(organizations)
-      .where(
-        and(
-          eq(organizations.verified, true),
-          inArray(organizations.orgType, [...ORG_DERIVATION_TYPES]),
-        ),
-      )
-      .limit(50);
-  }
 
   // Resolve current derivation target (if any).
   let derivedOrgInfo: { orgId: string; orgDisplayName: string; derivedAt: Date } | null = null;
