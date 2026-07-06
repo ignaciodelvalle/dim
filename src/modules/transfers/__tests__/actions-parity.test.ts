@@ -814,30 +814,36 @@ describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) im
     );
   });
 
-  it("redirects to ?transferido=<petToken> on success", async () => {
+  it("redirects to the transfers hub on success (proposal opened, not an immediate flip)", async () => {
     const { redirect } = await import("next/navigation");
     mockRequireCapability.mockResolvedValue(makeAuth());
     transferCustodyUc.mockResolvedValue({
       ok: true,
-      value: undefined,
+      value: {
+        publicCode: "CASE-001",
+        caseId: "case-1",
+        petId: "pet-1",
+        senderOrgId: "org-1",
+        receiverOrgId: "org-2",
+      },
       notifications: [],
     });
     const formData = new FormData();
     formData.append("destinationOrgId", "org-2");
     await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
-    expect(redirect).toHaveBeenCalledWith("/org/org-tok/mascotas?transferido=pet-tok");
+    expect(redirect).toHaveBeenCalledWith("/org/org-tok/transferencias");
   });
 
   it("returns error (no redirect) on use-case failure", async () => {
     mockRequireCapability.mockResolvedValue(makeAuth());
     transferCustodyUc.mockResolvedValue({
       ok: false,
-      error: "No se pudo transferir la custodia: error desconocido",
+      error: "No se pudo proponer la transferencia: error desconocido",
     });
     const formData = new FormData();
     formData.append("destinationOrgId", "org-2");
     const result = await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
-    expect(result).toEqual({ error: "No se pudo transferir la custodia: error desconocido" });
+    expect(result).toEqual({ error: "No se pudo proponer la transferencia: error desconocido" });
   });
 });
 

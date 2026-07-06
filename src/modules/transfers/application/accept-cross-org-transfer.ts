@@ -10,16 +10,31 @@
 //   3. Load proposal events (LIMIT 2) + duplicate-proposal guard
 //   4. Canonical sender + drift detection (validateSenderOrgScope)
 //   5. Canonical receiver + drift detection (validateReceiverOrgScope) — SECURITY BOUNDARY
-//   6. Pre-tx: findOpenCustodyEpisode
+//   6. Pre-tx: findOpenCustodyEpisode + findActiveFosterRow (foster cascade)
 //   7. ATOMIC tx:
-//      a. insertPetEvent(custody_transferred, authorRole=shelter)
-//      b. endShelterCustody(sender)
-//      c. insertShelterCustody(receiver)
-//      d. closeCase(handshake, resolved)
-//      e. closeCase(custody_episode, resolved) if open
-//      f. collect sender coordinator notifications + receiver user notification
+//      a. foster cascade (if active foster): closeFosterOwnership +
+//         insertPetEvent(foster_ended, UPFRONT UUID) — emitted BEFORE
+//         custody_transferred so its payload can reference the foster_ended id
+//      b. insertPetEvent(custody_transferred, authorRole=shelter, honoring
+//         from_role/to_role carried by the proposal)
+//      c. end source ownership — role-aware: endShelterCustody OR
+//         endOwnerOwnershipForOrg depending on the proposal's from_role
+//      d. insertShelterCustody(receiver, role=to_role)
+//      e. closeCase(handshake, resolved)
+//      f. closeCase(custody_episode, resolved) if open
+//      g. collect sender coordinator notifications + receiver user notification
+//         + foster user notification (if a foster was closed)
 //   8. Return UseCaseResult<{ publicCode }> + notifications
+//
+// ROLE HONORING (2026-07-05): the direct custody handoff (transferCustody) now
+// routes through this consented flow instead of a unilateral flip. It carries
+// `from_role` (source ownership role) and `to_role` (destination role) in the
+// custody_transfer_proposed payload. This use-case reads them and honors both
+// the temporary-custody (shelter_custody) and permanent-owner (owner) outcomes.
+// Legacy / return-to-owner proposals omit the roles and default to
+// shelter_custody, preserving prior behavior exactly.
 
+import { randomUUID } from "node:crypto";
 import {
   validateDuplicateProposalGuard,
   validateOrgTokenMatch,
@@ -103,7 +118,14 @@ export async function acceptCrossOrgTransfer(
     from_organization_id?: string;
     to_organization_id?: string;
     reason?: string;
+    from_role?: "shelter_custody" | "owner";
+    to_role?: "shelter_custody" | "owner";
+    notes?: string | null;
   };
+  // Roles carried by the proposal. Legacy / return-to-owner proposals omit them
+  // and default to shelter_custody (prior behavior).
+  const fromRole = proposalPayload.from_role ?? "shelter_custody";
+  const toRole = proposalPayload.to_role ?? "shelter_custody";
 
   // 4. Canonical sender resolution + drift detection.
   const senderResult = validateSenderOrgScope({
@@ -121,8 +143,12 @@ export async function acceptCrossOrgTransfer(
   });
   if (!receiverResult.ok) return receiverResult;
 
-  // 6. Pre-tx: find open custody_episode.
+  // 6. Pre-tx: find open custody_episode + active foster row (cascade).
   const custodyCase = await repo.findOpenCustodyEpisode(caseRow.primaryPetId);
+  const fosterRow = await repo.findActiveFosterRow(caseRow.primaryPetId);
+  // Upfront UUID for foster_ended — needed BEFORE the custody_transferred
+  // payload is built (CHECK-constraint ordering: foster_ended referenced by id).
+  const fosterEndedEventId = fosterRow ? randomUUID() : null;
 
   const pendingNotifications: NewNotification[] = [];
 
@@ -151,6 +177,37 @@ export async function acceptCrossOrgTransfer(
         throw new Error("Este caso ya no está abierto.");
       }
 
+      // Foster cascade — close the active foster + emit foster_ended FIRST
+      // (upfront UUID) so custody_transferred can reference it. A fostered pet
+      // handed off via the direct-custody front door used to have its foster
+      // closed at flip time; that cascade now lands here, at accept.
+      if (fosterRow && fosterEndedEventId) {
+        await repo.closeFosterOwnership(
+          fosterRow.id,
+          now,
+          tx as Parameters<typeof repo.closeFosterOwnership>[2],
+        );
+        await repo.insertPetEvent(
+          {
+            id: fosterEndedEventId,
+            petId: caseRow.primaryPetId as string,
+            eventType: "foster_ended",
+            occurredAt: now,
+            recordedAt: now,
+            recordedByUserId: user.id,
+            authorRole: "shelter",
+            authorOrganizationId: canonicalSenderOrgId,
+            authorVerified: organization.verified,
+            payload: {
+              foster_user_id: fosterRow.ownerUserId,
+              reason: "other",
+              notes: "Transferencia de custodia a otra organización.",
+            },
+          },
+          tx as Parameters<typeof repo.insertPetEvent>[1],
+        );
+      }
+
       await repo.insertPetEvent(
         {
           petId: caseRow.primaryPetId as string,
@@ -166,28 +223,40 @@ export async function acceptCrossOrgTransfer(
             from_organization_id: canonicalSenderOrgId,
             to_user_id: null,
             to_organization_id: organization.id,
-            from_role: "shelter_custody",
-            to_role: "shelter_custody",
+            from_role: fromRole,
+            to_role: toRole,
             reason: proposalPayload.reason ?? "org_to_org_handoff",
             matched_against_pet_id: null,
-            foster_ended_event_id: null,
-            notes: null,
+            foster_ended_event_id: fosterEndedEventId,
+            notes: proposalPayload.notes ?? null,
           },
           caseId: caseRow.id,
         },
         tx as Parameters<typeof repo.insertPetEvent>[1],
       );
 
-      await repo.endShelterCustody(
-        caseRow.primaryPetId as string,
-        canonicalSenderOrgId,
-        tx as Parameters<typeof repo.endShelterCustody>[2],
-      );
+      // End the source ownership — role-aware. shelter_custody sources use the
+      // existing path; a permanent-owner (santuario/decomiso) source ends its
+      // `owner`-role row.
+      if (fromRole === "owner") {
+        await repo.endOwnerOwnershipForOrg(
+          caseRow.primaryPetId as string,
+          canonicalSenderOrgId,
+          tx as Parameters<typeof repo.endOwnerOwnershipForOrg>[2],
+        );
+      } else {
+        await repo.endShelterCustody(
+          caseRow.primaryPetId as string,
+          canonicalSenderOrgId,
+          tx as Parameters<typeof repo.endShelterCustody>[2],
+        );
+      }
 
       await repo.insertShelterCustody(
         {
           petId: caseRow.primaryPetId as string,
           ownerOrganizationId: organization.id,
+          role: toRole,
           startedAt: now,
         },
         tx as Parameters<typeof repo.insertShelterCustody>[1],
@@ -236,6 +305,21 @@ export async function acceptCrossOrgTransfer(
         relatedCaseId: caseRow.id,
         relatedPetId: caseRow.primaryPetId,
       });
+
+      // Foster user notification — their tránsito was closed by the accepted
+      // handoff (best-effort; only when a foster was actually active).
+      if (fosterRow?.ownerUserId) {
+        pendingNotifications.push({
+          userId: fosterRow.ownerUserId,
+          notificationType: "foster_ended_by_transfer",
+          severity: "info",
+          title: "La mascota que tenías en tránsito cambió de refugio",
+          body: `El tránsito que tenías a cargo se cerró porque la mascota fue transferida a ${organization.displayName}.`,
+          relatedPetId: caseRow.primaryPetId,
+          ctaLabel: "Ver historial",
+          ctaUrl: "/cuenta/transitos/historial",
+        });
+      }
     });
   } catch (err) {
     return {

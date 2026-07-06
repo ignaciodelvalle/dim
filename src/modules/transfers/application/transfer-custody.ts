@@ -1,34 +1,40 @@
 // Use-case: direct org-to-org custody handoff (custody.transfer).
 //
-// Migrated from app/actions/transfer.ts::transferCustodyAction.
+// TRUST-MODEL FIX (2026-07-05): this path used to be a UNILATERAL cross-org
+// custody flip — the source org atomically closed its ownership and opened a
+// new one on the destination org with the only destination check being
+// `verified=true`, and NO acceptance step. That let one org dump a pet plus its
+// full medical/legal history on an org that never agreed to receive it.
+//
+// It now OPENS the same receiver-consent handshake the cross-org transfer flow
+// uses (custody_transfer_proposed → acceptCrossOrgTransfer). The ownership flip,
+// foster cascade, and custody_episode close all happen at ACCEPT time, inside
+// acceptCrossOrgTransfer — never here. This use-case only proposes.
+//
+// It keeps its distinct front door vs proposeCrossOrgTransfer:
+//   - source auth via findPetUnderOrg (accepts an `owner` OR `shelter_custody`
+//     source ownership — the permanent-owner santuario/decomiso source), not
+//     just shelter_custody;
+//   - no free-text reason (defaults to org_to_org_handoff);
+//   - the destination role (shelter_custody vs owner) chosen by the source is
+//     carried in the proposal payload as `to_role` and honored at accept.
+//
 // Auth (requireCapability('custody.transfer')) is handled by the caller.
-// Auth scope: pet ownership MUST match caller's active org — implicit-org security boundary.
+// Auth scope: pet ownership MUST match caller's active org — implicit-org
+// security boundary enforced by repo.findPetUnderOrg scoped to organization.id.
 //
 // Orchestrates:
 //   1. Destination validation (non-empty, not same as source)
 //   2. Pet lookup scoped to caller org (findPetUnderOrg) — auth boundary
 //   3. Source role validation (must be shelter_custody or owner)
-//   4. Silent role coercion for newRole (parity quirk)
+//   4. Silent role coercion for the requested destination role (parity quirk)
 //   5. Destination org lookup + verified check
-//   6. Active foster row lookup (for cascade)
-//   7. Pre-tx: findOpenCustodyEpisode
-//   8. ATOMIC tx:
-//      a. closeOwnershipById (source)
-//      b. If foster: closeFosterOwnership + insertPetEvent(foster_ended, UPFRONT UUID)
-//      c. insertShelterCustody (destination, with transferredFromId)
-//      d. insertPetEvent(custody_transferred, references foster_ended UUID)
-//      e. closeCase(custody_episode, resolved) if open
-//      f. collect dest admin notifications + foster user notification
-//   9. Return UseCaseResult<void> + notifications
-//
-// PARITY QUIRKS:
-//   - foster_ended UUID is generated BEFORE tx; custody_transferred payload
-//     references it as foster_ended_event_id (CHECK-constraint ordering).
-//   - Notifies dest ADMINS ONLY (not coordinators) — asymmetry vs cross-org.
-//   - Silent role coercion: invalid newRole → shelter_custody (no error).
-//   - Redirect to /org/{orgToken}/mascotas?transferido={petToken} is done by action.
+//   6. No open handshake / no open dispute guards
+//   7. ATOMIC tx: openHandshakeCase + insertPetEvent(custody_transfer_proposed,
+//      carrying from_role + to_role) + collect receiver coordinator/admin
+//      notifications + sender confirmation
+//   8. Return UseCaseResult<{ publicCode, ... }> + notifications
 
-import { randomUUID } from "node:crypto";
 import {
   resolveNewRole,
   validateDestinationNotSource,
@@ -71,7 +77,15 @@ export type TransferCustodyInput = {
 export async function transferCustody(
   input: TransferCustodyInput,
   deps: Deps,
-): Promise<UseCaseResult<void>> {
+): Promise<
+  UseCaseResult<{
+    publicCode: string;
+    caseId: string;
+    petId: string;
+    senderOrgId: string;
+    receiverOrgId: string;
+  }>
+> {
   const { repo, actor, transaction } = deps;
   const { user, organization } = actor;
 
@@ -96,7 +110,8 @@ export async function transferCustody(
   if (!srcRoleGuard.ok) return srcRoleGuard;
 
   // 4. Silent role coercion (parity quirk — no error on invalid newRole).
-  const newRole = resolveNewRole(input.newRoleRaw);
+  const toRole = resolveNewRole(input.newRoleRaw);
+  const fromRole = petRow.ownershipRole as "shelter_custody" | "owner";
 
   // 5. Destination org lookup + verified check.
   const destination = await repo.findReceiverOrg(input.destinationOrgId);
@@ -105,143 +120,123 @@ export async function transferCustody(
     return { ok: false, error: "La organización destino aún no está verificada." };
   }
 
-  // 6. Active foster row lookup.
-  const fosterRow = await repo.findActiveFosterRow(petRow.pet.id);
+  // 6. No open handshake / no open dispute on this pet (consent invariants).
+  const openHandshake = await repo.findOpenHandshakeCase(petRow.pet.id);
+  if (openHandshake) {
+    return {
+      ok: false,
+      error: "Ya hay una propuesta de transferencia pendiente para esta mascota.",
+    };
+  }
+  const openDispute = await repo.findOpenDispute(petRow.pet.id);
+  if (openDispute) {
+    return { ok: false, error: "No podés transferir una mascota con disputa de custodia abierta." };
+  }
 
-  // 7. Pre-tx: find open custody_episode.
-  const custodyCase = await repo.findOpenCustodyEpisode(petRow.pet.id);
-
-  // Upfront UUID for foster_ended event — needed BEFORE custody_transferred payload
-  // is constructed (CHECK-constraint ordering: foster_ended referenced by UUID).
-  const fosterEndedEventId = fosterRow ? randomUUID() : null;
-
+  const notes = input.notes?.trim() || null;
   const pendingNotifications: NewNotification[] = [];
+  let createdPublicCode = "";
+  let createdCaseId = "";
 
-  // 8. Atomic transaction.
+  // 7. Atomic transaction — open the handshake + emit the proposal. NO custody
+  //    flip and NO foster cascade here; both happen at ACCEPT time.
   try {
     await transaction(async (tx) => {
       const now = new Date();
-      const authorVerified = organization.verified;
 
-      // Close source ownership.
-      await repo.closeOwnershipById(
-        petRow.ownershipId,
-        now,
-        tx as Parameters<typeof repo.closeOwnershipById>[2],
-      );
-
-      // Foster cascade: close foster + emit foster_ended FIRST (UUID upfront).
-      if (fosterRow && fosterEndedEventId) {
-        await repo.closeFosterOwnership(
-          fosterRow.id,
-          now,
-          tx as Parameters<typeof repo.closeFosterOwnership>[2],
-        );
-        await repo.insertPetEvent(
-          {
-            id: fosterEndedEventId,
-            petId: petRow.pet.id,
-            eventType: "foster_ended",
-            occurredAt: now,
-            recordedAt: now,
-            recordedByUserId: user.id,
-            authorRole: "shelter",
-            authorOrganizationId: organization.id,
-            authorVerified,
-            payload: {
-              foster_user_id: fosterRow.ownerUserId,
-              reason: "other",
-              notes: "Transferencia de custodia a otra organización.",
-            },
-          },
-          tx as Parameters<typeof repo.insertPetEvent>[1],
-        );
-      }
-
-      // Insert destination ownership.
-      await repo.insertShelterCustody(
+      const caseRow = await repo.openHandshakeCase(
         {
           petId: petRow.pet.id,
-          ownerOrganizationId: destination.id,
-          role: newRole,
-          startedAt: now,
-          transferredFromId: petRow.ownershipId,
+          jurisdictionProvince: petRow.pet.jurisdictionProvince,
+          jurisdictionLocality: petRow.pet.jurisdictionLocality,
+          openedByUserId: user.id,
+          openedByOrganizationId: organization.id,
+          receiverOrganizationId: destination.id,
+          openedReason: `auto: direct custody handoff to_role=${toRole}`,
         },
-        tx as Parameters<typeof repo.insertShelterCustody>[1],
+        tx as Parameters<typeof repo.openHandshakeCase>[1],
       );
+      createdPublicCode = caseRow.publicCode;
+      createdCaseId = caseRow.id;
 
-      // Emit custody_transferred (AFTER foster_ended — UUID reference is safe now).
       await repo.insertPetEvent(
         {
           petId: petRow.pet.id,
-          eventType: "custody_transferred",
+          eventType: "custody_transfer_proposed",
           occurredAt: now,
           recordedAt: now,
           recordedByUserId: user.id,
           authorRole: "shelter",
           authorOrganizationId: organization.id,
-          authorVerified,
+          authorVerified: organization.verified,
           payload: {
+            from_user_id: null,
             from_organization_id: organization.id,
+            to_user_id: null,
             to_organization_id: destination.id,
-            from_role: petRow.ownershipRole,
-            to_role: newRole,
-            foster_ended_event_id: fosterEndedEventId,
-            notes: input.notes ?? null,
+            from_role: fromRole,
+            to_role: toRole,
+            reason: "org_to_org_handoff",
+            matched_against_pet_id: null,
+            proposed_at: now.toISOString(),
+            notes,
           },
-          caseId: custodyCase?.id ?? null,
+          caseId: caseRow.id,
         },
         tx as Parameters<typeof repo.insertPetEvent>[1],
       );
 
-      // Close custody_episode if open.
-      if (custodyCase) {
-        await repo.closeCase(
-          { caseId: custodyCase.id, reason: "resolved", closedByUserId: user.id },
-          tx as Parameters<typeof repo.closeCase>[1],
-        );
-      }
-
-      // Fan out to destination ADMINS ONLY (parity — not coordinators).
-      const admins = await repo.orgAdminUserIds(
+      // Receiver coordinator + admin notifications — a proposal is now PENDING,
+      // not a completed handoff. They must accept before ownership changes.
+      const recipients = await repo.orgCoordinatorAdminUserIds(
         destination.id,
-        tx as Parameters<typeof repo.orgAdminUserIds>[1],
+        tx as Parameters<typeof repo.orgCoordinatorAdminUserIds>[1],
       );
-      for (const a of admins) {
+      for (const r of recipients) {
         pendingNotifications.push({
-          userId: a.userId,
-          notificationType: "custody_received",
+          userId: r.userId,
+          notificationType: "cross_org_transfer_proposed_receiver",
           severity: "info",
-          title: `Recibiste a ${petRow.pet.name}`,
-          body: `${organization.displayName} transfirió a ${petRow.pet.name} a tu organización (${
-            newRole === "shelter_custody" ? "custodia temporal" : "dueño permanente"
-          }).`,
-          ctaLabel: "Ver mascota",
-          ctaUrl: `/org/${organization.publicToken}/mascotas`,
+          title: `Propuesta de transferencia entrante para ${petRow.pet.name}`,
+          body: `${organization.displayName} propone transferirte a ${petRow.pet.name} (${
+            toRole === "shelter_custody" ? "custodia temporal" : "dueño permanente"
+          }). Tenés 30 días para aceptar o rechazar.`,
+          ctaLabel: "Ver propuesta",
+          ctaUrl: `/casos/${caseRow.publicCode}`,
+          relatedCaseId: caseRow.id,
           relatedPetId: petRow.pet.id,
         });
       }
 
-      // Notify foster user if any (best-effort, post-tx).
-      if (fosterRow?.ownerUserId) {
-        pendingNotifications.push({
-          userId: fosterRow.ownerUserId,
-          notificationType: "foster_ended_by_transfer",
-          severity: "info",
-          title: `${petRow.pet.name} cambió de refugio`,
-          body: `El tránsito que tenías a cargo se cerró porque ${petRow.pet.name} fue transferido a ${destination.displayName}.`,
-          relatedPetId: petRow.pet.id,
-          ctaLabel: "Ver historial",
-          ctaUrl: "/cuenta/transitos/historial",
-        });
-      }
+      // Sender confirmation notification.
+      pendingNotifications.push({
+        userId: user.id,
+        notificationType: "cross_org_transfer_proposed_sender",
+        severity: "info",
+        title: `Propuesta enviada para ${petRow.pet.name}`,
+        body: `${destination.displayName} fue notificada. La transferencia se completa cuando la acepten.`,
+        ctaLabel: "Ver propuesta",
+        ctaUrl: `/casos/${caseRow.publicCode}`,
+        relatedCaseId: caseRow.id,
+        relatedPetId: petRow.pet.id,
+      });
     });
   } catch (err) {
     return {
       ok: false,
-      error: `No se pudo transferir la custodia: ${err instanceof Error ? err.message : "error desconocido"}`,
+      error: `No se pudo proponer la transferencia: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
   }
 
-  return { ok: true, value: undefined, notifications: pendingNotifications };
+  return {
+    ok: true,
+    value: {
+      publicCode: createdPublicCode,
+      caseId: createdCaseId,
+      petId: petRow.pet.id,
+      senderOrgId: organization.id,
+      receiverOrgId: destination.id,
+    },
+    notifications: pendingNotifications,
+  };
 }

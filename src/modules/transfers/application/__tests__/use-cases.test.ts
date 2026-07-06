@@ -131,6 +131,7 @@ function makeFakeRepo(
     openHandshakeCase: vi.fn().mockResolvedValue(makeCase()),
     proposalEventsForCase: vi.fn().mockResolvedValue([makeProposalEvent()]),
     endShelterCustody: vi.fn().mockResolvedValue(undefined),
+    endOwnerOwnershipForOrg: vi.fn().mockResolvedValue(undefined),
     insertShelterCustody: vi.fn().mockResolvedValue({ id: "cust-new" }),
     orgCoordinatorAdminUserIds: vi.fn().mockResolvedValue([{ userId: "coord-1" }]),
     closeCase: vi.fn().mockResolvedValue(undefined),
@@ -1205,6 +1206,125 @@ describe("acceptCrossOrgTransfer", () => {
     );
   });
 
+  // -------------------------------------------------------------------------
+  // Role honoring: proposals carry from_role / to_role (direct-custody handoff).
+  // -------------------------------------------------------------------------
+
+  it("honors to_role=owner: opens receiver ownership as owner + records to_role", async () => {
+    const repo = makeFakeRepo({
+      proposalEventsForCase: vi.fn().mockResolvedValue([
+        makeProposalEvent({
+          payload: {
+            from_organization_id: "org-sender",
+            to_organization_id: "org-receiver",
+            reason: "org_to_org_handoff",
+            from_role: "shelter_custody",
+            to_role: "owner",
+          },
+        }),
+      ]),
+    });
+    await acceptCrossOrgTransfer(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(repo.insertShelterCustody).toHaveBeenCalledWith(
+      expect.objectContaining({ ownerOrganizationId: "org-receiver", role: "owner" }),
+      fakeTx,
+    );
+    expect(repo.insertPetEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "custody_transferred",
+        payload: expect.objectContaining({ to_role: "owner" }),
+      }),
+      fakeTx,
+    );
+  });
+
+  it("honors from_role=owner: ends the source owner ownership (not shelter_custody)", async () => {
+    const repo = makeFakeRepo({
+      proposalEventsForCase: vi.fn().mockResolvedValue([
+        makeProposalEvent({
+          payload: {
+            from_organization_id: "org-sender",
+            to_organization_id: "org-receiver",
+            reason: "org_to_org_handoff",
+            from_role: "owner",
+            to_role: "shelter_custody",
+          },
+        }),
+      ]),
+    });
+    await acceptCrossOrgTransfer(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(repo.endOwnerOwnershipForOrg).toHaveBeenCalledWith("pet-1", "org-sender", fakeTx);
+    expect(repo.endShelterCustody).not.toHaveBeenCalled();
+  });
+
+  it("defaults to shelter_custody when the proposal omits roles (legacy/return-to-owner)", async () => {
+    const repo = makeFakeRepo();
+    await acceptCrossOrgTransfer(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(repo.endShelterCustody).toHaveBeenCalledWith("pet-1", "org-sender", fakeTx);
+    expect(repo.endOwnerOwnershipForOrg).not.toHaveBeenCalled();
+    expect(repo.insertShelterCustody).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "shelter_custody" }),
+      fakeTx,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Foster cascade fires at ACCEPT (not at propose) — the direct-custody handoff
+  // used to close an active foster at flip time; that cascade now lands here.
+  // -------------------------------------------------------------------------
+
+  it("closes the active foster and emits foster_ended BEFORE custody_transferred", async () => {
+    const repo = makeFakeRepo({
+      findActiveFosterRow: vi
+        .fn()
+        .mockResolvedValue({ id: "foster-own", ownerUserId: "foster-user" }),
+    });
+    await acceptCrossOrgTransfer(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(repo.closeFosterOwnership).toHaveBeenCalledWith("foster-own", expect.any(Date), fakeTx);
+    const eventCalls = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock.calls;
+    const fosterEndedIdx = eventCalls.findIndex(
+      (c: unknown[]) => (c[0] as { eventType: string }).eventType === "foster_ended",
+    );
+    const custodyTransferredIdx = eventCalls.findIndex(
+      (c: unknown[]) => (c[0] as { eventType: string }).eventType === "custody_transferred",
+    );
+    expect(fosterEndedIdx).toBeGreaterThanOrEqual(0);
+    expect(fosterEndedIdx).toBeLessThan(custodyTransferredIdx);
+    // custody_transferred references the foster_ended event id.
+    const transferredCall = eventCalls[custodyTransferredIdx][0] as {
+      payload: { foster_ended_event_id: string | null };
+    };
+    expect(transferredCall.payload.foster_ended_event_id).toBeTruthy();
+  });
+
+  it("notifies the foster user when a foster was closed by the accepted handoff", async () => {
+    const repo = makeFakeRepo({
+      findActiveFosterRow: vi
+        .fn()
+        .mockResolvedValue({ id: "foster-own", ownerUserId: "foster-user" }),
+    });
+    const result = await acceptCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    const r = result as { ok: true; notifications: { notificationType: string; userId: string }[] };
+    const n = r.notifications.find((n) => n.notificationType === "foster_ended_by_transfer");
+    expect(n?.userId).toBe("foster-user");
+  });
+
+  it("does NOT run the foster cascade when there is no active foster", async () => {
+    const repo = makeFakeRepo();
+    await acceptCrossOrgTransfer(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(repo.closeFosterOwnership).not.toHaveBeenCalled();
+    const eventCalls = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock.calls;
+    expect(
+      eventCalls.some(
+        (c: unknown[]) => (c[0] as { eventType: string }).eventType === "foster_ended",
+      ),
+    ).toBe(false);
+  });
+
   it("returns sender coordinator notifications", async () => {
     const repo = makeFakeRepo();
     const result = await acceptCrossOrgTransfer(baseInput, {
@@ -1622,66 +1742,145 @@ describe("transferCustody", () => {
     expect((result as { ok: false; error: string }).error).toMatch(/verificada/i);
   });
 
-  it("silently coerces invalid newRole to shelter_custody", async () => {
+  // -------------------------------------------------------------------------
+  // Consent handshake: transferCustody OPENS a proposal (custody_transfer_proposed)
+  // and never flips ownership unilaterally. The flip happens at ACCEPT time.
+  // -------------------------------------------------------------------------
+
+  it("returns error when an open handshake already exists for the pet", async () => {
+    const repo = makeFakeRepo({
+      findOpenHandshakeCase: vi.fn().mockResolvedValue({ id: "hs-1" }),
+    });
+    const result = await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/pendiente/i);
+  });
+
+  it("returns error when an open custody dispute exists for the pet", async () => {
+    const repo = makeFakeRepo({
+      findOpenDispute: vi.fn().mockResolvedValue({ id: "dispute-1" }),
+    });
+    const result = await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/disputa/i);
+  });
+
+  it("opens the handshake case inside tx (does NOT flip ownership)", async () => {
+    const repo = makeFakeRepo();
+    const result = await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(result).toMatchObject({ ok: true });
+    expect(repo.openHandshakeCase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receiverOrganizationId: "org-receiver",
+        openedByOrganizationId: "org-source",
+      }),
+      fakeTx,
+    );
+    // No unilateral flip: source is not closed, no receiver ownership opened,
+    // no custody_transferred emitted.
+    expect(repo.closeOwnershipById).not.toHaveBeenCalled();
+    expect(repo.insertShelterCustody).not.toHaveBeenCalled();
+    const eventCalls = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock.calls;
+    expect(
+      eventCalls.some(
+        (c: unknown[]) => (c[0] as { eventType: string }).eventType === "custody_transferred",
+      ),
+    ).toBe(false);
+  });
+
+  it("emits custody_transfer_proposed carrying from_role + to_role", async () => {
+    const repo = makeFakeRepo();
+    await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(repo.insertPetEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "custody_transfer_proposed",
+        authorRole: "shelter",
+        payload: expect.objectContaining({
+          from_organization_id: "org-source",
+          to_organization_id: "org-receiver",
+          from_role: "shelter_custody",
+          to_role: "shelter_custody",
+        }),
+      }),
+      fakeTx,
+    );
+  });
+
+  it("carries to_role=owner when the permanent-owner outcome is requested", async () => {
+    const repo = makeFakeRepo();
+    await transferCustody(
+      { ...baseInput, newRoleRaw: "owner" },
+      { repo, actor, transaction: fakeTransaction },
+    );
+    expect(repo.insertPetEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "custody_transfer_proposed",
+        payload: expect.objectContaining({ to_role: "owner" }),
+      }),
+      fakeTx,
+    );
+  });
+
+  it("carries from_role=owner when the source holds the pet as permanent owner", async () => {
+    const repo = makeFakeRepo({
+      findPetUnderOrg: vi.fn().mockResolvedValue({
+        pet: makePet(),
+        ownershipId: "own-src",
+        ownershipRole: "owner",
+      }),
+    });
+    await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(repo.insertPetEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "custody_transfer_proposed",
+        payload: expect.objectContaining({ from_role: "owner" }),
+      }),
+      fakeTx,
+    );
+  });
+
+  it("silently coerces invalid newRole to shelter_custody in the proposal", async () => {
     const repo = makeFakeRepo();
     const result = await transferCustody(
       { ...baseInput, newRoleRaw: "invalid-role" },
       { repo, actor, transaction: fakeTransaction },
     );
-    // Should still succeed — role coercion is silent
     expect(result).toMatchObject({ ok: true });
-    expect(repo.insertShelterCustody).toHaveBeenCalledWith(
-      expect.objectContaining({ role: "shelter_custody" }),
-      fakeTx,
-    );
-  });
-
-  it("closes source ownership inside tx", async () => {
-    const repo = makeFakeRepo();
-    await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
-    expect(repo.closeOwnershipById).toHaveBeenCalledWith("own-src", expect.any(Date), fakeTx);
-  });
-
-  it("emits custody_transferred event inside tx", async () => {
-    const repo = makeFakeRepo();
-    await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
     expect(repo.insertPetEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ eventType: "custody_transferred", authorRole: "shelter" }),
+      expect.objectContaining({
+        eventType: "custody_transfer_proposed",
+        payload: expect.objectContaining({ to_role: "shelter_custody" }),
+      }),
       fakeTx,
     );
   });
 
-  it("closes foster and emits foster_ended BEFORE custody_transferred when foster exists", async () => {
-    const fosterRow = { id: "foster-own", ownerUserId: "foster-user" };
-    const repo = makeFakeRepo({ findActiveFosterRow: vi.fn().mockResolvedValue(fosterRow) });
-    await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
-
-    const eventCalls = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock.calls;
-    const fosterEndedIdx = eventCalls.findIndex(
-      (c: unknown[]) => (c[0] as { eventType: string }).eventType === "foster_ended",
-    );
-    const custodyTransferredIdx = eventCalls.findIndex(
-      (c: unknown[]) => (c[0] as { eventType: string }).eventType === "custody_transferred",
-    );
-    expect(fosterEndedIdx).toBeLessThan(custodyTransferredIdx);
-  });
-
-  it("notifies destination admins only (not coordinators)", async () => {
+  it("notifies receiver coordinators/admins of the incoming proposal", async () => {
     const repo = makeFakeRepo({
-      orgAdminUserIds: vi.fn().mockResolvedValue([{ userId: "admin-dest" }]),
+      orgCoordinatorAdminUserIds: vi.fn().mockResolvedValue([{ userId: "coord-dest" }]),
     });
     const result = await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
     const r = result as { ok: true; notifications: { notificationType: string; userId: string }[] };
-    const n = r.notifications.find((n) => n.notificationType === "custody_received");
-    expect(n?.userId).toBe("admin-dest");
+    const n = r.notifications.find(
+      (n) => n.notificationType === "cross_org_transfer_proposed_receiver",
+    );
+    expect(n?.userId).toBe("coord-dest");
   });
 
-  it("notifies foster user when foster exists", async () => {
-    const fosterRow = { id: "foster-own", ownerUserId: "foster-user" };
-    const repo = makeFakeRepo({ findActiveFosterRow: vi.fn().mockResolvedValue(fosterRow) });
+  it("returns a sender confirmation notification", async () => {
+    const repo = makeFakeRepo();
     const result = await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
     const r = result as { ok: true; notifications: { notificationType: string; userId: string }[] };
-    const n = r.notifications.find((n) => n.notificationType === "foster_ended_by_transfer");
-    expect(n?.userId).toBe("foster-user");
+    const n = r.notifications.find(
+      (n) => n.notificationType === "cross_org_transfer_proposed_sender",
+    );
+    expect(n?.userId).toBe("src-user-1");
+  });
+
+  it("returns the created handshake publicCode", async () => {
+    const repo = makeFakeRepo();
+    const result = await transferCustody(baseInput, { repo, actor, transaction: fakeTransaction });
+    const r = result as { ok: true; value: { publicCode: string } };
+    expect(r.value.publicCode).toBe("CASE-001");
   });
 });

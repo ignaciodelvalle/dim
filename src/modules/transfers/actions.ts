@@ -659,6 +659,11 @@ export async function transferCustodyAction(
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
-  // PARITY: ?transferido=<petToken> redirect.
-  redirect(`/org/${orgToken}/mascotas?transferido=${publicToken}`);
+  // The direct custody handoff now OPENS a receiver-consent handshake instead of
+  // an immediate flip — the pet stays under the source org until the receiver
+  // accepts. Send the proposer to the transfers hub (where the pending proposal
+  // lives), not to a "transferido" toast that would misrepresent an unaccepted
+  // proposal as a completed handoff.
+  revalidatePath(`/org/${orgToken}/transferencias`);
+  redirect(`/org/${orgToken}/transferencias`);
 }
