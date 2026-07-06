@@ -304,8 +304,12 @@ function CountBox({ value, label }: { value: number; label: string }) {
   );
 }
 
-function relativeShort(d: Date): string {
-  const ms = Date.now() - d.getTime();
+// `now` is a parameter (default = call time) so the label is a pure function
+// of (d, now) and unit-testable for determinism. Renders inside a Server
+// Component today (single server evaluation, no hydration re-run); the explicit
+// `now` keeps the relative-`now` class deterministic and testable regardless.
+export function relativeShort(d: Date, now: number = Date.now()): string {
+  const ms = now - d.getTime();
   const m = Math.floor(ms / 60000);
   if (m < 1) return "ahora";
   if (m < 60) return `hace ${m} min`;

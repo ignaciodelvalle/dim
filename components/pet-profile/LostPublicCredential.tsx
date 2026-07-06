@@ -346,8 +346,12 @@ export function LostPublicCredential({
   );
 }
 
-function formatLostSince(d: Date): string {
-  const ms = Date.now() - d.getTime();
+// `now` is a parameter (default = call time) so the label is a pure function
+// of (d, now) and unit-testable for determinism. This renders inside a Server
+// Component today (single server evaluation, no hydration re-run), but keeping
+// it pure guards the relative-`now` class against a future SSR-eager refactor.
+export function formatLostSince(d: Date, now: number = Date.now()): string {
+  const ms = now - d.getTime();
   const h = Math.floor(ms / 3600000);
   if (h < 1) return "hace minutos";
   if (h < 24) return `hace ${h} h`;
