@@ -49,6 +49,10 @@ const AUTH_GUARDS = [
   "requireUser",
   "requireUserOrRedirect",
   "requireCapability",
+  // Confused-deputy-safe capability guard (Wave F3): resolves the org from the
+  // URL orgToken, then requireCapability pinned to that org.id — so a /org/{token}
+  // action authorizes against the URL org, not the session-default membership.
+  "requireCapabilityForOrgToken",
   "requireOrgAccessByToken",
   "requireActiveOrgOrRedirect",
   "requireAdminOrRedirect",

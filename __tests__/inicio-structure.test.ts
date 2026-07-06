@@ -50,7 +50,15 @@ describe("/inicio leaned structure (task #34)", () => {
     expect(src).not.toContain("DueRow");
   });
 
-  it("pets render once — no compliance registry projection on the home page", () => {
-    expect(src).not.toContain("fetchComplianceStatesForPets");
+  it("pets render once — no duplicate LnRegistry/DueRow projection on the home page", () => {
+    // #34 removed the REDUNDANT registry (a second list of the same pets). The
+    // per-pet compliance STATUS flag is a different thing: the v2 UX gate (Cowork)
+    // found /inicio's nudge rollup ("SIN PENDIENTES") contradicted the profile's
+    // real state ("0 DE 4 AL DÍA"). F5 fixed that by rendering the SAME
+    // fetchComplianceStatesForPets flag the profile/mis-mascotas use — one fetch,
+    // no duplicate list. So the strip carrying that status is expected; only the
+    // duplicate registry/due-row projection must stay gone (asserted above).
+    expect(src).not.toContain("LnRegistry");
+    expect(src).not.toContain("DueRow");
   });
 });

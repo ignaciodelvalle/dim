@@ -231,7 +231,7 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
       // it directly contradicts the libreta (UX gate M5a). A professional/
       // institutional dose reads "Registrada"; a self-reported one reads
       // "Declarada · sin verificar" (H1), both with the application date.
-      const applied = `Aplicada ${formatDate(new Date(dose.occurredAt))}`;
+      const applied = `Aplicada ${formatDate(dose.occurredAt)}`;
       base = clearsObligation(dose)
         ? {
             key: "rabies",
