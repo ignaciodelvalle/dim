@@ -383,6 +383,36 @@ export async function findOpenCasesForPetWithCodes(petId: string): Promise<PetOp
     }));
 }
 
+/**
+ * Batch-resolve the most-recent `lost_pet_episode` case public_code per pet.
+ * Returns a Map keyed by petId → CAS-XXXX-XXXX code.
+ *
+ * Scope: this inherits the caller's scope. The petIds passed in come from an
+ * already jurisdiction-scoped query (fetchLostPets on /gob/perdidas), so this
+ * adds no new nationwide read — it only looks up cases for pets already in the
+ * viewer's scope. Used to surface the CAS- code + a link to the case on each
+ * lost-pet row.
+ */
+export async function fetchLostEpisodeCaseCodesForPets(
+  petIds: string[],
+): Promise<Map<string, string>> {
+  const byPet = new Map<string, string>();
+  if (petIds.length === 0) return byPet;
+  const rows = await db
+    .select({ primaryPetId: cases.primaryPetId, publicCode: cases.publicCode })
+    .from(cases)
+    .where(and(eq(cases.caseKind, "lost_pet_episode"), inArray(cases.primaryPetId, petIds)))
+    .orderBy(desc(cases.openedAt));
+  for (const r of rows) {
+    // First row per pet wins — rows are ordered newest-first, so this is the
+    // most recent lost episode for that pet.
+    if (r.primaryPetId && !byPet.has(r.primaryPetId)) {
+      byPet.set(r.primaryPetId, r.publicCode);
+    }
+  }
+  return byPet;
+}
+
 // ---------------------------------------------------------------------------
 // List pages
 // ---------------------------------------------------------------------------

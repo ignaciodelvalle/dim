@@ -19,6 +19,7 @@ import {
 } from "@/lib/analytics/govt-dashboards";
 import { listLocalitiesByProvince } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { fetchLostEpisodeCaseCodesForPets } from "@/lib/infra/case-queries";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
@@ -129,6 +130,11 @@ export default async function GobPerdidasPage({
     until: new Date(),
   });
   const reunification = await fetchReunificationRate(reunificationCtx);
+
+  // Surface the CAS- case code for each lost pet. Keyed lookup over the already
+  // jurisdiction-scoped lostPets (no new nationwide query) — each row links to
+  // its lost_pet_episode case at /gob/casos/{code}.
+  const caseCodesByPet = await fetchLostEpisodeCaseCodesForPets(lostPets.map((p) => p.petId));
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
@@ -309,7 +315,11 @@ export default async function GobPerdidasPage({
                     ) : (
                       <ul className="space-y-2">
                         {lostPets.map((p) => (
-                          <LostPetRowComponent key={p.petId} pet={p} />
+                          <LostPetRowComponent
+                            key={p.petId}
+                            pet={p}
+                            caseCode={caseCodesByPet.get(p.petId)}
+                          />
                         ))}
                       </ul>
                     )}

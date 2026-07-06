@@ -6,6 +6,9 @@ import { speciesLabel } from "@/lib/utils/format";
 
 type LostPetRowProps = {
   pet: LostPetRowData;
+  /** CAS-XXXX-XXXX code of the pet's lost_pet_episode case, when one exists.
+   *  Rendered as a link to the case detail inside the operator shell. */
+  caseCode?: string;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -41,7 +44,7 @@ const STATUS_TONE: Record<string, PillTone> = {
  * Compact row for a single pet in the /gob/perdidas list panel.
  * Shows a status pill when the row is not in 'lost' status.
  */
-export function LostPetRow({ pet }: LostPetRowProps) {
+export function LostPetRow({ pet, caseCode }: LostPetRowProps) {
   const statusLabel = STATUS_LABEL[pet.petStatus] ?? pet.petStatus;
   const statusTone: PillTone = STATUS_TONE[pet.petStatus] ?? "neutral";
 
@@ -50,6 +53,14 @@ export function LostPetRow({ pet }: LostPetRowProps) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-0.5">
           <div className="flex items-center gap-2 flex-wrap">
+            {caseCode && (
+              <Link
+                href={`/gob/casos/${caseCode}`}
+                className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[0.04em] text-ln-op-azul underline underline-offset-2 hover:text-ln-op-ink"
+              >
+                {caseCode}
+              </Link>
+            )}
             <p className="text-[13px] font-medium text-ln-op-ink">{pet.petName}</p>
             <OpPill tone="neutral">{speciesLabel(pet.species)}</OpPill>
             <OpPill tone={statusTone}>{statusLabel}</OpPill>
