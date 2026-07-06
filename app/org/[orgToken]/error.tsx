@@ -18,7 +18,7 @@ export default function OrgPortalError({
       error={error}
       reset={reset}
       homeHref={orgToken ? `/org/${orgToken}` : "/"}
-      homeLabel="Volver al panel del refugio"
+      homeLabel="Volver al panel de la organización"
     />
   );
 }
