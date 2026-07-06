@@ -142,7 +142,7 @@ if (ALLOW_REMOTE && !isLocalDb) {
 // 4. Deferred imports (after env is populated)
 // ---------------------------------------------------------------------------
 
-const { eq, inArray, isNull, like, sql } = await import("drizzle-orm");
+const { and, eq, inArray, isNull, like, sql } = await import("drizzle-orm");
 const {
   db,
   pets,
@@ -164,6 +164,7 @@ const {
 const { writePoint } = await import("@/lib/domain/location");
 const { PROVINCES } = await import("@/lib/reference/ar-provincias");
 const { generateReferenceCode } = await import("../src/modules/welfare/domain/reference-code");
+const { generatePrefixedToken } = await import("@/lib/infra/publicToken");
 
 // ---------------------------------------------------------------------------
 // 5. Constants + helpers
@@ -2050,6 +2051,100 @@ async function seedVigilanceChain(
 }
 
 // ---------------------------------------------------------------------------
+// 15b. Lost-pet episodes — CAS-XXXX-XXXX cases for /gob/perdidas
+// ---------------------------------------------------------------------------
+// Pets with status='lost' must have an open lost_pet_episode case so
+// fetchLostEpisodeCaseCodesForPets can link CAS codes in the perdidas table.
+// Mirrors seed-owner-demo.ts seedLostPet and seed-perf volume path.
+async function seedLostPetEpisodeCases(
+  fallbackOwnerUserId: string,
+): Promise<{ created: number; skipped: number }> {
+  log("STEP", "Backfilling lost_pet_episode cases (CAS- codes) for status=lost pets…");
+
+  const lostRows = await db
+    .select({
+      id: pets.id,
+      publicToken: pets.publicToken,
+      jurisdictionProvince: pets.jurisdictionProvince,
+      jurisdictionLocality: pets.jurisdictionLocality,
+    })
+    .from(pets)
+    .where(eq(pets.status, "lost"));
+
+  if (lostRows.length === 0) {
+    log("SKIP", "  no pets with status=lost");
+    return { created: 0, skipped: 0 };
+  }
+
+  let created = 0;
+  let skipped = 0;
+
+  for (const pet of lostRows) {
+    const [existingCase] = await db
+      .select({ id: cases.id })
+      .from(cases)
+      .where(
+        and(
+          eq(cases.primaryPetId, pet.id),
+          eq(cases.caseKind, "lost_pet_episode"),
+          sql`${cases.status} IN ('open', 'escalated')`,
+        ),
+      )
+      .limit(1);
+
+    if (existingCase) {
+      skipped++;
+      continue;
+    }
+
+    const [ownership] = await db
+      .select({ ownerUserId: ownerships.ownerUserId })
+      .from(ownerships)
+      .where(
+        and(eq(ownerships.petId, pet.id), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+      )
+      .limit(1);
+
+    let casePublicCode: string | undefined;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = generatePrefixedToken("CAS");
+      const [existingCode] = await db
+        .select({ id: cases.id })
+        .from(cases)
+        .where(eq(cases.publicCode, candidate))
+        .limit(1);
+      if (!existingCode) {
+        casePublicCode = candidate;
+        break;
+      }
+    }
+
+    if (!casePublicCode) {
+      log("WARN", `  could not allocate CAS code for ${pet.publicToken} — skipping`);
+      continue;
+    }
+
+    await db.insert(cases).values({
+      publicCode: casePublicCode,
+      caseKind: "lost_pet_episode",
+      status: "open",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: pet.id,
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: pet.jurisdictionProvince ?? "Buenos Aires",
+      jurisdictionLocality: pet.jurisdictionLocality,
+      openedByUserId: ownership?.ownerUserId ?? fallbackOwnerUserId,
+      openedReason: `Pet ${pet.publicToken} marked as lost — seed-panorama`,
+    });
+
+    created++;
+  }
+
+  log("INFO", `  lost_pet_episode cases: +${created} created, ${skipped} already had open case`);
+  return { created, skipped };
+}
+
+// ---------------------------------------------------------------------------
 // 15c. Enforcement — decomiso (Ley 14.346) + custody-dispute cases
 // ---------------------------------------------------------------------------
 // The Panorama decomisos/disputas layers + drawer and /gob/analytics
@@ -3654,6 +3749,10 @@ async function main(): Promise<void> {
     eventCounts[k] = (eventCounts[k] ?? 0) + v;
   }
 
+  // Backfill CAS- cases for every pet currently status=lost (includes demo
+  // storyline pets seeded before panorama and PANO set-pieces above).
+  const lostEpisodes = await seedLostPetEpisodeCases(ownerUserId);
+
   // Seed bite/incident events (~200 national)
   const biteCount = Math.round(totalPets * 0.004);
   const insertedBites = await seedBiteEvents(ownerUserId, census, localitiesByCode, biteCount);
@@ -3706,6 +3805,10 @@ async function main(): Promise<void> {
   log("DONE", "=== seed-panorama complete ===");
   log("INFO", `Total pets inserted     : ${totalPets + (finalIndex - globalIndex) + history.pets}`);
   log("INFO", `  Lost                  : ${lostPets}`);
+  log(
+    "INFO",
+    `  Lost CAS cases        : +${lostEpisodes.created} (${lostEpisodes.skipped} skipped)`,
+  );
   log("INFO", `  Deceased              : ${deceasedPets}`);
   log("INFO", `Total events            : ${totalEvents}`);
   log("INFO", `Total welfare reports   : ${insertedWelfare}`);
