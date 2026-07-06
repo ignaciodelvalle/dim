@@ -21,7 +21,11 @@ import {
   fetchDangerousBreedCompliance,
   fetchMicrochipPenetration,
 } from "@/lib/analytics/compliance-metrics";
-import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
+import {
+  GOB_ALL_PROVINCES,
+  PROVINCE_ISO_MAP,
+  fetchPerdidasMetrics,
+} from "@/lib/analytics/govt-dashboards";
 import {
   fetchActiveZoonosis,
   fetchBitesPer10k,
@@ -144,6 +148,7 @@ export default async function GobiernoDashboardPage({
     zoonosisTrend,
     rabiesVaxTrend,
     mortality,
+    perdidas,
   ] = await Promise.all([
     // Dashboard preview — not a paginated surface: intentionally passes limit without cursor.
     fetchVisiblePendingRequests(profile, jurisdictions, undefined, { limit: 200 }),
@@ -177,6 +182,11 @@ export default async function GobiernoDashboardPage({
     // §5 narrative: mortality & disposition — the third citizen-traceable
     // projection (death_recorded events + how traceable their disposition is).
     fetchMortalityDisposition(ctx12m),
+    // Pérdidas activas — SAME fetcher + scope as /gob/perdidas and the Panorama
+    // "Pérdidas activas" tile, so the Panel widget can never read 0 while the
+    // detail list shows N active (val-2-govt M2). filteredJurisdictions applies
+    // the same province/locality narrowing the KPI strip uses.
+    fetchPerdidasMetrics(actor, filteredJurisdictions),
   ]);
 
   // Shape the bites trend for TimeSeriesChart (x/y points).
@@ -636,7 +646,22 @@ export default async function GobiernoDashboardPage({
               }
             />
             <OpCardBody>
-              <p className="text-[13px] text-ln-op-mute">Mascotas perdidas en tu cobertura.</p>
+              {perdidas.activeCount === 0 ? (
+                <p className="text-[13px] text-ln-op-mute">
+                  No hay mascotas perdidas en tu cobertura.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  <p className="font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] text-ln-op-ink">
+                    {perdidas.activeCount}
+                  </p>
+                  <p className="text-sm text-ln-op-mute">
+                    {perdidas.activeCount === 1
+                      ? "mascota perdida activa"
+                      : "mascotas perdidas activas"}
+                  </p>
+                </div>
+              )}
             </OpCardBody>
           </OpCard>
         </div>
