@@ -443,7 +443,7 @@ export default async function AdminInteligenciaPage({
                       Sin titular
                     </th>
                     <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
-                      Dormant
+                      Inactivas
                     </th>
                     <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
                       Fantasma

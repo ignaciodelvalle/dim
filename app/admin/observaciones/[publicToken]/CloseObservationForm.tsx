@@ -37,7 +37,7 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
       }}
       className="space-y-4"
     >
-      <LnField label="Outcome" required>
+      <LnField label="Resultado" required>
         {({ id, describedBy, invalid }) => (
           <LnSelect
             id={id}
@@ -54,7 +54,7 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
             invalid={invalid}
           >
             <option value="" disabled>
-              Elegí outcome
+              Elegí un resultado
             </option>
             <option value="negative">{"Negativo — animal sano tras observación"}</option>
             <option value="positive_rabies">

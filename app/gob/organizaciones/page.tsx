@@ -11,7 +11,7 @@ import { ProposeOrgActions } from "./ProposeOrgActions";
 import { RevokeOrgActions } from "./RevokeOrgActions";
 
 const ORG_TYPE_LABELS: Record<string, string> = {
-  clinic: "Clinica",
+  clinic: "Clínica",
   shelter: "Refugio",
   rescue_network: "Red de rescate",
   sanitary_authority: "Autoridad sanitaria",

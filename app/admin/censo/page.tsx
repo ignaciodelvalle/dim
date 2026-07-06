@@ -139,7 +139,7 @@ export default async function AdminCensoPage({
           }}
         />
         <OpKpi
-          label="Dormant"
+          label="Inactivas"
           value={hasData ? counts.dormant.toLocaleString("es-AR") : "—"}
           sub={`sin actividad >${TARGETS.DORMANT_MONTHS}m · ${dormantPct}% del total`}
           tone={

@@ -26,8 +26,8 @@ import { RevokeUserActions } from "./RevokeUserActions";
 const ROLE_LABELS: Record<string, string> = {
   owner: "Dueño/a",
   vet: "Veterinario/a",
-  govt: "Govt",
-  admin: "Admin",
+  govt: "Gobierno",
+  admin: "Administrador/a",
 };
 
 type RoleTone = "neutral" | "ok" | "triaged" | "open";
@@ -145,7 +145,7 @@ export default async function UsuariosPage({
       <BulkRevokeList
         items={results.map((u) => ({
           id: u.id,
-          label: `${u.displayName} (${u.role})`,
+          label: `${u.displayName} (${ROLE_LABELS[u.role] ?? u.role})`,
           revocable: u.role === "vet",
           content: (
             <OpCard>

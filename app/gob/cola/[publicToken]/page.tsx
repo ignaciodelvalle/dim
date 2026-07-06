@@ -14,8 +14,8 @@ import { ReviewActions } from "./ReviewActions";
 
 const TYPE_LABELS: Record<string, string> = {
   role_upgrade_vet: "Matrícula veterinaria",
-  role_upgrade_govt: "Rol govt",
-  role_upgrade_admin: "Rol admin",
+  role_upgrade_govt: "Rol de gobierno",
+  role_upgrade_admin: "Rol de administrador",
   organization_verification: "Verificación de organización",
   govt_assignment_grant: "Nueva localidad para govt",
 };
@@ -32,6 +32,24 @@ const STATUS_PILL_TONE: Record<string, "open" | "ok" | "danger" | "neutral"> = {
   approved: "ok",
   rejected: "danger",
   withdrawn: "neutral",
+};
+
+// es-AR labels for the applicant's role and the target organization type.
+// Mirrors the maps used on /gob/usuarios and /gob/organizaciones so the raw
+// English enum values never reach the operator.
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Dueño/a",
+  vet: "Veterinario/a",
+  govt: "Gobierno",
+  admin: "Administrador/a",
+};
+
+const ORG_TYPE_LABELS: Record<string, string> = {
+  clinic: "Clínica",
+  shelter: "Refugio",
+  rescue_network: "Red de rescate",
+  sanitary_authority: "Autoridad sanitaria",
+  other: "Otro",
 };
 
 export default async function ReviewRequestPage({
@@ -129,7 +147,9 @@ export default async function ReviewRequestPage({
         {/* Applicant */}
         <Section title="Aplicante">
           <p className="text-[13px] text-ln-op-ink">{applicant?.displayName ?? "Usuario"}</p>
-          <p className="text-sm text-ln-op-mute">Rol actual: {applicant?.role ?? "owner"}</p>
+          <p className="text-sm text-ln-op-mute">
+            Rol actual: {ROLE_LABELS[applicant?.role ?? "owner"] ?? applicant?.role ?? "Dueño/a"}
+          </p>
         </Section>
 
         {/* Target org */}
@@ -137,7 +157,10 @@ export default async function ReviewRequestPage({
           <Section title="Organización a verificar">
             <p className="text-[13px] text-ln-op-ink">{targetOrg.displayName}</p>
             <p className="text-sm text-ln-op-mute">
-              {targetOrg.legalName} · <OpCodeBadge tone="neutral">{targetOrg.orgType}</OpCodeBadge>
+              {targetOrg.legalName} ·{" "}
+              <OpCodeBadge tone="neutral">
+                {ORG_TYPE_LABELS[targetOrg.orgType] ?? targetOrg.orgType}
+              </OpCodeBadge>
             </p>
           </Section>
         )}

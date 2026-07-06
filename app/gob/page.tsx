@@ -111,6 +111,10 @@ export default async function GobiernoDashboardPage({
 
   // --- Scope label --------------------------------------------------------
 
+  // es-AR label for the operator's role — the raw enum ("govt"/"admin") must
+  // never render in the header chrome.
+  const roleLabel = profile.role === "admin" ? "Administrador/a" : "Gobierno";
+
   const scopeLabel =
     profile.role === "admin"
       ? "Universal"
@@ -204,7 +208,7 @@ export default async function GobiernoDashboardPage({
       {/* Page header */}
       <header className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          MiMAR Gobierno · {profile.role} · {scopeLabel}
+          MiMAR Gobierno · {roleLabel} · {scopeLabel}
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Panel de jurisdicción</h1>
 
