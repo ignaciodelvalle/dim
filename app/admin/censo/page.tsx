@@ -124,7 +124,7 @@ export default async function AdminCensoPage({
           tone={!hasData ? "neutral" : undefined}
           info={{
             definition:
-              "Total de mascotas con status 'active' o 'lost' a nivel nacional (scope global admin).",
+              "Total de mascotas con status 'active' o 'lost' a nivel nacional (alcance global admin).",
             formula: "COUNT(pets) WHERE status IN ('active','lost')",
           }}
         />

@@ -120,7 +120,7 @@ export default async function AdminProgramaPage({
       </p>
       <h1 className="text-[22px] font-semibold text-ln-op-ink">Salud del programa</h1>
       <p className="text-[13px] text-ln-op-mute">
-        KPIs North-Star, outliers por jurisdicción, calidad de datos y oversight de PII.
+        KPIs principales, valores atípicos por jurisdicción, calidad de datos y supervisión de PII.
       </p>
     </header>
   );
@@ -220,7 +220,7 @@ export default async function AdminProgramaPage({
 
       {/* North-Star KPI strip */}
       <section
-        aria-label="KPIs North-Star del programa"
+        aria-label="KPIs principales del programa"
         className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
       >
         <OpKpi
@@ -334,7 +334,7 @@ export default async function AdminProgramaPage({
       {/* Outliers table */}
       <OpCard aria-labelledby={panelOutliersId}>
         <OpCardHead
-          title={<span id={panelOutliersId}>Outliers por provincia</span>}
+          title={<span id={panelOutliersId}>Valores atípicos por provincia</span>}
           actions={
             <span className="text-[11px] text-ln-op-mute">
               {outlierCount} de {outliers.length} combinaciones bajo meta
@@ -435,7 +435,9 @@ export default async function AdminProgramaPage({
 
       {/* PII oversight */}
       <OpCard aria-labelledby={panelPiiId}>
-        <OpCardHead title={<span id={panelPiiId}>Oversight de PII — ¿quién consultó qué?</span>} />
+        <OpCardHead
+          title={<span id={panelPiiId}>Supervisión de PII — ¿quién consultó qué?</span>}
+        />
         <OpCardBody>
           {piiOversight.length === 0 ? (
             <p className="text-[13px] text-ln-op-mute">

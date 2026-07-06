@@ -32,7 +32,7 @@ const TARGET_KIND_LABEL: Record<string, string> = {
   govt_webhook: "Webhook de gobierno",
   eno_authority: "Autoridad ENO",
   audit_export: "Exportación auditoría",
-  internal_dashboard: "Dashboard interno",
+  internal_dashboard: "Panel interno",
 };
 
 type PillTone = "ok" | "neutral" | "danger" | "escalated";

@@ -145,7 +145,7 @@ export default async function AdminPoblacionPage({
             formula:
               "COUNT(DISTINCT pets WHERE EXISTS sterilization_performed) / COUNT(active/lost pets) * 100",
             caveat:
-              "Meta programática 70% (benchmark interno — no es mandato legal como la cobertura antirrábica).",
+              "Meta programática 70% (referencia interna — no es mandato legal como la cobertura antirrábica).",
           }}
         />
 
