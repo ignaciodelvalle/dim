@@ -88,8 +88,8 @@ export async function AdminReglasLens({ base }: Props) {
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Jurisdicciones</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Configura reglas de negocio scope-aware por país, provincia o localidad. Sin overrides
-          {" → "}se usan los defaults nacionales.
+          Configurá reglas según la jurisdicción — país, provincia o localidad. Sin excepciones
+          {" → "}se usan los valores nacionales por defecto.
         </p>
       </header>
 
@@ -134,7 +134,7 @@ export async function AdminReglasLens({ base }: Props) {
                       <p className="text-[13px] font-medium text-ln-op-ink">{p.name}</p>
                       <p className="text-[11px] text-ln-op-mute">
                         {pwCount === 0 && localityRuleCount === 0
-                          ? "Sin overrides (usando defaults)"
+                          ? "Sin excepciones (usando valores por defecto)"
                           : [
                               pwCount > 0
                                 ? `${pwCount} provincial${pwCount === 1 ? "" : "es"}`

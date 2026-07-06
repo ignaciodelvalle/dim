@@ -101,7 +101,7 @@ export default async function JurisdictionReglasPage({
         </p>
         {rows.length === 0 && (
           <p className="text-[13px] text-ln-op-mute">
-            Esta jurisdicción no tiene overrides. Toda regla cae a la cascada superior.
+            Esta jurisdicción no tiene excepciones. Toda regla cae a la cascada superior.
           </p>
         )}
         {rows.map(({ rule, updatedBy }) => (
@@ -143,7 +143,7 @@ export default async function JurisdictionReglasPage({
       {missingTypes.length > 0 && (
         <section className="space-y-3">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            Tipos sin override (usando defaults)
+            Tipos sin excepción (usando valores por defecto)
           </p>
           <ul className="space-y-2">
             {missingTypes.map((t) => (

@@ -327,6 +327,13 @@ export function SituationalMap({
         // panorama-ia-v2 §3.6: keep the drawing buffer so getCanvas().toDataURL()
         // returns the rendered map for the PNG export (blank otherwise).
         canvasContextAttributes: { preserveDrawingBuffer: true },
+        // es-AR labels for MapLibre's built-in NavigationControl (zoom buttons)
+        // — otherwise a govt user sees "Zoom in"/"Zoom out" tooltips in English.
+        locale: {
+          "NavigationControl.ZoomIn": "Acercar",
+          "NavigationControl.ZoomOut": "Alejar",
+          "NavigationControl.ResetBearing": "Restablecer orientación",
+        },
       });
       mapRef.current = map;
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
