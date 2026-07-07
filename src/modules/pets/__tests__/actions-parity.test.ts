@@ -198,7 +198,7 @@ describe("createPetAction", () => {
       .fn()
       .mockResolvedValue({
         ok: true,
-        value: { petId: "new-pet-id", eventId: "new-event-id" },
+        value: { petId: "new-pet-id", eventId: "new-event-id", publicToken: "DIM-TEST-0001" },
         notifications: [],
       });
   });
@@ -262,18 +262,17 @@ describe("createPetAction", () => {
       const { registerPet } = await import("@/src/modules/pets/application/register-pet");
 
       // The action should NOT return a warning/error state — it falls through to
-      // registerPet and then redirect throws (NEXT_REDIRECT sentinel).
-      await expect(
-        createPetAction(
-          { error: null },
-          makeCreateFormData({
-            acquisitionMethod: "found_stray",
-            microchipId: "724123456789012",
-            forceToken: "valid-force-token",
-          }),
-        ),
-      ).rejects.toThrow(/REDIRECT/);
+      // registerPet and returns redirectTo (N3 contract).
+      const result = (await createPetAction(
+        { error: null },
+        makeCreateFormData({
+          acquisitionMethod: "found_stray",
+          microchipId: "724123456789012",
+          forceToken: "valid-force-token",
+        }),
+      )) as { error: null; redirectTo: string };
 
+      expect(result.redirectTo).toBe("/mis-mascotas/nueva/DIM-TEST-0001/credencial");
       expect(registerPet).toHaveBeenCalledOnce();
     });
 
@@ -289,6 +288,17 @@ describe("createPetAction", () => {
       )) as { error: string };
 
       expect(result.error).toMatch(/fallecida/);
+    });
+  });
+
+  describe("success", () => {
+    it("returns redirectTo to credencial aha page on successful register", async () => {
+      const result = (await createPetAction({ error: null }, makeCreateFormData())) as {
+        error: null;
+        redirectTo: string;
+      };
+      expect(result.error).toBeNull();
+      expect(result.redirectTo).toBe("/mis-mascotas/nueva/DIM-TEST-0001/credencial");
     });
   });
 

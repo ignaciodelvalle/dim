@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { type UpgradeFormState, createOrganizationAction } from "@/app/actions/upgrade";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnInput, LnSelect } from "@/components/ui/Field";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -33,6 +34,7 @@ type Props = {
 
 export function OrgCreateForm({ dniVerified }: Props) {
   const [state, formAction, pending] = useActionState(createOrganizationAction, initialState);
+  useActionRedirect(state.redirectTo);
 
   // Controlled field values — preserved across server-side validation errors so
   // the user doesn't lose what they typed when e.g. the CUIT format is rejected.

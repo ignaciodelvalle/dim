@@ -217,8 +217,12 @@ export async function createPetAction(
 
   const newPublicToken = (result.value as NonNullable<typeof result.value>).publicToken;
   // Onboarding aha: show the QR credential success screen (Item 13).
-  // The credencial page requires owner access and delivers the "aha" moment.
-  redirect(`/mis-mascotas/nueva/${newPublicToken}/credencial`);
+  // N3 contract: return redirectTo — MinimalNewPetForm navigates client-side
+  // (production redirect() from server actions is dropped by Next 15.5 router).
+  return {
+    error: null,
+    redirectTo: `/mis-mascotas/nueva/${newPublicToken}/credencial`,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -35,6 +35,8 @@ export type UpgradeFormState = {
   error: string | null;
   ok?: boolean;
   organizationId?: string;
+  /** N3 post-action navigation — client performs full-page nav (see useActionRedirect). */
+  redirectTo?: string | null;
   // When a prerequisite is missing, the UI renders a CTA instead of the
   // generic error paragraph. See docs/patterns/petition-prerequisites.md.
   missingPrereq?: "dni";

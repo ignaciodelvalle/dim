@@ -18,7 +18,6 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { db, organizations } from "@/db";
 import { canonicalProvinceNameForStorage } from "@/lib/domain/jurisdiction-canonical";
@@ -113,7 +112,7 @@ export async function createOrganizationAction(
   if (result.error) return result;
 
   revalidatePath("/cuenta/upgrade");
-  redirect("/org");
+  return { error: null, ok: true, redirectTo: "/org" };
 }
 
 // Clinic-only wrapper used by /cuenta/crear-consultorio.
@@ -158,5 +157,10 @@ export async function createClinicAction(
 
   revalidatePath("/cuenta/crear-consultorio");
   revalidatePath("/cuenta");
-  redirect(org ? `/org/${org.publicToken}` : "/org");
+  return {
+    error: null,
+    ok: true,
+    organizationId: result.organizationId,
+    redirectTo: org ? `/org/${org.publicToken}` : "/org",
+  };
 }

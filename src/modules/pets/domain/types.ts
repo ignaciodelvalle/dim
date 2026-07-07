@@ -59,6 +59,8 @@ export type ParsedPet = {
  */
 export type NewPetFormState = {
   error: string | null;
+  /** N3 post-action navigation — client performs full-page nav (see useActionRedirect). */
+  redirectTo?: string | null;
   // Present when a chip cross-check found an active match (WARN state).
   // Only relevant for acquisitionMethod='found_stray'. The UI should show the
   // conflict and offer "continue anyway" backed by forceToken.

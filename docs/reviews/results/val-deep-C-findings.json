@@ -1,0 +1,20 @@
+[
+  { "id": "C-refugio-org", "sev": "OK", "ok": true, "detail": "Refugio Test token DIM-J5V6-SX22" },
+  { "id": "C-intake", "sev": "OK", "ok": true, "detail": "Intake OK" },
+  { "id": "C-transitos", "sev": "OK", "ok": true, "detail": "Tránsitos OK" },
+  { "id": "C-adopciones", "sev": "OK", "ok": true, "detail": "Adopciones OK" },
+  { "id": "C-bulk-patitas", "sev": "OK", "ok": true, "detail": "Bulk Aprobar + confirmación OK (alejo@ Patitas DIM-3XNR-Q9GM, 2 postulaciones)" },
+  { "id": "C-owner2-postula", "sev": "MAYOR", "ok": false, "detail": "/adoptar/DIM-S009-PLRM 404 — Lola sin adoptionListedAt en seed" },
+  { "id": "C-bulk-refugio", "sev": "MENOR", "ok": false, "detail": "Refugio Test cola vacía — bulk no ejercitable en orgadmin" },
+  { "id": "C-rls-owner", "sev": "OK", "ok": true, "detail": "owner@ → pet owner2: 404 No encontramos esta página" },
+  { "id": "C-rls-govt-oos", "sev": "OK", "ok": true, "detail": "govt@ caso histórico fuera scope: notFound" },
+  { "id": "C-rls-govt-inscope", "sev": "OK", "ok": true, "detail": "govt@ CAS-NEUN-WKF2 legible (Kira, CABA)" },
+  { "id": "C-rls-org-cross", "sev": "OK", "ok": true, "detail": "orgadmin → Patitas Lola: 404 fail-closed" },
+  { "id": "C-kanon-api", "sev": "OK", "ok": true, "detail": "suppressedCount=0, no properties.value < 5" },
+  { "id": "C-kanon-notice", "sev": "MENOR", "ok": false, "detail": "Sin copy k-anon explícito en Panorama main" },
+  { "id": "C-mobile-overflow-pub", "sev": "OK", "ok": true, "detail": "390/390px credential" },
+  { "id": "C-mobile-tap-public", "sev": "OK", "ok": true, "detail": "Tap targets ≥44px (sample)" },
+  { "id": "C-mobile-panorama-overflow", "sev": "OK", "ok": true, "detail": "390/390px" },
+  { "id": "C-mobile-panorama-map", "sev": "OK", "ok": true, "detail": "Map 340×558px @ 390px" },
+  { "id": "C-mobile-tap-panorama", "sev": "MENOR", "ok": false, "detail": "1 control <44px en chips Panorama" }
+]

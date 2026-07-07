@@ -17,6 +17,7 @@ import { type UpgradeFormState, createClinicAction } from "@/app/actions/upgrade
 import { LocationFields } from "@/components/LocationFields";
 import { LnInput } from "@/components/ui/Field";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -25,6 +26,7 @@ const STEP_LABELS = ["Datos legales", "Contacto", "Ubicación"];
 
 export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
   const [state, formAction, pending] = useActionState(createClinicAction, initialState);
+  useActionRedirect(state.redirectTo);
   const [step, setStep] = useState(1);
   const formRef = useRef<HTMLFormElement>(null);
 

@@ -1,23 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useActionState } from "react";
 
 import { type DniVerifyFormState, verifyDniAction } from "@/app/actions/dni-verification";
 import { LnField, LnInput } from "@/components/ui/Field";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 
 const initialState: DniVerifyFormState = { error: null };
 
 export function DniVerifyForm({ next }: { next: string }) {
-  const router = useRouter();
   const [state, formAction, pending] = useActionState(verifyDniAction, initialState);
-
-  // Redirect on success: the server already revalidated /cuenta; client navigates.
-  useEffect(() => {
-    if (state.ok && state.next) {
-      router.push(state.next);
-    }
-  }, [state.ok, state.next, router]);
+  useActionRedirect(state.ok ? state.next : null);
 
   if (state.ok) {
     return (

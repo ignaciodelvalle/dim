@@ -3,6 +3,7 @@
 import { type FormEvent, useActionState, useState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { LnField, LnInput, LnRadio, LnSelect } from "@/components/ui/Field";
 import type { NewPetFormState } from "@/src/modules/pets/actions";
 
@@ -26,6 +27,7 @@ const OTHER_SPECIES = [
 
 export function MinimalNewPetForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  useActionRedirect(state.redirectTo);
   const [clientError, setClientError] = useState<string | null>(null);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
