@@ -270,7 +270,7 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     label: "Casos y cumplimiento",
     items: [
       { href: "/gob/casos", label: "Casos", matchPrefix: "/gob/casos" },
-      // Phase 0 placeholder — jurisdiction-scoped denuncia moderation (roadmap:
+      // Jurisdiction-scoped denuncia moderation queue (spec:
       // docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md).
       { href: "/gob/moderacion", label: "Moderación", matchPrefix: "/gob/moderacion" },
       { href: "/gob/maltrato", label: "Maltrato", matchPrefix: "/gob/maltrato" },

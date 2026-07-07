@@ -211,3 +211,35 @@ export async function requireDecomisoPrincipal(): Promise<DecomisoPrincipalSessi
   // ("this action requires decomiso authority") rather than generic.
   return requireAdminOrGovtOrRedirect();
 }
+
+// ============================================================================
+// Denuncia moderation guard — 'denuncia.moderate' capability
+// ============================================================================
+//
+// Spec: docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md.
+//
+// Capability string: 'denuncia.moderate'
+// Granted automatically to:
+//   - role='admin' (universal scope — the national moderation queue)
+//   - role='govt'  (SCOPED to the account's active jurisdiction assignments)
+// NOT granted to: owner, vet, org members without a govt/admin profile role.
+//
+// Auth model: a PROFILE-LEVEL role check (not an org-capability grant), mirroring
+// requireDecomisoPrincipal. Moderating the anonymous denuncia funnel of a
+// territory is an act of the jurisdiction authority (or the platform operator),
+// not something an org membership can confer.
+//
+// Jurisdiction-scope enforcement is the CALLER'S responsibility and MUST NOT be
+// skipped for govt (Wave A/F hardening — do not regress):
+//   admin → universal scope (jurisdictions is []; no per-row check needed)
+//   govt  → the report's (jurisdictionProvince, jurisdictionLocality) MUST appear
+//           in session.jurisdictions. A flagged report with no jurisdiction is
+//           never in a govt's scope, so it stays admin-only.
+export type DenunciaModerationPrincipalSession = AdminOrGovtSession;
+
+export async function requireDenunciaModerationPrincipal(): Promise<DenunciaModerationPrincipalSession> {
+  // Reuses requireAdminOrGovtOrRedirect verbatim — same role set, same
+  // jurisdictions query. Named separately so call sites are self-documenting
+  // ("this action requires denuncia moderation authority") rather than generic.
+  return requireAdminOrGovtOrRedirect();
+}

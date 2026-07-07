@@ -1198,6 +1198,70 @@ export function welfareReportsScopeClause(
   );
 }
 
+// ============================================================================
+// Moderation queue WHERE-clause builder (jurisdiction denuncia moderation)
+//
+// The flagged-denuncia moderation queue. /admin/moderacion sees it universally;
+// /gob/moderacion sees ONLY the viewer's assigned localities (govt) with the
+// same predicate + the jurisdiction scope clause — so we don't fork a parallel
+// query. A flagged report with no/ambiguous jurisdiction never matches a govt
+// scope pair, so it stays admin-only (never invisible to everyone).
+// ============================================================================
+
+export type ModerationQueueStatus = "pending" | "resolved" | "all";
+
+export type ModerationQueueFilters = {
+  actor: DashboardActor;
+  /** The viewer's active jurisdiction assignments (empty for admin = universal). */
+  jurisdictions: DashboardJurisdiction[];
+  /** pending = actionable (unresolved, not escalated); resolved; all = every flagged row in scope. */
+  status: ModerationQueueStatus;
+  kind?: string | null;
+  severity?: string | null;
+};
+
+/**
+ * Returns a Drizzle SQL condition for the flagged-denuncia moderation queue,
+ * scoped to the viewer:
+ *   - Only flagged rows (flaggedAt IS NOT NULL).
+ *   - Jurisdiction scope (govt: assignment pairs; admin: universal). Rows with
+ *     no jurisdiction never match a govt pair, so they stay admin-only.
+ *   - status: pending = unresolved AND not escalated (the govt actionable queue);
+ *     resolved = moderation already resolved; all = every flagged row in scope.
+ *   - Optional kind / severity narrow filters.
+ *
+ * Returns `sql\`false\`` when a govt viewer has no jurisdiction assignments.
+ */
+export function buildModerationQueueConditions(filters: ModerationQueueFilters): SQL {
+  const { actor, jurisdictions, status, kind, severity } = filters;
+
+  // Short-circuit: a govt with no assignments can never see any flagged row.
+  if (actor.role === "govt" && jurisdictions.length === 0) {
+    return sql`false`;
+  }
+
+  const conditions: SQL[] = [isNotNull(welfareReports.flaggedAt) as SQL];
+
+  // Jurisdiction scope (govt only — admin is unscoped/universal).
+  const scope = welfareReportsScopeClause(actor, jurisdictions);
+  if (scope) conditions.push(sql`(${scope})`);
+
+  // Status bucket.
+  if (status === "pending") {
+    // Actionable queue: not yet resolved AND not handed off to admin.
+    conditions.push(sql`(${welfareReports.moderationResolvedAt} IS NULL)`);
+    conditions.push(sql`(${welfareReports.moderationEscalatedAt} IS NULL)`);
+  } else if (status === "resolved") {
+    conditions.push(sql`(${welfareReports.moderationResolvedAt} IS NOT NULL)`);
+  }
+  // "all" = every flagged row in scope (no extra clause).
+
+  if (kind) conditions.push(eq(welfareReports.kind, kind as never) as SQL);
+  if (severity) conditions.push(eq(welfareReports.severity, severity as never) as SQL);
+
+  return and(...conditions) as SQL;
+}
+
 // TERMINAL_STATUSES (closed | invalid | duplicate) is imported from the welfare
 // domain — the single source of truth shared with govt-home-kpis and
 // owner-dashboard so every welfare count treats "terminal" identically (C4).
