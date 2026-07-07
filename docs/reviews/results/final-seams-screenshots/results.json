@@ -1,13 +1,10 @@
 [
   {
-    "id": "d-adopcion",
+    "id": "a-perdida",
     "pass": false,
     "entityCodes": {
-      "org": "DIM-9M26-5HFN",
-      "pet": "DIM-YMZK-DDMU"
+      "pet": "DIM-DEMO-0010"
     },
-    "notes": [
-      "Error: locator.click: Test timeout of 120000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('link', { name: /postularme|postular/i })\u001b[22m\n"
-    ]
+    "notes": ["Error: page.goto: Target page, context or browser has been closed"]
   }
 ]

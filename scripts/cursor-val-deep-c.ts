@@ -1,15 +1,15 @@
+import fs from "node:fs";
+import path from "node:path";
 /**
  * Deep Pass C — refugio + infra/confianza del dato
  * Usage: pnpm exec tsx scripts/cursor-val-deep-c.ts
  */
 import { config as loadEnv } from "dotenv";
-import fs from "node:fs";
-import path from "node:path";
 
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { type Browser, type Page, chromium } from "@playwright/test";
 
 const BASE = "http://localhost:3000";
 const PASS = "Test1234!";
@@ -56,7 +56,10 @@ async function waitMainSettled(page: Page): Promise<string> {
       { timeout: 15_000 },
     )
     .catch(() => {});
-  return page.locator("main").innerText().catch(() => "");
+  return page
+    .locator("main")
+    .innerText()
+    .catch(() => "");
 }
 
 async function resolveOrgToken(page: Page, nameHint?: RegExp): Promise<string | null> {
@@ -94,7 +97,11 @@ function leakedPetContent(text: string, petToken: string, petName?: string): boo
   return false;
 }
 
-async function publishPetForAdoption(page: Page, orgToken: string, petToken: string): Promise<boolean> {
+async function publishPetForAdoption(
+  page: Page,
+  orgToken: string,
+  petToken: string,
+): Promise<boolean> {
   await page.goto(`${BASE}/org/${orgToken}/mascotas/${petToken}/adoptar`);
   await page.waitForLoadState("networkidle").catch(() => {});
   const pub = page.getByRole("button", { name: /publicar/i }).first();
@@ -103,7 +110,10 @@ async function publishPetForAdoption(page: Page, orgToken: string, petToken: str
     await page.waitForTimeout(1500);
     return true;
   }
-  const body = await page.locator("main").innerText().catch(() => "");
+  const body = await page
+    .locator("main")
+    .innerText()
+    .catch(() => "");
   return /publicada|ya está publicada|listada/i.test(body);
 }
 
@@ -111,7 +121,10 @@ async function owner2ApplyToPet(page: Page, petToken: string): Promise<boolean> 
   await login(page, "owner2@dim.test");
   await page.goto(`${BASE}/adoptar/${petToken}`);
   await page.waitForLoadState("networkidle").catch(() => {});
-  const body = await page.locator("main").innerText().catch(() => "");
+  const body = await page
+    .locator("main")
+    .innerText()
+    .catch(() => "");
   if (/no encontramos|todavía no hay|404/i.test(body)) return false;
 
   const applyBtn = page.getByRole("button", { name: /postular/i }).first();
@@ -125,7 +138,9 @@ async function owner2ApplyToPet(page: Page, petToken: string): Promise<boolean> 
     );
   }
   await page.getByRole("button", { name: /enviar postulaci/i }).click();
-  await page.waitForURL(/postular|adoptar|inicio|mis-mascotas/, { timeout: 25_000 }).catch(() => {});
+  await page
+    .waitForURL(/postular|adoptar|inicio|mis-mascotas/, { timeout: 25_000 })
+    .catch(() => {});
   return true;
 }
 
@@ -137,7 +152,9 @@ async function bulkApproveFirstPending(page: Page, orgToken: string): Promise<bo
     await selectAll.click();
     await page.waitForTimeout(400);
   } else {
-    const cb = page.locator('input[type="checkbox"][aria-label*="Seleccionar postulación"]').first();
+    const cb = page
+      .locator('input[type="checkbox"][aria-label*="Seleccionar postulación"]')
+      .first();
     if (!(await cb.isVisible({ timeout: 8_000 }).catch(() => false))) return false;
     await cb.click({ force: true });
     await page.waitForTimeout(300);
@@ -147,7 +164,10 @@ async function bulkApproveFirstPending(page: Page, orgToken: string): Promise<bo
   await bulkBtn.click();
   const confirm = page.getByRole("button", { name: /confirmar|aprobar postulaciones/i }).last();
   await confirm.waitFor({ state: "visible", timeout: 10_000 });
-  const dialogVisible = await page.getByText(/aprobar postulaciones seleccionadas/i).isVisible().catch(() => false);
+  const dialogVisible = await page
+    .getByText(/aprobar postulaciones seleccionadas/i)
+    .isVisible()
+    .catch(() => false);
   if (!dialogVisible) return false;
   await confirm.click();
   await page.waitForTimeout(3000);
@@ -173,7 +193,10 @@ async function refugioFlow(browser: Browser): Promise<void> {
     ] as const) {
       await page.goto(`${BASE}/org/${orgToken}/${sub}`);
       await page.waitForLoadState("networkidle").catch(() => {});
-      const bad = await page.getByText(/algo salió mal/i).isVisible().catch(() => false);
+      const bad = await page
+        .getByText(/algo salió mal/i)
+        .isVisible()
+        .catch(() => false);
       record(id, bad ? "MAYOR" : "OK", !bad, bad ? `${label} error boundary` : `${label} OK`);
       if (sub === "intake") await snap(page, "01-intake");
       if (sub === "adopciones") await snap(page, "02-adopciones-queue");
@@ -229,10 +252,13 @@ async function refugioFlow(browser: Browser): Promise<void> {
 
     // Bulk on Refugio Test: ensure at least one pending via publish+apply if empty
     await page.goto(`${BASE}/org/${orgToken}/adopciones?status=pending`);
-    let pendingCount = await page.locator('input[type="checkbox"]').count();
+    const pendingCount = await page.locator('input[type="checkbox"]').count();
     if (pendingCount <= 1) {
       await page.goto(`${BASE}/org/${orgToken}/mascotas`);
-      const petHref = await page.locator(`a[href^="/org/${orgToken}/mascotas/"]`).first().getAttribute("href");
+      const petHref = await page
+        .locator(`a[href^="/org/${orgToken}/mascotas/"]`)
+        .first()
+        .getAttribute("href");
       const petToken = petHref?.split("/mascotas/")[1]?.split(/[/?#]/)[0];
       if (petToken) {
         await page.goto(`${BASE}/org/${orgToken}/mascotas/${petToken}/adoptar`);
@@ -320,7 +346,10 @@ async function rlsFlow(browser: Browser): Promise<void> {
     await login(gPage, "govt@dim.test");
     const probes = [
       { url: `${BASE}/gob/casos/PANO-CASE-HIST-DIS-000023`, label: "caso histórico" },
-      { url: `${BASE}/mis-mascotas/DIM-LAIK-0015`, label: "pet Laika RN (owner path wrong portal)" },
+      {
+        url: `${BASE}/mis-mascotas/DIM-LAIK-0015`,
+        label: "pet Laika RN (owner path wrong portal)",
+      },
       { url: `${BASE}/gob/maltrato`, label: "maltrato queue baseline" },
     ];
     // Govt shouldn't use owner path — use gob pet lookup if exists; try omnibox-style deep URL
@@ -340,10 +369,15 @@ async function rlsFlow(browser: Browser): Promise<void> {
           "C-rls-govt-inscope",
           readable ? "OK" : "MAYOR",
           readable,
-          readable ? "In-scope CAS readable" : `In-scope CAS blocked or empty: ${text.slice(0, 80)}`,
+          readable
+            ? "In-scope CAS readable"
+            : `In-scope CAS blocked or empty: ${text.slice(0, 80)}`,
         );
       } else {
-        const leak = !blocked && /partes|normativa|decomiso|disputa|actor/i.test(text) && !/sin acceso|no encontramos|fuera/i.test(text);
+        const leak =
+          !blocked &&
+          /partes|normativa|decomiso|disputa|actor/i.test(text) &&
+          !/sin acceso|no encontramos|fuera/i.test(text);
         record(
           "C-rls-govt-oos",
           leak ? "BLOCKER" : "OK",
@@ -427,9 +461,11 @@ async function kAnonFlow(browser: Browser): Promise<void> {
               typeof rawFeatures === "object" &&
               "features" in rawFeatures &&
               Array.isArray((rawFeatures as { features: unknown[] }).features)
-            ? (rawFeatures as {
-                features: Array<{ properties?: { suppressed?: boolean; value?: number | null } }>;
-              }).features
+            ? (
+                rawFeatures as {
+                  features: Array<{ properties?: { suppressed?: boolean; value?: number | null } }>;
+                }
+              ).features
             : [];
       const smallVisible = features.some(
         (f) => f.properties?.value != null && (f.properties.value as number) < 5,
@@ -450,7 +486,10 @@ async function kAnonFlow(browser: Browser): Promise<void> {
     if (await map.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await map.click({ position: { x: 120, y: 200 } });
       await page.waitForTimeout(800);
-      const popup = await page.locator(".maplibregl-popup, [class*='popup']").innerText().catch(() => "");
+      const popup = await page
+        .locator(".maplibregl-popup, [class*='popup']")
+        .innerText()
+        .catch(() => "");
       const popupOk =
         !popup ||
         /datos insuficientes|suprimido|k-anon|protegidos/i.test(popup) ||
@@ -568,7 +607,9 @@ async function main(): Promise<void> {
   const blockers = findings.filter((f) => !f.ok && f.sev === "BLOCKER");
   const majors = findings.filter((f) => !f.ok && f.sev === "MAYOR");
   console.log("\n=== SUMMARY ===");
-  console.log(JSON.stringify({ blockers: blockers.length, majors: majors.length, findings }, null, 2));
+  console.log(
+    JSON.stringify({ blockers: blockers.length, majors: majors.length, findings }, null, 2),
+  );
   fs.writeFileSync(
     path.join("docs", "reviews", "results", "val-deep-C-findings.json"),
     JSON.stringify(findings, null, 2),

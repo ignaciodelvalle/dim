@@ -9,11 +9,11 @@ import { expect, test } from "@playwright/test";
 
 import {
   ACCOUNTS,
+  SHARED_PASSWORD,
   clickContinuar,
   loginAs,
   pickCard,
   resolveOrgToken,
-  SHARED_PASSWORD,
   submitAndWait,
   walkDenunciaWizard,
 } from "./demo/_helpers";
@@ -42,8 +42,7 @@ async function ensurePetActive(page: import("@playwright/test").Page, petToken: 
   if (await confirmFound.isVisible({ timeout: 8_000 }).catch(() => false)) {
     await confirmFound.click();
     await page.waitForURL(
-      (url) =>
-        url.pathname === `/mis-mascotas/${petToken}` && !url.searchParams.has("sheet"),
+      (url) => url.pathname === `/mis-mascotas/${petToken}` && !url.searchParams.has("sheet"),
       { timeout: 25_000 },
     );
     await page.waitForLoadState("networkidle").catch(() => {});
@@ -109,7 +108,10 @@ test.describe("Final seams cross-POV", () => {
           .isVisible()
           .catch(() => false);
         if (hasDetails) await page.getByRole("button", { name: /^continuar →$/i }).click();
-        await page.getByRole("switch", { name: "Tu teléfono" }).click().catch(() => {});
+        await page
+          .getByRole("switch", { name: "Tu teléfono" })
+          .click()
+          .catch(() => {});
         await page.getByRole("button", { name: /^marcar como perdida$/i }).click();
         const successBanner = page.getByText(/activamos la búsqueda de/i);
         await expect(successBanner).toBeVisible({ timeout: 20_000 });
@@ -143,8 +145,14 @@ test.describe("Final seams cross-POV", () => {
           await snap(sp, "a03-public-credential-lost");
           await sp.goto("/perdidas", { waitUntil: "domcontentloaded" });
           const onList =
-            (await sp.getByText(new RegExp(petName, "i")).isVisible().catch(() => false)) ||
-            (await sp.getByText(petToken).isVisible().catch(() => false));
+            (await sp
+              .getByText(new RegExp(petName, "i"))
+              .isVisible()
+              .catch(() => false)) ||
+            (await sp
+              .getByText(petToken)
+              .isVisible()
+              .catch(() => false));
           expect(onList, `pet on /perdidas (${petName} or ${petToken})`).toBe(true);
           await snap(sp, "a04-public-perdidas");
         } finally {
@@ -156,8 +164,14 @@ test.describe("Final seams cross-POV", () => {
       await page.goto("/gob/perdidas", { waitUntil: "domcontentloaded" });
       await expect(page.getByText(/mascotas perdidas/i)).toBeVisible({ timeout: 10_000 });
       const gobHasPet =
-        (await page.getByText(new RegExp(petName, "i")).isVisible().catch(() => false)) ||
-        (await page.getByText(petToken).isVisible().catch(() => false));
+        (await page
+          .getByText(new RegExp(petName, "i"))
+          .isVisible()
+          .catch(() => false)) ||
+        (await page
+          .getByText(petToken)
+          .isVisible()
+          .catch(() => false));
       notes.push(`Govt /gob/perdidas shows ${petName}: ${gobHasPet}`);
       if (!gobHasPet) pass = false;
       await snap(page, "a05-gob-perdidas");
@@ -172,7 +186,10 @@ test.describe("Final seams cross-POV", () => {
       await page.waitForLoadState("networkidle").catch(() => {});
       await page.goto(`/mis-mascotas/${petToken}`, { waitUntil: "domcontentloaded" });
       await snap(page, "a06-owner-found");
-      const stillLost = await page.getByText(/perdid[oa]/i).isVisible().catch(() => false);
+      const stillLost = await page
+        .getByText(/perdid[oa]/i)
+        .isVisible()
+        .catch(() => false);
       notes.push(`Owner profile active after found: ${!stillLost}`);
       if (stillLost) pass = false;
 
@@ -185,7 +202,9 @@ test.describe("Final seams cross-POV", () => {
       await snap(page, "a-error").catch(() => {});
     } finally {
       await page
-        .goto(`/mis-mascotas/${petToken}?sheet=marcar-encontrada`, { waitUntil: "domcontentloaded" })
+        .goto(`/mis-mascotas/${petToken}?sheet=marcar-encontrada`, {
+          waitUntil: "domcontentloaded",
+        })
         .catch(() => {});
       const confirmBtn = page.getByRole("button", { name: /^confirmar$/i });
       if ((await confirmBtn.count().catch(() => 0)) > 0) {
@@ -289,9 +308,9 @@ test.describe("Final seams cross-POV", () => {
 
       await relogin(page, ACCOUNTS.admin);
       await page.goto("/admin/moderacion", { waitUntil: "domcontentloaded" });
-      await expect(
-        page.getByRole("heading", { name: /Moderación de denuncias/i }),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole("heading", { name: /Moderación de denuncias/i })).toBeVisible({
+        timeout: 15_000,
+      });
       const row = page.getByText(denCode).first();
       await expect(row).toBeVisible({ timeout: 15_000 });
       await snap(page, "c02-admin-moderacion-queue");
@@ -299,16 +318,19 @@ test.describe("Final seams cross-POV", () => {
       await page.waitForLoadState("networkidle").catch(() => {});
       await snap(page, "c03-admin-moderacion-detail");
       await page.getByRole("button", { name: /pasar a triage/i }).click();
-      await page.locator("textarea").fill(
-        "Denuncia verificada en batería de costuras — contenido coherente con abandono.",
-      );
+      await page
+        .locator("textarea")
+        .fill("Denuncia verificada en batería de costuras — contenido coherente con abandono.");
       await page.getByRole("button", { name: /^confirmar$/i }).click();
       await page.waitForURL(/\/admin\/moderacion/, { timeout: 20_000 });
       await snap(page, "c04-admin-after-triage");
 
       await relogin(page, ACCOUNTS.govt);
       await page.goto("/gob/maltrato");
-      const hasDen = await page.getByText(denCode).isVisible({ timeout: 15_000 }).catch(() => false);
+      const hasDen = await page
+        .getByText(denCode)
+        .isVisible({ timeout: 15_000 })
+        .catch(() => false);
       notes.push(`Govt /gob/maltrato shows ${denCode}: ${hasDen}`);
       await snap(page, "c05-gob-maltrato");
       if (!hasDen) pass = false;
@@ -354,9 +376,10 @@ test.describe("Final seams cross-POV", () => {
       await expect(applyBtn).toBeVisible({ timeout: 15_000 });
       await applyBtn.click();
       await page.waitForURL(/postular/, { timeout: 15_000 });
-      await page.locator('textarea[name="motivation"], textarea').first().fill(
-        "Busco adoptar para darle un hogar estable con patio y mucho cariño.",
-      );
+      await page
+        .locator('textarea[name="motivation"], textarea')
+        .first()
+        .fill("Busco adoptar para darle un hogar estable con patio y mucho cariño.");
       await page.getByRole("button", { name: /enviar postulaci/i }).click();
       await page.waitForURL(/postular|adoptar|inicio/, { timeout: 25_000 });
       await snap(page, "d02-owner2-applied");
@@ -380,7 +403,10 @@ test.describe("Final seams cross-POV", () => {
 
       await relogin(page, owner2);
       await page.goto("/mis-mascotas");
-      const ownsPet = await page.getByText(new RegExp(petToken.slice(-4), "i")).isVisible().catch(() => false);
+      const ownsPet = await page
+        .getByText(new RegExp(petToken.slice(-4), "i"))
+        .isVisible()
+        .catch(() => false);
       notes.push(`Owner2 has pet in list: ${ownsPet}`);
       await snap(page, "d05-owner2-pets");
       if (!ownsPet) {

@@ -1,21 +1,24 @@
+import fs from "node:fs";
+import path from "node:path";
 /**
  * Génesis cold-start — grow world from empty (admin@ only).
  * Usage: pnpm exec tsx scripts/cursor-genesis.ts
  */
 import { config as loadEnv } from "dotenv";
-import fs from "node:fs";
-import path from "node:path";
 
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
+import { type Browser, type Page, chromium } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { chromium, type Browser, type Page } from "@playwright/test";
 
 const BASE = "http://localhost:3000";
 const PASS = "Test1234!";
 const SUFFIX = Date.now().toString(36);
-const ADOPTER_DNI = String(40_000_000 + (parseInt(SUFFIX, 36) % 59_999_999)).padStart(8, "0");
+const ADOPTER_DNI = String(40_000_000 + (Number.parseInt(SUFFIX, 36) % 59_999_999)).padStart(
+  8,
+  "0",
+);
 const SHOT = path.join("docs", "reviews", "results", "genesis-screenshots");
 const LEDGER = path.join("docs", "reviews", "results", "genesis-ledger.md");
 const REPORT = path.join("docs", "reviews", "results", "genesis.md");
@@ -72,7 +75,11 @@ async function login(page: Page, email: string) {
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
 }
 
-async function pickLocalityEnter(page: Page, query = "Palermo", scope?: ReturnType<Page["locator"]>) {
+async function pickLocalityEnter(
+  page: Page,
+  query = "Palermo",
+  scope?: ReturnType<Page["locator"]>,
+) {
   const root = scope ?? page;
   const input = root.getByPlaceholder(/Palermo/i).first();
   await input.waitFor({ state: "visible", timeout: 15_000 });
@@ -96,7 +103,8 @@ async function submitFormButton(page: Page, buttonName: RegExp) {
 }
 
 async function setPassword(email: string) {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321";
+  const url =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? "";
   if (!key) return;
   const sb = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
@@ -138,7 +146,10 @@ async function verifyDni(page: Page, scope: string, next = "/cuenta/upgrade", dn
     const msg = (await alert.textContent())?.trim() ?? "";
     if (msg && !/dni declarado/i.test(msg)) throw new Error(`DNI verify failed: ${msg}`);
   }
-  await page.getByText(/dni declarado/i).first().waitFor({ timeout: 25_000 });
+  await page
+    .getByText(/dni declarado/i)
+    .first()
+    .waitFor({ timeout: 25_000 });
   await page
     .waitForURL((u) => u.pathname === next || u.pathname.startsWith(next), {
       timeout: 20_000,
@@ -154,7 +165,10 @@ async function act1AdminGovt(browser: Browser) {
     await login(page, "admin@dim.test");
     await page.goto(`${BASE}/admin/govts/new`);
     await page.locator('input[name="email"], input[type="email"]').first().fill(EMAILS.govt);
-    await page.getByLabel(/nombre de display|display/i).first().fill("Gobierno Génesis Palermo");
+    await page
+      .getByLabel(/nombre de display|display/i)
+      .first()
+      .fill("Gobierno Génesis Palermo");
     await pickLocalityEnter(page, "Palermo");
     await submitFormButton(page, /crear cuenta de gobierno/i);
     await page.getByText(/cuenta institucional creada/i).waitFor({ timeout: 30_000 });
@@ -163,7 +177,12 @@ async function act1AdminGovt(browser: Browser) {
     world.govtEmail = EMAILS.govt;
     world.govtLocality = "Palermo, CABA";
     ledger(`[act 1] admin@ created GOVT: ${EMAILS.govt} (jurisdiction CABA/Palermo) → ✓`);
-    rubric(1, true, "Form claro: email + display + localidad; éxito con panel magic link", "Primer gobierno provisionado");
+    rubric(
+      1,
+      true,
+      "Form claro: email + display + localidad; éxito con panel magic link",
+      "Primer gobierno provisionado",
+    );
   } catch (e) {
     rubric(1, false, "—", String(e));
     ledger(`[act 1] FAILED: ${e}`);
@@ -199,7 +218,12 @@ async function act2CitizenPet(browser: Browser) {
     world.petName = "Chichila";
     await snap(page, "act2-citizen-pet-credencial");
     ledger(`[act 2] citizen ${EMAILS.citizen} registered → pet ${petToken} (Chichila)`);
-    rubric(2, !!petToken, "Signup 2 pasos + primera mascota fluye; credencial visible", `Pet ${petToken}`);
+    rubric(
+      2,
+      !!petToken,
+      "Signup 2 pasos + primera mascota fluye; credencial visible",
+      `Pet ${petToken}`,
+    );
   } catch (e) {
     rubric(2, false, "—", String(e));
     ledger(`[act 2] FAILED: ${e}`);
@@ -216,12 +240,17 @@ async function act3OrgVerify(browser: Browser) {
 
     await verifyDni(page, "org-founder");
     await page.goto(`${BASE}/cuenta/upgrade`);
-    await page.getByLabel(/nombre de la organización/i).waitFor({ state: "visible", timeout: 20_000 });
+    await page
+      .getByLabel(/nombre de la organización/i)
+      .waitFor({ state: "visible", timeout: 20_000 });
     await page.getByLabel(/nombre de la organización/i).fill("Patitas Génesis");
     await page.getByLabel(/razón social/i).fill("Patitas Génesis SRL");
     await page.getByLabel(/tipo de organización/i).selectOption("shelter");
     await page.getByLabel(/correo electrónico de contacto/i).fill(EMAILS.orgFounder);
-    const orgCuit = String(30_000_000_000 + (parseInt(SUFFIX, 36) % 9_999_999_999)).slice(0, 11);
+    const orgCuit = String(30_000_000_000 + (Number.parseInt(SUFFIX, 36) % 9_999_999_999)).slice(
+      0,
+      11,
+    );
     await page.locator('input[name="cuit"]').fill(orgCuit);
     await page.getByLabel(/personería jurídica/i).fill("PJ-2026-GEN");
     const orgForm = page.locator("form").filter({ has: page.locator('[name="orgType"]') });
@@ -231,13 +260,18 @@ async function act3OrgVerify(browser: Browser) {
       page.waitForURL(/\/org\/ORG-/, { timeout: 90_000, waitUntil: "commit" }),
       page.getByText(/ya administrás una organización/i).waitFor({ timeout: 90_000 }),
     ]).catch(async () => {
-      const err = await orgForm.locator('[role="alert"]').textContent().catch(() => "");
+      const err = await orgForm
+        .locator('[role="alert"]')
+        .textContent()
+        .catch(() => "");
       if (err?.trim()) throw new Error(`Org create: ${err.trim()}`);
     });
     let orgToken = page.url().match(/\/org\/([^/?#]+)/)?.[1] ?? "";
     if (!orgToken) {
       await page.goto(`${BASE}/org`);
-      await page.waitForURL(/\/org\/ORG-/, { timeout: 30_000, waitUntil: "commit" }).catch(() => {});
+      await page
+        .waitForURL(/\/org\/ORG-/, { timeout: 30_000, waitUntil: "commit" })
+        .catch(() => {});
       orgToken = page.url().match(/\/org\/([^/?#]+)/)?.[1] ?? "";
     }
     if (!orgToken) {
@@ -291,7 +325,10 @@ async function act4Vet(browser: Browser) {
       page.getByText(/solicitud enviada/i).waitFor({ timeout: 30_000 }),
       page.getByText(/ya tenés una solicitud pendiente/i).waitFor({ timeout: 30_000 }),
     ]).catch(async () => {
-      const err = await vetForm.locator('[role="alert"]').textContent().catch(() => "");
+      const err = await vetForm
+        .locator('[role="alert"]')
+        .textContent()
+        .catch(() => "");
       if (err?.trim()) throw new Error(`Vet upgrade: ${err.trim()}`);
       throw new Error("Vet upgrade: no success confirmation");
     });
@@ -310,7 +347,10 @@ async function act4Vet(browser: Browser) {
     await page.goto(`${BASE}/cuenta/crear-consultorio`);
     await page.getByLabel(/nombre del consultorio/i).fill("Consultorio Génesis");
     await page.getByLabel(/razón social/i).fill("Consultorio Génesis SRL");
-    const clinicCuit = String(30_100_000_000 + (parseInt(SUFFIX, 36) % 8_999_999_999)).slice(0, 11);
+    const clinicCuit = String(30_100_000_000 + (Number.parseInt(SUFFIX, 36) % 8_999_999_999)).slice(
+      0,
+      11,
+    );
     await page.getByLabel(/cuit/i).fill(clinicCuit);
     await page.getByRole("button", { name: /^continuar$/i }).click();
     await page.waitForTimeout(500);
@@ -368,8 +408,11 @@ async function act5Life(browser: Browser) {
     await page.goto(`${BASE}/org/${org}/mascotas`);
     await page.getByText("Morena").first().waitFor({ timeout: 15_000 });
     const rescueToken =
-      (await page.locator("li").filter({ hasText: "Morena" }).locator("code").first().textContent())?.trim() ?? "";
-    if (!rescueToken.startsWith("DIM-")) throw new Error(`Intake: invalid rescue token "${rescueToken}"`);
+      (
+        await page.locator("li").filter({ hasText: "Morena" }).locator("code").first().textContent()
+      )?.trim() ?? "";
+    if (!rescueToken.startsWith("DIM-"))
+      throw new Error(`Intake: invalid rescue token "${rescueToken}"`);
     world.rescueToken = rescueToken;
 
     // Eligibility + publish via bulk bar (sheet deep-link flaky in headless)
@@ -381,15 +424,20 @@ async function act5Life(browser: Browser) {
     await page.getByRole("checkbox", { name: /seleccionar morena/i }).check();
     await page.getByRole("button", { name: /publicar en adopción/i }).click();
     await page.getByRole("button", { name: /confirmar publicación/i }).click();
-    await page.getByText(/publicada|actualizada/i).waitFor({ timeout: 20_000 }).catch(() => {});
+    await page
+      .getByText(/publicada|actualizada/i)
+      .waitFor({ timeout: 20_000 })
+      .catch(() => {});
     await page.waitForTimeout(1000);
 
     await signupAccount(page, EMAILS.adopter, "Adop", "Génesis");
     await page.goto(`${BASE}/adoptar/${rescueToken}/postular`);
     await page.getByText(/paso 1 de 5/i).waitFor({ timeout: 20_000 });
-    await page.locator("#motivation").fill(
-      "Quiero adoptar a Morena porque busco una compañera tranquila para una casa con patio amplio en Palermo.",
-    );
+    await page
+      .locator("#motivation")
+      .fill(
+        "Quiero adoptar a Morena porque busco una compañera tranquila para una casa con patio amplio en Palermo.",
+      );
     await page.getByRole("button", { name: /continuar →/i }).click();
     await page.getByText(/no, nunca tuve/i).click();
     await page.getByRole("button", { name: /continuar →/i }).click();
@@ -401,7 +449,10 @@ async function act5Life(browser: Browser) {
     await page.getByRole("button", { name: /continuar →/i }).click();
     await page.getByRole("checkbox").check();
     await page.getByRole("button", { name: /enviar postulación/i }).click();
-    await page.getByText(/postulación enviada|recibimos tu postulación/i).waitFor({ timeout: 30_000 }).catch(() => page.waitForTimeout(2000));
+    await page
+      .getByText(/postulación enviada|recibimos tu postulación/i)
+      .waitFor({ timeout: 30_000 })
+      .catch(() => page.waitForTimeout(2000));
 
     await login(page, EMAILS.orgFounder);
     await page.goto(`${BASE}/org/${org}/adopciones`);
@@ -437,7 +488,10 @@ async function act5Life(browser: Browser) {
     const cont = page.getByRole("button", { name: /^continuar →$/i });
     if (await cont.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await cont.click();
-      await page.getByRole("button", { name: /^continuar →$/i }).click().catch(() => {});
+      await page
+        .getByRole("button", { name: /^continuar →$/i })
+        .click()
+        .catch(() => {});
       await page.getByRole("button", { name: /marcar como perdida/i }).click();
       await page.waitForTimeout(2000);
     }

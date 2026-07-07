@@ -3,8 +3,8 @@
 import { type FormEvent, useActionState, useState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
-import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { LnField, LnInput, LnRadio, LnSelect } from "@/components/ui/Field";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import type { NewPetFormState } from "@/src/modules/pets/actions";
 
 const initialState: NewPetFormState = { error: null };
