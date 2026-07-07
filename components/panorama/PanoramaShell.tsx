@@ -60,6 +60,15 @@ type Props = {
    * so the console opens at the finest granularity (QA 2026-07-03).
    */
   initialLevel?: AggregationLevel;
+  /**
+   * ISO 3166-2:AR code of the province the operator is IMPLICITLY scoped to
+   * (single-province govt case) when no province is explicitly selected. Lets
+   * the console render that province's administrative divisions on mount for a
+   * jurisdiction-scoped operator who never touches the province picker (PO
+   * validation 2026-07-07). Undefined for multi-province / admin national scope.
+   * Presentation-only: the data scope is unchanged (enforced server-side).
+   */
+  initialDivisionProvince?: string | null;
 };
 
 export function PanoramaShell({
@@ -75,6 +84,7 @@ export function PanoramaShell({
   initialBounds,
   suppressDemoDisclosure = false,
   initialLevel = "province",
+  initialDivisionProvince,
 }: Props) {
   return (
     <div className="space-y-4">
@@ -110,6 +120,7 @@ export function PanoramaShell({
         initialBounds={initialBounds}
         localityCentroids={localityCentroids}
         initialLevel={initialLevel}
+        initialDivisionProvince={initialDivisionProvince}
         filtersSlot={
           <div className="space-y-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/40 p-3">
             <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />

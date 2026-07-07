@@ -104,6 +104,21 @@ export default async function GobPanoramaPage({
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");
 
+  // Single-province govt scope: the operator's assignments all fall within ONE
+  // province. Their scope is IMPLICIT (inherited from the session — they never
+  // pick a province in the JurisdictionSwitcher), so `selectedProvinceCode`
+  // stays null and the always-visible administrative divisions (barrios for
+  // CABA, departamentos elsewhere) never render (PO validation 2026-07-07).
+  // Derive the effective division province from the resolved allowedProvinces
+  // (deduped by province) so the console activates that province's divisions on
+  // mount, exactly as an explicit ?province selection would. Multi-province or
+  // admin/national scope → undefined (provinces basemap until an explicit pick).
+  // PRESENTATION-ONLY: the data scope is unchanged (scoped loaders enforce it).
+  const initialDivisionProvince =
+    profile.role !== "admin" && allowedProvinces.length === 1
+      ? allowedProvinces[0].code
+      : undefined;
+
   // biome-ignore lint/style/noNonNullAssertion: "perdidas" is a static registry id.
   const layer = getLayer("perdidas")!;
   // Default layer features + the headline KPIs + the jurisdiction bbox resolve
@@ -159,6 +174,7 @@ export default async function GobPanoramaPage({
       kpis={kpis}
       initialBounds={initialBounds ?? undefined}
       initialLevel={initialLevel}
+      initialDivisionProvince={initialDivisionProvince}
     />
   );
 }

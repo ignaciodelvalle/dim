@@ -219,6 +219,20 @@ type Props = {
    * "Alcance y período" disclosure in the side column.
    */
   filtersSlot?: ReactNode;
+  /**
+   * The ISO 3166-2:AR code of the province the operator is IMPLICITLY scoped to
+   * (single-province govt case), when no province is explicitly selected in the
+   * JurisdictionSwitcher. A jurisdiction-scoped operator (e.g. CABA) never picks
+   * a province in the picker — their scope is inherited from the session — so
+   * `?province` stays absent and the always-visible administrative divisions
+   * (barrios/departamentos) would never render. This makes the console activate
+   * the division rendering for that effective province exactly as an explicit
+   * selection would: same lazy fetch, same outline/fill/k-anon semantics.
+   * PRESENTATION-ONLY — the data scope is unchanged (already enforced by the
+   * scoped loaders server-side). Undefined for multi-province or admin/national
+   * scope (those keep today's behavior: provinces basemap until an explicit pick).
+   */
+  initialDivisionProvince?: string | null;
 };
 
 export function PanoramaConsole({
@@ -232,6 +246,7 @@ export function PanoramaConsole({
   localityCentroids = {},
   initialLevel = "province",
   filtersSlot,
+  initialDivisionProvince = null,
 }: Props) {
   const searchParams = useSearchParams();
   // panorama-redesign Fase 1: per-key fetch cancellation. Key = layer id for
@@ -1160,7 +1175,12 @@ export function PanoramaConsole({
   // even zoomed out (prefer precision — PO #1). The derivation only ever calls
   // the existing onLevelChange machinery (cache-aware, keyed-abort), so the
   // province/locality fetch routing and the debounce/abort contract are intact.
-  const derivedProvince = searchParams.get("province");
+  // The effective province for level derivation: an explicit picker selection
+  // wins; otherwise fall back to the implicit single-province scope so a
+  // jurisdiction-scoped operator (e.g. CABA) drills to LOCALITY on mount — the
+  // granularity the division fill joins against — exactly as an explicit
+  // ?province selection would (derivedLevel: any province scope → locality).
+  const derivedProvince = searchParams.get("province") ?? initialDivisionProvince;
   const derivedLocality = searchParams.get("locality");
   useEffect(() => {
     const fromScopeZoom = derivedLevel(
@@ -1447,7 +1467,15 @@ export function PanoramaConsole({
   // is identified by its slug. The locality centroid comes from the server-
   // preloaded localityCentroids map (keyed by slug), so no client-side DB
   // call is needed.
-  const selectedProvinceCode = searchParams.get("province") ?? null;
+  // Effective division province: an explicit picker selection wins; otherwise
+  // fall back to the operator's implicit single-province scope so their
+  // administrative divisions (barrios/departamentos) load + render on mount
+  // (PO validation 2026-07-07: a jurisdiction-scoped govt operator never picks
+  // a province, so this stayed null and no outlines ever appeared). The map's
+  // autozoom is UNAFFECTED — the A1 autozoom effect early-returns at mount
+  // (the map is not yet loaded) and never re-fires for a constant value, so the
+  // server-computed jurisdiction bbox (initialBounds) keeps the initial frame.
+  const selectedProvinceCode = searchParams.get("province") ?? initialDivisionProvince ?? null;
   const selectedLocalitySlug = searchParams.get("locality") ?? null;
   const selectedLocalityCenter: [number, number] | null =
     selectedLocalitySlug !== null ? (localityCentroids[selectedLocalitySlug] ?? null) : null;

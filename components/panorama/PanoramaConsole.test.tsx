@@ -519,6 +519,74 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
   });
 });
 
+describe("PanoramaConsole — implicit single-province division scope (PO validation 2026-07-07)", () => {
+  it("threads the implicit division province to the map when no ?province is selected (scoped govt operator)", () => {
+    // A CABA operator lands on /gob/panorama already scoped to CABA but never
+    // picks a province in the switcher, so ?province is absent. The console must
+    // still hand the map the effective province so its 48 barrios render.
+    setUrl("/gob/panorama?period=3y");
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+        initialLevel="locality"
+        initialDivisionProvince="AR-C"
+      />,
+    );
+
+    expect(mapProps?.selectedProvinceCode).toBe("AR-C");
+  });
+
+  it("also activates the implicit province on a truly-bare first visit (no explicit board)", () => {
+    // The real scenario: the operator opens the panorama fresh. The first-visit
+    // default preset still fires, but it never sets ?province, so the effective
+    // province must persist through it.
+    setUrl("/gob/panorama");
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+        initialLevel="locality"
+        initialDivisionProvince="AR-C"
+      />,
+    );
+
+    expect(mapProps?.selectedProvinceCode).toBe("AR-C");
+  });
+
+  it("keeps the national basemap (null province) when there is no implicit scope (admin/multi-province)", () => {
+    setUrl("/gob/panorama?period=3y");
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+      />,
+    );
+
+    expect(mapProps?.selectedProvinceCode).toBeNull();
+  });
+
+  it("lets an explicit ?province selection win over the implicit scope (explicit path intact — admin drill-down too)", () => {
+    // Admin (or a multi-province operator) explicitly picking a province, or a
+    // scoped operator overriding their home province, must render THAT province.
+    setUrl("/gob/panorama?period=3y&province=AR-B");
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+        initialLevel="locality"
+        initialDivisionProvince="AR-C"
+      />,
+    );
+
+    expect(mapProps?.selectedProvinceCode).toBe("AR-B");
+  });
+});
+
 describe("PanoramaConsole — derived aggregation level (panorama-ia-v2 §1.1, replaces AggregationToggle)", () => {
   it("drills to LOCALITY when the camera zooms past Z_LOCALITY at national scope", async () => {
     renderConsole();
