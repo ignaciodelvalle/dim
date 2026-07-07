@@ -17,8 +17,26 @@
 // Persistent rate limiter — backed by rate_limit_buckets
 // ---------------------------------------------------------------------------
 
+import { createHash } from "node:crypto";
+
 import { db, rateLimitBuckets } from "@/db";
 import { sql } from "drizzle-orm";
+
+// ---------------------------------------------------------------------------
+// emailRateLimitKey — stable, non-reversible identifier for per-email budgets.
+//
+// The auth surfaces (login, password-reset) add a per-EMAIL rate-limit budget on
+// top of the per-IP one so a distributed botnet cannot brute-force or mail-bomb a
+// single account from many IPs. The email is the natural identifier, but writing
+// raw emails into rate_limit_buckets.bucket_key would persist PII (Ley 25.326) in
+// a table that every worker can read. Hash it: SHA-256 of the normalized email,
+// truncated to 160 bits of hex — enough to make collisions astronomically
+// unlikely while keeping the key compact and free of cleartext PII.
+// ---------------------------------------------------------------------------
+export function emailRateLimitKey(email: string): string {
+  const normalized = email.trim().toLowerCase();
+  return createHash("sha256").update(normalized).digest("hex").slice(0, 40);
+}
 
 // ---------------------------------------------------------------------------
 // callerIp — derive the trusted client IP from request headers.

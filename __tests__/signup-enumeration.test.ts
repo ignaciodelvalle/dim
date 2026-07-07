@@ -37,6 +37,24 @@ vi.mock("@/db", () => ({
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
+// signupAction now reads request headers (callerIp) for its per-IP rate-limit
+// budget. Provide a trusted edge IP so the header read succeeds.
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => ({
+    get: (key: string) => (key === "x-real-ip" ? "10.0.0.1" : null),
+  })),
+}));
+
+// Rate limiter: always allow — enumeration tests exercise the Supabase branch,
+// not the budget. Keep RateLimitError / callerIp real.
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
+  return {
+    ...actual,
+    enforceRateLimit: vi.fn(async () => undefined),
+  };
+});
+
 import { completeIdentityAction, signupAction } from "@/app/actions/auth";
 
 function identityForm(overrides: Record<string, string> = {}): FormData {

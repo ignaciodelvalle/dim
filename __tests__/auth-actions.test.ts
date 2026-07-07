@@ -17,6 +17,28 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
 
+// loginAction now reads request headers (callerIp) for its per-IP + per-email
+// rate-limit budgets. Provide a trusted edge IP so callerIp resolves cleanly.
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => ({
+    get: (key: string) => (key === "x-real-ip" ? "10.0.0.1" : null),
+  })),
+}));
+
+// Rate limiter: allow by default (enforceRateLimit resolves), overridable per
+// test. Keep the REAL RateLimitError / callerIp / emailRateLimitKey so the
+// action's `instanceof RateLimitError` branch and key derivation work.
+const { mockEnforceRateLimit } = vi.hoisted(() => ({
+  mockEnforceRateLimit: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
+  return {
+    ...actual,
+    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+  };
+});
+
 // redirect() normally throws NEXT_REDIRECT; capture the target instead.
 const { mockRedirect } = vi.hoisted(() => ({ mockRedirect: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -29,6 +51,7 @@ vi.mock("next/navigation", () => ({
 
 import { loginAction, logoutAction } from "@/app/actions/auth";
 import { db, notifications, profiles } from "@/db";
+import { RateLimitError } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -120,6 +143,8 @@ beforeEach(() => {
   mockRedirect.mockReset();
   signInMock.mockReset();
   signOutMock.mockClear();
+  mockEnforceRateLimit.mockReset();
+  mockEnforceRateLimit.mockResolvedValue(undefined);
   mockSupabaseClient();
 });
 
@@ -189,6 +214,38 @@ describe("loginAction", () => {
     });
     expect(signOutMock).toHaveBeenCalledTimes(1);
     expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("returns a friendly error and never calls Supabase when rate-limited", async () => {
+    // First budget check (per-IP) trips: enforceRateLimit throws RateLimitError.
+    mockEnforceRateLimit.mockRejectedValueOnce(
+      new RateLimitError(new Date(Date.now() + 60_000), "auth_login_ip"),
+    );
+
+    const result = await loginAction({ error: null }, loginForm());
+
+    expect(result.error).toMatch(/demasiados intentos/i);
+    // Fail closed: the credential check must not run once the budget is spent.
+    expect(signInMock).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("enforces both a per-IP and a per-email login budget", async () => {
+    signInMock.mockResolvedValue({ data: { user: { id: ownerUserId } }, error: null });
+
+    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow(/NEXT_REDIRECT/);
+
+    // Two independent budgets are consumed: per-IP and per-email.
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      "auth_login_ip",
+      "10.0.0.1",
+      expect.objectContaining({ maxPerMinute: expect.any(Number) }),
+    );
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      "auth_login_email",
+      expect.any(String),
+      expect.objectContaining({ maxPerMinute: expect.any(Number) }),
+    );
   });
 
   it("ignores an unsafe (off-origin) returnTo and falls back to role landing", async () => {

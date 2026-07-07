@@ -8,7 +8,27 @@
 // because the DNI format check runs before the session lookup. Tests that
 // require an authenticated user are skipped with a note.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// signupAction now derives callerIp from request headers for its per-IP
+// rate-limit budget. Mock next/headers so the header read succeeds. Note the
+// mock intentionally omits `cookies`, so a validation-passing test still throws
+// downstream at createClient()'s cookies() call — preserving the original
+// "reaches Supabase" assertion.
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => ({
+    get: (key: string) => (key === "x-real-ip" ? "10.0.0.1" : null),
+  })),
+}));
+
+// Rate limiter: allow by default so validation-gate tests reach (or clear) it.
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
+  return {
+    ...actual,
+    enforceRateLimit: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 import { completeIdentityAction, signupAction } from "@/app/actions/auth";
 

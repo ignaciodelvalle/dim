@@ -9,6 +9,9 @@
 // The real first+last name is collected in step 2 (completeIdentityAction),
 // which overwrites the provisional value.
 
+import { headers } from "next/headers";
+
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 import type { AuthFormState } from "./types";
@@ -33,6 +36,21 @@ export async function signupAction(
   }
   if (!tosAccepted) {
     return { error: "Tenés que aceptar los Términos y la Política de privacidad." };
+  }
+
+  // Rate limit per trusted edge IP before creating a GoTrue user. Tighter than
+  // login: signup is never a high-frequency legitimate action, so a low ceiling
+  // caps both account-spam and the enumeration oracle (audit 28-#3) cost.
+  // Keyed off callerIp (x-real-ip / last XFF hop, not the spoofable first
+  // segment). A non-RateLimitError propagates → fail closed.
+  const ip = callerIp(await headers());
+  try {
+    await enforceRateLimit("auth_signup_ip", ip, { maxPerMinute: 3, maxPerHour: 15 });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return { error: "Demasiados intentos. Esperá un momento y volvé a probar." };
+    }
+    throw err;
   }
 
   const supabase = await createClient();

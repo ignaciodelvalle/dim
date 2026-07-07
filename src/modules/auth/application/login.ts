@@ -3,8 +3,15 @@
 // @no-auth-required: login is by definition pre-authentication.
 
 import { and, eq, isNull } from "drizzle-orm";
+import { headers } from "next/headers";
 
 import { db, organizationMemberships, profiles } from "@/db";
+import {
+  RateLimitError,
+  callerIp,
+  emailRateLimitKey,
+  enforceRateLimit,
+} from "@/lib/infra/rate-limit";
 import {
   isDeactivatedInstitutional,
   pathForRole,
@@ -16,6 +23,11 @@ import { redirect } from "next/navigation";
 
 import type { AuthFormState } from "./types";
 
+// Friendly, non-enumerating message shown when either the per-IP or per-email
+// login budget is exceeded. Deliberately identical regardless of which budget
+// tripped, so it never signals whether the email is a known account.
+const TOO_MANY_ATTEMPTS = "Demasiados intentos. Esperá un momento y volvé a probar.";
+
 export async function loginAction(
   _previous: AuthFormState,
   formData: FormData,
@@ -25,6 +37,24 @@ export async function loginAction(
 
   if (!email || !password) {
     return { error: "Faltan datos." };
+  }
+
+  // Rate limit BEFORE touching GoTrue. Two independent budgets:
+  //   - per-IP:    caps credential-stuffing volume from one source.
+  //   - per-email: caps a distributed (botnet) brute-force against ONE account,
+  //                which the per-IP budget alone cannot stop.
+  // Keyed off the trusted edge IP (callerIp: x-real-ip / last XFF hop, never the
+  // spoofable first XFF segment). A non-RateLimitError propagates → fail closed.
+  const ip = callerIp(await headers());
+  try {
+    await enforceRateLimit("auth_login_ip", ip, { maxPerMinute: 10, maxPerHour: 100 });
+    await enforceRateLimit("auth_login_email", emailRateLimitKey(email), {
+      maxPerMinute: 5,
+      maxPerHour: 20,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) return { error: TOO_MANY_ATTEMPTS };
+    throw err;
   }
 
   const supabase = await createClient();
