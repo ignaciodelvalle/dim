@@ -52,10 +52,15 @@ Plus two defense-in-depth alignments (`alert-firings`, `admin-proposals/helpers`
 
 Cron auth (fails closed in prod), public-credential PII (per-column lost-mode gating, no owner PII on active pets), rate-limit infra (atomic, trusted-IP-keyed), JSON-LD XSS escaping, IDOR on self-service writers + libreta-export, private evidence buckets (signed URLs), erasure (genuinely purges PII), the RLS cross-tenant defense (Deep Pass C: fail-closed), error pages / 404s / loading / legal / first-run (all branded, role-correct, es-AR clean), login/session/redirect/logout, password-reset token handling.
 
+## Closed after the audit (PO chose "fix before deploy")
+
+- **#64 CSP header — DONE, ENFORCING.** Nonce-based policy via middleware; rolled out Report-Only → zero-violation headless sweep across every page type (public, JSON-LD, maplibre map + OSM tiles, dashboards, credential) → flipped to enforcing → re-verified (0 violations, 0 blocked resources, map + charts + credential all render).
+- **#66 adoption publish button — DONE.** Was stuck disabled by the Next 15.5 dropped-refresh defect (isPending never cleared); decoupled the button from the transition.
+
 ## Deferred (documented, not fake-closed)
 
-- **#64 CSP header** — defense-in-depth; needs a nonce-based policy + a full-page CSP-violation sweep (breaking the app pre-deploy is the wrong trade). Task written with the exact approach.
-- **#65 signup enumeration-vs-confirmations design tension** — enabling email confirmations (the proper enumeration-oracle fix) breaks the two-step onboarding; needs a flow rework decision.
+- **#65 signup enumeration-vs-confirmations design tension** — enabling email confirmations (the proper enumeration-oracle fix) breaks the two-step onboarding; PO decided: keep confirmations OFF for the demo, rework the flow post-demo.
+- **#67 adoption applicant→owner linkage** — PO decided to close the online loop (approved applicant auto-becomes owner) post-demo; today finalization resolves the adopter by DNI.
 - **DNI verification** is self-declared until Mi Argentina federation (external, roadmap #53).
 
 ## Deploy-checklist additions (Ignacio-gated remote apply)
