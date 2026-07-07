@@ -34,6 +34,10 @@ const PET_NAME = `E2EPet-${Date.now()}`;
 // search results to render, then select with the keyboard (Enter), which the
 // component's key handler turns into a selection without a click/detach race.
 test("owner creates a pet with location and it appears in /mis-mascotas", async ({ page }) => {
+  // Alta is a multi-step flow (login → form → dual-write → list); with the 45s
+  // submit budget below, the 30s default test timeout is too tight.
+  test.setTimeout(90_000);
+
   // -- Log in -----------------------------------------------------------
   await page.goto("/login");
   await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
@@ -76,6 +80,12 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
   // the mousedown handler that unmounts the dropdown.
   await localityInput.press("Enter");
 
+  // Dismiss the typeahead dropdown explicitly. On CI the results list could
+  // stay mounted over the submit button (intercepting the click and producing
+  // a false alta-hang), so Escape closes it before we reach for "Crear
+  // mascota". Selection is already committed by the Enter above.
+  await localityInput.press("Escape");
+
   // Confirm the picker captured a locality before submitting (the form has a
   // required-locality guard); fails here with a clear message if selection
   // didn't take, instead of a confusing redirect timeout later.
@@ -89,9 +99,12 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
   // that regex also matches /mis-mascotas/nueva, so a failed create that stays
   // on the form would slip through and fail confusingly at the list assertion.
   // This way a create failure surfaces here, at the submit step.
+  // Alta can take a while on a cold build (event-first dual-write + RSC
+  // revalidate), so allow ≥45s before declaring the create hung — the shorter
+  // 20s budget produced false failures on the :3000 QA server.
   await page.waitForURL(
     (url) => url.pathname.startsWith("/mis-mascotas") && !url.pathname.endsWith("/nueva"),
-    { timeout: 20_000 },
+    { timeout: 45_000 },
   );
 
   // -- Assert pet is visible in the list --------------------------------
