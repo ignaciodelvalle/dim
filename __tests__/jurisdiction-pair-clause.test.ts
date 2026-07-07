@@ -23,7 +23,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, petEvents, pets, welfareReports } from "@/db";
 import { welfareReportsScopeClause } from "@/lib/analytics/govt-dashboards";
-import { buildProjectionContext, jurisdictionPairClause, petsScopeClause } from "@/lib/metrics";
+import {
+  buildProjectionContext,
+  jurisdictionPairClause,
+  petEventsScopeClause,
+  petsScopeClause,
+} from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -460,5 +465,112 @@ describe("petsScopeClause — regression guard post-refactor", () => {
 
     expect(nScope).toBe(nDirect);
     expect(nScope).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CABA whole-province subsumption — petsScopeClause / petEventsScopeClause
+// build their own (province, locality) pairs (not via jurisdictionPairClause
+// directly, but via the exported wrapper functions), so the two-tier CABA fix
+// must hold for panorama/analytics/surveillance consumers too, not just
+// welfare_reports/cases.
+// ---------------------------------------------------------------------------
+
+describe("petsScopeClause — CABA whole-province subsumption", () => {
+  const CABA_WHOLE = "Ciudad Autónoma de Buenos Aires";
+  let cabaPetIds: string[] = [];
+
+  beforeAll(async () => {
+    // Two CABA barrios + the whole-city entry + a control province.
+    cabaPetIds = await Promise.all([
+      insertPet(`${PREFIX}CABA-ALM`, "CABA", "Almagro"),
+      insertPet(`${PREFIX}CABA-PAL`, "CABA", "Palermo"),
+      insertPet(`${PREFIX}CABA-WHOLE`, "CABA", CABA_WHOLE),
+      insertPet(`${PREFIX}CABA-SALTA`, "Salta", "Salta"),
+    ]);
+  });
+
+  afterAll(async () => {
+    if (cabaPetIds.length > 0) {
+      await db.delete(pets).where(inArray(pets.id, cabaPetIds));
+    }
+  });
+
+  async function countCabaPets(jurisdictions: { province: string; locality: string }[]) {
+    const ctx = buildProjectionContext({ role: "govt" }, jurisdictions, period);
+    const clause = petsScopeClause(ctx);
+    const condition = clause ? and(inArray(pets.id, cabaPetIds), sql`(${clause})`) : sql`false`;
+    const rows = await db.select({ n: count() }).from(pets).where(condition);
+    return rows[0]?.n ?? 0;
+  }
+
+  it("whole-city assignment matches all 3 CABA pets (both barrios + whole-city), not Salta", async () => {
+    const n = await countCabaPets([{ province: "CABA", locality: CABA_WHOLE }]);
+    expect(n).toBe(3);
+  });
+
+  it("barrio-specific assignment (Palermo) matches only the Palermo pet", async () => {
+    const n = await countCabaPets([{ province: "CABA", locality: "Palermo" }]);
+    expect(n).toBe(1);
+  });
+
+  it("a Salta assignment matches only the Salta pet (no CABA leak)", async () => {
+    const n = await countCabaPets([{ province: "Salta", locality: "Salta" }]);
+    expect(n).toBe(1);
+  });
+});
+
+describe("petEventsScopeClause — CABA whole-province subsumption", () => {
+  const CABA_WHOLE = "Ciudad Autónoma de Buenos Aires";
+  let cabaPetId: string | null = null;
+  let cabaEventIds: string[] = [];
+
+  beforeAll(async () => {
+    cabaPetId = await insertPet(`${PREFIX}CABA-EVT`, "CABA", "Almagro");
+    // Two CABA barrios + the whole-city entry + a control province, all on the
+    // same pet — petEventsScopeClause scopes on the payload's jurisdiction
+    // fields, not the pet's own columns.
+    cabaEventIds = await Promise.all([
+      insertOutbreakEvent(cabaPetId, "CABA", "Almagro"),
+      insertOutbreakEvent(cabaPetId, "CABA", "Palermo"),
+      insertOutbreakEvent(cabaPetId, "CABA", CABA_WHOLE),
+      insertOutbreakEvent(cabaPetId, "Salta", "Salta"),
+    ]);
+  });
+
+  afterAll(async () => {
+    await withMutationOverride(async (tx) => {
+      if (cabaEventIds.length > 0) {
+        await tx.delete(petEvents).where(inArray(petEvents.id, cabaEventIds));
+      }
+    });
+    if (cabaPetId) {
+      await db.delete(pets).where(inArray(pets.id, [cabaPetId]));
+    }
+  });
+
+  async function countCabaEvents(jurisdictions: { province: string; locality: string }[]) {
+    const ctx = buildProjectionContext({ role: "govt" }, jurisdictions, period);
+    const clause = petEventsScopeClause(ctx);
+    const condition = clause
+      ? and(inArray(petEvents.id, cabaEventIds), sql`(${clause})`)
+      : sql`false`;
+    const rows = await db.select({ n: count() }).from(petEvents).where(condition);
+    return rows[0]?.n ?? 0;
+  }
+
+  it("whole-city assignment matches all 3 CABA events (both barrios + whole-city), not Salta", async () => {
+    const n = await countCabaEvents([{ province: "CABA", locality: CABA_WHOLE }]);
+    expect(n).toBe(3);
+  });
+
+  it("barrio-specific assignment (Palermo) matches only the Palermo event", async () => {
+    const n = await countCabaEvents([{ province: "CABA", locality: "Palermo" }]);
+    expect(n).toBe(1);
+  });
+
+  it("a Salta assignment matches only the Salta event (no CABA leak)", async () => {
+    const n = await countCabaEvents([{ province: "Salta", locality: "Salta" }]);
+    expect(n).toBe(1);
   });
 });

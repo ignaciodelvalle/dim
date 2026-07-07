@@ -91,11 +91,11 @@ export function petsScopeClause(ctx: ProjectionContext) {
   }
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) =>
-      sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+  return jurisdictionPairClause(
+    jurisdictions,
+    sql`${pets.jurisdictionProvince}`,
+    sql`${pets.jurisdictionLocality}`,
   );
-  return sql.join(pairs, sql` OR `);
 }
 
 /**
@@ -124,11 +124,9 @@ export function petEventsScopeClause(ctx: ProjectionContext) {
   }
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) => sql`(
-      (${petEvents.payload}->>'pet_jurisdiction_province') = ${j.province}
-      AND (${petEvents.payload}->>'pet_jurisdiction_locality') = ${j.locality}
-    )`,
+  return jurisdictionPairClause(
+    jurisdictions,
+    sql`(${petEvents.payload}->>'pet_jurisdiction_province')`,
+    sql`(${petEvents.payload}->>'pet_jurisdiction_locality')`,
   );
-  return sql.join(pairs, sql` OR `);
 }
