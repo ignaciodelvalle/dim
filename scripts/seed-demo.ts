@@ -1206,6 +1206,128 @@ async function loadStoryline(
 }
 
 // ---------------------------------------------------------------------------
+// 9b. Adoption listing publish — makes /adoptar populate
+// ---------------------------------------------------------------------------
+
+type ListingContent = {
+  story: string;
+  requirements: string;
+  ageBucket: "puppy" | "junior" | "young" | "adult" | "senior";
+  sizeEstimate: "small" | "medium" | "large" | "xl";
+  energyLevel: "low" | "medium" | "high";
+  goodWithKids: boolean | null;
+  goodWithDogs: boolean | null;
+  goodWithCats: boolean | null;
+  needsYard: boolean | null;
+  feeArs: number | null;
+};
+
+// Storyline pets that Patitas del Norte (verified shelter) publishes as ACTIVE
+// adoption listings. All three are adoption-eligible under shelter_custody, so
+// they satisfy the /adoptar query guards (D18–D21) once listed.
+const ADOPTION_LISTINGS: Array<{ token: string; content: ListingContent }> = [
+  {
+    token: "DIM-S009-PLRM", // Lola — mestiza, Palermo
+    content: {
+      story:
+        "Lola llegó al refugio como perra callejera en noviembre de 2024. Está castrada, vacunada y al día con todo. Es cariñosa, sociable con otros perros y muy buena con chicos. Busca una familia tranquila que le dé el hogar que se merece.",
+      requirements:
+        "Casa o departamento con red de protección en balcones y ventanas. Compromiso de tenencia responsable. Aceptamos una entrevista previa y seguimiento post-adopción durante los primeros meses.",
+      ageBucket: "adult",
+      sizeEstimate: "medium",
+      energyLevel: "medium",
+      goodWithKids: true,
+      goodWithDogs: true,
+      goodWithCats: null,
+      needsYard: false,
+      feeArs: 0,
+    },
+  },
+  {
+    token: "DIM-S012-RECO", // Negro — mestizo, Recoleta
+    content: {
+      story:
+        "Negro es un perro joven, mestizo, de pelaje negro con pecho blanco. Rescatado y bajo cuidado del refugio. Tiene una postulación en revisión, pero sigue disponible para conocer nuevas familias. Es enérgico, leal y muy compañero.",
+      requirements:
+        "Familia activa que pueda darle paseos diarios y contención. Ambiente seguro. Entrevista previa y seguimiento post-adopción.",
+      ageBucket: "young",
+      sizeEstimate: "medium",
+      energyLevel: "high",
+      goodWithKids: true,
+      goodWithDogs: null,
+      goodWithCats: null,
+      needsYard: false,
+      feeArs: 0,
+    },
+  },
+  {
+    token: "DIM-S013-PLRM", // Bichita — cobaya, Palermo
+    content: {
+      story:
+        "Bichita es una cobaya tricolor rescatada, sana y sociable. Ideal para una familia que quiera sumar una mascota pequeña y de bajo mantenimiento. Busca un hogar con espacio adecuado y compañía diaria.",
+      requirements:
+        "Jaula amplia y dieta adecuada (heno y verduras frescas). Preferentemente con otra cobaya para compañía. Sin exposición a corrientes de aire.",
+      ageBucket: "young",
+      sizeEstimate: "small",
+      energyLevel: "low",
+      goodWithKids: true,
+      goodWithDogs: null,
+      goodWithCats: null,
+      needsYard: null,
+      feeArs: 0,
+    },
+  },
+];
+
+/**
+ * Publishes a few ACTIVE adoption listings so /adoptar is not empty and
+ * /adoptar/[token] resolves — owner2 can then apply through the real
+ * event-first flow (adoption_application_submitted). Uses the SAME writer the
+ * production publish flow uses (AdoptionRepository.updateListingContent +
+ * setListingStatus) rather than a raw column poke. Publishing emits no
+ * pet_event by design (listing status is shelf-curated metadata, per the
+ * repository contract), so calling the real writer is the faithful path — there
+ * is no event to bypass. Idempotent: reruns re-publish with the existing
+ * adoptionListedAt so the listed-at timestamp stays stable.
+ */
+async function publishAdoptionListings(deps: DbDeps): Promise<void> {
+  log("STEP", "Publishing adoption listings (Lola, Negro, Bichita)");
+  const { db, drizzle, schemas } = deps;
+  const { AdoptionRepository } = await import(
+    "@/src/modules/adoption/infrastructure/adoption-repository"
+  );
+
+  for (const { token, content } of ADOPTION_LISTINGS) {
+    const [pet] = await db
+      .select({
+        id: schemas.pets.id,
+        adoptionListedAt: schemas.pets.adoptionListedAt,
+        adoptionEligible: schemas.pets.adoptionEligible,
+      })
+      .from(schemas.pets)
+      .where(drizzle.eq(schemas.pets.publicToken, token))
+      .limit(1);
+
+    if (!pet) {
+      log("WARN", `${token} not found — skipping listing publish.`);
+      continue;
+    }
+    if (!pet.adoptionEligible) {
+      log("WARN", `${token} not adoption-eligible — skipping listing publish.`);
+      continue;
+    }
+
+    const now = new Date();
+    await AdoptionRepository.updateListingContent({ petId: pet.id, ...content }, undefined);
+    await AdoptionRepository.setListingStatus(
+      { petId: pet.id, action: "publish", currentListedAt: pet.adoptionListedAt, now },
+      undefined,
+    );
+    log("OK", `${token} published as active adoption listing.`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 10. Stats helper — runs without DB access
 // ---------------------------------------------------------------------------
 
@@ -1259,6 +1381,8 @@ async function main(): Promise<void> {
   for (const story of STORYLINES) {
     await loadStoryline(deps, story, userIds, orgIds);
   }
+
+  await publishAdoptionListings(deps);
 
   log("DONE", "seed complete");
   // eslint-disable-next-line no-console
