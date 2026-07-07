@@ -91,7 +91,7 @@ export function GovtModerationActions({ welfareReportId }: { welfareReportId: st
 
   return (
     <div className="space-y-3">
-      <p className="text-[13px] font-semibold text-ln-op-ink">{title}</p>
+      <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">{title}</p>
 
       {/* Explicit irreversibility warning before rejecting as abuse. */}
       {mode === "reject" && (
@@ -120,7 +120,9 @@ export function GovtModerationActions({ welfareReportId }: { welfareReportId: st
         placeholder={placeholder}
         className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-sm text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
       />
-      <p className="text-[11px] tabular-nums text-ln-op-mute">{notes.trim().length} caracteres</p>
+      <p className="text-[var(--text-sm)] tabular-nums text-ln-op-mute">
+        {notes.trim().length} caracteres
+      </p>
       {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
         <OpButton

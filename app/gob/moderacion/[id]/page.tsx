@@ -155,7 +155,7 @@ export default async function GobModeracionDetailPage({
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Moderación</p>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">
             {welfareReportKindLabel(report.kind)}
           </h1>
           <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>
@@ -187,9 +187,11 @@ export default async function GobModeracionDetailPage({
       <OpCard>
         <OpCardHead title="¿Qué pasó?" />
         <OpCardBody>
-          <p className="whitespace-pre-wrap text-[13px] text-ln-op-ink">{report.description}</p>
+          <p className="whitespace-pre-wrap text-[var(--text-md)] text-ln-op-ink">
+            {report.description}
+          </p>
           {report.occurredAt && (
-            <p className="mt-2 text-[11px] text-ln-op-mute">
+            <p className="mt-2 text-[var(--text-sm)] text-ln-op-mute">
               {"Ocurrió el "}
               {formatDate(report.occurredAt)}
             </p>
@@ -201,12 +203,12 @@ export default async function GobModeracionDetailPage({
       <OpCard>
         <OpCardHead title="Sujeto" />
         <OpCardBody>
-          <p className="text-[13px] text-ln-op-ink">
+          <p className="text-[var(--text-md)] text-ln-op-ink">
             {welfareReportSubjectKindLabel(report.subjectKind)}
             {report.subjectPetId && subjectPetPublicToken && (
               <Link
                 href={`/p/${subjectPetPublicToken}`}
-                className="ml-2 font-mono text-[11px] text-ln-op-azul underline underline-offset-4 hover:opacity-80"
+                className="ml-2 font-mono text-[var(--text-sm)] text-ln-op-azul underline underline-offset-4 hover:opacity-80"
               >
                 {subjectPetPublicToken}
               </Link>
@@ -255,7 +257,7 @@ export default async function GobModeracionDetailPage({
             <ul className="space-y-1.5">
               {attachments.map((a) => (
                 <li key={a.id} className="flex items-baseline justify-between gap-3">
-                  <span className="truncate font-mono text-[11px] text-ln-op-mute">
+                  <span className="truncate font-mono text-[var(--text-sm)] text-ln-op-mute">
                     {a.originalFilename ?? a.storagePath.split("/").pop()}
                   </span>
                   {a.signedUrl ? (
@@ -268,7 +270,7 @@ export default async function GobModeracionDetailPage({
                       {"Abrir ->"}
                     </a>
                   ) : (
-                    <span className="text-[11px] text-ln-op-faint">(no disponible)</span>
+                    <span className="text-[var(--text-sm)] text-ln-op-faint">(no disponible)</span>
                   )}
                 </li>
               ))}

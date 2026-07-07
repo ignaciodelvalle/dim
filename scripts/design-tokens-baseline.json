@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-07-05",
     "branch": "integration/all-20260703",
-    "totalViolations": 2415,
+    "totalViolations": 2396,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -434,7 +434,7 @@
       "hexStyle": 0
     },
     "components/panorama/SituationalMap.tsx": {
-      "text": 3,
+      "text": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1071,11 +1071,18 @@
       "hexStyle": 0
     },
     "app/gob/page.tsx": {
-      "text": 16,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
+    },
+    "app/global-error.tsx": {
+      "text": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 5
     },
     "app/gob/vigilancia/page.tsx": {
       "text": 15,
@@ -1281,7 +1288,7 @@
       "hexStyle": 0
     },
     "app/gob/perdidas/_components/LostPetRow.tsx": {
-      "text": 1,
+      "text": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1680,7 +1687,7 @@
       "hexStyle": 0
     },
     "app/admin/auditoria/page.tsx": {
-      "text": 7,
+      "text": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,

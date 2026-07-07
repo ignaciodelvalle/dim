@@ -1140,7 +1140,7 @@ export function SituationalMap({
       )}
       {renderableCount === 0 && !hasProvChoro && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="rounded-[var(--radius-md)] bg-black/40 px-4 py-2 text-[13px] text-white/80">
+          <p className="rounded-[var(--radius-md)] bg-black/40 px-4 py-2 text-[var(--text-md)] text-white/80">
             Sin datos para esta capa en tu cobertura.
           </p>
         </div>
@@ -1155,7 +1155,7 @@ export function SituationalMap({
           {provinceLegends.map(({ layer, bounds, isDivergent }) => (
             <div
               key={layer.id}
-              className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[11px] text-white/90"
+              className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90"
             >
               <div className="mb-1 font-medium">{layer.label}</div>
               {isDivergent && typeof layer.complianceTarget === "number" ? (
@@ -1224,7 +1224,7 @@ export function SituationalMap({
                   govt user reads a blank cell as privacy protection, not a gap.
                   Copy parity with MapChoropleth ("protegidos por privacidad ·
                   k-anonimato"). */}
-              <div className="mt-0.5 text-[10px] leading-tight text-white/55">
+              <div className="mt-0.5 text-[var(--text-xs)] leading-tight text-white/55">
                 Dato protegido — menos de 5 registros (k-anonimato)
               </div>
             </div>
@@ -1232,7 +1232,7 @@ export function SituationalMap({
           {/* F1 graduated-circle legend: fixed size → count-bucket mapping.
               Does NOT depend on zoom — circles are non-clustered, one per unit. */}
           {hasGraduatedLayer && (
-            <div className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[11px] text-white/90">
+            <div className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90">
               <div className="mb-1.5 font-medium text-white/80">Eventos por unidad</div>
               <div className="flex flex-col gap-1">
                 {GRADUATED_BUCKETS.map((b) => (

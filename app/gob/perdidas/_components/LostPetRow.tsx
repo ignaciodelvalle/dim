@@ -56,12 +56,12 @@ export function LostPetRow({ pet, caseCode }: LostPetRowProps) {
             {caseCode && (
               <Link
                 href={`/gob/casos/${caseCode}`}
-                className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[0.04em] text-ln-op-azul underline underline-offset-2 hover:text-ln-op-ink"
+                className="font-[var(--font-ln-mono)] text-[var(--text-sm)] uppercase tracking-[0.04em] text-ln-op-azul underline underline-offset-2 hover:text-ln-op-ink"
               >
                 {caseCode}
               </Link>
             )}
-            <p className="text-[13px] font-medium text-ln-op-ink">{pet.petName}</p>
+            <p className="text-[var(--text-md)] font-medium text-ln-op-ink">{pet.petName}</p>
             <OpPill tone="neutral">{speciesLabel(pet.species)}</OpPill>
             <OpPill tone={statusTone}>{statusLabel}</OpPill>
           </div>

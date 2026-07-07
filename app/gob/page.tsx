@@ -213,25 +213,27 @@ export default async function GobiernoDashboardPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           MiMAR Gobierno · {roleLabel} · {scopeLabel}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Panel de jurisdicción</h1>
+        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">
+          Panel de jurisdicción
+        </h1>
 
         {/* Header actions */}
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <Link
             href="/gob/cola"
-            className="rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:bg-ln-op-azul-700 transition-colors no-underline"
+            className="rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[var(--text-md)] font-medium text-white hover:bg-ln-op-azul-700 transition-colors no-underline"
           >
             Cola de aprobaciones
           </Link>
           <Link
             href="/gob/organizaciones"
-            className="rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-[13px] font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors no-underline"
+            className="rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-[var(--text-md)] font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors no-underline"
           >
             Habilitación
           </Link>
           <Link
             href="/gob/maltrato"
-            className="rounded-[var(--radius-md)] border border-ln-op-danger px-3 py-1.5 text-[13px] font-medium text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors no-underline"
+            className="rounded-[var(--radius-md)] border border-ln-op-danger px-3 py-1.5 text-[var(--text-md)] font-medium text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors no-underline"
           >
             Acta de infracción
           </Link>
@@ -428,7 +430,9 @@ export default async function GobiernoDashboardPage({
           title={
             <span id="panel-bites-trend-titulo">
               Mordeduras por {bitesBucketWord}{" "}
-              <span className="text-[11px] font-normal text-ln-op-mute">últimos 12 meses</span>
+              <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">
+                últimos 12 meses
+              </span>
             </span>
           }
           actions={
@@ -443,7 +447,7 @@ export default async function GobiernoDashboardPage({
         />
         <OpCardBody>
           {bitesTrendPoints.length === 0 ? (
-            <p className="text-[13px] text-ln-op-mute">
+            <p className="text-[var(--text-md)] text-ln-op-mute">
               No hay incidentes de mordedura registrados en tu cobertura en el período.
             </p>
           ) : (
@@ -476,7 +480,9 @@ export default async function GobiernoDashboardPage({
             />
             <OpCardBody>
               {pendingCount === 0 ? (
-                <p className="text-[13px] text-ln-op-mute">No hay solicitudes pendientes.</p>
+                <p className="text-[var(--text-md)] text-ln-op-mute">
+                  No hay solicitudes pendientes.
+                </p>
               ) : (
                 <div className="space-y-1">
                   <p className="font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] text-ln-op-ink">
@@ -504,7 +510,7 @@ export default async function GobiernoDashboardPage({
             />
             <OpCardBody className="p-0">
               {recentDecisions.length === 0 ? (
-                <p className="px-4 py-3 text-[13px] text-ln-op-mute">
+                <p className="px-4 py-3 text-[var(--text-md)] text-ln-op-mute">
                   No tenés acciones registradas en los últimos 7 días.
                 </p>
               ) : (
@@ -514,7 +520,9 @@ export default async function GobiernoDashboardPage({
                       key={entry.id}
                       className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
                     >
-                      <p className="text-[13px] text-ln-op-ink">{auditActionLabel(entry.action)}</p>
+                      <p className="text-[var(--text-md)] text-ln-op-ink">
+                        {auditActionLabel(entry.action)}
+                      </p>
                       <time className="text-sm text-ln-op-mute tabular-nums whitespace-nowrap">
                         {new Date(entry.performedAt).toLocaleString("es-AR", {
                           dateStyle: "short",
@@ -545,11 +553,11 @@ export default async function GobiernoDashboardPage({
             />
             <OpCardBody className="p-0">
               {profile.role !== "admin" && jurisdictions.length === 0 ? (
-                <p className="px-4 py-3 text-[13px] text-ln-op-mute">
+                <p className="px-4 py-3 text-[var(--text-md)] text-ln-op-mute">
                   Sin jurisdicciones asignadas todavía.
                 </p>
               ) : openCases.length === 0 ? (
-                <p className="px-4 py-3 text-[13px] text-ln-op-mute">
+                <p className="px-4 py-3 text-[var(--text-md)] text-ln-op-mute">
                   Sin casos abiertos{" "}
                   {profile.role === "admin" ? "en el sistema" : "en tu jurisdicción"}.
                 </p>
@@ -600,7 +608,7 @@ export default async function GobiernoDashboardPage({
               }
             />
             <OpCardBody>
-              <p className="text-[13px] text-ln-op-mute">
+              <p className="text-[var(--text-md)] text-ln-op-mute">
                 Señales de zoonosis filtradas a tu cobertura.
               </p>
             </OpCardBody>
@@ -621,7 +629,7 @@ export default async function GobiernoDashboardPage({
             />
             <OpCardBody>
               {openWelfareReports.count === 0 ? (
-                <p className="text-[13px] text-ln-op-mute">
+                <p className="text-[var(--text-md)] text-ln-op-mute">
                   No hay denuncias activas en tu jurisdicción.
                 </p>
               ) : (
@@ -652,7 +660,7 @@ export default async function GobiernoDashboardPage({
             />
             <OpCardBody>
               {perdidas.activeCount === 0 ? (
-                <p className="text-[13px] text-ln-op-mute">
+                <p className="text-[var(--text-md)] text-ln-op-mute">
                   No hay mascotas perdidas en tu cobertura.
                 </p>
               ) : (

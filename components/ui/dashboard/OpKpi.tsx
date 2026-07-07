@@ -158,7 +158,7 @@ function InfoButton({ info }: { info: InfoTooltip }) {
                 {info.formula}
               </p>
             )}
-            {info.caveat && <p className="text-ln-op-warn text-xs">{info.caveat}</p>}
+            {info.caveat && <p className="text-[var(--color-st-warn)] text-xs">{info.caveat}</p>}
           </div>
         </>
       )}

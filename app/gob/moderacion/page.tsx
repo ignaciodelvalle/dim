@@ -125,8 +125,10 @@ export default async function GobModeracionPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Moderación</p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Moderación de denuncias</h1>
-        <p className="text-[13px] text-ln-op-ink-2">
+        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">
+          Moderación de denuncias
+        </h1>
+        <p className="text-[var(--text-md)] text-ln-op-ink-2">
           Denuncias anónimas de tus localidades que las heurísticas marcaron para revisión, antes de
           que entren a la cola de triage. Aprobalas para pasarlas a triage, rechazalas como abuso, o
           escalalas al equipo de plataforma. Las denuncias sin jurisdicción claras las modera el
@@ -144,14 +146,14 @@ export default async function GobModeracionPage({
       {/* Filter form */}
       <form action="/gob/moderacion" method="get" className="flex flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
-          <label htmlFor="mod-status" className="text-[11px] font-medium text-ln-op-mute">
+          <label htmlFor="mod-status" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
             Estado
           </label>
           <select
             id="mod-status"
             name="status"
             defaultValue={statusFilter}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             {MOD_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -162,14 +164,14 @@ export default async function GobModeracionPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="mod-kind" className="text-[11px] font-medium text-ln-op-mute">
+          <label htmlFor="mod-kind" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
             Tipo de denuncia
           </label>
           <select
             id="mod-kind"
             name="kind"
             defaultValue={kindFilter ?? ""}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             <option value="">Todos los tipos</option>
             {WELFARE_REPORT_KINDS.map((k) => (
@@ -181,14 +183,17 @@ export default async function GobModeracionPage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="mod-severity" className="text-[11px] font-medium text-ln-op-mute">
+          <label
+            htmlFor="mod-severity"
+            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
+          >
             Severidad
           </label>
           <select
             id="mod-severity"
             name="severity"
             defaultValue={severityFilter ?? ""}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             <option value="">Todas las severidades</option>
             {WELFARE_REPORT_SEVERITIES.map((s) => (
@@ -237,7 +242,7 @@ export default async function GobModeracionPage({
                       <div className="flex items-baseline justify-between gap-3">
                         <div className="min-w-0 space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-[13px] font-semibold text-ln-op-ink">
+                            <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">
                               {welfareReportKindLabel(r.kind)}
                             </p>
                             <OpPill tone={severityTone}>

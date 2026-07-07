@@ -232,8 +232,8 @@ export default async function AdminAuditoriaPage({
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Auditoría global</h1>
-        <p className="text-[13px] text-ln-op-ink-2">
+        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">Auditoría global</h1>
+        <p className="text-[var(--text-md)] text-ln-op-ink-2">
           {hasFilters
             ? `${entries.length} ${entries.length === 1 ? "entrada" : "entradas"} del registro de auditoría que coinciden con los filtros.`
             : `Últimas ${entries.length} entradas del registro de auditoría (todas las acciones de autoridad).`}
@@ -248,22 +248,25 @@ export default async function AdminAuditoriaPage({
             across pagination and re-submits. */}
         {multiActionLabels ? (
           <div className="flex flex-col gap-1">
-            <span className="text-[11px] font-medium text-ln-op-mute">Acción</span>
-            <span className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink">
+            <span className="text-[var(--text-sm)] font-medium text-ln-op-mute">Acción</span>
+            <span className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink">
               {multiActionLabels.join(" + ")}
             </span>
             <input type="hidden" name="action" value={actionFilters.join(",")} />
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            <label htmlFor="audit-action" className="text-[11px] font-medium text-ln-op-mute">
+            <label
+              htmlFor="audit-action"
+              className="text-[var(--text-sm)] font-medium text-ln-op-mute"
+            >
               Acción
             </label>
             <select
               id="audit-action"
               name="action"
               defaultValue={actionFilters.length === 1 ? actionFilters[0] : ""}
-              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
             >
               <option value="">Todas las acciones</option>
               {actionOptions.map(([code, label]) => (
@@ -277,7 +280,7 @@ export default async function AdminAuditoriaPage({
 
         {/* Date-range filter — date-only bounds (to is inclusive). */}
         <div className="flex flex-col gap-1">
-          <label htmlFor="audit-from" className="text-[11px] font-medium text-ln-op-mute">
+          <label htmlFor="audit-from" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
             Desde
           </label>
           <input
@@ -285,11 +288,11 @@ export default async function AdminAuditoriaPage({
             name="from"
             type="date"
             defaultValue={fromValid ?? ""}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label htmlFor="audit-to" className="text-[11px] font-medium text-ln-op-mute">
+          <label htmlFor="audit-to" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
             Hasta
           </label>
           <input
@@ -297,20 +300,23 @@ export default async function AdminAuditoriaPage({
             name="to"
             type="date"
             defaultValue={toValid ?? ""}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
 
         {/* Actor filter — dropdown of names present in the current result page */}
         <div className="flex flex-col gap-1">
-          <label htmlFor="audit-actor" className="text-[11px] font-medium text-ln-op-mute">
+          <label
+            htmlFor="audit-actor"
+            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
+          >
             Actor
           </label>
           <select
             id="audit-actor"
             name="actor"
             defaultValue={actorFilter ?? ""}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             <option value="">Todos los actores</option>
             {actorOptions.map((o) => (
@@ -335,7 +341,7 @@ export default async function AdminAuditoriaPage({
       </form>
 
       {entries.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute">No hay entradas que coincidan.</p>
+        <p className="text-[var(--text-md)] text-ln-op-mute">No hay entradas que coincidan.</p>
       ) : (
         <OpCard>
           <OpCardHead
