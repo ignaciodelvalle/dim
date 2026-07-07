@@ -38,7 +38,11 @@ import type { AnalyticsPeriod } from "@/lib/metrics";
 import { lastIngestAt } from "@/lib/metrics/freshness";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 
-import { getPanoramaKpis } from "../get-panorama-kpis";
+import {
+  PanoramaKpisUnavailableError,
+  degradedPanoramaKpis,
+  getPanoramaKpis,
+} from "../get-panorama-kpis";
 
 const period: AnalyticsPeriod = {
   since: new Date("2025-06-20T00:00:00.000Z"),
@@ -275,5 +279,48 @@ describe("getPanoramaKpis", () => {
     vi.mocked(lastIngestAt).mockResolvedValue(null);
     const empty = await getPanoramaKpis({ role: "admin" }, [], period);
     expect(empty.dataAsOf).toBeNull();
+  });
+
+  // ---------------------------------------------------------------------------
+  // NEVER-CRASH FAN-OUT (task #74): a failing fetcher must throw a typed error
+  // WITHOUT abandoning its siblings (the source of the prod unhandledRejection).
+  // ---------------------------------------------------------------------------
+
+  it("throws PanoramaKpisUnavailableError when a fetcher rejects (does not build a partial strip)", async () => {
+    vi.mocked(fetchBitesPer10k).mockRejectedValue(new Error("pooler timeout"));
+    await expect(getPanoramaKpis({ role: "admin" }, [], period)).rejects.toBeInstanceOf(
+      PanoramaKpisUnavailableError,
+    );
+  });
+
+  it("awaits EVERY fetcher (allSettled) even when one rejects — no abandoned/dangling promise", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      // One fetcher rejects immediately; a sibling rejects a tick LATER. With
+      // Promise.all the late sibling would be abandoned → unhandledRejection.
+      // With allSettled both are awaited before we throw, so nothing dangles.
+      vi.mocked(fetchRabiesCoverage).mockRejectedValue(new Error("first"));
+      vi.mocked(fetchActiveZoonosis).mockImplementation(
+        () => new Promise((_, reject) => setTimeout(() => reject(new Error("late sibling")), 20)),
+      );
+
+      await expect(getPanoramaKpis({ role: "admin" }, [], period)).rejects.toBeInstanceOf(
+        PanoramaKpisUnavailableError,
+      );
+
+      // Give the late sibling time to reject and flush microtasks.
+      await new Promise((r) => setTimeout(r, 60));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
+
+  it("degradedPanoramaKpis is an empty, honest strip", () => {
+    const degraded = degradedPanoramaKpis();
+    expect(degraded.kpis).toEqual([]);
+    expect(degraded.dataAsOf).toBeNull();
+    expect(degraded.recalculatedFor.toLowerCase()).toContain("reintent");
   });
 });

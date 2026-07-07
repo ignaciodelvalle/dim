@@ -118,6 +118,36 @@ export type PanoramaKpis = {
   dataAsOf: string | null;
 };
 
+/**
+ * Thrown by getPanoramaKpis when one or more backing fetchers rejected — the
+ * strip cannot be built with dashboard parity. Callers convert this into a
+ * degraded-but-honest state (API → 503 envelope; page → degradedPanoramaKpis).
+ * It is thrown only AFTER every fetcher has settled (Promise.allSettled), so it
+ * never abandons an in-flight query.
+ */
+export class PanoramaKpisUnavailableError extends Error {
+  constructor(readonly failedCount: number) {
+    super(`panorama KPI fan-out failed (${failedCount} fetcher${failedCount === 1 ? "" : "s"})`);
+    this.name = "PanoramaKpisUnavailableError";
+  }
+}
+
+/**
+ * es-AR degraded KPI payload — an EMPTY strip carrying an honest "no pudimos
+ * cargar los indicadores, reintentá" cue in `recalculatedFor` (the field the
+ * KpiStrip renders as its caption). Used as the withDbBudget fallback on the
+ * page + API paths so a degraded DB renders a truthful empty state instead of
+ * hanging the RSC stream forever. No tiles, no fabricated numbers.
+ */
+export function degradedPanoramaKpis(): PanoramaKpis {
+  return {
+    kpis: [],
+    recalculatedFor:
+      "No pudimos cargar los indicadores en este momento. Reintentá en unos segundos.",
+    dataAsOf: null,
+  };
+}
+
 /** es-AR integer formatting (thousands separator). */
 function n(value: number): string {
   return value.toLocaleString("es-AR");
@@ -208,19 +238,17 @@ export async function getPanoramaKpis(
     { adminProvince, adminLocality },
   );
 
-  const [
-    coverage,
-    analytics,
-    perdidas,
-    bites,
-    zoonosis,
-    welfare,
-    sterilization,
-    priorCoverage,
-    priorBites,
-    priorZoonosis,
-    ingestAt,
-  ] = await Promise.all([
+  // NEVER-CRASH FAN-OUT (task #74): use Promise.allSettled — NOT Promise.all.
+  // Promise.all rejects on the FIRST fetcher failure and ABANDONS its siblings;
+  // when a sibling later rejects (routine once the transaction pooler degrades
+  // and queries error out) that rejection has no consumer and surfaces as an
+  // unhandledRejection that crashes the lambda mid-response — the exact prod
+  // incident. allSettled awaits EVERY fetcher to completion, so no promise is
+  // ever abandoned. If any fetcher rejected we degrade the WHOLE strip (the
+  // historical all-or-nothing parity contract) by throwing a typed error the
+  // callers convert into a degraded-but-honest state — but only AFTER every
+  // sibling has settled, so nothing dangles.
+  const settled = await Promise.allSettled([
     // 1. Cobertura antirrábica — lib/govt-home-kpis.fetchRabiesCoverage (ctx).
     fetchRabiesCoverage(ctx),
     // 2. Mascotas en cobertura (totalPets) — lib/govt-dashboards.fetchAnalyticsMetrics.
@@ -249,6 +277,31 @@ export async function getPanoramaKpis(
     // Freshness: newest scoped ingest event (map-QOL freshness chip).
     lastIngestAt(ctx),
   ]);
+
+  // Any fetcher rejected → the strip cannot be built with parity. Log every
+  // failure and throw a typed error; callers degrade. (Every sibling has already
+  // settled above, so this throw abandons nothing.)
+  const rejections = settled.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+  if (rejections.length > 0) {
+    for (const r of rejections) {
+      console.error("[panorama-kpis] fetcher failed:", r.reason);
+    }
+    throw new PanoramaKpisUnavailableError(rejections.length);
+  }
+
+  // All fulfilled — narrow each settled result back to its fetcher's value type.
+  const value = <T>(r: PromiseSettledResult<T>): T => (r as PromiseFulfilledResult<T>).value;
+  const coverage = value(settled[0]);
+  const analytics = value(settled[1]);
+  const perdidas = value(settled[2]);
+  const bites = value(settled[3]);
+  const zoonosis = value(settled[4]);
+  const welfare = value(settled[5]);
+  const sterilization = value(settled[6]);
+  const priorCoverage = value(settled[7]);
+  const priorBites = value(settled[8]);
+  const priorZoonosis = value(settled[9]);
+  const ingestAt = value(settled[10]);
 
   // Display order (legal-analysis intake 2026-07-03, metric reorientation):
   // the two legally-grounded compliance coverages lead — antirrábica

@@ -19,11 +19,21 @@ import { localityByName } from "@/lib/infra/ar-localidades";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
-import { getPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
+import {
+  degradedPanoramaKpis,
+  getPanoramaKpis,
+} from "@/src/modules/panorama/application/get-panorama-kpis";
 
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 
 export const dynamic = "force-dynamic";
+
+// Client-side budget for the KPI fan-out. Set BELOW the DB statement_timeout
+// (15s, db/index.ts) so the request degrades to an honest empty strip before the
+// query is force-cancelled, and well below the lambda ceiling so the response is
+// never truncated. On expiry the route answers 200 with a degraded payload.
+const KPIS_BUDGET_MS = 8000;
 
 export async function GET(request: Request) {
   // 1. Non-redirect auth: ACTIVE INSTITUTIONAL admin or govt only (same full
@@ -65,8 +75,24 @@ export async function GET(request: Request) {
     }
   }
 
-  // 4. Delegate to the use-case (reuses the tested dashboard fetchers).
-  const result = await getPanoramaKpis(actor, scoped, period);
-
-  return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
+  // 4. Delegate to the use-case (reuses the tested dashboard fetchers), bounded
+  //    by a time budget and wrapped so it NEVER throws to the runtime (task #74):
+  //    - budget elapses (DB degraded / queries hang) → 200 with a degraded strip.
+  //    - fetcher rejected (getPanoramaKpis throws) → 503 JSON error envelope.
+  //    Either way the lambda answers cleanly instead of crashing mid-response.
+  try {
+    const result = await withDbBudget(
+      getPanoramaKpis(actor, scoped, period),
+      KPIS_BUDGET_MS,
+      "GET /api/panorama/kpis",
+      degradedPanoramaKpis(),
+    );
+    return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
+  } catch (err) {
+    console.error("[GET /api/panorama/kpis] failed:", err);
+    return NextResponse.json(
+      { error: "panorama_kpis_unavailable", ...degradedPanoramaKpis() },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
+  }
 }

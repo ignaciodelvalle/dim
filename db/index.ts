@@ -46,16 +46,58 @@ const globalForDb = globalThis as unknown as {
   __dimPgClient?: ReturnType<typeof postgres>;
 };
 
+// SERVERLESS RESILIENCE (task #74 — staging DB death spiral). On Vercel each
+// lambda holds its own postgres-js pool in front of the Supabase transaction
+// pooler (supavisor, port 6543). Under contention on the shared micro DB the
+// pooler degrades and queries hang; abandoned/slow connections then starve the
+// pool further (the spiral). These options make the client FAIL FAST and RELEASE
+// connections PROMPTLY instead of accumulating stuck backends. Each is chosen
+// deliberately:
+//   - max: 5 — keep the per-lambda pool SMALL. The console fans out ~11 queries;
+//     multiplexing them over a few connections bounds how many backends one
+//     lambda can pin on the shared micro DB (the root of the spiral). The client
+//     budget (withDbBudget) bounds total latency so the queue can't hang a request.
+//   - connect_timeout: 10s — fail with a clear error instead of hanging when the
+//     pooler is unreachable/saturated.
+//   - idle_timeout: 20s — return idle connections to the pooler quickly so a warm
+//     lambda doesn't sit on backends between requests.
+//   - max_lifetime: 300s — recycle connections so none lingers across the pooler's
+//     own recycling and accumulates stale/degraded server-side state.
+//   - statement_timeout / idle_in_transaction_session_timeout (15s) — the DB-level
+//     backstop. The client budget bounds the RESPONSE; this bounds the RESOURCE:
+//     a runaway query is CANCELLED server-side so it stops holding a pooler slot,
+//     which is what actually breaks the spiral. Enforced through supavisor
+//     TRANSACTION mode via the `options` startup parameter (`-c ...`) — a STANDARD
+//     libpq startup field the pooler forwards, unlike a bare `statement_timeout`
+//     GUC key (which transaction poolers may reject). Verified: postgres.js
+//     `connection.options` cancels an over-budget query with SQLSTATE 57014
+//     against a real Postgres (see docs/design/handoffs/2026-07-07-deploy-checklist.md §4).
+// Tests keep the tighter, no-statement-timeout profile (local direct DB, serial
+// runner) — a 15s statement_timeout could flake a legitimately slow suite.
 const client =
   globalForDb.__dimPgClient ??
   postgres(process.env.DATABASE_URL, {
     prepare: false,
-    ...(isTest && {
-      max: 3,
-      idle_timeout: 20, // seconds — return idle connections quickly between files
-      connect_timeout: 10, // seconds — fail fast when the local stack isn't running
-      max_lifetime: 60, // seconds — recycle to avoid stale-state accumulation
-    }),
+    ...(isTest
+      ? {
+          max: 3,
+          idle_timeout: 20, // seconds — return idle connections quickly between files
+          connect_timeout: 10, // seconds — fail fast when the local stack isn't running
+          max_lifetime: 60, // seconds — recycle to avoid stale-state accumulation
+        }
+      : {
+          max: 5, // small per-lambda pool — bounds backends pinned on the shared DB
+          connect_timeout: 10, // seconds — fail fast when the pooler is saturated
+          idle_timeout: 20, // seconds — release idle connections back to the pooler
+          max_lifetime: 300, // seconds — recycle to avoid stale/degraded connections
+          connection: {
+            // Server-side query + idle-txn ceilings, forwarded through the
+            // transaction pooler as libpq startup `options`. 15s > the client
+            // budget so the client degrades first; this only fires for a truly
+            // runaway query, cancelling it so it releases its pooler slot.
+            options: "-c statement_timeout=15000 -c idle_in_transaction_session_timeout=15000",
+          },
+        }),
   });
 
 if (process.env.NODE_ENV === "development") globalForDb.__dimPgClient = client;

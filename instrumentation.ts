@@ -17,5 +17,35 @@ export async function register() {
     // missing/invalid vars) — importing it here is what makes that happen
     // at BOOT rather than whenever some other module first imports it.
     await import("@/lib/infra/env");
+
+    // PROCESS-LEVEL CRASH BACKSTOP (task #74). The staging incident was an
+    // UNHANDLED REJECTION from an abandoned DB query crashing the lambda
+    // mid-response ("Node.js process exited") — each crash abandoned pooler
+    // slots and fed a death spiral. The panorama paths now guard their own
+    // fan-outs (withDbBudget + Promise.allSettled), but this is the last line
+    // of defence for ANY code path: registering these handlers overrides
+    // Node's default of TERMINATING the process on an unhandled rejection, so
+    // a stray rejection is logged and the server keeps serving. Registered
+    // once per server instance (a global flag survives dev HMR re-runs).
+    registerProcessCrashGuards();
   }
+}
+
+const globalForGuards = globalThis as unknown as { __dimProcessGuards?: boolean };
+
+function registerProcessCrashGuards(): void {
+  if (globalForGuards.__dimProcessGuards) return;
+  globalForGuards.__dimProcessGuards = true;
+
+  process.on("unhandledRejection", (reason) => {
+    // Log and KEEP SERVING. Without a listener, Node terminates the process
+    // (Node ≥15 default) — exactly the crash that fed the spiral.
+    console.error("[unhandledRejection] kept process alive:", reason);
+  });
+
+  process.on("uncaughtException", (err, origin) => {
+    // A stateless request server recovers better by staying up than by dying
+    // mid-response. Log with origin; do NOT process.exit().
+    console.error(`[uncaughtException] (${origin}) kept process alive:`, err);
+  });
 }

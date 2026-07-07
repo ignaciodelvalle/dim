@@ -81,6 +81,13 @@ const empty = (): LayerFeaturesResult => ({
   level: "locality",
 });
 
+/**
+ * Degraded/empty layer result — an empty FeatureCollection. Used as the
+ * withDbBudget fallback on the page + API paths (task #74) so a slow or failing
+ * layer fetch renders an empty map instead of hanging the response.
+ */
+export const emptyLayerFeatures = empty;
+
 /** Wrap a point-layer reader result into the use-case envelope. */
 function pointResult<Row>(rows: LayerRows<Row>, features: FeatureCollection): LayerFeaturesResult {
   return {

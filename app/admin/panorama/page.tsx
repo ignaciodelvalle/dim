@@ -11,13 +11,26 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
-import { getLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
-import { getPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
+import {
+  emptyLayerFeatures,
+  getLayerFeatures,
+} from "@/src/modules/panorama/application/get-layer-features";
+import {
+  degradedPanoramaKpis,
+  getPanoramaKpis,
+} from "@/src/modules/panorama/application/get-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
 
 // Centro de Situación Nacional — admin view (universal scope).
 // Slice 2: dark local basemap + multi-layer console + unified filters.
 export const dynamic = "force-dynamic";
+
+// Server-render budget for the two concurrent fan-outs (task #74). On expiry (or
+// a fetcher rejection, caught below) the page renders a degraded-but-honest state
+// — empty map + "no pudimos cargar los indicadores" — instead of hanging the RSC
+// stream forever (the staging incident: skeletons that never resolve).
+const PAGE_BUDGET_MS = 9000;
 
 export default async function AdminPanoramaPage({
   searchParams,
@@ -118,17 +131,31 @@ export default async function AdminPanoramaPage({
   // readable overview). The level MUST match PanoramaShell's initialLevel or
   // the console's seeded cache is the wrong one and the map starts blank (C2).
   const initialLevel = provinceObj ? ("locality" as const) : ("province" as const);
+  // Both fan-outs are time-bounded AND `.catch`-guarded: withDbBudget degrades on
+  // timeout, and the trailing `.catch` degrades on an early fetcher rejection —
+  // so a degraded DB never throws out of this Server Component (it renders the
+  // honest degraded PanoramaShell instead).
   const [result, kpis] = await Promise.all([
-    getLayerFeatures(
-      "perdidas",
-      actor,
-      scoped,
-      { since },
-      initialLevel,
-      adminProvince,
-      adminLocality,
-    ),
-    getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
+    withDbBudget(
+      getLayerFeatures(
+        "perdidas",
+        actor,
+        scoped,
+        { since },
+        initialLevel,
+        adminProvince,
+        adminLocality,
+      ),
+      PAGE_BUDGET_MS,
+      "admin/panorama layer",
+      emptyLayerFeatures(),
+    ).catch(() => emptyLayerFeatures()),
+    withDbBudget(
+      getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
+      PAGE_BUDGET_MS,
+      "admin/panorama kpis",
+      degradedPanoramaKpis(),
+    ).catch(() => degradedPanoramaKpis()),
   ]);
 
   return (

@@ -25,13 +25,24 @@ import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { DashboardJurisdiction } from "@/lib/metrics";
+import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
 import { clampAsOf, parseAsOf } from "@/src/modules/panorama/domain/time-scrub";
-import { loadUnitHistory } from "@/src/modules/panorama/infrastructure/repository";
+import {
+  type UnitHistoryResult,
+  loadUnitHistory,
+} from "@/src/modules/panorama/infrastructure/repository";
 
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 
 export const dynamic = "force-dynamic";
+
+// Client-side budget for the on-demand unit history — see kpis/route.ts. On
+// expiry the drawer gets an empty-but-valid history (200) instead of hanging.
+const UNIT_HISTORY_BUDGET_MS = 8000;
+
+/** Degraded/empty unit history — used as the withDbBudget fallback (task #74). */
+const emptyUnitHistory = (): UnitHistoryResult => ({ events: [], trend: [], byType: {} });
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -86,16 +97,31 @@ export async function GET(request: Request) {
 
   // 5. Delegate to the repository. The repository enforces a second-fence scope
   //    check for govt actors and applies the same event predicates as the per-
-  //    unit loaders (no wider scope possible through crafted params).
-  const result = await loadUnitHistory({
-    layer,
-    province,
-    locality: locality ?? null,
-    since,
-    until: asOf ?? until,
-    actor,
-    jurisdictions,
-  });
+  //    unit loaders (no wider scope possible through crafted params). Bounded +
+  //    never throws to the runtime (task #74): budget expiry → empty history
+  //    (200); repository rejection → 503 JSON envelope. Never crashes the lambda.
+  try {
+    const result = await withDbBudget(
+      loadUnitHistory({
+        layer,
+        province,
+        locality: locality ?? null,
+        since,
+        until: asOf ?? until,
+        actor,
+        jurisdictions,
+      }),
+      UNIT_HISTORY_BUDGET_MS,
+      "GET /api/panorama/unit-history",
+      emptyUnitHistory(),
+    );
 
-  return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
+    return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
+  } catch (err) {
+    console.error("[GET /api/panorama/unit-history] failed:", err);
+    return NextResponse.json(
+      { error: "panorama_unit_history_unavailable" },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
+  }
 }

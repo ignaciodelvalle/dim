@@ -16,13 +16,21 @@ import { localityByName } from "@/lib/infra/ar-localidades";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
-import { getLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
+import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
+import {
+  emptyLayerFeatures,
+  getLayerFeatures,
+} from "@/src/modules/panorama/application/get-layer-features";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
 import { clampAsOf, parseAsOf } from "@/src/modules/panorama/domain/time-scrub";
 
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 
 export const dynamic = "force-dynamic";
+
+// Client-side budget for a single layer fetch — see kpis/route.ts for the
+// rationale. On expiry the route returns an empty FeatureCollection (200).
+const LAYER_BUDGET_MS = 8000;
 
 export async function GET(request: Request, ctx: { params: Promise<{ layer: string }> }) {
   const { layer } = await ctx.params;
@@ -94,25 +102,32 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
     profile.role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
 
   // 5. Delegate to the use-case (cap + k-anon enforced inside). The level only
-  // affects the two choropleth layers; point layers ignore it.
-  const result = await getLayerFeatures(
-    layer,
-    actor,
-    scoped,
-    { since, asOf },
-    level,
-    adminProvince,
-    adminLocality,
-  );
+  // affects the two choropleth layers; point layers ignore it. Bounded + never
+  // throws to the runtime (task #74): budget expiry → empty features (200);
+  // fetcher rejection → 503 JSON envelope. Never crashes the lambda.
+  try {
+    const result = await withDbBudget(
+      getLayerFeatures(layer, actor, scoped, { since, asOf }, level, adminProvince, adminLocality),
+      LAYER_BUDGET_MS,
+      `GET /api/panorama/${layer}`,
+      emptyLayerFeatures(),
+    );
 
-  return NextResponse.json(
-    {
-      features: result.features,
-      truncated: result.truncated,
-      suppressedCount: result.suppressedCount,
-      noLocalityCount: result.noLocalityCount ?? 0,
-      level: result.level,
-    },
-    { headers: { "cache-control": "no-store" } },
-  );
+    return NextResponse.json(
+      {
+        features: result.features,
+        truncated: result.truncated,
+        suppressedCount: result.suppressedCount,
+        noLocalityCount: result.noLocalityCount ?? 0,
+        level: result.level,
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
+  } catch (err) {
+    console.error(`[GET /api/panorama/${layer}] failed:`, err);
+    return NextResponse.json(
+      { error: "panorama_layer_unavailable" },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
+  }
 }

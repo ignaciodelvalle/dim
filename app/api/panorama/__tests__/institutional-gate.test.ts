@@ -34,6 +34,14 @@ vi.mock("@/lib/infra/request-cache", () => ({
 const mockGetPanoramaKpis = vi.fn();
 vi.mock("@/src/modules/panorama/application/get-panorama-kpis", () => ({
   getPanoramaKpis: (...args: unknown[]) => mockGetPanoramaKpis(...args),
+  // The route imports degradedPanoramaKpis for its degraded/503 envelope — keep a
+  // faithful stand-in so mocking the module doesn't strip it.
+  degradedPanoramaKpis: () => ({
+    kpis: [],
+    recalculatedFor:
+      "No pudimos cargar los indicadores en este momento. Reintentá en unos segundos.",
+    dataAsOf: null,
+  }),
 }));
 
 import { resolveInstitutionalPanoramaActor } from "../_guard";
@@ -212,5 +220,22 @@ describe("GET /api/panorama/kpis wires the institutional gate", () => {
     const res = await kpisGET(req());
     expect(res.status).toBe(200);
     expect(mockGetPanoramaKpis).toHaveBeenCalledTimes(1);
+  });
+
+  // NEVER-CRASH (task #74): a rejected fan-out must yield a 503 JSON envelope,
+  // never a thrown error that crashes the lambda.
+  it("503s with a JSON error envelope when the KPI use-case rejects", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockGetUser.mockResolvedValue(session());
+    mockGetProfileCached.mockResolvedValue(profile({ role: "admin" }));
+    mockGetPanoramaKpis.mockRejectedValue(new Error("pooler degraded"));
+
+    const res = await kpisGET(req());
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.error).toBe("panorama_kpis_unavailable");
+    // Carries the degraded strip so a caller can still render an honest state.
+    expect(body.kpis).toEqual([]);
+    expect(body.dataAsOf).toBeNull();
   });
 });

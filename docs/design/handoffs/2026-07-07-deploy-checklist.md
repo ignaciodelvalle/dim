@@ -82,6 +82,11 @@ Env vars (Vercel → Project → Settings → Environment Variables), Production
 
 > Cross-check the full var list against your local `.env.local` — anything the app reads at build/runtime must be set in Vercel or the build fails.
 
+> ⚠️ **Runtime `DATABASE_URL` MUST be the TRANSACTION pooler (port `6543`, `...pooler.supabase.com`) — NOT the session pooler (5432), NOT the direct connection.** This is load-bearing for stability, not a preference (task #74 death-spiral fix):
+> - **Serverless is many short-lived lambdas.** The transaction pooler hands a backend to a query only for the duration of that statement/transaction, then returns it — so N concurrent lambdas share a small pool of Postgres backends. That is the ONLY mode a Supabase micro instance survives under real concurrency.
+> - **The session pooler (5432) at runtime is WORSE and was confirmed to make the incident worse live:** each lambda holds its assigned backend for the whole connection lifetime, so warm concurrency exhausts the backend limit, new requests block, queries slow, and lambdas start crashing — the death spiral. Session pooling (5432) is correct ONLY for provisioning/migrations (§2), which need a real sticky session for DDL.
+> - `postgres.js` runs with `prepare:false` precisely so it is transaction-pooler compatible, and `db/index.ts` now sets a small `max`, short `idle_timeout`/`connect_timeout`/`max_lifetime`, and a **server-side `statement_timeout` (15s) forwarded through supavisor transaction mode via the libpq `options` startup parameter** (`-c statement_timeout=15000`). The `options` field is a STANDARD startup field the pooler forwards (a bare `statement_timeout` GUC key is not guaranteed to survive a transaction pooler). Verified locally: `postgres.js` `connection.options` cancels an over-budget query with SQLSTATE `57014` (`canceling statement due to statement timeout`). This is the backstop that CANCELS a runaway query server-side so it releases its pooler slot; the app-level `withDbBudget` bounds the response latency in parallel.
+
 ## 5. Deploy
 - Connect the repo, set the production branch to `integration/all-20260703` (or merge it to `main` first if you prefer `main` as the deploy branch).
 - Framework: Next.js (auto). Build command default. Node 24.

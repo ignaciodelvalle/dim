@@ -14,14 +14,26 @@ import { jurisdictionBounds } from "@/lib/infra/gov-scope";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
-import { getLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
-import { getPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
+import {
+  emptyLayerFeatures,
+  getLayerFeatures,
+} from "@/src/modules/panorama/application/get-layer-features";
+import {
+  degradedPanoramaKpis,
+  getPanoramaKpis,
+} from "@/src/modules/panorama/application/get-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
 
 // Centro de Situación Nacional — gobierno view (jurisdiction scope).
 // govt sees only its assigned jurisdictions (intersection inherited from the
 // scope-aware loaders); admin viewing /gob/* gets universal scope.
 export const dynamic = "force-dynamic";
+
+// Server-render budget for the concurrent fan-outs (task #74). On expiry (or a
+// fetcher rejection, caught below) the page renders a degraded-but-honest state
+// instead of hanging the RSC stream forever (the staging incident).
+const PAGE_BUDGET_MS = 9000;
 
 /** Concise es-AR scope label from the govt's assigned jurisdictions. */
 function scopeLabel(role: string, jurisdictions: AdminOrGovtJurisdiction[]): string {
@@ -105,17 +117,31 @@ export default async function GobPanoramaPage({
   // initialLevel or the console's seeded cache is the wrong one (C2).
   const isScoped = provinceObj !== null || (profile.role !== "admin" && jurisdictions.length > 0);
   const initialLevel = isScoped ? ("locality" as const) : ("province" as const);
+  // Both DB fan-outs are time-bounded AND `.catch`-guarded: withDbBudget degrades
+  // on timeout, the trailing `.catch` degrades on an early fetcher rejection — so
+  // a degraded DB never throws out of this Server Component (it renders the honest
+  // degraded PanoramaShell instead). jurisdictionBounds is a cheap static lookup.
   const [result, kpis, initialBounds] = await Promise.all([
-    getLayerFeatures(
-      "perdidas",
-      actor,
-      scoped,
-      { since },
-      initialLevel,
-      adminProvince,
-      adminLocality,
-    ),
-    getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
+    withDbBudget(
+      getLayerFeatures(
+        "perdidas",
+        actor,
+        scoped,
+        { since },
+        initialLevel,
+        adminProvince,
+        adminLocality,
+      ),
+      PAGE_BUDGET_MS,
+      "gob/panorama layer",
+      emptyLayerFeatures(),
+    ).catch(() => emptyLayerFeatures()),
+    withDbBudget(
+      getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
+      PAGE_BUDGET_MS,
+      "gob/panorama kpis",
+      degradedPanoramaKpis(),
+    ).catch(() => degradedPanoramaKpis()),
     // Govt → bbox of their assigned localities; admin (jurisdictions=[]) → null.
     jurisdictionBounds(jurisdictions),
   ]);
