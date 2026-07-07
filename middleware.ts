@@ -185,10 +185,11 @@ export async function middleware(request: NextRequest) {
   }
 
   const response = await updateSession(request);
-  // Report-only for now: observe + report, never block. Flip this header name
-  // to "Content-Security-Policy" to enforce once the sweep is clean. The early
-  // redirect returns above have no scriptable body, so they need no CSP.
-  response.headers.set("Content-Security-Policy-Report-Only", csp);
+  // Enforcing: a headless CSP-violation sweep across every page type (public,
+  // JSON-LD, maplibre map + OSM tiles, dashboards, print) returned ZERO
+  // violations, so the policy is safe to enforce. The early redirect returns
+  // above have no scriptable body, so they need no CSP.
+  response.headers.set("Content-Security-Policy", csp);
   return response;
 }
 
