@@ -15,6 +15,7 @@ import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { PET_LIBRETA_SHARE_SELECT } from "@/lib/infra/pet-projections";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { petPhotoUrl } from "@/lib/infra/storage";
+import { formatDate, formatDateTime } from "@/lib/utils/format";
 
 import { ViewLogger } from "./ViewLogger";
 
@@ -185,8 +186,7 @@ export default async function PublicLibretaPage({
 
         <LnCallout tone="warn" className="print:hidden">
           Estás viendo la libreta sanitaria de <strong>{pet.name}</strong> con permiso del dueño/a.
-          {share.expiresAt &&
-            ` Este enlace vence el ${share.expiresAt.toLocaleDateString("es-AR")}.`}
+          {share.expiresAt && ` Este enlace vence el ${formatDate(share.expiresAt)}.`}
         </LnCallout>
 
         {/* "Compartido por" chip + relative expiry chip */}
@@ -242,8 +242,8 @@ export default async function PublicLibretaPage({
         />
 
         <footer className="border-t border-[var(--color-ln-line-2)] pt-8 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-          <p>Generada por MiMAR · {new Date().toLocaleString("es-AR")}</p>
-          {share.expiresAt && <p>El enlace vence el {share.expiresAt.toLocaleString("es-AR")}.</p>}
+          <p>Generada por MiMAR · {formatDateTime(new Date())}</p>
+          {share.expiresAt && <p>El enlace vence el {formatDateTime(share.expiresAt)}.</p>}
           <p className="mt-1 text-xs">Token: {shareToken}</p>
         </footer>
 
@@ -275,7 +275,7 @@ function TerminalShell({
 }) {
   const speciesLabel =
     context.species === "dog" ? "Canino" : context.species === "cat" ? "Felino" : "Mascota";
-  const createdAt = new Date(context.createdAtIso).toLocaleDateString("es-AR");
+  const createdAt = formatDate(context.createdAtIso);
   return (
     // Landing shell owns #main-content + min-height; this is centered content.
     <div className="flex min-h-[70vh] items-center justify-center bg-[var(--color-ln-paper)] p-6">
@@ -338,7 +338,7 @@ function RevokedView({ context }: { context: TerminalPetContext }) {
 function ExpiredView({ context }: { context: TerminalPetContext }) {
   // Item 24.2: show the exact expiry date per spec ("venció el {fecha}").
   const expiryLabel = context.expiresAtIso
-    ? `venció el ${new Date(context.expiresAtIso).toLocaleDateString("es-AR")}`
+    ? `venció el ${formatDate(context.expiresAtIso)}`
     : "ya venció";
 
   return (
