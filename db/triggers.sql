@@ -9,12 +9,20 @@
 -- and ALSO seed a welcome notification so the user has something in their
 -- notifications inbox on first login.
 --
--- Reads from auth.users.raw_user_meta_data:
---   - display_name   (optional) → falls back to local-part of email
---   - user_role      (optional) → falls back to 'owner' (the default for
---                                 self-serve signups; vet/govt accounts are
---                                 created via admin-driven flows that set this
---                                 metadata explicitly).
+-- Reads:
+--   - display_name (optional) from raw_user_meta_data → falls back to the
+--                             local-part of email. user_metadata is fine for
+--                             a display name (non-privileged).
+--   - user_role    (optional) from raw_APP_meta_data → falls back to 'owner'.
+--                             SECURITY (CRITICAL-1): the role is read from
+--                             raw_app_meta_data, NOT raw_user_meta_data.
+--                             user_metadata is client-writable via the public
+--                             anon key (supabase.auth.signUp({ options: { data
+--                             }})), so trusting it here let ANY self-serve
+--                             signup mint an admin. app_metadata is writable
+--                             ONLY by the service role. The value is validated
+--                             against the user_role enum and falls back to
+--                             'owner' on anything unexpected. See migration 0133.
 --
 -- TODO(25b): when Mi Argentina OIDC lands, wire additional metadata keys:
 --   - miarg_sub     → profiles.miarg_sub
@@ -35,19 +43,29 @@ set search_path = ''
 as $$
 declare
   resolved_display_name text;
+  requested_role text;
+  resolved_role public.user_role;
 begin
   resolved_display_name := coalesce(
     new.raw_user_meta_data->>'display_name',
     split_part(new.email, '@', 1)
   );
 
+  -- Role is read from app_metadata (service-role-only), never user_metadata
+  -- (client-writable). Validate against the allowed set and fall back to
+  -- 'owner' on anything unexpected — an invalid cast would otherwise abort the
+  -- whole signup insert.
+  requested_role := nullif(new.raw_app_meta_data->>'user_role', '');
+  resolved_role := case
+    when requested_role in ('owner', 'vet', 'govt', 'admin')
+      then requested_role::public.user_role
+    else 'owner'::public.user_role
+  end;
+
   insert into public.profiles (id, role, display_name)
   values (
     new.id,
-    coalesce(
-      nullif(new.raw_user_meta_data->>'user_role', '')::public.user_role,
-      'owner'::public.user_role
-    ),
+    resolved_role,
     resolved_display_name
   );
 
