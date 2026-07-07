@@ -14,13 +14,46 @@ Ignacio runs these locally on Windows. Run top to bottom. Each `!`-prefixed line
    - **Pooler / Transaction** (port 6543, `...pooler.supabase.com`) — for the app at runtime.
 3. From **Project Settings → API**, copy: `Project URL`, `anon` key, `service_role` key.
 
-## 2. Run migrations against the fresh DB (the DIM runner, NOT the Supabase MCP)
+## 2. Remote provision (the working sequence) — psql-free, the DIM runner NOT the Supabase MCP
+
+> ⚠️ **Do NOT use `pnpm db:bootstrap` against a remote DB.** It shells out to `psql`, which connects to the LOCAL socket / 127.0.0.1 and ignores `DATABASE_URL` (and isn't installed on Windows). The numbered migrations are also NOT self-contained (0000 references `public.ownership_role` before it exists) — they assume `db:push` ran first. Use the remote-safe provisioner below.
+
+`pnpm deploy:provision` (`scripts/deploy-provision.ts`) is the psql-free, idempotent equivalent of `db:bootstrap`. It uses **postgres.js only** (`client.unsafe(...)`), so `DATABASE_URL` is always honored. It refuses to run without the `--target remote` confirmation (destructive at every step) and is safe to re-run.
+
 ```
-# From C:\dev\dim, using the DIRECT (5432) string:
-DATABASE_URL="postgresql://postgres:<pw>@db.<ref>.supabase.co:5432/postgres" pnpm db:bootstrap
-DATABASE_URL="postgresql://postgres:<pw>@db.<ref>.supabase.co:5432/postgres" pnpm db:migrate
+# From C:\dev\dim, using the SESSION pooler (5432) string — see the pooler note below.
+# Export all three vars first (PowerShell: $env:DATABASE_URL="..." etc.):
+#   DATABASE_URL              → SESSION pooler, port 5432
+#   SUPABASE_URL              → the Project URL (aliased to NEXT_PUBLIC_SUPABASE_URL for the seeds)
+#   SUPABASE_SERVICE_ROLE_KEY → the service_role key
+
+DATABASE_URL="postgresql://postgres.<ref>:<pw>@aws-0-<region>.pooler.supabase.com:5432/postgres" \
+SUPABASE_URL="https://<ref>.supabase.co" \
+SUPABASE_SERVICE_ROLE_KEY="<service_role>" \
+  pnpm deploy:provision --target remote
+
+# Then reconcile the migration ledger (a correct no-op after provision baselines it):
+DATABASE_URL="postgresql://postgres.<ref>:<pw>@aws-0-<region>.pooler.supabase.com:5432/postgres" pnpm db:migrate
 ```
-Expect: the runner applies `0001…0134` in order and records each in `_dim_migrations` with a sha256. If it reports a checksum mismatch or a gap, STOP and tell Claude — do NOT force it.
+
+**Preview first:** add `--dry-run` to print the full plan without touching the DB. Flags: `--reference-only` (skip the `@dim.test` accounts — use for a real prod DB), `--no-seeds` / `--schema-only` (schema + SQL only).
+
+### What the provisioner does (mirrors `db:bootstrap`, psql-free)
+1. **`pnpm db:push`** — drizzle-kit builds enums + the ~46 tables from `schema.ts` (respects `DATABASE_URL`).
+2. **Best-effort replay of `db/migrations/*.sql`** via postgres.js — lands the bits `schema.ts` can't express: SQL functions (e.g. `can_read_case()`, which the loose RLS files call), CHECK constraints, triggers. "already exists" errors are expected (step 1 built the columns) and tolerated per file.
+3. **Apply the loose `db/*.sql`** via `client.unsafe`, best-effort per file, in order: `triggers.sql → storage.sql → welfare_storage.sql → exports_storage.sql → cases_rls.sql → foster_rls.sql → organizations_rls.sql → scheduling_rls.sql → welfare_rls.sql`. `db/rls.sql` is **deliberately excluded** (it needs `can_read_case()` and is superseded by the migration-tree RLS + per-domain files).
+4. **Baseline `public._dim_migrations`** (`db:migrate:baseline`) so a later `pnpm db:migrate` is a correct no-op instead of re-applying 0000 onward against a populated schema.
+5. **Seed reference data + accounts** — invokes `import-indec-localities`, `import-caba-barrios` and (unless `--reference-only`) `seed-test-users`, each launched through the server-only stub with `--allow-remote`:
+   `node --import ./scripts/register-server-only-stub.mjs --import tsx <script> --allow-remote`
+
+The reference imports now do **chunked multi-row inserts** (INDEC's ~4027 localities were previously ~4k SELECTs + ~4k INSERTs row-by-row — minutes over the pooler, and one run got killed mid-way). Seeding a fresh remote DB is now fast.
+
+### Session vs transaction pooler (get this right or provisioning hangs/fails)
+- **Provisioning + migrations use the SESSION pooler (port `5432`).** `db:push` and DDL (functions, triggers, `ALTER TYPE ... ADD VALUE`) need a real, sticky session — the transaction pooler recycles the connection per statement and breaks them.
+- **The app at runtime uses the TRANSACTION pooler (port `6543`, `...pooler.supabase.com`)** — set as `DATABASE_URL` in Vercel (see §4). postgres.js runs with `prepare:false` precisely so it's compatible with the transaction pooler.
+- **IPv4 / IPv6 caveat:** the *direct* connection (`db.<ref>.supabase.co:5432`) is **IPv6-only** unless you buy the IPv4 add-on. Most Windows/home networks are IPv4 — so prefer the **pooler** host (`aws-0-<region>.pooler.supabase.com`, which is IPv4-reachable) for both the SESSION (5432) provisioning string and the TRANSACTION (6543) runtime string. If a direct `db.<ref>...` URL times out with `ENETUNREACH`/no route, that's the IPv6 issue — switch to the pooler host.
+
+Expect: `db:migrate` reports every migration already applied (baselined) and exits 0. If it reports a checksum mismatch or a gap, STOP and tell Claude — do NOT force it.
 
 > Do NOT use the Supabase dashboard SQL editor or the MCP `apply_migration` for these — they bypass the DIM ledger and desync the runner.
 
@@ -53,6 +86,8 @@ Env vars (Vercel → Project → Settings → Environment Variables), Production
 - Connect the repo, set the production branch to `integration/all-20260703` (or merge it to `main` first if you prefer `main` as the deploy branch).
 - Framework: Next.js (auto). Build command default. Node 24.
 - Deploy. Watch the build log — if it fails on a missing env var, add it and redeploy.
+
+> **Crons need Vercel Pro.** The Hobby (free) plan caps `vercel.json` cron jobs at **once per day** and will reject a sub-daily schedule at deploy time. The DIM cron fleet (reminder fanout, ENO processing, rabies-observation close, slot materialization, etc.) runs more frequently than daily, so the project needs **Vercel Pro** for the crons to schedule. On Hobby the app still deploys and serves — only the scheduled jobs won't fire at their intended cadence.
 
 ## 6. Post-deploy smoke (do before handing the URL to the real user)
 - `/` loads; `/login` → log in as a seeded account (or create a real one).
