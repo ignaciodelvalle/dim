@@ -64,13 +64,30 @@ async function requireAdminUser(): Promise<{ userId: string } | { error: string 
   } = await supabase.auth.getUser();
   if (error || !user) return { error: "Sesión expirada" };
 
+  // Full-invariant admin check (aligned with requireAdminOrRedirect): role +
+  // accountType==='institutional' + deactivatedAt IS NULL + deletedAt IS NULL.
+  // Adding accountType + deletedAt closes the gap where a personal-type or
+  // ERASED (soft-deleted, session still valid — Ley 25.326 art. 16) account
+  // whose role column still read 'admin' passed the earlier role+deactivated
+  // check.
   const [profile] = await db
-    .select({ role: profiles.role, deactivatedAt: profiles.deactivatedAt })
+    .select({
+      role: profiles.role,
+      accountType: profiles.accountType,
+      deactivatedAt: profiles.deactivatedAt,
+      deletedAt: profiles.deletedAt,
+    })
     .from(profiles)
     .where(eq(profiles.id, user.id))
     .limit(1);
 
-  if (!profile || profile.role !== "admin" || profile.deactivatedAt !== null) {
+  if (
+    !profile ||
+    profile.role !== "admin" ||
+    profile.accountType !== "institutional" ||
+    profile.deactivatedAt !== null ||
+    profile.deletedAt !== null
+  ) {
     return { error: "Acceso restringido a administradores" };
   }
   return { userId: user.id };

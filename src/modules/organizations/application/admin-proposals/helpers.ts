@@ -23,18 +23,26 @@ export async function loadActorAuthority(
     .select({
       id: profiles.id,
       role: profiles.role,
+      accountType: profiles.accountType,
       deactivatedAt: profiles.deactivatedAt,
+      deletedAt: profiles.deletedAt,
     })
     .from(profiles)
     .where(eq(profiles.id, actorUserId))
     .limit(1);
-  if (!profile || (profile.role !== "admin" && profile.role !== "govt")) {
+  if (
+    !profile ||
+    (profile.role !== "admin" && profile.role !== "govt") ||
+    profile.accountType !== "institutional"
+  ) {
     return { error: "Solo govt o admin pueden proponer cambios." };
   }
-  // AC1 defense-in-depth: deactivated authorities cannot propose changes, even
-  // if the inner writer is reached directly (the /gob guard already rejects
-  // them at the request boundary; this mirrors that at the data layer).
-  if (profile.deactivatedAt !== null) {
+  // AC1 defense-in-depth: deactivated OR erased (soft-deleted, session still
+  // valid — Ley 25.326 art. 16) authorities cannot propose changes, even if the
+  // inner writer is reached directly (the /gob guard already rejects them at the
+  // request boundary; this mirrors that — role + accountType + deactivatedAt +
+  // deletedAt — at the data layer).
+  if (profile.deactivatedAt !== null || profile.deletedAt !== null) {
     return { error: "La cuenta está desactivada." };
   }
   return {
