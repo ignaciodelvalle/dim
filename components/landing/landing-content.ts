@@ -57,7 +57,7 @@ export const ACTORS: LandingActor[] = [
     tone: "neutral",
     icon: "vet",
     name: "Veterinario",
-    does: "Firma eventos con su matrícula validada.",
+    does: "Firma vacunas y diagnósticos.",
   },
   {
     key: "org",
@@ -342,7 +342,7 @@ export const LIFE_MOMENTS: LifeMoment[] = [
   {
     icon: "candado",
     title: "No quiero exponer mis datos",
-    body: "El QR muestra lo justo para ayudar. Tu identidad nunca se publica.",
+    body: "Vos decidís qué se muestra; tu identidad nunca se publica.",
   },
   {
     icon: "corazon",
@@ -352,7 +352,7 @@ export const LIFE_MOMENTS: LifeMoment[] = [
   {
     icon: "transferencia",
     title: "Cambió de familia",
-    body: "Cada tránsito, adopción y transferencia queda registrada de punta a punta.",
+    body: "Cada tránsito, adopción y transferencia queda registrada.",
   },
 ];
 
@@ -367,7 +367,7 @@ export const FAQS: Array<[string, string]> = [
   ],
   [
     "¿Quién ve los datos de mi mascota?",
-    "Vos ves todo. Quien escanea el QR ve solo lo que decidiste compartir — y tu identidad no se publica nunca. Cada profesional u organización accede según su rol.",
+    "Vos ves todo. Quien escanea el QR ve solo lo que decidiste compartir. Cada profesional u organización accede según su rol.",
   ],
   [
     "¿Necesito microchip?",
@@ -375,7 +375,7 @@ export const FAQS: Array<[string, string]> = [
   ],
   [
     "¿Reemplaza la libreta de papel?",
-    "Tiene la misma información, firmada por profesionales con matrícula validada. Mientras la homologación avanza jurisdicción por jurisdicción, conservá también la de papel.",
+    "Tiene la misma información, firmada digitalmente. Mientras la homologación avanza jurisdicción por jurisdicción, conservá también la de papel.",
   ],
   [
     "¿Y si me roban el teléfono?",
@@ -405,7 +405,7 @@ export const ROLES: LandingRole[] = [
     icon: "corazon",
     eyebrow: "Soy dueño",
     title: "miMAR para tu mascota",
-    body: "Identidad pública con QR, historial sanitario y modo perdido. Gratis, para toda su vida.",
+    body: "Identidad pública con QR, historial sanitario y modo perdido. Gratis.",
     cta: "Crear cuenta",
     ctaHref: "/signup",
     cta2: "Ya tengo cuenta",
@@ -450,6 +450,7 @@ export const FOOTER_NAV: Array<[string, Array<[string, string]>]> = [
     "Institucional",
     [
       ["Acerca de miMAR", "/acerca"],
+      ["Funcionalidades", "/funcionalidades"],
       ["Marco legal", "/leyes"],
       ["Privacidad", "/privacidad"],
       ["Términos", "/terminos"],
