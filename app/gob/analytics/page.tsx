@@ -62,7 +62,15 @@ export default async function GobAnalyticsPage({
         <LnEmptyState
           icon="lock"
           title="Sin acceso"
-          description="Tu rol no tiene acceso a analytics. Pedile al admin que te asigne capabilities."
+          description="Tu rol no tiene acceso a analytics. Un administrador debe asignarte las capacidades correspondientes."
+          action={
+            <a
+              className="text-sm text-[var(--color-ln-azul)] underline underline-offset-4"
+              href="mailto:hola@mimar.ar?subject=MiMAR%20%E2%80%94%20Acceso%20a%20analytics"
+            >
+              Solicitar acceso
+            </a>
+          }
         />
       </div>
     );

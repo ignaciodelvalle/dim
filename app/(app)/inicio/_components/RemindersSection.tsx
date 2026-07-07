@@ -99,6 +99,11 @@ export function RemindersSection({
 }: {
   reminders: ActiveReminderRow[];
 }) {
+  // Intentional: this is an additive urgency surface above the capture card, not a
+  // section that owns its own slot. No pending reminders is the healthy default, the
+  // greeting already carries the urgency count, and the sibling IntentApplyBanner
+  // renders nothing when empty too — so we render nothing rather than a "Sin
+  // recordatorios" card that would add noise for the common case.
   if (reminders.length === 0) return null;
 
   // Single reminder → inline banner with CTA.

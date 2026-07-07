@@ -166,8 +166,15 @@ export default async function GobPerdidasPage({
       {/* No-scope warning */}
       {noScope && (
         <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-[13px] text-ln-op-warn">
-          Tu cuenta no tiene localidades asignadas. Pedile a un administrador que te asigne al menos
-          una.
+          Tu cuenta no tiene localidades asignadas. Un administrador debe asignarte al menos una
+          para ver casos.{" "}
+          <a
+            href="mailto:hola@mimar.ar?subject=MiMAR%20%E2%80%94%20Asignaci%C3%B3n%20de%20localidad"
+            className="underline underline-offset-4"
+          >
+            Solicitar asignación
+          </a>
+          .
         </div>
       )}
 
