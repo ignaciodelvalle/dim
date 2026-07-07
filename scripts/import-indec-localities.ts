@@ -43,11 +43,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { parse } from "csv-parse/sync";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import {
   type ArgentineLocalityCategory,
   type ArgentineLocalitySource,
+  type NewArgentineLocality,
   arLocalities,
   arLocalitiesImportRuns,
   db,
@@ -232,7 +233,29 @@ export async function runImport(options?: {
     });
     console.log(`Parsed ${records.length} CSV rows`);
 
-    // 4. Upsert each row.
+    // 4. Categorize + upsert.
+    //
+    // Remote latency makes per-row round-trips brutally slow (INDEC ships ~4027
+    // localities → ~4k SELECTs + ~4k INSERTs when seeding a fresh DB, which took
+    // minutes over the pooler and got killed mid-run). Instead we:
+    //   (a) pre-fetch the whole catalog ONCE and index it by indec_id, so the
+    //       existence check is an in-memory Map lookup (no per-row SELECT);
+    //   (b) collect fresh rows and flush them in chunked multi-row INSERTs.
+    // Updates stay per-row: on a fresh seed there are none (all inserts), and on
+    // a re-run against an unchanged CSV every row is a no-op, so the hot paths
+    // never issue a per-row write. Only a genuinely changed CSV drives updates,
+    // and those are few.
+    const existingCatalog = await db.select().from(arLocalities);
+    const existingByIndecId = new Map<string, (typeof existingCatalog)[number]>();
+    for (const r of existingCatalog) {
+      if (r.indecId) existingByIndecId.set(r.indecId, r);
+    }
+
+    // Rows to insert this run, plus the indec_ids already queued — guards against
+    // a (pathological) duplicate id in the CSV double-counting / double-inserting.
+    const toInsert: NewArgentineLocality[] = [];
+    const queuedInsertIds = new Set<string>();
+
     for (const [idx, row] of records.entries()) {
       const indecId = row.id;
       const localityName = row.nombre;
@@ -265,11 +288,7 @@ export async function runImport(options?: {
       const latitude = parseCoordinate(row.centroide_lat);
       const longitude = parseCoordinate(row.centroide_lon);
 
-      const existingRows = await db
-        .select()
-        .from(arLocalities)
-        .where(eq(arLocalities.indecId, indecId));
-      const existing = existingRows[0];
+      const existing = existingByIndecId.get(indecId);
 
       if (existing) {
         const isDifferent =
@@ -305,48 +324,66 @@ export async function runImport(options?: {
         } else {
           stats.noop += 1;
         }
+      } else if (queuedInsertIds.has(indecId)) {
+        // Same indec_id appeared twice in this CSV — the first occurrence is
+        // already queued; treat the repeat as a no-op rather than double-insert.
+        stats.noop += 1;
       } else {
-        if (!dryRun) {
-          await db.insert(arLocalities).values({
-            provinceCode,
-            departmentName: departamentoNombre,
-            departmentCode: departamentoCode,
-            localityName,
-            localitySlug: slug,
-            indecId,
-            category,
-            latitude,
-            longitude,
-            source,
-            sourceVersion,
-          });
-        }
+        queuedInsertIds.add(indecId);
+        toInsert.push({
+          provinceCode,
+          departmentName: departamentoNombre,
+          departmentCode: departamentoCode,
+          localityName,
+          localitySlug: slug,
+          indecId,
+          category,
+          latitude,
+          longitude,
+          source,
+          sourceVersion,
+        });
         stats.inserted += 1;
+      }
+    }
+
+    // 4b. Flush inserts in chunked multi-row INSERTs. onConflictDoNothing on the
+    // unique indec_id keeps this idempotent even under a concurrent re-run.
+    if (!dryRun && toInsert.length > 0) {
+      const INSERT_CHUNK = 500;
+      for (let i = 0; i < toInsert.length; i += INSERT_CHUNK) {
+        const chunk = toInsert.slice(i, i + INSERT_CHUNK);
+        await db.insert(arLocalities).values(chunk).onConflictDoNothing({
+          target: arLocalities.indecId,
+        });
       }
     }
 
     // 5. Soft-delete rows tagged with THIS run's source that no longer appear
     // in the CSV. Scoping by source keeps tests with a custom source from
     // mutating the live indec_cppdyl catalog, and manually-curated rows
-    // (source='manual') are never touched.
+    // (source='manual') are never touched. We reuse the pre-fetched catalog
+    // snapshot (rows inserted this run are all present in the CSV, so they are
+    // never removal candidates) and flush the removals in one chunked UPDATE.
     const importedIndecIds = new Set(records.map((r) => r.id).filter(Boolean));
-    const fromIndec = await db
-      .select({
-        id: arLocalities.id,
-        indecId: arLocalities.indecId,
-        removedAt: arLocalities.removedAt,
-      })
-      .from(arLocalities)
-      .where(eq(arLocalities.source, source));
-    for (const e of fromIndec) {
-      if (e.indecId && !importedIndecIds.has(e.indecId) && e.removedAt === null) {
-        if (!dryRun) {
-          await db
-            .update(arLocalities)
-            .set({ removedAt: new Date() })
-            .where(eq(arLocalities.id, e.id));
-        }
-        stats.removed += 1;
+    const toRemoveIds: string[] = [];
+    for (const e of existingCatalog) {
+      if (
+        e.source === source &&
+        e.indecId &&
+        !importedIndecIds.has(e.indecId) &&
+        e.removedAt === null
+      ) {
+        toRemoveIds.push(e.id);
+      }
+    }
+    stats.removed = toRemoveIds.length;
+    if (!dryRun && toRemoveIds.length > 0) {
+      const REMOVE_CHUNK = 500;
+      const removedAt = new Date();
+      for (let i = 0; i < toRemoveIds.length; i += REMOVE_CHUNK) {
+        const chunk = toRemoveIds.slice(i, i + REMOVE_CHUNK);
+        await db.update(arLocalities).set({ removedAt }).where(inArray(arLocalities.id, chunk));
       }
     }
 

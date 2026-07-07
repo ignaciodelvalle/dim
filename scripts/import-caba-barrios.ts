@@ -21,7 +21,7 @@
 //   readily computable later when the city portal API is wired in.
 // - indec_id stays null — these rows don't come from INDEC.
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import {
   type ArgentineLocalitySource,
@@ -118,9 +118,54 @@ export async function runImport(options?: { dryRun?: boolean }): Promise<Stats> 
   console.log(`Started CABA barrios import run ${run.id} (dryRun=${dryRun})`);
 
   try {
+    // Pre-fetch the active AR-C catalog ONCE and index it by slug, so the
+    // per-barrio existence check is an in-memory lookup instead of 48 SELECTs
+    // over remote latency. Inserts are flushed in a single multi-row INSERT and
+    // no-op touches (last_imported_at bump) collapse into one batched UPDATE.
+    const existingRows = await db
+      .select()
+      .from(arLocalities)
+      .where(and(eq(arLocalities.provinceCode, PROVINCE_CODE), isNull(arLocalities.removedAt)));
+    const existingBySlug = new Map<string, (typeof existingRows)[number]>();
+    for (const r of existingRows) existingBySlug.set(r.localitySlug, r);
+
+    const toInsert: NewArgentineLocality[] = [];
+    const toTouchIds: string[] = [];
+    const now = new Date();
+
     for (const localityName of CABA_BARRIOS) {
       const slug = slugify(localityName);
-      const row: NewArgentineLocality = {
+      const existing = existingBySlug.get(slug);
+
+      if (existing) {
+        // Already there. Bump last_imported_at + migrate source/version if it
+        // came in via a different ingest path. Otherwise no-op (touch only).
+        const needsUpdate =
+          existing.source !== SOURCE ||
+          existing.category !== CATEGORY ||
+          existing.localityName !== localityName;
+        if (needsUpdate) {
+          if (!dryRun) {
+            await db
+              .update(arLocalities)
+              .set({
+                source: SOURCE,
+                sourceVersion: "1.777",
+                category: CATEGORY,
+                localityName,
+                lastImportedAt: now,
+              })
+              .where(eq(arLocalities.id, existing.id));
+          }
+          stats.updated += 1;
+        } else {
+          toTouchIds.push(existing.id);
+          stats.noop += 1;
+        }
+        continue;
+      }
+
+      toInsert.push({
         provinceCode: PROVINCE_CODE,
         departmentName: null,
         departmentCode: null,
@@ -132,60 +177,22 @@ export async function runImport(options?: { dryRun?: boolean }): Promise<Stats> 
         longitude: null,
         source: SOURCE,
         sourceVersion: "1.777",
-      };
+      });
+      stats.inserted += 1;
+    }
 
-      try {
-        // Idempotency: look up by (province_code, locality_slug) NOT removed.
-        const [existing] = await db
-          .select()
-          .from(arLocalities)
-          .where(
-            sql`${arLocalities.provinceCode} = ${PROVINCE_CODE} and ${arLocalities.localitySlug} = ${slug} and ${arLocalities.removedAt} is null`,
-          )
-          .limit(1);
-
-        if (existing) {
-          // Already there. Update last_imported_at + bump source/version if
-          // it migrated from a different ingest path. Otherwise no-op.
-          const needsUpdate =
-            existing.source !== SOURCE ||
-            existing.category !== CATEGORY ||
-            existing.localityName !== localityName;
-          if (needsUpdate) {
-            if (!dryRun) {
-              await db
-                .update(arLocalities)
-                .set({
-                  source: SOURCE,
-                  sourceVersion: "1.777",
-                  category: CATEGORY,
-                  localityName,
-                  lastImportedAt: new Date(),
-                })
-                .where(eq(arLocalities.id, existing.id));
-            }
-            stats.updated += 1;
-          } else {
-            if (!dryRun) {
-              await db
-                .update(arLocalities)
-                .set({ lastImportedAt: new Date() })
-                .where(eq(arLocalities.id, existing.id));
-            }
-            stats.noop += 1;
-          }
-          continue;
-        }
-
-        if (!dryRun) {
-          await db.insert(arLocalities).values(row);
-        }
-        stats.inserted += 1;
-      } catch (err) {
-        stats.errors.push({
-          name: localityName,
-          reason: err instanceof Error ? err.message : "unknown",
-        });
+    if (!dryRun) {
+      // No unique constraint spans (province, slug) for these rows (indec_id is
+      // NULL, so onConflict has no target) — idempotency is guaranteed by the
+      // pre-filter above, which only queues barrios not already present.
+      if (toInsert.length > 0) {
+        await db.insert(arLocalities).values(toInsert);
+      }
+      if (toTouchIds.length > 0) {
+        await db
+          .update(arLocalities)
+          .set({ lastImportedAt: now })
+          .where(inArray(arLocalities.id, toTouchIds));
       }
     }
 
