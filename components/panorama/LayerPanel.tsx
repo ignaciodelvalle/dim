@@ -91,7 +91,7 @@ export function LayerPanel({
                 return (
                   <li key={layer.id}>
                     <label
-                      className={`flex items-center gap-2.5 rounded-[var(--radius-md)] px-1.5 py-1 text-sm text-ln-op-ink-2 ${
+                      className={`flex min-h-11 items-center gap-2.5 rounded-[var(--radius-md)] px-1.5 py-1 text-sm text-ln-op-ink-2 ${
                         isBlocked
                           ? "cursor-not-allowed opacity-40"
                           : "cursor-pointer hover:bg-ln-op-card"
