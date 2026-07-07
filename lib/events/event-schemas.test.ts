@@ -307,3 +307,125 @@ describe("microchip_replaced payload schema (merged with revoked)", () => {
     ).toThrow();
   });
 });
+
+describe("custody_transferred payload schema (org + P2P union)", () => {
+  const U1 = "11111111-1111-4111-8111-111111111111";
+  const U2 = "22222222-2222-4222-8222-222222222222";
+  const ORG1 = "33333333-3333-4333-8333-333333333333";
+  const ORG2 = "44444444-4444-4444-8444-444444444444";
+
+  // --- P2P owner→owner variant (the bug: this shape used to be rejected) ---
+
+  it("accepts the owner→owner P2P payload (from/to user, owner roles, transfer_token)", () => {
+    expect(() =>
+      validateEventPayload("custody_transferred", {
+        payload_version: 1,
+        from_user_id: U1,
+        to_user_id: U2,
+        from_role: "owner",
+        to_role: "owner",
+        reason: "gift",
+        transfer_token: "PTR-8M3K-2K43",
+      }),
+    ).not.toThrow();
+  });
+
+  it("accepts every P2P reason (sale/gift/inheritance/other)", () => {
+    for (const reason of ["sale", "gift", "inheritance", "other"] as const) {
+      expect(() =>
+        validateEventPayload("custody_transferred", {
+          payload_version: 1,
+          from_user_id: U1,
+          to_user_id: U2,
+          from_role: "owner",
+          to_role: "owner",
+          reason,
+          transfer_token: "PTR-XXXX-YYYY",
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it("rejects a P2P payload missing the required owner roles", () => {
+    expect(() =>
+      validateEventPayload("custody_transferred", {
+        payload_version: 1,
+        from_user_id: U1,
+        to_user_id: U2,
+        reason: "gift",
+        transfer_token: "PTR-8M3K-2K43",
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a P2P payload whose reason is not a P2P reason", () => {
+    expect(() =>
+      validateEventPayload("custody_transferred", {
+        payload_version: 1,
+        from_user_id: U1,
+        to_user_id: U2,
+        from_role: "owner",
+        to_role: "owner",
+        reason: "org_to_org_handoff",
+        transfer_token: "PTR-8M3K-2K43",
+      }),
+    ).toThrow();
+  });
+
+  // --- Org/custody variant still validates unchanged ---
+
+  it("still accepts the org→org custody handoff payload", () => {
+    expect(() =>
+      validateEventPayload("custody_transferred", {
+        payload_version: 1,
+        from_user_id: null,
+        from_organization_id: ORG1,
+        to_user_id: null,
+        to_organization_id: ORG2,
+        from_role: "shelter_custody",
+        to_role: "shelter_custody",
+        reason: "org_to_org_handoff",
+        matched_against_pet_id: null,
+        foster_ended_event_id: null,
+        notes: null,
+      }),
+    ).not.toThrow();
+  });
+
+  it("still accepts the org→owner return-to-owner payload", () => {
+    expect(() =>
+      validateEventPayload("custody_transferred", {
+        payload_version: 1,
+        from_user_id: null,
+        from_organization_id: ORG1,
+        to_user_id: U1,
+        to_organization_id: null,
+        from_role: "shelter_custody",
+        to_role: "owner",
+        reason: "return_to_original_owner",
+        matched_against_pet_id: null,
+        foster_ended_event_id: null,
+        notes: null,
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects an org payload carrying a P2P-only transfer_token key (strict)", () => {
+    expect(() =>
+      validateEventPayload("custody_transferred", {
+        payload_version: 1,
+        from_user_id: null,
+        from_organization_id: ORG1,
+        to_user_id: null,
+        to_organization_id: ORG2,
+        from_role: "shelter_custody",
+        to_role: "shelter_custody",
+        reason: "org_to_org_handoff",
+        matched_against_pet_id: null,
+        foster_ended_event_id: null,
+        notes: null,
+        transfer_token: "PTR-should-not-be-here",
+      }),
+    ).toThrow();
+  });
+});

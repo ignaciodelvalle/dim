@@ -1222,6 +1222,48 @@ const custodyTransferred = z
     { message: "at most one of to_user_id / to_organization_id may be set" },
   );
 
+// P2P owner→owner transfer reasons. Mirrors OWNER_TRANSFER_REASONS in the
+// transfers domain (src/modules/transfers/domain/types.ts) — kept inline so
+// lib/events stays free of src/modules imports (dependency direction).
+const p2pTransferReason = z.enum(["sale", "gift", "inheritance", "other"]);
+
+// Custody transferred — owner→owner peer-to-peer variant. A MiMAR citizen
+// gifts / sells / bequeaths a pet to another citizen through the PTR
+// proposal→accept handshake (src/modules/transfers/application/accept-pet-transfer).
+// BOTH actors hold the `owner` role, the `reason` comes from the P2P reason set
+// (sale/gift/inheritance/other), and the payload carries the PTR `transfer_token`
+// linking back to the pet_transfers proposal row. This is a genuinely distinct
+// shape from the org/custody variant above (which carries org ids, the org
+// handoff reason set, and the foster-cascade fields foster_ended_event_id/notes),
+// so custody_transferred validates as a UNION of the two.
+//
+// Why z.union and not z.discriminatedUnion: the two variants share no single
+// literal discriminator key — what distinguishes them is the presence of
+// `transfer_token` / the owner→owner shape. A real discriminated union would
+// force adding a discriminator field to every org emitter (accept-cross-org,
+// return-to-owner, decomiso, disputes, foster, intake), which is both invasive
+// and cross-lane. Keeping the org variant byte-for-byte unchanged means no org
+// emitter changes; the strict() on each variant makes the two mutually
+// exclusive (an org payload fails the P2P strict shape and vice versa).
+const custodyTransferredP2P = z
+  .object(
+    withVersion({
+      from_user_id: z.string().uuid(),
+      to_user_id: z.string().uuid(),
+      from_role: z.literal("owner"),
+      to_role: z.literal("owner"),
+      reason: p2pTransferReason,
+      transfer_token: z.string(),
+    }),
+  )
+  .strict();
+
+// custody_transferred is polymorphic across two legitimate channels:
+// org/custody handoffs (custodyTransferred) OR owner→owner P2P
+// (custodyTransferredP2P). Org variant is listed first so org payloads validate
+// against the unchanged shape.
+const custodyTransferredEvent = z.union([custodyTransferred, custodyTransferredP2P]);
+
 // Ownership claimed — direct claim of a free pet (claim wizard variant
 // "free"). The pet is chip/tattoo-registered but has NO active custody of any
 // role, so there is no "from" actor and custody_transferred does not apply
@@ -1622,7 +1664,7 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   adoption_application_submitted: adoptionApplicationSubmitted,
   adoption_application_resolved: adoptionApplicationResolved,
   post_adoption_checkin: postAdoptionCheckin,
-  custody_transferred: custodyTransferred,
+  custody_transferred: custodyTransferredEvent,
   ownership_claimed: ownershipClaimed,
   custody_transfer_proposed: custodyTransferProposed,
   custody_transfer_cancelled: custodyTransferCancelled,

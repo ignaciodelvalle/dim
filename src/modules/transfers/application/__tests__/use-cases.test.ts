@@ -5,6 +5,7 @@
 // Each describe block covers one use-case; guards are tested per spec R1-R11.
 
 import { randomUUID } from "node:crypto";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TransfersRepository } from "../../infrastructure/transfers-repository";
 
@@ -483,6 +484,121 @@ describe("acceptPetTransfer", () => {
     const n = r.notifications.find((n) => n.notificationType === "pet_transfer_accepted");
     expect(n).toBeDefined();
     expect(n?.userId).toBe("user-sender");
+  });
+
+  // -------------------------------------------------------------------------
+  // Event-integrity regression (staging bug, PTR-8M3K-2K43): the emitted
+  // custody_transferred payload MUST pass the REAL event schema. The other
+  // tests here mock insertPetEvent, so they never exercised validation — which
+  // is exactly why the malformed P2P payload reached staging.
+  // -------------------------------------------------------------------------
+
+  // UUID-shaped ids — the P2P schema requires from_user_id/to_user_id to be uuids.
+  const SENDER_UUID = "11111111-1111-4111-8111-111111111111";
+  const RECIPIENT_UUID = "22222222-2222-4222-8222-222222222222";
+  const uuidActor = { user: { id: RECIPIENT_UUID } };
+
+  it("emits a custody_transferred payload that passes the real event schema (P2P variant)", async () => {
+    const repo = makeFakeRepo({
+      findTransferByToken: vi
+        .fn()
+        .mockResolvedValue(
+          makeTransfer({ fromOwnerId: SENDER_UUID, toOwnerId: RECIPIENT_UUID, reason: "gift" }),
+        ),
+      findTransferByIdForUpdate: vi
+        .fn()
+        .mockResolvedValue(
+          makeTransfer({ fromOwnerId: SENDER_UUID, toOwnerId: RECIPIENT_UUID, reason: "gift" }),
+        ),
+    });
+    const result = await acceptPetTransfer(baseInput, {
+      repo,
+      actor: uuidActor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: true });
+
+    const eventArg = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      eventType: string;
+      payload: Record<string, unknown>;
+    };
+    expect(eventArg.eventType).toBe("custody_transferred");
+    expect(eventArg.payload).toMatchObject({
+      from_user_id: SENDER_UUID,
+      to_user_id: RECIPIENT_UUID,
+      from_role: "owner",
+      to_role: "owner",
+      reason: "gift",
+      transfer_token: "PTR-tok",
+    });
+    // The exact boundary that threw the raw zod error in staging.
+    expect(() => validateEventPayload("custody_transferred", eventArg.payload)).not.toThrow();
+  });
+
+  it("coalesces a null transfer reason to 'other' and stays schema-valid", async () => {
+    const repo = makeFakeRepo({
+      findTransferByToken: vi
+        .fn()
+        .mockResolvedValue(
+          makeTransfer({ fromOwnerId: SENDER_UUID, toOwnerId: RECIPIENT_UUID, reason: null }),
+        ),
+      findTransferByIdForUpdate: vi
+        .fn()
+        .mockResolvedValue(
+          makeTransfer({ fromOwnerId: SENDER_UUID, toOwnerId: RECIPIENT_UUID, reason: null }),
+        ),
+    });
+    await acceptPetTransfer(baseInput, { repo, actor: uuidActor, transaction: fakeTransaction });
+    const eventArg = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      payload: { reason: string };
+    };
+    expect(eventArg.payload.reason).toBe("other");
+    expect(() => validateEventPayload("custody_transferred", eventArg.payload)).not.toThrow();
+  });
+
+  it("moves ownership to the acceptor: closes prior ownerships BEFORE opening the acceptor's", async () => {
+    const repo = makeFakeRepo();
+    await acceptPetTransfer(baseInput, { repo, actor, transaction: fakeTransaction });
+    const closeOrder = (repo.closeOwnerOwnerships as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    const insertOrder = (repo.insertOwnerOwnership as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    expect(closeOrder).toBeLessThan(insertOrder);
+    // The new active-owner row is the acceptor (projection reflects new owner).
+    expect(repo.insertOwnerOwnership).toHaveBeenCalledWith(
+      expect.objectContaining({ petId: "pet-1", ownerUserId: "user-recipient" }),
+      fakeTx,
+    );
+  });
+
+  it("surfaces a friendly message (not the raw zod error) when the event payload is invalid", async () => {
+    // Force the real validation boundary to reject by making insertPetEvent run
+    // the actual validator against a deliberately malformed payload.
+    const repo = makeFakeRepo({
+      findTransferByToken: vi
+        .fn()
+        .mockResolvedValue(
+          makeTransfer({ fromOwnerId: SENDER_UUID, toOwnerId: RECIPIENT_UUID, reason: "gift" }),
+        ),
+      findTransferByIdForUpdate: vi
+        .fn()
+        .mockResolvedValue(
+          makeTransfer({ fromOwnerId: SENDER_UUID, toOwnerId: RECIPIENT_UUID, reason: "gift" }),
+        ),
+      insertPetEvent: vi.fn().mockImplementation(() => {
+        validateEventPayload("custody_transferred", { bogus: true });
+      }),
+    });
+    const result = await acceptPetTransfer(baseInput, {
+      repo,
+      actor: uuidActor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    const err = (result as { ok: false; error: string }).error;
+    // Friendly Spanish message, and NONE of the raw zod leakage.
+    expect(err).toMatch(/No pudimos completar la transferencia/i);
+    expect(err).not.toMatch(/unrecognized_keys|Invalid payload|zod|from_role/i);
   });
 
   // -------------------------------------------------------------------------

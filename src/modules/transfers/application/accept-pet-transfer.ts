@@ -123,7 +123,14 @@ export async function acceptPetTransfer(
             payload_version: 1,
             from_user_id: transfer.fromOwnerId,
             to_user_id: user.id,
-            reason: transfer.reason,
+            // Owner→owner P2P handoff: both actors hold the `owner` role. These
+            // are REQUIRED by the custody_transferred P2P schema variant.
+            from_role: "owner",
+            to_role: "owner",
+            // reason is validated at initiate (validateOwnerTransferReason), so
+            // it is one of sale/gift/inheritance/other. The column is nullable
+            // (legacy rows) — coalesce a null to "other" to satisfy the schema.
+            reason: transfer.reason ?? "other",
             transfer_token: input.transferToken,
           },
         },
@@ -160,6 +167,21 @@ export async function acceptPetTransfer(
       });
     });
   } catch (err) {
+    // A schema-validation failure on the emitted event is an internal defect,
+    // not something the end user can act on — keep the raw zod detail in the
+    // server logs and surface a friendly message instead of leaking it.
+    if (err instanceof Error && err.name === "EventPayloadValidationError") {
+      console.error(
+        "[transfers/accept-pet-transfer] custody_transferred payload validation failed:",
+        err.message,
+      );
+      return {
+        ok: false,
+        error: "No pudimos completar la transferencia. Volvé a intentarlo en unos minutos.",
+      };
+    }
+    // Concurrency guards above throw friendly Spanish messages (row already
+    // resolved, etc.) — surface those as-is.
     return { ok: false, error: err instanceof Error ? err.message : "Error desconocido." };
   }
 
