@@ -164,9 +164,9 @@ export default function LeyesPage() {
             </a>
             )— se transmite en el ciclo perro-oveja, típico de zonas de cría rural. Ahí la
             credencial QR de MiMAR tiene una ventaja concreta:{" "}
-            <strong>funciona sin conexión</strong>. Una vez generada, el código y los datos básicos
-            de la mascota se leen igual con poca o nula señal — algo que no ofrece una app que
-            dependa de conexión permanente.
+            <strong>se lee desde cualquier teléfono con cámara, sin instalar ninguna app</strong>.
+            Quien encuentre al animal escanea el código y accede a los datos básicos de la mascota —
+            sin descargar ni configurar nada.
           </p>
         </div>
 
