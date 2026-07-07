@@ -8,16 +8,21 @@
 // CANONICAL NAMING RULE: `cronName` is the snake_case of the route
 // directory (`/api/cron/vaccine-due` → `vaccine_due`). Each route declares
 // `const CRON_NAME = "<that name>"` and writes cron_runs under it. The
-// fitness test (__tests__/cron-registry-parity.test.ts) asserts
-// vercel.json ⇄ this registry ⇄ route CRON_NAME stay in lock-step —
-// adding a cron without registering it here fails CI.
+// fitness test (__tests__/cron-registry-parity.test.ts) asserts this registry
+// ⇄ the JOB route directories ⇄ route CRON_NAME ⇄ DAILY_JOB_ORDER stay in
+// lock-step — adding a cron without registering it here fails CI.
+//
+// FLEET CONSOLIDATION (Vercel Hobby cron limits, 2026-07-07): the 22 jobs no
+// longer each have a vercel.json entry. A single daily dispatcher
+// (/api/cron/daily, 0 4 * * *) runs every job in sequence (see
+// lib/infra/cron-dispatcher.ts). Each job still writes its OWN cron_runs row
+// under its own name, so cron-health monitors the fleet exactly as before —
+// this registry is unchanged in membership. What changed: every job now runs
+// once daily via the dispatcher, so the sub-daily entries that previously had
+// tighter staleness windows are folded to the daily window (Hobby cannot run
+// anything sub-daily; the minimum plan for sub-daily cadence is Vercel Pro).
 
 const DAILY_STALENESS_MS = 26 * 60 * 60 * 1000; // 26 hours
-// Sub-daily crons need a tighter staleness so a single missed period is visible
-// well before a full day passes (review 23 item 28): an hourly cron with a 26h
-// window hides an outage for a day.
-const HOURLY_STALENESS_MS = 2 * 60 * 60 * 1000; // 2 hours
-const TWELVE_HOURLY_STALENESS_MS = 14 * 60 * 60 * 1000; // 14 hours (12h + margin)
 
 export type CronRegistryEntry = {
   /** cron_runs.cron_name — snake_case of the route directory (canonical rule). */
@@ -50,10 +55,10 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
   { cronName: "data_lifecycle", maxStalenessMs: DAILY_STALENESS_MS, schedule: "30 3 * * *" },
   {
     cronName: "drain_notification_dead_letter",
-    maxStalenessMs: HOURLY_STALENESS_MS,
-    schedule: "15 * * * *",
+    maxStalenessMs: DAILY_STALENESS_MS,
+    schedule: "0 4 * * *",
   },
-  { cronName: "drain_outbox", maxStalenessMs: HOURLY_STALENESS_MS, schedule: "*/5 * * * *" },
+  { cronName: "drain_outbox", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 4 * * *" },
   {
     cronName: "escalate_stale_disputes",
     maxStalenessMs: DAILY_STALENESS_MS,
@@ -72,8 +77,8 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
   },
   {
     cronName: "expire_decomiso_handoffs",
-    maxStalenessMs: TWELVE_HOURLY_STALENESS_MS,
-    schedule: "0 */12 * * *",
+    maxStalenessMs: DAILY_STALENESS_MS,
+    schedule: "0 4 * * *",
   },
   {
     cronName: "expire_foster_proposals",
@@ -83,7 +88,7 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
   { cronName: "expire_pet_transfers", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 4 * * *" },
   { cronName: "materialize_slots", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 2 * * *" },
   { cronName: "post_adoption_checkin", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 13 * * *" },
-  { cronName: "process_eno_queue", maxStalenessMs: HOURLY_STALENESS_MS, schedule: "0 * * * *" },
+  { cronName: "process_eno_queue", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 4 * * *" },
   { cronName: "purge_scan_events", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 1 * * *" },
   { cronName: "reconcile_pet_status", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 9 * * *" },
   { cronName: "vaccine_due", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 12 * * *" },

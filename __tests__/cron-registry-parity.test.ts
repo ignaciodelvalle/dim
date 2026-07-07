@@ -1,23 +1,33 @@
-// Cron fleet parity — projection-cron audit 2026-07-03 B2.
+// Cron fleet parity — projection-cron audit 2026-07-03 B2, reworked for the
+// dispatcher consolidation (Vercel Hobby cron limits, 2026-07-07).
 //
-// The fleet had drifted three ways: 9 routes wrote no telemetry, 3 routes
-// wrote under names the health registry didn't look up, and the registry
-// itself lived inline in the cron-health route. This fitness test pins the
-// canonical rule so the drift cannot silently recur:
+// The fleet used to be 22 vercel.json crons in 1:1 correspondence with 22 route
+// directories. Vercel Hobby allows only 2 daily cron jobs, so the fleet now
+// runs behind a SINGLE daily dispatcher (/api/cron/daily). The invariants that
+// keep drift from silently recurring changed shape accordingly:
 //
-//   cron_name === snake_case(route directory)   for every /api/cron/* route
-//   CRON_REGISTRY (lib/infra/cron-registry.ts) === vercel.json's cron set
-//   every route declares CRON_NAME and records cron_runs telemetry
-//     (directly, via runCaseCron, or via withCronRun)
+//   - vercel.json schedules ONLY the dispatcher route(s).
+//   - CRON_REGISTRY (lib/infra/cron-registry.ts) === snake_case of the JOB
+//     route directories (every job is still monitored by cron-health).
+//   - DAILY_JOB_ORDER (lib/infra/cron-dispatcher.ts) === the registered jobs,
+//     so the dispatcher runs exactly the monitored fleet — no job silently
+//     dropped from the daily run, none run that isn't monitored.
+//   - every job route declares CRON_NAME = snake(dir) and records telemetry.
 
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { DAILY_JOB_ORDER } from "@/lib/infra/cron-dispatcher";
 import { CRON_REGISTRY } from "@/lib/infra/cron-registry";
 
 const ROOT = join(__dirname, "..");
 const CRON_DIR = join(ROOT, "app", "api", "cron");
+
+// Dispatcher routes are the scheduled orchestrators — they appear in
+// vercel.json and have a route directory, but they are NOT individual jobs
+// (they run the jobs) so they are excluded from the job-registry checks.
+const DISPATCHER_DIRS = ["daily"];
 
 function snake(dir: string): string {
   return dir.replace(/-/g, "_");
@@ -36,22 +46,37 @@ function routeDirs(): string[] {
     .map((e) => e.name);
 }
 
-describe("cron fleet parity (vercel.json ⇄ registry ⇄ routes)", () => {
+describe("cron fleet parity (vercel.json ⇄ dispatcher ⇄ registry ⇄ routes)", () => {
   const dirs = routeDirs();
+  const jobDirs = dirs.filter((d) => !DISPATCHER_DIRS.includes(d));
   const registryNames = new Set(CRON_REGISTRY.map((e) => e.cronName));
 
-  it("every vercel.json cron has a route directory, and vice versa", () => {
+  it("vercel.json schedules ONLY the dispatcher route(s)", () => {
     const pathDirs = vercelCronPaths().map((p) => p.replace("/api/cron/", ""));
-    expect([...pathDirs].sort()).toEqual([...dirs].sort());
+    expect([...pathDirs].sort()).toEqual([...DISPATCHER_DIRS].sort());
   });
 
-  it("CRON_REGISTRY names are exactly snake_case of the route directories", () => {
-    const expected = dirs.map(snake).sort();
+  it("every dispatcher has a route directory", () => {
+    for (const d of DISPATCHER_DIRS) {
+      expect(dirs, `dispatcher "${d}" must have app/api/cron/${d}/route.ts`).toContain(d);
+    }
+  });
+
+  it("CRON_REGISTRY names are exactly snake_case of the JOB route directories", () => {
+    const expected = jobDirs.map(snake).sort();
     expect([...registryNames].sort()).toEqual(expected);
   });
 
-  it("every route declares CRON_NAME = snake_case(directory)", () => {
-    for (const dir of dirs) {
+  it("DAILY_JOB_ORDER runs exactly the registered jobs (no drops, no extras)", () => {
+    expect([...DAILY_JOB_ORDER].sort()).toEqual([...registryNames].sort());
+  });
+
+  it("DAILY_JOB_ORDER has no duplicate entries", () => {
+    expect(new Set(DAILY_JOB_ORDER).size).toBe(DAILY_JOB_ORDER.length);
+  });
+
+  it("every job route declares CRON_NAME = snake_case(directory)", () => {
+    for (const dir of jobDirs) {
       const src = readFileSync(join(CRON_DIR, dir, "route.ts"), "utf8");
       const match = src.match(/const CRON_NAME = "([^"]+)"/);
       expect(match, `${dir}/route.ts must declare const CRON_NAME`).not.toBeNull();
@@ -61,8 +86,8 @@ describe("cron fleet parity (vercel.json ⇄ registry ⇄ routes)", () => {
     }
   });
 
-  it("every route records cron_runs telemetry (cronRuns / runCaseCron / withCronRun)", () => {
-    for (const dir of dirs) {
+  it("every job route records cron_runs telemetry (cronRuns / runCaseCron / withCronRun)", () => {
+    for (const dir of jobDirs) {
       const src = readFileSync(join(CRON_DIR, dir, "route.ts"), "utf8");
       const hasTelemetry =
         src.includes("cronRuns") || src.includes("runCaseCron") || src.includes("withCronRun");
