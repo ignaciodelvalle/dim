@@ -17,6 +17,7 @@ import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { decisionsAuditDrillHref } from "@/lib/ui/audit-filters";
 
 type CronTone = "ok" | "danger" | "open";
 const STATUS_LABEL: Record<string, string> = {
@@ -97,6 +98,7 @@ export default async function AdminSistemaPage() {
             approved7d: decisions.approved7d,
             rejected7d: decisions.rejected7d,
             decisionsDelta,
+            decisionsDrillHref: decisionsAuditDrillHref(),
             enoSla: {
               onTimePct: enoSla.onTimePct,
               breachedOpen: enoSla.breachedOpen,

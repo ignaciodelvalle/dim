@@ -34,6 +34,13 @@ export type AdminKpiStripData = {
    */
   decisionsDelta: number | null;
   /**
+   * Drill href for the "Decisiones 7d" tile. Build with `decisionsAuditDrillHref`
+   * (lib/ui/audit-filters) so the link carries the decision-action + last-7d
+   * filters and lands on the reconcilable rows — not the all-time audit log.
+   * Falls back to the unfiltered log when omitted.
+   */
+  decisionsDrillHref?: string;
+  /**
    * ENO SLA on-time percentage (0–100), or null when there is no data.
    * Omit the whole `enoSla` prop to render the 3-tile variant (landing).
    */
@@ -89,7 +96,7 @@ export function AdminKpiStrip({ data }: { data: AdminKpiStripData }) {
         value={data.decisionsTotal7d}
         tone="ok"
         sub={`${data.approved7d} aprobadas · ${data.rejected7d} rechazadas`}
-        href="/admin/auditoria"
+        href={data.decisionsDrillHref ?? "/admin/auditoria"}
         info={{
           definition: "Decisiones tomadas (aprobaciones + rechazos) en los últimos 7 días.",
           formula: "request_approved + request_rejected en audit_log (últimos 7d)",

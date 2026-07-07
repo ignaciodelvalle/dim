@@ -11,6 +11,7 @@ import {
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { decisionsAuditDrillHref } from "@/lib/ui/audit-filters";
 
 export default async function AdminDashboardPage() {
   await requireAdminOrRedirect();
@@ -58,6 +59,7 @@ export default async function AdminDashboardPage() {
             approved7d: decisions.approved7d,
             rejected7d: decisions.rejected7d,
             decisionsDelta,
+            decisionsDrillHref: decisionsAuditDrillHref(),
           }}
         />
       </section>

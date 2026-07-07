@@ -1,10 +1,11 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
-import { type AuditLogAction, auditLog, db, profiles } from "@/db";
+import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { parseAuditActions, parseAuditDateRange } from "@/lib/ui/audit-filters";
 import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
 import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
@@ -14,28 +15,40 @@ const AUDITORIA_PAGE_LIMIT = 200;
 export default async function AdminAuditoriaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string; actor?: string; cursor?: string }>;
+  searchParams: Promise<{
+    action?: string;
+    actor?: string;
+    from?: string;
+    to?: string;
+    cursor?: string;
+  }>;
 }) {
   await requireAdminOrRedirect();
 
   const sp = await searchParams;
-  // actionFilter is now a known enum code (from dropdown), not a free-text ILIKE.
-  // We validate it against AUDIT_ACTION_LABELS keys before trusting it.
-  const rawAction = sp.action?.trim() || null;
-  const actionFilter: AuditLogAction | null =
-    rawAction && rawAction in AUDIT_ACTION_LABELS ? (rawAction as AuditLogAction) : null;
+  // action is a (possibly comma-separated) list of known enum codes, validated
+  // against AUDIT_ACTION_LABELS keys before trusting it — never a free-text ILIKE.
+  // Multi-action powers the "Decisiones 7d" KPI drill (approved + rejected).
+  const actionFilters = parseAuditActions(sp.action);
   const actorFilter = sp.actor?.trim() || null;
+  // Date-range filter (date-only, YYYY-MM-DD). `until` is exclusive (whole `to`
+  // day included). Powers the KPI drill's trailing-7d scope.
+  const { since, until } = parseAuditDateRange(sp.from, sp.to);
+  const fromValid = since ? sp.from : undefined;
+  const toValid = until ? sp.to : undefined;
   const rawCursor = sp.cursor;
   const cursor = decodeCursor(rawCursor);
 
-  // Build WHERE clause — push both filters into SQL so the LIMIT is
+  // Build WHERE clause — push every filter into SQL so the LIMIT is
   // applied after filtering (JS-side filtering would silently miss rows
-  // beyond the cap). actionFilter uses exact equality on the enum code;
-  // actorFilter uses exact equality on the UUID column.
+  // beyond the cap). action uses IN over the validated enum codes; actor uses
+  // exact UUID equality; the date range is a half-open [since, until) interval.
   // Keyset predicate is AND-composed last.
   const filterClauses = [];
-  if (actionFilter) filterClauses.push(eq(auditLog.action, actionFilter));
+  if (actionFilters.length > 0) filterClauses.push(inArray(auditLog.action, actionFilters));
   if (actorFilter) filterClauses.push(eq(auditLog.actorUserId, actorFilter));
+  if (since) filterClauses.push(gte(auditLog.performedAt, since));
+  if (until) filterClauses.push(lt(auditLog.performedAt, until));
   const cursorClause = keysetWhere(auditLog.performedAt, auditLog.id, cursor);
   if (cursorClause) filterClauses.push(cursorClause);
   const whereClause = filterClauses.length > 0 ? and(...filterClauses) : undefined;
@@ -59,10 +72,14 @@ export default async function AdminAuditoriaPage({
   const hasMore = rawEntries.length > AUDITORIA_PAGE_LIMIT;
   const entries = hasMore ? rawEntries.slice(0, AUDITORIA_PAGE_LIMIT) : rawEntries;
 
-  // Pagination links — changing a filter resets cursor to page 1.
+  // Pagination links — changing a filter resets cursor to page 1. The multi-
+  // action list is preserved as a comma-joined param so paging past a KPI drill
+  // keeps both decision actions in scope.
   const filterParams: Record<string, string | undefined> = {
-    ...(actionFilter ? { action: actionFilter } : {}),
+    ...(actionFilters.length > 0 ? { action: actionFilters.join(",") } : {}),
     ...(actorFilter ? { actor: actorFilter } : {}),
+    ...(fromValid ? { from: fromValid } : {}),
+    ...(toValid ? { to: toValid } : {}),
   };
   const lastEntry = entries.at(-1);
   const olderLink =
@@ -130,7 +147,13 @@ export default async function AdminAuditoriaPage({
     a[1].localeCompare(b[1], "es-AR"),
   );
 
-  const hasFilters = actionFilter !== null || actorFilter !== null;
+  const hasFilters =
+    actionFilters.length > 0 || actorFilter !== null || since !== null || until !== null;
+  // The action <select> is single-select; when a KPI drill applies more than
+  // one action (approved + rejected) it can't be represented there, so surface
+  // the active action filter as a readable chip instead.
+  const multiActionLabels =
+    actionFilters.length > 1 ? actionFilters.map((a) => auditActionLabel(a)) : null;
 
   // Collapse consecutive runs of the same action+actor (e.g. a ~150-row bulk
   // override backfill) into one expandable group so real events stay scannable.
@@ -211,30 +234,71 @@ export default async function AdminAuditoriaPage({
       <header className="space-y-1">
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Auditoría global</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Últimas {entries.length} entradas del registro de auditoría (todas las acciones de
-          autoridad).
+          {hasFilters
+            ? `${entries.length} ${entries.length === 1 ? "entrada" : "entradas"} del registro de auditoría que coinciden con los filtros.`
+            : `Últimas ${entries.length} entradas del registro de auditoría (todas las acciones de autoridad).`}
         </p>
       </header>
 
       <form action="/admin/auditoria" method="get" className="flex flex-wrap items-end gap-2">
-        {/* Action filter — dropdown of known labels (value = enum code) */}
+        {/* Action filter. A single/absent action uses the dropdown; a multi-action
+            drill (e.g. Decisiones 7d = aprobadas + rechazadas) can't be shown in a
+            single-select, so it renders as a read-only chip backed by a hidden
+            input — keeping exactly one `action` field and preserving both codes
+            across pagination and re-submits. */}
+        {multiActionLabels ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-ln-op-mute">Acción</span>
+            <span className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink">
+              {multiActionLabels.join(" + ")}
+            </span>
+            <input type="hidden" name="action" value={actionFilters.join(",")} />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <label htmlFor="audit-action" className="text-[11px] font-medium text-ln-op-mute">
+              Acción
+            </label>
+            <select
+              id="audit-action"
+              name="action"
+              defaultValue={actionFilters.length === 1 ? actionFilters[0] : ""}
+              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            >
+              <option value="">Todas las acciones</option>
+              {actionOptions.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Date-range filter — date-only bounds (to is inclusive). */}
         <div className="flex flex-col gap-1">
-          <label htmlFor="audit-action" className="text-[11px] font-medium text-ln-op-mute">
-            Acción
+          <label htmlFor="audit-from" className="text-[11px] font-medium text-ln-op-mute">
+            Desde
           </label>
-          <select
-            id="audit-action"
-            name="action"
-            defaultValue={actionFilter ?? ""}
+          <input
+            id="audit-from"
+            name="from"
+            type="date"
+            defaultValue={fromValid ?? ""}
             className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          >
-            <option value="">Todas las acciones</option>
-            {actionOptions.map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="audit-to" className="text-[11px] font-medium text-ln-op-mute">
+            Hasta
+          </label>
+          <input
+            id="audit-to"
+            name="to"
+            type="date"
+            defaultValue={toValid ?? ""}
+            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          />
         </div>
 
         {/* Actor filter — dropdown of names present in the current result page */}
