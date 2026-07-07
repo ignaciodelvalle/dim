@@ -13,7 +13,7 @@
 //   2. Visibilidad pública — status controls (Publicar adopción / Pausar /
 //      Despublicar) + summary recap. CTA per current state.
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpButton } from "@/components/ui/dashboard";
@@ -63,7 +63,14 @@ export function AdoptionListingForm({
   canPublish: boolean;
   petSex: string;
 }) {
-  const [pending, startTransition] = useTransition();
+  // NOT useTransition: these actions call revalidatePath, and a revalidate
+  // that rides the useTransition machinery inherits Next 15.5.x's dropped-
+  // refresh defect — the transition never commits, so isPending would stay
+  // true forever and permanently disable the step-2 "Publicar adopción"
+  // button after a step-1 save (bug #66). A plain boolean clears the moment
+  // the action's fetch response resolves, which is defect-free (see
+  // lib/ui/full-page-action-nav.ts for the full mechanism).
+  const [pending, setPending] = useState(false);
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
@@ -81,28 +88,30 @@ export function AdoptionListingForm({
     initial.feeArs != null ? String(initial.feeArs) : "",
   );
 
-  function runStatus(action: "publish" | "pause" | "unpause" | "unpublish") {
+  async function runStatus(action: "publish" | "pause" | "unpause" | "unpublish") {
     setError(null);
     setOkMessage(null);
-    startTransition(async () => {
-      const result = await setAdoptionListingStatusAction({ petPublicToken, action });
-      if ("error" in result) {
-        setError(result.error);
-        return;
-      }
-      setOkMessage("Listo.");
-      // Status changes drive the public listing's SSR state — full document
-      // reload (router.refresh() is banned; see lib/ui/full-page-action-nav.ts).
-      navigateAfterActionSuccess(window.location.href);
-    });
+    setPending(true);
+    const result = await setAdoptionListingStatusAction({ petPublicToken, action });
+    if ("error" in result) {
+      setError(result.error);
+      setPending(false);
+      return;
+    }
+    setOkMessage("Listo.");
+    // Status changes drive the public listing's SSR state — full document
+    // reload (router.refresh() is banned; see lib/ui/full-page-action-nav.ts).
+    // Leave pending true: the buttons stay disabled while the page reloads.
+    navigateAfterActionSuccess(window.location.href);
   }
 
-  function saveContent(e: React.FormEvent) {
+  async function saveContent(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setOkMessage(null);
     const feeNumber = feeArs.trim() ? Number.parseInt(feeArs, 10) : null;
-    startTransition(async () => {
+    setPending(true);
+    try {
       const result = await updateAdoptionListingContentAction({
         petPublicToken,
         story: story.trim() || null,
@@ -125,7 +134,12 @@ export function AdoptionListingForm({
       // and the step-2 recap reads this component's local state (already
       // fresh). The banned router.refresh() added nothing but the drop risk.
       setStep(2);
-    });
+    } finally {
+      // Clears reliably: the action's fetch resolves even though its
+      // revalidatePath refresh is dropped. This is what re-enables the
+      // step-2 "Publicar adopción" button in the same session (bug #66).
+      setPending(false);
+    }
   }
 
   return (
