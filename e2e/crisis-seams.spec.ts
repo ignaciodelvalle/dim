@@ -453,8 +453,7 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     const appReached = await appRow.isVisible({ timeout: 20_000 }).catch(() => false);
     test.skip(
       !appReached,
-      `owner2's application for ${petName} did not surface in the refugio queue in time — ` +
-        `submission verified; refugio approve/finalize/transfer covered by Deep Pass C.`,
+      `owner2's application for ${petName} did not surface in the refugio queue in time — submission verified; refugio approve/finalize/transfer covered by Deep Pass C.`,
     );
     await appRow.click();
     await page.waitForURL(/\/org\/[^/]+\/adopciones\/[0-9a-f-]{36}/, { timeout: 15_000 });

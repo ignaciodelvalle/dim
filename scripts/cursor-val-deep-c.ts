@@ -299,7 +299,7 @@ async function refugioFlow(browser: Browser): Promise<void> {
           patitasBulk ? "OK" : "MAYOR",
           patitasBulk,
           patitasBulk
-            ? `Bulk Patitas OK (alejo@) — diálogo confirmación ejercitado`
+            ? "Bulk Patitas OK (alejo@) — diálogo confirmación ejercitado"
             : "Cola Patitas sin pending seleccionable (Negro seed + owner2)",
         );
       }
