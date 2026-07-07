@@ -11,6 +11,7 @@
 import { type SQL, and, eq, sql } from "drizzle-orm";
 
 import { petEvents, pets } from "@/db";
+import { isWholeProvinceLocality } from "@/lib/domain/jurisdiction-canonical";
 
 import type { DashboardJurisdiction } from "./context";
 import type { ProjectionContext } from "./context";
@@ -46,8 +47,14 @@ export function jurisdictionPairClause(
   localityExpr: SQL,
 ): SQL | null {
   if (jurisdictions.length === 0) return null;
-  const pairs = jurisdictions.map(
-    (j) => sql`(${provinceExpr} = ${j.province} AND ${localityExpr} = ${j.locality})`,
+  const pairs = jurisdictions.map((j) =>
+    // Whole-province assignment (e.g. CABA / "Ciudad Autónoma de Buenos Aires")
+    // subsumes every locality/barrio in that province — match on province alone.
+    // Province equality is always kept, so other provinces stay invisible.
+    // A barrio-specific assignment (CABA / Palermo) keeps the exact pair.
+    isWholeProvinceLocality(j.province, j.locality)
+      ? sql`(${provinceExpr} = ${j.province})`
+      : sql`(${provinceExpr} = ${j.province} AND ${localityExpr} = ${j.locality})`,
   );
   return sql.join(pairs, sql` OR `);
 }

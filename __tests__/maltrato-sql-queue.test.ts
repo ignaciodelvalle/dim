@@ -15,7 +15,9 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { db, welfareReports } from "@/db";
 import {
   type MaltratoListFilters,
+  type ModerationQueueFilters,
   buildMaltratoListConditions,
+  buildModerationQueueConditions,
 } from "@/lib/analytics/govt-dashboards";
 
 // ============================================================================
@@ -140,6 +142,9 @@ async function insertReport(input: {
   assignedToUserId?: string | null;
   closedAt?: Date | null;
   createdAt?: Date;
+  flaggedAt?: Date | null;
+  flagReasons?: string[] | null;
+  moderationResolvedAt?: Date | null;
 }): Promise<string> {
   seqN += 1;
   const [row] = await db
@@ -155,6 +160,13 @@ async function insertReport(input: {
       status: input.status ?? "open",
       assignedToUserId: input.assignedToUserId ?? null,
       closedAt: input.closedAt ?? null,
+      // Only set moderation columns when provided — flag_reasons is NOT NULL
+      // with a DB default, so omitting lets the default apply.
+      ...(input.flaggedAt !== undefined ? { flaggedAt: input.flaggedAt } : {}),
+      ...(input.flagReasons !== undefined ? { flagReasons: input.flagReasons } : {}),
+      ...(input.moderationResolvedAt !== undefined
+        ? { moderationResolvedAt: input.moderationResolvedAt }
+        : {}),
     })
     .returning({ id: welfareReports.id });
 
@@ -452,6 +464,154 @@ describe("parsePage — unit", () => {
   it("caps at 10_000", () => expect(parsePage("99999")).toBe(10_000));
   it("caps Infinity", () => expect(parsePage("Infinity")).toBe(1)); // Infinity is not finite
   it("returns exactly 10_000 for '10000'", () => expect(parsePage("10000")).toBe(10_000));
+});
+
+// ============================================================================
+// CABA two-tier locality scope (jurisdiction-scoping class bug — 2026-07-07)
+//
+// INDEC models CABA as ONE locality ("Ciudad Autónoma de Buenos Aires"); the 48
+// barrios (Palermo, Almagro, …) are a finer overlay. A govt operator assigned
+// the whole-city locality governs ALL of CABA and MUST see barrio-tagged
+// denuncias — an anonymous denuncia whose address geocoded to a barrio was
+// invisible before the isWholeProvinceLocality subsumption fix.
+// ============================================================================
+
+const CABA_WHOLE = "Ciudad Autónoma de Buenos Aires";
+
+describe("buildMaltratoListConditions — CABA whole-province subsumption (integration)", () => {
+  it("whole-CABA operator sees barrio-tagged reports (Almagro, Palermo) but not other provinces", async () => {
+    const almagroId = await insertReport({ province: "CABA", locality: "Almagro" });
+    const palermoId = await insertReport({ province: "CABA", locality: "Palermo" });
+    const wholeCityId = await insertReport({ province: "CABA", locality: CABA_WHOLE });
+    const saltaId = await insertReport({ province: "Salta", locality: "Salta" });
+
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: [{ province: "CABA", locality: CABA_WHOLE }],
+      queue: "all",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+
+    // Barrio-tagged + whole-city CABA rows are all visible to the whole-CABA operator.
+    expect(ids).toContain(almagroId);
+    expect(ids).toContain(palermoId);
+    expect(ids).toContain(wholeCityId);
+    // Other provinces stay invisible (the fix must NOT widen security).
+    expect(ids).not.toContain(saltaId);
+  });
+
+  it("a Salta operator does NOT see a CABA barrio report (cross-province isolation preserved)", async () => {
+    const almagroId = await insertReport({ province: "CABA", locality: "Almagro" });
+
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: [{ province: "Salta", locality: "Salta" }],
+      queue: "all",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+
+    expect(ids).not.toContain(almagroId);
+  });
+
+  it("a barrio-scoped operator (CABA / Palermo) stays narrow — sees Palermo, not Almagro", async () => {
+    const almagroId = await insertReport({ province: "CABA", locality: "Almagro" });
+    const palermoId = await insertReport({ province: "CABA", locality: "Palermo" });
+
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: [{ province: "CABA", locality: "Palermo" }],
+      queue: "all",
+      currentUserId: "00000000-0000-0000-0000-000000000001",
+    });
+
+    expect(ids).toContain(palermoId);
+    // Barrio-specific assignment is exact-match only — no subsumption.
+    expect(ids).not.toContain(almagroId);
+  });
+});
+
+// ============================================================================
+// Flagged-vs-unflagged routing: moderation queue vs triage queue
+//
+// Anonymous denuncias are auto-flagged by heuristics ONLY when a reason fires.
+// Unflagged reports go straight to the /gob/maltrato triage queue; flagged
+// (unresolved) reports are held in the admin /admin/moderacion queue and are
+// EXCLUDED from triage until moderation resolves them. DEN-6WQX-CCUC was never
+// flagged, so its absence from /admin/moderacion is correct.
+// ============================================================================
+
+function isModSqlFalse(cond: ReturnType<typeof buildModerationQueueConditions>): boolean {
+  if (!cond) return false;
+  const chunks = (cond as { queryChunks?: Array<{ value?: string[] }> }).queryChunks;
+  return Array.isArray(chunks) && chunks.length === 1 && chunks[0]?.value?.[0] === "false";
+}
+
+async function queryModerationIds(filters: ModerationQueueFilters): Promise<string[]> {
+  const cond = buildModerationQueueConditions(filters);
+  if (isModSqlFalse(cond)) return [];
+  const rows = await db.select({ id: welfareReports.id }).from(welfareReports).where(cond);
+  return rows.map((r) => r.id);
+}
+
+describe("flagged-vs-unflagged routing (integration)", () => {
+  const ADMIN_TRIAGE: MaltratoListFilters = {
+    actor: { role: "admin" },
+    filteredJurisdictions: [],
+    queue: "all",
+    currentUserId: "00000000-0000-0000-0000-000000000001",
+  };
+  const ADMIN_MOD: ModerationQueueFilters = {
+    actor: { role: "admin" },
+    jurisdictions: [],
+    status: "pending",
+  };
+
+  it("an unflagged report is in the triage queue but NOT the moderation queue", async () => {
+    const unflaggedId = await insertReport({ province: "Salta", locality: "Salta" });
+
+    const triageIds = await queryIds({
+      ...ADMIN_TRIAGE,
+      selectedProvince: "Salta",
+    });
+    const modIds = await queryModerationIds(ADMIN_MOD);
+
+    expect(triageIds).toContain(unflaggedId);
+    expect(modIds).not.toContain(unflaggedId);
+  });
+
+  it("a flagged, unresolved report is in the moderation queue but EXCLUDED from triage", async () => {
+    const flaggedId = await insertReport({
+      province: "Salta",
+      locality: "Salta",
+      flaggedAt: new Date(),
+      flagReasons: ["short_description"],
+    });
+
+    const triageIds = await queryIds({
+      ...ADMIN_TRIAGE,
+      selectedProvince: "Salta",
+    });
+    const modIds = await queryModerationIds(ADMIN_MOD);
+
+    expect(modIds).toContain(flaggedId);
+    expect(triageIds).not.toContain(flaggedId);
+  });
+
+  it("a flagged report that was moderation-resolved re-enters the triage queue", async () => {
+    const resolvedId = await insertReport({
+      province: "Salta",
+      locality: "Salta",
+      flaggedAt: new Date(),
+      flagReasons: ["short_description"],
+      moderationResolvedAt: new Date(),
+    });
+
+    const triageIds = await queryIds({
+      ...ADMIN_TRIAGE,
+      selectedProvince: "Salta",
+    });
+    expect(triageIds).toContain(resolvedId);
+  });
 });
 
 // ============================================================================

@@ -296,6 +296,63 @@ describe("jurisdictionPairClause — welfare_reports equivalence", () => {
 });
 
 // ---------------------------------------------------------------------------
+// CABA whole-province subsumption — jurisdictionPairClause is the single source
+// of truth, so the CABA two-tier locality fix must hold here for EVERY consumer
+// (welfare, cases, custody disputes, service offerings), not just the queue.
+// ---------------------------------------------------------------------------
+
+describe("jurisdictionPairClause — CABA whole-province subsumption", () => {
+  const CABA_WHOLE = "Ciudad Autónoma de Buenos Aires";
+  let cabaReportIds: string[] = [];
+
+  beforeAll(async () => {
+    // Two CABA barrios + the whole-city entry + a control province.
+    cabaReportIds = await Promise.all([
+      insertWelfareReport(petIdsA[0], "CABA", "Almagro"),
+      insertWelfareReport(petIdsA[0], "CABA", "Palermo"),
+      insertWelfareReport(petIdsA[0], "CABA", CABA_WHOLE),
+      insertWelfareReport(petIdsA[0], "Salta", "Salta"),
+    ]);
+  });
+
+  afterAll(async () => {
+    if (cabaReportIds.length > 0) {
+      await db.delete(welfareReports).where(inArray(welfareReports.id, cabaReportIds));
+    }
+  });
+
+  async function countCabaReports(
+    jurisdictions: { province: string; locality: string }[],
+  ): Promise<number> {
+    const pairs = jurisdictionPairClause(
+      jurisdictions,
+      sql`${welfareReports.jurisdictionProvince}`,
+      sql`${welfareReports.jurisdictionLocality}`,
+    );
+    const condition = pairs
+      ? and(inArray(welfareReports.id, cabaReportIds), sql`(${pairs})`)
+      : sql`false`;
+    const rows = await db.select({ n: count() }).from(welfareReports).where(condition);
+    return rows[0]?.n ?? 0;
+  }
+
+  it("whole-city assignment matches all 3 CABA rows (both barrios + whole-city), not Salta", async () => {
+    const n = await countCabaReports([{ province: "CABA", locality: CABA_WHOLE }]);
+    expect(n).toBe(3);
+  });
+
+  it("barrio-specific assignment (Palermo) matches only the Palermo row", async () => {
+    const n = await countCabaReports([{ province: "CABA", locality: "Palermo" }]);
+    expect(n).toBe(1);
+  });
+
+  it("a Salta assignment matches only the Salta row (no CABA leak)", async () => {
+    const n = await countCabaReports([{ province: "Salta", locality: "Salta" }]);
+    expect(n).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Equivalence — cases columns
 // ---------------------------------------------------------------------------
 
