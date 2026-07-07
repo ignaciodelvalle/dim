@@ -36,6 +36,7 @@
     "db:migrate:baseline": "tsx scripts/migrate.ts --baseline",
     "deploy:staging": "pnpm typecheck && pnpm lint && pnpm lint:tokens && tsx scripts/migrate.ts && npx vercel --prod --archive=tgz",
     "db:bootstrap": "tsx scripts/db-bootstrap.ts",
+    "deploy:provision": "tsx scripts/deploy-provision.ts",
     "rls:smoke": "tsx scripts/rls-smoke.ts",
     "rebuild:projections": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/rebuild-projections.ts",
     "seed:test": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-test-users.ts",
