@@ -21,6 +21,7 @@ import {
   dogsInScopeCondition,
   petEventsScopeClause,
   petsScopeClause,
+  rabiesCurrentlyValidCondition,
 } from "@/lib/metrics";
 import { TERMINAL_STATUSES as WELFARE_TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 
@@ -131,8 +132,11 @@ export type RabiesCoverageKpi = {
  *
  * NUMERATOR:   COUNT DISTINCT dogs with ≥1 vaccination_administered event
  *              whose vaccine_name matches /(antirr[áa]bica|rabies)/i (accent-
- *              aware, amendment-overlay-aware), occurred_at in the trailing
- *              12 months ending at ctx.period.until.
+ *              aware, amendment-overlay-aware) that is CURRENTLY VALID as of
+ *              ctx.period.until: `until <= next_due_at` when the dose sets an
+ *              explicit expiry, else the trailing-12m proxy (occurred_at within
+ *              12 months ending at ctx.period.until). See rabiesCurrentlyValidCondition
+ *              (lib/metrics/rabies.ts) — issue #52.
  * DENOMINATOR: COUNT active/lost dogs (pets.species = 'dog') in scope.
  * SOURCE:      pets, pet_events (vaccination_administered).
  * CADENCE:     FIXED trailing 12 months ending at ctx.period.until — the window
@@ -178,8 +182,15 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
   const rabiesVaccConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
     sql`(${amendedPayloadText("vaccine_name")}) ~* ${RABIES_VACCINE_NAME_REGEX}`,
-    gte(petEvents.occurredAt, since12m),
-    lte(petEvents.occurredAt, coverageUntil),
+    // "Currently valid" (issue #52): a dose with an explicit next_due_at counts
+    // only while `until <= next_due_at`; a dose without next_due_at falls back to
+    // the trailing-12m proxy. Replaces the plain occurred_at BETWEEN since12m/until
+    // so an expired-but-recent dose no longer counts and a still-valid old dose does.
+    rabiesCurrentlyValidCondition(
+      sql`${petEvents.occurredAt}`,
+      sql`${petEvents.payload}->>'next_due_at'`,
+      { since: since12m, until: coverageUntil },
+    ),
   ];
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
   // Scope to dogs only by joining pets.
@@ -277,8 +288,13 @@ export async function fetchRabiesCoverageByProvince(
   const rabiesVaccConditions = [
     eq(petEvents.eventType, "vaccination_administered"),
     sql`(${amendedPayloadText("vaccine_name")}) ~* ${RABIES_VACCINE_NAME_REGEX}`,
-    gte(petEvents.occurredAt, since12m),
-    lte(petEvents.occurredAt, coverageUntil),
+    // "Currently valid" (issue #52) — SAME condition as fetchRabiesCoverage so the
+    // choropleth per-province rates never diverge from the national KPI.
+    rabiesCurrentlyValidCondition(
+      sql`${petEvents.occurredAt}`,
+      sql`${petEvents.payload}->>'next_due_at'`,
+      { since: since12m, until: coverageUntil },
+    ),
   ];
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
   if (ctx.scope.kind === "jurisdictions") {

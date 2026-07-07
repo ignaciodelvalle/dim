@@ -31,26 +31,76 @@ import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 export const RABIES_VACCINE_NAME_REGEX = "(antirr[áa]bica|rabies)";
 
 /**
+ * "Currently-valid" predicate for a single rabies dose (issue #52 refinement).
+ *
+ * "Al día / covered" no longer means merely "a dose exists in the trailing 12
+ * months". It means the dose is CURRENTLY VALID as of `until`:
+ *   - When the dose carries an explicit `next_due_at` (the vet-set expiry): the
+ *     dose is valid iff `until <= next_due_at`. This lets a still-valid OLDER
+ *     dose (e.g. a multi-year vaccine given >12m ago but not yet due) count, and
+ *     — crucially — makes a dose whose `next_due_at` has already PASSED NOT
+ *     count even if it was administered less than 12 months ago.
+ *   - When `next_due_at` is absent/blank (older data, combined-dose events): fall
+ *     back to the trailing-12-month proxy — `occurred_at >= since`.
+ * Both branches also require `occurred_at <= until` so an as-of scrub never
+ * counts a dose recorded after the as-of instant.
+ *
+ * next_due_at is read from the RAW payload (not the amendment overlay): the
+ * overlay is reserved for vaccine_name, which decides whether a dose is a rabies
+ * dose at all; next_due_at corrections are not a known workflow and applying the
+ * overlay here would multiply the correlated-subquery cost on the hottest govt
+ * aggregate. If that changes, swap `nextDueRef` for `amendedPayloadText`.
+ *
+ * @param occurredAtRef SQL ref to the event's occurred_at column.
+ * @param nextDueRef    SQL ref to the event's next_due_at text (e.g.
+ *                      `sql`payload->>'next_due_at'``).
+ * @param window        Fixed window: `until` is the as-of instant, `since` the
+ *                      trailing-12m lower bound used by the fallback proxy.
+ */
+export function rabiesCurrentlyValidCondition(
+  occurredAtRef: SQL,
+  nextDueRef: SQL,
+  window: { since: Date; until: Date },
+): SQL {
+  const untilIso = window.until.toISOString();
+  const sinceIso = window.since.toISOString();
+  return sql`(
+    ${occurredAtRef} <= ${untilIso}
+    AND (
+      (
+        (${nextDueRef}) IS NOT NULL AND (${nextDueRef}) <> ''
+        AND (${nextDueRef})::timestamptz >= ${untilIso}
+      )
+      OR (
+        ((${nextDueRef}) IS NULL OR (${nextDueRef}) = '')
+        AND ${occurredAtRef} >= ${sinceIso}
+      )
+    )
+  )`;
+}
+
+/**
  * EXISTS predicate: the pet referenced by `petIdRef` has at least one
  * `vaccination_administered` event whose amended vaccine_name matches
- * RABIES_VACCINE_NAME_REGEX, with `occurred_at >= since` (the trailing-12-month
- * reporting window).
+ * RABIES_VACCINE_NAME_REGEX and that is CURRENTLY VALID as of `window.until`
+ * (see rabiesCurrentlyValidCondition — next_due_at expiry, 12m proxy fallback).
  *
  * SPECIES IS NOT FILTERED HERE — the canonical numerator is DOGS, but callers
  * apply `pets.species = 'dog'` at the pets level (where they already GROUP/FILTER)
  * so this one predicate serves every EXISTS-shaped aggregate. The JOIN-shaped
  * canonical fetchers (fetchRabiesCoverage / fetchRabiesCoverageByProvince) share
- * the regex + window through RABIES_VACCINE_NAME_REGEX rather than this EXISTS.
+ * the regex + validity condition through this module rather than this EXISTS.
  *
  * @param petIdRef SQL reference to the outer pet id (e.g. `sql`${pets.id}``).
- * @param since    Inclusive lower bound on occurred_at (trailing-12m `period.since`).
+ * @param window   Fixed trailing-12m window { since, until } (see
+ *                 rabiesCurrentlyValidCondition).
  */
-export function rabiesVaccinatedExists(petIdRef: SQL, since: Date): SQL {
+export function rabiesVaccinatedExists(petIdRef: SQL, window: { since: Date; until: Date }): SQL {
   return sql`EXISTS (
     SELECT 1 FROM ${petEvents} pe_rabies
     WHERE pe_rabies.pet_id = ${petIdRef}
       AND pe_rabies.event_type = 'vaccination_administered'
       AND (${amendedPayloadText("vaccine_name", { id: sql`pe_rabies.id`, payload: sql`pe_rabies.payload` })}) ~* ${RABIES_VACCINE_NAME_REGEX}
-      AND pe_rabies.occurred_at >= ${since.toISOString()}
+      AND ${rabiesCurrentlyValidCondition(sql`pe_rabies.occurred_at`, sql`pe_rabies.payload->>'next_due_at'`, window)}
   )`;
 }

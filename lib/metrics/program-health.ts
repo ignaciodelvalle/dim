@@ -318,11 +318,14 @@ export async function fetchCrossJurisdictionOutliers(
   // Uses the SHARED rabiesVaccinatedExists predicate (lib/metrics/rabies.ts) so the
   // /admin panel counts the SAME numerator as fetchRabiesCoverage, the province
   // breakdown, and the Panorama choropleth: anchored accent-aware regex on the
-  // amended vaccine_name AND occurred_at within the trailing-12-month window
-  // (ctx.period.since). Before C3 this EXISTS had the regex but NO occurred_at
-  // window, so the panel read ALL-TIME coverage (~54%) while the KPI read the
-  // last-12-months figure (~42%) — the same-label/different-number drift.
-  const hasRabiesVax = rabiesVaccinatedExists(sql`${pets.id}`, ctx.period.since);
+  // amended vaccine_name AND the "currently-valid" condition (next_due_at expiry,
+  // with a trailing-12m proxy fallback — issue #52). Before C3 this EXISTS had the
+  // regex but NO time window, so the panel read ALL-TIME coverage (~54%) while the
+  // KPI read the last-12-months figure (~42%) — the same-label/different-number drift.
+  const hasRabiesVax = rabiesVaccinatedExists(sql`${pets.id}`, {
+    since: ctx.period.since,
+    until: ctx.period.until,
+  });
 
   // One query: per-province aggregates for all three numerators.
   const rows = await db

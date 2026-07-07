@@ -622,8 +622,8 @@ function metricPredicate(metric: ChoroplethMetric): SQL {
     // Before C3 this was `ILIKE '%rabi%'` (accent-SENSITIVE → silently missed the
     // canonical form "Antirrábica"), over ALL species and ALL time — three ways
     // adrift from the canonical rabies_coverage_dogs_12m numerator.
-    const since = windows.trailing12m().since;
-    return sql`(${pets.species} = 'dog' AND ${rabiesVaccinatedExists(sql`${pets.id}`, since)})`;
+    const win = windows.trailing12m();
+    return sql`(${pets.species} = 'dog' AND ${rabiesVaccinatedExists(sql`${pets.id}`, win)})`;
   }
   if (metric === "sterilization-coverage") {
     // Pets in scope with at least one sterilization_performed event.

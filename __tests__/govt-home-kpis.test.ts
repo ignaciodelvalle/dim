@@ -534,3 +534,134 @@ describe("fetchRabiesCoverage — numerator window is intrinsic 12m, not the dis
     expect(kpi90d.current).toBe(kpi12m.current);
   });
 });
+
+// ---------------------------------------------------------------------------
+// INVARIANT (issue #52): "al día / covered" means the latest rabies dose is
+// CURRENTLY VALID, not merely "a dose exists in the last 12 months". A dose that
+// sets an explicit next_due_at counts only while `now <= next_due_at`; a dose
+// with no next_due_at falls back to the trailing-12m proxy. So a dog whose last
+// dose expired (next_due_at in the past) is NOT covered even if it was
+// administered under 12 months ago; a dog whose next_due_at is in the future IS.
+// ---------------------------------------------------------------------------
+
+describe("fetchRabiesCoverage — currently-valid via next_due_at (issue #52)", () => {
+  const VALID_PROVINCE = "Santa Fe";
+  const EXPIRY_LOCALITY = "RabiesExpiryVille"; // FUTURE + PAST dogs
+  const FALLBACK_LOCALITY = "RabiesFallbackVille"; // next_due_at absent
+  const TOKEN_FUTURE = "HK-RABVALID-FUTURE";
+  const TOKEN_PAST = "HK-RABVALID-PAST";
+  const TOKEN_FALLBACK = "HK-RABVALID-FALLBACK";
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const ALL_TOKENS = [TOKEN_FUTURE, TOKEN_PAST, TOKEN_FALLBACK];
+
+  const ctxFor = (locality: string) =>
+    buildProjectionContext(
+      { role: "govt" },
+      [{ province: VALID_PROVINCE, locality }],
+      windows.trailing12m(),
+    );
+
+  async function cleanup() {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        DELETE FROM pet_events
+        WHERE pet_id IN (SELECT id FROM pets WHERE public_token IN (${sql.join(
+          ALL_TOKENS.map((t) => sql`${t}`),
+          sql`, `,
+        )}))
+      `);
+      await tx.execute(sql`
+        DELETE FROM pets WHERE public_token IN (${sql.join(
+          ALL_TOKENS.map((t) => sql`${t}`),
+          sql`, `,
+        )})
+      `);
+    });
+  }
+
+  async function insertDog(token: string, locality: string): Promise<string> {
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: token,
+        name: `RabValidDog-${token.slice(-4)}`,
+        species: "dog",
+        status: "active",
+        jurisdictionProvince: VALID_PROVINCE,
+        jurisdictionLocality: locality,
+      })
+      .returning({ id: pets.id });
+    return pet.id;
+  }
+
+  async function insertRabiesDose(
+    petId: string,
+    locality: string,
+    occurredAt: Date,
+    nextDueAt: Date | null,
+  ) {
+    await db.insert(petEvents).values({
+      petId,
+      eventType: "vaccination_administered",
+      occurredAt,
+      payload: {
+        payload_version: 1,
+        vaccine_name: "Antirrábica",
+        brand: null,
+        batch: null,
+        administered_by: null,
+        next_due_at: nextDueAt ? nextDueAt.toISOString() : null,
+        pet_jurisdiction_province: VALID_PROVINCE,
+        pet_jurisdiction_locality: locality,
+      },
+      authorRole: "owner",
+      recordedByUserId: null,
+    });
+  }
+
+  beforeAll(async () => {
+    await cleanup();
+    const now = Date.now();
+    // EXPIRY_LOCALITY: two dogs, both dosed 60 days ago (well within 12m).
+    const futureId = await insertDog(TOKEN_FUTURE, EXPIRY_LOCALITY);
+    const pastId = await insertDog(TOKEN_PAST, EXPIRY_LOCALITY);
+    // next_due_at 200 days in the FUTURE → currently valid.
+    await insertRabiesDose(
+      futureId,
+      EXPIRY_LOCALITY,
+      new Date(now - 60 * DAY_MS),
+      new Date(now + 200 * DAY_MS),
+    );
+    // next_due_at 10 days in the PAST → expired, NOT valid (despite <12m).
+    await insertRabiesDose(
+      pastId,
+      EXPIRY_LOCALITY,
+      new Date(now - 60 * DAY_MS),
+      new Date(now - 10 * DAY_MS),
+    );
+
+    // FALLBACK_LOCALITY: one dog, dose 60 days ago, next_due_at ABSENT → proxy.
+    const fallbackId = await insertDog(TOKEN_FALLBACK, FALLBACK_LOCALITY);
+    await insertRabiesDose(fallbackId, FALLBACK_LOCALITY, new Date(now - 60 * DAY_MS), null);
+  });
+
+  afterAll(cleanup);
+
+  it("a future next_due_at counts, an expired one does not (2 dogs → 50%)", async () => {
+    const kpi = await fetchRabiesCoverage(ctxFor(EXPIRY_LOCALITY));
+    expect(kpi.hasData).toBe(true);
+    expect(kpi.current).toBe(50);
+
+    const byProvince = await fetchRabiesCoverageByProvince(ctxFor(EXPIRY_LOCALITY));
+    const row = byProvince.find((r) => r.province === VALID_PROVINCE);
+    expect(row?.total).toBe(2);
+    expect(row?.vaccinated).toBe(1); // only the future-dated dose
+  });
+
+  it("falls back to the 12m proxy when next_due_at is absent (1 dog → 100%)", async () => {
+    const kpi = await fetchRabiesCoverage(ctxFor(FALLBACK_LOCALITY));
+    expect(kpi.current).toBe(100);
+  });
+});
+
+// ---------------------------------------------------------------------------
