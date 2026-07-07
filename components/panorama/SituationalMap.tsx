@@ -1218,6 +1218,15 @@ export function SituationalMap({
                 />
                 Sin datos
               </div>
+              {/* k-anon disclosure: province cells with fewer than 5 records are
+                  suppressed server-side (AGENTS.md k=5 policy) and fall back to
+                  the same neutral fill as genuine no-data. Spell out WHY so a
+                  govt user reads a blank cell as privacy protection, not a gap.
+                  Copy parity with MapChoropleth ("protegidos por privacidad ·
+                  k-anonimato"). */}
+              <div className="mt-0.5 text-[10px] leading-tight text-white/55">
+                Dato protegido — menos de 5 registros (k-anonimato)
+              </div>
             </div>
           ))}
           {/* F1 graduated-circle legend: fixed size → count-bucket mapping.
