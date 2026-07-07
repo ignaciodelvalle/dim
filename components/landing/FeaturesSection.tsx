@@ -3,6 +3,7 @@
 
 import { Icon } from "@/components/Icon";
 import { LIFE_MOMENTS } from "@/components/landing/landing-content";
+import Link from "next/link";
 
 export function FeaturesSection() {
   return (
@@ -25,6 +26,10 @@ export function FeaturesSection() {
             </article>
           ))}
         </div>
+        <p className="lp-feat-more lp-reveal">
+          ¿Qué funciona en tu localidad?{" "}
+          <Link href="/funcionalidades">Todas las funcionalidades →</Link>
+        </p>
       </div>
     </section>
   );
