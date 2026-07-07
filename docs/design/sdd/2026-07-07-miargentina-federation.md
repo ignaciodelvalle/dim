@@ -99,3 +99,13 @@ app/auth/miarg/callback/route.ts   ← implement R3.1–R3.6 here
 3. **Account linking UX.** A user who already self-verified their DNI, then logs in via Mi Argentina under the same DNI — merge or block? The `miarg_sub` 23505 path (R3.5) currently blocks; a merge flow is a separate design. → defer to 25b.
 4. **Real claim names.** Placeholder `sub/name/dni/dni_verified/email` must be confirmed. → 25b first task.
 5. **Federated credential issuance (beyond login).** The backlog also lists "emisión federada de credenciales" as an ⚪ open question — Mi Argentina *issuing* a MiMAR credential, not just authenticating. Out of scope of the login contract; flagged for a future SDD.
+
+## Downstream unblock checklist — what the whole DNI-identity layer waits on (found 2026-07-07)
+
+`dniVerified` is today a **self-declared placeholder** (`verify-dni.ts` — a typed DNI form), because Mi Argentina is the intended real verifier (this doc's OIDC callback sets it from the RENAPER `dni_verified` claim). Until then, everything that resolves a person by DNI is trust-fragile. When federation lands, in the same change:
+
+1. **Re-enable stub-claim** — `src/modules/pets/application/stub-claim/claim-stub-profile.ts` has `STUB_CLAIM_ENABLED = false` (security gate review 2026-05-19 §2.1: DNI is public → anyone could claim another's stub + inherit pets/records). The comment says re-enabling is "a one-line revert" once DNI verification is real. Flip it, and re-verify the claim resolves by the RENAPER-verified DNI, not a raw typed one.
+2. **Re-verify every `dniVerified` gate resolves by federated identity, not a self-typed DNI:** vet upgrade (`request-vet-upgrade.ts`), org creation (`create-organization.ts`), foster/tránsito (`volunteer-rules.ts`), adoption finalize (`finalize-adoption.ts`).
+3. **Adoption online loop (#67):** independent of Mi Argentina — for online applicants who are already DIM accounts, resolve the adoption to their ACCOUNT directly (no DNI, no stub). The DNI-stub path stays only for walk-in/offline adopters and remains blocked on the claim above until federation. Do #67 now; the stub path is unblocked by Mi Argentina.
+
+**Principle:** resolve people by their Mi-Argentina-verified account, never by a self-declared DNI. The DNI hash is a *verified attribute of the account*, not an identity anchor on its own.
