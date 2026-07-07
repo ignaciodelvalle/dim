@@ -122,21 +122,28 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
         await expect(sp.getByText(/última vez vista/i)).not.toBeVisible();
 
         await sp.goto("/perdidas", { waitUntil: "domcontentloaded" });
+        // The public board is card-based: the token lives in the card's link
+        // href (→ /p/{token}), not as visible text. Assert the card link, not
+        // a raw token string.
         await expect(
-          sp.getByText(token).first(),
+          sp.locator(`a[href*="${token}"]`).first(),
           "lost pet appears in the public /perdidas board",
         ).toBeVisible({ timeout: 20_000 });
       } finally {
         await stranger.close();
       }
 
-      // --- Govt POV: the lost pet is visible on /gob/perdidas ----------------
-      await relogin(page, ACCOUNTS.govt);
+      // --- Operator POV: the lost pet is visible on the operator board -------
+      // Use admin (universal scope) so the projection assertion doesn't depend
+      // on the arbitrary pet's locality matching a specific govt's jurisdiction
+      // (a jurisdiction-scoped govt correctly sees only its own localities).
+      // The card links by href (→ /p/{token}), not visible token text.
+      await relogin(page, ACCOUNTS.admin);
       await page.goto("/gob/perdidas", { waitUntil: "domcontentloaded" });
       await expect(page.getByText(/mascotas perdidas/i).first()).toBeVisible({ timeout: 15_000 });
       await expect(
-        page.getByText(token).first(),
-        "lost pet appears on govt /gob/perdidas",
+        page.locator(`a[href*="${token}"]`).first(),
+        "lost pet appears on the operator /gob/perdidas board",
       ).toBeVisible({ timeout: 15_000 });
 
       // --- Owner marks the pet found → public lost UI clears -----------------
@@ -148,8 +155,13 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       await expect(confirm).toBeVisible({ timeout: 15_000 });
       await confirm.click();
       await page.waitForLoadState("networkidle").catch(() => {});
+      // Re-fetch fresh (the found server action revalidates; avoid a client-cached
+      // view of the just-cleared lost state).
       await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" });
-      await expect(page.locator('[data-section="lost-case-block"]')).toHaveCount(0);
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(page.locator('[data-section="lost-case-block"]')).toHaveCount(0, {
+        timeout: 20_000,
+      });
 
       const stranger2 = await browser.newContext();
       try {
