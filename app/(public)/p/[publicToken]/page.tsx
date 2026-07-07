@@ -58,6 +58,14 @@ import {
 // The page calls headers() at runtime — mark it dynamic explicitly so Next.js
 // does not attempt to statically render it (matches the sibling encontre /
 // sighting pages that also carry this export).
+//
+// Cache policy: ALWAYS LIVE. force-dynamic + `Cache-Control: no-store` (stamped
+// in middleware for the /p/ subtree — see lib/infra/public-cache-policy.ts).
+// This credential flips active↔lost and, in lost mode, discloses the owner's
+// phone / last-seen location; a shared/CDN cache was serving a found pet as
+// "SE BUSCA" + phone at the exact QR URL. no-store guarantees the lost→found /
+// disclosure change is visible immediately, so no per-action revalidation of
+// this public URL is needed.
 export const dynamic = "force-dynamic";
 
 /**

@@ -8,6 +8,9 @@
 import { CaseDetailView } from "@/components/casos/CaseDetailView";
 
 // Reads auth cookies (viewer-dependent PII gating) — never statically cache.
+// Cache policy: ALWAYS LIVE. force-dynamic + `Cache-Control: no-store` (stamped
+// in middleware for the /casos/ subtree — see lib/infra/public-cache-policy.ts)
+// so a shared/CDN cache can never cross-serve one viewer's PII-gated variant.
 export const dynamic = "force-dynamic";
 
 interface PageProps {

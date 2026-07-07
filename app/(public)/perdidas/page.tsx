@@ -28,6 +28,11 @@ const PROVINCE_BY_NAME = new Map<string, (typeof PROVINCES)[number]>(
 // Public landing — no auth required. Each search param maps to a query
 // filter; the URL is the source of truth (D11). Server-rendered for
 // SEO and shareability. Mirrors /adoptar.
+//
+// Cache policy: ALWAYS LIVE. force-dynamic + `Cache-Control: no-store` (stamped
+// in middleware — see lib/infra/public-cache-policy.ts). The listing and its
+// KPI counts reflect live lost/found state; a recovered pet must drop off the
+// grid promptly, so this route is never held by a shared/CDN cache.
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({

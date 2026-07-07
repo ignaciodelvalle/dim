@@ -28,7 +28,10 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mimar.gob.ar";
 // returns 404 instead of leaking. The exception (D7.2) is a gentle
 // "ya fue adoptada" message when the pet has a recent adoption_finalized
 // event, instead of a cold 404.
-
+//
+// Cache policy: ALWAYS LIVE. force-dynamic + `Cache-Control: no-store` (stamped
+// in middleware for the /adoptar subtree — see lib/infra/public-cache-policy.ts)
+// so an unlisted/paused/adopted pet stops resolving to the public ficha promptly.
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({

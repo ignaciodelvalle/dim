@@ -3,6 +3,7 @@
 // fresh, and to redirect legacy paths so old bookmarks and external links
 // continue to work.
 
+import { NO_STORE_CACHE_CONTROL, isPublicNoStoreRoute } from "@/lib/infra/public-cache-policy";
 import { updateSession } from "@/lib/supabase/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -190,6 +191,18 @@ export async function middleware(request: NextRequest) {
   // violations, so the policy is safe to enforce. The early redirect returns
   // above have no scriptable body, so they need no CSP.
   response.headers.set("Content-Security-Policy", csp);
+
+  // Privacy-class fix (2026-07-07): public routes that render mutable,
+  // privacy-sensitive state (QR credential /p, revocable libreta share, lost
+  // listing, adoption listing, denuncia status) MUST never be retained by a
+  // shared/CDN cache — a revoked share or a found pet was being served stale at
+  // the exact shared URL. They already declare `dynamic = "force-dynamic"`;
+  // this stamps the matching `Cache-Control: no-store` so no shared cache keeps
+  // them. See lib/infra/public-cache-policy.ts for the allowlist + rationale.
+  if (isPublicNoStoreRoute(pathname)) {
+    response.headers.set("Cache-Control", NO_STORE_CACHE_CONTROL);
+  }
+
   return response;
 }
 

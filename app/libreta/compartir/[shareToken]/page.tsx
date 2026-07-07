@@ -19,6 +19,12 @@ import { formatDate, formatDateTime } from "@/lib/utils/format";
 
 import { ViewLogger } from "./ViewLogger";
 
+// Cache policy: ALWAYS LIVE. force-dynamic + `Cache-Control: no-store` (stamped
+// in middleware for the /libreta/compartir/ subtree — see
+// lib/infra/public-cache-policy.ts). This is the most sensitive public payload
+// (full Tier-2 medical libreta) and is REVOCABLE: a revoked/expired share token
+// must stop serving the libreta at the exact shared URL immediately. no-store
+// guarantees that, so the revoke action needs no revalidation of this URL.
 export const dynamic = "force-dynamic";
 
 // WAVE D4 — per-IP rate limit for the shared-libreta read path.

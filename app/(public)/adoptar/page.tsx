@@ -9,6 +9,10 @@ import { AdoptionFiltersBar } from "./AdoptionFiltersBar";
 // Public landing — no auth required. Each search param maps to a query
 // filter; the URL is the source of truth (D11). Server-rendered for
 // SEO and shareability.
+//
+// Cache policy: ALWAYS LIVE. force-dynamic + `Cache-Control: no-store` (stamped
+// in middleware for the /adoptar subtree — see lib/infra/public-cache-policy.ts)
+// so an adopted/unpublished pet drops off the public listing promptly.
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
