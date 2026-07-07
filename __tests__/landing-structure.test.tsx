@@ -75,14 +75,18 @@ describe("landing hero — credential + lost demo", () => {
 
   it("renders the credential resting on AL DÍA at SSR (state cycle is client-only)", () => {
     const html = renderHero();
-    // The hero is a single cycling credential (not the old 2-face FlipCard).
-    expect(html).toContain("lp-hcred");
-    expect(html).toContain("lp-hbadge");
+    // The hero is the "credencial viva" card (front credential + back libreta).
+    expect(html).toContain("lp-hcard");
+    expect(html).toContain("lp-hcard-badge");
     // SSR / no-JS / reduced-motion rest on the first state — "al día".
     expect(html).toContain("AL DÍA");
-    // Later states only appear via client-side cycling — never in SSR HTML.
-    expect(html).not.toContain("REGISTRO PPP");
-    expect(html).not.toContain("EN OBSERVACIÓN");
+    // The al-día contextual row is the one painted at rest.
+    expect(html).toContain("Vacunas firmadas");
+    // Later-state contextual rows only appear via client-side cycling — never in
+    // SSR HTML (the per-state row is keyed to the current index; dot aria-labels
+    // carry the badge strings, so absence is asserted on the row copy instead).
+    expect(html).not.toContain("Requisito jurisdiccional");
+    expect(html).not.toContain("Cierra sola en 8 días");
   });
 });
 

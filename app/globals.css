@@ -804,127 +804,339 @@ body {
   justify-content: center;
 }
 
-/* halo — status-tinted glow ring around Pampa */
-.lp .lp-halo {
+/* ============ hero credential — "credencial viva" ==========================
+   A mini DNI-style credential card that auto-cycles through the states a real
+   pet moves through over a life (PO redesign 2026-07-04). It replaces the old
+   photo-with-halo motif. The WHOLE card tints per state via data-tone →
+   --htone / --htone-soft / --htone-bd (token map below); the front carries ONE
+   contextual row, the back is a mini libreta. The turn is edge-on (LandingHero
+   drives rotateY imperatively; same single-painted-face mechanic as FlipCard /
+   .ln-doc-turn). Motion — cycle, turn, lost-pulse — is gated on .lp-motion. */
+
+/* per-state token tint (landing-local; two states — watch/ppp — have no shared
+   LnPetStatus equivalent, which is why the tint lives here, not in that type) */
+.lp .lp-hcard[data-tone="ok"] {
+  --htone: var(--color-ln-ok);
+  --htone-soft: var(--color-ln-ok-bg);
+  --htone-bd: var(--color-ln-ok-100);
+}
+.lp .lp-hcard[data-tone="lost"] {
+  --htone: var(--color-ln-err);
+  --htone-soft: var(--color-ln-err-050);
+  --htone-bd: var(--color-ln-err-100);
+}
+.lp .lp-hcard[data-tone="watch"] {
+  --htone: var(--color-ln-azul-700);
+  --htone-soft: var(--color-ln-celeste-050);
+  --htone-bd: var(--color-ln-celeste-100);
+}
+.lp .lp-hcard[data-tone="sick"] {
+  --htone: var(--color-ln-warn);
+  --htone-soft: var(--color-ln-warn-050);
+  --htone-bd: var(--color-ln-warn-100);
+}
+.lp .lp-hcard[data-tone="ppp"] {
+  --htone: var(--color-ln-violeta);
+  --htone-soft: var(--color-ln-violeta-050);
+  --htone-bd: var(--color-ln-violeta-100);
+}
+
+.lp .lp-hcardwrap {
+  perspective: 1200px;
+  width: min(400px, 92vw);
+}
+.lp .lp-hcard {
   position: relative;
-  width: min(384px, 80vw);
-  aspect-ratio: 1 / 1;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
+  width: 100%;
+  border-radius: 14px;
+  background: var(--color-ln-card);
+  border: 1.5px solid var(--htone, var(--color-ln-celeste-100));
+  box-shadow: var(--shadow-lg);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.5s;
+  transform-style: flat;
+  overflow: hidden;
 }
-.lp .lp-halo::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 1px dashed var(--color-ln-line-strong);
-  transition: border-color 0.4s;
+/* lost keeps a subtle border pulse (the old halo's data-status="lost" wink) */
+.lp.lp-motion .lp-hcard[data-tone="lost"] {
+  animation: lp-hcard-lost 1.6s ease-in-out infinite;
 }
-.lp .lp-halo::after {
-  content: "";
-  position: absolute;
-  inset: 9%;
-  border-radius: 50%;
-  z-index: 0;
-  background: radial-gradient(circle, var(--lp-halo, rgba(46, 125, 79, 0.3)) 0%, transparent 62%);
-  filter: blur(14px);
-  opacity: 0.8;
-  transition: opacity 0.5s;
-}
-.lp .lp-halo > * {
-  position: relative;
-  z-index: 1;
-}
-.lp .lp-halo[data-status="ok"] {
-  --lp-halo: rgba(46, 125, 79, 0.3);
-}
-.lp .lp-halo[data-status="lost"] {
-  --lp-halo: rgba(192, 57, 43, 0.45);
-}
-.lp .lp-halo[data-status="lost"]::before {
-  border-color: rgba(192, 57, 43, 0.55);
-}
-.lp.lp-motion .lp-halo[data-status="lost"]::after {
-  animation: lp-halo-pulse 1.6s ease-in-out infinite;
-}
-@keyframes lp-halo-pulse {
+@keyframes lp-hcard-lost {
   0%,
   100% {
-    opacity: 0.55;
-    transform: scale(1);
+    box-shadow: var(--shadow-lg), 0 0 0 0 var(--color-ln-err-100);
   }
   50% {
-    opacity: 1;
-    transform: scale(1.07);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .lp .lp-halo::after {
-    animation: none !important;
+    box-shadow: var(--shadow-lg), 0 0 0 4px var(--color-ln-err-050);
   }
 }
 
-/* floating credential — a single card whose status badge cycles with Pampa's
-   state (PO landing feedback #10). Motion collapses under reduced motion. */
-.lp .lp-hcred {
-  position: absolute;
-  right: -6px;
-  bottom: 6px;
-  width: min(300px, 78vw);
-  background: var(--color-ln-card);
-  border: 1px solid var(--color-ln-line);
-  border-radius: 12px;
-  padding: 10px 13px;
-  box-shadow: var(--shadow-lg);
+/* single-painted-face swap (mirrors FlipCard) — back hidden until data-face */
+.lp .lp-hcard-back {
+  display: none;
+}
+.lp .lp-hcard[data-face="back"] .lp-hcard-front {
+  display: none;
+}
+.lp .lp-hcard[data-face="back"] .lp-hcard-back {
+  display: block;
+}
+
+/* trim bar — subtly tinted by state tone */
+.lp .lp-hcard-trim {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 12px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px;
+  background: linear-gradient(90deg, var(--htone-soft, var(--color-ln-ok-bg)), transparent 70%);
+  border-bottom: 1px solid var(--color-ln-line);
+  transition: background 0.5s;
 }
-
-/* landing-local status badge — echoes LnStatusFlag, but carries two hero-only
-   states (watch = observación antirrábica, ppp = registro PPP) that the shared
-   LnPetStatus type intentionally does not define. */
-.lp .lp-hbadge {
-  margin-left: auto;
-  flex-shrink: 0;
+.lp .lp-hcard-trim-r {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lp .lp-hcard-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--color-ln-ink);
+}
+.lp .lp-hcard-brand i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-ln-celeste);
+  border: 2px solid var(--color-ln-azul);
+}
+.lp .lp-hcard-badge {
   display: inline-flex;
   align-items: center;
-  border: 1px solid;
-  border-radius: 2px;
-  padding: 2px 7px;
-  font: 600 9px / 1 var(--font-ln-mono);
-  letter-spacing: 0.12em;
+  border: 1px solid var(--htone-bd, var(--color-ln-ok-100));
+  border-radius: 999px;
+  padding: 3px 10px;
+  font: 700 10px / 1 var(--font-ln-mono);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   white-space: nowrap;
+  color: var(--htone, var(--color-ln-ok));
+  background: var(--htone-soft, var(--color-ln-ok-bg));
+  transition: color 0.5s, background 0.5s, border-color 0.5s;
   animation: lp-hbadge-in 0.4s ease both;
 }
-.lp .lp-hbadge[data-tone="ok"] {
-  background: var(--color-ln-ok-bg);
-  border-color: var(--color-ln-ok-100);
+.lp .lp-hcard-flip {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-ln-line-strong);
+  background: var(--color-ln-card);
+  color: var(--color-ln-mute);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  transition: transform 0.2s, color 0.2s, border-color 0.2s;
+}
+.lp .lp-hcard-flip:hover {
+  color: var(--color-ln-ink);
+  border-color: var(--color-ln-azul);
+  transform: rotate(180deg);
+}
+.lp .lp-hcard-flip:focus-visible {
+  outline: 2px solid var(--color-ln-azul);
+  outline-offset: 2px;
+}
+
+/* body: photo · id · qr */
+.lp .lp-hcard-body {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+}
+.lp .lp-hcard-photo {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2.5px solid var(--htone, var(--color-ln-ok));
+  transition: border-color 0.5s;
+}
+.lp .lp-hcard-photo img {
+  object-fit: cover;
+}
+.lp .lp-hcard-id {
+  min-width: 0;
+}
+.lp .lp-hcard-name {
+  display: block;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  color: var(--color-ln-ink);
+}
+.lp .lp-hcard-token {
+  display: block;
+  font-family: var(--font-ln-mono);
+  font-size: 12.5px;
+  color: var(--color-ln-mute);
+  letter-spacing: 0.04em;
+}
+.lp .lp-hcard-qr {
+  width: 58px;
+  height: 58px;
+  border-radius: 6px;
+  border: 1px solid var(--color-ln-line);
+  background: #fff;
+  padding: 5px;
+  display: block;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.lp .lp-hcard-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* one contextual read-only row, tinted, morphing per state */
+.lp .lp-hcard-ctx {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 16px 12px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--htone-soft, var(--color-ln-ok-bg));
+  color: var(--htone, var(--color-ln-ok));
+  font-weight: 700;
+  font-size: 13.5px;
+  min-height: 38px;
+  transition: background 0.5s, color 0.5s;
+  animation: lp-hstate-in 0.45s ease both;
+}
+.lp .lp-hcard-ctx-chev {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* MRZ line — the DNI wink, decorative, built from the real token */
+.lp .lp-hcard-mrz {
+  font-family: var(--font-ln-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  color: var(--color-ln-mute);
+  border-top: 1px dashed var(--color-ln-line);
+  padding: 8px 16px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0.85;
+}
+
+/* back — the mini libreta */
+.lp .lp-hcard-libhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-ln-line);
+  background: linear-gradient(90deg, var(--color-ln-ok-bg), transparent 70%);
+}
+.lp .lp-hcard-libhead b {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--color-ln-ink);
+}
+.lp .lp-hcard-libmeta {
+  font-size: 11px;
+  color: var(--color-ln-mute);
+}
+.lp .lp-hcard-librow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--color-ln-line);
+  font-size: 13.5px;
+}
+.lp .lp-hcard-libwhat {
+  display: block;
+  font-weight: 700;
+  color: var(--color-ln-ink);
+}
+.lp .lp-hcard-libwho {
+  display: block;
+  font-size: 11.5px;
+  color: var(--color-ln-mute);
+}
+.lp .lp-hcard-libstamp {
+  flex-shrink: 0;
   color: var(--color-ln-ok);
+  font-weight: 800;
+  font-size: 12px;
+  white-space: nowrap;
 }
-.lp .lp-hbadge[data-tone="lost"] {
-  background: var(--color-ln-err-050);
-  border-color: var(--color-ln-err-100);
-  color: var(--color-ln-err);
+.lp .lp-hcard-libfoot {
+  padding: 11px 16px 13px;
+  font-size: 12px;
+  color: var(--color-ln-mute);
+  font-style: italic;
 }
-.lp .lp-hbadge[data-tone="watch"] {
-  background: var(--color-ln-celeste-050);
-  border-color: var(--color-ln-celeste-100);
-  color: var(--color-ln-azul-700);
+
+/* state dots — tap one to take control of the cycle */
+.lp .lp-hdots {
+  display: flex;
+  gap: 9px;
+  margin-top: 22px;
 }
-.lp .lp-hbadge[data-tone="sick"] {
-  background: var(--color-ln-warn-050);
-  border-color: var(--color-ln-warn-100);
-  color: var(--color-ln-warn);
+.lp .lp-hdot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-ln-mute);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.2s, background 0.2s, border-color 0.2s;
 }
-.lp .lp-hbadge[data-tone="ppp"] {
-  background: var(--color-ln-violeta-050);
-  border-color: var(--color-ln-violeta-100);
-  color: var(--color-ln-violeta);
+.lp .lp-hdot[data-tone="ok"] {
+  --dtone: var(--color-ln-ok);
 }
+.lp .lp-hdot[data-tone="lost"] {
+  --dtone: var(--color-ln-err);
+}
+.lp .lp-hdot[data-tone="watch"] {
+  --dtone: var(--color-ln-azul-700);
+}
+.lp .lp-hdot[data-tone="sick"] {
+  --dtone: var(--color-ln-warn);
+}
+.lp .lp-hdot[data-tone="ppp"] {
+  --dtone: var(--color-ln-violeta);
+}
+.lp .lp-hdot[data-on="true"] {
+  background: var(--dtone, var(--color-ln-azul));
+  border-color: var(--dtone, var(--color-ln-azul));
+  transform: scale(1.25);
+}
+.lp .lp-hdot:focus-visible {
+  outline: 2px solid var(--color-ln-azul);
+  outline-offset: 2px;
+}
+
 @keyframes lp-hbadge-in {
   from {
     opacity: 0;
@@ -934,25 +1146,6 @@ body {
     opacity: 1;
     transform: none;
   }
-}
-
-/* live state caption + cycle dots under the credential */
-.lp .lp-hstate {
-  display: block;
-  max-width: 340px;
-  margin-top: 20px;
-  min-height: 62px;
-  text-align: center;
-}
-.lp .lp-hstate-line {
-  display: block;
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--color-ln-ink-2);
-  animation: lp-hstate-in 0.45s ease both;
-}
-.lp .lp-hstate-line b {
-  color: var(--color-ln-ink);
 }
 @keyframes lp-hstate-in {
   from {
@@ -964,36 +1157,19 @@ body {
     transform: none;
   }
 }
-.lp .lp-hstate-dots {
-  display: inline-flex;
-  gap: 6px;
-  margin-top: 12px;
-}
-.lp .lp-hstate-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-ln-line-strong);
-  transition: background 0.3s, transform 0.3s;
-}
-.lp .lp-hstate-dot[data-on="true"] {
-  background: var(--color-ln-azul);
-  transform: scale(1.35);
-}
-.lp .lp-qr {
-  width: 54px;
-  height: 54px;
-  border-radius: 7px;
-  border: 1px solid var(--color-ln-line);
-  background: #fff;
-  display: block;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-.lp .lp-qr svg {
-  display: block;
-  width: 100%;
-  height: 100%;
+
+@media (prefers-reduced-motion: reduce) {
+  .lp .lp-hcard,
+  .lp .lp-hcard-trim,
+  .lp .lp-hcard-badge,
+  .lp .lp-hcard-photo,
+  .lp .lp-hcard-ctx {
+    transition: none;
+    animation: none;
+  }
+  .lp .lp-hcard-flip:hover {
+    transform: none;
+  }
 }
 
 /* vet screen — the real credential (LnHero) embedded in the phone; strip its
@@ -2217,6 +2393,21 @@ body {
   line-height: 1.55;
   flex: 1;
   margin: 0;
+}
+/* quiet "what turns on in your locality" line under the feature grid */
+.lp .lp-feat-more {
+  margin-top: clamp(20px, 3vw, 30px);
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-ln-mute);
+}
+.lp .lp-feat-more a {
+  color: var(--color-ln-azul);
+  font-weight: 600;
+  text-decoration: none;
+}
+.lp .lp-feat-more a:hover {
+  text-decoration: underline;
 }
 
 /* ============ FAQ + trust row ============================================= */
