@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -210,6 +211,10 @@ export default async function AdoptarFichaPage({
     url: `${SITE_URL}/adoptar/${petToken}`,
   };
 
+  // Per-request CSP nonce (set by middleware, Item #64) so this inline JSON-LD
+  // script is allowed under script-src 'nonce-…' / 'strict-dynamic'.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <main
       className="min-h-screen pb-32 md:pb-10"
@@ -218,6 +223,7 @@ export default async function AdoptarFichaPage({
       <Script
         id="adoptar-jsonld"
         type="application/ld+json"
+        nonce={nonce}
         // biome-ignore lint/security/noDangerouslySetInnerHtml: SEO JSON-LD needs raw <script> content; serializeJsonLd() neutralises <, >, & and U+2028/U+2029 so user-supplied pet fields (name, adoptionStory) cannot break out of the script.
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />

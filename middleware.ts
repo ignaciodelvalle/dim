@@ -6,8 +6,102 @@
 import { updateSession } from "@/lib/supabase/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 
+// ── Content-Security-Policy (audit Item #64) ──────────────────────────────
+// Shipped as REPORT-ONLY first. The browser observes and reports violations
+// (to the console, and to a sink if one is ever added) but does NOT block
+// anything, so a mistaken or too-strict directive cannot break the app before
+// deploy — strictly safer than the current no-CSP state. Once a headless sweep
+// of every page type reports zero violations, flip the response header name
+// from `Content-Security-Policy-Report-Only` to `Content-Security-Policy` to
+// start enforcing.
+//
+// The nonce is PER-REQUEST, which is why the policy is assembled here in
+// middleware and not in next.config.ts static headers (which cannot carry a
+// per-request value). Next.js reads the nonce back out of the CSP request
+// header — app-render.js accepts either `content-security-policy` OR
+// `content-security-policy-report-only` — and stamps it onto every framework
+// hydration/flight <script> automatically; `'strict-dynamic'` then extends
+// trust to the chunk scripts those bootstrap scripts load. Our own inline
+// <script>s (the two JSON-LD emitters under app/(public)/{refugios,adoptar})
+// are NOT framework scripts, so they read the nonce from the `x-nonce` request
+// header via headers() and set nonce={nonce} explicitly.
+
+// Supabase origins are derived from the same env var next.config.ts uses, so
+// local dev (http://127.0.0.1:54321 + ws) and any hosted project
+// (https://<ref>.supabase.co + wss) are both covered without hardcoding a host.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const { supabaseHttpOrigin, supabaseWsOrigin } = (() => {
+  try {
+    const u = new URL(SUPABASE_URL);
+    return {
+      supabaseHttpOrigin: u.origin,
+      supabaseWsOrigin: `${u.protocol === "https:" ? "wss:" : "ws:"}//${u.host}`,
+    };
+  } catch {
+    return { supabaseHttpOrigin: "", supabaseWsOrigin: "" };
+  }
+})();
+
+function buildContentSecurityPolicy(nonce: string): string {
+  return [
+    // Default deny — any fetch directive without an explicit rule falls here.
+    "default-src 'self'",
+    // Scripts: same-origin + the per-request nonce only. 'strict-dynamic' lets
+    // a nonce'd script load further chunks (Next hydration → app chunks)
+    // without host allowlisting. No 'unsafe-inline' / no 'unsafe-eval'.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    // Styles: Tailwind utility classes and styled-jsx inject inline <style> and
+    // style="" at runtime, which a nonce cannot cover — 'unsafe-inline' for
+    // STYLES ONLY is the accepted trade-off (inline styles cannot execute JS).
+    "style-src 'self' 'unsafe-inline'",
+    // Images: pet photos + org logos from Supabase Storage (http in local dev,
+    // https in prod), map raster tiles (https:), inline data: URIs (QR/icons),
+    // and blob: previews (client-side image crops).
+    ["img-src", "'self'", "data:", "blob:", "https:", supabaseHttpOrigin]
+      .filter(Boolean)
+      .join(" "),
+    // maplibre-gl runs its tile/geometry pipeline in a blob: Web Worker.
+    "worker-src 'self' blob:",
+    // XHR/fetch/WebSocket: Supabase REST+Auth and realtime (ws/wss), plus the
+    // OpenStreetMap raster tiles maplibre fetches for the location-capture maps
+    // (LocationMap/LocationPicker). The panorama choropleth is tiles-free and
+    // fetches its geojson same-origin ('self').
+    [
+      "connect-src",
+      "'self'",
+      supabaseHttpOrigin,
+      supabaseWsOrigin,
+      "https://*.supabase.co",
+      "wss://*.supabase.co",
+      "https://tile.openstreetmap.org",
+    ]
+      .filter(Boolean)
+      .join(" "),
+    // Fonts: self-hosted, plus any data: URI fonts.
+    "font-src 'self' data:",
+    // Clickjacking: disallow framing entirely (mirrors X-Frame-Options: DENY).
+    "frame-ancestors 'none'",
+    // Remaining injection surfaces.
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+  ].join("; ");
+  // NOTE: no report-uri/report-to — no report sink exists yet. Report-only
+  // still surfaces every violation to the browser console, which is what the
+  // pre-enforcement headless sweep reads.
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Per-request CSP nonce (Item #64). One nonce per request, shared by the
+  // framework scripts and our JSON-LD emitters. Exposed two ways:
+  //   • x-nonce request header — read by the JSON-LD server components.
+  //   • the CSP request header — read by Next.js to nonce its own scripts.
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const csp = buildContentSecurityPolicy(nonce);
+  request.headers.set("x-nonce", nonce);
+  request.headers.set("content-security-policy-report-only", csp);
 
   // Expose the request pathname to server components via a request header.
   // Server layouts (e.g. app/(public)/layout.tsx) cannot read usePathname(),
@@ -90,7 +184,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url, { status: 308 });
   }
 
-  return await updateSession(request);
+  const response = await updateSession(request);
+  // Report-only for now: observe + report, never block. Flip this header name
+  // to "Content-Security-Policy" to enforce once the sweep is clean. The early
+  // redirect returns above have no scriptable body, so they need no CSP.
+  response.headers.set("Content-Security-Policy-Report-Only", csp);
+  return response;
 }
 
 export const config = {

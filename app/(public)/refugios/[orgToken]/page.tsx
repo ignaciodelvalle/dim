@@ -11,6 +11,7 @@
 // existing skeleton instead of re-querying.
 
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -139,6 +140,10 @@ export default async function RefugioPage({
       ? `${org.jurisdictionLocality}, ${provinceLabel}`
       : (provinceLabel ?? org.jurisdictionLocality ?? null);
 
+  // Per-request CSP nonce (set by middleware, Item #64) so this inline JSON-LD
+  // script is allowed under script-src 'nonce-…' / 'strict-dynamic'.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   // JSON-LD Organization schema for rich-result eligibility on search
   // engines + LinkedIn. Generated server-side and injected via serializeJsonLd()
   // (Next/React do NOT escape dangerouslySetInnerHTML — the helper does).
@@ -181,6 +186,7 @@ export default async function RefugioPage({
               so crawlers can index the structured data. */}
           <script
             type="application/ld+json"
+            nonce={nonce}
             // biome-ignore lint/security/noDangerouslySetInnerHtml: serializeJsonLd() neutralises <, >, & and U+2028/U+2029 so user-supplied org fields (displayName, description, legalName) cannot break out of the script.
             dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
           />
