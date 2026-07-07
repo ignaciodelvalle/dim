@@ -14,14 +14,42 @@
 //     - session present + mismatched passwords → validation error
 //     - session present + valid passwords → calls updateUser and returns ok
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
 
+// requestPasswordResetAction now reads request headers (callerIp) for its
+// per-IP + per-email rate-limit budgets. Provide a trusted edge IP.
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => ({
+    get: (key: string) => (key === "x-real-ip" ? "10.0.0.1" : null),
+  })),
+}));
+
+// Rate limiter: allow by default, overridable per test. Keep the REAL
+// RateLimitError / callerIp / emailRateLimitKey so the action's branch logic
+// and key derivation stay honest.
+const { mockEnforceRateLimit } = vi.hoisted(() => ({
+  mockEnforceRateLimit: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
+  return {
+    ...actual,
+    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+  };
+});
+
 import { requestPasswordResetAction, updatePasswordAction } from "@/app/actions/password-reset";
+import { RateLimitError } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
+
+beforeEach(() => {
+  mockEnforceRateLimit.mockReset();
+  mockEnforceRateLimit.mockResolvedValue(undefined);
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -49,13 +77,15 @@ function mockUpdateClient({
   updateError = null as unknown,
 } = {}) {
   const updateUser = vi.fn().mockResolvedValue({ error: updateError });
+  const signOut = vi.fn().mockResolvedValue({ error: null });
   vi.mocked(createClient).mockResolvedValue({
     auth: {
       getUser: vi.fn().mockResolvedValue({ data: { user }, error: userError }),
       updateUser,
+      signOut,
     },
   } as never);
-  return { updateUser };
+  return { updateUser, signOut };
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +138,40 @@ describe("requestPasswordResetAction", () => {
       "ana@mimar.ar",
       expect.objectContaining({ redirectTo: expect.stringContaining("/recuperar/actualizar") }),
     );
+  });
+
+  it("enforces a per-IP and a per-email budget before sending a recovery email", async () => {
+    const { resetPasswordForEmail } = mockResetClient();
+    await requestPasswordResetAction(
+      { message: null, error: null },
+      makeForm({ email: "ana@mimar.ar" }),
+    );
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      "auth_password_reset_ip",
+      "10.0.0.1",
+      expect.any(Object),
+    );
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      "auth_password_reset_email",
+      expect.any(String),
+      expect.any(Object),
+    );
+    expect(resetPasswordForEmail).toHaveBeenCalledOnce();
+  });
+
+  it("returns a friendly error and sends NO email when rate-limited", async () => {
+    const { resetPasswordForEmail } = mockResetClient();
+    mockEnforceRateLimit.mockRejectedValueOnce(
+      new RateLimitError(new Date(Date.now() + 60_000), "auth_password_reset_ip"),
+    );
+    const result = await requestPasswordResetAction(
+      { message: null, error: null },
+      makeForm({ email: "ana@mimar.ar" }),
+    );
+    expect(result.error).toMatch(/demasiados intentos/i);
+    expect(result.message).toBeNull();
+    // Fail closed: no recovery email is dispatched once the budget is spent.
+    expect(resetPasswordForEmail).not.toHaveBeenCalled();
   });
 });
 
@@ -163,6 +227,43 @@ describe("updatePasswordAction", () => {
     expect(updateUser).toHaveBeenCalledWith({ password: "seguraPass1!" });
     expect(result.error).toBeNull();
     expect(result.ok).toBe(true);
+  });
+
+  // MED-5: a reset is the canonical response to a compromised account, so any
+  // pre-existing attacker session must be revoked. scope:"others" kills every
+  // OTHER session while preserving the current recovery session (reset UX).
+  it("revokes all OTHER sessions after a successful password update", async () => {
+    const { signOut } = mockUpdateClient({ user: { id: "user-uuid" } });
+    await updatePasswordAction(
+      { error: null },
+      makeForm({ password: "seguraPass1!", confirmPassword: "seguraPass1!" }),
+    );
+    expect(signOut).toHaveBeenCalledWith({ scope: "others" });
+  });
+
+  it("does NOT revoke other sessions when the password update fails", async () => {
+    const { signOut } = mockUpdateClient({
+      user: { id: "user-uuid" },
+      updateError: { message: "Password too weak" },
+    });
+    await updatePasswordAction(
+      { error: null },
+      makeForm({ password: "seguraPass1!", confirmPassword: "seguraPass1!" }),
+    );
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it("still returns ok when the session revocation itself fails (non-fatal)", async () => {
+    const { signOut } = mockUpdateClient({ user: { id: "user-uuid" } });
+    signOut.mockRejectedValueOnce(new Error("network glitch"));
+    const result = await updatePasswordAction(
+      { error: null },
+      makeForm({ password: "seguraPass1!", confirmPassword: "seguraPass1!" }),
+    );
+    // The password was already changed — a sign-out hiccup must not surface as a
+    // hard error to the user.
+    expect(result.ok).toBe(true);
+    expect(result.error).toBeNull();
   });
 
   it("surfaces Supabase error when updateUser fails", async () => {

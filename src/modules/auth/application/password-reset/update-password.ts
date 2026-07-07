@@ -46,5 +46,19 @@ export async function updatePasswordAction(
     return { error: `No se pudo actualizar la contraseña: ${error.message}` };
   }
 
+  // Revoke every OTHER session (audit 28-#MED-5). A reset is the canonical
+  // response to a compromised account, so any pre-existing attacker session
+  // (JWT + refresh token minted before this reset) must die. scope:"others"
+  // revokes all sessions EXCEPT the current recovery session, so the legitimate
+  // user who just reset stays authenticated and the success UX is preserved —
+  // a global sign-out would drop them too. Best-effort: the password is already
+  // changed, so a transient sign-out failure must not surface as a hard error;
+  // we log and still report success.
+  try {
+    await supabase.auth.signOut({ scope: "others" });
+  } catch (signOutError) {
+    console.warn("[update-password] Failed to revoke other sessions (non-fatal):", signOutError);
+  }
+
   return { error: null, ok: true };
 }
