@@ -13,14 +13,14 @@ import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { localityByName } from "@/lib/infra/ar-localidades";
-import { getJurisdictionsCached, getProfileCached } from "@/lib/infra/request-cache";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
-import { createClient } from "@/lib/supabase/server";
 import { getLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
 import { clampAsOf, parseAsOf } from "@/src/modules/panorama/domain/time-scrub";
+
+import { resolveInstitutionalPanoramaActor } from "../_guard";
 
 export const dynamic = "force-dynamic";
 
@@ -32,22 +32,16 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
     return NextResponse.json({ error: "unknown_layer" }, { status: 404 });
   }
 
-  // 2. Non-redirect auth: admin or govt only.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const profile = await getProfileCached(user.id);
-  if (!profile || (profile.role !== "admin" && profile.role !== "govt")) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
+  // 2. Non-redirect auth: ACTIVE INSTITUTIONAL admin or govt only. This routes
+  //    through the same full invariant set as the page guard (role +
+  //    account_type + deactivation + erasure) — a personal-account 'admin', a
+  //    deactivated or an erased operator gets 401/403, never data. See _guard.ts.
+  const auth = await resolveInstitutionalPanoramaActor();
+  if (!auth.ok) return auth.response;
+  const { profile, role } = auth.actor;
 
-  const actor = { role: profile.role as "admin" | "govt" };
-  const jurisdictions: DashboardJurisdiction[] =
-    profile.role === "govt" ? await getJurisdictionsCached(profile.id) : [];
+  const actor = { role };
+  const jurisdictions: DashboardJurisdiction[] = auth.actor.jurisdictions;
 
   // 3. Parse period + scope from the query string.
   const url = new URL(request.url);

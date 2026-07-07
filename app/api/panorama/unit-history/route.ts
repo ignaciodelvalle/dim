@@ -24,12 +24,12 @@
 import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
-import { getJurisdictionsCached, getProfileCached } from "@/lib/infra/request-cache";
 import type { DashboardJurisdiction } from "@/lib/metrics";
-import { createClient } from "@/lib/supabase/server";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
 import { clampAsOf, parseAsOf } from "@/src/modules/panorama/domain/time-scrub";
 import { loadUnitHistory } from "@/src/modules/panorama/infrastructure/repository";
+
+import { resolveInstitutionalPanoramaActor } from "../_guard";
 
 export const dynamic = "force-dynamic";
 
@@ -49,22 +49,16 @@ export async function GET(request: Request) {
 
   const locality = url.searchParams.get("locality") ?? undefined;
 
-  // 2. Non-redirect auth: admin or govt only (mirrors /api/panorama/[layer]).
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const profile = await getProfileCached(user.id);
-  if (!profile || (profile.role !== "admin" && profile.role !== "govt")) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
+  // 2. Non-redirect auth: ACTIVE INSTITUTIONAL admin or govt only (mirrors
+  //    /api/panorama/[layer]). Same full invariant set as the page guard (role +
+  //    account_type + deactivation + erasure) — a personal-account 'admin', a
+  //    deactivated or an erased operator gets 401/403, never data. See _guard.ts.
+  const auth = await resolveInstitutionalPanoramaActor();
+  if (!auth.ok) return auth.response;
+  const { role } = auth.actor;
 
-  const actor = { role: profile.role as "admin" | "govt" };
-  const jurisdictions: DashboardJurisdiction[] =
-    profile.role === "govt" ? await getJurisdictionsCached(profile.id) : [];
+  const actor = { role };
+  const jurisdictions: DashboardJurisdiction[] = auth.actor.jurisdictions;
 
   // 3. Scope gate for govt actors: the requested unit must be within their
   //    assignments. Reject with 403 rather than returning empty data — the
