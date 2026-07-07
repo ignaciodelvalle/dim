@@ -52,6 +52,9 @@ export default async function OrgMascotasPage({
     // into "Otros" there).
     species?: string;
     q?: string;
+    // Deep-link from the org panel "Disponibles" KPI (?adoptionEligible=true):
+    // narrows the list to the adoption-eligible pets that tile counts.
+    adoptionEligible?: string;
   }>;
 }) {
   const { orgToken } = await params;
@@ -94,6 +97,7 @@ export default async function OrgMascotasPage({
   const speciesFilter = sp.species === "dog" || sp.species === "cat" ? sp.species : null;
   const isOtherSpecies = sp.species === "other";
   const nameQuery = sp.q?.trim() ?? "";
+  const adoptionEligibleFilter = sp.adoptionEligible === "true";
 
   const whereConditions = [
     eq(ownerships.ownerOrganizationId, organization.id),
@@ -102,6 +106,9 @@ export default async function OrgMascotasPage({
   if (speciesFilter) whereConditions.push(eq(pets.species, speciesFilter));
   if (isOtherSpecies) whereConditions.push(notInArray(pets.species, ["dog", "cat"]));
   if (nameQuery) whereConditions.push(ilike(pets.name, `%${nameQuery}%`));
+  // Adoption-eligible narrowing — matches the "Disponibles" KPI population
+  // (fetchAvailableForAdoption: active custody pets with adoption_eligible=true).
+  if (adoptionEligibleFilter) whereConditions.push(eq(pets.adoptionEligible, true));
 
   const orgRows = await db
     .select({ pet: pets, ownershipRole: ownerships.role, startedAt: ownerships.startedAt })
@@ -274,10 +281,20 @@ export default async function OrgMascotasPage({
               <option value="other">Otras</option>
             </select>
           </div>
+          <label className="flex items-center gap-2 text-sm text-ln-op-ink">
+            <input
+              type="checkbox"
+              name="adoptionEligible"
+              value="true"
+              defaultChecked={adoptionEligibleFilter}
+              className="h-4 w-4 rounded border-ln-op-line text-ln-op-azul focus:ring-2 focus:ring-ln-op-azul"
+            />
+            Solo disponibles para adopción
+          </label>
           <OpButton type="submit" size="sm">
             Filtrar
           </OpButton>
-          {(sp.species || sp.q) && (
+          {(sp.species || sp.q || sp.adoptionEligible) && (
             <Link
               href={`/org/${orgToken}/mascotas`}
               className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
@@ -359,7 +376,9 @@ export default async function OrgMascotasPage({
         )}
 
         <OrgMascotasBulkList
-          hasActiveFilters={Boolean(speciesFilter || isOtherSpecies || nameQuery)}
+          hasActiveFilters={Boolean(
+            speciesFilter || isOtherSpecies || nameQuery || adoptionEligibleFilter,
+          )}
           cards={cards.map((c) => ({
             petId: c.pet.id,
             publicToken: c.pet.publicToken,

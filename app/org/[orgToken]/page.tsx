@@ -463,7 +463,9 @@ export default async function OrgDashboardPage({
             value={availableForAdopt === 0 ? "—" : availableForAdopt}
             tone={availableForAdopt === 0 ? "neutral" : "ok"}
             sub={availableForAdopt === 0 ? "Sin animales disponibles" : "para adopción"}
-            href={availableForAdopt > 0 ? `/org/${orgToken}/mascotas` : undefined}
+            href={
+              availableForAdopt > 0 ? `/org/${orgToken}/mascotas?adoptionEligible=true` : undefined
+            }
             info={{
               definition: "Animales con estado 'disponible para adopción' en este momento.",
             }}
