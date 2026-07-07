@@ -466,9 +466,16 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     await page.waitForLoadState("networkidle").catch(() => {});
     await page.locator('input[name="adopterDni"]').fill("30123456");
     await page.locator('input[name="adopterDisplayName"]').fill("Adoptante Demo Costuras");
-    await page.getByRole("button", { name: /finalizar adopci/i }).click();
-    await page.waitForLoadState("networkidle").catch(() => {});
-    await expect(page.getByText(/application error/i)).not.toBeVisible();
+    // The finalize form is a native <form action> (useActionState) — vulnerable
+    // to the #39 hydration race (a click dispatched before React attaches does a
+    // bare native submit that never runs the server action). submitAndWait falls
+    // back to requestSubmit(). Success redirects to /mascotas?adopcion={token}.
+    await submitAndWait(
+      page,
+      page.getByRole("button", { name: /finalizar adopci/i }),
+      (url) => url.pathname.endsWith("/mascotas") && url.searchParams.get("adopcion") === petToken,
+      30_000,
+    );
 
     // --- Cross-POV post-condition: the pet left the refugio's custody -------
     // The /adoption surface only resolves pets still under the org's active
