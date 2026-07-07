@@ -50,6 +50,7 @@ import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import {
   requireAdminOrGovtOrRedirect,
   requireAdminOrRedirect,
+  requireDenunciaModerationPrincipal,
   requireUserOrRedirect,
 } from "@/lib/infra/auth-guards";
 import { closeCase, openCase } from "@/lib/infra/case-helpers";
@@ -69,6 +70,7 @@ import { closeWelfareReport } from "./application/close-welfare-report";
 import { confirmWelfareAsSpam } from "./application/confirm-welfare-as-spam";
 import { createOrgWelfareReport } from "./application/create-org-welfare-report";
 import { createWelfareReport } from "./application/create-welfare-report";
+import { escalateModerationToAdmin } from "./application/escalate-moderation-to-admin";
 import { generateMpfExport } from "./application/generate-mpf-export";
 import { passWelfareToTriage } from "./application/pass-welfare-to-triage";
 import { returnDerivedReport } from "./application/return-derived-report";
@@ -269,6 +271,105 @@ export async function confirmWelfareAsSpamAction(input: {
 
   if (!result.ok) return { error: result.error };
 
+  revalidatePath("/admin/moderacion");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Jurisdiction denuncia moderation (govt-scoped) — SDD phase 2
+// ---------------------------------------------------------------------------
+//
+// AUTH SCOPE: requireDenunciaModerationPrincipal ('denuncia.moderate') THEN a
+// per-report jurisdiction check via loadInScopeReport:
+//   admin → universal scope (no per-row check)
+//   govt  → the report's jurisdiction MUST be in the account's assignments
+//           (Wave A/F hardening — never widen beyond assignments). A flagged
+//           report with no jurisdiction is never in a govt's scope → admin-only.
+//
+// These are the govt-facing counterparts of the admin-only pass/confirm actions.
+// They REUSE the same use-cases (passWelfareToTriage / confirmWelfareAsSpam) —
+// no forked writer — and add the jurisdiction scope guard the admin path does
+// not need. The admin-only actions above are untouched (no regression).
+//
+//   approve  → pass to triage (unflag; the welfare case proceeds in /gob/maltrato)
+//   reject   → confirm as abuse/spam (status=invalid, permanent)
+//   escalate → hand back to the national admin queue with a motivo (append-only)
+
+export async function approveDenunciaModerationAction(input: {
+  welfareReportId: string;
+  notes: string;
+}): Promise<ModerationResult> {
+  const session = await requireDenunciaModerationPrincipal();
+
+  const loaded = await loadInScopeReport(
+    input.welfareReportId,
+    session.profile,
+    session.jurisdictions,
+  );
+  if ("error" in loaded) return { error: loaded.error };
+
+  const result = await passWelfareToTriage(input, {
+    repo,
+    transaction: db.transaction.bind(db),
+    actor: { user: session.user },
+  });
+
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/gob/moderacion");
+  revalidatePath("/admin/moderacion");
+  revalidatePath("/gob/maltrato");
+  return { ok: true };
+}
+
+export async function rejectDenunciaAsAbuseAction(input: {
+  welfareReportId: string;
+  notes: string;
+}): Promise<ModerationResult> {
+  const session = await requireDenunciaModerationPrincipal();
+
+  const loaded = await loadInScopeReport(
+    input.welfareReportId,
+    session.profile,
+    session.jurisdictions,
+  );
+  if ("error" in loaded) return { error: loaded.error };
+
+  const result = await confirmWelfareAsSpam(input, {
+    repo,
+    transaction: db.transaction.bind(db),
+    actor: { user: session.user },
+  });
+
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/gob/moderacion");
+  revalidatePath("/admin/moderacion");
+  return { ok: true };
+}
+
+export async function escalateDenunciaToAdminAction(input: {
+  welfareReportId: string;
+  notes: string;
+}): Promise<ModerationResult> {
+  const session = await requireDenunciaModerationPrincipal();
+
+  const loaded = await loadInScopeReport(
+    input.welfareReportId,
+    session.profile,
+    session.jurisdictions,
+  );
+  if ("error" in loaded) return { error: loaded.error };
+
+  const result = await escalateModerationToAdmin(input, {
+    repo,
+    transaction: db.transaction.bind(db),
+    actor: { user: session.user },
+  });
+
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/gob/moderacion");
   revalidatePath("/admin/moderacion");
   return { ok: true };
 }
