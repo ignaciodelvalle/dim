@@ -32,11 +32,23 @@ export const AUTH_GUARDS = [
   "requireUser",
   "requireUserOrRedirect",
   "requireCapability",
+  // Confused-deputy-safe capability guard (Wave F3): resolves the org from the
+  // URL orgToken, then delegates to requireCapability pinned to that org.id — so
+  // a /org/{token} action authorizes against the URL org, not the session-default
+  // membership. Distinct name so the `requireCapability` entry above does not
+  // match it (the regex anchors `requireCapability\s*\(`, which the `ForOrgToken`
+  // suffix breaks). Already blessed by __tests__/server-actions-auth-coverage.test.ts.
+  "requireCapabilityForOrgToken",
   "requireOrgAccessByToken",
   "requireActiveOrgOrRedirect",
   "requireAdminOrRedirect",
   "requireAdminOrGovtOrRedirect",
   "requireDecomisoPrincipal",
+  // Denuncia-moderation authority (Wave A/F). Reuses requireAdminOrGovtOrRedirect
+  // verbatim — same role set + jurisdictions query — named separately so call
+  // sites read as "requires denuncia moderation authority". Deletion-aware via
+  // the reused institutional guard.
+  "requireDenunciaModerationPrincipal",
   "requirePetAccess",
   "requireAlivePetAccess",
   "requireOwnedPet",
@@ -102,8 +114,10 @@ export const DELETION_AWARE_GUARDS = [
   "requireAdminOrRedirect",
   "requireAdminOrGovtOrRedirect",
   "requireDecomisoPrincipal",
+  "requireDenunciaModerationPrincipal",
   "requireOrgInterventionAccess",
   "requireCapability",
+  "requireCapabilityForOrgToken",
 ] as const;
 
 // Pet-write signal (inline): a drizzle insert/update/delete whose body also
