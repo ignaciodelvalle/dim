@@ -1,19 +1,30 @@
-// Integration test: handle_new_user() reads the initial role from app_metadata,
-// NOT user_metadata (CRITICAL-1 — self-minted admin, migration 0133).
+// Integration test: handle_new_user() NEVER derives the role from request
+// metadata (CRITICAL-1 — self-minted admin, migrations 0133 → 0134).
 //
-// The vulnerability: the signup trigger set profiles.role from
+// The original vulnerability: the signup trigger set profiles.role from
 //   new.raw_user_meta_data->>'user_role'
 // but raw_user_meta_data IS user_metadata — client-writable via the public anon
 // key (supabase.auth.signUp({ options: { data: { user_role: 'admin' } } })). Any
-// anonymous caller could self-mint an admin. The fix reads from raw_app_meta_data
-// (service-role-only) instead, validated against the user_role enum.
+// anonymous caller could self-mint an admin.
+//
+// 0133 moved the read to raw_app_meta_data (service-role-only). That closed the
+// hole, but the app_metadata read is a DEAD path: GoTrue's admin.createUser does
+// INSERT-then-UPDATE, so the trigger fires BEFORE the caller's custom
+// app_metadata is merged — raw_app_meta_data->>'user_role' is always NULL at
+// trigger time. Every account resolved to 'owner' regardless.
+//
+// 0134 makes this honest and unconditional: the trigger ALWAYS writes 'owner'
+// and reads NO metadata for the role. Privileged roles are granted EXCLUSIVELY
+// by an explicit service-role UPDATE after the auth user exists (this is exactly
+// what bootstrapAdmin() and seed-genesis-admin.ts do).
 //
 // This test hits the local Supabase stack (same pattern as
 // __tests__/account-type-role-invariant.test.ts):
-//   1. user_metadata.user_role='admin'  → trigger IGNORES it → role='owner'
-//   2. app_metadata.user_role='admin'   → trigger honours it → role='admin'
-//   3. app_metadata.user_role='govt'    → role='govt'
-//   4. app_metadata.user_role='bogus'   → invalid → falls back to role='owner'
+//   1. user_metadata.user_role='admin' → trigger IGNORES it → role='owner'
+//   2. app_metadata.user_role='admin'  → trigger IGNORES it → role='owner'
+//      (honest: app_metadata is NOT an elevation channel at signup)
+//   3. plain signup                    → role='owner'
+//   4. explicit service-role UPDATE    → role='admin' (the ONLY elevation path)
 
 import { createClient } from "@supabase/supabase-js";
 import { eq, sql } from "drizzle-orm";
@@ -31,8 +42,8 @@ const adminSdk = createClient(SUPABASE_URL, SECRET, {
 const EMAILS = {
   userMetaAdmin: "trigger-usermeta-admin@dim-test.local",
   appMetaAdmin: "trigger-appmeta-admin@dim-test.local",
-  appMetaGovt: "trigger-appmeta-govt@dim-test.local",
-  appMetaBogus: "trigger-appmeta-bogus@dim-test.local",
+  plainSignup: "trigger-plain-signup@dim-test.local",
+  elevated: "trigger-elevated-admin@dim-test.local",
 } as const;
 
 const PASSWORD = "TriggerRoleTest_2026!";
@@ -72,7 +83,7 @@ afterAll(async () => {
   await Promise.all(Object.values(EMAILS).map(deleteTestUser));
 }, 30_000);
 
-describe("handle_new_user reads role from app_metadata, not user_metadata", () => {
+describe("handle_new_user never trusts request metadata for the role", () => {
   it("IGNORES user_metadata.user_role='admin' → defaults to role='owner'", async () => {
     const { data, error } = await adminSdk.auth.admin.createUser({
       email: EMAILS.userMetaAdmin,
@@ -87,44 +98,54 @@ describe("handle_new_user reads role from app_metadata, not user_metadata", () =
     expect(role).toBe("owner");
   }, 20_000);
 
-  it("HONOURS app_metadata.user_role='admin' → role='admin'", async () => {
+  it("IGNORES app_metadata.user_role='admin' → defaults to role='owner'", async () => {
+    // app_metadata is service-role-only, but it is STILL not an elevation
+    // channel at signup: GoTrue merges custom app_metadata AFTER the trigger has
+    // already inserted the profile. The honest contract is 'owner' here.
     const { data, error } = await adminSdk.auth.admin.createUser({
       email: EMAILS.appMetaAdmin,
       password: PASSWORD,
       email_confirm: true,
       user_metadata: { display_name: "Founder" },
-      // Only the service role can write app_metadata.
       app_metadata: { user_role: "admin" },
     });
     expect(error).toBeNull();
     expect(data.user).toBeTruthy();
     const role = await readRole(data.user!.id);
-    expect(role).toBe("admin");
+    expect(role).toBe("owner");
   }, 20_000);
 
-  it("HONOURS app_metadata.user_role='govt' → role='govt'", async () => {
+  it("a plain signup (no role metadata) → role='owner'", async () => {
     const { data, error } = await adminSdk.auth.admin.createUser({
-      email: EMAILS.appMetaGovt,
+      email: EMAILS.plainSignup,
       password: PASSWORD,
       email_confirm: true,
-      user_metadata: { display_name: "Authority" },
-      app_metadata: { user_role: "govt" },
-    });
-    expect(error).toBeNull();
-    const role = await readRole(data.user!.id);
-    expect(role).toBe("govt");
-  }, 20_000);
-
-  it("falls back to role='owner' for an invalid app_metadata.user_role", async () => {
-    const { data, error } = await adminSdk.auth.admin.createUser({
-      email: EMAILS.appMetaBogus,
-      password: PASSWORD,
-      email_confirm: true,
-      user_metadata: { display_name: "Confused" },
-      app_metadata: { user_role: "superuser" },
+      user_metadata: { display_name: "Citizen" },
     });
     expect(error).toBeNull();
     const role = await readRole(data.user!.id);
     expect(role).toBe("owner");
+  }, 20_000);
+
+  it("elevates ONLY via an explicit service-role UPDATE (the genesis/bootstrap path)", async () => {
+    const { data, error } = await adminSdk.auth.admin.createUser({
+      email: EMAILS.elevated,
+      password: PASSWORD,
+      email_confirm: true,
+      user_metadata: { display_name: "Genesis Admin" },
+    });
+    expect(error).toBeNull();
+    const uid = data.user!.id;
+    // Trigger created it as an owner.
+    expect(await readRole(uid)).toBe("owner");
+
+    // Exactly what bootstrapAdmin() and seed-genesis-admin.ts do: an explicit
+    // service-role UPDATE. This is the ONLY sanctioned elevation mechanism.
+    await db
+      .update(profiles)
+      .set({ role: "admin", updatedAt: new Date() })
+      .where(eq(profiles.id, uid));
+
+    expect(await readRole(uid)).toBe("admin");
   }, 20_000);
 });

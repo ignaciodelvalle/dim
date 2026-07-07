@@ -13,16 +13,21 @@
 --   - display_name (optional) from raw_user_meta_data → falls back to the
 --                             local-part of email. user_metadata is fine for
 --                             a display name (non-privileged).
---   - user_role    (optional) from raw_APP_meta_data → falls back to 'owner'.
---                             SECURITY (CRITICAL-1): the role is read from
---                             raw_app_meta_data, NOT raw_user_meta_data.
---                             user_metadata is client-writable via the public
---                             anon key (supabase.auth.signUp({ options: { data
---                             }})), so trusting it here let ANY self-serve
---                             signup mint an admin. app_metadata is writable
---                             ONLY by the service role. The value is validated
---                             against the user_role enum and falls back to
---                             'owner' on anything unexpected. See migration 0133.
+--
+-- ROLE (SECURITY, CRITICAL-1): the role is NOT derived from any request
+-- metadata. Every trigger-created profile is an 'owner'. Privileged roles
+-- (vet/govt/admin) are granted EXCLUSIVELY by an explicit service-role UPDATE
+-- after the auth user exists.
+--   0133 first closed the self-mint hole by reading the role from
+--   raw_app_meta_data instead of the client-writable raw_user_meta_data. But
+--   that read is a DEAD path: GoTrue's admin.createUser({ app_metadata }) does
+--   INSERT-then-UPDATE — the trigger fires on an INSERT whose raw_app_meta_data
+--   holds only {provider, providers}; the caller's custom app_metadata is merged
+--   in a SEPARATE UPDATE that lands AFTER the trigger. So app_metadata.user_role
+--   was always NULL at trigger time and every account resolved to 'owner'
+--   anyway. 0134 makes that behaviour explicit and unconditional: NO request
+--   input (user_metadata OR app_metadata) can set a privileged role at signup.
+--   See migration 0134.
 --
 -- TODO(25b): when Mi Argentina OIDC lands, wire additional metadata keys:
 --   - miarg_sub     → profiles.miarg_sub
@@ -43,29 +48,19 @@ set search_path = ''
 as $$
 declare
   resolved_display_name text;
-  requested_role text;
-  resolved_role public.user_role;
 begin
   resolved_display_name := coalesce(
     new.raw_user_meta_data->>'display_name',
     split_part(new.email, '@', 1)
   );
 
-  -- Role is read from app_metadata (service-role-only), never user_metadata
-  -- (client-writable). Validate against the allowed set and fall back to
-  -- 'owner' on anything unexpected — an invalid cast would otherwise abort the
-  -- whole signup insert.
-  requested_role := nullif(new.raw_app_meta_data->>'user_role', '');
-  resolved_role := case
-    when requested_role in ('owner', 'vet', 'govt', 'admin')
-      then requested_role::public.user_role
-    else 'owner'::public.user_role
-  end;
-
+  -- Role is NEVER derived from request metadata. Every trigger-created profile
+  -- is an 'owner'. Privileged roles (vet/govt/admin) are granted only by an
+  -- explicit service-role UPDATE after the user exists — see migration 0134.
   insert into public.profiles (id, role, display_name)
   values (
     new.id,
-    resolved_role,
+    'owner'::public.user_role,
     resolved_display_name
   );
 
