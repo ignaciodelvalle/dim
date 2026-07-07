@@ -307,6 +307,13 @@ export async function approveDenunciaModerationAction(input: {
     session.jurisdictions,
   );
   if ("error" in loaded) return { error: loaded.error };
+  // Once escalated to admin, the report leaves the govt actionable queue and is
+  // the national admin's to resolve. A govt resolving it here would silently
+  // clear moderationResolvedAt and drop it from the admin queue, defeating the
+  // escalation/oversight. Admin-only pass/confirm stay unguarded on purpose.
+  if (loaded.row.moderationEscalatedAt != null) {
+    return { error: "Esta denuncia fue escalada a la administración nacional." };
+  }
 
   const result = await passWelfareToTriage(input, {
     repo,
@@ -334,6 +341,10 @@ export async function rejectDenunciaAsAbuseAction(input: {
     session.jurisdictions,
   );
   if ("error" in loaded) return { error: loaded.error };
+  // Escalated reports are the national admin's to resolve — see approve action.
+  if (loaded.row.moderationEscalatedAt != null) {
+    return { error: "Esta denuncia fue escalada a la administración nacional." };
+  }
 
   const result = await confirmWelfareAsSpam(input, {
     repo,
@@ -1417,7 +1428,9 @@ async function loadInScopeReport(
     const inScope = jurisdictions.some(
       (j) => j.province === row.jurisdictionProvince && j.locality === row.jurisdictionLocality,
     );
-    if (!inScope) return { error: "La denuncia está fuera de tu jurisdicción." };
+    // Uniform "not found" for out-of-scope: never confirm a report exists in
+    // another jurisdiction (no existence oracle for a govt with a known UUID).
+    if (!inScope) return { error: "Denuncia no encontrada." };
   }
 
   return { row };
@@ -1435,7 +1448,7 @@ async function loadAndVerifyScope(
     const inScope = jurisdictions.some(
       (j) => j.province === row.jurisdictionProvince && j.locality === row.jurisdictionLocality,
     );
-    if (!inScope) return { ok: false, error: "La denuncia está fuera de tu jurisdicción." };
+    if (!inScope) return { ok: false, error: "Denuncia no encontrada." };
   }
 
   return { row };
