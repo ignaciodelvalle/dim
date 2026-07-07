@@ -34,7 +34,7 @@ import {
   fetchSterilizationMetrics,
 } from "@/lib/analytics/govt-home-kpis";
 import { fetchMortalityDisposition } from "@/lib/analytics/mortality-metrics";
-import { fetchVisiblePendingRequests } from "@/lib/infra/approval-scope";
+import { countVisiblePendingRequests } from "@/lib/infra/approval-scope";
 import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -134,7 +134,7 @@ export default async function GobiernoDashboardPage({
   const ctx30d = buildProjectionContext(actor, filteredJurisdictions, windows.trailing30d());
 
   const [
-    pending,
+    pendingCount,
     recentDecisions,
     rabiesCoverage,
     sterilizations,
@@ -150,8 +150,9 @@ export default async function GobiernoDashboardPage({
     mortality,
     perdidas,
   ] = await Promise.all([
-    // Dashboard preview — not a paginated surface: intentionally passes limit without cursor.
-    fetchVisiblePendingRequests(profile, jurisdictions, undefined, { limit: 200 }),
+    // Headline count only — a real scoped COUNT(*), so a queue larger than any
+    // list cap still shows its true size (the card renders the number, not rows).
+    countVisiblePendingRequests(profile, jurisdictions),
     db
       .select({
         id: auditLog.id,
@@ -474,14 +475,18 @@ export default async function GobiernoDashboardPage({
               }
             />
             <OpCardBody>
-              {pending.length === 0 ? (
+              {pendingCount === 0 ? (
                 <p className="text-[13px] text-ln-op-mute">No hay solicitudes pendientes.</p>
               ) : (
                 <div className="space-y-1">
                   <p className="font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] text-ln-op-ink">
-                    {pending.length}
+                    {pendingCount.toLocaleString("es-AR")}
                   </p>
-                  <p className="text-sm text-ln-op-mute">solicitudes esperando revisión</p>
+                  <p className="text-sm text-ln-op-mute">
+                    {pendingCount === 1
+                      ? "solicitud esperando revisión"
+                      : "solicitudes esperando revisión"}
+                  </p>
                 </div>
               )}
             </OpCardBody>

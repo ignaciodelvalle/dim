@@ -8,7 +8,7 @@
 // this rule. The decision actions re-check via canDecideRequest as the
 // authoritative server-side guard.
 
-import { and, desc, eq, exists, inArray, isNull, notExists, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, exists, inArray, isNull, notExists, or, sql } from "drizzle-orm";
 
 import {
   type ApprovalRequest,
@@ -132,6 +132,24 @@ export async function fetchVisiblePendingRequests(
     .where(whereClause)
     .orderBy(desc(approvalRequests.createdAt), desc(approvalRequests.id));
   return opts?.limit !== undefined ? q.limit(opts.limit) : q;
+}
+
+// Real scoped COUNT of pending requests visible to this authority. Use this for
+// dashboard headline numbers instead of `fetchVisiblePendingRequests(...).length`:
+// the fetch caps its result set (limit 200) so a queue larger than the cap would
+// under-report as exactly the cap. A COUNT(*) has no ceiling and returns the true
+// total regardless of queue size. Shares `visibleRequestsClause` so the count and
+// the list can never scope differently.
+export async function countVisiblePendingRequests(
+  profile: { id: string; role: "admin" | "govt" },
+  jurisdictions: readonly AdminOrGovtJurisdiction[],
+): Promise<number> {
+  const scopeClause = visibleRequestsClause(profile, jurisdictions);
+  const [row] = await db
+    .select({ n: count() })
+    .from(approvalRequests)
+    .where(and(eq(approvalRequests.status, "pending"), scopeClause));
+  return Number(row?.n ?? 0);
 }
 
 // Unused import guard for `exists` — kept for symmetry with notExists when
