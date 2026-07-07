@@ -121,6 +121,7 @@ export type ListableOrgSnapshot = {
 // ---------------------------------------------------------------------------
 
 export type FinalizationInput = {
+  applicationEventId: string | null; // approved-application path (transfer to applicant account)
   adopterUserId: string | null; // foster-shortcut path
   adopterDni: string | null; // manual path (raw, not normalized)
   adopterDisplayName: string;

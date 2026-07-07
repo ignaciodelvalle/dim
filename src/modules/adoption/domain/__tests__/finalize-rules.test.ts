@@ -8,6 +8,7 @@ import { validateFinalizationInput } from "../finalize-rules";
 
 // Helpers
 const baseDniInput = {
+  applicationEventId: null,
   adopterUserId: null,
   adopterDni: "12345678",
   adopterDisplayName: "Juan Pérez",
@@ -17,6 +18,7 @@ const baseDniInput = {
 };
 
 const baseFosterInput = {
+  applicationEventId: null,
   adopterUserId: "user-foster-1",
   adopterDni: null,
   adopterDisplayName: "",
@@ -32,6 +34,33 @@ function makeFosterRow(overrides: Partial<{ id: string; ownerUserId: string | nu
     ...overrides,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Approved-application path
+// ---------------------------------------------------------------------------
+
+describe("validateFinalizationInput — approved-application path", () => {
+  it("short-circuits to ok when applicationEventId is set (identity comes from the event log)", () => {
+    const result = validateFinalizationInput(
+      {
+        ...baseDniInput,
+        applicationEventId: "app-evt-1",
+        adopterDni: null,
+        adopterDisplayName: "",
+      },
+      null,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("ignores a missing DNI when finalizing from an approved application", () => {
+    const result = validateFinalizationInput(
+      { ...baseDniInput, applicationEventId: "app-evt-1", adopterDni: "" },
+      null,
+    );
+    expect(result.ok).toBe(true);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // DNI path validations

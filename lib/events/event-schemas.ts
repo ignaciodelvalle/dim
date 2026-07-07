@@ -1132,6 +1132,11 @@ const adoptionFinalized = z
       contract_attachment_id: z.string().uuid().nullable(),
       post_adoption_followup_months: z.number().int().min(0).max(36).nullable(),
       notes: z.string().nullable(),
+      // When the adoption was finalized FROM an approved online application,
+      // this links back to that `adoption_application_submitted` event so the
+      // custody chain records that ownership landed on the applicant's real
+      // account (not a typed-DNI stub). Null / omitted for offline adoptions.
+      adopted_from_application_id: z.string().uuid().nullable().optional(),
     }),
   )
   .strict();

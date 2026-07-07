@@ -112,8 +112,9 @@ export async function finalizeAdoption(
   const fosterRow = await repo.findActiveFoster(petRow.id);
   const fosterUserId = fosterRow?.ownerUserId ?? null;
 
-  // 4. Input validation (domain rules: DNI path vs. foster-shortcut path).
+  // 4. Input validation (domain rules: application / DNI / foster-shortcut path).
   const domainInput: FinalizationInput = {
+    applicationEventId: input.applicationEventId,
     adopterUserId: input.adopterUserId,
     adopterDni: input.adopterDni,
     adopterDisplayName: input.adopterDisplayName,
@@ -128,8 +129,25 @@ export async function finalizeAdoption(
   let adopterUserId: string;
   let isStubAdopter: boolean;
   let dni: string | null = null;
+  // Set only on the approved-application path — links the finalization back to
+  // the online application in the event log.
+  let adoptedFromApplicationId: string | null = null;
 
-  if (input.adopterUserId) {
+  if (input.applicationEventId) {
+    // Approved-application path: transfer ownership to the applicant's real
+    // account (they applied logged-in — we already have their user id). This
+    // is what closes the 100%-digital adoption loop: the pet lands in the
+    // adopter's /mis-mascotas, not on a typed-DNI stub profile.
+    const approved = await repo.findApprovedApplicationForFinalize(
+      input.applicationEventId,
+      organization.id,
+      petRow.id,
+    );
+    if ("error" in approved) return { ok: false, error: approved.error };
+    adopterUserId = approved.applicantUserId;
+    isStubAdopter = false;
+    adoptedFromApplicationId = input.applicationEventId;
+  } else if (input.adopterUserId) {
     // Foster-shortcut: adopterUserId is the foster's profile id.
     // validateFinalizationInput already confirmed the foster match; now validate profile.
     const adopterProfile = await repo.findApplicantProfile(input.adopterUserId);
@@ -200,6 +218,7 @@ export async function finalizeAdoption(
           contractFileSize: input.contractFileSize,
           followupMonths: isStubAdopter ? null : followupMonths,
           notes: input.notes,
+          adoptedFromApplicationId,
           orgDisplayName: organization.displayName,
           petName: petRow.name,
           now,

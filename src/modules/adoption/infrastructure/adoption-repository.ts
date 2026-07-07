@@ -151,6 +151,11 @@ type InsertAdoptionFinalizedArgs = {
   contractFileSize: number | null;
   followupMonths: number | null;
   notes: string | null;
+  /**
+   * When finalizing from an approved online application, the id of that
+   * `adoption_application_submitted` event. Null for offline / foster / DNI paths.
+   */
+  adoptedFromApplicationId?: string | null;
   /** Organization display name — used in reminder description copy. */
   orgDisplayName: string;
   /** Pet name — used in reminder description copy. */
@@ -742,6 +747,71 @@ export const AdoptionRepository = {
   },
 
   /**
+   * Loads an APPROVED application for the finalize-from-application flow.
+   *
+   * Verifies, org-scoped:
+   *   - the event exists, is an adoption_application_submitted for THIS pet
+   *   - the pet is under active shelter_custody of the given org
+   *   - the application has a resolved event with outcome=approved
+   *   - the applicant has an account (applicant_user_id present)
+   *
+   * Returns the applicant's real user id (the account they applied with) so
+   * finalization transfers ownership directly to it — the pet then appears in
+   * the adopter's /mis-mascotas immediately. PII-safe: only applicant_user_id
+   * is projected, never the full application payload.
+   */
+  async findApprovedApplicationForFinalize(
+    applicationEventId: string,
+    organizationId: string,
+    petId: string,
+    tx?: Tx,
+  ): Promise<{ applicantUserId: string } | { error: string }> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({
+        applicantUserId: sql<string | null>`${petEvents.payload}->>'applicant_user_id'`,
+      })
+      .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          eq(petEvents.id, applicationEventId),
+          eq(petEvents.eventType, "adoption_application_submitted"),
+          eq(petEvents.petId, petId),
+          eq(ownerships.ownerOrganizationId, organizationId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!row) {
+      return { error: "Postulación no encontrada o no pertenece a tu organización." };
+    }
+
+    const approved = await client.execute<{ id: string }>(sql`
+      SELECT id FROM pet_events
+      WHERE pet_id = ${petId}
+        AND event_type = 'adoption_application_resolved'
+        AND payload->>'application_event_id' = ${applicationEventId}
+        AND payload->>'outcome' = 'approved'
+      LIMIT 1
+    `);
+    if (approved.length === 0) {
+      return {
+        error: "La postulación seleccionada no está aprobada. Aprobala antes de finalizar.",
+      };
+    }
+
+    if (!row.applicantUserId) {
+      return { error: "La postulación no tiene un postulante con cuenta MiMAR." };
+    }
+
+    return { applicantUserId: row.applicantUserId };
+  },
+
+  /**
    * Finds all pending applications for a pet (for auto-rejection cascade).
    * Excludes a specific adopter's application (the one who just adopted).
    */
@@ -815,6 +885,7 @@ export const AdoptionRepository = {
       contractFileSize,
       followupMonths,
       notes,
+      adoptedFromApplicationId,
       orgDisplayName,
       petName,
       now,
@@ -873,6 +944,7 @@ export const AdoptionRepository = {
       contract_attachment_id: contractAttachmentId,
       post_adoption_followup_months: followupMonths,
       notes,
+      adopted_from_application_id: adoptedFromApplicationId ?? null,
     });
 
     const [adoptionEvent] = await tx

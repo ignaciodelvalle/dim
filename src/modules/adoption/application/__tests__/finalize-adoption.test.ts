@@ -50,6 +50,7 @@ function makeFakeRepo(
     foster?: Record<string, unknown> | null;
     dniProfile?: { id: string } | null;
     adopterProfile?: Record<string, unknown> | null;
+    approvedApplication?: { applicantUserId: string } | { error: string };
   } = {},
 ): typeof AdoptionRepository {
   const pet = options.pet !== undefined ? options.pet : makeEligiblePet();
@@ -60,6 +61,11 @@ function makeFakeRepo(
     findActiveFoster: vi.fn().mockResolvedValue(foster),
     findStubAdopterByDni: vi.fn().mockResolvedValue(options.dniProfile ?? null),
     findApplicantProfile: vi.fn().mockResolvedValue(options.adopterProfile ?? null),
+    findApprovedApplicationForFinalize: vi
+      .fn()
+      .mockResolvedValue(
+        options.approvedApplication ?? { error: "no approved application configured" },
+      ),
     setEligibility: vi.fn().mockResolvedValue(undefined),
     setListingStatus: vi.fn().mockResolvedValue(undefined),
     updateListingContent: vi.fn().mockResolvedValue(undefined),
@@ -91,6 +97,7 @@ const actor = {
 
 const baseInput = {
   petPublicToken: "tok-1",
+  applicationEventId: null,
   adopterUserId: null,
   adopterDni: "12345678",
   adopterDisplayName: "Juan Pérez",
@@ -261,6 +268,65 @@ describe("finalizeAdoption", () => {
       }),
       "fake-tx",
     );
+  });
+
+  // ---- Approved-application path ---------------------------------------
+
+  it("transfers ownership to the applicant's account when finalizing from an approved application", async () => {
+    const repo = makeFakeRepo({
+      approvedApplication: { applicantUserId: "applicant-user-1" },
+    });
+    const result = await finalizeAdoption(
+      { ...baseInput, applicationEventId: "app-evt-1", adopterDni: null, adopterDisplayName: "" },
+      { repo, actor, transaction: fakeTransaction },
+    );
+    expect(result).toMatchObject({ ok: true });
+    // Ownership lands on the applicant's REAL account, not a stub.
+    expect(repo.insertAdoptionFinalized).toHaveBeenCalledWith(
+      expect.objectContaining({
+        adopterUserId: "applicant-user-1",
+        isStubAdopter: false,
+        adoptedFromApplicationId: "app-evt-1",
+      }),
+      "fake-tx",
+    );
+    // The approved application was resolved against the event log, org-scoped.
+    expect(repo.findApprovedApplicationForFinalize).toHaveBeenCalledWith(
+      "app-evt-1",
+      "org-1",
+      "pet-1",
+    );
+  });
+
+  it("emits an adoption_finalized notification to the applicant on the application path", async () => {
+    const repo = makeFakeRepo({
+      approvedApplication: { applicantUserId: "applicant-user-1" },
+    });
+    const result = await finalizeAdoption(
+      { ...baseInput, applicationEventId: "app-evt-1", adopterDni: null, adopterDisplayName: "" },
+      { repo, actor, transaction: fakeTransaction },
+    );
+    const r = result as {
+      ok: true;
+      notifications: { notificationType: string; userId: string; ctaUrl?: string | null }[];
+    };
+    const finalized = r.notifications.find((n) => n.notificationType === "adoption_finalized");
+    expect(finalized).toBeDefined();
+    expect(finalized?.userId).toBe("applicant-user-1");
+    expect(finalized?.ctaUrl).toBe("/mis-mascotas");
+  });
+
+  it("returns the repository error when the selected application is not approved", async () => {
+    const repo = makeFakeRepo({
+      approvedApplication: { error: "La postulación seleccionada no está aprobada." },
+    });
+    const result = await finalizeAdoption(
+      { ...baseInput, applicationEventId: "app-evt-1", adopterDni: null, adopterDisplayName: "" },
+      { repo, actor, transaction: fakeTransaction },
+    );
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/no está aprobada/i);
+    expect(repo.insertAdoptionFinalized).not.toHaveBeenCalled();
   });
 
   // ---- Notifications best-effort (returned, not flushed) ---------------

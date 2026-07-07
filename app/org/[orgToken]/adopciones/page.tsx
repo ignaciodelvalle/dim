@@ -18,7 +18,6 @@ import Link from "next/link";
 
 import { AdoptionQueueList } from "@/components/AdoptionQueueList";
 import type { AdoptionQueueRow, AdoptionQueueStatus } from "@/components/AdoptionQueueList";
-import { OpCard, OpCardBody } from "@/components/ui/dashboard";
 import { db } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { safePayloadUuid } from "@/lib/infra/sql-fragments";
@@ -209,33 +208,14 @@ export default async function AdoptionReviewIndexPage({
         </p>
       </header>
 
-      {/* Queue — filter chips + row list + bulk bar live here */}
-      {rows.length === 0 && activeStatus === "pending" ? (
-        <>
-          {/* Render chips even in empty state so the user can navigate to other tabs */}
-          <AdoptionQueueList rows={[]} orgToken={orgToken} activeStatus={activeStatus} />
-          <OpCard>
-            <OpCardBody>
-              <div className="py-6 text-center space-y-2">
-                <p className="text-[13px] font-medium text-ln-op-ink">
-                  No tenés postulaciones pendientes.
-                </p>
-                <p className="text-sm text-ln-op-mute">
-                  Cuando alguien se postule a una mascota publicada en /adoptar, aparece acá.
-                </p>
-              </div>
-            </OpCardBody>
-          </OpCard>
-        </>
-      ) : (
-        <>
-          <AdoptionQueueList rows={rows} orgToken={orgToken} activeStatus={activeStatus} />
-          {truncated && (
-            <p className="text-sm text-ln-op-mute">
-              Mostrando las primeras 200. Hay más — refiná los filtros para acotar la lista.
-            </p>
-          )}
-        </>
+      {/* Queue — filter chips + row list (incl. its own empty state) + bulk bar
+          live here. AdoptionQueueList renders the chips and a single dashed
+          empty block for every status, so the page must NOT add a second one. */}
+      <AdoptionQueueList rows={rows} orgToken={orgToken} activeStatus={activeStatus} />
+      {truncated && (
+        <p className="text-sm text-ln-op-mute">
+          Mostrando las primeras 200. Hay más — refiná los filtros para acotar la lista.
+        </p>
       )}
 
       <footer className="pt-4 border-t border-ln-op-line">

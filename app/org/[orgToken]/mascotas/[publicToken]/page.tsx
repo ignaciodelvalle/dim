@@ -156,6 +156,11 @@ export default async function OrgPetDetailPage({
   const canManageEligibility = granted.has("intake.create") && ownershipRole === "shelter_custody";
   const canReplaceMicrochip = granted.has("event.write");
   const canEndFoster = granted.has("foster.end") && !!fosterName;
+  // Finalize adoption is reachable from the pet ficha (not only the list card),
+  // so the "aprobación → finalizá en la ficha" guidance actually lands on a
+  // page that has the action. The finalize page itself enforces eligibility.
+  const canFinalizeAdoption =
+    granted.has("adoption.finalize") && ownershipRole === "shelter_custody";
   const petSpeciesLabel = speciesLabel(pet.species);
 
   const eligibility = {
@@ -244,12 +249,24 @@ export default async function OrgPetDetailPage({
         </OpCard>
 
         {/* Action buttons */}
-        {(canManageEligibility || canReplaceMicrochip || canEndFoster || canProposeReturn) && (
+        {(canManageEligibility ||
+          canReplaceMicrochip ||
+          canEndFoster ||
+          canProposeReturn ||
+          canFinalizeAdoption) && (
           <section className="space-y-2">
             <h2 className="text-[11px] font-bold uppercase tracking-wider text-ln-op-mute">
               Acciones
             </h2>
             <div className="flex flex-wrap gap-2">
+              {canFinalizeAdoption && (
+                <Link
+                  href={`/org/${orgToken}/mascotas/${publicToken}/adoption`}
+                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] bg-ln-op-ok text-white hover:opacity-90"
+                >
+                  Finalizar adopción
+                </Link>
+              )}
               {canManageEligibility && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=elegibilidad`}

@@ -481,6 +481,7 @@ export async function finalizeAdoptionAction(
   const { user, organization } = auth;
 
   // Parse formData.
+  const applicationEventIdInput = String(formData.get("applicationEventId") ?? "").trim() || null;
   const adopterUserIdInput = String(formData.get("adopterUserId") ?? "").trim() || null;
   const dniRaw = String(formData.get("adopterDni") ?? "");
   const displayName = String(formData.get("adopterDisplayName") ?? "").trim();
@@ -511,6 +512,7 @@ export async function finalizeAdoptionAction(
   const result = await finalizeAdoption(
     {
       petPublicToken: publicToken,
+      applicationEventId: applicationEventIdInput,
       adopterUserId: adopterUserIdInput,
       adopterDni: dniRaw || null,
       adopterDisplayName: displayName,
@@ -535,6 +537,14 @@ export async function finalizeAdoptionAction(
   }
 
   await flushNotifications(result.notifications);
+
+  // When finalized from an approved application, ownership landed on the
+  // adopter's real account — refresh the adopter-facing surfaces so the pet
+  // shows in /mis-mascotas and the postulación flips to "finalizada".
+  if (applicationEventIdInput) {
+    revalidatePath("/mis-mascotas");
+    revalidatePath("/mis-mascotas/postulaciones");
+  }
 
   redirect(`/org/${orgToken}/mascotas?adopcion=${publicToken}`);
 }
