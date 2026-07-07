@@ -382,9 +382,16 @@ export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise
     return { count: 0, deltaPct: 0, orgs: 0 };
   }
 
-  // ctx.period covers the last 30d window; compute the prior 30d window from until.
-  const since30d = ctx.period.since;
-  const since60d = new Date(ctx.period.until.getTime() - 60 * DAY_MS);
+  // "Esterilizaciones / mes" is a FIXED 30-day flow, ending at ctx.period.until —
+  // the 30-day window is INTRINSIC to the label, NOT the caller's display period
+  // (issue #58, the same label-vs-period divergence class as rabies coverage).
+  // Before this the current window started at ctx.period.since, so a caller with a
+  // wider display window (e.g. a 12-month ctx) counted MONTHS of sterilizations
+  // under the "/ mes" label. Anchoring to `until` keeps it period-aware for an
+  // as-of scrub while guaranteeing every surface computes the SAME 30-day count.
+  const until = ctx.period.until;
+  const since30d = new Date(until.getTime() - 30 * DAY_MS);
+  const since60d = new Date(until.getTime() - 60 * DAY_MS);
 
   const scope = petEventsScopeClause(ctx);
 
@@ -395,7 +402,11 @@ export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise
   const petsGuard = petsCurrentJurisdictionGuard(ctx);
   if (petsGuard) baseConditions.push(petsGuard);
 
-  const currentConditions = [...baseConditions, gte(petEvents.occurredAt, since30d)];
+  const currentConditions = [
+    ...baseConditions,
+    gte(petEvents.occurredAt, since30d),
+    lte(petEvents.occurredAt, until),
+  ];
   const prevConditions = [
     ...baseConditions,
     gte(petEvents.occurredAt, since60d),
@@ -504,9 +515,19 @@ export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer
     return { rate: 0, delta: 0, reports: 0 };
   }
 
-  const since12m = ctx.period.since;
-  // Prior 12m window: go back another 12m from the start of the current window.
-  const since24m = new Date(ctx.period.since.getTime() - 365 * DAY_MS);
+  // "Mordeduras / 10k hab." is a FIXED trailing-12-month rate, ending at
+  // ctx.period.until — the 12-month window is INTRINSIC to the metric (and to the
+  // "últimos 12 meses" tooltip), NOT the caller's display period (issue #58, the
+  // same divergence class as rabies coverage). Before this the current window
+  // started at ctx.period.since, so the Panorama console — whose "cumplimiento"
+  // preset commits ?period=90d — computed a 90-day bite rate under a tile that
+  // reads "12 meses", while the /gob Panel (12m ctx) showed the true 12m rate.
+  // Anchoring to `until` keeps it period-aware for an as-of scrub while every
+  // surface computes the SAME 12-month rate.
+  const until = ctx.period.until;
+  const since12m = new Date(until.getTime() - 365 * DAY_MS);
+  // Prior 12m window: the 12 months immediately before the current window.
+  const since24m = new Date(until.getTime() - 730 * DAY_MS);
 
   const scope = petEventsScopeClause(ctx);
 
@@ -520,7 +541,11 @@ export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer
   const petsGuard = petsCurrentJurisdictionGuard(ctx);
   if (petsGuard) baseConditions.push(petsGuard);
 
-  const currentConditions = [...baseConditions, gte(petEvents.occurredAt, since12m)];
+  const currentConditions = [
+    ...baseConditions,
+    gte(petEvents.occurredAt, since12m),
+    lte(petEvents.occurredAt, until),
+  ];
   const prevConditions = [
     ...baseConditions,
     gte(petEvents.occurredAt, since24m),

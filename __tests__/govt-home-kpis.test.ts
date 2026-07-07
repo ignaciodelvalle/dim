@@ -665,3 +665,154 @@ describe("fetchRabiesCoverage — currently-valid via next_due_at (issue #52)", 
 });
 
 // ---------------------------------------------------------------------------
+// INVARIANT (issue #58): period-driven flow KPIs whose LABEL states a fixed
+// window must compute over that INTRINSIC window, not the caller's display
+// period — otherwise the Panorama console (which commits ?period=90d via its
+// "cumplimiento" preset) and the /gob Panel (12m/30d ctx) show different numbers
+// under the same label. "Mordeduras / 10k hab." is a fixed trailing-12m rate;
+// "Esterilizaciones / mes" is a fixed trailing-30d flow. Both anchor to
+// ctx.period.until.
+// ---------------------------------------------------------------------------
+
+describe("fetchBitesPer10k — intrinsic 12m window, not the display period (issue #58)", () => {
+  const BW_PROVINCE = "Santa Fe";
+  const BW_LOCALITY = "BitesWindowVille"; // unique
+  const BW_TOKEN = "HK-BITESWIN-01";
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  let bwPetId: string;
+
+  const ctxForPeriod = (period: { since: Date; until: Date }) =>
+    buildProjectionContext(
+      { role: "govt" },
+      [{ province: BW_PROVINCE, locality: BW_LOCALITY }],
+      period,
+    );
+
+  async function cleanup() {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        DELETE FROM pet_events WHERE pet_id IN (SELECT id FROM pets WHERE public_token = ${BW_TOKEN})
+      `);
+      await tx.execute(sql`DELETE FROM pets WHERE public_token = ${BW_TOKEN}`);
+    });
+  }
+
+  beforeAll(async () => {
+    await cleanup();
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: BW_TOKEN,
+        name: "BitesWindowDog",
+        species: "dog",
+        status: "active",
+        jurisdictionProvince: BW_PROVINCE,
+        jurisdictionLocality: BW_LOCALITY,
+      })
+      .returning({ id: pets.id });
+    bwPetId = pet.id;
+    // One bite 180 days ago: inside a trailing-12m window, OUTSIDE a 90d window.
+    await db.insert(petEvents).values({
+      petId: bwPetId,
+      eventType: "incident_reported",
+      occurredAt: new Date(Date.now() - 180 * DAY_MS),
+      payload: {
+        payload_version: 1,
+        incident_type: "bite_inflicted",
+        severity: "minor",
+        injuries_summary: null,
+        vet_involved: false,
+        location_description: null,
+        victim_species: "human",
+        pet_jurisdiction_province: BW_PROVINCE,
+        pet_jurisdiction_locality: BW_LOCALITY,
+      },
+      authorRole: "owner",
+      recordedByUserId: null,
+    });
+  });
+
+  afterAll(cleanup);
+
+  it("counts the 180-day-old bite under BOTH a 90-day and a 12-month display window", async () => {
+    const now = Date.now();
+    const kpi90d = await fetchBitesPer10k(
+      ctxForPeriod({ since: new Date(now - 90 * DAY_MS), until: new Date(now) }),
+    );
+    const kpi12m = await fetchBitesPer10k(ctxForPeriod(windows.trailing12m()));
+    // Fixed trailing-12m: the shorter display window cannot shrink the numerator.
+    expect(kpi90d.reports).toBe(1);
+    expect(kpi12m.reports).toBe(1);
+    expect(kpi90d.reports).toBe(kpi12m.reports);
+  });
+});
+
+describe("fetchSterilizationMetrics — intrinsic 30d window, not the display period (issue #58)", () => {
+  const SW_PROVINCE = "Santa Fe";
+  const SW_LOCALITY = "SterilWindowVille"; // unique
+  const SW_TOKEN = "HK-STERILWIN-01";
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  let swPetId: string;
+
+  const ctxForPeriod = (period: { since: Date; until: Date }) =>
+    buildProjectionContext(
+      { role: "govt" },
+      [{ province: SW_PROVINCE, locality: SW_LOCALITY }],
+      period,
+    );
+
+  async function cleanup() {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        DELETE FROM pet_events WHERE pet_id IN (SELECT id FROM pets WHERE public_token = ${SW_TOKEN})
+      `);
+      await tx.execute(sql`DELETE FROM pets WHERE public_token = ${SW_TOKEN}`);
+    });
+  }
+
+  async function insertSterilization(occurredAt: Date) {
+    await db.insert(petEvents).values({
+      petId: swPetId,
+      eventType: "sterilization_performed",
+      occurredAt,
+      payload: {
+        payload_version: 1,
+        pet_jurisdiction_province: SW_PROVINCE,
+        pet_jurisdiction_locality: SW_LOCALITY,
+      },
+      authorRole: "vet",
+      recordedByUserId: null,
+    });
+  }
+
+  beforeAll(async () => {
+    await cleanup();
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: SW_TOKEN,
+        name: "SterilWindowDog",
+        species: "dog",
+        status: "active",
+        jurisdictionProvince: SW_PROVINCE,
+        jurisdictionLocality: SW_LOCALITY,
+      })
+      .returning({ id: pets.id });
+    swPetId = pet.id;
+    // Two sterilizations: one 10 days ago (inside 30d), one 60 days ago (outside
+    // the intrinsic 30d window but inside 12m).
+    await insertSterilization(new Date(Date.now() - 10 * DAY_MS));
+    await insertSterilization(new Date(Date.now() - 60 * DAY_MS));
+  });
+
+  afterAll(cleanup);
+
+  it("counts only the last-30-day sterilization under BOTH a 30d and a 12m display window", async () => {
+    const count30d = await fetchSterilizationMetrics(ctxForPeriod(windows.trailing30d()));
+    const count12m = await fetchSterilizationMetrics(ctxForPeriod(windows.trailing12m()));
+    // Fixed trailing-30d: a wider display period cannot pull in the 60-day event.
+    expect(count30d.count).toBe(1);
+    expect(count12m.count).toBe(1);
+    expect(count30d.count).toBe(count12m.count);
+  });
+});
