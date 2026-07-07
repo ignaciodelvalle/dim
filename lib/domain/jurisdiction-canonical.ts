@@ -102,3 +102,32 @@ export function isWholeProvinceLocality(
   if (!province || !locality) return false;
   return WHOLE_PROVINCE_LOCALITY[province] === locality;
 }
+
+/**
+ * In-memory counterpart of `jurisdictionPairClause` (lib/metrics/scope.ts):
+ * does a govt actor's assigned jurisdiction set contain the target
+ * `(province, locality)`?
+ *
+ * Same subsumption semantics as the SQL clause, so a scoping decision made in
+ * application code matches what the dashboards' WHERE clauses would filter:
+ *   - a WHOLE-PROVINCE assignment (e.g. CABA / "Ciudad Autónoma de Buenos Aires")
+ *     matches on PROVINCE alone — it subsumes every locality/barrio in that
+ *     province (a whole-CABA operator governs any CABA barrio).
+ *   - a barrio/locality-specific assignment (e.g. CABA / Palermo) requires the
+ *     EXACT pair — it never widens beyond its own barrio.
+ *
+ * Fail-closed: a target with no province is in nobody's scope (returns false),
+ * mirroring how a null jurisdiction row is never selected by the SQL clause.
+ */
+export function jurisdictionScopeContains(
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
+  targetProvince: string | null | undefined,
+  targetLocality: string | null | undefined,
+): boolean {
+  if (!targetProvince) return false;
+  return jurisdictions.some((j) =>
+    isWholeProvinceLocality(j.province, j.locality)
+      ? j.province === targetProvince
+      : j.province === targetProvince && j.locality === targetLocality,
+  );
+}

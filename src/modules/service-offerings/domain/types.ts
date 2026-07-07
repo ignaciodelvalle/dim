@@ -13,3 +13,21 @@ export type OrgProvider = {
   organizationPublicToken: string;
   organizationDisplayName: string;
 };
+
+/**
+ * Authority scope threaded from the boundary guard (requireAdminOrGovtOrRedirect)
+ * into the authority-side approve/reject use-cases so they can ENFORCE
+ * jurisdiction bounds on the offering's owning org.
+ *
+ *   - admin → universal scope; no per-offering jurisdiction check.
+ *   - govt  → bounded to the account's active govt_assignments. The offering's
+ *             org (jurisdictionProvince/jurisdictionLocality) MUST fall within
+ *             one of these, honoring whole-province subsumption
+ *             (see jurisdictionScopeContains).
+ *
+ * Mirrors the AdminOrGovtSession shape (profile.role + jurisdictions) so the
+ * action can build it directly from the guard result.
+ */
+export type AuthorityScope =
+  | { role: "admin" }
+  | { role: "govt"; jurisdictions: ReadonlyArray<{ province: string; locality: string }> };

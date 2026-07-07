@@ -2,22 +2,28 @@
 //
 // Rejects a pending service offering:
 //   1. Validate rejection reason (length guards).
-//   2. Load and validate offering state.
-//   3. DB transaction:
+//   2. Load offering + its owning org's jurisdiction.
+//   3. ENFORCE the actor's authority scope: admin is universal; a govt actor
+//      may only reject offerings whose org falls within their assigned
+//      jurisdiction(s) (fail-closed). The role guard lives in the action; the
+//      jurisdiction bound is enforced HERE (where offering→org resolution is).
+//   4. Validate offering state.
+//   5. DB transaction:
 //      a. UPDATE offering status → rejected, set rejection fields.
 //      b. Notify active org members (service_offering_rejected).
-//
-// Auth guard (admin | govt role check) lives in the action.
 
-import { db, notifications, organizationMemberships, serviceOfferings } from "@/db";
+import { db, notifications, organizationMemberships, organizations, serviceOfferings } from "@/db";
 import { and, eq, isNull } from "drizzle-orm";
 
-import type { ServiceOfferingResult } from "../domain/types";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+
+import type { AuthorityScope, ServiceOfferingResult } from "../domain/types";
 
 export async function rejectServiceOfferingForAuthority(
   actorUserId: string,
   publicToken: string,
   rejectionReason: string,
+  authority: AuthorityScope,
 ): Promise<ServiceOfferingResult> {
   const trimmedReason = rejectionReason.trim();
   if (!trimmedReason || trimmedReason.length < 10) {
@@ -27,12 +33,28 @@ export async function rejectServiceOfferingForAuthority(
     return { error: "El motivo del rechazo no puede superar los 1000 caracteres." };
   }
 
-  const [offering] = await db
-    .select()
+  const [row] = await db
+    .select({
+      offering: serviceOfferings,
+      orgProvince: organizations.jurisdictionProvince,
+      orgLocality: organizations.jurisdictionLocality,
+    })
     .from(serviceOfferings)
+    .leftJoin(organizations, eq(serviceOfferings.organizationId, organizations.id))
     .where(eq(serviceOfferings.publicToken, publicToken))
     .limit(1);
-  if (!offering) return { error: "Servicio no encontrado." };
+  if (!row) return { error: "Servicio no encontrado." };
+  const { offering, orgProvince, orgLocality } = row;
+
+  // Jurisdiction enforcement (before the status check, so an out-of-scope govt
+  // learns nothing about the offering's state). Admin is universal.
+  if (
+    authority.role === "govt" &&
+    !jurisdictionScopeContains(authority.jurisdictions, orgProvince, orgLocality)
+  ) {
+    return { error: "Este servicio no está en tu jurisdicción asignada." };
+  }
+
   if (offering.status !== "pending_approval") {
     return { error: `El servicio ya está en estado "${offering.status}".` };
   }

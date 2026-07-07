@@ -66,6 +66,7 @@ import {
   timeSlots,
 } from "@/db";
 import { generateOfferingToken, generatePublicToken } from "@/lib/infra/publicToken";
+import type { AuthorityScope } from "../../domain/types";
 
 import { approveServiceOfferingForAuthority } from "../approve-service-offering";
 import {
@@ -102,12 +103,42 @@ let orgPublicToken!: string;
 let memberUserId!: string;
 let govtOrgId!: string;
 let govtUserId!: string;
+// CABA orgs for the whole-province subsumption / barrio-scoping tests.
+let cabaPalermoOrgId!: string;
+let cabaAlmagroOrgId!: string;
+
+// The org (and thus every offering below unless overridden) is in Buenos Aires /
+// La Plata. Authority scopes used by the approve/reject tests:
+const ADMIN_SCOPE: AuthorityScope = { role: "admin" };
+const GOVT_LA_PLATA: AuthorityScope = {
+  role: "govt",
+  jurisdictions: [{ province: "Buenos Aires", locality: "La Plata" }],
+};
+const GOVT_MENDOZA: AuthorityScope = {
+  role: "govt",
+  jurisdictions: [{ province: "Mendoza", locality: "Mendoza" }],
+};
+// Whole-province CABA assignment — subsumes every barrio in the city.
+const GOVT_WHOLE_CABA: AuthorityScope = {
+  role: "govt",
+  jurisdictions: [{ province: "CABA", locality: "Ciudad Autónoma de Buenos Aires" }],
+};
+// Barrio-specific assignment — bounded to Palermo only.
+const GOVT_CABA_PALERMO: AuthorityScope = {
+  role: "govt",
+  jurisdictions: [{ province: "CABA", locality: "Palermo" }],
+};
 
 // Pre-created offering public tokens for lifecycle tests.
 // A new offering per sub-suite so tests don't interfere with each other.
 const UC_SO_OFFERING_TOKENS = {
   approve: generateOfferingToken(),
+  approveOutOfProvince: generateOfferingToken(),
+  approveWholeCaba: generateOfferingToken(),
+  approveBarrioMismatch: generateOfferingToken(),
+  approveAdminCaba: generateOfferingToken(),
   rejectHappy: generateOfferingToken(),
+  rejectOutOfProvince: generateOfferingToken(),
   rejectWrongStatus: generateOfferingToken(),
   pauseHappy: generateOfferingToken(),
   pauseAlready: generateOfferingToken(),
@@ -207,12 +238,55 @@ beforeAll(async () => {
     role: "admin",
   });
 
+  // CABA orgs (no members — approve/reject notify no one) for the two-tier
+  // jurisdiction subsumption tests. Palermo/Almagro are distinct barrios of the
+  // whole-province CABA locality.
+  const [cabaPalermoOrg] = await db
+    .insert(organizations)
+    .values({
+      publicToken: generatePublicToken(),
+      legalName: "UC SO CABA Palermo Org",
+      displayName: "UC SO CABA Palermo",
+      orgType: "shelter",
+      email: "uc-so-caba-palermo@dim-test.local",
+      verified: true,
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Palermo",
+    })
+    .returning({ id: organizations.id });
+  cabaPalermoOrgId = cabaPalermoOrg.id;
+
+  const [cabaAlmagroOrg] = await db
+    .insert(organizations)
+    .values({
+      publicToken: generatePublicToken(),
+      legalName: "UC SO CABA Almagro Org",
+      displayName: "UC SO CABA Almagro",
+      orgType: "shelter",
+      email: "uc-so-caba-almagro@dim-test.local",
+      verified: true,
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Almagro",
+    })
+    .returning({ id: organizations.id });
+  cabaAlmagroOrgId = cabaAlmagroOrg.id;
+
   // Pre-insert offerings for state-based tests (so we don't depend on create).
   type OfferingStatus = "pending_approval" | "approved" | "paused" | "archived" | "rejected";
 
-  const preInserts: Array<{ key: keyof typeof UC_SO_OFFERING_TOKENS; status: OfferingStatus }> = [
+  // organizationId defaults to the Buenos Aires / La Plata org unless overridden.
+  const preInserts: Array<{
+    key: keyof typeof UC_SO_OFFERING_TOKENS;
+    status: OfferingStatus;
+    organizationId?: string;
+  }> = [
     { key: "approve", status: "pending_approval" },
+    { key: "approveOutOfProvince", status: "pending_approval" },
+    { key: "approveWholeCaba", status: "pending_approval", organizationId: cabaPalermoOrgId },
+    { key: "approveBarrioMismatch", status: "pending_approval", organizationId: cabaAlmagroOrgId },
+    { key: "approveAdminCaba", status: "pending_approval", organizationId: cabaPalermoOrgId },
     { key: "rejectHappy", status: "pending_approval" },
+    { key: "rejectOutOfProvince", status: "pending_approval" },
     { key: "rejectWrongStatus", status: "approved" },
     { key: "pauseHappy", status: "approved" },
     { key: "pauseAlready", status: "paused" },
@@ -225,12 +299,12 @@ beforeAll(async () => {
     { key: "capacityHappy", status: "approved" },
   ];
 
-  for (const { key, status } of preInserts) {
+  for (const { key, status, organizationId } of preInserts) {
     const [row] = await db
       .insert(serviceOfferings)
       .values({
         publicToken: UC_SO_OFFERING_TOKENS[key],
-        organizationId: orgId,
+        organizationId: organizationId ?? orgId,
         serviceKind: "vaccination_rabies",
         displayName: `UC SO Test — ${key}`,
         durationMinutes: 30,
@@ -307,11 +381,13 @@ afterAll(async () => {
     .where(eq(notifications.userId, govtUserId))
     .catch(() => {});
 
-  // Delete dynamically created offerings (from create tests).
-  await db
-    .delete(serviceOfferings)
-    .where(eq(serviceOfferings.organizationId, orgId))
-    .catch(() => {});
+  // Delete dynamically created offerings (from create tests) + CABA-org offerings.
+  for (const oid of [orgId, cabaPalermoOrgId, cabaAlmagroOrgId]) {
+    await db
+      .delete(serviceOfferings)
+      .where(eq(serviceOfferings.organizationId, oid))
+      .catch(() => {});
+  }
 
   // Delete org memberships before orgs (FK).
   await db
@@ -324,14 +400,12 @@ afterAll(async () => {
     .catch(() => {});
 
   // Delete orgs.
-  await db
-    .delete(organizations)
-    .where(eq(organizations.id, orgId))
-    .catch(() => {});
-  await db
-    .delete(organizations)
-    .where(eq(organizations.id, govtOrgId))
-    .catch(() => {});
+  for (const oid of [orgId, govtOrgId, cabaPalermoOrgId, cabaAlmagroOrgId]) {
+    await db
+      .delete(organizations)
+      .where(eq(organizations.id, oid))
+      .catch(() => {});
+  }
 
   // Delete auth users.
   for (const email of [UC_SO_MEMBER_EMAIL, UC_SO_GOVT_EMAIL]) {
@@ -487,10 +561,11 @@ describe("createServiceOfferingForOrg", () => {
 // ---------------------------------------------------------------------------
 
 describe("approveServiceOfferingForAuthority", () => {
-  it("happy path: offering approved, reviewedAt set, org members notified", async () => {
+  it("govt in-scope: offering approved, reviewedAt set, org members notified", async () => {
     const token = UC_SO_OFFERING_TOKENS.approve;
 
-    const result = await approveServiceOfferingForAuthority(govtUserId, token);
+    // Govt scoped to Buenos Aires / La Plata — the org's own jurisdiction.
+    const result = await approveServiceOfferingForAuthority(govtUserId, token, GOVT_LA_PLATA);
     expect(result).toMatchObject({ ok: true });
 
     const [row] = await db
@@ -522,7 +597,11 @@ describe("approveServiceOfferingForAuthority", () => {
   });
 
   it("not found: returns error", async () => {
-    const result = await approveServiceOfferingForAuthority(govtUserId, "nonexistent-token-xyz");
+    const result = await approveServiceOfferingForAuthority(
+      govtUserId,
+      "nonexistent-token-xyz",
+      ADMIN_SCOPE,
+    );
     expect(result).toMatchObject({ error: "Servicio no encontrado." });
   });
 
@@ -531,8 +610,73 @@ describe("approveServiceOfferingForAuthority", () => {
     const result = await approveServiceOfferingForAuthority(
       govtUserId,
       UC_SO_OFFERING_TOKENS.approve,
+      GOVT_LA_PLATA,
     );
     expect(result).toMatchObject({ error: expect.stringContaining("ya está en estado") });
+  });
+
+  it("govt out-of-province: cannot approve a Buenos Aires org's offering", async () => {
+    // Govt scoped to Mendoza tries to approve a pending offering owned by the
+    // Buenos Aires / La Plata org. Fail-closed — the offering stays pending.
+    const token = UC_SO_OFFERING_TOKENS.approveOutOfProvince;
+    const result = await approveServiceOfferingForAuthority(govtUserId, token, GOVT_MENDOZA);
+    expect(result).toMatchObject({
+      error: "Este servicio no está en tu jurisdicción asignada.",
+    });
+
+    const [row] = await db
+      .select({ status: serviceOfferings.status })
+      .from(serviceOfferings)
+      .where(eq(serviceOfferings.publicToken, token))
+      .limit(1);
+    expect(row?.status).toBe("pending_approval");
+  });
+
+  it("whole-CABA govt: approves a CABA-barrio (Palermo) org's offering", async () => {
+    // A whole-province CABA assignment subsumes every barrio, so it governs a
+    // Palermo-tagged org even though the pair is not exact.
+    const token = UC_SO_OFFERING_TOKENS.approveWholeCaba;
+    const result = await approveServiceOfferingForAuthority(govtUserId, token, GOVT_WHOLE_CABA);
+    expect(result).toMatchObject({ ok: true });
+
+    const [row] = await db
+      .select({ status: serviceOfferings.status })
+      .from(serviceOfferings)
+      .where(eq(serviceOfferings.publicToken, token))
+      .limit(1);
+    expect(row?.status).toBe("approved");
+  });
+
+  it("barrio-scoped govt: cannot approve another barrio's offering", async () => {
+    // A CABA / Palermo assignment is exact-match — it must NOT reach an Almagro
+    // org's offering.
+    const token = UC_SO_OFFERING_TOKENS.approveBarrioMismatch;
+    const result = await approveServiceOfferingForAuthority(govtUserId, token, GOVT_CABA_PALERMO);
+    expect(result).toMatchObject({
+      error: "Este servicio no está en tu jurisdicción asignada.",
+    });
+
+    const [row] = await db
+      .select({ status: serviceOfferings.status })
+      .from(serviceOfferings)
+      .where(eq(serviceOfferings.publicToken, token))
+      .limit(1);
+    expect(row?.status).toBe("pending_approval");
+  });
+
+  it("admin: universal scope approves any jurisdiction's offering (unchanged)", async () => {
+    // Admin has empty jurisdictions and universal scope — approves a CABA org's
+    // offering with no per-jurisdiction check.
+    const token = UC_SO_OFFERING_TOKENS.approveAdminCaba;
+    const result = await approveServiceOfferingForAuthority(govtUserId, token, ADMIN_SCOPE);
+    expect(result).toMatchObject({ ok: true });
+
+    const [row] = await db
+      .select({ status: serviceOfferings.status })
+      .from(serviceOfferings)
+      .where(eq(serviceOfferings.publicToken, token))
+      .limit(1);
+    expect(row?.status).toBe("approved");
   });
 });
 
@@ -542,7 +686,12 @@ describe("approveServiceOfferingForAuthority", () => {
 
 describe("rejectServiceOfferingForAuthority", () => {
   it("reason too short (< 10 chars): returns validation error", async () => {
-    const result = await rejectServiceOfferingForAuthority(govtUserId, "any-token", "corto");
+    const result = await rejectServiceOfferingForAuthority(
+      govtUserId,
+      "any-token",
+      "corto",
+      GOVT_LA_PLATA,
+    );
     expect(result).toMatchObject({ error: expect.stringContaining("10 caracteres") });
   });
 
@@ -551,6 +700,7 @@ describe("rejectServiceOfferingForAuthority", () => {
       govtUserId,
       "any-token",
       "x".repeat(1001),
+      GOVT_LA_PLATA,
     );
     expect(result).toMatchObject({ error: expect.stringContaining("1000 caracteres") });
   });
@@ -560,8 +710,31 @@ describe("rejectServiceOfferingForAuthority", () => {
       govtUserId,
       "nonexistent-token-xyz",
       "Este es un motivo de rechazo válido con suficientes caracteres.",
+      ADMIN_SCOPE,
     );
     expect(result).toMatchObject({ error: "Servicio no encontrado." });
+  });
+
+  it("govt out-of-province: cannot reject a Buenos Aires org's offering", async () => {
+    // Fail-closed — a Mendoza-scoped govt cannot reject the La Plata org's
+    // pending offering; it stays pending.
+    const token = UC_SO_OFFERING_TOKENS.rejectOutOfProvince;
+    const result = await rejectServiceOfferingForAuthority(
+      govtUserId,
+      token,
+      "Este es un motivo de rechazo válido con suficientes caracteres.",
+      GOVT_MENDOZA,
+    );
+    expect(result).toMatchObject({
+      error: "Este servicio no está en tu jurisdicción asignada.",
+    });
+
+    const [row] = await db
+      .select({ status: serviceOfferings.status })
+      .from(serviceOfferings)
+      .where(eq(serviceOfferings.publicToken, token))
+      .limit(1);
+    expect(row?.status).toBe("pending_approval");
   });
 
   it("wrong status (already approved): returns error", async () => {
@@ -569,15 +742,21 @@ describe("rejectServiceOfferingForAuthority", () => {
       govtUserId,
       UC_SO_OFFERING_TOKENS.rejectWrongStatus,
       "Este es un motivo de rechazo válido con suficientes caracteres.",
+      GOVT_LA_PLATA,
     );
     expect(result).toMatchObject({ error: expect.stringContaining("ya está en estado") });
   });
 
-  it("happy path: offering rejected, rejectionReason stored", async () => {
+  it("govt in-scope: offering rejected, rejectionReason stored", async () => {
     const token = UC_SO_OFFERING_TOKENS.rejectHappy;
     const reason = "Este servicio no cumple con los requisitos sanitarios mínimos establecidos.";
 
-    const result = await rejectServiceOfferingForAuthority(govtUserId, token, reason);
+    const result = await rejectServiceOfferingForAuthority(
+      govtUserId,
+      token,
+      reason,
+      GOVT_LA_PLATA,
+    );
     expect(result).toMatchObject({ ok: true });
 
     const [row] = await db

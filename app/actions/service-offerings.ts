@@ -35,10 +35,22 @@ import {
 import { rejectServiceOfferingForAuthority as rejectServiceOfferingForAuthorityUC } from "@/src/modules/service-offerings/application/reject-service-offering";
 import { updateOfferingCapacityWriter as updateOfferingCapacityWriterUC } from "@/src/modules/service-offerings/application/update-offering-capacity";
 import type {
+  AuthorityScope,
   ServiceOfferingFormState,
   ServiceOfferingResult,
   UpdateCapacityResult,
 } from "@/src/modules/service-offerings/domain/types";
+
+// Build the authority scope threaded into the approve/reject use-cases from the
+// institutional guard result. Admin is universal; a govt actor carries its
+// active jurisdiction assignments so the use-case can bound the offering's org
+// to that scope (fail-closed). A single builder keeps approve and reject in sync.
+function authorityScopeFromSession(
+  role: "admin" | "govt",
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
+): AuthorityScope {
+  return role === "admin" ? { role: "admin" } : { role: "govt", jurisdictions };
+}
 
 // ============================================================================
 // Type re-exports — keep public type surface stable for existing callers
@@ -127,9 +139,17 @@ export async function approveServiceOfferingAction(
   // which let a DEACTIVATED or ERASED (soft-deleted, session still valid —
   // Ley 25.326 art. 16) operator whose role column still read 'admin'/'govt'
   // approve offerings.
-  const { user } = await requireAdminOrGovtOrRedirect();
+  // Destructure the FULL guard result — the previous `{ user }`-only destructure
+  // discarded session.jurisdictions, letting a jurisdiction-scoped govt operator
+  // approve a PENDING offering belonging to an org in ANY other jurisdiction. The
+  // use-case now bounds the offering's org to this scope (fail-closed for govt).
+  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
-  const result = await approveServiceOfferingForAuthorityUC(user.id, publicToken);
+  const result = await approveServiceOfferingForAuthorityUC(
+    user.id,
+    publicToken,
+    authorityScopeFromSession(profile.role, jurisdictions),
+  );
   if ("error" in result) return { error: result.error };
 
   // Servicios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
@@ -213,9 +233,17 @@ export async function rejectServiceOfferingAction(
 ): Promise<{ error: string | null }> {
   // Mirror approveServiceOfferingAction: authority-side rejection gates on the
   // full-invariant institutional guard, not a role-only profiles lookup.
-  const { user } = await requireAdminOrGovtOrRedirect();
+  // Mirror approveServiceOfferingAction: destructure the full guard result and
+  // thread the jurisdiction scope so a scoped govt cannot reject an offering
+  // belonging to an org outside their assigned jurisdiction(s).
+  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
-  const result = await rejectServiceOfferingForAuthorityUC(user.id, publicToken, rejectionReason);
+  const result = await rejectServiceOfferingForAuthorityUC(
+    user.id,
+    publicToken,
+    rejectionReason,
+    authorityScopeFromSession(profile.role, jurisdictions),
+  );
   if ("error" in result) return { error: result.error };
 
   // Servicios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
