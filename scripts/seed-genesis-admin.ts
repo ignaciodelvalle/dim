@@ -4,11 +4,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 const url =
-  process.env.SUPABASE_URL ??
-  process.env.NEXT_PUBLIC_SUPABASE_URL ??
-  "http://127.0.0.1:54321";
-const serviceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? "";
+  process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321";
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY ?? "";
 
 if (!serviceKey) {
   console.error("Missing SUPABASE_SERVICE_ROLE_KEY in env");
@@ -32,14 +29,20 @@ async function main() {
     email,
     password: "Test1234!",
     email_confirm: true,
-    // the profiles trigger reads user_role from raw_user_meta_data
-    user_metadata: { display_name: "Admin", user_role: "admin" },
+    // The profiles trigger reads user_role from raw_app_meta_data (service-role-
+    // only), NOT user_metadata (client-writable) — see migration 0133. This seed
+    // relies SOLELY on the trigger for the role (no explicit profile UPDATE), so
+    // the role MUST travel via app_metadata or admin@ would default to 'owner'.
+    user_metadata: { display_name: "Admin" },
+    app_metadata: { user_role: "admin" },
   });
   if (error || !data.user) {
     console.error(`createUser failed: ${error?.message ?? "no user"}`);
     process.exit(1);
   }
-  console.log(`Génesis: created admin@dim.test (${data.user.id}) role=admin. World is empty otherwise.`);
+  console.log(
+    `Génesis: created admin@dim.test (${data.user.id}) role=admin. World is empty otherwise.`,
+  );
 }
 
 main().then(() => process.exit(0));

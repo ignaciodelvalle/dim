@@ -212,9 +212,11 @@ async function findAuthUserIdByEmail(email: string): Promise<string | null> {
  * This fires the same `handle_new_user` trigger as a real /signup submission;
  * it just bypasses email confirmation + rate limits (necessary for local seed).
  *
- * `userRole` is read by the trigger from raw_user_meta_data.user_role to set
- * the initial profiles.role. Pass 'owner' (default) for normal users; 'admin'
- * is used only for the bootstrap founder.
+ * `userRole` is read by the trigger from raw_app_meta_data.user_role (NOT
+ * user_metadata, which is client-writable — see migration 0133). The service
+ * role CAN write app_metadata, so we pass it there. display_name stays in
+ * user_metadata (non-privileged). Pass 'owner' (default) for normal users;
+ * 'admin' is used only for the bootstrap founder.
  */
 async function ensureAuthUser(
   email: string,
@@ -228,7 +230,8 @@ async function ensureAuthUser(
     email,
     password: SHARED_PASSWORD,
     email_confirm: true,
-    user_metadata: { display_name: displayName, user_role: userRole },
+    user_metadata: { display_name: displayName },
+    app_metadata: { user_role: userRole },
   });
   if (error || !data.user) {
     throw new Error(`createUser(${email}) failed: ${error?.message ?? "no user"}`);
@@ -281,8 +284,8 @@ async function bootstrapAdmin(): Promise<string> {
   log(created ? "OK" : "SKIP", `auth.users ${EMAILS.admin} (admin)`);
   await syncDniVerified(id);
 
-  // The trigger set role='admin' via metadata. We still need account_type and
-  // a known password (it was set on create, but be idempotent if re-running).
+  // The trigger set role='admin' via app_metadata. We still need account_type
+  // and a known password (it was set on create, but be idempotent if re-running).
   await db
     .update(profiles)
     .set({
