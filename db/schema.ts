@@ -1589,6 +1589,16 @@ export const welfareReports = pgTable(
       () => profiles.id,
       { onDelete: "set null" },
     ),
+    // Govt→admin escalation (migration 0132). A jurisdiction govt can hand a
+    // flagged denuncia back to the national admin queue instead of approving or
+    // rejecting it. The row stays moderation-pending (admin still owns it) but
+    // leaves the govt actionable queue. Motivo lives in the
+    // welfare_report_escalated_to_admin audit_log row.
+    moderationEscalatedAt: timestamp("moderation_escalated_at", { withTimezone: true }),
+    moderationEscalatedByUserId: uuid("moderation_escalated_by_user_id").references(
+      () => profiles.id,
+      { onDelete: "set null" },
+    ),
     // Cases system (migration 0033). Linked to the welfare_denuncia case
     // opened atomically on submit. Nullable for historical rows.
     caseId: uuid("case_id"),
@@ -2014,6 +2024,10 @@ export const AUDIT_LOG_ACTIONS = [
   // either by passing it to triage (unflag) or confirming it as spam.
   "welfare_report_unflagged",
   "welfare_report_confirmed_spam",
+  // Jurisdiction moderation (migration 0132): a govt escalates a flagged
+  // denuncia to the national admin queue with a motivo. Payload:
+  // { welfare_report_id, reference_code, flag_reasons_snapshot, notes }.
+  "welfare_report_escalated_to_admin",
   // Org-side welfare denuncia (spec 2026-05-19-org-abuse-investigation).
   // Emitted by `createOrgWelfareReportAction` to distinguish institutional
   // reports from the anon/civil flow tracked by `welfare_report_submitted`.

@@ -61,6 +61,8 @@ type StatusPatch = {
   resolutionNotes?: string | null;
   moderationResolvedAt?: Date | null;
   moderationResolvedByUserId?: string | null;
+  moderationEscalatedAt?: Date | null;
+  moderationEscalatedByUserId?: string | null;
 };
 
 type FlaggedPatch = {
