@@ -56,14 +56,27 @@ export function normalizeDepartmentCode(raw: string): string {
 }
 
 /**
- * CABA barrio codes in the GeoJSON are lowercase slugs ("agronomia").
- * Data codes may include accents or mixed case. This normalizer strips
- * accents and lowercases to match the GeoJSON slug.
+ * CABA barrio codes in the GeoJSON are lowercase slugs ("agronomia", "la boca",
+ * "velez sarsfield"). Data codes may arrive with accents, mixed case, dots, or
+ * padded whitespace. This is the CANONICAL barrio normalizer for the whole
+ * codebase: strip accents → lowercase → drop dots → collapse whitespace → trim.
+ *
+ * It is the single source of truth so every surface that joins a locality/barrio
+ * name to caba-barrios.geojson (MapChoropleth's hierarchical join, the govt
+ * dashboards' `fetchCasesPerSubregion`, and the Panorama locality choropleth
+ * fill) computes the SAME slug. Previously `lib/analytics/govt-dashboards.ts`
+ * carried a divergent copy (it stripped dots + collapsed whitespace; this one
+ * did not) — that copy now delegates here. Idempotent on an already-normalized
+ * slug, so it is safe to apply to both sides of a join.
  */
 export function normalizeBarioCode(raw: string): string {
-  // Decompose to NFD then strip Unicode combining diacritical marks (U+0300–U+036F).
-  // biome-ignore lint/suspicious/noMisleadingCharacterClass: intentional Unicode range for diacritic stripping
-  return raw.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return raw
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // ---------------------------------------------------------------------------

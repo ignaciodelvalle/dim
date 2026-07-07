@@ -43,6 +43,7 @@ import {
   welfareReports,
 } from "@/db";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
+import { normalizeBarioCode } from "@/lib/infra/geo-join";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
@@ -903,17 +904,11 @@ export async function fetchCasesPerSubregion(
   // Govt with no assignments can never see any case.
   if (scope !== null && jurisdictions.length === 0) return [];
 
-  // Normalize a string the same way lib/ar-localidades.ts does, so barrio
-  // codes computed here match those in caba-barrios.geojson at render time.
-  function normalizeBarrio(s: string): string {
-    return s
-      .normalize("NFD")
-      .replace(/\p{M}/gu, "")
-      .toLowerCase()
-      .replace(/\./g, "")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
+  // Barrio slug normalization is the SHARED canonical one (lib/infra/geo-join):
+  // one source of truth so the codes computed here match caba-barrios.geojson —
+  // and the Panorama locality choropleth fill — at render time. This used to be a
+  // local copy; it now delegates to avoid the two drifting apart.
+  const normalizeBarrio = normalizeBarioCode;
 
   if (provinceIso === "AR-C") {
     // CABA: count open cases per barrio, then emit the FULL set of 48 barrios
