@@ -2,11 +2,21 @@
 // (cleaned up after each test) and runs against the dev DB.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, db, ownerships, petEvents, pets, profiles, welfareReports } from "@/db";
 import {
+  cases,
+  custodyDisputes,
+  db,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+  welfareReports,
+} from "@/db";
+import {
+  custodyDisputesScopeClause,
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
   fetchCasesPerLocality,
@@ -73,6 +83,11 @@ async function cleanupFixtureRows() {
   });
 
   if (ids.length === 0) return;
+  // custody_disputes must be deleted BEFORE pet_events: raising_event_id FKs to
+  // pet_events with NO cascade (migration 0025), so an event can't be deleted
+  // while a dispute still references it. (pet_id IS cascade, but cleanup deletes
+  // events before pets.) custody_dispute_parties cascades from custody_disputes.
+  await db.delete(custodyDisputes).where(inArray(custodyDisputes.petId, ids));
   // pet_events has a BEFORE DELETE trigger blocking mutations; the
   // app.allow_event_mutation GUC is the documented escape hatch.
   await withMutationOverride(async (tx) => {
@@ -884,6 +899,43 @@ async function insertFixtureCase(input: {
       jurisdictionLocality: input.locality ?? null,
     })
     .returning({ id: cases.id });
+  return row.id;
+}
+
+let disputeSeq = 0;
+// Inserts a custody_disputes row (the domain aggregate /gob/disputas lists and
+// the analytics disputes KPI now counts), plus its NOT NULL raising pet_event.
+// The pet must be a GD-TEST- fixture so cleanupFixtureRows reclaims it.
+async function insertFixtureDispute(input: {
+  petId: string;
+  status?: "open" | "resolved" | "withdrawn";
+  province?: string;
+  locality?: string;
+}): Promise<string> {
+  disputeSeq += 1;
+  const [raising] = await db
+    .insert(petEvents)
+    .values({
+      petId: input.petId,
+      eventType: "custody_dispute_raised",
+      occurredAt: new Date("2026-05-01T00:00:00.000Z"),
+      authorRole: "govt",
+      payload: { source: "govt-dashboards-test" },
+    })
+    .returning({ id: petEvents.id });
+  const [row] = await db
+    .insert(custodyDisputes)
+    .values({
+      publicToken: `DIS-GD-TEST-${Date.now()}-${disputeSeq}`,
+      petId: input.petId,
+      raisedByRole: "govt",
+      raisingEventId: raising.id,
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: input.province ?? "Buenos Aires",
+      jurisdictionLocality: input.locality ?? "La Plata",
+      status: input.status ?? "open",
+    })
+    .returning({ id: custodyDisputes.id });
   return row.id;
 }
 
@@ -1807,7 +1859,7 @@ describe("fetchAnalyticsMetrics", () => {
     expect(mAdmin.totalPets).toBeGreaterThanOrEqual(mScoped.totalPets);
   });
 
-  it("custodyDisputes counts open custody_dispute cases in scope", async () => {
+  it("custodyDisputes counts open custody_disputes rows in scope (NOT custody_dispute cases)", async () => {
     const prov = "Catamarca";
     const loc = "San Fernando del Valle";
     const pet = await insertFixturePet({
@@ -1816,16 +1868,91 @@ describe("fetchAnalyticsMetrics", () => {
       province: prov,
       locality: loc,
     });
+    await insertFixtureDispute({ petId: pet, status: "open", province: prov, locality: loc });
+
+    // A location-subject custody_dispute CASE with no custody_disputes aggregate
+    // must NOT inflate the KPI — that superset was the "9 alarm, empty queue" bug.
     await insertFixtureCase({
       caseKind: "custody_dispute",
       status: "open",
       province: prov,
       locality: loc,
-      petId: pet,
+      // no petId → location/general subject, no custody_disputes row
     });
 
     const m = await fetchAnalyticsMetrics({ role: "govt" }, [{ province: prov, locality: loc }]);
     expect(m.custodyDisputes).toBeGreaterThanOrEqual(1);
+  });
+
+  it("count↔queue parity: the KPI equals the /gob/disputas open-queue count in the same scope", async () => {
+    // Unique locality so this fixture is the ONLY dispute data in scope — the KPI
+    // number and the queue-query number must be EQUAL, not merely both non-zero.
+    const prov = "Tierra del Fuego";
+    const loc = `parity-scope-${Date.now()}`;
+    const scope = [{ province: prov, locality: loc }];
+
+    // 2 open disputes (each on its own pet — one-open-dispute-per-pet constraint)
+    // + 1 resolved dispute. The KPI (open-only) and the open queue must both be 2.
+    for (let i = 0; i < 2; i++) {
+      const p = await insertFixturePet({
+        name: `ParityOpen${i}`,
+        species: "dog",
+        province: prov,
+        locality: loc,
+      });
+      await insertFixtureDispute({ petId: p, status: "open", province: prov, locality: loc });
+    }
+    const resolvedPet = await insertFixturePet({
+      name: "ParityResolved",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // A resolved dispute needs a resolver + resolved_at (resolution_consistent check).
+    await db
+      .insert(custodyDisputes)
+      .values({
+        publicToken: `DIS-GD-PARITY-${Date.now()}`,
+        petId: resolvedPet,
+        raisedByRole: "govt",
+        raisingEventId: (
+          await db
+            .insert(petEvents)
+            .values({
+              petId: resolvedPet,
+              eventType: "custody_dispute_raised",
+              occurredAt: new Date("2026-05-01T00:00:00.000Z"),
+              authorRole: "govt",
+              payload: { source: "govt-dashboards-test" },
+            })
+            .returning({ id: petEvents.id })
+        )[0].id,
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: prov,
+        jurisdictionLocality: loc,
+        status: "resolved",
+        resolution: "ownership_confirmed",
+        resolutionSummary: "parity fixture",
+        resolvedByUserId: ownerUserId,
+        resolvedAt: new Date("2026-05-02T00:00:00.000Z"),
+      })
+      .returning({ id: custodyDisputes.id });
+
+    // KPI (open-only, scoped) — the number the analytics "Disputas" tile shows.
+    const m = await fetchAnalyticsMetrics({ role: "govt" }, scope);
+
+    // The EXACT queue shape app/gob/disputas/page.tsx runs, filtered to open,
+    // using the SHARED scope helper — this is the wiring the page depends on.
+    const scopeFilter = custodyDisputesScopeClause({ role: "govt" }, scope) ?? sql`false`;
+    const queueRows = await db
+      .select({ id: custodyDisputes.id })
+      .from(custodyDisputes)
+      .innerJoin(pets, eq(pets.id, custodyDisputes.petId))
+      .where(and(eq(custodyDisputes.status, "open"), scopeFilter));
+
+    expect(m.custodyDisputes).toBe(2);
+    expect(queueRows).toHaveLength(2);
+    expect(m.custodyDisputes).toBe(queueRows.length);
   });
 });
 

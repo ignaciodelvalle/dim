@@ -32,6 +32,7 @@ import {
   arLocalities,
   caseEvents,
   cases,
+  custodyDisputes,
   db,
   jurisdictionsCensus,
   organizations,
@@ -697,6 +698,28 @@ function casesScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdi
       jurisdictions,
       sql`${cases.jurisdictionProvince}`,
       sql`${cases.jurisdictionLocality}`,
+    ) ?? sql`false`
+  );
+}
+
+// Build a scope clause for the `custody_disputes` table — the domain aggregate
+// that the /gob/disputas queue lists. Admin: null (no restriction). Govt: OR of
+// (jurisdictionProvince=X AND jurisdictionLocality=Y) pairs; govt with no
+// assignments → sql`false` (matches nothing).
+//
+// Exported so /gob/disputas builds its queue scope with the IDENTICAL predicate
+// the analytics "Disputas de custodia" KPI counts — that shared predicate is
+// what guarantees the KPI number reconciles with the queue (count↔queue parity).
+export function custodyDisputesScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): SQL | null {
+  if (actor.role === "admin") return null;
+  return (
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`${custodyDisputes.jurisdictionProvince}`,
+      sql`${custodyDisputes.jurisdictionLocality}`,
     ) ?? sql`false`
   );
 }
@@ -1667,7 +1690,10 @@ export type AnalyticsMetrics = {
    * Returns 0 when totalPets = 0.
    */
   rabiesVaccinationRate: number;
-  /** Open cases in scope where case_kind='custody_dispute'. */
+  /**
+   * Open disputes in scope from the `custody_disputes` table — the SAME source
+   * the /gob/disputas queue lists, so the KPI alarm and the queue reconcile.
+   */
   custodyDisputes: number;
 };
 
@@ -1741,7 +1767,6 @@ export async function fetchAnalyticsMetrics(
   const adminLocality = opts.adminLocality;
 
   const petsScope = petsScopeClause(actor, jurisdictions);
-  const casesScope = casesScopeClause(actor, jurisdictions);
 
   // 1. totalPets: active or lost in scope.
   const totalConditions = [sql`${pets.status} IN ('active', 'lost')`];
@@ -1808,14 +1833,20 @@ export async function fetchAnalyticsMetrics(
     }
   }
 
-  // 4. custodyDisputes: open cases with case_kind='custody_dispute'.
-  const disputeConditions = [eq(cases.caseKind, "custody_dispute"), eq(cases.status, "open")];
-  if (casesScope) disputeConditions.push(sql`(${casesScope})`);
-  // Admin province drill-down for disputes (casesScope is null for admin).
+  // 4. custodyDisputes: open disputes in the `custody_disputes` table — the SAME
+  //    source the /gob/disputas queue lists, so the KPI alarm and the queue
+  //    always reconcile (count↔queue parity). This previously counted
+  //    cases(case_kind='custody_dispute'), a SUPERSET that also includes
+  //    location-subject rows with no custody_disputes aggregate (nothing for the
+  //    queue to surface) — producing a "9" alarm over an empty queue.
+  const disputeConditions = [eq(custodyDisputes.status, "open")];
+  const disputesScope = custodyDisputesScopeClause(actor, jurisdictions);
+  if (disputesScope) disputeConditions.push(sql`(${disputesScope})`);
+  // Admin province drill-down (custody_disputes carries its own jurisdiction cols).
   if (actor.role === "admin" && adminProvince) {
-    disputeConditions.push(sql`${cases.jurisdictionProvince} = ${adminProvince}`);
+    disputeConditions.push(sql`${custodyDisputes.jurisdictionProvince} = ${adminProvince}`);
     if (adminLocality) {
-      disputeConditions.push(sql`${cases.jurisdictionLocality} = ${adminLocality}`);
+      disputeConditions.push(sql`${custodyDisputes.jurisdictionLocality} = ${adminLocality}`);
     }
   }
 
@@ -1877,7 +1908,7 @@ export async function fetchAnalyticsMetrics(
 
     db
       .select({ n: count() })
-      .from(cases)
+      .from(custodyDisputes)
       .where(and(...disputeConditions)),
   ]);
 
@@ -1885,14 +1916,21 @@ export async function fetchAnalyticsMetrics(
   const totalAcquisitions = acquisitionRows[0]?.n ?? 0;
   const adopted = adoptedRows[0]?.n ?? 0;
   const rabiesVaccinated = rabiesRows[0]?.n ?? 0;
-  const custodyDisputes = disputeRows[0]?.n ?? 0;
+  // Named ...Count to avoid shadowing the imported `custodyDisputes` table used
+  // in the query above (block-scoped const would otherwise capture it in TDZ).
+  const custodyDisputesCount = disputeRows[0]?.n ?? 0;
 
   const adoptionRate =
     totalAcquisitions === 0 ? 0 : Math.round((adopted / totalAcquisitions) * 100);
   const rabiesVaccinationRate =
     totalPets === 0 ? 0 : Math.round((rabiesVaccinated / totalPets) * 100);
 
-  return { totalPets, adoptionRate, rabiesVaccinationRate, custodyDisputes };
+  return {
+    totalPets,
+    adoptionRate,
+    rabiesVaccinationRate,
+    custodyDisputes: custodyDisputesCount,
+  };
 }
 
 // ============================================================================

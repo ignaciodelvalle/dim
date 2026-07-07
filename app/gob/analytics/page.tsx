@@ -236,8 +236,8 @@ export default async function GobAnalyticsPage({
           href="/gob/disputas"
           info={{
             definition:
-              "Cantidad de casos de tipo 'custody_dispute' con estado abierto en la jurisdicción seleccionada.",
-            formula: "COUNT(cases WHERE caseKind='custody_dispute' AND status='open')",
+              "Disputas de custodia abiertas en la jurisdicción seleccionada — la misma cola accionable que lista /gob/disputas.",
+            formula: "COUNT(custody_disputes WHERE status='open')",
           }}
         />
       </section>

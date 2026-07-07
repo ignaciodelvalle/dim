@@ -8,9 +8,9 @@ import { Suspense } from "react";
 
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { custodyDisputes, db, pets } from "@/db";
+import { custodyDisputesScopeClause } from "@/lib/analytics/govt-dashboards";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { jurisdictionPairClause } from "@/lib/metrics/scope";
-import { type SQL, and, desc, eq, ne, sql } from "drizzle-orm";
+import { type SQL, and, desc, eq, ne } from "drizzle-orm";
 
 function parseStatus(raw: string | undefined): "open" | "closed" | null {
   if (raw === "open") return "open";
@@ -40,14 +40,12 @@ export default async function GobDisputasPage({
   // operator must never READ a Córdoba row at the DB level (AGENTS.md). Admin =
   // no restriction; govt = OR of (province,locality) pairs; govt with no
   // assignments = sql`false` (matches nothing).
+  //
+  // The scope predicate comes from the SAME helper the analytics "Disputas de
+  // custodia" KPI uses, so the queue count and the KPI alarm always reconcile
+  // (count↔queue parity). null (admin) → undefined so the filter is omitted.
   const scopeFilter: SQL | undefined =
-    profile.role === "admin"
-      ? undefined
-      : (jurisdictionPairClause(
-          jurisdictions,
-          sql`${custodyDisputes.jurisdictionProvince}`,
-          sql`${custodyDisputes.jurisdictionLocality}`,
-        ) ?? sql`false`);
+    custodyDisputesScopeClause({ role: profile.role }, jurisdictions) ?? undefined;
 
   const conditions = [statusFilter, scopeFilter].filter((c): c is SQL => c !== undefined);
 
