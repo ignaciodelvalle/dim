@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 
 import { LnField, LnInput } from "@/components/ui/Field";
 
@@ -20,6 +20,12 @@ type Props = {
   createShareAction: (
     input: Pick<CreateShareInput, "expiresInDays" | "label">,
   ) => Promise<CreateShareResult>;
+  /**
+   * Fired once after a link is successfully generated, so the parent can
+   * re-fetch its "Enlaces activos" list (a mount-time snapshot otherwise —
+   * staging regression O-3).
+   */
+  onShareCreated?: () => void;
 };
 
 type FormState =
@@ -49,11 +55,20 @@ async function submitShare(
   return { status: "success", shareToken: result.shareToken };
 }
 
-export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }: Props) {
+export function ShareLibretaSheet({
+  petPublicToken,
+  petName,
+  createShareAction,
+  onShareCreated,
+}: Props) {
   const boundSubmit = submitShare.bind(null, createShareAction);
   const [state, formAction, isPending] = useActionState<FormState, FormData>(boundSubmit, {
     status: "idle",
   });
+
+  useEffect(() => {
+    if (state.status === "success") onShareCreated?.();
+  }, [state, onShareCreated]);
 
   if (state.status === "success") {
     const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/libreta/compartir/${state.shareToken}`;

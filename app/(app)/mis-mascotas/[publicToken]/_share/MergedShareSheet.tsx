@@ -13,7 +13,7 @@
 // route into this same sheet (SheetMounter wiring) for demo-safety /
 // backward-compat with existing links.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { SharesManager } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/SharesManager";
 import { getActiveLibretaSharesAction } from "@/app/actions/libreta-share";
@@ -69,17 +69,25 @@ export function MergedShareSheet({
   const [copied, setCopied] = useState(false);
   const [shares, setShares] = useState<LibretaShareToken[] | null>(null);
 
-  useEffect(() => {
+  // Re-fetch the owner's active share links. Runs on mount AND after either
+  // create surface (ShareLibretaSheet / SharesManager) reports a successful
+  // generate, so "Enlaces activos" reflects the new link immediately instead
+  // of staying frozen at its mount-time snapshot (staging regression O-3).
+  //
+  // We re-query rather than lean on revalidatePath(): this list is
+  // client-fetched via a server action, not RSC props, so router.refresh() /
+  // revalidatePath() never touch it (and Next 15.5's revalidatePath-in-
+  // transition defect makes that path unreliable anyway).
+  const refreshShares = useCallback(() => {
     if (!isOwner) return;
-    let cancelled = false;
     getActiveLibretaSharesAction(petPublicToken).then((result) => {
-      if (cancelled) return;
       setShares(result.ok ? result.shares : []);
     });
-    return () => {
-      cancelled = true;
-    };
   }, [petPublicToken, isOwner]);
+
+  useEffect(() => {
+    refreshShares();
+  }, [refreshShares]);
 
   function handleCopyPublicLink() {
     const url = `${window.location.origin}/p/${petPublicToken}`;
@@ -142,6 +150,7 @@ export function MergedShareSheet({
           petPublicToken={petPublicToken}
           petName={petName}
           createShareAction={createShareAction}
+          onShareCreated={refreshShares}
         />
       </section>
 
@@ -207,7 +216,11 @@ export function MergedShareSheet({
             {shares === null ? (
               <p className="text-xs text-[var(--color-ln-mute)]">Cargando enlaces…</p>
             ) : (
-              <SharesManager petPublicToken={petPublicToken} shares={shares} />
+              <SharesManager
+                petPublicToken={petPublicToken}
+                shares={shares}
+                onShareCreated={refreshShares}
+              />
             )}
           </section>
         </>

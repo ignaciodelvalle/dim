@@ -15,6 +15,13 @@ import { AR_TIME_ZONE } from "@/lib/utils/format";
 type Props = {
   petPublicToken: string;
   shares: LibretaShareToken[];
+  /**
+   * Fired once after a link is successfully created, so the parent can
+   * re-fetch the active-shares list. This component's list is a mirror of the
+   * `shares` prop, which is a mount-time snapshot — without a parent re-fetch a
+   * newly created link never appears until reload (staging regression O-3).
+   */
+  onShareCreated?: () => void;
 };
 
 const DURATION_OPTIONS = [
@@ -27,7 +34,7 @@ const DURATION_OPTIONS = [
 const initialCreateState: CreateShareResult | null = null;
 const initialRevokeState: RevokeShareResult | null = null;
 
-export function SharesManager({ petPublicToken, shares }: Props) {
+export function SharesManager({ petPublicToken, shares, onShareCreated }: Props) {
   const [creating, setCreating] = useState(false);
   const [expiresInDays, setExpiresInDays] = useState<number | null>(30);
   const [noExpiryConfirmed, setNoExpiryConfirmed] = useState(false);
@@ -72,6 +79,14 @@ export function SharesManager({ petPublicToken, shares }: Props) {
       setLocalShares((prev) => prev.filter((s) => s.id !== revokeState.shareTokenRowId));
     }
   }, [revokeState]);
+
+  // On a successful create, ask the parent to re-fetch the active-shares list
+  // so the just-generated link shows up in "Enlaces activos" immediately
+  // (staging regression O-3). The parent pushing a fresh `shares` prop syncs
+  // into localShares via the effect above.
+  useEffect(() => {
+    if (createState && "shareToken" in createState) onShareCreated?.();
+  }, [createState, onShareCreated]);
 
   function buildShareUrl(token: string): string {
     return `${window.location.origin}/libreta/compartir/${token}`;

@@ -102,3 +102,32 @@ describe("SharesManager — revoke updates the in-sheet list without reload", ()
     expect(screen.getByText("Vet de cabecera")).toBeInTheDocument();
   });
 });
+
+describe("SharesManager — create refreshes the active-shares list (O-3)", () => {
+  it("asks the parent to re-fetch after a successful create", async () => {
+    createLibretaShareAction.mockResolvedValue({ shareToken: "LBR-NEW1-NEW2" });
+    const onShareCreated = vi.fn();
+    render(<SharesManager petPublicToken="TOKEN-1" shares={[]} onShareCreated={onShareCreated} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Nuevo enlace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Crear enlace" }));
+
+    await waitFor(() => {
+      expect(onShareCreated).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not call onShareCreated when create fails", async () => {
+    createLibretaShareAction.mockResolvedValue({ error: "No se pudo crear el enlace." });
+    const onShareCreated = vi.fn();
+    render(<SharesManager petPublicToken="TOKEN-1" shares={[]} onShareCreated={onShareCreated} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Nuevo enlace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Crear enlace" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("No se pudo crear el enlace.")).toBeInTheDocument();
+    });
+    expect(onShareCreated).not.toHaveBeenCalled();
+  });
+});
