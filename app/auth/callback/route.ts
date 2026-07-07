@@ -10,7 +10,7 @@
 //       owner with 0 or >1 orgs → /inicio
 //       vet/govt/admin          → their role home (via resolveUserLanding)
 
-import { resolveUserLanding } from "@/lib/infra/role-landing";
+import { resolveUserLanding, safeReturnTo } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
@@ -23,10 +23,15 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      // Honor an explicit deep-link (e.g. from an invite flow). A bare "/"
-      // is treated the same as absent — both trigger org-aware resolution.
-      const hasExplicitNext = nextParam && nextParam !== "/";
-      const landing = hasExplicitNext ? nextParam : await resolveUserLanding(data.user.id);
+      // Honor an explicit deep-link (e.g. from an invite flow), but ONLY after
+      // sanitizing it through the same safeReturnTo() guard login/logout use —
+      // defense-in-depth against an open redirect (audit 28-#LOW-7). safeReturnTo
+      // rejects protocol-relative ("//evil.com"), backslash tricks, and absolute
+      // URLs, returning null; a bare "/" is treated the same as absent — both
+      // fall through to org-aware resolution.
+      const safeNext = safeReturnTo(nextParam);
+      const hasExplicitNext = safeNext !== null && safeNext !== "/";
+      const landing = hasExplicitNext ? safeNext : await resolveUserLanding(data.user.id);
 
       return NextResponse.redirect(`${origin}${landing}`);
     }
