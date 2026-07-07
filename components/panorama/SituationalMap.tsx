@@ -11,11 +11,24 @@ import {
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 
 import {
+  type DivisionLevel,
+  divisionFillColorExpr,
+  divisionValueBounds,
+  filterDepartmentsByPrefix,
+  joinCellsToDivisions,
+} from "@/components/panorama/division-fill";
+import {
   computeJurisdictionViewport,
   computePresetFrameViewport,
   countRenderableFeatures,
   hasProvinceChoroplethLayer,
 } from "@/components/panorama/situational-map-utils";
+import {
+  isCABA,
+  normalizeBarioCode,
+  normalizeDepartmentCode,
+  provinceDepartmentPrefix,
+} from "@/lib/infra/geo-join";
 import type { PresetFraming } from "@/src/modules/panorama/domain/presets";
 import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama/domain/types";
 
@@ -194,6 +207,14 @@ type Props = {
 const AR_CENTER: [number, number] = [-63.6167, -40.0];
 const AR_ZOOM = 3.4;
 const BASEMAP_URL = "/geo/ar-provinces.geojson";
+// Always-visible admin divisions for a single-province scope (PO directive
+// "siempre mostrar la división"). Loaded LAZILY (same-origin — CSP allows only
+// 'self') and ONLY when a province scope is active, never on the national view:
+// caba-barrios (353 KB) for CABA, ar-departments (693 KB, filtered client-side to
+// the active province) for everyone else. The national view keeps the provinces
+// basemap untouched.
+const CABA_BARRIOS_URL = "/geo/caba-barrios.geojson";
+const AR_DEPARTMENTS_URL = "/geo/ar-departments.geojson";
 
 // map-QOL zoom-bounds clamp: the camera can never wander away from the
 // national territory. AR_BBOX (lib/ui/map-bounds) padded by a few degrees so
@@ -209,6 +230,10 @@ const MIN_ZOOM = 3;
 const COLOR_CANVAS = "#0b1020";
 const COLOR_LAND = "#161d33";
 const COLOR_BORDER = "#2b3658";
+// Division outlines: a touch brighter than the province border so barrio /
+// departamento lines read over COLOR_LAND, but still subtle (they must never
+// compete with the data fill on top). Matches the basemap's line treatment.
+const COLOR_DIVISION_LINE = "#3a4568";
 
 // Per-layer maplibre object ids are namespaced by layer id so multiple layers
 // coexist without collision.
@@ -221,6 +246,13 @@ const choroLayerId = (id: string) => `pano-choro-${id}`;
 // `code` property. Namespaced by layer id so two province-choropleths coexist.
 const provinceFillLayerId = (id: string) => `pano-prov-fill-${id}`;
 const provinceLineLayerId = (id: string) => `pano-prov-line-${id}`;
+// Always-visible admin divisions for a scoped province. ONE shared source
+// (barrios or the active province's departamentos), a single always-on outline
+// layer, and a per-choropleth-layer data fill over that shared source (namespaced
+// by layer id, like the province choropleth over ar-provinces).
+const DIVISION_SRC = "pano-divisions";
+const DIVISION_LINE_ID = "pano-div-line";
+const divisionFillLayerId = (id: string) => `pano-div-fill-${id}`;
 
 /** Compute a [[minLng,minLat],[maxLng,maxLat]] bbox over many feature sets. */
 function layersBbox(layers: ActiveLayer[]): [[number, number], [number, number]] | null {
@@ -296,6 +328,34 @@ export function SituationalMap({
       geometry: { type: string; coordinates: unknown } | null;
     }>
   >([]);
+  // Always-visible divisions: the ISO province code the divisions belong to, the
+  // division level (barrio | department), and the loaded division codes/names.
+  // Kept in a ref (read inside one-time map handlers). null = national scope, no
+  // divisions loaded (the provinces basemap is the only geometry).
+  const selectedProvinceRef = useRef(selectedProvinceCode);
+  selectedProvinceRef.current = selectedProvinceCode;
+  const divisionsRef = useRef<{
+    provinceIso: string;
+    level: DivisionLevel;
+    codes: Set<string>;
+    names: Map<string, string>;
+  } | null>(null);
+  // Monotonic token so a superseded division fetch (rapid province switch) never
+  // paints stale polygons over the newer scope.
+  const divisionTokenRef = useRef(0);
+  // Per-layer division fill values (division code → summed value), populated in
+  // syncLayers so the hover/click popup can look up a division's value without
+  // recomputing the whole join per pointer move.
+  const divisionValuesRef = useRef<Map<string, Map<string, number>>>(new Map());
+  // Legend descriptor for the active locality choropleth division fill (min/max
+  // over the visible divisions). State (not a ref) so the legend overlay repaints
+  // when the fill changes; guarded setState avoids a render loop.
+  const [divisionLegend, setDivisionLegend] = useState<{
+    label: string;
+    unitNoun: string;
+    min: number;
+    max: number;
+  } | null>(null);
 
   // --- One-time map construction (basemap only). ---------------------------
   useEffect(() => {
@@ -394,6 +454,8 @@ export function SituationalMap({
         if (cancelled) return;
         loadedRef.current = true;
         syncLayers();
+        // If a province scope is already active at mount, load its divisions.
+        void syncDivisions();
         // Prefer the server-computed jurisdiction bbox (govt) over the
         // data-extent bbox (admin/national). Falls back to the data-extent
         // when no initialBounds was supplied (admin = national view).
@@ -512,6 +574,107 @@ export function SituationalMap({
     highlightedCodeRef.current = highlightedUnitKey;
   }, [highlightedUnitKey]);
 
+  // Always-visible admin divisions: (re)load whenever the province scope changes.
+  // National scope (null) removes them; a single province loads its barrios (CABA)
+  // or departamentos (elsewhere). biome-ignore: syncDivisions reads live refs.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedProvinceCode is the intended trigger.
+  useEffect(() => {
+    if (loadedRef.current) void syncDivisions();
+  }, [selectedProvinceCode]);
+
+  // Fetch (or drop) the division polygons for the active province scope, then add
+  // the always-on outline and re-run the layer sync so any active locality
+  // choropleth fills the divisions. National scope removes the division source.
+  async function syncDivisions() {
+    const map = mapRef.current;
+    if (!map || !mlRef.current || !loadedRef.current) return;
+    const iso = selectedProvinceRef.current;
+
+    // Resolve the target division context from the province ISO code.
+    let level: DivisionLevel | null = null;
+    let url = "";
+    let prefix: string | null = null;
+    if (iso) {
+      if (isCABA(iso)) {
+        level = "barrio";
+        url = CABA_BARRIOS_URL;
+      } else {
+        const p = provinceDepartmentPrefix(iso);
+        if (p) {
+          level = "department";
+          url = AR_DEPARTMENTS_URL;
+          prefix = p;
+        }
+      }
+    }
+
+    // National / unknown province → tear the divisions down, restore the circles.
+    if (level === null || iso === null) {
+      if (divisionsRef.current) {
+        removeDivisions(map);
+        divisionsRef.current = null;
+        syncLayers();
+      }
+      return;
+    }
+
+    // Already loaded for this exact province+level — nothing to fetch.
+    if (
+      divisionsRef.current &&
+      divisionsRef.current.provinceIso === iso &&
+      divisionsRef.current.level === level
+    ) {
+      return;
+    }
+
+    const token = ++divisionTokenRef.current;
+    let raw: { features?: Array<{ properties?: { code?: string; name?: string } | null }> };
+    try {
+      // Same-origin fetch (CSP 'self'), mirroring the provinces basemap load.
+      // biome-ignore lint/suspicious/noExplicitAny: runtime JSON from local GeoJSON asset.
+      raw = (await fetch(url).then((r) => r.json())) as any;
+    } catch {
+      return; // Divisions unavailable — the provinces basemap still renders.
+    }
+    // Superseded by a newer province switch, or the map went away.
+    if (token !== divisionTokenRef.current || !mapRef.current) return;
+
+    let features = (raw.features ?? []) as Array<{
+      properties?: { code?: string; name?: string } | null;
+    }>;
+    if (level === "department" && prefix) {
+      features = filterDepartmentsByPrefix({ features }, prefix) as typeof features;
+    }
+
+    const codes = new Set<string>();
+    const names = new Map<string, string>();
+    for (const f of features) {
+      const rawCode = f.properties?.code;
+      if (typeof rawCode !== "string") continue;
+      const code =
+        level === "barrio" ? normalizeBarioCode(rawCode) : normalizeDepartmentCode(rawCode);
+      codes.add(code);
+      if (f.properties?.name) names.set(code, String(f.properties.name));
+    }
+
+    // Replace any previous divisions, then add the shared source + always-on
+    // outline. The outline renders EVEN WHERE THERE IS NO DATA (PO directive).
+    removeDivisions(map);
+    map.addSource(DIVISION_SRC, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features } as unknown as GeoJSON.FeatureCollection,
+      promoteId: "code",
+    });
+    map.addLayer({
+      id: DIVISION_LINE_ID,
+      type: "line",
+      source: DIVISION_SRC,
+      paint: { "line-color": COLOR_DIVISION_LINE, "line-width": 0.6, "line-opacity": 0.75 },
+    });
+    divisionsRef.current = { provinceIso: iso, level, codes, names };
+    syncLayers();
+  }
+
   // Add/update/remove maplibre sources+layers to match `layersRef.current`.
   function syncLayers() {
     const map = mapRef.current;
@@ -527,6 +690,16 @@ export function SituationalMap({
         mountedRef.current.delete(id);
       }
     }
+
+    // The division-fill legend descriptor for the active locality choropleth (at
+    // most one base layer is active at a time). Collected during the loop and
+    // committed once, so the legend overlay repaints with the current fill range.
+    let nextDivisionLegend: {
+      label: string;
+      unitNoun: string;
+      min: number;
+      max: number;
+    } | null = null;
 
     // Add or update active layers.
     for (const layer of active) {
@@ -544,6 +717,49 @@ export function SituationalMap({
         applyDim(map, layer);
         continue;
       }
+
+      // Locality choropleth with a scoped province whose divisions are loaded:
+      // fill the barrio/departamento polygons and keep ONLY the unmatched cells
+      // as centroid circles (fallback — no data loss). Suppressed matched cells
+      // render outline-only (excluded from both the fill and the circles).
+      const divs = divisionsRef.current;
+      const divisionActive =
+        layer.geomType === "choropleth" &&
+        layer.level === "locality" &&
+        divs !== null &&
+        selectedProvinceRef.current !== null &&
+        divs.provinceIso === selectedProvinceRef.current;
+      if (divisionActive && divs) {
+        const join = joinCellsToDivisions(layer.features, divs.level, divs.codes);
+        divisionValuesRef.current.set(layer.id, join.values);
+        const circleData = join.unmatched as unknown as GeoJSON.FeatureCollection;
+        const existing = map.getSource(srcId(layer.id)) as maplibregl.GeoJSONSource | undefined;
+        if (existing) existing.setData(circleData);
+        else addChoroplethLayer(map, layer, circleData);
+        if (map.getLayer(divisionFillLayerId(layer.id))) {
+          updateDivisionFillLayer(map, layer, join.values);
+        } else {
+          addDivisionFillLayer(map, layer, join.values);
+        }
+        mountedRef.current.add(layer.id);
+        applyDim(map, layer);
+        const bounds = divisionValueBounds(join.values);
+        if (bounds) {
+          nextDivisionLegend = {
+            label: layer.label,
+            unitNoun: divs.level === "barrio" ? "barrio" : "departamento",
+            ...bounds,
+          };
+        }
+        continue;
+      }
+      // Not in division-fill mode: drop any stale division fill for this layer so
+      // the centroid circles (below) become the sole representation again.
+      if (map.getLayer(divisionFillLayerId(layer.id))) {
+        map.removeLayer(divisionFillLayerId(layer.id));
+        divisionValuesRef.current.delete(layer.id);
+      }
+
       const existing = map.getSource(srcId(layer.id)) as maplibregl.GeoJSONSource | undefined;
       if (existing) {
         existing.setData(data);
@@ -564,6 +780,128 @@ export function SituationalMap({
       // the operator still sees the current-state context — never AS-OF-t data.
       applyDim(map, layer);
     }
+
+    // Commit the division-fill legend, but only when it actually changed —
+    // syncLayers runs inside effects, so an unconditional setState would loop.
+    setDivisionLegend((prev) => {
+      const same =
+        (prev === null && nextDivisionLegend === null) ||
+        (prev !== null &&
+          nextDivisionLegend !== null &&
+          prev.label === nextDivisionLegend.label &&
+          prev.unitNoun === nextDivisionLegend.unitNoun &&
+          prev.min === nextDivisionLegend.min &&
+          prev.max === nextDivisionLegend.max);
+      return same ? prev : nextDivisionLegend;
+    });
+  }
+
+  // --- Always-visible divisions: fill + outline lifecycle. -------------------
+
+  /** Remove the shared division source, its outline, and every per-layer fill. */
+  function removeDivisions(map: maplibregl.Map) {
+    for (const id of mountedRef.current) {
+      const fid = divisionFillLayerId(id);
+      if (map.getLayer(fid)) map.removeLayer(fid);
+    }
+    divisionValuesRef.current.clear();
+    if (map.getLayer(DIVISION_LINE_ID)) map.removeLayer(DIVISION_LINE_ID);
+    if (map.getSource(DIVISION_SRC)) map.removeSource(DIVISION_SRC);
+  }
+
+  // Fill the division polygons by value (data-join on the polygon `code`),
+  // inserted BELOW the always-on outline so the barrio/departamento lines stay
+  // crisp on top. Divisions with no visible data are transparent (outline only).
+  function addDivisionFillLayer(
+    map: maplibregl.Map,
+    layer: ActiveLayer,
+    values: Map<string, number>,
+  ) {
+    if (!map.getSource(DIVISION_SRC)) return;
+    const fillId = divisionFillLayerId(layer.id);
+    if (!map.getLayer(fillId)) {
+      map.addLayer(
+        {
+          id: fillId,
+          type: "fill",
+          source: DIVISION_SRC,
+          paint: { "fill-color": divisionFillColorExpr(values), "fill-opacity": 0.82 },
+        },
+        map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined,
+      );
+    } else {
+      map.setPaintProperty(fillId, "fill-color", divisionFillColorExpr(values));
+    }
+    wireDivisionInteractions(map, layer);
+  }
+
+  function updateDivisionFillLayer(
+    map: maplibregl.Map,
+    layer: ActiveLayer,
+    values: Map<string, number>,
+  ) {
+    const fillId = divisionFillLayerId(layer.id);
+    if (map.getLayer(fillId)) {
+      map.setPaintProperty(fillId, "fill-color", divisionFillColorExpr(values));
+    } else {
+      addDivisionFillLayer(map, layer, values);
+    }
+  }
+
+  // Hover names the division (barrio/departamento) + its value; click opens the
+  // DetailDrawer, mirroring the old centroid-circle click where feasible.
+  function wireDivisionInteractions(map: maplibregl.Map, layer: ActiveLayer) {
+    const popup = popupRef.current;
+    if (!popup) return;
+    const fillId = divisionFillLayerId(layer.id);
+    const codeFor = (rawCode: string): string => {
+      const level = divisionsRef.current?.level;
+      return level === "barrio" ? normalizeBarioCode(rawCode) : normalizeDepartmentCode(rawCode);
+    };
+    map.on("mouseenter", fillId, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", fillId, () => {
+      map.getCanvas().style.cursor = "";
+      popup.remove();
+    });
+    map.on("mousemove", fillId, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const props = f.properties as { code?: string; name?: string };
+      const code = codeFor(props.code ?? "");
+      const value = divisionValuesRef.current.get(layer.id)?.get(code);
+      const place = props.name ?? props.code ?? "—";
+      const valueLine =
+        value === undefined
+          ? `<span style="color:#94a3b8">Sin datos</span>`
+          : `<strong>${value.toLocaleString("es-AR")}</strong>`;
+      popup
+        .setLngLat(e.lngLat)
+        .setHTML(
+          `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${escapeHtml(place)}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${escapeHtml(layer.label)}</em></div>`,
+        )
+        .addTo(map);
+    });
+    map.on("click", fillId, (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const props = f.properties as { code?: string; name?: string };
+      const code = codeFor(props.code ?? "");
+      const level = divisionsRef.current?.level;
+      const value = divisionValuesRef.current.get(layer.id)?.get(code) ?? null;
+      onFeatureClickRef.current?.(layer.id, {
+        // Barrio divisions map 1:1 to a locality, so surface the name as the
+        // locality (unit-history keyed by locality still works). Departamento
+        // fills aggregate several localities — carry the department name instead
+        // and leave locality null (no single locality to drill).
+        locality: level === "barrio" ? (props.name ?? null) : null,
+        departmentName: props.name ?? null,
+        value,
+        level: "locality",
+        suppressed: false,
+      });
+    });
   }
 
   /**
@@ -1138,7 +1476,7 @@ export function SituationalMap({
           </button>
         </div>
       )}
-      {renderableCount === 0 && !hasProvChoro && (
+      {renderableCount === 0 && !hasProvChoro && divisionLegend === null && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="rounded-[var(--radius-md)] bg-black/40 px-4 py-2 text-[var(--text-md)] text-white/80">
             Sin datos para esta capa en tu cobertura.
@@ -1146,12 +1484,40 @@ export function SituationalMap({
         </div>
       )}
       {/* map-QOL merged single legend: ONE region (bottom-left) hosts every
-          scale — province choropleth ramps AND the graduated-circle buckets. */}
-      {(provinceLegends.length > 0 || hasGraduatedLayer) && (
+          scale — province choropleth ramps, the division-fill ramp, AND the
+          graduated-circle buckets. */}
+      {(provinceLegends.length > 0 || hasGraduatedLayer || divisionLegend !== null) && (
         <div
           aria-label="Leyenda del mapa"
           className="pointer-events-none absolute bottom-3 left-3 space-y-2"
         >
+          {/* Division-fill legend: sequential ramp for the active locality
+              choropleth over the barrio/departamento polygons. Names the unit so
+              the operator reads the fill as "por barrio/departamento", and states
+              that an unfilled division is a genuine no-data (or k-anon protected)
+              cell — the always-on outline is the "no data" signal, not a gap. */}
+          {divisionLegend !== null && (
+            <div className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90">
+              <div className="mb-1 font-medium">
+                {divisionLegend.label}{" "}
+                <span className="font-normal text-white/60">· por {divisionLegend.unitNoun}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="tabular-nums">{divisionLegend.min.toLocaleString("es-AR")}</span>
+                <span
+                  className="h-2.5 w-24 rounded-full"
+                  style={{
+                    background: `linear-gradient(to right, ${RAMP_BLUE[0]}, ${RAMP_BLUE[1]})`,
+                  }}
+                  aria-hidden="true"
+                />
+                <span className="tabular-nums">{divisionLegend.max.toLocaleString("es-AR")}</span>
+              </div>
+              <div className="mt-0.5 text-[var(--text-xs)] leading-tight text-white/55">
+                División sin relleno — sin datos o dato protegido (k-anonimato)
+              </div>
+            </div>
+          )}
           {provinceLegends.map(({ layer, bounds, isDivergent }) => (
             <div
               key={layer.id}
@@ -1285,11 +1651,12 @@ function removeLayer(map: maplibregl.Map, id: string) {
     choroLayerId(id),
     provinceFillLayerId(id),
     provinceLineLayerId(id),
+    divisionFillLayerId(id),
   ]) {
     if (map.getLayer(lid)) map.removeLayer(lid);
   }
-  // Only the per-layer GeoJSON source is removed; the SHARED ar-provinces
-  // basemap source is never removed here (province-choropleth borrows it).
+  // Only the per-layer GeoJSON source is removed; the SHARED ar-provinces basemap
+  // and pano-divisions sources are never removed here (their fills borrow them).
   if (map.getSource(srcId(id))) map.removeSource(srcId(id));
 }
 
@@ -1310,6 +1677,12 @@ function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
       if (map.getLayer(fid))
         map.setPaintProperty(fid, "fill-opacity", dim ? DIM_OPACITY : scaled(0.82));
       return;
+    }
+    // Locality mode with a division fill: mute the polygon fill alongside the
+    // fallback circles so the whole layer dims as one while scrubbing.
+    const dfid = divisionFillLayerId(layer.id);
+    if (map.getLayer(dfid)) {
+      map.setPaintProperty(dfid, "fill-opacity", dim ? DIM_OPACITY : scaled(0.82));
     }
     const cid = choroLayerId(layer.id);
     if (!map.getLayer(cid)) return;
