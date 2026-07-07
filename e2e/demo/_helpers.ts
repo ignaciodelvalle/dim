@@ -7,6 +7,7 @@ export const SHARED_PASSWORD = "Test1234!";
 // Demo accounts (all password Test1234!) — see scripts/seed-test-users.ts + seed-demo.ts.
 export const ACCOUNTS = {
   owner: "owner@dim.test",
+  owner2: "owner2@dim.test", // Owner B — cross-tenant target + adoption applicant (seed-test-users.ts ensureOwnerB)
   orgAdmin: "orgadmin@dim.test",
   vetOrgAdmin: "alejo@dim.test", // admin of Clínica Veterinaria Recoleta (clinic org)
   govt: "govt@dim.test",
