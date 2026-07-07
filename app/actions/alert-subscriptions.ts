@@ -16,11 +16,10 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { type AlertDirection, type AlertMetricKey, db, profiles } from "@/db";
-import { createClient } from "@/lib/supabase/server";
+import type { AlertDirection, AlertMetricKey } from "@/db";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { createAlertSubscriptionForUser as _createAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/create-alert-subscription";
 import { deleteAlertSubscriptionForUser as _deleteAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/delete-alert-subscription";
 import { toggleAlertSubscriptionForUser as _toggleAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/toggle-alert-subscription";
@@ -32,31 +31,15 @@ import { toggleAlertSubscriptionForUser as _toggleAlertSubscriptionForUser } fro
 export type { CreateAlertSubscriptionInput } from "@/src/modules/alerts/application/subscriptions/types";
 
 // ---------------------------------------------------------------------------
-// Auth helper (admin-only) — stays in the shim, never in use-cases
+// Auth — the full-invariant admin guard, NOT a role-only profiles lookup.
 // ---------------------------------------------------------------------------
-
-async function requireAdminUser(): Promise<{ userId: string } | { error: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) return { error: "Sesión expirada" };
-
-  // Verify admin role in profiles table (defense-in-depth: Supabase JWT role
-  // claim may lag behind the DB; we always re-check profiles).
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-
-  if (!profile || profile.role !== "admin") {
-    return { error: "Acceso restringido a administradores" };
-  }
-
-  return { userId: user.id };
-}
+//
+// Previously a private requireAdminUser() checked only role==='admin' via a
+// getUser() + profiles lookup, so a DEACTIVATED admin, an ERASED (soft-deleted,
+// session still valid — Ley 25.326 art. 16) admin, or a personal-type account
+// whose role column read 'admin' still passed. requireAdminOrRedirect enforces
+// the full invariant (role==='admin' + accountType==='institutional' +
+// deactivatedAt IS NULL + deletedAt IS NULL), consistent with alert-firings.ts.
 
 // ---------------------------------------------------------------------------
 // Form-action wrappers — thin controllers (auth + revalidatePath only)
@@ -65,8 +48,7 @@ async function requireAdminUser(): Promise<{ userId: string } | { error: string 
 export async function createAlertSubscriptionAction(
   formData: FormData,
 ): Promise<{ ok: true; id: string } | { error: string }> {
-  const auth = await requireAdminUser();
-  if ("error" in auth) return auth;
+  const { user } = await requireAdminOrRedirect();
 
   const input = {
     metricKey: formData.get("metricKey") as AlertMetricKey,
@@ -77,7 +59,7 @@ export async function createAlertSubscriptionAction(
     label: (formData.get("label") as string) || null,
   };
 
-  const result = await _createAlertSubscriptionForUser(auth.userId, input);
+  const result = await _createAlertSubscriptionForUser(user.id, input);
   if ("error" in result) return result;
 
   revalidatePath("/admin/programa");
@@ -85,24 +67,22 @@ export async function createAlertSubscriptionAction(
 }
 
 export async function deleteAlertSubscriptionAction(formData: FormData): Promise<void> {
-  const auth = await requireAdminUser();
-  if ("error" in auth) return;
+  const { user } = await requireAdminOrRedirect();
 
   const id = formData.get("id") as string;
   if (!id) return;
 
-  await _deleteAlertSubscriptionForUser(auth.userId, id);
+  await _deleteAlertSubscriptionForUser(user.id, id);
   revalidatePath("/admin/programa");
 }
 
 export async function toggleAlertSubscriptionAction(formData: FormData): Promise<void> {
-  const auth = await requireAdminUser();
-  if ("error" in auth) return;
+  const { user } = await requireAdminOrRedirect();
 
   const id = formData.get("id") as string;
   if (!id) return;
   const isActive = formData.get("isActive") === "true";
 
-  await _toggleAlertSubscriptionForUser(auth.userId, id, isActive);
+  await _toggleAlertSubscriptionForUser(user.id, id, isActive);
   revalidatePath("/admin/programa");
 }

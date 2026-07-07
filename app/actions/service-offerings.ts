@@ -21,8 +21,8 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db, profiles, serviceOfferings } from "@/db";
-import { createClient } from "@/lib/supabase/server";
+import { db, serviceOfferings } from "@/db";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { approveServiceOfferingForAuthority as approveServiceOfferingForAuthorityUC } from "@/src/modules/service-offerings/application/approve-service-offering";
@@ -119,20 +119,15 @@ export async function createServiceOfferingAction(
 export async function approveServiceOfferingAction(
   publicToken: string,
 ): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
-
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  if (profile?.role !== "admin" && profile?.role !== "govt") {
-    return { error: "Solo admin o govt pueden aprobar servicios." };
-  }
+  // Authority-side approval is an act of admin/govt, not an org capability
+  // (unlike create/pause, which use requireCapability scoped to the caller's
+  // org). Gate with the full-invariant institutional guard — role ∈
+  // {admin,govt} + accountType==='institutional' + deactivatedAt IS NULL +
+  // deletedAt IS NULL — instead of the previous role-only profiles lookup,
+  // which let a DEACTIVATED or ERASED (soft-deleted, session still valid —
+  // Ley 25.326 art. 16) operator whose role column still read 'admin'/'govt'
+  // approve offerings.
+  const { user } = await requireAdminOrGovtOrRedirect();
 
   const result = await approveServiceOfferingForAuthorityUC(user.id, publicToken);
   if ("error" in result) return { error: result.error };
@@ -216,20 +211,9 @@ export async function rejectServiceOfferingAction(
   publicToken: string,
   rejectionReason: string,
 ): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
-
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  if (profile?.role !== "admin" && profile?.role !== "govt") {
-    return { error: "Solo admin o govt pueden rechazar servicios." };
-  }
+  // Mirror approveServiceOfferingAction: authority-side rejection gates on the
+  // full-invariant institutional guard, not a role-only profiles lookup.
+  const { user } = await requireAdminOrGovtOrRedirect();
 
   const result = await rejectServiceOfferingForAuthorityUC(user.id, publicToken, rejectionReason);
   if ("error" in result) return { error: result.error };
