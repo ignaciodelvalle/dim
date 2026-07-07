@@ -205,30 +205,47 @@ describe("buildChoroplethFeatures", () => {
     locality: "La Plata",
     centroidLat: "-34.92",
     centroidLng: "-57.95",
+    departmentCode: "06441",
+    departmentName: "La Plata",
     value: 12,
     suppressed: false,
     ...over,
   });
 
-  it("plots visible cells carrying the real value", () => {
+  it("plots visible cells carrying the real value + department roll-up key", () => {
     const fc = buildChoroplethFeatures([cell()]);
     expect(fc.features).toHaveLength(1);
     expect(fc.features[0].geometry?.coordinates).toEqual([-57.95, -34.92]);
     expect(fc.features[0].properties).toEqual({
       province: "Buenos Aires",
       locality: "La Plata",
+      departmentCode: "06441",
+      departmentName: "La Plata",
       value: 12,
       suppressed: false,
     });
   });
 
-  it("renders suppressed cells with value=null (the real count never leaks)", () => {
+  it("renders suppressed cells with value=null (the real count never leaks) but keeps the department key", () => {
     const fc = buildChoroplethFeatures([
-      cell({ key: "Salta|Cafayate", value: 3, suppressed: true }),
+      cell({
+        key: "Salta|Cafayate",
+        departmentCode: "66028",
+        departmentName: "Cafayate",
+        value: 3,
+        suppressed: true,
+      }),
     ]);
     expect(fc.features).toHaveLength(1);
     expect(fc.features[0].properties.suppressed).toBe(true);
     expect(fc.features[0].properties.value).toBeNull();
+    // The department code survives so the map can still outline the departamento.
+    expect(fc.features[0].properties.departmentCode).toBe("66028");
+  });
+
+  it("passes a null department code through for a cell with no ar_localities match", () => {
+    const fc = buildChoroplethFeatures([cell({ departmentCode: null, departmentName: null })]);
+    expect(fc.features[0].properties.departmentCode).toBeNull();
   });
 
   it("drops cells with no resolvable centroid", () => {

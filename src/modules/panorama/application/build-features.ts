@@ -240,10 +240,17 @@ export function buildDecomisosFeatures(
 // --- choropleth (graduated-symbol centroid) layers --------------------------
 
 /**
- * A k-anon-suppressed per-locality rollup cell. We have NO locality polygons, so
- * the "choropleth" renders as a graduated/colored centroid circle. `value` is
- * null for suppressed cells (count < k=5) — the real count NEVER leaves the
- * repository for those; the map renders them in a muted "suprimido" style.
+ * A k-anon-suppressed per-locality rollup cell.
+ *
+ * The map now HAS division polygons for a single-province scope (CABA barrios in
+ * caba-barrios.geojson; departamentos in ar-departments.geojson), so a locality
+ * choropleth cell is joined to its division and rendered as a POLYGON FILL when a
+ * match exists. The centroid circle is retained ONLY as a fallback for a cell
+ * whose locality has no polygon match (e.g. a non-CABA locality with no
+ * `departmentCode`, or a name that matched no ar_localities row). `value` is null
+ * for suppressed cells (count < k=5) — the real count NEVER leaves the repository
+ * for those; a suppressed cell renders as an OUTLINE-only division (no fill) or a
+ * muted "suprimido" dot when it falls back to the centroid.
  */
 export type ChoroplethCell = {
   key: string;
@@ -251,6 +258,12 @@ export type ChoroplethCell = {
   locality: string;
   centroidLat: string | null;
   centroidLng: string | null;
+  /** INDEC 5-digit department code (ar_localities) — the departamento roll-up
+   * join key. Null when the locality had no ar_localities match. Ignored for
+   * CABA, where the barrio slug is derived client-side from `locality`. */
+  departmentCode: string | null;
+  /** Department display name for the division popup/legend (null when unmatched). */
+  departmentName: string | null;
   /** The plotted value, or null when the cell is suppressed. */
   value: number | null;
   suppressed: boolean;
@@ -259,16 +272,23 @@ export type ChoroplethCell = {
 export type ChoroplethProps = {
   province: string;
   locality: string;
+  /** Department roll-up join key (see ChoroplethCell.departmentCode). */
+  departmentCode: string | null;
+  /** Department display name (null when the locality had no ar_localities match). */
+  departmentName: string | null;
   /** Real value for visible cells; null for suppressed ones. */
   value: number | null;
   suppressed: boolean;
 };
 
 /**
- * Build a graduated-symbol FeatureCollection from suppressed rollup cells. Cells
- * without a resolvable centroid are dropped (no coordinate to plot). Suppressed
- * cells keep their location but carry value=null + suppressed=true so the map
- * renders them muted and the popup shows "suprimido" instead of a count.
+ * Build a locality-choropleth FeatureCollection. Each cell carries its centroid
+ * (the polygon-fill fallback), its department code/name (the departamento
+ * roll-up key), and its value/suppressed flag. Cells with no resolvable centroid
+ * are dropped (a fully-unlocatable cell can neither fill a polygon nor plot a
+ * dot). The map joins these cells to the active province's division polygons —
+ * barrios for CABA, departamentos elsewhere — and falls back to the centroid
+ * circle for any cell without a polygon match.
  */
 export function buildChoroplethFeatures(
   cells: readonly ChoroplethCell[],
@@ -278,6 +298,8 @@ export function buildChoroplethFeatures(
       pointFeature<ChoroplethProps>(c.centroidLat, c.centroidLng, {
         province: c.province,
         locality: c.locality,
+        departmentCode: c.departmentCode,
+        departmentName: c.departmentName,
         value: c.suppressed ? null : c.value,
         suppressed: c.suppressed,
       }),

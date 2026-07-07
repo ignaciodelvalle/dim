@@ -461,11 +461,15 @@ export async function loadDecomisos(
 }
 
 // ---------------------------------------------------------------------------
-// Choropleth: per-locality rollups → locality-CENTROID graduated symbols.
+// Choropleth: per-locality rollups → division polygon fill (scoped) or centroid.
 //
-// We have NO locality polygons, so a "choropleth" renders as graduated/colored
-// centroid circles. Each rollup is grouped by (province, locality), joined to
-// the ar_localities centroid, then routed through suppressSmallCells (k=5).
+// For a single-province scope the map now HAS division polygons (CABA barrios;
+// departamentos elsewhere) and fills them by joining these cells to the divisions
+// (see components/panorama/division-fill.ts). The centroid circle is retained as
+// the fallback for a cell with no polygon match (and for the national view, where
+// no divisions are loaded). Each rollup is grouped by (province, locality), joined
+// to the ar_localities centroid + department code, then routed through
+// suppressSmallCells (k=5).
 // Suppressed cells are emitted WITH a flag and WITHOUT the real value so the map
 // can render them muted. Visible cells carry the real value.
 // ---------------------------------------------------------------------------
@@ -477,6 +481,15 @@ type RollupRow = {
   locality: string;
   centroidLat: string | null;
   centroidLng: string | null;
+  /** INDEC 5-digit department code (from ar_localities) for the departamento
+   * roll-up on the map. Null when the locality has no matching ar_localities row
+   * (the cell then falls back to its centroid circle, never a polygon fill).
+   * OPTIONAL: only the locality-CHOROPLETH rollup carries it; the aggregated
+   * point rollups (perdidas/mordeduras/…) share this row shape and omit it
+   * (they render as centroid circles, never a division fill). */
+  departmentCode?: string | null;
+  /** Department display name for the division popup/legend (choropleth only). */
+  departmentName?: string | null;
   count: number;
 };
 
@@ -543,12 +556,15 @@ function toChoroplethCells(rollup: RollupRow[]): {
       locality: r.locality,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
+      departmentCode: r.departmentCode ?? null,
+      departmentName: r.departmentName ?? null,
       value: r.count,
       suppressed: false,
     });
   }
-  // Suppressed cells: keep the location so the muted dot still renders, but the
-  // value is null — the real count never leaves the repository for these.
+  // Suppressed cells: keep the location AND the department code so the division
+  // can still render an OUTLINE (never a fill) for a suppressed departamento;
+  // the value is null — the real count never leaves the repository for these.
   for (const r of suppressed) {
     cells.push({
       key: r.key,
@@ -556,6 +572,8 @@ function toChoroplethCells(rollup: RollupRow[]): {
       locality: r.locality,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
+      departmentCode: r.departmentCode ?? null,
+      departmentName: r.departmentName ?? null,
       value: null,
       suppressed: true,
     });
@@ -676,6 +694,11 @@ async function rollupPetsPerLocality(
       locality: pets.jurisdictionLocality,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+      // Deterministic department pick (MIN), same discipline as the centroid: an
+      // ambiguous (province, locality-name) pair can match several ar_localities
+      // rows, so we pin ONE department code/name per cell for the map roll-up.
+      departmentCode: sql<string | null>`MIN(${arLocalities.departmentCode})`,
+      departmentName: sql<string | null>`MIN(${arLocalities.departmentName})`,
       // COUNT(DISTINCT pets.id), not COUNT(*): the leftJoin to ar_localities can
       // fan out when an INDEC (province, name) pair is ambiguous, so counting
       // rows would double-count a pet. We count distinct pets.
@@ -702,6 +725,8 @@ async function rollupPetsPerLocality(
       locality: r.locality as string,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
+      departmentCode: r.departmentCode,
+      departmentName: r.departmentName,
       count: r.n,
     }));
 }
