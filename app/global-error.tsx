@@ -32,8 +32,8 @@ export default function GlobalError({
           display: "grid",
           placeItems: "center",
           fontFamily: "system-ui, sans-serif",
-          background: "var(--color-ln-paper)",
-          color: "var(--color-ln-ink)",
+          background: "var(--color-ln-paper, #fbfaf5)",
+          color: "var(--color-ln-ink, #1b2a33)",
           padding: "24px",
         }}
       >
@@ -44,7 +44,7 @@ export default function GlobalError({
               fontWeight: 700,
               letterSpacing: "0.12em",
               textTransform: "uppercase",
-              color: "var(--color-ln-mute)",
+              color: "var(--color-ln-mute, #616e77)",
               margin: "0 0 8px",
             }}
           >
@@ -57,7 +57,7 @@ export default function GlobalError({
             style={{
               fontSize: "14px",
               lineHeight: 1.5,
-              color: "var(--color-ln-mute)",
+              color: "var(--color-ln-mute, #616e77)",
               margin: "0 0 20px",
             }}
           >
@@ -80,8 +80,8 @@ export default function GlobalError({
                 cursor: "pointer",
                 fontSize: "14px",
                 fontWeight: 600,
-                color: "var(--color-ln-card)",
-                background: "var(--color-ln-azul)",
+                color: "var(--color-ln-card, #ffffff)",
+                background: "var(--color-ln-azul, #0e5a99)",
               }}
             >
               Reintentar
@@ -94,11 +94,11 @@ export default function GlobalError({
                 alignItems: "center",
                 padding: "0 20px",
                 borderRadius: "8px",
-                border: "1px solid var(--color-ln-line)",
+                border: "1px solid var(--color-ln-line, #e4dfd3)",
                 textDecoration: "none",
                 fontSize: "14px",
                 fontWeight: 600,
-                color: "var(--color-ln-ink)",
+                color: "var(--color-ln-ink, #1b2a33)",
               }}
             >
               Ir al inicio

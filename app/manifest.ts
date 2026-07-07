@@ -14,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: BRANDING.appName,
     short_name: BRANDING.appName,
     description: "La libreta sanitaria digital de tu mascota, siempre a mano.",
-    start_url: "/inicio",
+    start_url: "/",
     scope: "/",
     display: "standalone",
     lang: "es-AR",
