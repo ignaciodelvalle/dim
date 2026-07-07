@@ -59,6 +59,20 @@ const OWNER_A_PASSWORD = "Test1234!";
 const OWNER_B_EMAIL = "owner2@dim.test";
 const OWNER_B_PASSWORD = "Test1234!";
 
+// Govt operator — seeded by seed-test-users.ts covering ONLY Ushuaia +
+// El Calafate (remote). Used to probe govt jurisdiction scoping: an
+// approval-request page outside the operator's assigned jurisdictions must
+// notFound() (the /gob/cola/[publicToken] page collapses out-of-scope AND
+// not-found into the same 404 so request existence is never leaked).
+const GOVT_EMAIL = "govt@dim.test";
+const GOVT_PASSWORD = "Test1234!";
+
+// Org admin — admins "Refugio Test (Seed)". Used to probe org-portal scoping:
+// opening ANY org token they don't belong to must notFound() (org layout
+// decision D4 — non-member and non-existent collapse to the same 404).
+const ORG_ADMIN_EMAIL = "orgadmin@dim.test";
+const ORG_ADMIN_PASSWORD = "Test1234!";
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
@@ -126,6 +140,28 @@ async function loginAsOwnerA(page: Page): Promise<void> {
   await page.waitForURL(/\/inicio/, { timeout: 15_000 });
 }
 
+/**
+ * Log in as any seeded account and wait until the post-login redirect leaves
+ * /login (owners land on /inicio, govt on /gob, org admins on /cuenta or their
+ * org portal — this helper is role-agnostic).
+ */
+async function loginAs(page: Page, email: string, password: string): Promise<void> {
+  await page.goto("/login");
+  await page.getByLabel(/correo electrónico/i).fill(email);
+  await page.getByLabel(/contraseña/i).fill(password);
+  await page.getByRole("button", { name: /iniciar sesión/i }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
+}
+
+/** Verify an account can sign in (via supabase-js). Returns true when seeded. */
+async function accountSeeded(email: string, password: string): Promise<boolean> {
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await client.auth.signInWithPassword({ email, password });
+  return !error && !!data.user;
+}
+
 // ---------------------------------------------------------------------------
 // Fixtures (resolved once per suite in beforeAll via globalSetup-equivalent)
 // ---------------------------------------------------------------------------
@@ -138,6 +174,10 @@ let ownerBUserId: string | null = null;
 let ownerBPetToken: string | null = null;
 let ownerBPetId: string | null = null;
 let setupSkip: string | null = null;
+// Govt + org fixtures — true when the account is seeded (seed-test-users.ts).
+// The govt/org scope tests self-skip when their account is absent.
+let govtSeeded = false;
+let orgAdminSeeded = false;
 
 test.beforeAll(async () => {
   if (!SUPABASE_ANON_KEY) {
@@ -169,6 +209,11 @@ test.beforeAll(async () => {
       ownerBPetId = bPet.id;
     }
   }
+
+  // Govt + org accounts are optional fixtures (seed-test-users.ts). Their scope
+  // tests self-skip when the account isn't seeded.
+  govtSeeded = await accountSeeded(GOVT_EMAIL, GOVT_PASSWORD);
+  orgAdminSeeded = await accountSeeded(ORG_ADMIN_EMAIL, ORG_ADMIN_PASSWORD);
 });
 
 // ---------------------------------------------------------------------------
@@ -436,5 +481,55 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
         `RLS leak: anon saw ${rows} row(s) in ${table}. error=${error?.message ?? "none"}`,
       ).toBe(0);
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // 10. Govt jurisdiction scoping — a govt operator opening an approval-request
+  //     page they cannot see (out-of-scope OR non-existent) must 404. The
+  //     /gob/cola/[publicToken] page deliberately collapses "out of your
+  //     jurisdiction" and "no such request" into the same notFound() so request
+  //     existence is never leaked across jurisdictions (Deep Pass C: govt
+  //     out-of-scope → notFound). Self-skips when govt@ isn't seeded.
+  // -------------------------------------------------------------------------
+  test("govt operator gets 404 on an approval request outside their jurisdiction", async ({
+    page,
+  }) => {
+    if (setupSkip || !govtSeeded) return;
+    await loginAs(page, GOVT_EMAIL, GOVT_PASSWORD);
+
+    // A well-formed but foreign request token. govt@ covers only Ushuaia +
+    // El Calafate; any request it cannot decide (out-of-scope or missing)
+    // resolves to the same 404 — the page never leaks that a request exists.
+    const response = await page.goto("/gob/cola/00000000-dead-beef-0000-0000000000aa");
+
+    expect(
+      response?.status(),
+      "govt scope leak: operator reached an out-of-scope/foreign approval request",
+    ).toBe(404);
+    await expect(page.getByText(/application error/i)).not.toBeVisible();
+  });
+
+  // -------------------------------------------------------------------------
+  // 11. Org portal scoping — an org admin opening a portal for an org they do
+  //     NOT belong to must 404. The org layout (decision D4) collapses
+  //     "not a member" and "no such org" into one notFound() so org existence
+  //     never leaks (Deep Pass C: org → other-org → 404). Self-skips when
+  //     orgadmin@ isn't seeded.
+  // -------------------------------------------------------------------------
+  test("org admin gets 404 on another org's portal (non-member = non-existent)", async ({
+    page,
+  }) => {
+    if (setupSkip || !orgAdminSeeded) return;
+    await loginAs(page, ORG_ADMIN_EMAIL, ORG_ADMIN_PASSWORD);
+
+    // A foreign org token the admin has no membership in. The org layout must
+    // notFound() without leaking whether the org exists.
+    const response = await page.goto("/org/DIM-ORG-NOT-A-REAL-TOKEN/mascotas");
+
+    expect(
+      response?.status(),
+      "cross-org leak: org admin reached a portal for an org they don't belong to",
+    ).toBe(404);
+    await expect(page.getByText(/application error/i)).not.toBeVisible();
   });
 });
