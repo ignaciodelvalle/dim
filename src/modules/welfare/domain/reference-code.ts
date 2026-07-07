@@ -14,18 +14,40 @@
 /** Unambiguous alphabet: uppercase, no 0/O, no 1/I/l. */
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 31 chars
 
+// Largest multiple of ALPHABET.length that fits in a single byte (0..255).
+// Naïve `byte % 31` biases the distribution because 256 is not divisible by 31
+// (residues 0..7 would be ~0.4% more likely than 8..30). Bytes >= this
+// threshold are rejected and re-rolled, leaving a uniform draw over [0, 247]
+// that maps cleanly to 31 values × 8 buckets. Mirrors lib/infra/publicToken.ts.
+const REJECTION_THRESHOLD = 256 - (256 % ALPHABET.length); // 248
+
 /**
  * Generate a candidate reference code of the shape DEN-XXXX-XXXX.
  * Uniqueness is NOT guaranteed here — the repository layer handles the
  * collision-retry loop (ON CONFLICT / pg 23505).
+ *
+ * Uses Web Crypto (getRandomValues) so this stays importable by client
+ * components, with the same rejection-sampling bias guard as publicToken.ts.
  */
 export function generateReferenceCode(): string {
-  const random = new Uint8Array(8);
-  crypto.getRandomValues(random);
   let code = "DEN-";
-  for (let i = 0; i < 8; i++) {
-    code += ALPHABET[random[i] % ALPHABET.length];
-    if (i === 3) code += "-";
+  let produced = 0;
+  // Over-allocate the pool to amortize re-rolls; each character needs ~1.032
+  // bytes on average (256 / 248). Refill almost never fires for 8 characters.
+  let pool = new Uint8Array(16);
+  crypto.getRandomValues(pool);
+  let cursor = 0;
+  while (produced < 8) {
+    if (cursor >= pool.length) {
+      pool = new Uint8Array(pool.length);
+      crypto.getRandomValues(pool);
+      cursor = 0;
+    }
+    const byte = pool[cursor++];
+    if (byte >= REJECTION_THRESHOLD) continue; // bias guard
+    code += ALPHABET[byte % ALPHABET.length];
+    produced++;
+    if (produced === 4) code += "-";
   }
   return code;
 }
