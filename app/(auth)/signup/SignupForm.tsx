@@ -131,10 +131,7 @@ export function SignupForm({
           </LnField>
 
           <div className="space-y-1.5">
-            <p className="block text-sm font-medium text-[var(--color-ln-ink)]">
-              Localidad <span className="font-normal text-[var(--color-ln-mute)]">(opcional)</span>
-            </p>
-            <LocationFields mode="l1" />
+            <LocationFields mode="l1" l1Label="Localidad (opcional)" />
             <p className="text-xs text-[var(--color-ln-mute)]">
               Ayuda a las campañas regionales de salud animal.
             </p>
