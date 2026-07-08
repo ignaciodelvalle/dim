@@ -80,7 +80,10 @@ export default async function Home() {
 
   // Real, scannable QR → seeded demo pet credential. Same absolute-URL +
   // inline-SVG pattern as /mis-mascotas/[publicToken] (no image route).
-  const siteBaseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.ar";
+  // `||` (not `??`): an env var set to an EMPTY string (a known `vercel env`
+  // pitfall) must fall back, or the QR encodes a host-less relative URL that no
+  // phone camera can resolve. Trim guards whitespace-only values too.
+  const siteBaseUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://mimar.ar";
   const publicHref = `/p/${DEMO_PUBLIC_TOKEN}`;
   const qrSvg = await QRCode.toString(`${siteBaseUrl}${publicHref}`, {
     type: "svg",

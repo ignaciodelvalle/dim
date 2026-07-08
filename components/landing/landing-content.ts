@@ -22,11 +22,14 @@ export const PAMPA = {
 
 /**
  * Stable seeded demo pet for the scannable hero QR. There is no seeded
- * "Pampa"; DIM-HACH-0016 (Hachikō, iconic-storylines seed) is the most stable
- * seeded public token with a photo and a rich libreta. The credential card
- * displays THIS token so what you see is what the QR resolves to.
+ * "Pampa"; DIM-DEMO-0001 (Rocco) is the canonical demo pet — alive, with a
+ * photo, vet-signed rabies vaccines, never lost, and a rich 27-event libreta.
+ * Must be a LIVE, presentable pet: the hero is a funcionario's first
+ * impression, so never point it at a deceased/lost pet (the old
+ * DIM-HACH-0016 Hachikō is `deceased`). The credential card displays THIS
+ * token so what you see is what the QR resolves to.
  */
-export const DEMO_PUBLIC_TOKEN = "DIM-HACH-0016";
+export const DEMO_PUBLIC_TOKEN = "DIM-DEMO-0001";
 
 // ---------------------------------------------------------------------------
 // Cast — the four hands around the pet (CastFila, PO-locked variant)
