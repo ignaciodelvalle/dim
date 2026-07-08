@@ -25,6 +25,7 @@ import {
   degradedPanoramaKpis,
   getPanoramaKpis,
 } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { getCachedPanoramaKpis, kpiCacheKey } from "@/src/modules/panorama/application/kpis-cache";
 
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 
@@ -88,24 +89,58 @@ export async function GET(request: Request) {
   const adminLocality =
     profile.role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
 
-  // 4. Delegate to the use-case (reuses the tested dashboard fetchers), bounded
+  // 5. Short-TTL server cache (60s) keyed by the FULL authorization scope, so a
+  //    burst of reloads on the warm-cold micro DB collapses onto ONE fan-out per
+  //    scope instead of tripping the 20s budget on ~1 of 3 reloads (overnight QA).
+  //    The key composes role + the sorted jurisdiction set + the resolved period
+  //    window + the admin drill-down — two operators with different scopes can
+  //    NEVER share an entry (see kpis-cache.ts + its scope-isolation test).
+  //    Degraded results (empty strip from budget exhaustion) are NOT cached, so
+  //    one bad load never poisons the next 60s. The withDbBudget wrapping is kept
+  //    verbatim INSIDE the cache's compute() — the cache only memoizes SUCCESS.
+  //
+  //    Note: the SERVER page path (app/{admin,gob}/panorama/page.tsx) is left
+  //    UNCACHED on purpose — first-paint freshness matters more there and it
+  //    already carries its own withDbBudget. Sharing this per-request Map across
+  //    the RSC render would also demand threading the same scope key through the
+  //    page guard; not worth it for the first paint. The client refetch (this
+  //    route), which is what reloads hammer, is where the cache earns its keep.
+  const cacheKey = kpiCacheKey({
+    role,
+    jurisdictions: scoped,
+    since: period.since,
+    until: period.until,
+    adminProvince,
+    adminLocality,
+  });
+
+  // 6. Delegate to the use-case (reuses the tested dashboard fetchers), bounded
   //    by a time budget and wrapped so it NEVER throws to the runtime (task #74):
   //    - budget elapses (DB degraded / queries hang) → 200 with a degraded strip.
   //    - fetcher rejected (getPanoramaKpis throws) → 503 JSON error envelope.
   //    Either way the lambda answers cleanly instead of crashing mid-response.
   try {
-    const result = await withDbBudget(
-      getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
-      KPIS_BUDGET_MS,
-      "GET /api/panorama/kpis",
-      degradedPanoramaKpis(),
+    const { value: result, cacheHit } = await getCachedPanoramaKpis(
+      cacheKey,
+      () =>
+        withDbBudget(
+          getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
+          KPIS_BUDGET_MS,
+          "GET /api/panorama/kpis",
+          degradedPanoramaKpis(),
+        ),
+      // Only cache a successful computation. A degraded strip carries no tiles
+      // (kpis: []); caching it would freeze the honest error for 60s.
+      { shouldCache: (value) => value.kpis.length > 0 },
     );
-    return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
+    return NextResponse.json(result, {
+      headers: { "cache-control": "no-store", "x-kpi-cache": cacheHit ? "hit" : "miss" },
+    });
   } catch (err) {
     console.error("[GET /api/panorama/kpis] failed:", err);
     return NextResponse.json(
       { error: "panorama_kpis_unavailable", ...degradedPanoramaKpis() },
-      { status: 503, headers: { "cache-control": "no-store" } },
+      { status: 503, headers: { "cache-control": "no-store", "x-kpi-cache": "miss" } },
     );
   }
 }
