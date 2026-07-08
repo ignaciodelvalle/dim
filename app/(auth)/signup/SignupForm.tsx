@@ -131,7 +131,10 @@ export function SignupForm({
           </LnField>
 
           <div className="space-y-1.5">
-            <LocationFields mode="l1" l1Label="Localidad (opcional)" />
+            {/* allowAnonymous: signup runs before a session exists, so the
+                locality autocomplete must use the no-auth public search action
+                (the default auth-gated one redirects to /login on first keystroke). */}
+            <LocationFields mode="l1" l1Label="Localidad (opcional)" allowAnonymous />
             <p className="text-xs text-[var(--color-ln-mute)]">
               Ayuda a las campañas regionales de salud animal.
             </p>

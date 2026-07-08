@@ -14,8 +14,10 @@
 // Used by LocationFields when mode="l1" after the unified-location refactor
 // (critique-direcciones-2026-05-27 §"Opción B").
 //
-// Auth: the underlying searchLocalitiesAction requires auth. L1 flows are
-// all authed, so no public variant is needed.
+// Auth: the default searchLocalitiesAction requires a session. Most L1 flows are
+// authed, but signup is not — anonymous surfaces inject searchLocalitiesPublicAction
+// via the `searchAction` prop (see LocationFields `allowAnonymous`). Without that,
+// the auth action redirects to /login the moment the user types.
 
 import { useEffect, useRef, useState, useTransition } from "react";
 

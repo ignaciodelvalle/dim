@@ -33,6 +33,7 @@ import {
   reverseGeocodeAction,
   reverseGeocodePublicAction,
 } from "@/app/actions/geocoding";
+import { searchLocalitiesPublicAction } from "@/app/actions/localities";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnInput } from "@/components/ui/Field";
 import { type Province, provinceByName } from "@/lib/reference/ar-provincias";
@@ -329,6 +330,11 @@ export function LocationFields({
               provinceCode: defaultValue?.provinceCode ?? null,
               localityName: defaultValue?.localityName ?? null,
             }}
+            // On anonymous surfaces (signup, before a session exists) the default
+            // auth-gated search action redirects to /login the moment the user
+            // types — the picker silently shows "Sin resultados". Route through the
+            // no-auth public action there; authed L1 surfaces keep the default.
+            searchAction={allowAnonymous ? searchLocalitiesPublicAction : undefined}
           />
         </div>
       )}
