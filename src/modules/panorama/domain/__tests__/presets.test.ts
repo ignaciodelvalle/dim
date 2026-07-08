@@ -278,12 +278,17 @@ describe("DEFAULT_PANORAMA_PRESET_ID", () => {
     expect(getPreset(DEFAULT_PANORAMA_PRESET_ID)).toBeDefined();
   });
 
-  it("is the question-framed compliance preset with deliberate map framing", () => {
+  it("lands on the proven-populated welfare preset so the first paint shows data", () => {
+    // QA histórico 2026-07-08: the previous default `cumplimiento` (base
+    // cobertura, the antirrábica RATE) painted an EMPTY map in this build — the
+    // rabies-coverage rate lacks data — so the operator's first panorama load was
+    // blank. `bienestar` (base denuncias, welfare-report density) reliably draws
+    // with divisions, so the landing shows data instead of "Sin datos".
     const p = getPreset(DEFAULT_PANORAMA_PRESET_ID)!;
-    expect(p.id).toBe("cumplimiento");
-    // The landing must frame the map deliberately — an unframed default would
-    // reintroduce the orphan-layer first paint the fast-follow removes.
-    expect(p.framing).toEqual({ kind: "national" });
+    expect(p.id).toBe("bienestar");
+    // The welfare preset draws at locality granularity and stays framing-less
+    // (a drill-down question, not a national choropleth overview).
+    expect(p.base).toBe("denuncias");
   });
 });
 

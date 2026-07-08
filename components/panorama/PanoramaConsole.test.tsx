@@ -389,7 +389,7 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
 });
 
 describe("PanoramaConsole — first-visit default preset (design-QA 2026-07-04 highest-leverage nit)", () => {
-  it("default-activates 'cumplimiento' on a truly-bare first visit, aligned with framing + fetch", async () => {
+  it("default-activates 'bienestar' on a truly-bare first visit, aligned with fetch (QA #81)", async () => {
     // spyOn returns the SAME spy when history.pushState was already spied in a
     // previous test — clear its accumulated calls before this render.
     const pushSpy = vi.spyOn(window.history, "pushState");
@@ -399,23 +399,27 @@ describe("PanoramaConsole — first-visit default preset (design-QA 2026-07-04 h
     // Board committed silently — replaceState, never a history entry.
     expect(pushSpy).not.toHaveBeenCalled();
     const params = new URLSearchParams(window.location.search);
-    expect(params.get("preset")).toBe("cumplimiento");
+    // QA histórico 2026-07-08: the default landing preset is now the
+    // proven-populated welfare view (base denuncias + decomisos reference) so the
+    // first paint shows data instead of the empty cobertura choropleth.
+    expect(params.get("preset")).toBe("bienestar");
     expect(params.get("period")).toBe("90d");
-    expect(params.get("layers")).toBe("cobertura");
+    expect(params.get("layers")).toBe("denuncias,decomisos");
     // Preset row and map state are CONNECTED on first paint: the button reads
-    // active and the map receives the preset's national frame.
-    expect(screen.getByRole("button", { name: /cumplimiento/ })).toHaveAttribute(
+    // active. bienestar is a locality drill-down preset — deliberately
+    // framing-less, so the map receives no national frame on the default land.
+    expect(screen.getByRole("button", { name: /Bienestar/ })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    expect(mapProps?.frame).toEqual({ framing: { kind: "national" }, token: 1 });
-    // The preset's layer resolves client-side against the committed period.
+    expect(mapProps?.frame).toBeNull();
+    // The preset's base layer resolves client-side against the committed period.
     await waitFor(() => {
       const layerCalls = fetchMock.mock.calls
         .map((c) => String(c[0]))
         .filter((u) => u.startsWith("/api/panorama/") && !u.includes("/kpis"));
       expect(
-        layerCalls.some((u) => u.includes("/api/panorama/cobertura") && u.includes("period=90d")),
+        layerCalls.some((u) => u.includes("/api/panorama/denuncias") && u.includes("period=90d")),
       ).toBe(true);
     });
   });

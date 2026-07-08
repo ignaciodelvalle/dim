@@ -142,14 +142,20 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
 
 /**
  * Preset auto-activated on a FIRST visit to the console (bare URL, no explicit
- * board params, no saved board) — design-QA 2026-07-04 highest-leverage nit:
- * the landing must answer "¿dónde estamos mal?" instead of showing an orphan
- * default layer with a generic reading. `cumplimiento` is the pick because its
- * single base layer (cobertura, the antirrábica rate) is the most reliably
- * present dataset in every scope, and its national framing + question-framed
- * label align the map, the presets row and the auto-reading on first paint.
+ * board params, no saved board) — the landing must answer "¿dónde estamos mal?"
+ * instead of showing an orphan default layer with a generic reading.
+ *
+ * `bienestar` is the pick: QA histórico 2026-07-08 found the previous default
+ * `cumplimiento` (base cobertura, the antirrábica RATE) paints an EMPTY map
+ * ("Sin datos para esta capa en tu cobertura") — the rabies-coverage rate needs
+ * a population of vaccinated pets that this build's cobertura data doesn't yet
+ * supply, so the operator's very first panorama load was a blank choropleth
+ * (reported 3× across QA rounds). `bienestar` (base denuncias, welfare-report
+ * density) is the proven-populated layer that reliably draws with divisions, so
+ * the first paint shows data. When cobertura data is backfilled, `cumplimiento`
+ * can be reinstated as the flagship default.
  */
-export const DEFAULT_PANORAMA_PRESET_ID: PresetId = "cumplimiento";
+export const DEFAULT_PANORAMA_PRESET_ID: PresetId = "bienestar";
 
 // ---------------------------------------------------------------------------
 // Helpers
