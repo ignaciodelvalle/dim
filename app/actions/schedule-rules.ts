@@ -18,7 +18,10 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import {
+  requireCapability,
+  requireCapabilityForOrgToken,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { createScheduleRuleForOrg as _createScheduleRuleForOrg } from "@/src/modules/service-offerings/application/schedule-rules/create-schedule-rule";
 import { deleteScheduleRuleForOrg as _deleteScheduleRuleForOrg } from "@/src/modules/service-offerings/application/schedule-rules/delete-schedule-rule";
@@ -124,12 +127,13 @@ export async function deleteScheduleRuleAction(
   orgToken: string,
   offeringToken: string,
 ): Promise<{ error: string | null }> {
-  const auth = await requireCapability("service_offering.create");
+  // URL-pinned org resolution (confused-deputy guard): resolve the acting org
+  // FROM the URL orgToken rather than the session-default (most-recently-joined)
+  // membership, so a multi-org member deleting from /org/{orgToken}/… is
+  // authorized against that org. The delete stays scoped to organization.id.
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const user = auth.user!;
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const organization = auth.organization!;
+  const { user, organization } = auth;
 
   const result = await _deleteScheduleRuleForOrg(user.id, ruleId, organization.id);
   if ("error" in result) return { error: result.error };

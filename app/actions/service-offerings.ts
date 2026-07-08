@@ -23,7 +23,10 @@ import { redirect } from "next/navigation";
 
 import { db, serviceOfferings } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import {
+  requireCapability,
+  requireCapabilityForOrgToken,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { approveServiceOfferingForAuthority as approveServiceOfferingForAuthorityUC } from "@/src/modules/service-offerings/application/approve-service-offering";
 import { createServiceOfferingForOrg as createServiceOfferingForOrgUC } from "@/src/modules/service-offerings/application/create-service-offering";
@@ -168,14 +171,13 @@ export async function pauseServiceOfferingAction(
   orgToken: string,
   publicToken: string,
 ): Promise<ServiceOfferingResult> {
-  const auth = await requireCapability("service_offering.create");
+  // URL-pinned org resolution (confused-deputy guard): resolve the acting org
+  // FROM the URL orgToken, not the session-default (most-recently-joined)
+  // membership. Replaces the post-hoc `publicToken !== orgToken` mismatch check,
+  // which was security-safe but false-rejected legitimate multi-org members.
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const organization = auth.organization!;
-
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
+  const { organization } = auth;
 
   const result = await pauseServiceOfferingUseCase(organization.id, publicToken);
   if ("error" in result) return result;
@@ -189,14 +191,10 @@ export async function unpauseServiceOfferingAction(
   orgToken: string,
   publicToken: string,
 ): Promise<ServiceOfferingResult> {
-  const auth = await requireCapability("service_offering.create");
+  // URL-pinned org resolution (confused-deputy guard) — see pauseServiceOfferingAction.
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const organization = auth.organization!;
-
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
+  const { organization } = auth;
 
   const result = await unpauseServiceOfferingUseCase(organization.id, publicToken);
   if ("error" in result) return result;
@@ -210,14 +208,10 @@ export async function archiveServiceOfferingAction(
   orgToken: string,
   publicToken: string,
 ): Promise<ServiceOfferingResult> {
-  const auth = await requireCapability("service_offering.create");
+  // URL-pinned org resolution (confused-deputy guard) — see pauseServiceOfferingAction.
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const organization = auth.organization!;
-
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
+  const { organization } = auth;
 
   const result = await archiveServiceOfferingUseCase(organization.id, publicToken);
   if ("error" in result) return result;
@@ -268,14 +262,10 @@ export async function updateOfferingCapacityAction(
   offeringPublicToken: string,
   newCapacity: number,
 ): Promise<UpdateCapacityResult> {
-  const auth = await requireCapability("service_offering.create");
+  // URL-pinned org resolution (confused-deputy guard) — see pauseServiceOfferingAction.
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const organization = auth.organization!;
-
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
+  const { organization } = auth;
 
   const [offering] = await db
     .select({ id: serviceOfferings.id, status: serviceOfferings.status })

@@ -869,7 +869,7 @@ describe("cancelCrossOrgTransferAction — auth-scope: SENDER ORG scoped to case
 // transferCustodyAction
 // ===========================================================================
 
-describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) implicit-org scope", () => {
+describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) URL-token pinned", () => {
   let transferCustodyAction: (...args: any[]) => Promise<any>;
   let transferCustodyUc: ReturnType<typeof vi.fn>;
 
@@ -884,7 +884,7 @@ describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) im
   afterEach(() => vi.resetModules());
 
   it("returns capability error when auth fails", async () => {
-    mockRequireCapability.mockResolvedValue({ error: "Sin permiso." });
+    mockRequireCapabilityForOrgToken.mockResolvedValue({ error: "Sin permiso." });
     const formData = new FormData();
     formData.append("destinationOrgId", "org-2");
     const result = await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
@@ -892,10 +892,26 @@ describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) im
     expect(transferCustodyUc).not.toHaveBeenCalled();
   });
 
+  it("CONFUSED-DEPUTY GUARD: pins the capability check to the URL org token, not the session-default membership", async () => {
+    // R11 fix: transferCustodyAction resolves the acting org FROM the URL
+    // orgToken via requireCapabilityForOrgToken — never bare requireCapability
+    // (which would resolve the most-recently-joined membership).
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
+    transferCustodyUc.mockResolvedValue({
+      ok: false,
+      error: "Mascota no encontrada o no está bajo custodia de tu organización.",
+    });
+    const formData = new FormData();
+    formData.append("destinationOrgId", "org-2");
+    await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
+    expect(mockRequireCapabilityForOrgToken).toHaveBeenCalledWith("custody.transfer", "org-tok");
+    expect(mockRequireCapability).not.toHaveBeenCalled();
+  });
+
   it("CRITICAL: wrong-org — pet not under caller org returns 'Mascota no encontrada o no está bajo custodia de tu organización.'", async () => {
-    // Auth is implicit-org: the repo query is scoped to organization.id.
+    // Auth is URL-token pinned; the repo query is scoped to organization.id.
     // Use-case returns this error when findPetUnderOrg finds nothing.
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     transferCustodyUc.mockResolvedValue({
       ok: false,
       error: "Mascota no encontrada o no está bajo custodia de tu organización.",
@@ -919,7 +935,7 @@ describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) im
 
   it("redirects to the transfers hub on success (proposal opened, not an immediate flip)", async () => {
     const { redirect } = await import("next/navigation");
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     transferCustodyUc.mockResolvedValue({
       ok: true,
       value: {
@@ -938,7 +954,7 @@ describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) im
   });
 
   it("returns error (no redirect) on use-case failure", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     transferCustodyUc.mockResolvedValue({
       ok: false,
       error: "No se pudo proponer la transferencia: error desconocido",

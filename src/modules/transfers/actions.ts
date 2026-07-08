@@ -664,7 +664,12 @@ export async function transferCustodyAction(
   _previous: TransferCustodyFormState,
   formData: FormData,
 ): Promise<TransferCustodyFormState> {
-  const auth = await requireCapability("custody.transfer");
+  // URL-pinned org resolution (same confused-deputy fix as propose/accept/reject/
+  // cancel): a multi-org member operating from /org/{orgToken}/… must be
+  // authorized against THAT org, not the session-default (most-recently-joined)
+  // membership. Pet ownership vs organization.id stays enforced inside the
+  // use-case via repo.findPetUnderOrg (defense in depth).
+  const auth = await requireCapabilityForOrgToken("custody.transfer", orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
