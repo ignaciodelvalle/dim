@@ -22,6 +22,7 @@ import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpButton } from "@/components/ui/dashboard";
 import { OpField } from "@/components/ui/dashboard/OpField";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { formatDate } from "@/lib/utils/format";
 import {
   type ReportBiteFromOrgFormState,
   reportBiteFromOrgAction,
@@ -109,7 +110,10 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         title="Incidente registrado"
         description={
           obsEnd
-            ? `Mascota en observación antirrábica por 10 días. Próxima revisión: ${obsEnd}.`
+            ? // Anchor at noon (not midnight) before formatting: obsEnd is a bare
+              // YYYY-MM-DD, and formatDate renders in the AR timezone (UTC-3) —
+              // parsing it as UTC midnight would display the day before.
+              `Mascota en observación antirrábica por 10 días. Próxima revisión: ${formatDate(`${obsEnd}T12:00:00`)}.`
             : "Mascota en observación antirrábica por 10 días."
         }
         next={[
