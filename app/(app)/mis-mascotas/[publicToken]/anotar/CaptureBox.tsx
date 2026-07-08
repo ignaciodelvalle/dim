@@ -108,6 +108,20 @@ export function CaptureBox({
     });
   }
 
+  // No-match fallback (QA A8/B): the matcher must NEVER silently discard the
+  // owner's text. When nothing matches, offer to keep it as a free note with
+  // the raw text prefilled — a one-tap escape hatch to the nota sheet — instead
+  // of leaving the user with only a "probá de nuevo" dead end.
+  function saveAsNote() {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const url = buildCaptureDeeplink("note_added", petPublicToken, { text: trimmed });
+    if (!url) return;
+    startTransition(() => {
+      goToCaptureUrl(pathname, url, router);
+    });
+  }
+
   // For the quick-action cards we prefill `occurredAt=today` so the
   // form lands ready-to-submit on the most common case (an event that
   // just happened). Date formatting is local.
@@ -138,9 +152,20 @@ export function CaptureBox({
           {pending ? "Buscando formulario..." : "Identificar →"}
         </button>
         {unmatched && (
-          <p className="text-sm text-[var(--color-ln-warn)]">
-            No pude identificar el tipo de evento. Probá decirlo distinto, o tocá uno de los atajos.
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-[var(--color-ln-warn)]">
+              No reconocimos el evento. Podés decirlo distinto, tocar uno de los atajos, o guardarlo
+              como nota tal cual lo escribiste.
+            </p>
+            <button
+              type="button"
+              onClick={saveAsNote}
+              disabled={pending || !text.trim()}
+              className="px-4 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Guardar como nota
+            </button>
+          </div>
         )}
       </form>
 
