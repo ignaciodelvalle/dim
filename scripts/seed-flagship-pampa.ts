@@ -273,7 +273,7 @@ async function ensurePampa(ownerId: string): Promise<{ id: string; created: bool
       acquisitionMethod: "adopted",
       jurisdictionCountry: "AR",
       jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Ciudad Autónoma de Buenos Aires",
+      jurisdictionLocality: "Belgrano",
       // Owner opted the public medical summary in permanently so /p renders the
       // rich "Resumen médico vigente" (vacunas vigentes, esterilización).
       tier2PublicPermanent: true,
