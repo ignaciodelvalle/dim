@@ -947,6 +947,16 @@ export async function createWelfareReportAction(
   const honeypotValue = String(formData.get("_hp") ?? "");
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
+  // Anonymity choice from the wizard's final step ("anonymous" | "with_contact").
+  // PO decision (2026-07-08): honor "Enviar anónima" completely — a logged-in
+  // user who chooses anonymous is NOT linked to the report (reporter_user_id
+  // stays null), consistent with the finder-in-possession precedent and the
+  // strongest posture before data-protection officials. Only a non-anonymous
+  // submission attaches the account. The flag is absent for legacy callers, in
+  // which case the prior behavior (attach the session user) is preserved.
+  const isAnonymous = String(formData.get("contactMode") ?? "").trim() === "anonymous";
+  const reporterUserId = isAnonymous ? null : (user?.id ?? null);
+
   // Validate
   if (!WELFARE_KINDS.includes(kind)) return { error: "Tipo de denuncia inválido." };
   if (!WELFARE_SEVERITIES.includes(severity)) return { error: "Gravedad inválida." };
@@ -1039,7 +1049,7 @@ export async function createWelfareReportAction(
   const insertResult = await repo
     .insertReportWithRetry(
       {
-        reporterUserId: user?.id ?? null,
+        reporterUserId,
         reporterContactEmail,
         reporterContactPhone,
         kind: kind as Parameters<typeof repo.insertReportWithRetry>[0]["kind"],
@@ -1082,8 +1092,11 @@ export async function createWelfareReportAction(
   let isOwnerOfSubjectPet = false;
   if (subjectKind === "registered_pet" && subjectPetToken) {
     subjectPetId = (await repo.findPetByToken(subjectPetToken))?.id ?? null;
-    if (subjectPetId && user?.id) {
-      const ownership = await repo.findActiveOwnership(subjectPetId, user.id);
+    // Gate ownership resolution on the effective reporter id: an anonymous
+    // submission must not reveal that the reporter is the pet's owner (that
+    // would make the report attributable), so it is treated as a third party.
+    if (subjectPetId && reporterUserId) {
+      const ownership = await repo.findActiveOwnership(subjectPetId, reporterUserId);
       isOwnerOfSubjectPet = ownership != null;
     }
   }
@@ -1117,7 +1130,7 @@ export async function createWelfareReportAction(
       observedSymptoms,
       attachments,
       uploadedPaths: uploadResult?.uploadedPaths ?? [],
-      reporterUserId: user?.id ?? null,
+      reporterUserId,
       dwellTimeMs: Number.isFinite(dwellTimeMs) ? dwellTimeMs : undefined,
       honeypotValue,
       clientIdempotencyKey,

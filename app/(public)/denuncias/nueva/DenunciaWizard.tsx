@@ -273,7 +273,11 @@ export function DenunciaWizard() {
         formData.set("subjectDescription", "No especificado por el denunciante.");
       }
 
-      // Step 5 — contact
+      // Step 5 — contact.
+      // Transmit the anonymity choice so the server can honor it fully: an
+      // anonymous submission is NEVER linked to the logged-in account
+      // (reporter_user_id stays null). See createWelfareReportAction.
+      formData.set("contactMode", wizState.contactMode);
       if (wizState.contactMode === "with_contact") {
         formData.set("reporterContactEmail", wizState.contactEmail.trim());
         formData.set("reporterContactPhone", wizState.contactPhone.trim());
