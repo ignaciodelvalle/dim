@@ -223,6 +223,12 @@ const BASEMAP_URL = "/geo/ar-provinces.geojson";
 // basemap untouched.
 const CABA_BARRIOS_URL = "/geo/caba-barrios.geojson";
 const AR_DEPARTMENTS_URL = "/geo/ar-departments.geojson";
+// Regional context basemap: neighbouring South American countries (Chile,
+// Uruguay, Brazil, Paraguay, Bolivia, Peru), heavily simplified. Drawn as a
+// NON-interactive muted layer BELOW the Argentine provinces so the country no
+// longer floats alone on the canvas. Malvinas is NEVER here — it renders only
+// as part of Argentina (see scripts/prep-geo-context.ts).
+const CONTEXT_URL = "/geo/sudamerica-context.geojson";
 
 // map-QOL zoom-bounds clamp: the camera can never wander away from the
 // national territory. AR_BBOX (lib/ui/map-bounds) padded by a few degrees so
@@ -238,6 +244,11 @@ const MIN_ZOOM = 3;
 const COLOR_CANVAS = "#0b1020";
 const COLOR_LAND = "#161d33";
 const COLOR_BORDER = "#2b3658";
+// Regional-context (neighbour countries) palette: a desaturated, darker
+// variant of COLOR_LAND/COLOR_BORDER that sits just above COLOR_CANVAS, so the
+// surrounding landmass is legible but clearly recedes behind Argentina.
+const COLOR_CONTEXT_LAND = "#0f1528";
+const COLOR_CONTEXT_BORDER = "#1c2540";
 // Division outlines: a touch brighter than the province border so barrio /
 // departamento lines read over COLOR_LAND, but still subtle (they must never
 // compete with the data fill on top). Matches the basemap's line treatment.
@@ -467,6 +478,31 @@ export function SituationalMap({
       });
 
       map.on("load", async () => {
+        if (cancelled) return;
+        // Regional context: neighbouring countries as a muted, non-interactive
+        // backdrop. Added FIRST so it renders BELOW the Argentine provinces
+        // (MapLibre draws layers in insertion order). No feature-state / hover
+        // / clicks — purely a spatial-reference basemap.
+        try {
+          // biome-ignore lint/suspicious/noExplicitAny: runtime JSON from local GeoJSON asset.
+          const context = (await fetch(CONTEXT_URL).then((r) => r.json())) as any;
+          if (cancelled) return;
+          map.addSource("sudamerica-context", { type: "geojson", data: context });
+          map.addLayer({
+            id: "context-fill",
+            type: "fill",
+            source: "sudamerica-context",
+            paint: { "fill-color": COLOR_CONTEXT_LAND, "fill-opacity": 1 },
+          });
+          map.addLayer({
+            id: "context-line",
+            type: "line",
+            source: "sudamerica-context",
+            paint: { "line-color": COLOR_CONTEXT_BORDER, "line-width": 0.6 },
+          });
+        } catch {
+          // Context basemap unavailable — Argentina still renders on the canvas.
+        }
         if (cancelled) return;
         // Local basemap: Argentine province polygons (no external tiles).
         try {

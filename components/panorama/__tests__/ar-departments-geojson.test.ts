@@ -65,6 +65,29 @@ describe("ar-departments.geojson", () => {
     expect(byCode("94028")).toBeUndefined();
   });
 
+  it("department 94021 (Islas del Atlántico Sur) is the clean Malvinas geometry, no garbled fragments", () => {
+    // The file once carried 222 sub-polygons for 94021, some nowhere near the
+    // islands (fragments around lon −26). Its geometry is now the Natural Earth
+    // Malvinas archipelago: every vertex sits in the islands' bbox
+    // (lon −62…−57, lat −53…−51).
+    const f = byCode("94021");
+    expect(f, "expected department 94021 to exist").toBeDefined();
+    let minLon = Number.POSITIVE_INFINITY;
+    let maxLon = Number.NEGATIVE_INFINITY;
+    const walk = (a: unknown): void => {
+      if (Array.isArray(a)) {
+        if (typeof a[0] === "number") {
+          const lon = a[0] as number;
+          if (lon < minLon) minLon = lon;
+          if (lon > maxLon) maxLon = lon;
+        } else a.forEach(walk);
+      }
+    };
+    walk(f!.geometry.coordinates);
+    expect(minLon).toBeGreaterThan(-62);
+    expect(maxLon).toBeLessThan(-57);
+  });
+
   it("keeps a real coastline on the AMBA partidos that exposed the coarse-geometry bug", () => {
     // Avellaneda (06035) and San Isidro (06756) were 4-point quadrilaterals in the
     // broken file. A recognisable coastline needs well more than that; the source
