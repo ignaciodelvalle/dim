@@ -13,12 +13,12 @@ const vaccination = (
   id: string,
   name: string,
   at: string,
-  validUntil?: string,
+  nextDueAt?: string,
 ): CredentialEvent => ({
   id,
   eventType: "vaccination_administered",
   occurredAt: at,
-  payload: { vaccine_name: name, ...(validUntil ? { valid_until: validUntil } : {}) },
+  payload: { vaccine_name: name, ...(nextDueAt ? { next_due_at: nextDueAt } : {}) },
 });
 
 const amend = (
@@ -125,15 +125,15 @@ describe("isRabiesAtRisk — a corrected expiry flips the service-dog warning", 
     expect(isRabiesAtRisk(events, now)).toBe(true);
   });
 
-  it("a correction extending valid_until into the future clears the risk", () => {
+  it("a correction extending next_due_at into the future clears the risk", () => {
     const events = [
       vaccination("v1", "Vacuna Rabia", "2025-01-01", "2026-01-01"),
       amend("a1", "v1", "2026-05-01", [
-        { field: "valid_until", old: "2026-01-01", new: "2027-01-01" },
+        { field: "next_due_at", old: "2026-01-01", new: "2027-01-01" },
       ]),
     ];
     // Without the overlay the credential would still warn "vencida"; with it,
-    // the corrected future expiry clears the banner.
+    // the corrected future due date clears the banner.
     expect(isRabiesAtRisk(events, now)).toBe(false);
   });
 

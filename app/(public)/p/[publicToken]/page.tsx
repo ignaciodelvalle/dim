@@ -428,8 +428,8 @@ export default async function PublicCredentialPage({
         .limit(50),
       getAmendmentEvents(),
     ]);
-    // Heuristic: the most recent rabies vaccine with a past `valid_until` flags
-    // risk. The CORRECTED name/expiry is read (WAVE D1) so amending a mistyped
+    // Heuristic: the most recent rabies vaccine with a past `next_due_at` flags
+    // risk. The CORRECTED name/due date is read (WAVE D1) so amending a mistyped
     // rabies dose flips the public warning. Conservative — false negatives OK,
     // false positives only show a soft warning.
     rabiesAtRisk = isRabiesAtRisk([...rabiesVaccinations, ...rabiesAmendments], new Date());

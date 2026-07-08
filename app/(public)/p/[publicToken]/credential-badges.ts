@@ -62,8 +62,15 @@ export function deriveActiveMedications(events: CredentialEvent[]): string[] {
 /**
  * Rabies-at-risk flag for the service-dog banner (Art. 8, Ley 26.858): the pet's
  * most recent rabies vaccination is expired. Reads the CORRECTED `vaccine_name`
- * and `valid_until` so amending a mistyped rabies dose (name or expiry) flips the
- * public warning. Conservative heuristic (false negatives OK — soft warning only).
+ * and `next_due_at` so amending a mistyped rabies dose (name or due date) flips
+ * the public warning. Conservative heuristic (false negatives OK — soft warning
+ * only).
+ *
+ * "Expired" means `next_due_at < now`, the same due-ness test the owner-side
+ * derivation applies (computeVaccinationSummary marks a dose `expired` when its
+ * next_due_at is in the past). The vaccination_administered schema writes
+ * `next_due_at`; there is no `valid_until` key — reading it left this banner
+ * permanently dark (lint:events ghost-key finding).
  *
  * Pass the pet's `vaccination_administered` rows (any recency) + `event_amended`.
  */
@@ -75,10 +82,10 @@ export function isRabiesAtRisk(events: CredentialEvent[], now: Date): boolean {
   const latest = vaccinations[0];
   if (!latest) return false;
 
-  const payload = latest.payload as { vaccine_name?: string; valid_until?: string };
-  if (!payload?.vaccine_name?.toLowerCase().includes("rabia") || !payload.valid_until) {
+  const payload = latest.payload as { vaccine_name?: string; next_due_at?: string };
+  if (!payload?.vaccine_name?.toLowerCase().includes("rabia") || !payload.next_due_at) {
     return false;
   }
-  const validUntil = new Date(payload.valid_until);
-  return !Number.isNaN(validUntil.getTime()) && validUntil < now;
+  const nextDueAt = new Date(payload.next_due_at);
+  return !Number.isNaN(nextDueAt.getTime()) && nextDueAt < now;
 }
