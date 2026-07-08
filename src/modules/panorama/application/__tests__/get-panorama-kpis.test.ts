@@ -192,6 +192,14 @@ describe("getPanoramaKpis", () => {
     expect(govt.recalculatedFor).toContain("Córdoba");
   });
 
+  it("does NOT claim national reach for a govt operator with an empty scope (QA #81)", async () => {
+    // A govt actor whose scope narrowed to [] (e.g. a province selected OUTSIDE
+    // their assignment) must not read "alcance nacional" — that's admin-only.
+    const govtEmpty = await getPanoramaKpis({ role: "govt" }, [], period);
+    expect(govtEmpty.recalculatedFor).toContain("Sin datos en tu alcance");
+    expect(govtEmpty.recalculatedFor.toLowerCase()).not.toContain("nacional");
+  });
+
   it("uses a neutral tone when there is nothing to flag (zero counts)", async () => {
     vi.mocked(fetchActiveZoonosis).mockResolvedValue({
       count: 0,

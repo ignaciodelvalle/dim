@@ -450,7 +450,13 @@ function describeRecalc(
     return "Recalculado para el alcance nacional y el período seleccionado.";
   }
   if (jurisdictions.length === 0) {
-    return "Recalculado para el alcance nacional y el período seleccionado.";
+    // NON-admin with zero jurisdictions in scope. This is NOT national reach —
+    // "alcance nacional" is reserved for the admin branch above. An empty set
+    // here means either the operator selected a province OUTSIDE their scope
+    // (narrowGovtScope filtered it to []) or they hold no assignment; in both
+    // cases the data is correctly empty. Say so honestly instead of implying a
+    // national recompute (QA histórico 2026-07-08 #81: the footer lied).
+    return "Sin datos en tu alcance para el período seleccionado.";
   }
   const provinces = [...new Set(jurisdictions.map((j) => j.province))];
   const where = provinces.length === 1 ? provinces[0] : `${provinces.length} provincias`;
