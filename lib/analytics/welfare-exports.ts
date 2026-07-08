@@ -17,6 +17,7 @@
 import { PDFDocument, type PDFFont, type PDFPage, PageSizes, StandardFonts, rgb } from "pdf-lib";
 
 import type { WelfareReport, WelfareReportAttachment } from "@/db";
+import { formatDate, formatDateTime, formatDateTimeLegal } from "@/lib/utils/format";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
@@ -97,14 +98,12 @@ export function welfareReportToMpfDto(
     kindLabel: welfareReportKindLabel(report.kind),
     severityLabel: welfareReportSeverityLabel(report.severity),
     description: report.description,
+    // AR-pinned (bug 4, staging validation 2026-07-04): every timestamp in a
+    // legal export routes through the lib/utils/format helpers — a bare
+    // toLocale* call uses the AMBIENT zone (UTC on the server) and printed
+    // "generado 06:27:41" for a 17:47 ART generation.
     occurredAtLabel: report.occurredAt
-      ? new Date(report.occurredAt).toLocaleDateString("es-AR", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
+      ? formatDateTime(report.occurredAt)
       : "Fecha del hecho no especificada por el denunciante",
     jurisdictionProvince: report.jurisdictionProvince ?? null,
     jurisdictionLocality: report.jurisdictionLocality ?? null,
@@ -119,12 +118,8 @@ export function welfareReportToMpfDto(
     reporterContactEmail: isAnonymous ? null : (report.reporterContactEmail ?? null),
     reporterContactPhone: isAnonymous ? null : (report.reporterContactPhone ?? null),
     attachments: opts.attachments,
-    exportGeneratedAt: opts.exportGeneratedAt.toLocaleString("es-AR"),
-    reportCreatedAt: new Date(report.createdAt).toLocaleDateString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }),
+    exportGeneratedAt: formatDateTimeLegal(opts.exportGeneratedAt),
+    reportCreatedAt: formatDate(report.createdAt),
     exportedByDisplayName: opts.exportedByDisplayName,
   };
 }

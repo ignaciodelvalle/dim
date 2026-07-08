@@ -23,6 +23,7 @@ import { overlayAmendments } from "@/lib/infra/amendment";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { deriveTravelCompliance, deriveTravelContext } from "@/lib/projections/travel-compliance";
 import { type CorridorId, getCorridor } from "@/lib/reference/cross-border-corridors";
+import { formatDateTimeLegal } from "@/lib/utils/format";
 
 import type { GenerateTravelExportResult } from "./types";
 
@@ -116,7 +117,9 @@ export async function generateTravelExport(
     petPublicToken,
     petSpecies: ownerRow.petSpecies,
     ownerDisplayName: ownerProfile?.displayName ?? "Propietario",
-    exportGeneratedAt: exportGeneratedAt.toLocaleString("es-AR"),
+    // AR-pinned legal timestamp with explicit TZ label (bug 4 — same ambient-
+    // zone pattern as the MPF/PPP exports, fixed together).
+    exportGeneratedAt: formatDateTimeLegal(exportGeneratedAt),
     semaforo: state.semaforo,
     corridors: state.corridorsShown,
     obligations: state.obligations,

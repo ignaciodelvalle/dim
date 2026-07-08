@@ -25,6 +25,7 @@
 
 import { MPF_EXPORT_SCHEMA_VERSION } from "@/lib/analytics/welfare-exports";
 import type { WelfareMpfAttachmentInfo, WelfareMpfDto } from "@/lib/analytics/welfare-exports";
+import { formatDate } from "@/lib/utils/format";
 import type { WelfareRepository } from "../infrastructure/welfare-repository";
 import type { UseCaseResult } from "./types";
 
@@ -188,9 +189,10 @@ export async function generateMpfExport(
       kindLabel: report.kind,
       severityLabel: report.severity,
       description: report.description,
-      occurredAtLabel: report.occurredAt
-        ? new Date(report.occurredAt).toLocaleDateString("es-AR")
-        : "no especificada",
+      // AR-pinned (bug 4) — note the production action ignores this inline DTO
+      // and rebuilds via welfareReportToMpfDto (the real mapper, also fixed);
+      // kept consistent so no ambient-zone formatting survives anywhere.
+      occurredAtLabel: report.occurredAt ? formatDate(report.occurredAt) : "no especificada",
       jurisdictionProvince: report.jurisdictionProvince,
       jurisdictionLocality: report.jurisdictionLocality,
       locationAddress: report.locationAddress,

@@ -64,6 +64,9 @@ const SPANISH_DATETIME_LEGAL_FORMAT = new Intl.DateTimeFormat("es-AR", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
+  // 24-hour clock — es-AR's Intl default is 12-hour ("05:47:41 p. m."), which
+  // reintroduces exactly the am/pm ambiguity this formatter exists to remove.
+  hourCycle: "h23",
   timeZone: AR_TIME_ZONE,
 });
 

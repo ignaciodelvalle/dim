@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { formatCount, formatDelta, formatPercent, formatRate, relativeDaysShort } from "./format";
+import {
+  formatCount,
+  formatDateTime,
+  formatDateTimeLegal,
+  formatDelta,
+  formatPercent,
+  formatRate,
+  relativeDaysShort,
+} from "./format";
 
 // Regression coverage for the outreach "hace 20624d" bug: never-vaccinated pets
 // carry an epoch-sentinel date (new Date(0)), and a 56-year "days ago" value is
@@ -141,5 +149,39 @@ describe("formatDelta", () => {
   it("returns the empty marker for null/undefined/non-finite", () => {
     expect(formatDelta(null)).toBe("—");
     expect(formatDelta(Number.NaN)).toBe("—");
+  });
+});
+
+// Legal-document timestamps (MPF/PPP/travel PDF exports — staging validation
+// 2026-07-04, bug 4): the exported PDF printed the server's UTC clock
+// ("generado 06:27:41" for a ~17:47 ART generation) with no timezone label.
+describe("formatDateTimeLegal", () => {
+  it("pins to Argentina time regardless of the ambient/server zone", () => {
+    // 2026-07-04T20:47:41Z is 17:47:41 in America/Argentina/Buenos_Aires (UTC-3).
+    const out = formatDateTimeLegal(new Date("2026-07-04T20:47:41Z"));
+    expect(out).toContain("17:47:41");
+    expect(out).not.toContain("20:47:41");
+  });
+
+  it("carries an explicit '(hora de Argentina)' label and seconds precision", () => {
+    const out = formatDateTimeLegal("2026-07-04T20:47:41Z");
+    expect(out).toMatch(/\(hora de Argentina\)$/);
+    expect(out).toMatch(/\d{2}:\d{2}:\d{2}/);
+    expect(out).toContain("04/07/2026");
+  });
+
+  it("returns the empty marker for null/invalid input", () => {
+    expect(formatDateTimeLegal(null)).toBe("—");
+    expect(formatDateTimeLegal("not-a-date")).toBe("—");
+  });
+});
+
+describe("formatDateTime", () => {
+  it("pins to Argentina time (UTC-3) — never the ambient zone", () => {
+    // 2026-07-04T10:59:41Z → 07:59 ART. The postulación page previously
+    // rendered the raw UTC clock via a bare toLocaleString.
+    const out = formatDateTime(new Date("2026-07-04T10:59:41Z"));
+    expect(out).toContain("07:59");
+    expect(out).toContain("4 de julio de 2026");
   });
 });

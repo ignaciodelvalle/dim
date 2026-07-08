@@ -27,6 +27,7 @@ import {
 import { createSignedExportUrl, uploadExportToStorage } from "@/lib/analytics/welfare-exports";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { formatDateTimeLegal } from "@/lib/utils/format";
 
 import type { GeneratePppExportResult } from "./types";
 
@@ -133,7 +134,10 @@ export async function generatePppExport(petPublicToken: string): Promise<Generat
     ownerEmail,
     jurisdictionProvince: ownerRow.petJurisdictionProvince ?? CABA_PROVINCE,
     jurisdictionLocality: ownerRow.petJurisdictionLocality ?? null,
-    exportGeneratedAt: exportGeneratedAt.toLocaleString("es-AR"),
+    // AR-pinned legal timestamp with explicit "(hora de Argentina)" label
+    // (bug 4, staging validation 2026-07-04) — a bare toLocaleString used the
+    // server's ambient zone (UTC) on a legal document.
+    exportGeneratedAt: formatDateTimeLegal(exportGeneratedAt),
   };
 
   let pdfBytes: Uint8Array;

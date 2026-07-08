@@ -14,6 +14,7 @@ import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashbo
 import { auditLog, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { upcastPayload } from "@/lib/events/event-upcasters";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { formatDateTime } from "@/lib/utils/format";
 import { isUuid } from "@/lib/utils/uuid";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
@@ -153,7 +154,10 @@ export default async function AdoptionReviewDetailPage({
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Postulación para {pet.name}</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Recibida el {new Date(application.recordedAt).toLocaleString("es-AR")}
+          {/* AR-pinned via formatDateTime (bug 4): the bare toLocaleString
+              rendered the server's UTC clock ("Recibida 07:59:41") with no
+              timezone cue for a ~17:00 ART submission. */}
+          Recibida el {formatDateTime(application.recordedAt)}
         </p>
       </header>
 
@@ -204,7 +208,7 @@ export default async function AdoptionReviewDetailPage({
               .
             </p>
             <p className="text-sm text-ln-op-mute mt-1">
-              {new Date(decision[0].decided_at).toLocaleString("es-AR")}
+              {formatDateTime(decision[0].decided_at)}
               {decision[0].notes && ` · ${decision[0].notes}`}
             </p>
           </OpCardBody>

@@ -20,6 +20,8 @@
 
 import { PDFDocument, type PDFFont, type PDFPage, PageSizes, StandardFonts, rgb } from "pdf-lib";
 
+import { formatDate } from "@/lib/utils/format";
+
 export const PPP_EXPORT_SCHEMA_VERSION = "2026-05-21";
 
 // CABA jurisdiction constant — used for validation. Canonical display name
@@ -247,11 +249,9 @@ export async function generatePppCabaPdf(dto: PppCabaDto): Promise<Uint8Array> {
   if (dto.petDateOfBirth) {
     y = drawPppField(page, {
       label: "Fecha de nacimiento",
-      value: new Date(dto.petDateOfBirth).toLocaleDateString("es-AR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }),
+      // AR-pinned (bug 4): ambient-zone formatting can shift a birth date to
+      // the previous calendar day when the server clock is UTC.
+      value: formatDate(dto.petDateOfBirth),
       x: margin,
       y,
       boldFont,
