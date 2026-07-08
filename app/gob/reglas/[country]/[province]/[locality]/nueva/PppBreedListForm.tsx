@@ -61,7 +61,12 @@ export function PppBreedListForm({
   const [impact, setImpact] = useState<RuleImpactResult>({ status: "idle", count: null });
   const [acknowledged, setAcknowledged] = useState(false);
 
-  const ALL_BREEDS = Array.from(new Set([...DOG_BREEDS, ...initialBreeds])).sort();
+  // Include the live `breeds` selection so a custom breed added via addCustom
+  // (below) renders as a checked checkbox AND is submitted. Without `...breeds`,
+  // a custom breed lands in state but never gets a checkbox row — so it neither
+  // shows (the button reads as dead) nor submits (only checkboxes carry
+  // name="breeds"). QA 2026-07-08: "Agregar raza no estándar" no-op.
+  const ALL_BREEDS = Array.from(new Set([...DOG_BREEDS, ...initialBreeds, ...breeds])).sort();
 
   function toggle(breed: string) {
     setBreeds((prev) =>
