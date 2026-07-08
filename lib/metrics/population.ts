@@ -43,6 +43,17 @@ export function dogsInScopeCondition(ctx: ProjectionContext) {
  * Base condition for pet_events queries: scope to the ctx jurisdiction.
  * Optionally narrows to a specific eventType and/or a time window.
  *
+ * ⚠️ WARNING — VALID ONLY FOR outbreak_signal-family QUERIES. The scope here is
+ * petEventsScopeClause, which matches the payload jurisdiction snapshot that ONLY
+ * `outbreak_signal` writes. Applied to any OTHER event type for a scoped-govt
+ * actor it evaluates to `false` for every real row and returns ZERO results (the
+ * "ghost-payload" bug — see the petEventsScopeClause jsdoc in ./scope.ts). This
+ * helper only builds a WHERE condition and cannot add a join, so it CANNOT be
+ * fixed here for non-outbreak types. Callers over other event types MUST instead
+ * `.innerJoin(pets, eq(pets.id, petEvents.petId))` and scope with petsScopeClause.
+ * (No production caller today; a test exercises it with an admin ctx, where the
+ * scope resolves to null and this hazard does not apply.)
+ *
  * @param eventType - If provided, adds `eventType = ?` to the conditions.
  * @param window    - If provided, adds `occurredAt >= window.since` to the conditions.
  */

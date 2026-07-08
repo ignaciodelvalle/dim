@@ -12,10 +12,13 @@ import "server-only";
 //
 // REUSE
 // -----
-//   - petEventsScopeClause(ctx)  — jurisdiction scope (admin → null; govt → OR
-//     of payload province/locality pairs). Same primitive every Pattern-B
-//     fetcher uses; the province/locality the rows expose come from the SAME
-//     payload fields the scope clause reads, so filtering and scoping agree.
+//   - petsScopeClause(ctx)        — jurisdiction scope by the pet's HOME
+//     jurisdiction (admin → null; govt → OR of pets.jurisdiction_* pairs),
+//     applied against the pets INNER JOIN. The ledger spans ALL event types, so
+//     it CANNOT use the payload-snapshot scope (petEventsScopeClause) — that only
+//     matches outbreak_signal rows and would hide every other event from a scoped
+//     govt viewer (ghost-payload bug). The province/locality the rows expose come
+//     from the SAME pets columns the scope reads, so filtering and scoping agree.
 //   - eventTypeLabel (lib/format) — single canonical es-AR label map (UI layer).
 //   - logEventLedgerView          — modeled exactly on logOutreachPiiQuery.
 //
@@ -36,7 +39,7 @@ import { auditLog, db, petEvents, pets } from "@/db";
 import type { EventType } from "@/db/schema";
 
 import type { ProjectionContext } from "./context";
-import { petEventsScopeClause, petsScopeClause } from "./scope";
+import { petsScopeClause } from "./scope";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,7 +51,7 @@ export type AuthorRole = "owner" | "scanner" | "finder" | "vet" | "shelter" | "g
 export type EventLedgerFilters = {
   /** Restrict to these event types (combinable). */
   eventTypes?: EventType[];
-  /** Coarse jurisdiction filter — reads the same payload field as the scope clause. */
+  /** Coarse jurisdiction filter — reads the pet's CURRENT pets.jurisdiction_* (same columns the scope clause and the displayed rows use). */
   province?: string;
   locality?: string;
   /** Inclusive lower bound on occurred_at. */
@@ -115,19 +118,16 @@ export async function fetchEventLedger(
 
   const conditions = [];
 
-  // 1. Jurisdiction scope (admin → null → omitted).
-  const scope = petEventsScopeClause(ctx);
+  // 1. Jurisdiction scope by the pet's HOME jurisdiction (petsScopeClause against
+  //    the pets INNER JOIN below). The ledger spans ALL event types, but only
+  //    outbreak_signal carries the payload jurisdiction snapshot — so the former
+  //    petEventsScopeClause evaluated to `false` for every non-outbreak row of a
+  //    scoped-govt viewer (the ghost-payload bug), hiding the entire ledger. The
+  //    pet's CURRENT jurisdiction is the correct scope and also closes the
+  //    payload-drift hole a moved pet used to leave open (scope-security review
+  //    2026-07-04 A1). Admin → null (universal) or the province drill-down predicate.
+  const scope = petsScopeClause(ctx);
   if (scope) conditions.push(sql`(${scope})`);
-
-  // 1b. Pets-table jurisdiction guard for govt viewers (scope-security review
-  //     2026-07-04 A1): the payload's pet_jurisdiction_* is an event-time
-  //     snapshot; rows return the pet's PUBLIC token, so the pet's CURRENT
-  //     pets.jurisdiction_* must also be in scope (pets is inner-joined below).
-  //     Admin keeps its payload-based behavior (universal scope / drill-down).
-  if (ctx.scope.kind === "jurisdictions") {
-    const petsScope = petsScopeClause(ctx);
-    if (petsScope) conditions.push(sql`(${petsScope})`);
-  }
 
   // 2. Filters.
   if (filters.eventTypes && filters.eventTypes.length > 0) {
@@ -136,15 +136,14 @@ export async function fetchEventLedger(
   if (filters.authorRole) {
     conditions.push(eq(petEvents.authorRole, filters.authorRole));
   }
+  // Province/locality filters read the pet's CURRENT jurisdiction (pets columns),
+  // NOT the payload snapshot — the displayed province/locality below come from the
+  // same pets columns, so filtering and display agree for every event type.
   if (filters.province) {
-    conditions.push(
-      sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${filters.province}`,
-    );
+    conditions.push(eq(pets.jurisdictionProvince, filters.province));
   }
   if (filters.locality) {
-    conditions.push(
-      sql`(${petEvents.payload}->>'pet_jurisdiction_locality') = ${filters.locality}`,
-    );
+    conditions.push(eq(pets.jurisdictionLocality, filters.locality));
   }
   if (filters.from) conditions.push(gte(petEvents.occurredAt, filters.from));
   if (filters.to) conditions.push(lte(petEvents.occurredAt, filters.to));
@@ -174,8 +173,11 @@ export async function fetchEventLedger(
       authorRole: petEvents.authorRole,
       authorOrganizationId: petEvents.authorOrganizationId,
       authorVerified: petEvents.authorVerified,
-      province: sql<string | null>`${petEvents.payload}->>'pet_jurisdiction_province'`,
-      locality: sql<string | null>`${petEvents.payload}->>'pet_jurisdiction_locality'`,
+      // The pet's CURRENT jurisdiction (pets columns), not the payload snapshot:
+      // for every non-outbreak event type the payload keys are NULL, so the old
+      // payload projection rendered null province/locality for the whole ledger.
+      province: pets.jurisdictionProvince,
+      locality: pets.jurisdictionLocality,
     })
     .from(petEvents)
     .innerJoin(pets, eq(pets.id, petEvents.petId))

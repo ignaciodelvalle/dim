@@ -51,7 +51,6 @@ import {
   type DashboardJurisdiction,
   buildProjectionContext,
   jurisdictionPairClause,
-  petEventsScopeClause as metricsPetEventsScopeClause,
   petsScopeClause as metricsPetsScopeClause,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
@@ -735,12 +734,6 @@ function petsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdic
   );
 }
 
-function petEventsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
-  return metricsPetEventsScopeClause(
-    buildProjectionContext(actor, jurisdictions, windows.trailing12m()),
-  );
-}
-
 export async function fetchVigilanciaMetrics(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
@@ -775,9 +768,12 @@ export async function fetchVigilanciaMetrics(
     eq(petEvents.eventType, "vaccination_administered"),
     gte(petEvents.occurredAt, since7d),
   ];
-  // Vaccination events store jurisdiction in JSONB payload (same shape as outbreak_signal).
-  const vaccScope = petEventsScopeClause(actor, jurisdictions);
-  if (vaccScope) vaccConditions.push(sql`(${vaccScope})`);
+  // vaccination_administered does NOT carry a payload jurisdiction snapshot (only
+  // outbreak_signal does) — scope by the pet's HOME jurisdiction (petsScope, reused
+  // from arm 3) against the pets INNER JOIN added below. The previous
+  // petEventsScopeClause here was the ghost-payload bug (zeroed this count for
+  // every scoped-govt viewer). The outbreak arm above keeps its payload scope.
+  if (petsScope) vaccConditions.push(sql`(${petsScope})`);
 
   const [outbreakRows, rabiesRows, petsRows, vaccRows] = await Promise.all([
     db
@@ -795,6 +791,7 @@ export async function fetchVigilanciaMetrics(
     db
       .select({ n: count() })
       .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
       .where(and(...vaccConditions)),
   ]);
 
@@ -2380,13 +2377,12 @@ export async function fetchEventsForExport(
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
   const conditions: ReturnType<typeof sql>[] = [];
-  const scope = petEventsScopeClause(actor, jurisdictions);
-  if (scope) conditions.push(sql`(${scope})`);
-  // Rows return the pet's public token — require the pet's CURRENT jurisdiction
-  // to be in scope too (pets is inner-joined below), so a pet that moved away
-  // doesn't leak its events into the old jurisdiction's export forever. Same
-  // guard the sibling export/analytics fetchers got in the 2026-07-04 scope
-  // review (fetchSurveillanceSignals, fetchZoonosisTrend, …).
+  // This export spans ALL event types, but only outbreak_signal carries the payload
+  // jurisdiction snapshot — so scoping by petEventsScopeClause zeroed every non-
+  // outbreak event for a scoped-govt export (the ghost-payload bug). Scope by the
+  // pet's CURRENT jurisdiction (pets columns) against the pets INNER JOIN below;
+  // this is also the payload-drift guard the sibling fetchers got in the 2026-07-04
+  // scope review. Admin → null (universal export).
   const petsScope = petsCurrentJurisdictionClause(actor, jurisdictions);
   if (petsScope) conditions.push(sql`(${petsScope})`);
   // Bind dates as ISO strings (see fetchPetsForExport) — raw Date in sql`` crashes postgres-js.

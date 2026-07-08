@@ -29,7 +29,6 @@ import {
   TARGETS,
   dogsInScopeCondition,
   jurisdictionPairClause,
-  petEventsScopeClause,
   petsScopeClause,
   rabiesCurrentlyValidCondition,
 } from "@/lib/metrics";
@@ -71,17 +70,21 @@ function casesScopeClause(ctx: ProjectionContext) {
   );
 }
 
-// Pets-table jurisdiction guard for govt scope (scope-security review
-// 2026-07-04 Part A2). The payload's pet_jurisdiction_* fields are a snapshot
-// taken at event time; when a pet moves (or seed data drifts) they diverge
-// from the pet's CURRENT pets.jurisdiction_*, and a payload-only scope counts
-// out-of-jurisdiction pets into govt aggregates. This guard requires the pet's
-// current jurisdiction to be in scope too, via an EXISTS subquery so callers
-// that don't join pets stay join-free. Admin (global scope, including the
-// province drill-down) keeps its existing payload-based behavior — the guard
-// applies ONLY to the govt branch.
+// Pets-table jurisdiction scope for pet_events reads that do NOT join pets.
+//
+// This is the PRIMARY jurisdiction scope for non-outbreak event fetchers, wrapped
+// in an EXISTS subquery so callers stay join-free. It replaces the payload-snapshot
+// scope (petEventsScopeClause): the payload pet_jurisdiction_* fields are written by
+// ONLY outbreak_signal, so applying the payload scope to vaccination/incident/
+// disease events evaluated to `false` for every scoped-govt row and returned ZERO
+// results (the "ghost-payload" bug). Scoping by the pet's CURRENT jurisdiction fixes
+// that and also closes the payload-drift hole a moved pet used to leave open
+// (scope-security review 2026-07-04 A2).
+//
+// Covers all scope kinds via petsScopeClause: govt → OR of pets.jurisdiction_*
+// pairs; admin province drill-down → the selected-province predicate; admin
+// universal → null (no restriction).
 function petsCurrentJurisdictionGuard(ctx: ProjectionContext) {
-  if (ctx.scope.kind !== "jurisdictions") return null;
   const scope = petsScopeClause(ctx);
   if (!scope) return null;
   return sql`EXISTS (SELECT 1 FROM ${pets} WHERE ${pets.id} = ${petEvents.petId} AND (${scope}))`;
@@ -183,7 +186,12 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
   const coverageUntil = ctx.period.until;
   const since12m = new Date(coverageUntil.getTime() - 365 * DAY_MS);
 
-  const eventsScope = petEventsScopeClause(ctx);
+  // vaccination_administered carries no payload jurisdiction snapshot — scope by
+  // the pet's HOME jurisdiction (petsScopeClause) against the pets INNER JOIN
+  // below. petEventsScopeClause here was the ghost-payload bug (evaluated to
+  // `false` for every scoped-govt row). petsScopeClause covers govt AND the admin
+  // province drill-down.
+  const petsScope = petsScopeClause(ctx);
   const dogsCondition = dogsInScopeCondition(ctx);
 
   // Distinct dogs with a rabies vaccination event in scope, last 12 months.
@@ -210,18 +218,11 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
       { since: since12m, until: coverageUntil },
     ),
   ];
-  if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
+  // Jurisdiction scope on the pet's home columns (petsScopeClause already emits
+  // the whole-province subsumption via jurisdictionPairClause). Covers govt and
+  // the admin province drill-down; admin-universal → null.
+  if (petsScope) rabiesVaccConditions.push(sql`(${petsScope})`);
   // Scope to dogs only by joining pets.
-  if (ctx.scope.kind === "jurisdictions") {
-    // Whole-province subsumption via the shared clause (critique of PR #762,
-    // finding 7) — the inline exact-pair build here was NOT covered by 7a17ec97.
-    const pairs = jurisdictionPairClause(
-      ctx.scope.jurisdictions,
-      sql`${pets.jurisdictionProvince}`,
-      sql`${pets.jurisdictionLocality}`,
-    );
-    if (pairs) rabiesVaccConditions.push(sql`(${pairs})`);
-  }
   rabiesVaccConditions.push(sql`${pets.species} = ${"dog"}`);
 
   // Partidos: distinct localities with ≥1 dog in scope.
@@ -304,7 +305,11 @@ export async function fetchRabiesCoverageByProvince(
   const coverageUntil = ctx.period.until;
   const since12m = new Date(coverageUntil.getTime() - 365 * DAY_MS);
 
-  const eventsScope = petEventsScopeClause(ctx);
+  // Scope by the pet's HOME jurisdiction (petsScopeClause) against the pets INNER
+  // JOIN below — vaccination_administered has no payload jurisdiction snapshot, so
+  // petEventsScopeClause was the ghost-payload bug. Grouping is already by the pets
+  // column (pets.jurisdictionProvince), so no display repoint is needed.
+  const petsScope = petsScopeClause(ctx);
   const dogsCondition = dogsInScopeCondition(ctx);
 
   // Rabies vaccination event conditions — SAME as fetchRabiesCoverage (regex,
@@ -321,17 +326,9 @@ export async function fetchRabiesCoverageByProvince(
       { since: since12m, until: coverageUntil },
     ),
   ];
-  if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
-  if (ctx.scope.kind === "jurisdictions") {
-    // Whole-province subsumption via the shared clause (critique of PR #762,
-    // finding 7) — the inline exact-pair build here was NOT covered by 7a17ec97.
-    const pairs = jurisdictionPairClause(
-      ctx.scope.jurisdictions,
-      sql`${pets.jurisdictionProvince}`,
-      sql`${pets.jurisdictionLocality}`,
-    );
-    if (pairs) rabiesVaccConditions.push(sql`(${pairs})`);
-  }
+  // Jurisdiction scope on the pet's home columns (petsScopeClause already emits
+  // the whole-province subsumption). Covers govt and the admin province drill-down.
+  if (petsScope) rabiesVaccConditions.push(sql`(${petsScope})`);
   rabiesVaccConditions.push(sql`${pets.species} = ${"dog"}`);
 
   // Per-province total dogs (same dogsCondition as the national KPI).
@@ -422,12 +419,11 @@ export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise
   const since30d = new Date(until.getTime() - 30 * DAY_MS);
   const since60d = new Date(until.getTime() - 60 * DAY_MS);
 
-  const scope = petEventsScopeClause(ctx);
-
   const baseConditions = [eq(petEvents.eventType, "sterilization_performed")];
-  if (scope) baseConditions.push(sql`(${scope})`);
-  // Payload jurisdiction is an event-time snapshot — also require the pet's
-  // CURRENT jurisdiction in scope (scope-security review 2026-07-04 A2).
+  // Jurisdiction scope by the pet's CURRENT home jurisdiction. sterilization_performed
+  // carries no payload jurisdiction snapshot, so the former petEventsScopeClause was
+  // the ghost-payload bug (zeroed every scoped-govt count); the pets guard is the
+  // correct scope and covers govt + admin drill-down (admin-universal → null).
   const petsGuard = petsCurrentJurisdictionGuard(ctx);
   if (petsGuard) baseConditions.push(petsGuard);
 
@@ -558,15 +554,14 @@ export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer
   // Prior 12m window: the 12 months immediately before the current window.
   const since24m = new Date(until.getTime() - 730 * DAY_MS);
 
-  const scope = petEventsScopeClause(ctx);
-
   const baseConditions = [
     eq(petEvents.eventType, "incident_reported"),
     sql`(${petEvents.payload}->>'incident_type') = ${"bite_inflicted"}`,
   ];
-  if (scope) baseConditions.push(sql`(${scope})`);
-  // Payload jurisdiction is an event-time snapshot — also require the pet's
-  // CURRENT jurisdiction in scope (scope-security review 2026-07-04 A2).
+  // Jurisdiction scope by the pet's CURRENT home jurisdiction. incident_reported
+  // carries no payload jurisdiction snapshot, so the former petEventsScopeClause was
+  // the ghost-payload bug (zeroed every scoped-govt count); the pets guard is the
+  // correct scope and covers govt + admin drill-down (admin-universal → null).
   const petsGuard = petsCurrentJurisdictionGuard(ctx);
   if (petsGuard) baseConditions.push(petsGuard);
 
@@ -662,14 +657,15 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
   const since30d = new Date(now - 30 * DAY_MS);
 
   const petsScope = petsScopeClause(ctx);
-  const eventsScope = petEventsScopeClause(ctx);
   const casesScope = casesScopeClause(ctx);
 
-  // Disease reports (handoff P4-3) — scoped + last 30 days, split by
-  // the payload.disease discriminator. The disease_reported arms carry no pets
-  // join (unlike the rabies/bite arms, which scope on pets/cases columns), so
-  // they need the pets-table guard against payload-jurisdiction drift
-  // (scope-security review 2026-07-04 A2).
+  // Event-based arms (disease_reported, rabies_observation_started) carry NO
+  // payload jurisdiction snapshot — only outbreak_signal does. Scope them by the
+  // pet's CURRENT home jurisdiction via the pets guard (EXISTS, no join needed);
+  // the former payload scope was the ghost-payload bug that zeroed these counts
+  // for scoped-govt viewers. The guard covers govt + admin drill-down (admin-
+  // universal → null). The rabies-observation and open-bite arms below scope on
+  // pets/cases columns directly, unchanged.
   const petsGuard = petsCurrentJurisdictionGuard(ctx);
 
   const leptoConditions = [
@@ -677,7 +673,6 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
     sql`(${petEvents.payload}->>'disease') = ${"lepto"}`,
     gte(petEvents.occurredAt, since30d),
   ];
-  if (eventsScope) leptoConditions.push(sql`(${eventsScope})`);
   if (petsGuard) leptoConditions.push(petsGuard);
 
   const hidatConditions = [
@@ -685,7 +680,6 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
     sql`(${petEvents.payload}->>'disease') = ${"hidatidosis"}`,
     gte(petEvents.occurredAt, since30d),
   ];
-  if (eventsScope) hidatConditions.push(sql`(${eventsScope})`);
   if (petsGuard) hidatConditions.push(petsGuard);
 
   // 1. Pets with active rabies observation (status column on pets table).
@@ -724,7 +718,7 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
     eq(petEvents.eventType, "rabies_observation_started"),
     gte(petEvents.occurredAt, since7d),
   ];
-  if (eventsScope) startedThisWeekConditions.push(sql`(${eventsScope})`);
+  if (petsGuard) startedThisWeekConditions.push(petsGuard);
 
   // 4. Last week: rabies_observation_started events in the 7d window before that.
   const startedLastWeekConditions = [
@@ -732,7 +726,7 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
     gte(petEvents.occurredAt, since14d),
     lt(petEvents.occurredAt, since7d),
   ];
-  if (eventsScope) startedLastWeekConditions.push(sql`(${eventsScope})`);
+  if (petsGuard) startedLastWeekConditions.push(petsGuard);
 
   const [rabiesRows, deduplicatedBiteRabiesRows, thisWeekRows, lastWeekRows, leptoRows, hidatRows] =
     await Promise.all([

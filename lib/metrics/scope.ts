@@ -100,8 +100,22 @@ export function petsScopeClause(ctx: ProjectionContext) {
 
 /**
  * Returns a Drizzle SQL clause that restricts a `pet_events`-based query to the
- * viewer's jurisdiction scope, using the JSONB payload fields that event types
- * such as vaccination_administered and incident_reported carry.
+ * viewer's jurisdiction scope, using the JSONB payload fields
+ * `pet_jurisdiction_province` / `pet_jurisdiction_locality`.
+ *
+ * ⚠️ VALID ONLY FOR outbreak_signal-family QUERIES. Those payload keys are a
+ * jurisdiction SNAPSHOT that EXACTLY ONE event type writes: `outbreak_signal`
+ * (emitted by symptom-observed-use-case and record-disease-diagnosis-use-case;
+ * the schema keeps the snapshot so surveillance aggregates hold even if the pet
+ * later moves). NO other event type carries these keys — the insert path enriches
+ * the outbox, not the payload. Applying this clause to a query over any OTHER
+ * event type (vaccination_administered, incident_reported, sterilization_performed,
+ * death_recorded, disease_reported, …) silently evaluates to `false` for every
+ * real row of a scoped govt actor, returning ZERO results (admin/national is
+ * unaffected because the clause resolves to `null`). This is the "ghost-payload"
+ * bug class. For those event types, scope by the pet's home jurisdiction instead:
+ * `petsScopeClause(ctx)` against `.innerJoin(pets, eq(pets.id, petEvents.petId))`
+ * (that join is many-events→one-pet, so it never fans out).
  *
  * - admin, no province → null
  * - admin + province   → payload province (and optionally locality) predicate

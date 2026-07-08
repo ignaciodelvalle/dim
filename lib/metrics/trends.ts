@@ -150,7 +150,11 @@ export async function fetchDeathCausesTrend(ctx: ProjectionContext): Promise<Sta
 
 /**
  * Bite incidents (incident_reported, incident_type='bite_inflicted') grouped by
- * period bucket. Scope via petEventsScopeClause (payload jurisdiction fields).
+ * period bucket. Scope by the pet's HOME jurisdiction via INNER JOIN pets +
+ * petsScopeClause — incident_reported carries NO payload jurisdiction snapshot
+ * (only outbreak_signal does), so petEventsScopeClause would evaluate to `false`
+ * for every scoped-govt row (the "ghost-payload" bug). The join is
+ * many-events→one-pet, so it never fans out the count.
  *
  * KPI tags: trend view of bites_per_10k's numerator (see kpi-catalog.ts) — no
  * census denominator applied here, this is a raw count series. NUMERATOR =
@@ -164,7 +168,7 @@ export async function fetchBitesTrend(ctx: ProjectionContext): Promise<SingleSer
 
   const unit = dateTruncUnit(granularity);
   const bucket = truncBucket(unit);
-  const scope = petEventsScopeClause(ctx);
+  const scope = petsScopeClause(ctx);
   const conditions = [
     eq(petEvents.eventType, "incident_reported"),
     sql`(${petEvents.payload}->>'incident_type') = ${"bite_inflicted"}`,
@@ -179,6 +183,7 @@ export async function fetchBitesTrend(ctx: ProjectionContext): Promise<SingleSer
       n: count(),
     })
     .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
     .where(and(...conditions))
     .groupBy(bucket)
     .orderBy(bucket);
@@ -258,7 +263,11 @@ export async function fetchRabiesVaccinationTrend(
 
   const unit = dateTruncUnit(granularity);
   const bucket = truncBucket(unit);
-  const scope = petEventsScopeClause(ctx);
+  // vaccination_administered carries no payload jurisdiction snapshot — scope by
+  // the pet's HOME jurisdiction (petsScopeClause) against the pets INNER JOIN
+  // already present below. petEventsScopeClause here would be the ghost-payload
+  // bug (evaluates to `false` for every scoped-govt row).
+  const scope = petsScopeClause(ctx);
   const conditions = [
     eq(petEvents.eventType, "vaccination_administered"),
     // Amendment overlay (audit A2): a corrected vaccine_name counts by its
@@ -295,7 +304,14 @@ export async function fetchRabiesVaccinationTrend(
  * This is the generic building block for KPI sparklines introduced in
  * Dashboards vNext Fase 0.  It intentionally mirrors `fetchBitesTrend` and
  * `fetchOutbreakSignalsTrend`: same `truncBucket` helper (injection-safe
- * date_trunc inliner), same `finalizeSingleSeries`, same `petEventsScopeClause`.
+ * date_trunc inliner), same `finalizeSingleSeries`.
+ *
+ * SCOPE (parameterized by eventType): only `outbreak_signal` carries the payload
+ * jurisdiction snapshot, so ONLY that type is scoped via petEventsScopeClause.
+ * Every other eventType is scoped by the pet's HOME jurisdiction (petsScopeClause)
+ * against the pets INNER JOIN always present below — otherwise petEventsScopeClause
+ * would evaluate to `false` for every scoped-govt row (the ghost-payload bug). The
+ * join is many-events→one-pet, so it never fans out the count.
  *
  * Usage:
  *   const trend = await fetchKpiTrend("vaccination_administered", ctx);
@@ -318,7 +334,9 @@ export async function fetchKpiTrend(
 
   const unit = dateTruncUnit(granularity);
   const bucket = truncBucket(unit);
-  const scope = petEventsScopeClause(ctx);
+  // Only outbreak_signal carries the payload jurisdiction snapshot; every other
+  // eventType must scope by the pet's home jurisdiction (ghost-payload bug).
+  const scope = eventType === "outbreak_signal" ? petEventsScopeClause(ctx) : petsScopeClause(ctx);
   const conditions = [
     eq(petEvents.eventType, eventType),
     gte(petEvents.occurredAt, ctx.period.since),
@@ -332,6 +350,7 @@ export async function fetchKpiTrend(
       n: count(),
     })
     .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
     .where(and(...conditions))
     .groupBy(bucket)
     .orderBy(bucket);

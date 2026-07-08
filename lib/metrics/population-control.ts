@@ -38,7 +38,7 @@ import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 
 import type { ProjectionContext } from "./context";
 import { activePetsCondition } from "./population";
-import { petEventsScopeClause, petsScopeClause } from "./scope";
+import { petsScopeClause } from "./scope";
 import type { SingleSeriesTrend } from "./trends";
 import { fetchKpiTrend } from "./trends";
 
@@ -327,7 +327,11 @@ export async function fetchReproductiveOutcomes(
   };
   if (isEmptyScope(ctx)) return empty;
 
-  const scope = petEventsScopeClause(ctx);
+  // clinical_info_logged carries no payload jurisdiction snapshot — scope by the
+  // pet's HOME jurisdiction (petsScopeClause) against the pets INNER JOIN in the
+  // `resolved` derived table below. petEventsScopeClause here would be the
+  // ghost-payload bug (evaluates to `false` for every scoped-govt row).
+  const scope = petsScopeClause(ctx);
 
   const conditions = [
     eq(petEvents.eventType, "clinical_info_logged"),
@@ -460,7 +464,6 @@ export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthR
   if (isEmptyScope(ctx)) return empty;
 
   const scope = petsScopeClause(ctx);
-  const evtScope = petEventsScopeClause(ctx);
 
   // altas: pets created in the period (same scope as activePetsCondition)
   const altasConditions = [
@@ -470,19 +473,17 @@ export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthR
   ];
   if (scope) altasConditions.push(sql`(${scope})`);
 
-  // deaths: death_recorded events in the period, scoped via JOIN to pets.
-  // BOTH scope clauses apply: evtScope guards the event payload jurisdiction, and
-  // the pets-table `scope` guards the pet's CURRENT jurisdiction (the queries
-  // innerJoin pets). Without the pets-side clause a death/birth event whose
-  // payload jurisdiction was in scope but whose pet has since moved out (or whose
-  // payload drifted) leaked into a govt aggregate — the same payload-drift guard
-  // altas already gets via `scope` (C3 / scope-security A2).
+  // deaths: death_recorded events in the period, scoped via JOIN to pets by the
+  // pet's HOME jurisdiction (petsScopeClause). death_recorded carries no payload
+  // jurisdiction snapshot, so the previous petEventsScopeClause term evaluated to
+  // `false` for every scoped-govt row (ghost-payload bug) and zeroed the count.
+  // The pets-table `scope` is the correct jurisdiction guard here (same clause
+  // altas uses); the queries innerJoin pets.
   const deathConditions = [
     eq(petEvents.eventType, "death_recorded"),
     gte(petEvents.occurredAt, ctx.period.since),
     lte(petEvents.occurredAt, ctx.period.until),
   ];
-  if (evtScope) deathConditions.push(sql`(${evtScope})`);
   if (scope) deathConditions.push(sql`(${scope})`);
 
   // registeredBirths: clinical_info_logged pregnancy-ended live_birth in the period.
@@ -497,7 +498,6 @@ export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthR
     gte(petEvents.occurredAt, ctx.period.since),
     lte(petEvents.occurredAt, ctx.period.until),
   ];
-  if (evtScope) birthConditions.push(sql`(${evtScope})`);
   if (scope) birthConditions.push(sql`(${scope})`);
 
   const [altasRows, deathRows, birthRows] = await Promise.all([
@@ -568,14 +568,19 @@ export async function fetchSterilizationNatalidadRatio(
 ): Promise<number | null> {
   if (isEmptyScope(ctx)) return null;
 
-  const evtScope = petEventsScopeClause(ctx);
+  // Neither sterilization_performed nor clinical_info_logged carries a payload
+  // jurisdiction snapshot — scope by the pet's HOME jurisdiction (petsScopeClause)
+  // against the pets INNER JOIN present in both queries below. petEventsScopeClause
+  // here would be the ghost-payload bug (evaluates to `false` for every scoped-govt
+  // row, forcing the ratio to 0/0 → null).
+  const scope = petsScopeClause(ctx);
 
   const sterilConditions = [
     eq(petEvents.eventType, "sterilization_performed"),
     gte(petEvents.occurredAt, ctx.period.since),
     lte(petEvents.occurredAt, ctx.period.until),
   ];
-  if (evtScope) sterilConditions.push(sql`(${evtScope})`);
+  if (scope) sterilConditions.push(sql`(${scope})`);
 
   // AMENDMENT OVERLAY (E3): `outcome` read through amendedPayloadText so a
   // corrected outcome supersedes the ratio denominator too.
@@ -587,7 +592,7 @@ export async function fetchSterilizationNatalidadRatio(
     gte(petEvents.occurredAt, ctx.period.since),
     lte(petEvents.occurredAt, ctx.period.until),
   ];
-  if (evtScope) birthConditions.push(sql`(${evtScope})`);
+  if (scope) birthConditions.push(sql`(${scope})`);
 
   const [sterilRows, birthRows] = await Promise.all([
     db
