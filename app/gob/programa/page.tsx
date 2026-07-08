@@ -51,6 +51,7 @@ import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { createClient } from "@/lib/supabase/server";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -249,7 +250,7 @@ export default async function GobProgramaPage({
         />
         <OpKpi
           label="Esterilización"
-          value={sterilRatePct > 0 ? `${sterilRatePct}%` : "—"}
+          value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
           tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
           sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
           href="/gob/poblacion"
@@ -260,7 +261,7 @@ export default async function GobProgramaPage({
         />
         <OpKpi
           label="Microchip"
-          value={chipRatePct > 0 ? `${chipRatePct}%` : "—"}
+          value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
           tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
           sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
           href="/gob/censo"
@@ -271,7 +272,7 @@ export default async function GobProgramaPage({
         />
         <OpKpi
           label="SLA ENO"
-          value={enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
+          value={enoSla.onTimePct !== null ? formatPercent(enoSla.onTimePct) : "—"}
           tone={enoSlaTone(enoSla)}
           sub={
             enoSla.breachedOpen > 0
@@ -366,7 +367,7 @@ export default async function GobProgramaPage({
                           ? "bg-ln-op-danger-bg/30"
                           : "hover:bg-ln-op-stripe/50 transition-colors",
                       ].join(" ")}
-                      aria-label={`${row.province} — ${METRIC_LABEL[row.metric] ?? row.metric}: ${row.rate}% (meta ${row.target}%)${row.isOutlier ? ", bajo meta" : ""}`}
+                      aria-label={`${row.province} — ${METRIC_LABEL[row.metric] ?? row.metric}: ${formatPercent(row.rate)} (meta ${row.target}%)${row.isOutlier ? ", bajo meta" : ""}`}
                     >
                       <td className="py-2 pr-4">{row.province}</td>
                       <td className="py-2 pr-4 text-ln-op-ink-2">
@@ -377,9 +378,9 @@ export default async function GobProgramaPage({
                           "py-2 pr-4 text-right tabular-nums font-medium",
                           row.isOutlier ? "text-ln-op-danger" : "text-ln-op-verde",
                         ].join(" ")}
-                        aria-label={`Cobertura: ${row.rate}%`}
+                        aria-label={`Cobertura: ${formatPercent(row.rate)}`}
                       >
-                        {row.rate}%
+                        {formatPercent(row.rate)}
                       </td>
                       <td className="py-2 pr-4 text-right tabular-nums text-ln-op-mute">
                         {row.target}%
@@ -391,9 +392,9 @@ export default async function GobProgramaPage({
                         ].join(" ")}
                       >
                         {row.gap > 0
-                          ? `−${row.gap}%`
+                          ? `−${formatPercent(row.gap)}`
                           : row.gap < 0
-                            ? `+${Math.abs(row.gap)}%`
+                            ? `+${formatPercent(Math.abs(row.gap))}`
                             : "—"}
                       </td>
                     </tr>
