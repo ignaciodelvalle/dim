@@ -194,73 +194,475 @@ function seedRun(
 }
 
 // ---------------------------------------------------------------------------
-// Best-effort SQL application via postgres.js (NO psql)
+// SQL application via postgres.js (NO psql)
 // ---------------------------------------------------------------------------
 
 type Sql = ReturnType<typeof postgres>;
 
 /**
- * Detects the `-- dim:no-transaction` opt-out (first five lines) — the same
- * directive scripts/migrate.ts honors. Such files carry statements that cannot
- * run inside a transaction block (CREATE INDEX CONCURRENTLY, ALTER TYPE ADD
- * VALUE); postgres.js wraps a multi-statement string in an implicit transaction,
- * so those must be sent one statement at a time.
+ * Split a SQL script into individual statements, respecting the constructs a
+ * naive `split(";")` would corrupt:
+ *   - dollar-quoted bodies  $$ … $$  and  $tag$ … $tag$  (function/DO bodies,
+ *     whose internal semicolons must NOT terminate the statement)
+ *   - single-quoted strings  '…'  (with the '' escape)
+ *   - double-quoted identifiers  "…"
+ *   - line comments  -- …  and block comments  /* … *​/
+ *
+ * This is the crux of the fresh-provision fix: the old replay sent each whole
+ * migration file to `sql.unsafe(contents)`, wrapping it in ONE implicit
+ * transaction. A single benign "already exists" from an early statement (db:push
+ * built the columns first) rolled the ENTIRE file back — dropping the
+ * CREATE FUNCTION / CREATE TRIGGER we actually needed. That is why only 10/46
+ * functions landed on the first staging deploy. Splitting statement-by-statement
+ * lets each one run in its own autocommit round-trip, so a duplicate on one
+ * statement never discards its siblings.
  */
-function isNoTransaction(contents: string): boolean {
-  return contents.split("\n").slice(0, 5).join("\n").includes("-- dim:no-transaction");
+export function splitSqlStatements(input: string): string[] {
+  const statements: string[] = [];
+  let current = "";
+  let i = 0;
+  const n = input.length;
+  let dollarTag: string | null = null;
+
+  while (i < n) {
+    const ch = input[i];
+
+    if (dollarTag) {
+      if (ch === "$" && input.startsWith(dollarTag, i)) {
+        current += dollarTag;
+        i += dollarTag.length;
+        dollarTag = null;
+      } else {
+        current += ch;
+        i += 1;
+      }
+      continue;
+    }
+
+    // Line comment — copy verbatim to end of line.
+    if (ch === "-" && input[i + 1] === "-") {
+      const nl = input.indexOf("\n", i);
+      const end = nl === -1 ? n : nl;
+      current += input.slice(i, end);
+      i = end;
+      continue;
+    }
+
+    // Block comment — copy verbatim to closing */.
+    if (ch === "/" && input[i + 1] === "*") {
+      const close = input.indexOf("*/", i + 2);
+      const end = close === -1 ? n : close + 2;
+      current += input.slice(i, end);
+      i = end;
+      continue;
+    }
+
+    // Single-quoted string literal ('' escapes an embedded quote).
+    if (ch === "'") {
+      current += ch;
+      i += 1;
+      while (i < n) {
+        if (input[i] === "'" && input[i + 1] === "'") {
+          current += "''";
+          i += 2;
+          continue;
+        }
+        if (input[i] === "'") {
+          current += "'";
+          i += 1;
+          break;
+        }
+        current += input[i];
+        i += 1;
+      }
+      continue;
+    }
+
+    // Double-quoted identifier ("" escapes an embedded quote).
+    if (ch === '"') {
+      current += ch;
+      i += 1;
+      while (i < n) {
+        if (input[i] === '"' && input[i + 1] === '"') {
+          current += '""';
+          i += 2;
+          continue;
+        }
+        if (input[i] === '"') {
+          current += '"';
+          i += 1;
+          break;
+        }
+        current += input[i];
+        i += 1;
+      }
+      continue;
+    }
+
+    // Possible dollar-quote open:  $tag$  where tag is [A-Za-z_][A-Za-z0-9_]* or empty.
+    if (ch === "$") {
+      const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(input.slice(i));
+      if (m) {
+        dollarTag = m[0];
+        current += m[0];
+        i += m[0].length;
+        continue;
+      }
+    }
+
+    // Statement terminator.
+    if (ch === ";") {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) statements.push(trimmed);
+      current = "";
+      i += 1;
+      continue;
+    }
+
+    current += ch;
+    i += 1;
+  }
+
+  const tail = current.trim();
+  if (tail.length > 0) statements.push(tail);
+  return statements;
+}
+
+/** Strip -- and /* *​/ comments so a statement's leading keyword can be classified. */
+export function stripSqlComments(stmt: string): string {
+  return stmt.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "");
 }
 
 /**
- * Apply one SQL file best-effort. Returns true when it applied cleanly, false
- * when it errored (errors are logged, never thrown — the replay tolerates
- * "already exists" because db:push already built the columns). For
- * `-- dim:no-transaction` files, statements are split and sent individually so
- * CONCURRENTLY / ADD VALUE are not bundled into an implicit transaction.
+ * True for a bare transaction-control statement (BEGIN/COMMIT/ROLLBACK/END/
+ * START TRANSACTION). The replay runs each statement in its own autocommit
+ * round-trip, so the explicit BEGIN/COMMIT that wrap several migration files
+ * must be dropped — executing them standalone on a pooled connection would
+ * either no-op with a warning or, worse, leave a lingering aborted transaction.
+ */
+export function isTransactionControl(codeOnly: string): boolean {
+  return /^\s*(begin|start\s+transaction|commit|end|rollback)\s*(work|transaction)?\s*$/i.test(
+    codeOnly,
+  );
+}
+
+/**
+ * SQLSTATEs the migration replay TOLERATES. Two families, both benign under the
+ * db:push-first architecture (step 1 builds the FINAL schema.ts state, then the
+ * whole migration HISTORY replays over it):
+ *
+ * 1. "already exists" — the object a migration would create already exists
+ *    because db:push built it. Re-creating it is a no-op.
+ * 2. "superseded history" — a historical migration references a column/object
+ *    that the FINAL schema removed or renamed (e.g. pets.microchip_id and
+ *    pets.tattoo_code were dropped once canonical id data moved to
+ *    pet_identifications; cases.primary_location_lat was renamed to location_lat).
+ *    db:push is AUTHORITATIVE for every column/table/enum in schema.ts, so a
+ *    reference to a NON-existent column can only mean the final schema moved past
+ *    that step — it can NEVER be a real "missing column" gap (db:push would have
+ *    created it). Tolerating these can only skip an obsolete drop/backfill, never
+ *    remove an app-required object. The independent post-provision verification
+ *    (function/index/trigger/census/grant counts) is the real completeness gate.
+ *
+ * ANYTHING ELSE — syntax (42601), permission (42501), undefined table/function
+ * (42P01/42883), undefined schema (3F000) — is a REAL gap and fails loudly.
+ */
+const TOLERABLE_SQLSTATES = new Set<string>([
+  // Family 1 — already exists
+  "42P07", // duplicate_table (table, index, view, sequence, matview already exists)
+  "42P06", // duplicate_schema
+  "42710", // duplicate_object (constraint, trigger, policy, type, cast, enum value, …)
+  "42701", // duplicate_column
+  "42723", // duplicate_function
+  "42P04", // duplicate_database
+  "23505", // unique_violation (re-inserting reference/seed rows on an idempotent re-run)
+  // Family 2 — superseded history against the db:push final schema
+  "42703", // undefined_column (migration touches a since-removed/renamed column)
+  "42704", // undefined_object (migration drops a constraint/object the final schema lacks)
+  "2BP01", // dependent_objects_still_exist (drop of a column the final schema keeps + depends on)
+]);
+
+interface FatalStatementError {
+  file: string;
+  sqlstate: string;
+  message: string;
+  statement: string;
+}
+
+/**
+ * Replay every migration file statement-by-statement. Tolerates the
+ * "already exists" family (db:push built the columns first); collects EVERY
+ * other error and throws a single consolidated report at the end so the operator
+ * sees the full picture, not just the first failure.
+ *
+ * Returns a summary { applied, tolerated } for logging.
+ */
+async function replayMigrationsStrict(
+  sql: Sql,
+  migrationsDir: string,
+  files: string[],
+): Promise<{ applied: number; tolerated: number }> {
+  let applied = 0;
+  let tolerated = 0;
+  const fatals: FatalStatementError[] = [];
+
+  for (const fileName of files) {
+    const contents = readFileSync(path.join(migrationsDir, fileName), "utf8");
+    const statements = splitSqlStatements(contents);
+    let fileApplied = 0;
+    let fileTolerated = 0;
+
+    for (const stmt of statements) {
+      const codeOnly = stripSqlComments(stmt).trim();
+      if (codeOnly.length === 0) continue; // comment-only chunk
+      if (isTransactionControl(codeOnly)) continue; // drop BEGIN/COMMIT/…
+
+      try {
+        await sql.unsafe(stmt);
+        fileApplied += 1;
+      } catch (err) {
+        const sqlstate = (err as { code?: string }).code ?? "";
+        if (TOLERABLE_SQLSTATES.has(sqlstate)) {
+          fileTolerated += 1;
+          continue;
+        }
+        fatals.push({
+          file: fileName,
+          sqlstate,
+          message: (err as Error).message.split("\n")[0],
+          statement: codeOnly.replace(/\s+/g, " ").slice(0, 160),
+        });
+      }
+    }
+
+    applied += fileApplied;
+    tolerated += fileTolerated;
+    console.log(
+      `  ${fatals.some((f) => f.file === fileName) ? "✗" : "+"} ${fileName} ` +
+        `(${fileApplied} applied, ${fileTolerated} tolerated)`,
+    );
+  }
+
+  if (fatals.length > 0) {
+    console.error(
+      [
+        "",
+        "**********************************************************************",
+        `  FATAL: ${fatals.length} migration statement(s) failed with a NON-tolerable`,
+        "  error. These are real schema gaps (not benign 'already exists') — the",
+        "  provision is aborting so the incomplete schema is never trusted.",
+        "**********************************************************************",
+        ...fatals.map((f) => `    ${f.file} [${f.sqlstate}] ${f.message}\n      → ${f.statement}`),
+        "",
+      ].join("\n"),
+    );
+    throw new Error(`${fatals.length} non-tolerable migration statement error(s).`);
+  }
+
+  return { applied, tolerated };
+}
+
+/**
+ * Apply one LOOSE SQL file (triggers / storage / per-domain RLS) statement-by-
+ * statement, best-effort. These files are authored idempotently (DROP … IF
+ * EXISTS then CREATE, CREATE OR REPLACE), so they replay cleanly; per-statement
+ * execution means a stray failure never discards the rest of the file. Errors
+ * are logged, never thrown.
  */
 async function applySqlFileBestEffort(sql: Sql, filePath: string): Promise<boolean> {
   const contents = readFileSync(filePath, "utf8");
   const label = path.basename(filePath);
+  const statements = splitSqlStatements(contents);
+  let hadError = false;
 
-  if (isNoTransaction(contents)) {
-    // Cannot split dollar-quoted bodies reliably; such statements belong in a
-    // transactional migration. Skip loudly rather than corrupt.
-    if (/\$[A-Za-z_]*\$/.test(contents)) {
-      console.warn(`  ! ${label}: dim:no-transaction + dollar-quoting — skipped (cannot split).`);
-      return false;
+  for (const stmt of statements) {
+    const codeOnly = stripSqlComments(stmt).trim();
+    if (codeOnly.length === 0) continue;
+    if (isTransactionControl(codeOnly)) continue;
+    try {
+      await sql.unsafe(stmt);
+    } catch (err) {
+      hadError = true;
+      console.warn(`  ! ${label}: ${(err as Error).message.split("\n")[0]}`);
     }
-    const statements = contents
-      .split(/;\s*\n/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && s.replace(/--[^\n]*/g, "").trim().length > 0);
-    let hadError = false;
-    for (const stmt of statements) {
-      try {
-        await sql.unsafe(`${stmt};`);
-      } catch (err) {
-        hadError = true;
-        console.warn(`  ! ${label}: ${(err as Error).message.split("\n")[0]}`);
-      }
-    }
-    console.log(`  ${hadError ? "~" : "+"} ${label} [no-transaction]`);
-    return !hadError;
   }
 
-  try {
-    await sql.unsafe(contents);
-    console.log(`  + ${label}`);
-    return true;
-  } catch (err) {
-    // Whole-file rollback (implicit txn) — expected for files whose early
-    // statements duplicate what db:push already created. The functions/triggers
-    // we actually want land from files that use CREATE OR REPLACE / IF NOT
-    // EXISTS and therefore replay cleanly.
-    console.warn(`  ~ ${label}: ${(err as Error).message.split("\n")[0]}`);
-    return false;
+  console.log(`  ${hadError ? "~" : "+"} ${label}`);
+  return !hadError;
+}
+
+// ---------------------------------------------------------------------------
+// Extensions, grants, post-provision verification
+// ---------------------------------------------------------------------------
+
+// Extensions the migrations + indexes depend on. The first four MUST exist
+// (pg_trgm/unaccent for search, pgcrypto/uuid-ossp for id + hashing helpers);
+// db:push does not create them and migration 0070 assumes unaccent is present.
+const REQUIRED_EXTENSIONS = ["pg_trgm", "unaccent", "pgcrypto", "uuid-ossp"] as const;
+// Platform-managed on hosted Supabase; best-effort locally (may be unavailable).
+const PLATFORM_EXTENSIONS = ["pg_graphql", "pg_net"] as const;
+
+async function applyExtensions(sql: Sql): Promise<void> {
+  for (const ext of REQUIRED_EXTENSIONS) {
+    try {
+      await sql.unsafe(`create extension if not exists "${ext}";`);
+      console.log(`  + ${ext}`);
+    } catch (err) {
+      // Required extensions failing is fatal — surfaced here and re-checked in
+      // the post-provision verification.
+      console.error(`  ✗ ${ext}: ${(err as Error).message.split("\n")[0]}`);
+    }
+  }
+  for (const ext of PLATFORM_EXTENSIONS) {
+    try {
+      await sql.unsafe(`create extension if not exists "${ext}";`);
+      console.log(`  + ${ext} (platform)`);
+    } catch {
+      console.warn(`  ~ ${ext}: unavailable (platform-only) — skipped.`);
+    }
   }
 }
 
+/**
+ * Apply Supabase's default public-schema grants. `db:push` (drizzle) creates
+ * tables WITHOUT them, so storage RLS policies that reference public tables fail
+ * with "permission denied for table …" for the authenticated role. This
+ * reproduces the grants the Supabase platform normally applies. Best-effort per
+ * statement — the post-provision verification re-checks and fails loud if short.
+ */
+async function applySchemaGrants(sql: Sql): Promise<void> {
+  const grants = [
+    "grant usage on schema public to anon, authenticated, service_role;",
+    "grant all on all tables in schema public to anon, authenticated, service_role;",
+    "grant all on all sequences in schema public to anon, authenticated, service_role;",
+    "grant all on all functions in schema public to anon, authenticated, service_role;",
+    "alter default privileges in schema public grant all on tables to anon, authenticated, service_role;",
+    "alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;",
+    "alter default privileges in schema public grant all on functions to anon, authenticated, service_role;",
+  ];
+  for (const stmt of grants) {
+    try {
+      await sql.unsafe(stmt);
+      console.log(`  + ${stmt.split(" ").slice(0, 6).join(" ")}…`);
+    } catch (err) {
+      console.warn(`  ! grant failed: ${(err as Error).message.split("\n")[0]}`);
+    }
+  }
+}
+
+// Manifest minimums — floors measured against the local reference DB (which has
+// 46 functions / 239 indexes / 9 triggers / 24 census rows / 329 authenticated
+// grants) and set safely below those actuals so benign drift passes but a gross
+// shortfall (the first staging deploy landed only 10/46 functions) fails loud.
+const VERIFICATION_MINIMUMS = {
+  functions: 40,
+  indexes: 200,
+  triggers: 8,
+  census: 24,
+  authenticatedGrants: 50,
+} as const;
+
+interface VerificationReport {
+  functions: number;
+  indexes: number;
+  triggers: number;
+  tables: number;
+  census: number;
+  extensionsPresent: string[];
+  extensionsMissing: string[];
+  authenticatedGrants: number;
+  schemaUsageAuthenticated: boolean;
+  storagePolicies: number;
+  shortfalls: string[];
+}
+
+async function verifyProvision(sql: Sql): Promise<VerificationReport> {
+  const one = async (query: Promise<{ n: number }[]>): Promise<number> => (await query)[0]?.n ?? 0;
+
+  const functions = await one(
+    sql`select count(*)::int as n from pg_proc p join pg_namespace nsp on nsp.oid = p.pronamespace where nsp.nspname = 'public'`,
+  );
+  const indexes = await one(
+    sql`select count(*)::int as n from pg_indexes where schemaname = 'public'`,
+  );
+  const triggers = await one(
+    sql`select count(*)::int as n from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace nsp on nsp.oid = c.relnamespace where nsp.nspname = 'public' and not t.tgisinternal`,
+  );
+  const tables = await one(
+    sql`select count(*)::int as n from pg_tables where schemaname = 'public'`,
+  );
+  const census = await one(sql`select count(*)::int as n from public.jurisdictions_census`).catch(
+    () => 0,
+  );
+  const extRows = (await sql`select extname from pg_extension`) as { extname: string }[];
+  const extPresent = new Set(extRows.map((r) => r.extname));
+  const extensionsMissing = REQUIRED_EXTENSIONS.filter((e) => !extPresent.has(e));
+  const extensionsPresent = REQUIRED_EXTENSIONS.filter((e) => extPresent.has(e));
+  const authenticatedGrants = await one(
+    sql`select count(*)::int as n from information_schema.role_table_grants where table_schema = 'public' and grantee = 'authenticated'`,
+  );
+  const usageRows =
+    (await sql`select has_schema_privilege('authenticated', 'public', 'USAGE') as usage`) as {
+      usage: boolean;
+    }[];
+  const schemaUsageAuthenticated = usageRows[0]?.usage ?? false;
+  const storagePolicies = await one(
+    sql`select count(*)::int as n from pg_policies where schemaname = 'storage'`,
+  ).catch(() => 0);
+
+  const shortfalls: string[] = [];
+  if (functions < VERIFICATION_MINIMUMS.functions)
+    shortfalls.push(`functions ${functions} < ${VERIFICATION_MINIMUMS.functions}`);
+  if (indexes < VERIFICATION_MINIMUMS.indexes)
+    shortfalls.push(`indexes ${indexes} < ${VERIFICATION_MINIMUMS.indexes}`);
+  if (triggers < VERIFICATION_MINIMUMS.triggers)
+    shortfalls.push(`triggers ${triggers} < ${VERIFICATION_MINIMUMS.triggers}`);
+  if (census < VERIFICATION_MINIMUMS.census)
+    shortfalls.push(`jurisdictions_census ${census} < ${VERIFICATION_MINIMUMS.census}`);
+  if (extensionsMissing.length > 0)
+    shortfalls.push(`missing extensions: ${extensionsMissing.join(", ")}`);
+  if (!schemaUsageAuthenticated)
+    shortfalls.push("authenticated lacks USAGE on schema public (grants not applied)");
+  if (authenticatedGrants < VERIFICATION_MINIMUMS.authenticatedGrants)
+    shortfalls.push(
+      `authenticated table grants ${authenticatedGrants} < ${VERIFICATION_MINIMUMS.authenticatedGrants}`,
+    );
+
+  return {
+    functions,
+    indexes,
+    triggers,
+    tables,
+    census,
+    extensionsPresent,
+    extensionsMissing,
+    authenticatedGrants,
+    schemaUsageAuthenticated,
+    storagePolicies,
+    shortfalls,
+  };
+}
+
+function printVerificationReport(r: VerificationReport): void {
+  console.log("  POST-PROVISION VERIFICATION");
+  console.log(
+    `    public functions      : ${r.functions} (min ${VERIFICATION_MINIMUMS.functions})`,
+  );
+  console.log(`    public indexes        : ${r.indexes} (min ${VERIFICATION_MINIMUMS.indexes})`);
+  console.log(`    public triggers       : ${r.triggers} (min ${VERIFICATION_MINIMUMS.triggers})`);
+  console.log(`    public tables         : ${r.tables}`);
+  console.log(`    jurisdictions_census  : ${r.census} (min ${VERIFICATION_MINIMUMS.census})`);
+  console.log(
+    `    extensions present    : ${r.extensionsPresent.join(", ") || "(none)"}${r.extensionsMissing.length ? ` — MISSING: ${r.extensionsMissing.join(", ")}` : ""}`,
+  );
+  console.log(
+    `    schema grants (authn) : USAGE=${r.schemaUsageAuthenticated} tableGrants=${r.authenticatedGrants} (min ${VERIFICATION_MINIMUMS.authenticatedGrants})`,
+  );
+  console.log(`    storage policies      : ${r.storagePolicies} (informational)`);
+}
+
 // The loose orthogonal SQL, in dependency order. RLS files are applied AFTER
-// the migration replay (step 2) so can_read_case() and friends already exist.
+// the migration replay so can_read_case() and friends already exist.
 // db/rls.sql is deliberately omitted (see header).
 const LOOSE_SQL_ORDER = [
   "db/triggers.sql",
@@ -285,7 +687,7 @@ async function main(): Promise<void> {
     .sort();
 
   // ---- Step 1 — drizzle-kit push -------------------------------------------
-  header("Step 1/5 — drizzle-kit push (schema.ts → remote DB)");
+  header("Step 1/8 — drizzle-kit push (schema.ts → remote DB)");
   if (DRY_RUN) {
     console.log("  WOULD run: pnpm db:push (CI=true)");
   } else if (!pnpmRun("db:push", [], { CI: "true" })) {
@@ -293,29 +695,62 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // ---- Step 2 — replay migrations (best-effort) ----------------------------
-  header(`Step 2/5 — replay ${migrationFiles.length} db/migrations/*.sql (best-effort)`);
-  console.log("(benign 'already exists' errors are expected — step 1 created the columns)\n");
   if (DRY_RUN) {
+    header("Step 2/8 — create required extensions");
+    for (const ext of [...REQUIRED_EXTENSIONS, ...PLATFORM_EXTENSIONS]) {
+      console.log(`  WOULD run: create extension if not exists "${ext}"`);
+    }
+    header(`Step 3/8 — replay ${migrationFiles.length} db/migrations/*.sql (statement-strict)`);
     console.log(`  WOULD replay ${migrationFiles.length} migration file(s) via postgres.js.`);
-    header("Step 3/5 — apply loose db/*.sql (triggers, storage, RLS)");
+    header("Step 4/8 — apply loose db/*.sql (triggers, storage, RLS)");
     for (const sqlPath of LOOSE_SQL_ORDER) {
       console.log(`  WOULD apply ${sqlPath}${existsSync(sqlPath) ? "" : " (MISSING)"}`);
     }
+    header("Step 5/8 — apply Supabase default public-schema grants");
+    console.log(
+      "  WOULD grant usage/all + alter default privileges to anon, authenticated, service_role",
+    );
     console.log("  WOULD run: NOTIFY pgrst, 'reload schema'");
+    header("Step 6/8 — post-provision verification");
+    console.log(
+      "  WOULD count functions/indexes/triggers/census/extensions/grants and FAIL if short.",
+    );
   } else {
     const sql = postgres(DB_URL, { prepare: false, max: 1, onnotice: () => {} });
     try {
-      let clean = 0;
-      for (const fileName of migrationFiles) {
-        if (await applySqlFileBestEffort(sql, path.join(migrationsDir, fileName))) clean += 1;
-      }
+      // ---- Step 2 — required extensions (before the replay uses them) ------
+      header("Step 2/8 — create required extensions");
+      await applyExtensions(sql);
+
+      // ---- Step 3 — replay migrations (statement-strict) ------------------
+      header(`Step 3/8 — replay ${migrationFiles.length} db/migrations/*.sql (statement-strict)`);
       console.log(
-        `\nMigrations replayed: ${clean}/${migrationFiles.length} clean (non-clean files are tolerated — see header).`,
+        "(benign 'already exists' statements are tolerated; any OTHER error fails the provision)\n",
+      );
+      // Pre-create the migration ledger BEFORE the replay so migration 0113
+      // (ALTER TABLE public._dim_migrations ENABLE ROW LEVEL SECURITY) applies
+      // instead of failing with undefined_table — the ledger is otherwise only
+      // created by the baseline step (step 7), which runs AFTER this replay.
+      // Mirrors ensureTrackingTable() in scripts/migrate.ts; idempotent.
+      await sql.unsafe(
+        `create table if not exists public._dim_migrations (
+           filename   text primary key,
+           checksum   text not null,
+           applied_at timestamptz not null default now()
+         );`,
+      );
+      await sql.unsafe("alter table public._dim_migrations enable row level security;");
+      const { applied, tolerated } = await replayMigrationsStrict(
+        sql,
+        migrationsDir,
+        migrationFiles,
+      );
+      console.log(
+        `\nMigration replay: ${applied} statement(s) applied, ${tolerated} tolerated (already-exists).`,
       );
 
-      // ---- Step 3 — loose orthogonal SQL (best-effort) ---------------------
-      header("Step 3/5 — apply loose db/*.sql (triggers, storage, RLS)");
+      // ---- Step 4 — loose orthogonal SQL (best-effort) ---------------------
+      header("Step 4/8 — apply loose db/*.sql (triggers, storage, RLS)");
       for (const sqlPath of LOOSE_SQL_ORDER) {
         if (!existsSync(sqlPath)) {
           console.warn(`  SKIP: ${sqlPath} not present.`);
@@ -323,6 +758,10 @@ async function main(): Promise<void> {
         }
         await applySqlFileBestEffort(sql, sqlPath);
       }
+
+      // ---- Step 5 — Supabase default public-schema grants -----------------
+      header("Step 5/8 — apply Supabase default public-schema grants");
+      await applySchemaGrants(sql);
 
       // Tell PostgREST to refresh its schema cache so RPCs/columns added post
       // startup become visible without a stack restart.
@@ -332,13 +771,36 @@ async function main(): Promise<void> {
       } catch {
         /* best-effort */
       }
+
+      // ---- Step 6 — post-provision verification (FAIL if short) -----------
+      header("Step 6/8 — post-provision verification");
+      const report = await verifyProvision(sql);
+      printVerificationReport(report);
+      if (report.shortfalls.length > 0) {
+        console.error(
+          [
+            "",
+            "**********************************************************************",
+            "  FATAL: post-provision verification found an INCOMPLETE schema.",
+            "  The provisioner did not land everything a fresh deploy needs —",
+            "  aborting before baseline/seeds so the gap is never trusted.",
+            "**********************************************************************",
+            ...report.shortfalls.map((s) => `    - ${s}`),
+            "",
+          ].join("\n"),
+        );
+        throw new Error(
+          `post-provision verification failed: ${report.shortfalls.length} shortfall(s).`,
+        );
+      }
+      console.log("\n  ✓ verification passed — schema is complete.");
     } finally {
       await sql.end({ timeout: 5 });
     }
   }
 
-  // ---- Step 4 — baseline the migration ledger ------------------------------
-  header("Step 4/5 — baseline public._dim_migrations (so db:migrate is a no-op)");
+  // ---- Step 7 — baseline the migration ledger ------------------------------
+  header("Step 7/8 — baseline public._dim_migrations (so db:migrate is a no-op)");
   if (DRY_RUN) {
     console.log("  WOULD run: pnpm db:migrate:baseline");
   } else if (!pnpmRun("db:migrate:baseline")) {
@@ -346,13 +808,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // ---- Step 5 — seed reference data + accounts -----------------------------
+  // ---- Step 8 — seed reference data + accounts -----------------------------
   if (NO_SEEDS) {
-    console.log("\n--no-seeds / --schema-only: stopping after step 4.");
+    console.log("\n--no-seeds / --schema-only: stopping after step 7.");
     return;
   }
 
-  header("Step 5/5 — seed reference data + accounts");
+  header("Step 8/8 — seed reference data + accounts");
 
   // seed-test-users reads NEXT_PUBLIC_SUPABASE_URL; accept SUPABASE_URL as an
   // alias so the operator only has to export one name.
