@@ -218,6 +218,18 @@ export async function getPanoramaKpis(
     adminLocality,
   });
 
+  // task #78 Part 3 — the ministry-credibility "both numbers" for the cobertura
+  // tile: the SAME ctx narrowed to vet-signed doses only (firmado por matrícula).
+  // The tile's headline value stays TOTAL coverage; this signed figure rides in
+  // the tile `sub` so the operator sees, at a glance, how much of the coverage is
+  // backed by a matriculated signature. Numerator-only narrowing (never widens
+  // scope) — the signed number is always ≤ the total.
+  const verifiedCtx = buildProjectionContext(actor, jurisdictions, period, {
+    adminProvince,
+    adminLocality,
+    verifiedOnly: true,
+  });
+
   // map-QOL period-over-period: the SAME window-sensitive fetchers run once
   // more against the immediately-prior window (identical scope) so the deltas
   // are parity-true by construction. Only the 3 window-sensitive metrics get a
@@ -268,6 +280,9 @@ export async function getPanoramaKpis(
     fetchActiveZoonosis(priorCtx),
     // Freshness: newest scoped ingest event (map-QOL freshness chip).
     lastIngestAt(ctx),
+    // task #78 Part 3: signed-only (firmado por matrícula) rabies coverage for the
+    // cobertura tile's "both numbers" sub-line.
+    fetchRabiesCoverage(verifiedCtx),
   ]);
 
   // Any fetcher rejected → the strip cannot be built with parity. Log every
@@ -294,6 +309,8 @@ export async function getPanoramaKpis(
   const priorBites = value(settled[8]);
   const priorZoonosis = value(settled[9]);
   const ingestAt = value(settled[10]);
+  // task #78 Part 3: signed-only coverage (firmado por matrícula) for the sub-line.
+  const coverageSigned = value(settled[11]);
 
   // Display order (legal-analysis intake 2026-07-03, metric reorientation):
   // the two legally-grounded compliance coverages lead — antirrábica
@@ -304,10 +321,13 @@ export async function getPanoramaKpis(
     {
       id: "cobertura",
       label: "Cobertura antirrábica (perros, 12m)",
+      // Headline value = TOTAL coverage. The firmado-por-matrícula share rides in
+      // `sub` (task #78 Part 3) so the ministry sees how much is backed by a
+      // matriculated signature without the toggle changing the headline.
       value: formatPercent(coverage.current),
-      sub: `meta ${coverage.target}% · ${coverage.partidos} ${
-        coverage.partidos === 1 ? "partido" : "partidos"
-      }`,
+      sub: `${formatPercent(coverageSigned.current)} firmado por matrícula · meta ${coverage.target}% · ${
+        coverage.partidos
+      } ${coverage.partidos === 1 ? "partido" : "partidos"}`,
       bar: coverage.current,
       tone: coverage.current >= coverage.target ? "ok" : "warn",
       href: "/gob/analytics",
@@ -319,7 +339,7 @@ export async function getPanoramaKpis(
         formula:
           "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros activos",
         caveat:
-          "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema.",
+          "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. «Firmado por matrícula» es la porción firmada por un veterinario matriculado (author_role='vet', verificado) — la parte que el registro oficial cuenta como «al día».",
       },
     },
     {

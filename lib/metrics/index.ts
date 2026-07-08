@@ -29,6 +29,7 @@ export { activePetsCondition, dogsInScopeCondition, petEventsInScopeCondition } 
 export {
   RABIES_VACCINE_NAME_REGEX,
   rabiesCurrentlyValidCondition,
+  rabiesSignedByMatriculaCondition,
   rabiesVaccinatedExists,
 } from "./rabies";
 

@@ -330,6 +330,26 @@ export function PanoramaConsole({
   const levelRef = useRef(level);
   levelRef.current = level;
 
+  // task #78 Part 3: the "solo firmado por matrícula" toggle. Data-affecting (it
+  // narrows the cobertura numerator to vet-signed doses), so it is URL-encoded
+  // like `level` (?verified=1) — a shared/restored board reproduces it. Seeded
+  // from the URL on mount. Only the cobertura layer honors it; every other layer
+  // and the KPI strip ignore it (the KPI tile already shows BOTH numbers).
+  const [verifiedOnly, setVerifiedOnly] = useState<boolean>(
+    () => searchParams.get("verified") === "1",
+  );
+  const verifiedRef = useRef(verifiedOnly);
+  verifiedRef.current = verifiedOnly;
+
+  // Set/clear the `verified` query param for a layer fetch: ONLY the cobertura
+  // layer carries it (the toggle is rabies-specific), and only while the toggle
+  // is on. Kept as a ref-read so every fetch site (level change, scope refetch,
+  // toggle-on) threads the SAME live value without re-subscribing.
+  const applyVerifiedParam = useCallback((params: URLSearchParams, id: LayerId) => {
+    if (id === "cobertura" && verifiedRef.current) params.set("verified", "1");
+    else params.delete("verified");
+  }, []);
+
   // panorama-ia-v2 §1.1: the aggregation level is no longer a manual control
   // (AggregationToggle was removed). It is DERIVED from (scope, zoom): scope
   // selection or zooming past Z_LOCALITY drills the map to the locality mark,
@@ -547,6 +567,7 @@ export function PanoramaConsole({
         const params = new URLSearchParams(currentQs);
         if (currentLevel === "province") params.set("level", "province");
         else if (isAggregatedPointLayer(l.id)) params.set("level", "locality");
+        applyVerifiedParam(params, l.id);
         try {
           const res = await fetch(
             `/api/panorama/${l.id}${params.toString() ? `?${params.toString()}` : ""}`,
@@ -580,7 +601,7 @@ export function PanoramaConsole({
         }
       }),
     ).then(() => setLevelVersion((v) => v + 1));
-  }, [scopePeriodQs, signalFor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scopePeriodQs, signalFor, applyVerifiedParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When the as-of moves, refetch the ACTIVE TEMPORAL layers at that instant and
   // repaint. Non-temporal layers are not refetched (they are dimmed instead).
@@ -833,6 +854,7 @@ export function PanoramaConsole({
     async (id: LayerId, lvl: AggregationLevel): Promise<ApiResponse | null> => {
       const params = new URLSearchParams(searchParams.toString());
       if (lvl === "province") params.set("level", "province");
+      applyVerifiedParam(params, id);
       try {
         const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
           headers: { accept: "application/json" },
@@ -851,7 +873,7 @@ export function PanoramaConsole({
         return null;
       }
     },
-    [searchParams, signalFor],
+    [searchParams, signalFor, applyVerifiedParam],
   );
 
   // map-QOL: fetch a set of layers into the right caches at a given aggregation
@@ -870,6 +892,7 @@ export function PanoramaConsole({
           const levelSensitive = CHOROPLETH_IDS.has(id) || isAggregatedPointLayer(id);
           if (levelSensitive && lvl === "province") params.set("level", "province");
           else if (isAggregatedPointLayer(id)) params.set("level", "locality");
+          applyVerifiedParam(params, id);
           try {
             const qsStr = params.toString();
             const res = await fetch(`/api/panorama/${id}${qsStr ? `?${qsStr}` : ""}`, {
@@ -915,7 +938,7 @@ export function PanoramaConsole({
       );
       setLevelVersion((v) => v + 1);
     },
-    [signalFor],
+    [signalFor, applyVerifiedParam],
   );
 
   // Switch the aggregation axis. Refetch the ACTIVE choropleth layers AND the
@@ -972,6 +995,49 @@ export function PanoramaConsole({
     },
     [fetchChoroplethAt],
   );
+
+  // task #78 Part 3: flip the "solo firmado por matrícula" toggle. ONLY the
+  // cobertura layer is affected — the vet-signed numerator differs from the
+  // all-doses one, so every cached cobertura feature set is stale. Drop them and
+  // refetch the active cobertura at the current level with the new definition.
+  // The URL-sync effect encodes ?verified into the board; the KPI strip is NOT
+  // refetched (its cobertura tile already shows BOTH total and firmado numbers).
+  const onToggleVerified = useCallback(() => {
+    const next = !verifiedRef.current;
+    verifiedRef.current = next;
+    setVerifiedOnly(next);
+
+    dataRef.current.delete("cobertura");
+    provinceDataRef.current.delete("cobertura");
+    asOfDataRef.current.delete("cobertura");
+
+    if (!statesRef.current.cobertura?.active) return;
+
+    const lvl = levelRef.current;
+    setStates((s) => ({ ...s, cobertura: { ...s.cobertura, loading: true } }));
+    void (async () => {
+      let body: ApiResponse | null;
+      try {
+        body = await fetchChoroplethAt("cobertura", lvl);
+      } catch (err) {
+        // Superseded fetch — the newer request owns the layer state now.
+        if (isAbortError(err)) return;
+        body = null;
+      }
+      setStates((s) => ({
+        ...s,
+        cobertura: {
+          ...s.cobertura,
+          loading: false,
+          count: body?.features.features.length ?? s.cobertura.count,
+          suppressedCount: body?.suppressedCount ?? 0,
+          noLocalityCount: body?.noLocalityCount ?? 0,
+          truncated: body?.truncated ?? false,
+        },
+      }));
+      setLevelVersion((v) => v + 1);
+    })();
+  }, [fetchChoroplethAt]);
 
   /**
    * F2: Recompute compatibility hints for all INACTIVE layers given the
@@ -1151,6 +1217,7 @@ export function PanoramaConsole({
       try {
         const params = new URLSearchParams(searchParams.toString());
         if (isAggregatedPointLayer(id)) params.set("level", levelRef.current);
+        applyVerifiedParam(params, id);
         const qs = params.toString();
         const res = await fetch(`/api/panorama/${id}${qs ? `?${qs}` : ""}`, {
           headers: { accept: "application/json" },
@@ -1189,7 +1256,16 @@ export function PanoramaConsole({
         }));
       }
     },
-    [searchParams, states, asOf, fetchAsOfFor, fetchChoroplethAt, computeHints, signalFor],
+    [
+      searchParams,
+      states,
+      asOf,
+      fetchAsOfFor,
+      fetchChoroplethAt,
+      computeHints,
+      signalFor,
+      applyVerifiedParam,
+    ],
   );
 
   // F3: active preset — null when the operator is in manual "modo avanzado".
@@ -1373,11 +1449,14 @@ export function PanoramaConsole({
     else params.delete("level");
     if (activePresetId !== null) params.set("preset", activePresetId);
     else params.delete("preset");
+    // task #78 Part 3: encode the vet-signed toggle so a shared board reproduces it.
+    if (verifiedOnly) params.set("verified", "1");
+    else params.delete("verified");
     if (params.toString() === before) return;
     const qsStr = params.toString();
     replaceMapStateUrl(`${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`);
     saveBoard(params);
-  }, [activeLayersKey, level, activePresetId]);
+  }, [activeLayersKey, level, activePresetId, verifiedOnly]);
 
   // map-QOL mount effect (runs once): resolve the initial board.
   // (a) URL carries `layers` → fetch whatever the server didn't seed.
@@ -1781,6 +1860,8 @@ export function PanoramaConsole({
               scrubbing={scrubbing}
               opacities={opacities}
               onOpacity={onOpacity}
+              verifiedOnly={verifiedOnly}
+              onToggleVerified={onToggleVerified}
             />
           </section>
         </div>

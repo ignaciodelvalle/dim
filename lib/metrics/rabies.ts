@@ -80,6 +80,29 @@ export function rabiesCurrentlyValidCondition(
 }
 
 /**
+ * The SINGLE definition of "this dose was signed by a matriculated veterinarian".
+ *
+ * `author_role = 'vet' AND author_verified = true` — the SAME predicate the
+ * event-confidence model uses for its `professional_verified` tier
+ * (lib/events/event-confidence.ts) and that lib/domain/provenance.ts coarsens
+ * into the `firmado_matricula` provenance tier. Every rabies numerator site that
+ * honors the panorama "solo firmado por matrícula" toggle (task #78 Part 3)
+ * references THIS helper, so the locality choropleth, the province choropleth and
+ * the national KPI can never drift on what "firmado por matrícula" means.
+ *
+ * Takes the author columns as SQL refs so it works under ANY table alias: the
+ * EXISTS subquery aliases pet_events as `pe_rabies`, while the JOIN-shaped
+ * fetchers (fetchRabiesCoverage / fetchRabiesCoverageByProvince) reference the
+ * `pet_events` table columns directly.
+ *
+ * @param authorRoleRef     SQL ref to the event's author_role column.
+ * @param authorVerifiedRef SQL ref to the event's author_verified column.
+ */
+export function rabiesSignedByMatriculaCondition(authorRoleRef: SQL, authorVerifiedRef: SQL): SQL {
+  return sql`(${authorRoleRef} = 'vet' AND ${authorVerifiedRef} = true)`;
+}
+
+/**
  * EXISTS predicate: the pet referenced by `petIdRef` has at least one
  * `vaccination_administered` event whose amended vaccine_name matches
  * RABIES_VACCINE_NAME_REGEX and that is CURRENTLY VALID as of `window.until`
@@ -94,13 +117,30 @@ export function rabiesCurrentlyValidCondition(
  * @param petIdRef SQL reference to the outer pet id (e.g. `sql`${pets.id}``).
  * @param window   Fixed trailing-12m window { since, until } (see
  *                 rabiesCurrentlyValidCondition).
+ * @param opts.signedOnly When true, additionally require the dose to be signed by
+ *                 a matriculated vet (rabiesSignedByMatriculaCondition) — the
+ *                 panorama "solo firmado por matrícula" numerator narrowing.
+ *                 Defaults to false (every recorded dose counts).
  */
-export function rabiesVaccinatedExists(petIdRef: SQL, window: { since: Date; until: Date }): SQL {
+export function rabiesVaccinatedExists(
+  petIdRef: SQL,
+  window: { since: Date; until: Date },
+  opts: { signedOnly?: boolean } = {},
+): SQL {
+  // Optional narrowing to vet-signed doses (task #78 Part 3). The clause is aliased
+  // to the subquery's pe_rabies and goes through the SHARED helper so this locality
+  // numerator, the province breakdown and the national KPI stay defined in ONE place.
+  const signedClause = opts.signedOnly
+    ? sql` AND ${rabiesSignedByMatriculaCondition(
+        sql`pe_rabies.author_role`,
+        sql`pe_rabies.author_verified`,
+      )}`
+    : sql``;
   return sql`EXISTS (
     SELECT 1 FROM ${petEvents} pe_rabies
     WHERE pe_rabies.pet_id = ${petIdRef}
       AND pe_rabies.event_type = 'vaccination_administered'
       AND (${amendedPayloadText("vaccine_name", { id: sql`pe_rabies.id`, payload: sql`pe_rabies.payload` })}) ~* ${RABIES_VACCINE_NAME_REGEX}
-      AND ${rabiesCurrentlyValidCondition(sql`pe_rabies.occurred_at`, sql`pe_rabies.payload->>'next_due_at'`, window)}
+      AND ${rabiesCurrentlyValidCondition(sql`pe_rabies.occurred_at`, sql`pe_rabies.payload->>'next_due_at'`, window)}${signedClause}
   )`;
 }

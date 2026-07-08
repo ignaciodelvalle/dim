@@ -269,7 +269,9 @@ describe("getPanoramaKpis", () => {
   it("runs the prior window IMMEDIATELY before the active one, same length and scope", async () => {
     await getPanoramaKpis({ role: "admin" }, [], period);
 
-    expect(fetchRabiesCoverage).toHaveBeenCalledTimes(2);
+    // Three calls: current ctx, prior-window ctx, and the verifiedOnly ctx for the
+    // "firmado por matrícula" sub (task #78 Part 3). Prior is call index 1.
+    expect(fetchRabiesCoverage).toHaveBeenCalledTimes(3);
     const priorCtx = vi.mocked(fetchRabiesCoverage).mock.calls[1][0];
     // The prior window ends exactly where the active one starts…
     expect(priorCtx.period.until).toEqual(period.since);
@@ -279,6 +281,34 @@ describe("getPanoramaKpis", () => {
     expect(Math.round(priorLen / 86_400_000)).toBe(Math.round(currentLen / 86_400_000));
     // Scope is identical (no widening in the comparison run).
     expect(priorCtx.scope).toEqual(vi.mocked(fetchRabiesCoverage).mock.calls[0][0].scope);
+  });
+
+  // ---------------------------------------------------------------------------
+  // task #78 Part 3 — the ministry "both numbers": total coverage as the headline,
+  // firmado-por-matrícula share in the sub, via a SECOND verifiedOnly ctx.
+  // ---------------------------------------------------------------------------
+
+  it("computes a signed-only (verifiedOnly) coverage and surfaces it in the cobertura sub", async () => {
+    vi.mocked(fetchRabiesCoverage)
+      .mockResolvedValueOnce({ current: 41.3, target: 80, partidos: 12, hasData: true }) // total ctx
+      .mockResolvedValueOnce({ current: 39, target: 80, partidos: 12, hasData: true }) // prior ctx
+      .mockResolvedValueOnce({ current: 28.9, target: 80, partidos: 12, hasData: true }); // verified ctx
+
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const cobertura = kpis.find((k) => k.id === "cobertura")!;
+
+    // The headline value/bar stay TOTAL coverage.
+    expect(cobertura.value).toBe("41,3%");
+    expect(cobertura.bar).toBe(41.3);
+    // The firmado-por-matrícula share rides in the sub alongside the meta.
+    expect(cobertura.sub).toContain("28,9% firmado por matrícula");
+    expect(cobertura.sub).toContain("meta 80%");
+
+    // A THIRD fetch runs with a verifiedOnly ctx — numerator-only, never widening scope.
+    expect(fetchRabiesCoverage).toHaveBeenCalledTimes(3);
+    const verifiedCtx = vi.mocked(fetchRabiesCoverage).mock.calls[2][0];
+    expect(verifiedCtx.verifiedOnly).toBe(true);
+    expect(verifiedCtx.scope).toEqual(vi.mocked(fetchRabiesCoverage).mock.calls[0][0].scope);
   });
 
   it("surfaces the freshness timestamp as an ISO string (null-safe)", async () => {

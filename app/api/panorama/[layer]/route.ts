@@ -76,6 +76,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
   // value can only choose between the two safe levels — never widen scope.
   const level = url.searchParams.get("level") === "province" ? "province" : "locality";
 
+  // task #78 Part 3: the "solo firmado por matrícula" toggle. A crafted `?verified=1`
+  // can ONLY narrow the rabies-coverage numerator to vet-signed doses — it never
+  // widens scope, k-anon or auth (all enforced below/inside the loader). Honored by
+  // the `cobertura` layer only; every other layer ignores it.
+  const verifiedOnly = url.searchParams.get("verified") === "1";
+
   // Resolve the selected province/locality once — shared by govt scope-narrowing
   // and admin drill-down below.
   const provinceObj = provinceIso ? provinceByCode(provinceIso) : null;
@@ -133,6 +139,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
         adminProvince,
         adminLocality,
         pointsMode,
+        verifiedOnly,
       ),
       LAYER_BUDGET_MS,
       `GET /api/panorama/${layer}`,

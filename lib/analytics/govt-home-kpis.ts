@@ -31,6 +31,7 @@ import {
   jurisdictionPairClause,
   petsScopeClause,
   rabiesCurrentlyValidCondition,
+  rabiesSignedByMatriculaCondition,
 } from "@/lib/metrics";
 import { TERMINAL_STATUSES as WELFARE_TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 
@@ -218,6 +219,18 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
       { since: since12m, until: coverageUntil },
     ),
   ];
+  // Panorama "solo firmado por matrícula" narrowing (task #78 Part 3): when set,
+  // count ONLY vet-signed doses via the SHARED predicate so this national
+  // numerator matches the choropleth's signed-only definition exactly. Numerator-
+  // only — scope/k-anon/auth are untouched.
+  if (ctx.verifiedOnly) {
+    rabiesVaccConditions.push(
+      rabiesSignedByMatriculaCondition(
+        sql`${petEvents.authorRole}`,
+        sql`${petEvents.authorVerified}`,
+      ),
+    );
+  }
   // Jurisdiction scope on the pet's home columns (petsScopeClause already emits
   // the whole-province subsumption via jurisdictionPairClause). Covers govt and
   // the admin province drill-down; admin-universal → null.
@@ -326,6 +339,17 @@ export async function fetchRabiesCoverageByProvince(
       { since: since12m, until: coverageUntil },
     ),
   ];
+  // Panorama "solo firmado por matrícula" narrowing (task #78 Part 3) — SAME
+  // vet-signed clause as fetchRabiesCoverage so the per-province signed rates
+  // never diverge from the national signed KPI. Numerator-only.
+  if (ctx.verifiedOnly) {
+    rabiesVaccConditions.push(
+      rabiesSignedByMatriculaCondition(
+        sql`${petEvents.authorRole}`,
+        sql`${petEvents.authorVerified}`,
+      ),
+    );
+  }
   // Jurisdiction scope on the pet's home columns (petsScopeClause already emits
   // the whole-province subsumption). Covers govt and the admin province drill-down.
   if (petsScope) rabiesVaccConditions.push(sql`(${petsScope})`);

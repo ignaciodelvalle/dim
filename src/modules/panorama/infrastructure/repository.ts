@@ -715,7 +715,7 @@ export type ChoroplethMetric = "rabies-coverage" | "sterilization-coverage" | "m
  * Province-level RATE metrics delegate to the canonical fetchers instead of using
  * this predicate — see loadRabiesCoverageByProvince and
  * loadSterilizationCoverageByProvince. */
-function metricPredicate(metric: ChoroplethMetric): SQL {
+function metricPredicate(metric: ChoroplethMetric, signedOnly = false): SQL {
   if (metric === "rabies-coverage") {
     // DOGS in scope with at least one qualifying rabies vaccination in the
     // trailing-12-month window. Uses the SHARED rabiesVaccinatedExists predicate
@@ -724,8 +724,10 @@ function metricPredicate(metric: ChoroplethMetric): SQL {
     // Before C3 this was `ILIKE '%rabi%'` (accent-SENSITIVE → silently missed the
     // canonical form "Antirrábica"), over ALL species and ALL time — three ways
     // adrift from the canonical rabies_coverage_dogs_12m numerator.
+    // `signedOnly` (task #78 Part 3) narrows the numerator to vet-signed doses via
+    // the same rabiesVaccinatedExists option the KPI uses — one definition.
     const win = windows.trailing12m();
-    return sql`(${pets.species} = 'dog' AND ${rabiesVaccinatedExists(sql`${pets.id}`, win)})`;
+    return sql`(${pets.species} = 'dog' AND ${rabiesVaccinatedExists(sql`${pets.id}`, win, { signedOnly })})`;
   }
   if (metric === "sterilization-coverage") {
     // Pets in scope with at least one sterilization_performed event.
@@ -874,11 +876,14 @@ export async function loadRabiesCoverage(
   jurisdictions: DashboardJurisdiction[],
   adminProvince?: string,
   adminLocality?: string,
+  // task #78 Part 3: narrow the numerator to vet-signed doses (panorama toggle).
+  verifiedOnly = false,
 ): Promise<ChoroplethRows> {
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const predicate = metricPredicate("rabies-coverage", verifiedOnly);
   const [rollup, noLocalityCount] = await Promise.all([
-    rollupPetsPerLocality([metricPredicate("rabies-coverage")], scope),
-    countPetsNoLocality([metricPredicate("rabies-coverage")], scope),
+    rollupPetsPerLocality([predicate], scope),
+    countPetsNoLocality([predicate], scope),
   ]);
   const { cells, suppressedCount } = toChoroplethCells(rollup);
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
@@ -947,10 +952,13 @@ export async function loadRabiesCoverageByProvince(
   jurisdictions: DashboardJurisdiction[],
   adminProvince?: string,
   adminLocality?: string,
+  // task #78 Part 3: narrow the numerator to vet-signed doses (panorama toggle).
+  verifiedOnly = false,
 ): Promise<ProvinceChoroplethRows> {
   const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
     adminProvince,
     adminLocality,
+    verifiedOnly,
   });
   const byProvince = await fetchRabiesCoverageByProvince(ctx);
   const cells: ProvinceChoroplethCell[] = [];
@@ -1022,6 +1030,7 @@ export function loadChoroplethByLevel(
   jurisdictions: DashboardJurisdiction[],
   adminProvince?: string,
   adminLocality?: string,
+  verifiedOnly?: boolean,
 ): Promise<ProvinceChoroplethRows>;
 export function loadChoroplethByLevel(
   metric: ChoroplethMetric,
@@ -1030,6 +1039,7 @@ export function loadChoroplethByLevel(
   jurisdictions: DashboardJurisdiction[],
   adminProvince?: string,
   adminLocality?: string,
+  verifiedOnly?: boolean,
 ): Promise<ChoroplethRows>;
 export function loadChoroplethByLevel(
   metric: ChoroplethMetric,
@@ -1038,10 +1048,20 @@ export function loadChoroplethByLevel(
   jurisdictions: DashboardJurisdiction[],
   adminProvince?: string,
   adminLocality?: string,
+  // task #78 Part 3: "solo firmado por matrícula" numerator narrowing. Honored
+  // ONLY by the rabies-coverage metric (the toggle is rabies-specific); the
+  // sterilization/mortality loaders ignore it.
+  verifiedOnly = false,
 ): Promise<ChoroplethRows | ProvinceChoroplethRows> {
   if (level === "province") {
     if (metric === "rabies-coverage")
-      return loadRabiesCoverageByProvince(actor, jurisdictions, adminProvince, adminLocality);
+      return loadRabiesCoverageByProvince(
+        actor,
+        jurisdictions,
+        adminProvince,
+        adminLocality,
+        verifiedOnly,
+      );
     if (metric === "sterilization-coverage")
       return loadSterilizationCoverageByProvince(
         actor,
@@ -1053,7 +1073,7 @@ export function loadChoroplethByLevel(
   }
   // Locality level.
   if (metric === "rabies-coverage")
-    return loadRabiesCoverage(actor, jurisdictions, adminProvince, adminLocality);
+    return loadRabiesCoverage(actor, jurisdictions, adminProvince, adminLocality, verifiedOnly);
   if (metric === "sterilization-coverage")
     return loadSterilizationCoverage(actor, jurisdictions, adminProvince, adminLocality);
   return loadMortality(actor, jurisdictions, adminProvince, adminLocality);

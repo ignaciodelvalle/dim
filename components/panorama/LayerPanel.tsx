@@ -50,6 +50,17 @@ type Props = {
   opacities?: Partial<Record<LayerId, number>>;
   /** map-QOL: opacity slider change — only rendered for ACTIVE layers. */
   onOpacity?: (id: LayerId, value: number) => void;
+  /**
+   * task #78 Part 3: the "solo firmado por matrícula" toggle state. Only the
+   * `cobertura` (rabies-coverage) layer honors it; when on, the choropleth counts
+   * only vet-signed doses in its numerator.
+   */
+  verifiedOnly?: boolean;
+  /**
+   * task #78 Part 3: flip the vet-signed numerator toggle. Rendered ONLY for the
+   * active `cobertura` layer. Absent → the checkbox is not shown.
+   */
+  onToggleVerified?: (id: LayerId) => void;
 };
 
 /** Role groups in display order, with es-AR titles that state the slot rule. */
@@ -65,6 +76,8 @@ export function LayerPanel({
   scrubbing = false,
   opacities = {},
   onOpacity,
+  verifiedOnly = false,
+  onToggleVerified,
 }: Props) {
   return (
     <fieldset className="space-y-2">
@@ -199,6 +212,24 @@ export function LayerPanel({
                         <span className="tabular-nums text-xs text-ln-op-mute">
                           {Math.round((opacities[layer.id] ?? 1) * 100)}%
                         </span>
+                      </div>
+                    )}
+                    {/* task #78 Part 3: "solo firmado por matrícula" — narrows the
+                        rabies-coverage numerator to vet-signed doses. ONLY the
+                        active cobertura layer shows it. */}
+                    {active && onToggleVerified && layer.id === "cobertura" && (
+                      <div className="flex items-center gap-2 px-1.5 pb-0.5 pl-8">
+                        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ln-op-mute">
+                          <input
+                            type="checkbox"
+                            className="h-3.5 w-3.5 accent-current"
+                            checked={verifiedOnly}
+                            onChange={() => onToggleVerified(layer.id)}
+                          />
+                          <span title="Cuenta solo las dosis firmadas por un veterinario matriculado (author_role='vet', verificado).">
+                            Solo firmado por matrícula
+                          </span>
+                        </label>
                       </div>
                     )}
                   </li>

@@ -182,6 +182,9 @@ async function choroplethResult(
   jurisdictions: DashboardJurisdiction[],
   adminProvince?: string,
   adminLocality?: string,
+  // task #78 Part 3: vet-signed numerator narrowing — honored only by the
+  // rabies-coverage metric inside loadChoroplethByLevel.
+  verifiedOnly = false,
 ): Promise<LayerFeaturesResult> {
   if (level === "province") {
     return provinceChoroplethResult(
@@ -192,6 +195,7 @@ async function choroplethResult(
         jurisdictions,
         adminProvince,
         adminLocality,
+        verifiedOnly,
       ),
     );
   }
@@ -203,6 +207,7 @@ async function choroplethResult(
       jurisdictions,
       adminProvince,
       adminLocality,
+      verifiedOnly,
     ),
   );
 }
@@ -245,6 +250,13 @@ export async function getLayerFeatures(
    * query param.
    */
   pointsMode = false,
+  /**
+   * task #78 Part 3: the panorama "solo firmado por matrícula" toggle. When true,
+   * the `cobertura` (rabies-coverage) choropleth counts ONLY vet-signed doses in
+   * its numerator. NARROWS the numerator only — never widens scope, k-anon or
+   * auth. Every other layer ignores it.
+   */
+  verifiedOnly = false,
 ): Promise<LayerFeaturesResult> {
   switch (layer) {
     // -----------------------------------------------------------------------
@@ -409,6 +421,7 @@ export async function getLayerFeatures(
       // Current-state rollup (EXISTS rabies vaccination) — not event-windowed in
       // v1, so `asOf` is intentionally ignored; the console dims it under a scrub.
       // U5: the level selects province (filled polygons, ratePct) vs locality (centroids, count).
+      // task #78 Part 3: verifiedOnly narrows the numerator to vet-signed doses.
       return choroplethResult(
         "rabies-coverage",
         level,
@@ -416,6 +429,7 @@ export async function getLayerFeatures(
         jurisdictions,
         adminProvince,
         adminLocality,
+        verifiedOnly,
       );
     }
     case "esterilizacion": {

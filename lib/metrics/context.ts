@@ -48,6 +48,15 @@ export type ProjectionContext = {
    * Never set for govt actors.
    */
   adminLocality?: string;
+  /**
+   * Panorama "solo firmado por matrícula" numerator narrowing (task #78 Part 3).
+   * When true, the rabies-coverage fetchers (fetchRabiesCoverage /
+   * fetchRabiesCoverageByProvince) count ONLY doses signed by a matriculated vet
+   * (rabiesSignedByMatriculaCondition). It NARROWS the numerator only — it never
+   * widens scope, k-anon or auth. Absent/false → every recorded dose counts.
+   * Only the rabies-coverage fetchers read it; every other fetcher ignores it.
+   */
+  verifiedOnly?: boolean;
 };
 
 /**
@@ -66,7 +75,7 @@ export function buildProjectionContext(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   period: AnalyticsPeriod,
-  opts?: { adminProvince?: string; adminLocality?: string },
+  opts?: { adminProvince?: string; adminLocality?: string; verifiedOnly?: boolean },
 ): ProjectionContext {
   const scope: ProjectionScope =
     actor.role === "admin" ? { kind: "global" } : { kind: "jurisdictions", jurisdictions };
@@ -79,6 +88,8 @@ export function buildProjectionContext(
     // scope helpers already gate on scope.kind === "global" before reading them.
     adminProvince: opts?.adminProvince,
     adminLocality: opts?.adminLocality,
+    // Numerator-only narrowing for the panorama vet-signed toggle (task #78 P3).
+    verifiedOnly: opts?.verifiedOnly,
   };
 }
 
@@ -99,5 +110,8 @@ export function ctxKey(ctx: ProjectionContext): string {
   const adminPart = ctx.adminProvince
     ? `|admin:${ctx.adminProvince}${ctx.adminLocality ? `:${ctx.adminLocality}` : ""}`
     : "";
-  return `${scopePart}${adminPart}|${ctx.period.since.toISOString()}|${ctx.period.until.toISOString()}`;
+  // verifiedOnly changes the rabies numerator — a verified and a non-verified ctx
+  // must never collide in a React.cache surrogate keyed on this string.
+  const verifiedPart = ctx.verifiedOnly ? "|verified" : "";
+  return `${scopePart}${adminPart}${verifiedPart}|${ctx.period.since.toISOString()}|${ctx.period.until.toISOString()}`;
 }
