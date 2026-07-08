@@ -7,12 +7,14 @@ import {
   AGGREGATED_POINT_LAYERS,
   CHOROPLETH_LAYERS,
   PANORAMA_LAYERS,
+  POINTS_LAYER_IDS,
   POINT_LAYERS,
   REFERENCE_LAYERS,
   TEMPORAL_LAYERS,
   getLayer,
   isAggregatedPointLayer,
   isLayerId,
+  isPointsLayer,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
 import type { LayerDataType, LayerPrivacy } from "@/src/modules/panorama/domain/types";
@@ -180,6 +182,28 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
     for (const layer of PANORAMA_LAYERS) {
       const expected = AGGREGATED_POINT_IDS.has(layer.id);
       expect(isAggregatedPointLayer(layer.id)).toBe(expected);
+    }
+  });
+
+  it("POINTS_LAYER_IDS: near-zoom real-dot layers are perdidas + mordeduras + denuncias; zoonosis is NOT", () => {
+    // panorama-event-points tiers: perdidas (Slice 1 sightings), mordeduras
+    // (Slice 2 operator-scoped incidents), denuncias (Slice 3 locality centroid).
+    // Zoonosis is deliberately excluded — outbreak_signal writers persist no
+    // columnar coordinate, so there is nothing to plot (plan §5 tier decision).
+    const ids = [...POINTS_LAYER_IDS].sort();
+    expect(ids).toEqual(["denuncias", "mordeduras", "perdidas"].sort());
+    expect(isPointsLayer("zoonosis")).toBe(false);
+    expect(isPointsLayer("perdidas")).toBe(true);
+    expect(isPointsLayer("mordeduras")).toBe(true);
+    expect(isPointsLayer("denuncias")).toBe(true);
+    // Reference layers never plot event dots.
+    expect(isPointsLayer("refugios")).toBe(false);
+    expect(isPointsLayer("decomisos")).toBe(false);
+  });
+
+  it("every POINTS_LAYER_IDS member declares renderPolicy.points = clustered-points", () => {
+    for (const id of POINTS_LAYER_IDS) {
+      expect(getLayer(id)?.renderPolicy.points).toBe("clustered-points");
     }
   });
 

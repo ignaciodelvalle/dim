@@ -10,7 +10,9 @@ vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
   loadPerdidasByUnit: vi.fn(),
   loadPerdidasEvents: vi.fn(),
   loadMordedurassByUnit: vi.fn(),
+  loadBiteEvents: vi.fn(),
   loadDenunciasByUnit: vi.fn(),
+  loadDenunciaCentroids: vi.fn(),
   loadZoonosisByUnit: vi.fn(),
   loadShelters: vi.fn(),
   loadDecomisos: vi.fn(),
@@ -23,8 +25,10 @@ import type {
   PointEventsRows,
 } from "@/src/modules/panorama/infrastructure/repository";
 import {
+  loadBiteEvents,
   loadChoroplethByLevel,
   loadDecomisos,
+  loadDenunciaCentroids,
   loadDenunciasByUnit,
   loadMordedurassByUnit,
   loadPerdidasByUnit,
@@ -62,7 +66,9 @@ function aggRows(over: Partial<AggregatedPointRows> = {}): AggregatedPointRows {
 const mockLoadPerdidas = vi.mocked(loadPerdidasByUnit);
 const mockLoadPerdidasEvents = vi.mocked(loadPerdidasEvents);
 const mockLoadMordeduras = vi.mocked(loadMordedurassByUnit);
+const mockLoadBiteEvents = vi.mocked(loadBiteEvents);
 const mockLoadDenuncias = vi.mocked(loadDenunciasByUnit);
+const mockLoadDenunciaCentroids = vi.mocked(loadDenunciaCentroids);
 const mockLoadZoonosis = vi.mocked(loadZoonosisByUnit);
 const mockLoadShelters = vi.mocked(loadShelters);
 const mockLoadDecomisos = vi.mocked(loadDecomisos);
@@ -297,6 +303,79 @@ describe("getLayerFeatures — mordeduras (F1 aggregated point)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// panorama-event-points Slice 2 — mordeduras REAL incident dots (operator-scoped).
+// ---------------------------------------------------------------------------
+
+describe("getLayerFeatures — mordeduras points mode (Slice 2)", () => {
+  it("routes to loadBiteEvents (NOT the aggregated loader), scope-bound, and returns a points envelope", async () => {
+    mockLoadBiteEvents.mockResolvedValue({
+      rows: [
+        {
+          id: "evt-1",
+          locationLat: "-31.4200000",
+          locationLng: "-64.1800000",
+          incidentType: "bite_inflicted",
+          severity: "moderate",
+          occurredAt: "2026-06-19T12:00:00.000Z",
+        },
+      ],
+      truncated: false,
+      noCoordCount: 4,
+    });
+
+    const actor = { role: "govt" as const };
+    const jur = [{ province: "Córdoba", locality: "Córdoba" }];
+    const since = new Date("2026-06-01T00:00:00.000Z");
+
+    const result = await getLayerFeatures(
+      "mordeduras",
+      actor,
+      jur,
+      { since },
+      "locality",
+      "Córdoba",
+      "Córdoba",
+      /* pointsMode */ true,
+    );
+
+    // The aggregated loader is NOT called; the per-event dot loader is — scope
+    // (adminProvince/Locality) is threaded so a govt user stays jurisdiction-bound.
+    expect(mockLoadMordeduras).not.toHaveBeenCalled();
+    expect(mockLoadBiteEvents).toHaveBeenCalledWith(
+      actor,
+      jur,
+      since,
+      undefined,
+      "Córdoba",
+      "Córdoba",
+    );
+    expect(result.mode).toBe("points");
+    // Older coord-less bites → honest residual (not a fake dot).
+    expect(result.sinUbicacionCount).toBe(4);
+    expect(result.features.features).toHaveLength(1);
+    // Bite dot carries NO token/pet and NO province → no k-anon unit-history fetch.
+    const props = result.features.features[0].properties as Record<string, unknown>;
+    expect(props.incidentType).toBe("bite_inflicted");
+    expect(props.province).toBeUndefined();
+    expect(props.token).toBeUndefined();
+  });
+
+  it("falls back to the aggregated loader when pointsMode is false", async () => {
+    mockLoadMordeduras.mockResolvedValue(aggRows());
+    const result = await getLayerFeatures(
+      "mordeduras",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "locality",
+    );
+    expect(mockLoadBiteEvents).not.toHaveBeenCalled();
+    expect(mockLoadMordeduras).toHaveBeenCalledOnce();
+    expect(result.mode).toBeUndefined();
+  });
+});
+
 describe("getLayerFeatures — denuncias (F1 aggregated point)", () => {
   it("calls loadDenunciasByUnit — exact coordinate never leaves repository", async () => {
     const rows = aggRows({
@@ -337,6 +416,66 @@ describe("getLayerFeatures — denuncias (F1 aggregated point)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// panorama-event-points Slice 3 — denuncias LOCALITY-CENTROID dots.
+// The exact welfare_reports coordinate is NEVER selected (anonymous-reporter
+// invariant); loadDenunciaCentroids snaps to the ar_localities centroid.
+// ---------------------------------------------------------------------------
+
+describe("getLayerFeatures — denuncias points mode (Slice 3)", () => {
+  it("routes to loadDenunciaCentroids and emits COARSE centroid features (never exact coord)", async () => {
+    mockLoadDenunciaCentroids.mockResolvedValue({
+      rows: [
+        {
+          // ALREADY the locality centroid — the loader never returns the exact coord.
+          centroidLat: "-31.4200000",
+          centroidLng: "-64.1800000",
+          province: "Córdoba",
+          locality: "Córdoba",
+          severity: "high",
+          kind: "physical_abuse",
+          createdAt: "2026-06-19T12:00:00.000Z",
+        },
+      ],
+      truncated: false,
+    });
+
+    const actor = { role: "govt" as const };
+    const jur = [{ province: "Córdoba", locality: "Córdoba" }];
+    const since = new Date("2026-06-01T00:00:00.000Z");
+
+    const result = await getLayerFeatures(
+      "denuncias",
+      actor,
+      jur,
+      { since },
+      "locality",
+      "Córdoba",
+      "Córdoba",
+      /* pointsMode */ true,
+    );
+
+    expect(mockLoadDenuncias).not.toHaveBeenCalled();
+    expect(mockLoadDenunciaCentroids).toHaveBeenCalledWith(
+      actor,
+      jur,
+      since,
+      undefined,
+      "Córdoba",
+      "Córdoba",
+    );
+    expect(result.mode).toBe("points");
+    expect(result.features.features).toHaveLength(1);
+    // The dot is flagged COARSE — the popup/drawer must say "ubicación aproximada".
+    const props = result.features.features[0].properties as Record<string, unknown>;
+    expect(props.coarse).toBe(true);
+    // Plotted at the locality centroid we handed the loader (never an exact addr).
+    expect(result.features.features[0].geometry).toMatchObject({
+      coordinates: [-64.18, -31.42],
+    });
+  });
+});
+
 describe("getLayerFeatures — zoonosis (F1 aggregated signal point)", () => {
   it("calls loadZoonosisByUnit and returns aggregated envelope", async () => {
     mockLoadZoonosis.mockResolvedValue(aggRows());
@@ -360,6 +499,30 @@ describe("getLayerFeatures — zoonosis (F1 aggregated signal point)", () => {
     );
     expect(result.level).toBe("province");
     expect(result.features.type).toBe("FeatureCollection");
+  });
+
+  // panorama-event-points Slice 3 — zoonosis TIER DECISION: stays aggregated even
+  // in points mode. Both outbreak_signal writers persist NO columnar
+  // location_lat/lng (only pet_jurisdiction_* snapshots), so there is nothing to
+  // plot as a real dot. Rendering an aggregate/centroid is the honest choice
+  // (plan §5 "if the writer sets no coords → aggregated + document the gap").
+  it("stays AGGREGATED in points mode — no real dots (writer persists no coords)", async () => {
+    mockLoadZoonosis.mockResolvedValue(aggRows());
+
+    const result = await getLayerFeatures(
+      "zoonosis",
+      { role: "govt" },
+      [{ province: "Córdoba", locality: "Córdoba" }],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "locality",
+      "Córdoba",
+      "Córdoba",
+      /* pointsMode */ true,
+    );
+
+    // Still the per-unit aggregated loader — points mode is a no-op for zoonosis.
+    expect(mockLoadZoonosis).toHaveBeenCalledOnce();
+    expect(result.mode).toBeUndefined();
   });
 });
 

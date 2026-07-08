@@ -221,23 +221,25 @@ export async function loadBiteEvents(
   asOf?: Date,
   adminProvince?: string,
   adminLocality?: string,
-): Promise<LayerRows<BiteRow>> {
-  const conditions = [
+): Promise<LayerRows<BiteRow> & { noCoordCount: number }> {
+  // Base scope+period predicate shared by the dot query and the residual COUNT.
+  const base: SQL[] = [
     // bite_inflicted | bite_suffered are the two bite variants (event-schemas.ts).
     mordedurasEventPredicate(),
     gte(petEvents.occurredAt, since),
-    // Located events only — a point layer never plots a null coordinate.
-    isNotNull(petEvents.locationLat),
   ];
   // F4 temporal reproduction: upper-bound the event window so the layer can be
   // reconstructed "as of t" while the TimeScrubber plays.
-  if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
+  if (asOf) base.push(lte(petEvents.occurredAt, asOf));
   // incident_reported carries NO jurisdiction in its payload (only outbreak_signal
   // snapshots pet_jurisdiction_* — see petEventsScopeClause jsdoc), so scope by the
   // pet's home jurisdiction via the JOIN to pets, exactly like loadMordedurassByUnit.
   // The old petEventsScope filtered out every real bite for scoped govt users.
+  // PRIVACY (Slice 2): this scope binding is the operator-jurisdiction gate — a govt
+  // user physically cannot fetch a bite outside their scope; admins must have drilled
+  // into a province (server-authoritative points gate in get-layer-features/route).
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
-  if (scope) conditions.push(sql`(${scope})`);
+  if (scope) base.push(sql`(${scope})`);
 
   const rows = await db
     .select({
@@ -250,8 +252,20 @@ export async function loadBiteEvents(
     })
     .from(petEvents)
     .innerJoin(pets, eq(petEvents.petId, pets.id))
-    .where(and(...conditions))
+    // Located events only — a point layer never plots a null coordinate.
+    .where(and(...base, isNotNull(petEvents.locationLat)))
+    // Most-recent-first so a capped result keeps the freshest incidents.
+    .orderBy(sql`${petEvents.occurredAt} DESC`)
     .limit(PER_LAYER_CAP);
+
+  // Residual: in-scope bites with NO columnar coordinate (older events written
+  // before Slice 2's map-pin capture). Surfaced as an honest "sin ubicación
+  // exacta" count — never plotted as a fake centroid dot (fallback honesty, §5).
+  const [residual] = await db
+    .select({ n: count() })
+    .from(petEvents)
+    .innerJoin(pets, eq(petEvents.petId, pets.id))
+    .where(and(...base, sql`${petEvents.locationLat} IS NULL`));
 
   return {
     rows: rows.map((r) => ({
@@ -263,6 +277,7 @@ export async function loadBiteEvents(
       occurredAt: r.occurredAt ? r.occurredAt.toISOString() : null,
     })),
     truncated: rows.length >= PER_LAYER_CAP,
+    noCoordCount: residual?.n ?? 0,
   };
 }
 

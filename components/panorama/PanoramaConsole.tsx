@@ -49,6 +49,7 @@ import {
   AGGREGATED_POINT_LAYERS,
   CHOROPLETH_LAYERS,
   PANORAMA_LAYERS,
+  POINTS_LAYER_IDS,
   getLayer,
   isAggregatedPointLayer,
   isPointsLayer,
@@ -118,6 +119,29 @@ type ApiResponse = {
 
 // The two choropleth layer ids — the only layers the aggregation level affects.
 const CHOROPLETH_IDS = new Set<LayerId>(CHOROPLETH_LAYERS.map((l) => l.id));
+
+// panorama-event-points: per-layer es-AR copy for the honest points-mode
+// disclosure. perdidas/mordeduras plot REAL coordinates; denuncias plots the
+// coarse LOCALITY CENTROID (never the exact report coordinate).
+function pointsDisclosureLine(
+  id: LayerId,
+  info: { count: number; truncated: boolean; sinUbicacion: number },
+): string {
+  const n = info.count.toLocaleString("es-AR");
+  const head =
+    id === "mordeduras"
+      ? `Mordeduras con ubicación real, jurisdicción (${n}).`
+      : id === "denuncias"
+        ? `Denuncias por localidad, ubicación aproximada (${n}).`
+        : `Avistajes con ubicación real (${n}).`;
+  const noun = id === "mordeduras" ? "mordeduras" : id === "denuncias" ? "denuncias" : "avistajes";
+  const cap = info.truncated ? ` Mostrando los ${n} más recientes.` : "";
+  const residual =
+    info.sinUbicacion > 0
+      ? ` ${info.sinUbicacion.toLocaleString("es-AR")} ${noun} sin ubicación exacta.`
+      : "";
+  return `${head}${cap}${residual}`;
+}
 
 // ---------------------------------------------------------------------------
 // map-QOL URL-as-state helpers
@@ -314,25 +338,25 @@ export function PanoramaConsole({
   const [mapZoom, setMapZoom] = useState<number>(Z_LOCALITY - 1);
   const onMapZoom = useCallback((zoom: number) => setMapZoom(zoom), []);
 
-  // panorama-event-points Slice 1 — near-zoom REAL sighting DOTS (design D1/D2).
+  // panorama-event-points — near-zoom REAL event-location DOTS (design D1/D2).
   //
   // A DEDICATED, additive cache slot (A5): points features live HERE, never in
   // dataRef/provinceDataRef, so there is NO collision with the locality-aggregated
   // cache at the same `level` — toggling points↔aggregated repaints from the
   // correct source with no stale paint. `pointsMode` is a UX gate only; the server
-  // independently re-derives it (see the points effect + route). Slice 1 only
-  // `perdidas` has a points render policy (POINTS_LAYER_IDS).
+  // independently re-derives it (see the points effect + route). Points-capable
+  // layers (POINTS_LAYER_IDS): perdidas (Slice 1, sightings), mordeduras (Slice 2,
+  // operator-scoped incidents), denuncias (Slice 3, locality centroids).
   const pointsDataRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
   // Version bump to recompute the activeLayers memo after a points fetch resolves
-  // (the cache is a ref). The disclosure meta (cap + "sin ubicación" residual)
-  // is kept OUT of `states` (A6: distinct copy) so it never races the aggregated
-  // fetch that also writes states[perdidas].
+  // (the cache is a ref). The disclosure meta (cap + "sin ubicación" residual) is
+  // kept OUT of `states` (A6: distinct copy) so it never races the aggregated fetch.
   const [pointsVersion, setPointsVersion] = useState(0);
-  const [pointsInfo, setPointsInfo] = useState<{
-    count: number;
-    truncated: boolean;
-    sinUbicacion: number;
-  } | null>(null);
+  // Per-layer disclosure meta, keyed by layer id (a layer may go active/inactive
+  // independently; a single record avoids one layer's fetch clobbering another's).
+  const [pointsInfo, setPointsInfo] = useState<
+    Record<string, { count: number; truncated: boolean; sinUbicacion: number }>
+  >({});
   // Effective scope for the UX points gate: an explicit picker province wins;
   // otherwise the govt operator's implicit single-province scope.
   const pointsScopeProvince = searchParams.get("province") ?? initialDivisionProvince;
@@ -705,57 +729,81 @@ export function PanoramaConsole({
     // are intentional triggers (the caches are refs).
   }, [states, scrubbing, asOfVersion, level, levelVersion, pointsMode, pointsVersion, opacities]);
 
-  // panorama-event-points Slice 1 — resolve the REAL sighting dots for perdidas.
+  // panorama-event-points — resolve the REAL event-location dots for every ACTIVE
+  // points-capable layer (perdidas / mordeduras / denuncias).
   //
   // Additive + orthogonal to the level/aggregation plumbing: this effect ONLY
   // populates the dedicated pointsDataRef + disclosure, it never touches the
   // aggregated caches. Runs when the UX gate opens (pointsMode, i.e. zoom ≥
-  // Z_POINTS with a province in scope) AND perdidas is active. Keyed on the
-  // scope+period subset so a province/period change refetches. The SERVER is
-  // authoritative: it echoes `mode:"points"` only when it actually returned dots;
-  // an aggregated/declined response clears the overlay (fall back to bubbles).
-  const perdidasActive = states.perdidas?.active ?? false;
+  // Z_POINTS with a province in scope). Keyed on the scope+period subset AND the
+  // active points-layer set so a province/period/toggle change refetches. The
+  // SERVER is authoritative: it echoes `mode:"points"` only when it actually
+  // returned dots; an aggregated/declined response clears that layer's overlay
+  // (fall back to bubbles).
+  const activePointsLayerIds = [...POINTS_LAYER_IDS]
+    .filter((id) => states[id]?.active)
+    .sort()
+    .join(",");
   useEffect(() => {
-    if (!pointsMode || !perdidasActive) {
-      pointsDataRef.current.delete("perdidas");
-      setPointsInfo(null);
-      setPointsVersion((v) => v + 1);
+    const activeIds = (activePointsLayerIds ? activePointsLayerIds.split(",") : []) as LayerId[];
+    // Gate closed → clear every points overlay + disclosure and fall back to bubbles.
+    if (!pointsMode || activeIds.length === 0) {
+      if (pointsDataRef.current.size > 0) {
+        pointsDataRef.current.clear();
+        setPointsInfo({});
+        setPointsVersion((v) => v + 1);
+      }
       return;
     }
+    // Drop cached points for any layer no longer active.
+    for (const id of [...pointsDataRef.current.keys()]) {
+      if (!activeIds.includes(id)) pointsDataRef.current.delete(id);
+    }
     let cancelled = false;
-    const params = new URLSearchParams(scopePeriodQs);
-    params.set("mode", "points");
-    fetch(`/api/panorama/perdidas?${params.toString()}`, {
-      headers: { accept: "application/json" },
-      signal: signalFor("perdidas:points"),
-    })
-      .then((r) => (r.ok ? (r.json() as Promise<ApiResponse>) : null))
-      .then((body) => {
-        if (cancelled || !body) return;
-        // Honor only a genuine server-authorized points response.
-        if (body.mode !== "points") {
-          pointsDataRef.current.delete("perdidas");
-          setPointsInfo(null);
-          setPointsVersion((v) => v + 1);
-          return;
+    void Promise.all(
+      activeIds.map(async (id) => {
+        const params = new URLSearchParams(scopePeriodQs);
+        params.set("mode", "points");
+        try {
+          const r = await fetch(`/api/panorama/${id}?${params.toString()}`, {
+            headers: { accept: "application/json" },
+            signal: signalFor(`${id}:points`),
+          });
+          if (!r.ok) return null;
+          const body = (await r.json()) as ApiResponse;
+          if (cancelled) return null;
+          // Honor only a genuine server-authorized points response.
+          if (body.mode !== "points") {
+            pointsDataRef.current.delete(id);
+            return null;
+          }
+          pointsDataRef.current.set(id, body.features);
+          return [
+            id,
+            {
+              count: body.features.features.length,
+              truncated: body.truncated,
+              sinUbicacion: body.sinUbicacionCount ?? 0,
+            },
+          ] as const;
+        } catch (err) {
+          // Superseded fetch (keyed abort) — a newer points request will land.
+          if (isAbortError(err)) return null;
+          // Transient failure: leave the aggregated bubbles showing (no flash).
+          return null;
         }
-        pointsDataRef.current.set("perdidas", body.features);
-        setPointsInfo({
-          count: body.features.features.length,
-          truncated: body.truncated,
-          sinUbicacion: body.sinUbicacionCount ?? 0,
-        });
-        setPointsVersion((v) => v + 1);
-      })
-      .catch((err) => {
-        // Superseded fetch (keyed abort) — a newer points request will land.
-        if (isAbortError(err)) return;
-        // Transient failure: leave the aggregated bubbles showing (no flash).
-      });
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      const next: Record<string, { count: number; truncated: boolean; sinUbicacion: number }> = {};
+      for (const e of entries) if (e) next[e[0]] = e[1];
+      setPointsInfo(next);
+      setPointsVersion((v) => v + 1);
+    });
     return () => {
       cancelled = true;
     };
-  }, [pointsMode, perdidasActive, scopePeriodQs, signalFor]);
+  }, [pointsMode, activePointsLayerIds, scopePeriodQs, signalFor]);
 
   // Fetch a temporal layer's AS-OF features into the as-of cache (used when a
   // layer is toggled on mid-scrub, so it paints at the current instant, not live).
@@ -1611,20 +1659,19 @@ export function PanoramaConsole({
           means at the active VISTA + derived level. Recomputes on preset/scope/
           period change (the "context switch"). Pure: never a data-derived value. */}
       <PanoramaCaption layer={captionLayer} level={level} period={captionPeriod} />
-      {/* panorama-event-points Slice 1: honest points-mode disclosure — states
-          the mark is now REAL sighting locations, plus the cap ("los N más
+      {/* panorama-event-points: honest points-mode disclosure — one line per
+          active points-capable layer, stating the mark is now REAL locations
+          (or coarse locality centroids for denuncias), plus the cap ("los N más
           recientes") and the "sin ubicación exacta" residual. Distinct copy from
           the k-anon / no-locality notices (review A6/A8). */}
-      {pointsMode && pointsInfo !== null && (
+      {pointsMode && Object.keys(pointsInfo).length > 0 && (
         <output
           aria-live="polite"
-          className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-xs text-ln-op-ink-2"
+          className="block space-y-1 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-xs text-ln-op-ink-2"
         >
-          Avistajes con ubicación real ({pointsInfo.count.toLocaleString("es-AR")}).
-          {pointsInfo.truncated &&
-            ` Mostrando los ${pointsInfo.count.toLocaleString("es-AR")} más recientes.`}
-          {pointsInfo.sinUbicacion > 0 &&
-            ` ${pointsInfo.sinUbicacion.toLocaleString("es-AR")} avistajes sin ubicación exacta.`}
+          {Object.entries(pointsInfo).map(([id, info]) => (
+            <p key={id}>{pointsDisclosureLine(id as LayerId, info)}</p>
+          ))}
         </output>
       )}
       {/* k-anon disclosure promoted out of "Personalizar": suppression is

@@ -18,8 +18,10 @@ import {
   type ChoroplethRows,
   type LayerRows,
   type ProvinceChoroplethRows,
+  loadBiteEvents,
   loadChoroplethByLevel,
   loadDecomisos,
+  loadDenunciaCentroids,
   loadDenunciasByUnit,
   loadMordedurassByUnit,
   loadPerdidasByUnit,
@@ -37,6 +39,8 @@ import {
   buildAggregatedPointFeatures,
   buildChoroplethFeatures,
   buildDecomisosFeatures,
+  buildDenunciasFeatures,
+  buildMordedurasFeatures,
   buildPerdidasFeatures,
   buildProvinceChoroplethFeatures,
   buildRefugiosFeatures,
@@ -226,11 +230,19 @@ export async function getLayerFeatures(
   adminProvince?: string,
   adminLocality?: string,
   /**
-   * panorama-event-points Slice 1: SERVER-authorized near-zoom points mode (A1).
-   * Only honored for `perdidas`. When true, perdidas returns REAL sighting DOTS
-   * (loadPerdidasEvents) instead of per-unit aggregated bubbles. The caller MUST
-   * have already gated this via `resolvePointsMode` (mode=points AND a province
-   * resolved) — this function trusts the resolved flag, not a raw query param.
+   * panorama-event-points: SERVER-authorized near-zoom points mode (A1). Honored
+   * for the layers with a `renderPolicy.points` (POINTS_LAYER_IDS):
+   *   - perdidas (Slice 1): REAL sighting DOTS (loadPerdidasEvents).
+   *   - mordeduras (Slice 2): REAL incident DOTS (loadBiteEvents), operator-scoped.
+   *   - denuncias (Slice 3): LOCALITY-CENTROID dots (loadDenunciaCentroids) — the
+   *     exact report coordinate is NEVER selected.
+   * Zoonosis is deliberately NOT points-capable: both outbreak_signal writers
+   * persist no columnar location_lat/lng (only pet_jurisdiction_* snapshots), so
+   * there is nothing to plot as a real dot — it stays aggregated (plan §5 "if the
+   * writer sets no coords → aggregated + document the gap").
+   * The caller MUST have already gated this via `resolvePointsMode` (mode=points
+   * AND a province resolved) — this function trusts the resolved flag, not a raw
+   * query param.
    */
   pointsMode = false,
 ): Promise<LayerFeaturesResult> {
@@ -276,6 +288,30 @@ export async function getLayerFeatures(
       return aggregatedPointResult(r, level);
     }
     case "mordeduras": {
+      // panorama-event-points Slice 2: at server-authorized points mode, plot REAL
+      // incident coordinates as dots instead of aggregated bubbles. loadBiteEvents
+      // scopes by petsScope (operator's OWN jurisdiction, pet-home attribution) and
+      // filters isNotNull(locationLat) — a govt user physically cannot fetch a bite
+      // outside their scope. Old bites (no columnar coord) fall into the residual.
+      if (pointsMode) {
+        const r = await loadBiteEvents(
+          actor,
+          jurisdictions,
+          period.since,
+          period.asOf,
+          adminProvince,
+          adminLocality,
+        );
+        return {
+          features: buildMordedurasFeatures(r.rows),
+          truncated: r.truncated,
+          suppressedCount: 0,
+          noLocalityCount: 0,
+          level: "locality",
+          mode: "points",
+          sinUbicacionCount: r.noCoordCount,
+        };
+      }
       const r = await loadMordedurassByUnit(
         level,
         actor,
@@ -288,6 +324,32 @@ export async function getLayerFeatures(
       return aggregatedPointResult(r, level);
     }
     case "denuncias": {
+      // panorama-event-points Slice 3: at server-authorized points mode, denuncias
+      // render at the LOCALITY CENTROID only. loadDenunciaCentroids resolves the
+      // ar_localities centroid via a correlated subquery and NEVER SELECTs the exact
+      // welfare_reports.location_lat/lng (hard anonymous-reporter invariant). Each
+      // dot is coarse (coarse:true); MapLibre clustering merges same-locality dots.
+      if (pointsMode) {
+        const r = await loadDenunciaCentroids(
+          actor,
+          jurisdictions,
+          period.since,
+          period.asOf,
+          adminProvince,
+          adminLocality,
+        );
+        return {
+          features: buildDenunciasFeatures(r.rows),
+          truncated: r.truncated,
+          suppressedCount: 0,
+          noLocalityCount: 0,
+          level: "locality",
+          mode: "points",
+          // Reports whose locality has no resolvable centroid are dropped by the
+          // loader; surface that as the honest "sin ubicación" residual count.
+          sinUbicacionCount: 0,
+        };
+      }
       // Still COARSE at any level: the exact coordinate never leaves the DB.
       // At locality level, each unit's centroid represents all reports in that
       // locality (no individual coordinates). At province level, the province

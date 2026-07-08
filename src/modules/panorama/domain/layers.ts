@@ -71,6 +71,11 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       province: "graduated-symbol",
       locality: "graduated-symbol",
       autoLevel: AUTO_PROVINCE,
+      // panorama-event-points Slice 2: at street zoom INSIDE the operator's
+      // jurisdiction, mordeduras swaps its count-bubbles for REAL incident-location
+      // dots (the operator already sees these cases in /gob/vigilancia — no new
+      // disclosure; scope-bound server-side by petsScope). Aggregated outside scope.
+      points: "clustered-points",
     },
     suppressionStyle: "muted",
     caption: { unit: UNIT, measure: "eventos de mordedura / antirrábica", window: "period" },
@@ -90,6 +95,12 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       province: "graduated-symbol",
       locality: "graduated-symbol",
       autoLevel: AUTO_PROVINCE,
+      // panorama-event-points Slice 3: at street zoom, denuncias render at the
+      // LOCALITY CENTROID only — a coarser dot that NEVER exposes the exact
+      // report coordinate (anonymous-reporter protection; the exact
+      // welfare_reports.location_lat/lng is never SELECTed — loadDenunciaCentroids
+      // snaps to the ar_localities centroid). Privacy floor stays coarse.
+      points: "clustered-points",
     },
     suppressionStyle: "muted",
     caption: { unit: UNIT, measure: "denuncias de bienestar", window: "period" },
