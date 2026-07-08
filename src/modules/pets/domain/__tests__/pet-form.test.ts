@@ -92,6 +92,17 @@ describe("parsePetForm — locality must resolve to a real locality", () => {
     expect(result.parsed?.jurisdictionLocality).toBe("La Plata");
   });
 
+  it("accepts a CABA barrio picked via the province-first cascade (AR-C → Palermo)", () => {
+    // The alta cascade scopes the locality search to CABA (AR-C) and the user
+    // picks the Palermo barrio. The wire contract is identical to any other
+    // resolved pick — provinceCode drives storage-name canonicalization.
+    const fd = makeFormData({ ...BASE_VALID, localityName: "Palermo", provinceCode: "AR-C" });
+    const result = parsePetForm(fd);
+    expect(result.error).toBeNull();
+    expect(result.parsed?.jurisdictionProvince).toBe("CABA");
+    expect(result.parsed?.jurisdictionLocality).toBe("Palermo");
+  });
+
   it("rejects a free-typed locality that never resolved (no provinceCode)", () => {
     const { provinceCode: _omitted, ...withoutProvince } = BASE_VALID;
     const fd = makeFormData({ ...withoutProvince, localityName: "Villa Inventada" });

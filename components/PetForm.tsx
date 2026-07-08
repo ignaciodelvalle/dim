@@ -386,6 +386,7 @@ export function PetForm({
           <LocationFields
             mode="l1"
             required
+            cascade
             defaultValue={{ provinceCode: null, localityName: null }}
           />
           <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">

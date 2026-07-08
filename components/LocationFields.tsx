@@ -35,8 +35,8 @@ import {
 } from "@/app/actions/geocoding";
 import { searchLocalitiesPublicAction } from "@/app/actions/localities";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { LnInput } from "@/components/ui/Field";
-import { type Province, provinceByName } from "@/lib/reference/ar-provincias";
+import { LnInput, LnSelect } from "@/components/ui/Field";
+import { PROVINCES, type Province, provinceByName } from "@/lib/reference/ar-provincias";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
@@ -78,6 +78,7 @@ export function LocationFields({
   onLocationPresenceChange,
   required = false,
   l1Label = "Localidad",
+  cascade = false,
 }: {
   mode: LocationMode;
   defaultValue?: LocationFieldsValue;
@@ -93,6 +94,13 @@ export function LocationFields({
    * the field in context (e.g. "Localidad donde ejercés") WITHOUT rendering a
    * second, redundant label above the picker (#43 item 4). */
   l1Label?: string;
+  /** L1 only. When true, renders a province-first cascade: a Provincia <select>
+   * gates the locality autocomplete, which stays disabled until a province is
+   * picked and then searches scoped to that province_code. Changing the province
+   * clears the locality selection. Mirrors the JurisdictionFilter pattern.
+   * Reusable capability — wired ON for the pet alta forms; other L1 surfaces
+   * keep the single cross-province input (cascade=false). No effect on L2. */
+  cascade?: boolean;
   // Override the wire-format name for the L2 address / lat / lng hidden
   // inputs. Retained for flexibility; no current consumer overrides these
   // (the lastKnownLocation alias was retired by critique §5).
@@ -109,6 +117,13 @@ export function LocationFields({
   onLocationPresenceChange?: (hasLocation: boolean) => void;
 }) {
   const isL2 = mode === "l2";
+
+  // Province-first cascade (L1 + cascade only). Drives the locality search
+  // scope and gates the picker. Seeded from defaultValue for a future edit
+  // adoption; null in the create alta so the picker starts disabled.
+  const [cascadeProvinceCode, setCascadeProvinceCode] = useState<string | null>(
+    defaultValue?.provinceCode ?? null,
+  );
 
   // Map point (L2 only). Pre-filled when defaultValue has lat/lng.
   const [point, setPoint] = useState<{ lat: number; lng: number } | null>(
@@ -314,8 +329,9 @@ export function LocationFields({
         </button>
       )}
 
-      {/* L1 — cross-province locality autocomplete, single input. */}
-      {!isL2 && (
+      {/* L1 (single input) — cross-province locality autocomplete. Province is
+          derived from the chosen locality. */}
+      {!isL2 && !cascade && (
         <div className="space-y-1.5">
           <label htmlFor="localityName-input" className="block text-sm font-medium text-ln-ink">
             {l1Label}
@@ -338,6 +354,76 @@ export function LocationFields({
             // no-auth public action there; authed L1 surfaces keep the default.
             searchAction={allowAnonymous ? searchLocalitiesPublicAction : undefined}
           />
+        </div>
+      )}
+
+      {/* L1 (cascade) — Provincia <select> gates a province-scoped locality
+          autocomplete. Someone typing "Palermo" no longer sees the CABA barrio
+          AND an unrelated locality elsewhere: they pick the province first, then
+          the search is scoped to it. Wire contract is UNCHANGED — the picker
+          still emits provinceCode / provinceName / localityName /
+          localityNameIndecId, and it only emits a provinceCode when a real
+          ar_localities row is picked (never from the raw <select>), so a
+          free-typed locality still fails the LOCALITY_UNRESOLVED guard. */}
+      {!isL2 && cascade && (
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="cascade-province" className="block text-sm font-medium text-ln-ink">
+              Provincia
+              {required && (
+                <span className="ml-1 text-[var(--color-ln-seal)]" aria-hidden="true">
+                  *
+                </span>
+              )}
+            </label>
+            <LnSelect
+              id="cascade-province"
+              value={cascadeProvinceCode ?? ""}
+              onChange={(e) => setCascadeProvinceCode(e.target.value || null)}
+              required={required}
+              aria-required={required || undefined}
+            >
+              <option value="" disabled>
+                Elegí la provincia
+              </option>
+              {PROVINCES.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.name}
+                </option>
+              ))}
+            </LnSelect>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="localityName-input" className="block text-sm font-medium text-ln-ink">
+              {l1Label === "Localidad" ? "Localidad o barrio" : l1Label}
+              {required && (
+                <span className="ml-1 text-[var(--color-ln-seal)]" aria-hidden="true">
+                  *
+                </span>
+              )}
+            </label>
+            <LocalityPickerAcross
+              // Remount on province change so the query + picked locality reset —
+              // a Palermo/CABA pick never survives a switch to Buenos Aires.
+              key={cascadeProvinceCode ?? "none"}
+              id="localityName"
+              required={required}
+              scopeProvinceCode={cascadeProvinceCode}
+              disabled={!cascadeProvinceCode}
+              defaultValue={{
+                // Only carry a province from a genuinely resolved prior pick
+                // (edit adoption). In the create alta this is null, so a
+                // free-typed locality carries no province and stays UNRESOLVED.
+                provinceCode: defaultValue?.provinceCode ?? null,
+                localityName: defaultValue?.localityName ?? null,
+              }}
+              placeholder={
+                cascadeProvinceCode ? "Buscá tu localidad o barrio" : "Elegí primero la provincia"
+              }
+              searchAction={allowAnonymous ? searchLocalitiesPublicAction : undefined}
+            />
+          </div>
         </div>
       )}
 
