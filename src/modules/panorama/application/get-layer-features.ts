@@ -26,7 +26,9 @@ import {
   loadMordedurassByUnit,
   loadPerdidasByUnit,
   loadPerdidasEvents,
+  loadReunificacionByUnit,
   loadShelters,
+  loadSintomasByUnit,
   loadZoonosisByUnit,
 } from "@/src/modules/panorama/infrastructure/repository";
 
@@ -403,6 +405,34 @@ export async function getLayerFeatures(
       );
       return aggregatedPointResult(r, level);
     }
+    case "sintomas": {
+      const r = await loadSintomasByUnit(
+        level,
+        actor,
+        jurisdictions,
+        period.since,
+        period.asOf,
+        adminProvince,
+        adminLocality,
+        period.basis,
+      );
+      return aggregatedPointResult(r, level);
+    }
+    case "reunificacion": {
+      // No replay basis — the underlying fetchReunificationByUnit rollup
+      // (lib/metrics/reunification-rollups.ts) is period-windowed but not
+      // bitemporal (it has no recorded_at/occurred_at split of its own).
+      const r = await loadReunificacionByUnit(
+        level,
+        actor,
+        jurisdictions,
+        period.since,
+        period.asOf,
+        adminProvince,
+        adminLocality,
+      );
+      return aggregatedPointResult(r, level);
+    }
     // -----------------------------------------------------------------------
     // REFERENCE layers — discrete pins, unchanged by the toggle axis.
     // Each represents an individual shelter / expediente — aggregating would
@@ -450,6 +480,30 @@ export async function getLayerFeatures(
       // Locality level: count-density (v1 limitation; rate-by-locality deferred).
       return choroplethResult(
         "sterilization-coverage",
+        level,
+        actor,
+        jurisdictions,
+        adminProvince,
+        adminLocality,
+      );
+    }
+    case "microchip": {
+      // Current-state rollup (EXISTS active microchip_iso) — not event-windowed
+      // in v1, so `asOf` is intentionally ignored; the console dims it under a scrub.
+      return choroplethResult(
+        "microchip-penetration",
+        level,
+        actor,
+        jurisdictions,
+        adminProvince,
+        adminLocality,
+      );
+    }
+    case "ppp": {
+      // Current-state rollup (EXISTS dangerous_breed_attested) — not
+      // event-windowed in v1; `asOf` is intentionally ignored.
+      return choroplethResult(
+        "ppp-compliance",
         level,
         actor,
         jurisdictions,

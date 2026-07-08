@@ -14,6 +14,8 @@ vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
   loadDenunciasByUnit: vi.fn(),
   loadDenunciaCentroids: vi.fn(),
   loadZoonosisByUnit: vi.fn(),
+  loadSintomasByUnit: vi.fn(),
+  loadReunificacionByUnit: vi.fn(),
   loadShelters: vi.fn(),
   loadDecomisos: vi.fn(),
   loadChoroplethByLevel: vi.fn(),
@@ -33,7 +35,9 @@ import {
   loadMordedurassByUnit,
   loadPerdidasByUnit,
   loadPerdidasEvents,
+  loadReunificacionByUnit,
   loadShelters,
+  loadSintomasByUnit,
   loadZoonosisByUnit,
 } from "@/src/modules/panorama/infrastructure/repository";
 
@@ -70,6 +74,8 @@ const mockLoadBiteEvents = vi.mocked(loadBiteEvents);
 const mockLoadDenuncias = vi.mocked(loadDenunciasByUnit);
 const mockLoadDenunciaCentroids = vi.mocked(loadDenunciaCentroids);
 const mockLoadZoonosis = vi.mocked(loadZoonosisByUnit);
+const mockLoadSintomas = vi.mocked(loadSintomasByUnit);
+const mockLoadReunificacion = vi.mocked(loadReunificacionByUnit);
 const mockLoadShelters = vi.mocked(loadShelters);
 const mockLoadDecomisos = vi.mocked(loadDecomisos);
 const mockLoadChoropleth = vi.mocked(loadChoroplethByLevel);
@@ -533,6 +539,69 @@ describe("getLayerFeatures — zoonosis (F1 aggregated signal point)", () => {
   });
 });
 
+describe("getLayerFeatures — sintomas (F1 aggregated point, panorama-operator-ia port)", () => {
+  it("calls loadSintomasByUnit with (level, actor, jurisdictions, since, asOf, ..., basis) and returns aggregated envelope", async () => {
+    mockLoadSintomas.mockResolvedValue(aggRows());
+
+    const actor = { role: "admin" as const };
+    const since = new Date("2026-06-01T00:00:00.000Z");
+    const asOf = new Date("2026-06-15T00:00:00.000Z");
+
+    const result = await getLayerFeatures(
+      "sintomas",
+      actor,
+      [],
+      { since, asOf, basis: "transaction" },
+      "province",
+    );
+
+    expect(mockLoadSintomas).toHaveBeenCalledWith(
+      "province",
+      actor,
+      [],
+      since,
+      asOf,
+      undefined,
+      undefined,
+      "transaction",
+    );
+    expect(result.level).toBe("province");
+    expect(result.features.type).toBe("FeatureCollection");
+  });
+});
+
+describe("getLayerFeatures — reunificacion (F1 aggregated signal point, D4)", () => {
+  it("calls loadReunificacionByUnit WITHOUT a basis argument and returns aggregated envelope", async () => {
+    mockLoadReunificacion.mockResolvedValue(aggRows());
+
+    const actor = { role: "govt" as const };
+    const jur = [{ province: "Córdoba", locality: "Córdoba" }];
+    const since = new Date("2026-06-01T00:00:00.000Z");
+
+    const result = await getLayerFeatures(
+      "reunificacion",
+      actor,
+      jur,
+      { since, basis: "transaction" },
+      "locality",
+    );
+
+    // loadReunificacionByUnit has no bitemporal replay basis — the underlying
+    // rollup is period-windowed only, so the call must NOT thread `basis`.
+    expect(mockLoadReunificacion).toHaveBeenCalledWith(
+      "locality",
+      actor,
+      jur,
+      since,
+      undefined,
+      undefined,
+      undefined,
+    );
+    expect(result.level).toBe("locality");
+    expect(result.features.type).toBe("FeatureCollection");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Reference layers — discrete pins, unaffected by the aggregation axis.
 // ---------------------------------------------------------------------------
@@ -753,6 +822,95 @@ describe("getLayerFeatures — esterilizacion (North-Star PROVINCE choropleth)",
       false,
     );
     expect(result.level).toBe("locality");
+  });
+});
+
+describe("getLayerFeatures — microchip (PROVINCE choropleth, C1)", () => {
+  it("routes to microchip-penetration metric (ratePct values)", async () => {
+    mockLoadChoropleth.mockResolvedValue({
+      cells: [
+        { provinceCode: "AR-B", label: "Buenos Aires", value: 61 },
+        { provinceCode: "AR-X", label: "Córdoba", value: 40 },
+      ],
+      truncated: false,
+    } as unknown as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "microchip",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "province",
+    );
+
+    expect(mockLoadChoropleth).toHaveBeenCalledWith(
+      "microchip-penetration",
+      "province",
+      { role: "admin" },
+      [],
+      undefined,
+      undefined,
+      false,
+    );
+    expect(result.level).toBe("province");
+    expect(result.features.features).toHaveLength(2);
+  });
+
+  it("routes to microchip-penetration at locality level (count-density, v1)", async () => {
+    mockLoadChoropleth.mockResolvedValue({
+      cells: [],
+      suppressedCount: 0,
+      noLocalityCount: 0,
+      truncated: false,
+    } as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "microchip",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "locality",
+    );
+
+    expect(mockLoadChoropleth).toHaveBeenCalledWith(
+      "microchip-penetration",
+      "locality",
+      { role: "admin" },
+      [],
+      undefined,
+      undefined,
+      false,
+    );
+    expect(result.level).toBe("locality");
+  });
+});
+
+describe("getLayerFeatures — ppp (PROVINCE choropleth, C7)", () => {
+  it("routes to ppp-compliance metric (ratePct values)", async () => {
+    mockLoadChoropleth.mockResolvedValue({
+      cells: [{ provinceCode: "AR-B", label: "Buenos Aires", value: 0 }],
+      truncated: false,
+    } as unknown as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "ppp",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "province",
+    );
+
+    expect(mockLoadChoropleth).toHaveBeenCalledWith(
+      "ppp-compliance",
+      "province",
+      { role: "admin" },
+      [],
+      undefined,
+      undefined,
+      false,
+    );
+    expect(result.level).toBe("province");
+    expect(result.features.features).toHaveLength(1);
   });
 });
 
