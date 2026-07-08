@@ -62,6 +62,14 @@ if (!ALLOW_REMOTE && dbHost && !LOCAL_HOSTS.has(dbHost)) {
 export async function seedDemoComplianceCoverage(database: {
   execute: (q: ReturnType<typeof sql>) => Promise<unknown>;
 }): Promise<{ chipsInserted: number; rabiesBackfilled: number }> {
+  // ── SEED-SCOPE INVARIANT ──────────────────────────────────────────────────
+  // Seeds mutate ONLY seed-owned rows — NEVER a global predicate over user data.
+  // Coverage is synthetic aggregate data for the seed's own universe: panorama
+  // pets (PANO-*) + demo-scenario pets (DIM-DEMO-*). A real user pet (random
+  // DIM-XXXX-XXXX token) must NEVER receive a seeded microchip identification or
+  // event. An earlier unscoped `FROM pets p WHERE status='active'` sweep here
+  // minted chip 858212950009440 onto a LIVE user pet during a remote re-seed,
+  // corrupting its legal identifier — the reason this scope filter exists.
   // (1) Microchip identifications — per-province varied fraction of active pets.
   //     Target rate per province = 20 + hash(province) % 35  → [20%, 54%].
   //     Unique 15-digit ISO code: '858' + 4-digit mfr + 8-digit national
@@ -82,6 +90,8 @@ export async function seedDemoComplianceCoverage(database: {
       FROM pets p
       WHERE p.status = 'active'
         AND p.jurisdiction_province IS NOT NULL
+        -- SEED SCOPE: only the seed's own pets, never live user data.
+        AND (p.public_token LIKE 'PANO-%' OR p.public_token LIKE 'DIM-DEMO-%')
         AND NOT EXISTS (
           SELECT 1 FROM pet_identifications pi
           WHERE pi.pet_id = p.id AND pi.kind = 'microchip_iso' AND pi.status = 'active'
@@ -124,6 +134,13 @@ export async function seedDemoComplianceCoverage(database: {
            )
     FROM pet_identifications pi
     WHERE pi.kind = 'microchip_iso' AND pi.status = 'active'
+      -- SEED SCOPE: only back seed-owned chips with events. Pre-existing
+      -- microchip_iso rows on real user pets must NEVER get a synthetic event.
+      AND EXISTS (
+        SELECT 1 FROM pets p
+        WHERE p.id = pi.pet_id
+          AND (p.public_token LIKE 'PANO-%' OR p.public_token LIKE 'DIM-DEMO-%')
+      )
       AND NOT EXISTS (
         SELECT 1 FROM pet_events e
         WHERE e.pet_id = pi.pet_id
@@ -154,6 +171,8 @@ export async function seedDemoComplianceCoverage(database: {
     FROM pets p
     WHERE p.status = 'active' AND p.species = 'dog'
       AND p.jurisdiction_province IS NOT NULL AND p.jurisdiction_locality IS NOT NULL
+      -- SEED SCOPE: only the seed's own pets, never live user data.
+      AND (p.public_token LIKE 'PANO-%' OR p.public_token LIKE 'DIM-DEMO-%')
       AND NOT EXISTS (
         SELECT 1 FROM pet_events pe
         WHERE pe.pet_id = p.id AND pe.event_type = 'vaccination_administered'

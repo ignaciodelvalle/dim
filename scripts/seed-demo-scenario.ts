@@ -1060,6 +1060,7 @@ async function seedComplianceCoverage(adminUserId: string): Promise<void> {
              '858', '0001', s.nat8, true
       FROM (
         SELECT p.id AS id,
+               p.public_token AS token,
                p.jurisdiction_province AS prov,
                p.status AS status,
                lpad((row_number() OVER (ORDER BY p.id))::text, 8, '0') AS nat8,
@@ -1069,6 +1070,11 @@ async function seedComplianceCoverage(adminUserId: string): Promise<void> {
       WHERE s.prov = ${province}
         AND s.status IN ('active', 'lost')
         AND s.bucket < ${pct}
+        -- SEED SCOPE: only the seed's own universe (panorama PANO-* + demo
+        -- DIM-DEMO-*). Never a global "all pets in province" sweep — that once
+        -- assigned a synthetic microchip to a live user pet, corrupting its
+        -- legal identifier. Seeds mutate ONLY seed-owned rows.
+        AND (s.token LIKE 'PANO-%' OR s.token LIKE 'DIM-DEMO-%')
         AND NOT EXISTS (
           SELECT 1 FROM pet_identifications pi
           WHERE pi.pet_id = s.id AND pi.kind = 'microchip_iso' AND pi.status = 'active'
@@ -1140,6 +1146,12 @@ async function backfillMicrochipEvents(adminUserId: string): Promise<void> {
       AND pi.iso_country_code = '858'
       AND pi.iso_manufacturer_code = '0001'
       AND pi.code LIKE '8580001%'
+      -- SEED SCOPE (defense in depth): only event-back chips on seed-owned pets.
+      AND EXISTS (
+        SELECT 1 FROM pets p
+        WHERE p.id = pi.pet_id
+          AND (p.public_token LIKE 'PANO-%' OR p.public_token LIKE 'DIM-DEMO-%')
+      )
       AND NOT EXISTS (
         SELECT 1 FROM pet_events pe
         WHERE pe.pet_id = pi.pet_id

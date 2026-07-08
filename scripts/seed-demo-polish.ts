@@ -41,6 +41,11 @@ import { config as loadEnv } from "dotenv";
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
+// --allow-remote lets the full re-seed chain (panorama → scenario → polish)
+// complete against a remote host. Local-only remains the default: remote must
+// be requested EXPLICITLY, mirroring seed-panorama.ts / seed-demo-scenario.ts.
+const ALLOW_REMOTE = process.argv.includes("--allow-remote");
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const DATABASE_URL = process.env.DATABASE_URL ?? "";
@@ -56,9 +61,10 @@ if (process.env.NODE_ENV === "production") {
   console.error("Refusing to seed: NODE_ENV=production.");
   process.exit(2);
 }
-if (!isLocalUrl(SUPABASE_URL) || !isLocalUrl(DATABASE_URL)) {
+if (!ALLOW_REMOTE && (!isLocalUrl(SUPABASE_URL) || !isLocalUrl(DATABASE_URL))) {
   console.error(
     `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local.`,
+    "\n  Re-run with --allow-remote to target a remote host explicitly.",
   );
   process.exit(2);
 }
@@ -538,12 +544,21 @@ async function main(): Promise<void> {
   // pet-cache fitness sweep exists to catch (invariant #3) — the first run
   // of this script created it. Emit one weight_recorded per pet whose
   // estimated_weight_kg is set but whose log has no weight event.
+  //
+  // SEED SCOPE: `LIKE 'DIM-%'` matched EVERY real user pet (live tokens are
+  // DIM-XXXX-XXXX), so this would have injected a synthetic weight_recorded
+  // event into any real pet carrying an estimated_weight_kg — a mutation of a
+  // user's append-only event log. Scope strictly to the exact set this script
+  // filled weights on (fillTokens = RENAMES + owner@'s kept pets + E2E→Turrón).
   await db.execute(sql`
     INSERT INTO pet_events (pet_id, event_type, occurred_at, recorded_at, author_role, payload)
     SELECT p.id, 'weight_recorded', now() - interval '30 days', now() - interval '30 days', 'owner',
            jsonb_build_object('payload_version', 1, 'kg', p.estimated_weight_kg::text, 'source', 'demo-polish')
     FROM pets p
-    WHERE (p.public_token LIKE 'DIM-%' OR p.public_token LIKE 'DEMO-%') AND p.estimated_weight_kg IS NOT NULL
+    WHERE p.public_token IN (${sql.join(
+      fillTokens.map((t) => sql`${t}`),
+      sql`, `,
+    )}) AND p.estimated_weight_kg IS NOT NULL
       AND NOT EXISTS (
         SELECT 1 FROM pet_events e WHERE e.pet_id = p.id AND e.event_type = 'weight_recorded'
       )
@@ -635,11 +650,20 @@ async function main(): Promise<void> {
     .from(pets)
     .where(inArray(pets.publicToken, fillTokens));
 
+  // SEED SCOPE: photos may only touch the seed's own pets. Selecting adoption /
+  // lost / org pets by a global status predicate would attach placeholder
+  // photos to REAL user pets — a mutation of user data. Restrict to the seed's
+  // own universe (PANO-* + DIM-DEMO-*). In the demo DB every adoption/lost/org
+  // pet is already seed-owned, so this is behavior-preserving there.
+  const seedOwnedPet = sql`(${pets.publicToken} LIKE 'PANO-%' OR ${pets.publicToken} LIKE 'DIM-DEMO-%')`;
+
   // c) active adoption listings (newest 20).
   const adoptionTargets: PhotoTarget[] = await db
     .select(photoCols)
     .from(pets)
-    .where(and(isNotNull(pets.adoptionListedAt), isNull(pets.adoptionListingPausedAt)))
+    .where(
+      and(seedOwnedPet, isNotNull(pets.adoptionListedAt), isNull(pets.adoptionListingPausedAt)),
+    )
     .orderBy(desc(pets.adoptionListedAt))
     .limit(20);
 
@@ -648,7 +672,7 @@ async function main(): Promise<void> {
   const lostTargets: PhotoTarget[] = await db
     .select(photoCols)
     .from(pets)
-    .where(eq(pets.status, "lost"))
+    .where(and(seedOwnedPet, eq(pets.status, "lost")))
     .orderBy(desc(pets.updatedAt))
     .limit(20);
 
@@ -657,7 +681,7 @@ async function main(): Promise<void> {
     .select(photoCols)
     .from(ownerships)
     .innerJoin(pets, eq(ownerships.petId, pets.id))
-    .where(and(isNotNull(ownerships.ownerOrganizationId), isNull(ownerships.endedAt)))
+    .where(and(seedOwnedPet, isNotNull(ownerships.ownerOrganizationId), isNull(ownerships.endedAt)))
     .orderBy(desc(ownerships.startedAt))
     .limit(20);
 
