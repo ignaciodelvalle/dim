@@ -11,7 +11,12 @@
 
 import { AlertInboxTable } from "@/components/admin/AlertInboxTable";
 import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { ALERT_FIRING_STATUSES, ALERT_METRIC_KEYS, type AlertMetricKey } from "@/db/schema";
+import {
+  ALERT_FIRING_STATUSES,
+  ALERT_METRIC_KEYS,
+  type AlertFiring,
+  type AlertMetricKey,
+} from "@/db/schema";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
   type AlertInboxFilters,
@@ -19,8 +24,16 @@ import {
   logAlertInboxView,
 } from "@/lib/metrics/alert-firing-inbox";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 
 export const dynamic = "force-dynamic";
+
+// Server-render budget for the inbox fetch. On expiry (or a fetcher rejection,
+// caught below) the page renders a degraded-but-honest state — "no pudimos
+// cargar la bandeja, reintentá" — instead of hanging the RSC stream forever
+// behind loading.tsx (QA histórico 2026-07-08: deterministic 25s+ eternal
+// spinner). Mirrors the panorama page's withDbBudget guard (task #74).
+const PAGE_BUDGET_MS = 9000;
 
 const METRIC_LABEL: Record<string, string> = {
   active_zoonosis: "Zoonosis activos",
@@ -69,10 +82,29 @@ export default async function AdminAlertasPage({
   const sp = searchParams ? await searchParams : {};
   const filters = parseFilters(sp);
 
-  const rows = await fetchAlertFirings(filters);
+  // Bound the inbox fetch on BOTH axes (time + crash-safety). `null` is the
+  // degraded sentinel: on a timeout or a rejected query the page renders an
+  // honest "reintentá" card instead of an eternal skeleton.
+  const rows = await withDbBudget<AlertFiring[] | null>(
+    fetchAlertFirings(filters),
+    PAGE_BUDGET_MS,
+    "admin/alertas firings",
+    null,
+  ).catch(() => null);
 
-  // Mandatory PII audit row for this list view (surface: alert_inbox).
-  await logAlertInboxView(session.user.id, filters, rows.length);
+  const degraded = rows === null;
+
+  // Mandatory PII audit row for this list view (surface: alert_inbox) — only
+  // when we actually read rows. Bounded so a degraded audit-log write can never
+  // re-introduce the hang we just fixed; a failed audit is logged and swallowed.
+  if (!degraded) {
+    await withDbBudget(
+      logAlertInboxView(session.user.id, filters, rows.length),
+      PAGE_BUDGET_MS,
+      "admin/alertas audit",
+      undefined,
+    ).catch(() => undefined);
+  }
 
   const inputCls =
     "h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-sm text-ln-op-ink";
@@ -156,13 +188,32 @@ export default async function AdminAlertasPage({
         <OpCardHead
           title="Alertas"
           actions={
-            <span className="text-[11px] text-ln-op-mute">
-              {rows.length} {rows.length === 1 ? "alerta" : "alertas"}
-            </span>
+            degraded ? undefined : (
+              <span className="text-[11px] text-ln-op-mute">
+                {rows.length} {rows.length === 1 ? "alerta" : "alertas"}
+              </span>
+            )
           }
         />
         <OpCardBody>
-          <AlertInboxTable rows={rows} />
+          {degraded ? (
+            <div className="space-y-3 py-4 text-center">
+              <p className="text-[var(--text-sm)] font-semibold text-ln-op-ink">
+                No pudimos cargar la bandeja de alertas.
+              </p>
+              <p className="text-[var(--text-sm)] text-ln-op-mute">
+                La consulta tardó demasiado o falló. Reintentá en unos segundos.
+              </p>
+              <a
+                href="/admin/alertas"
+                className="inline-flex items-center justify-center rounded-[var(--radius-op-btn,6px)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-sm font-semibold text-ln-op-ink no-underline hover:bg-ln-op-stripe"
+              >
+                Reintentar
+              </a>
+            </div>
+          ) : (
+            <AlertInboxTable rows={rows} />
+          )}
         </OpCardBody>
       </OpCard>
     </div>
