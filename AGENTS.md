@@ -844,6 +844,24 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - "Vets with the highest sterilization throughput last quarter" → recognition / capacity allocation
 - "Barrios with rising stray-scan density" → welfare resource pre-positioning
 
+### Bitemporal projections — valid time vs transaction time (task #77)
+
+Every `pet_events` row carries **two** timestamps: `occurred_at` (VALID time — when the fact happened) and `recorded_at` (TRANSACTION time — when the system/State learned it). This bitemporality is dormant in the data (zero migration needed) but load-bearing for projections. **Every temporal surface must name which basis it uses**, because the two answer different questions:
+
+- **Valid time (`occurred_at`)** — "what happened when." The default for reconstructing a situation as it unfolded on the ground.
+- **Transaction time (`recorded_at`)** — "what the State KNEW when." An event that occurred 2026-03-01 but was recorded 2026-03-13 shows up 12 days *later* in a transaction-time replay. **The gap between the two IS a metric**: reporting lag, territorial-presence blind spots, institutional diligence.
+
+Surfaces and their basis:
+
+| Surface | Default basis | Toggle? | Notes |
+|---|---|---|---|
+| Panorama time scrubber ("Reproducir en el tiempo") | valid (`occurred_at`) | Yes — "según lo conocido al momento" switches to `recorded_at` | Honored by the `pet_events`-backed layers: perdidas, mordeduras, zoonosis. `?basis=transaction` on `/api/panorama/[layer]`. `denuncias` (welfare_reports) and `decomisos` (cases) have no distinct `recorded_at`, so they replay by their single timestamp in both modes. |
+| MPF welfare export ("Cronología según conocimiento") | both, shown side by side | n/a | The PDF names the occurrence date (valid) and the intake date (transaction = when the authority took knowledge via the denuncia), plus the gap — institutional legal defense for the fiscalía. |
+
+**Pitch material**: no Argentine state system exposes this distinction. Surfacing "según lo conocido al momento" turns a dormant data property into a governance instrument — the reporting-lag gap is territorial-presence evidence no other registry can produce.
+
+**Perf note**: `recorded_at` is NOT indexed (only `occurred_at` is: `pet_events_pet_id_occurred_at_idx`, `pet_events_event_type_occurred_at_idx`), so a transaction-basis replay is an unindexed range scan. Acceptable at pilot scale; a future migration should add a `recorded_at` index if this path gets hot.
+
 ## Aggregation & privacy policy
 
 - **Coarse public aggregates require no consent.** Counts of vaccinated pets per barrio per month, with no per-pet attribution, can power public dashboards without owner opt-in — there's no individual signal to expose.
