@@ -10,6 +10,7 @@ import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnVaccineLedger, type LnVaccineRow } from "@/components/ui/Ledger";
+import type { EventType } from "@/db/schema";
 import { eventPayloadSummary } from "@/lib/events/events";
 import {
   LIBRETA_GROUPS,
@@ -18,7 +19,7 @@ import {
   libretaConfidenceTier,
 } from "@/lib/infra/libreta-sanitaria";
 import { notificableEno, tipoEventoLabel, tipoEventoNorma } from "@/lib/reference/sanitary-vocab";
-import { formatDate } from "@/lib/utils/format";
+import { eventTypeLabel, formatDate } from "@/lib/utils/format";
 
 type Event = {
   id: string;
@@ -275,7 +276,7 @@ function LnTimelineSection({
                   className="m-0 text-[13px] font-semibold"
                   style={{ color: "var(--color-ln-ink)" }}
                 >
-                  {senasaLabel ?? summary.primary ?? event.eventType}
+                  {senasaLabel ?? summary.primary ?? eventTypeLabel(event.eventType as EventType)}
                 </p>
                 <ConfidenceBadge tier={confidenceTier} />
                 {isEno && (
