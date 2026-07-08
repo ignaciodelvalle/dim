@@ -68,7 +68,7 @@ begin
   values (
     new.id,
     'welcome',
-    '¡Bienvenido a DIM, ' || resolved_display_name || '!',
+    '¡Te damos la bienvenida a MiMAR, ' || resolved_display_name || '!',
     'La libreta digital de tu mascota empieza acá. Empezá agregando tu primera mascota — vamos a generar su credencial digital y armar el historial juntos.',
     'info'::public.notification_severity,
     'Registrá tu primera mascota',
