@@ -236,7 +236,7 @@ export function OrgIntakeScreen() {
             <div className="min-w-0">
               <b>Chip verificado</b>
               <span className="lp-intake-sub">
-                Es <b className="inline">Pampa</b>, de Martín — a 1,2 km, en camino.
+                Es <strong>Pampa</strong>, de Martín — a 1,2 km, en camino.
               </span>
             </div>
           </div>
