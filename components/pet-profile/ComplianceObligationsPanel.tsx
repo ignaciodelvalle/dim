@@ -46,6 +46,15 @@ const ICON_FOR: Record<ObligationKey, string> = {
 // reserved / neutral fall back to LnBadge (the stamp has no such variants).
 const VSTAMP_TONES = new Set<ComplianceTone>(["ok", "due", "over"]);
 
+// Currency-chip variant for the dual vaccine block (task #78 — the "0 de 4 ·
+// DECLARADA" #4 fix). The chip shows the owner's REAL vaccine currency alongside
+// the "registro needs a firma" nudge, so the card is dual + honest.
+const CURRENCY_TO_BADGE: Record<"ok" | "due" | "over", NonNullable<LnBadgeProps["variant"]>> = {
+  ok: "success",
+  due: "warning",
+  over: "danger",
+};
+
 function StatusBadge({ card }: { card: ObligationCard }) {
   if (card.key === "rabies" && VSTAMP_TONES.has(card.tone)) {
     return <LnVstamp variant={card.tone as "ok" | "due" | "over"} className="flex-shrink-0" />;
@@ -102,6 +111,35 @@ function ObligationCardView({
         <p className="font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
           {card.detail}
         </p>
+      )}
+
+      {/* DUAL honest vaccine state (task #78 / #4): what the owner HAS (dose on
+          record + its currency) above what the official REGISTRY still needs (a
+          matriculated vet signature) — so a declared-but-vigente vaccine stops
+          reading as a flat "you have nothing" contradiction. */}
+      {card.dual && (
+        <div className="mt-0.5 flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-3 py-2.5">
+            <span aria-hidden className="font-semibold text-[var(--color-ln-ok)]">
+              ✓
+            </span>
+            <span className="text-xs font-medium leading-relaxed text-[var(--color-ln-ink)]">
+              {card.dual.ownerLabel}
+            </span>
+            {card.dual.currencyLabel && card.dual.currencyTone && (
+              <LnBadge
+                variant={CURRENCY_TO_BADGE[card.dual.currencyTone]}
+                className="flex-shrink-0"
+              >
+                {card.dual.currencyLabel}
+              </LnBadge>
+            )}
+          </div>
+          <p className="flex items-start gap-2 rounded-[var(--radius-lg)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-3 py-2.5 text-xs leading-relaxed text-[var(--color-ln-warn)]">
+            <Icon name="info" size="sm" decorative className="mt-px flex-shrink-0" />
+            <span>{card.dual.registryLine}</span>
+          </p>
+        </div>
       )}
 
       <p className="font-[var(--font-ln-sans)] text-xs leading-relaxed text-[var(--color-ln-faint)]">

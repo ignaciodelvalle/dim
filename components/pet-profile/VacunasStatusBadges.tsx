@@ -13,6 +13,7 @@ import {
   type VaccineSnapshot,
   hasAnyVaccineRecord,
 } from "@/lib/domain/libreta-health-status";
+import { VACCINE_LENS } from "@/lib/domain/provenance";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { useState } from "react";
 
@@ -149,6 +150,12 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
         style={{ color: "var(--color-ln-mute)" }}
       >
         Estado de vacunación
+      </p>
+      {/* Name the lens (task #78): this panel is the CURRENCY lens (vigencia de
+          la dosis), NOT the compliance "al día" lens — copy shared from
+          VACCINE_LENS so every vaccine surface disambiguates identically. */}
+      <p className="mb-2 text-xs" style={{ color: "var(--color-ln-mute)" }}>
+        {VACCINE_LENS.currency.note}
       </p>
       <div className="grid grid-cols-3 gap-2">
         {badges.map((b) => (

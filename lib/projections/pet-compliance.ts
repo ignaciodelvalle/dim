@@ -16,6 +16,7 @@
 // No new color tokens, no schema migration, no new event types (token ratchet).
 // ---------------------------------------------------------------------------
 
+import { type ProvenanceTier, provenanceTier } from "@/lib/domain/provenance";
 import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { computeConfidence } from "@/lib/events/event-confidence";
 
@@ -53,6 +54,20 @@ export type ObligationKey = "rabies" | "sterilization" | "microchip" | "ppp";
 // `neutral` is "sin registro / no aplica todavía".
 export type ComplianceTone = "ok" | "due" | "over" | "reserved" | "neutral";
 
+// DUAL vaccine state (task #78 Part 1 — the "0 de 4 · DECLARADA" #4 fix). A
+// diligent owner who vaccinated but has no vet signature used to see a single
+// flat "Declarada · sin verificar" badge that reads as "you have nothing". The
+// dual block splits the two honest truths the credential must tell at once:
+//   • what the owner HAS (the currency lens — the dose is on record and vigente)
+//   • what the official REGISTRY still needs (a matriculated vet signature).
+// Present ONLY on the rabies card, and only for a declared (unsigned) dose.
+export type ComplianceDual = {
+  ownerLabel: string; // es-AR "lo que tenés" line ("Antirrábica cargada por vos")
+  currencyLabel: string | null; // es-AR currency chip ("Vigente" / "Por vencer" / "Vencida")
+  currencyTone: "ok" | "due" | "over" | null; // tone of the currency chip
+  registryLine: string; // es-AR "lo que pide el registro" educational nudge
+};
+
 export type ObligationCard = {
   key: ObligationKey;
   label: string; // es-AR obligation title
@@ -61,6 +76,12 @@ export type ObligationCard = {
   detail: string | null; // es-AR secondary line (date, provider, chip number)
   legalFootnote: string; // es-AR muted legal citation
   hint?: string | null; // es-AR nudge to get a self-reported event verified (H1)
+  // Provenance lens (task #78): declarado / verificado / firmado_matricula, from
+  // the satisfying event's author. Lets a surface caption WHO signed the record
+  // without re-deriving it. Omitted when there is no satisfying event.
+  provenance?: ProvenanceTier;
+  // Dual honest vaccine state — see ComplianceDual. Rabies-only, declared-dose-only.
+  dual?: ComplianceDual;
 };
 
 export type ComplianceState = {
@@ -126,6 +147,13 @@ const HINT = {
 } as const;
 
 const DECLARADA_STATE = "Declarada · sin verificar";
+
+// Rabies dual-state copy (task #78 Part 1 / #4). The registry line is educational
+// AND a nudge — a vet signature turns declared data into verified data, which is
+// what the whole system wants more of.
+const REGISTRY_NEEDS_LINE =
+  "Para figurar “al día” en el registro oficial, un veterinario matriculado tiene que firmarla.";
+const RABIES_DECLARED_BADGE = "Declarada"; // provenance-lens badge; the dual block carries the rest
 
 function hasEvent(events: ComplianceEvent[], eventType: string): boolean {
   return events.some((e) => e.eventType === eventType);
@@ -222,44 +250,10 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
 
   const dose = latestRabiesDose(input.events);
 
-  // Base state: reminder variant, else the latest dose's next_due_at, else none.
-  let base: ObligationCard;
-  if (input.rabiesReminder) {
-    base = rabiesFromVariant(input.rabiesReminder.variant, input.rabiesReminder.dueAt);
-  } else if (dose) {
-    const p = (dose.payload ?? {}) as Record<string, unknown>;
-    const nextDueRaw = typeof p.next_due_at === "string" ? p.next_due_at : null;
-    const nextDue = nextDueRaw ? new Date(nextDueRaw) : null;
-    if (nextDue && Number.isFinite(nextDue.getTime())) {
-      base =
-        nextDue <= input.now
-          ? rabiesFromVariant("overdue", nextDue)
-          : rabiesFromVariant("upcoming", nextDue);
-    } else {
-      // A dose IS on record but its payload carries no next_due_at, so we can't
-      // judge currency. This must NOT read "Sin registro" — the libreta shows a
-      // real antirrábica asiento, and a credential that says "sin registro" for
-      // it directly contradicts the libreta (UX gate M5a). A professional/
-      // institutional dose reads "Registrada"; a self-reported one reads
-      // "Declarada · sin verificar" (H1), both with the application date.
-      // Compute the Date on its own line (not inside the ${} interpolation) so
-      // the no-raw-date-in-sql guard doesn't flag this display string as a sql``
-      // Date bind — and so formatDate gets the Date it expects.
-      const appliedAt = new Date(dose.occurredAt);
-      const applied = `Aplicada ${formatDate(appliedAt)}`;
-      base = clearsObligation(dose)
-        ? {
-            key: "rabies",
-            label: "Vacuna antirrábica",
-            state: "Registrada",
-            tone: "ok",
-            detail: applied,
-            legalFootnote: FOOTNOTE.rabies,
-          }
-        : declaradaCard("rabies", "Vacuna antirrábica", FOOTNOTE.rabies, HINT.rabies, applied);
-    }
-  } else {
-    base = {
+  // No dose at all → "Sin registro". (A reminder without a dose still needs the
+  // dose to judge provenance, so it also lands here for the provenance overlay.)
+  if (!dose && !input.rabiesReminder) {
+    return {
       key: "rabies",
       label: "Vacuna antirrábica",
       state: "Sin registro",
@@ -269,13 +263,100 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
     };
   }
 
-  // H1: a "Vigente" (al día) claim must be backed by a professional/institutional
-  // dose. If currency rests only on a self-reported dose (or none), downgrade to
-  // "Declarada · sin verificar" while keeping the due-date detail.
-  if (base.tone === "ok" && !(dose && clearsObligation(dose))) {
+  // ---- CURRENCY base (WHO-agnostic): reminder variant, else next_due_at ----
+  // `currencyKnown` marks whether the tone reflects a real vigencia (Vigente /
+  // Por vencer / Vencida) vs. a dose on record whose currency we can't judge.
+  let base: ObligationCard;
+  let currencyKnown: boolean;
+  if (input.rabiesReminder) {
+    base = rabiesFromVariant(input.rabiesReminder.variant, input.rabiesReminder.dueAt);
+    currencyKnown = true;
+  } else {
+    // dose is defined here (the early return above handled the no-dose case).
+    const p = (dose?.payload ?? {}) as Record<string, unknown>;
+    const nextDueRaw = typeof p.next_due_at === "string" ? p.next_due_at : null;
+    const nextDue = nextDueRaw ? new Date(nextDueRaw) : null;
+    if (nextDue && Number.isFinite(nextDue.getTime())) {
+      base =
+        nextDue <= input.now
+          ? rabiesFromVariant("overdue", nextDue)
+          : rabiesFromVariant("upcoming", nextDue);
+      currencyKnown = true;
+    } else {
+      // A dose IS on record but its payload carries no next_due_at, so we can't
+      // judge currency. This must NOT read "Sin registro" — the libreta shows a
+      // real antirrábica asiento (UX gate M5a). Raw base is "Registrada"/ok; the
+      // provenance overlay below decides signed ("Registrada") vs declared.
+      // Compute the Date on its own line (not inside the ${} interpolation) so
+      // the no-raw-date-in-sql guard doesn't flag this display string.
+      const appliedAt = new Date(dose?.occurredAt ?? input.now);
+      base = {
+        key: "rabies",
+        label: "Vacuna antirrábica",
+        state: "Registrada",
+        tone: "ok",
+        detail: `Aplicada ${formatDate(appliedAt)}`,
+        legalFootnote: FOOTNOTE.rabies,
+      };
+      currencyKnown = false;
+    }
+  }
+
+  // ---- PROVENANCE overlay (task #78) ----
+  const tier: ProvenanceTier | null = dose
+    ? provenanceTier({
+        authorRole: dose.authorRole,
+        authorVerified: dose.authorVerified,
+        authorOrganizationId: dose.authorOrganizationId,
+        payload: (dose.payload ?? {}) as Record<string, unknown>,
+      })
+    : null;
+  // "Signed" (clears the al-día gate) iff the provenance is verificado /
+  // firmado_matricula — the exact complement of `declarado` (invariant tested in
+  // provenance.test.ts against clearsObligation).
+  const signed = tier != null && tier !== "declarado";
+
+  // A DECLARED dose (owner-reported or org-recorded, no matrícula) → DUAL honest
+  // card (#4). It stops reading as a flat contradiction: the owner sees the dose
+  // IS on record (and its currency), plus exactly what the registry still needs.
+  if (dose && !signed) {
+    const currencyLabel = currencyKnown ? base.state : null; // Vigente/Por vencer/Vencida
+    const currencyTone = currencyKnown ? (base.tone as "ok" | "due" | "over") : null;
+    const ownerDeclared = (dose.authorRole ?? "") === "owner";
+    // Counting tone: a vigente-declared dose must NOT count as "al día" (neutral),
+    // but a por-vencer / vencida dose keeps its currency urgency so the owner
+    // still sees "renovála" — provenance never hides an expiry.
+    const countingTone: ComplianceTone = base.tone === "ok" ? "neutral" : base.tone;
+    return {
+      key: "rabies",
+      label: "Vacuna antirrábica",
+      state: base.tone === "ok" ? RABIES_DECLARED_BADGE : base.state,
+      tone: countingTone,
+      detail: base.detail,
+      legalFootnote: FOOTNOTE.rabies,
+      provenance: "declarado",
+      dual: {
+        ownerLabel: ownerDeclared
+          ? "Antirrábica cargada por vos"
+          : "Antirrábica registrada sin firma de matrícula",
+        currencyLabel,
+        currencyTone,
+        registryLine: REGISTRY_NEEDS_LINE,
+      },
+    };
+  }
+
+  // Reminder claims currency ("Vigente"/ok) but NO dose backs it (reachable only
+  // when `dose` is null — the dose branch returned above). H1: an "al día" claim
+  // needs a signed dose, and with no dose there is nothing to surface as dual, so
+  // fall back to the plain declarada card.
+  if (base.tone === "ok" && !signed) {
     return declaradaCard("rabies", "Vacuna antirrábica", FOOTNOTE.rabies, HINT.rabies, base.detail);
   }
-  return base;
+
+  // Signed dose (or a reminder-only due/over base) → keep the currency card,
+  // tagged with its provenance tier for surfaces that caption it.
+  return tier ? { ...base, provenance: tier } : base;
 }
 
 function deriveSterilization(input: ComplianceInput): ObligationCard {

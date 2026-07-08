@@ -138,14 +138,23 @@ describe("deriveComplianceState — rabies state machine", () => {
 
   // UX gate M5a: a recorded antirrábica dose with no next_due_at must NOT read
   // "Sin registro" — that contradicts the libreta asiento the owner can see.
-  it("self-reported rabies dose without next_due_at → 'Declarada · sin verificar', never 'Sin registro'", () => {
+  // task #78 Part 1 / #4: a declared rabies dose is now a DUAL honest card — not
+  // a flat "Declarada · sin verificar". The badge is provenance-forward
+  // ("Declarada"), tone neutral (not al-día), and it carries a dual block: what
+  // the owner HAS + what the registry NEEDS.
+  it("self-reported rabies dose without next_due_at → dual 'Declarada' card, never 'Sin registro'", () => {
     const state = deriveComplianceState(
       baseInput({ events: [vaccination("Antirrábica", null, SELF)] }),
     );
     const rabies = state.cards.find((c) => c.key === "rabies");
-    expect(rabies?.state).toBe("Declarada · sin verificar");
+    expect(rabies?.state).toBe("Declarada");
     expect(rabies?.tone).toBe("neutral");
     expect(rabies?.detail).toBeTruthy();
+    expect(rabies?.provenance).toBe("declarado");
+    expect(rabies?.dual?.ownerLabel).toContain("cargada por vos");
+    // Currency unknown (no next_due_at) → no currency chip.
+    expect(rabies?.dual?.currencyLabel).toBeNull();
+    expect(rabies?.dual?.registryLine).toBeTruthy();
   });
 
   it("vet-verified rabies dose without next_due_at → 'Registrada' (ok), never 'Sin registro'", () => {
@@ -190,8 +199,16 @@ describe("deriveComplianceState — H1 provenance gate", () => {
       baseInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", ORG)] }),
     );
     const card = state.cards.find((c) => c.key === "rabies");
-    expect(card?.state).toBe("Declarada · sin verificar");
+    // Dual card (declarado tier), NOT counted. An org RECORD is not "cargada por
+    // vos" — the dual line says "registrada sin firma de matrícula".
+    expect(card?.state).toBe("Declarada");
     expect(card?.tone).toBe("neutral");
+    expect(card?.provenance).toBe("declarado");
+    expect(card?.dual?.ownerLabel).toContain("sin firma");
+    // Currency IS known (future next_due) → shows the "Vigente" chip.
+    expect(card?.dual?.currencyLabel).toBe("Vigente");
+    expect(card?.dual?.currencyTone).toBe("ok");
+    expect(state.summary.ok).toBe(0);
   });
 
   it("vet-verified sterilization → 'Registrada' (ok), counted", () => {
@@ -240,15 +257,43 @@ describe("deriveComplianceState — H1 provenance gate", () => {
     expect(card?.legalFootnote).not.toMatch(/verificad/i);
   });
 
-  it("rabies currency from a self-reported dose → 'Declarada · sin verificar' (not Vigente)", () => {
+  it("rabies currency from a self-reported dose → dual 'Declarada' card (not Vigente), keeps currency", () => {
     const state = deriveComplianceState(
       baseInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", SELF)] }),
     );
     const card = state.cards.find((c) => c.key === "rabies");
-    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.state).toBe("Declarada");
     expect(card?.tone).toBe("neutral");
-    // Keeps the due-date detail even when downgraded.
+    expect(card?.provenance).toBe("declarado");
+    // Dual: the owner's dose IS vigente (currency lens) even though it does not
+    // count as "al día" (compliance lens) — both truths surfaced at once (#4).
+    expect(card?.dual?.currencyLabel).toBe("Vigente");
+    expect(card?.dual?.ownerLabel).toContain("cargada por vos");
+    // Keeps the due-date detail.
     expect(card?.detail).toBeTruthy();
+  });
+
+  it("declared rabies dose that is EXPIRED keeps its 'Vencida' urgency (provenance never hides an expiry)", () => {
+    const state = deriveComplianceState(
+      baseInput({ events: [vaccination("Antirrábica", "2026-01-01T00:00:00Z", SELF)] }),
+    );
+    const card = state.cards.find((c) => c.key === "rabies");
+    expect(card?.state).toBe("Vencida");
+    expect(card?.tone).toBe("over");
+    expect(card?.provenance).toBe("declarado");
+    expect(card?.dual?.currencyLabel).toBe("Vencida");
+    expect(card?.dual?.currencyTone).toBe("over");
+  });
+
+  it("firmado_matricula: a vet-signed vigente rabies dose tags provenance 'firmado_matricula'", () => {
+    const state = deriveComplianceState(
+      baseInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", VET)] }),
+    );
+    const card = state.cards.find((c) => c.key === "rabies");
+    expect(card?.state).toBe("Vigente");
+    expect(card?.tone).toBe("ok");
+    expect(card?.provenance).toBe("firmado_matricula");
+    expect(card?.dual).toBeUndefined();
   });
 
   it("rabies currency from a professional_verified dose → 'Vigente' (ok)", () => {
