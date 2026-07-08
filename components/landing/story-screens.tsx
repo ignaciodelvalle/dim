@@ -60,7 +60,7 @@ const MY_PETS = [
     name: "Pampa",
     status: "ok" as const,
     species: "Canino",
-    breed: "Caniche × Border collie",
+    breed: "Caniche",
     next: "Al día · próx. vacuna jun 2027",
   },
   {
