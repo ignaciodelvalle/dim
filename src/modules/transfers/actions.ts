@@ -25,7 +25,10 @@ import { auditLog, db, notifications } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import {
+  requireCapability,
+  requireCapabilityForOrgToken,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -492,7 +495,13 @@ export async function acceptCrossOrgTransferAction(input: {
   receiverOrgToken: string;
   casePublicCode: string;
 }): Promise<CrossOrgTransferResult> {
-  const auth = await requireCapability("org.transfer.accept");
+  // Resolve the acting org FROM the receiver URL token, not the session-default
+  // (most-recently-joined) membership. A member of several orgs operating under
+  // /org/{receiver}/… must be authorized against the receiver org — otherwise
+  // the use-case's receiver-token match rejects a legitimate accept with
+  // "operando desde una organización distinta a la receiver". org.id vs
+  // case.receiverOrganizationId stays enforced inside the use-case (defense in depth).
+  const auth = await requireCapabilityForOrgToken("org.transfer.accept", input.receiverOrgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
@@ -539,7 +548,9 @@ export async function rejectCrossOrgTransferAction(input: {
   reason?: string | null;
   message?: string | null;
 }): Promise<CrossOrgTransferResult> {
-  const auth = await requireCapability("org.transfer.accept");
+  // Same URL-pinned org resolution as accept: the receiver's inbox reject must
+  // resolve the acting org from the URL token, not the last-joined membership.
+  const auth = await requireCapabilityForOrgToken("org.transfer.accept", input.receiverOrgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
