@@ -52,7 +52,7 @@ import {
 import { windows } from "@/lib/metrics/period";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
-import { formatDate, formatPercent, formatRate } from "@/lib/utils/format";
+import { formatCount, formatDate, formatPercent, formatRate } from "@/lib/utils/format";
 
 export default async function GobiernoDashboardPage({
   searchParams,
@@ -260,18 +260,27 @@ export default async function GobiernoDashboardPage({
           bar={rabiesCoverage.hasData ? rabiesCoverage.current : undefined}
           sub={
             rabiesCoverage.hasData
-              ? `meta ${TARGETS.RABIES_COVERAGE_PCT}% · ${rabiesCoverage.partidos} partidos`
+              ? // task #79 — double denominator: name the registry count this % is
+                // computed against, then how much of the estimated canine population
+                // the padrón covers (or "sin estimación censal" with no census row).
+                `${formatCount(rabiesCoverage.registryDenominator)} ${
+                  rabiesCoverage.registryDenominator === 1 ? "perro" : "perros"
+                } en el padrón · ${
+                  rabiesCoverage.censusCoveragePct !== null
+                    ? `el padrón cubre ${formatPercent(rabiesCoverage.censusCoveragePct)} de la población canina estimada`
+                    : "sin estimación censal"
+                } · meta ${TARGETS.RABIES_COVERAGE_PCT}%`
               : "Sin datos en el período"
           }
           sparkline={rabiesVaxTrend.points.map((p) => p.y)}
           href="/gob/analytics"
           info={{
             definition:
-              "Porcentaje de perros activos en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. Meta de salud pública: 80%.",
+              "Porcentaje de perros del padrón (activos/perdidos) en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. El padrón es el primer denominador; el segundo es la población canina estimada. Meta de salud pública: 80%.",
             formula:
-              "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros activos",
+              "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros del padrón. «Cobertura del padrón» = perros del padrón / población canina estimada (censo humano × 0,152 perros/hab.).",
             caveat:
-              "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema.",
+              "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,152 perros/hab., ancla EAH CABA) — es una estimación, no un censo canino; sin fila de censo se muestra «sin estimación censal».",
           }}
         />
         <OpKpi

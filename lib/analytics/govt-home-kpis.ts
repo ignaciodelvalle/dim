@@ -27,6 +27,7 @@ import {
   type ProjectionContext,
   RABIES_VACCINE_NAME_REGEX,
   TARGETS,
+  computeCensusCoverage,
   dogsInScopeCondition,
   jurisdictionPairClause,
   petsScopeClause,
@@ -139,7 +140,10 @@ function welfareReportsScopeClause(ctx: ProjectionContext) {
 export const RABIES_COVERAGE_LABEL_ES = "Cobertura antirrábica — perros (12 meses)";
 
 export type RabiesCoverageKpi = {
-  /** % of dogs in scope with ≥1 rabies vaccination event in the last 12 months. */
+  /**
+   * % of dogs in scope with ≥1 rabies vaccination event in the last 12 months.
+   * DENOMINATOR: the REGISTRY (registered/active dogs), i.e. `registryDenominator`.
+   */
   current: number;
   /** Public-health target from TARGETS.RABIES_COVERAGE_PCT. */
   target: number;
@@ -147,6 +151,25 @@ export type RabiesCoverageKpi = {
   partidos: number;
   /** True when the scope contains ≥1 dog; false means "no population yet". */
   hasData: boolean;
+  /**
+   * The FIRST (registry) denominator of `current`: active/lost dogs in scope.
+   * Naming it turns "41,3%" into "41,3% de los 12.480 perros del padrón".
+   */
+  registryDenominator: number;
+  /**
+   * The SECOND (census) denominator: the ESTIMATED canine population for the
+   * scope (human census × ESTIMATED_DOGS_PER_INHABITANT). `null` when no census
+   * row covers the scope — callers then show only the registry denominator plus
+   * a "sin estimación censal" note. NOT a hard count; always label it "estimada".
+   */
+  censusDenominator: number | null;
+  /**
+   * Registry-growth KPI: `registryDenominator / censusDenominator × 100`, one
+   * decimal — "el padrón cubre X% de la población canina estimada". `null` when
+   * no census estimate is available. This is the pilot's adoption curve, not a
+   * vaccination figure.
+   */
+  censusCoveragePct: number | null;
 };
 
 /**
@@ -170,7 +193,15 @@ export type RabiesCoverageKpi = {
  */
 export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<RabiesCoverageKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
-    return { current: 0, target: TARGETS.RABIES_COVERAGE_PCT, partidos: 0, hasData: false };
+    return {
+      current: 0,
+      target: TARGETS.RABIES_COVERAGE_PCT,
+      partidos: 0,
+      hasData: false,
+      registryDenominator: 0,
+      censusDenominator: null,
+      censusCoveragePct: null,
+    };
   }
 
   // The numerator window is a FIXED 12 months ending at ctx.period.until, NOT
@@ -239,7 +270,9 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
   rabiesVaccConditions.push(sql`${pets.species} = ${"dog"}`);
 
   // Partidos: distinct localities with ≥1 dog in scope.
-  const [dogsRows, vaccDogRows, partidosRows] = await Promise.all([
+  // censusPopulation: the scope's HUMAN census total (jurisdictions_census) — the
+  // basis for the ESTIMATED canine population (the second, census denominator).
+  const [dogsRows, vaccDogRows, partidosRows, censusPopulation] = await Promise.all([
     db.select({ n: count() }).from(pets).where(dogsCondition),
 
     // Distinct dog petIds with a qualifying rabies vax event (join pets to filter species).
@@ -253,6 +286,8 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
       .select({ n: countDistinct(pets.jurisdictionLocality) })
       .from(pets)
       .where(dogsCondition),
+
+    fetchCensusPopulation(ctx),
   ]);
 
   const totalDogs = dogsRows[0]?.n ?? 0;
@@ -263,11 +298,19 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
   // the 1-decimal convention of coverageRate() and fetchBitesPer10k.
   const current = totalDogs === 0 ? 0 : Math.round((vaccinatedDogs / totalDogs) * 1000) / 10;
 
+  // Second (census) denominator: registered dogs / estimated canine population.
+  // computeCensusCoverage returns null when no census row covers the scope, so
+  // the display degrades to "sin estimación censal" instead of a fabricated %.
+  const census = computeCensusCoverage(totalDogs, censusPopulation);
+
   return {
     current,
     target: TARGETS.RABIES_COVERAGE_PCT,
     partidos: partidosRows[0]?.n ?? 0,
     hasData: totalDogs > 0,
+    registryDenominator: totalDogs,
+    censusDenominator: census?.censusDenominator ?? null,
+    censusCoveragePct: census?.censusCoveragePct ?? null,
   };
 }
 

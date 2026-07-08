@@ -52,6 +52,78 @@ import type { Cell, MetricResult, SuppressedCells } from "./types";
 /** Months of owner inactivity before a pet is considered dormant. */
 export const DORMANT_MONTHS_DEFAULT = 12;
 
+/**
+ * Estimated dogs per inhabitant — used to derive an estimated CANINE population
+ * from the human census.
+ *
+ * WHY A FACTOR: `jurisdictions_census.population` holds INDEC 2022 **human**
+ * totals (migration 0067), NOT a dog census. Coverage metrics are dogs-based, so
+ * expressing "el padrón cubre X% de la población canina estimada" requires a
+ * dog-ownership factor applied to the human population.
+ *
+ * VALUE / PROVENANCE: 0.152 dogs/inhabitant, anchored to the CABA Encuesta Anual
+ * de Hogares dog-ownership estimate (~475.000 perros over ~3,12 M habitantes ≈
+ * 0,152) and applied nationally as a FIRST-PASS proxy. This is an explicit
+ * ASSUMPTION, not a measured national figure — urban/rural ratios differ. When a
+ * per-jurisdiction canine census becomes available, replace this factor with a
+ * real dog-population column and drop the derivation.
+ *
+ * Every surface that uses it MUST name it as "estimada" so the number is never
+ * read as a hard count (design rule: name your denominator).
+ */
+export const ESTIMATED_DOGS_PER_INHABITANT = 0.152;
+
+/**
+ * Registry-coverage-of-census shape: the SECOND denominator that turns a bare
+ * registry coverage % into an honest "of what" statement.
+ */
+export type CensusCoverage = {
+  /**
+   * Estimated canine population = round(humanPopulation × ESTIMATED_DOGS_PER_INHABITANT).
+   * The denominator of the registry-growth KPI.
+   */
+  censusDenominator: number;
+  /**
+   * registryDogs / censusDenominator × 100, one decimal — "el padrón cubre X% de
+   * la población canina estimada". The pilot's registry-growth curve.
+   */
+  censusCoveragePct: number;
+};
+
+/**
+ * Estimate the canine population from a human census total.
+ *
+ * Returns `null` when there is no usable human population (≤ 0) — i.e. the
+ * jurisdiction has no census row, in which case callers show only the registry
+ * denominator plus a "sin estimación censal" note (never a fabricated estimate).
+ *
+ * PURE — no DB, no side effects.
+ */
+export function estimateDogPopulation(humanPopulation: number): number | null {
+  if (!Number.isFinite(humanPopulation) || humanPopulation <= 0) return null;
+  const estimate = Math.round(humanPopulation * ESTIMATED_DOGS_PER_INHABITANT);
+  return estimate > 0 ? estimate : null;
+}
+
+/**
+ * Compute the registry-coverage-of-census pair (the double denominator's second
+ * half) from the registered-dog count and the human census population.
+ *
+ * Returns `null` when no canine estimate can be derived (no census row) so the
+ * display degrades to "sin estimación censal" gracefully.
+ *
+ * PURE — no DB, no side effects. Unit-tested in census.test.ts.
+ */
+export function computeCensusCoverage(
+  registryDogs: number,
+  humanPopulation: number,
+): CensusCoverage | null {
+  const censusDenominator = estimateDogPopulation(humanPopulation);
+  if (censusDenominator === null) return null;
+  const censusCoveragePct = Math.round((registryDogs / censusDenominator) * 1000) / 10;
+  return { censusDenominator, censusCoveragePct };
+}
+
 // ---------------------------------------------------------------------------
 // Pure predicates (unit-testable, DB-free)
 // ---------------------------------------------------------------------------

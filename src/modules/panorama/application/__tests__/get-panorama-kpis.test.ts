@@ -55,6 +55,9 @@ function seedDefaults() {
     target: 80,
     partidos: 3,
     hasData: true,
+    registryDenominator: 12_480,
+    censusDenominator: 474_333,
+    censusCoveragePct: 2.6,
   });
   vi.mocked(fetchAnalyticsMetrics).mockResolvedValue({
     totalPets: 12345,
@@ -229,8 +232,24 @@ describe("getPanoramaKpis", () => {
   it("attaches deltas ONLY to window-sensitive KPIs, computed against the prior window", async () => {
     // Current run first, prior run second (Promise.all evaluates in order).
     vi.mocked(fetchRabiesCoverage)
-      .mockResolvedValueOnce({ current: 72, target: 80, partidos: 3, hasData: true })
-      .mockResolvedValueOnce({ current: 60, target: 80, partidos: 3, hasData: true });
+      .mockResolvedValueOnce({
+        current: 72,
+        target: 80,
+        partidos: 3,
+        hasData: true,
+        registryDenominator: 12_480,
+        censusDenominator: 474_333,
+        censusCoveragePct: 2.6,
+      })
+      .mockResolvedValueOnce({
+        current: 60,
+        target: 80,
+        partidos: 3,
+        hasData: true,
+        registryDenominator: 11_000,
+        censusDenominator: 474_333,
+        censusCoveragePct: 2.3,
+      });
     vi.mocked(fetchBitesPer10k)
       .mockResolvedValueOnce({ rate: 3.5, delta: 0, reports: 18 })
       .mockResolvedValueOnce({ rate: 7, delta: 0, reports: 30 });
@@ -290,9 +309,33 @@ describe("getPanoramaKpis", () => {
 
   it("computes a signed-only (verifiedOnly) coverage and surfaces it in the cobertura sub", async () => {
     vi.mocked(fetchRabiesCoverage)
-      .mockResolvedValueOnce({ current: 41.3, target: 80, partidos: 12, hasData: true }) // total ctx
-      .mockResolvedValueOnce({ current: 39, target: 80, partidos: 12, hasData: true }) // prior ctx
-      .mockResolvedValueOnce({ current: 28.9, target: 80, partidos: 12, hasData: true }); // verified ctx
+      .mockResolvedValueOnce({
+        current: 41.3,
+        target: 80,
+        partidos: 12,
+        hasData: true,
+        registryDenominator: 12_480,
+        censusDenominator: 474_333,
+        censusCoveragePct: 2.6,
+      }) // total ctx
+      .mockResolvedValueOnce({
+        current: 39,
+        target: 80,
+        partidos: 12,
+        hasData: true,
+        registryDenominator: 11_800,
+        censusDenominator: 474_333,
+        censusCoveragePct: 2.5,
+      }) // prior ctx
+      .mockResolvedValueOnce({
+        current: 28.9,
+        target: 80,
+        partidos: 12,
+        hasData: true,
+        registryDenominator: 12_480,
+        censusDenominator: 474_333,
+        censusCoveragePct: 2.6,
+      }); // verified ctx
 
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const cobertura = kpis.find((k) => k.id === "cobertura")!;
@@ -309,6 +352,45 @@ describe("getPanoramaKpis", () => {
     const verifiedCtx = vi.mocked(fetchRabiesCoverage).mock.calls[2][0];
     expect(verifiedCtx.verifiedOnly).toBe(true);
     expect(verifiedCtx.scope).toEqual(vi.mocked(fetchRabiesCoverage).mock.calls[0][0].scope);
+  });
+
+  // ---------------------------------------------------------------------------
+  // task #79 — honest double denominators: the cobertura tile names BOTH the
+  // registry count `current` is a % of AND how much of the estimated canine
+  // population the padrón covers.
+  // ---------------------------------------------------------------------------
+
+  it("names both denominators in the cobertura sub: registry count + census coverage %", async () => {
+    // seedDefaults: registryDenominator 12.480, censusCoveragePct 2,6.
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const cobertura = kpis.find((k) => k.id === "cobertura")!;
+
+    // First denominator: the registry count `current` is computed against.
+    expect(cobertura.sub).toContain("12.480 perros en el padrón");
+    // Second denominator: registry coverage of the estimated canine population.
+    expect(cobertura.sub).toContain("el padrón cubre 2,6% de la población canina estimada");
+    // Both signature share and meta still present.
+    expect(cobertura.sub).toContain("firmado por matrícula");
+    expect(cobertura.sub).toContain("meta 80%");
+  });
+
+  it("degrades to 'sin estimación censal' when the scope has no census row", async () => {
+    vi.mocked(fetchRabiesCoverage).mockResolvedValue({
+      current: 41.3,
+      target: 80,
+      partidos: 12,
+      hasData: true,
+      registryDenominator: 12_480,
+      censusDenominator: null,
+      censusCoveragePct: null,
+    });
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const cobertura = kpis.find((k) => k.id === "cobertura")!;
+
+    // Registry denominator still named; census half honestly says it's missing.
+    expect(cobertura.sub).toContain("12.480 perros en el padrón");
+    expect(cobertura.sub).toContain("sin estimación censal");
+    expect(cobertura.sub).not.toContain("población canina estimada");
   });
 
   it("surfaces the freshness timestamp as an ISO string (null-safe)", async () => {

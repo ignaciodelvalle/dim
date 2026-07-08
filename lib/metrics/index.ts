@@ -82,8 +82,11 @@ export { lastIngestAt } from "./freshness";
 // Paquete E — censo poblacional & salud del registro.
 export {
   DORMANT_MONTHS_DEFAULT,
+  ESTIMATED_DOGS_PER_INHABITANT,
   assertFunnelMonotonic,
   classifyDormant,
+  computeCensusCoverage,
+  estimateDogPopulation,
   funnelPercents,
   identificationFunnel,
   isIncompleteProfile,
@@ -91,7 +94,7 @@ export {
   registrationTrend,
   registryByProvince,
 } from "./census";
-export type { FunnelStages, ProvinceRegistryRow, RegistryCounts } from "./census";
+export type { CensusCoverage, FunnelStages, ProvinceRegistryRow, RegistryCounts } from "./census";
 
 // Paquete F — pipeline de custodia & adopción.
 export {

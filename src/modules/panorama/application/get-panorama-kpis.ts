@@ -195,6 +195,35 @@ function deltaOf(current: number, prior: number): KpiDelta | undefined {
 }
 
 /**
+ * Build the cobertura tile's sub-line naming BOTH denominators (task #79):
+ *   1. the registry count `current` is a % of ("… perros en el padrón"),
+ *   2. how much of the estimated canine population the padrón covers
+ *      ("el padrón cubre X% de la población canina estimada"), or an honest
+ *      "sin estimación censal" when the scope has no census row.
+ * Then the firmado-por-matrícula share (task #78 Part 3) and the meta.
+ *
+ * PURE — no DB. Takes the total-coverage and signed-only KPI results.
+ */
+function coberturaSub(
+  coverage: {
+    target: number;
+    registryDenominator: number;
+    censusCoveragePct: number | null;
+  },
+  coverageSigned: { current: number },
+): string {
+  const registry = `${formatCount(coverage.registryDenominator)} ${
+    coverage.registryDenominator === 1 ? "perro" : "perros"
+  } en el padrón`;
+  const census =
+    coverage.censusCoveragePct !== null
+      ? `el padrón cubre ${formatPercent(coverage.censusCoveragePct)} de la población canina estimada`
+      : "sin estimación censal";
+  const signed = `${formatPercent(coverageSigned.current)} firmado por matrícula`;
+  return `${registry} · ${census} · ${signed} · meta ${coverage.target}%`;
+}
+
+/**
  * Resolve the console's headline KPIs for the active (actor, jurisdictions,
  * period). Reuses the tested dashboard fetchers so the numbers are IDENTICAL to
  * the detail dashboards. Never widens scope (the fetchers intersect with the
@@ -321,13 +350,13 @@ export async function getPanoramaKpis(
     {
       id: "cobertura",
       label: "Cobertura antirrábica (perros, 12m)",
-      // Headline value = TOTAL coverage. The firmado-por-matrícula share rides in
-      // `sub` (task #78 Part 3) so the ministry sees how much is backed by a
-      // matriculated signature without the toggle changing the headline.
+      // Headline value = TOTAL coverage OF THE REGISTRY. The `sub` names BOTH
+      // denominators (task #79 honest double denominators): the registry count
+      // that `current` is a % of, AND how much of the estimated canine population
+      // the registry itself covers. The firmado-por-matrícula share (task #78
+      // Part 3) and the meta close the line.
       value: formatPercent(coverage.current),
-      sub: `${formatPercent(coverageSigned.current)} firmado por matrícula · meta ${coverage.target}% · ${
-        coverage.partidos
-      } ${coverage.partidos === 1 ? "partido" : "partidos"}`,
+      sub: coberturaSub(coverage, coverageSigned),
       bar: coverage.current,
       tone: coverage.current >= coverage.target ? "ok" : "warn",
       href: "/gob/analytics",
@@ -335,11 +364,11 @@ export async function getPanoramaKpis(
       delta: deltaOf(coverage.current, priorCoverage.current),
       info: {
         definition:
-          "Porcentaje de perros activos en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. Obligación legal: Ley 22.953 (vacunación antirrábica obligatoria, vigente en casi todas las jurisdicciones). Meta de salud pública: 80%.",
+          "Porcentaje de perros del padrón (activos/perdidos) en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. El padrón registrado es el primer denominador; el segundo es la población canina estimada. Obligación legal: Ley 22.953 (vacunación antirrábica obligatoria, vigente en casi todas las jurisdicciones). Meta de salud pública: 80%.",
         formula:
-          "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros activos",
+          "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros del padrón. «Cobertura del padrón» = perros del padrón / población canina estimada (censo humano × 0,152 perros/hab.).",
         caveat:
-          "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. «Firmado por matrícula» es la porción firmada por un veterinario matriculado (author_role='vet', verificado) — la parte que el registro oficial cuenta como «al día».",
+          "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,152 perros/hab., ancla EAH CABA) — es una estimación, no un censo canino; si la jurisdicción no tiene fila de censo se muestra «sin estimación censal». «Firmado por matrícula» es la porción firmada por un veterinario matriculado (author_role='vet', verificado) — la parte que el registro oficial cuenta como «al día».",
       },
     },
     {

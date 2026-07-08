@@ -803,6 +803,8 @@ When designing a new event with 3+ semantically-similar variants, prefer this um
 
 Build for **flexibility and big scope** — three audiences are intended consumers, each gets distinct views from the same underlying event log. The architectural rule: **any dashboard view must be expressible as a query/projection over the event log**, optionally with jurisdiction or time filters. If a useful view can't be expressed this way, the event catalog is incomplete and the answer is a new event type, not a new table.
 
+> **Design law — name your denominator (and what you exclude).** Every aggregate a surface shows MUST name **what it excludes** and **against which denominator it is computed**. A bare "41,3%" is a pretty number; "41,3% de los 12.480 perros del padrón · el padrón cubre 2,6% de la población canina estimada" is a serious tool. This formalizes the hand-made residuals already in the codebase (sin ubicación, no-locality, k-anon suppressed, sin-vacunas-registradas) into a rule, and mandates the **double denominator** for coverage %: registry coverage (numerator / registered population) AND registry-of-census coverage (registered population / estimated canine population, `jurisdictions_census` × `ESTIMATED_DOGS_PER_INHABITANT`). When a denominator is unavailable (e.g. no census row), say so explicitly ("sin estimación censal") — never omit it silently or fabricate one. Coverage fetchers return `{ value, registryDenominator, censusDenominator, censusCoveragePct }` progressively (`lib/analytics/govt-home-kpis.ts → fetchRabiesCoverage`, pure helper `lib/metrics/census.ts → computeCensusCoverage`). See also [§ Privacidad #6](#privacidad-y-manejo-de-datos).
+
 ### Sanitary authority (city / comuna, operational)
 - Vaccination coverage by barrio — % of registered pets with up-to-date core vaccines, overdue counts and approximate density
 - Active campaign performance — enrollments, completions, no-shows, geographic reach
@@ -1388,6 +1390,7 @@ Any jurisdiction-grouped aggregate returned to a public or analyst surface must 
 |---|---|
 | `suppressSmallCells(rows, { k: 5 })` on every public aggregate | `lib/metrics/anonymity.ts` → `suppressSmallCells` |
 | Govt outreach pipelines log `pii_queried` per query | `lib/outreach-pipelines.ts` → `logOutreachPiiQuery` |
+| **Name your denominator** — every aggregate names what it excludes AND against which denominator it is computed; coverage % carries the double denominator (registry + estimated census). See [§ Dashboards design law](#dashboards--projections-the-consumers). | `lib/metrics/census.ts` → `computeCensusCoverage`; `lib/analytics/govt-home-kpis.ts` → `fetchRabiesCoverage` |
 
 ### 7. Subject rights (Ley 25.326)
 
