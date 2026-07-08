@@ -26,8 +26,8 @@ import type { LayerId } from "@/src/modules/panorama/domain/types";
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — catalogue integrity", () => {
-  it("contains exactly 5 presets", () => {
-    expect(PANORAMA_PRESETS).toHaveLength(5);
+  it("contains exactly 6 presets", () => {
+    expect(PANORAMA_PRESETS).toHaveLength(6);
   });
 
   it("all preset ids are unique", () => {
@@ -35,13 +35,14 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("all 5 expected preset ids are present", () => {
+  it("all 6 expected preset ids are present", () => {
     const ids = new Set(PANORAMA_PRESETS.map((p) => p.id));
     expect(ids.has("brotes-activos")).toBe(true);
     expect(ids.has("sintomas")).toBe(true);
     expect(ids.has("cumplimiento")).toBe(true);
     expect(ids.has("bienestar")).toBe(true);
     expect(ids.has("control-poblacional")).toBe(true);
+    expect(ids.has("perdidas-reunificacion")).toBe(true);
   });
 
   it("every preset has a non-empty label", () => {
@@ -185,7 +186,12 @@ describe("PANORAMA_PRESETS — F2 compatibility (activation sequence)", () => {
     assertPresetIsCompatible(p);
   });
 
-  it("all 5 presets pass the compatibility replay (parametric)", () => {
+  it("perdidas-reunificacion: each layer in activation order is allowed by checkCompatibility", () => {
+    const p = PANORAMA_PRESETS.find((x) => x.id === "perdidas-reunificacion")!;
+    assertPresetIsCompatible(p);
+  });
+
+  it("all 6 presets pass the compatibility replay (parametric)", () => {
     for (const p of PANORAMA_PRESETS) {
       assertPresetIsCompatible(p);
     }
@@ -211,6 +217,13 @@ describe("presetLayerIds()", () => {
   it("returns [base, signal] for sintomas", () => {
     const p = PANORAMA_PRESETS.find((x) => x.id === "sintomas")!;
     expect(presetLayerIds(p)).toEqual([p.base, p.signal]);
+  });
+
+  it("returns [base, signal] for perdidas-reunificacion", () => {
+    const p = PANORAMA_PRESETS.find((x) => x.id === "perdidas-reunificacion")!;
+    expect(presetLayerIds(p)).toEqual([p.base, p.signal]);
+    expect(p.base).toBe("perdidas");
+    expect(p.signal).toBe("reunificacion");
   });
 
   it("returns [base, ...references] for bienestar (no signal)", () => {
@@ -247,7 +260,7 @@ describe("PANORAMA_PRESETS — optional framing field", () => {
   });
 
   it("locality-level drill-down presets omit framing (map behavior unchanged)", () => {
-    for (const id of ["sintomas", "bienestar"] as const) {
+    for (const id of ["sintomas", "bienestar", "perdidas-reunificacion"] as const) {
       expect(getPreset(id)!.framing).toBeUndefined();
     }
   });

@@ -17,7 +17,8 @@ export type PresetId =
   | "sintomas"
   | "cumplimiento"
   | "bienestar"
-  | "control-poblacional";
+  | "control-poblacional"
+  | "perdidas-reunificacion";
 
 /**
  * Optional map framing a preset applies on activation (panorama-redesign Fase 1).
@@ -91,10 +92,8 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
   {
     id: "sintomas",
     label: "Síntomas / vigilancia sindrómica",
-    description: "¿Dónde se concentran los eventos clínicos con mayor alerta?",
-    // base: mordeduras — best existing proxy for syndromic/clinical event density.
-    // Future: replace with a dedicated symptom/syndromic density layer when available.
-    base: "mordeduras",
+    description: "¿Dónde se concentran los síntomas reportados con alerta?",
+    base: "sintomas",
     // signal: zoonosis overlaid to surface reportable-disease alerts.
     signal: "zoonosis",
     level: "locality",
@@ -137,6 +136,19 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // Same national-overview question as cumplimiento: a province choropleth
     // vs the 70% target only reads when the whole country is in frame.
     framing: { kind: "national" },
+  },
+  {
+    id: "perdidas-reunificacion",
+    label: "Perdidas y reunificación (D4)",
+    description: "¿Cuántas mascotas perdidas se están reencontrando con su familia?",
+    // base: perdidas (density point) — lost/sighting activity.
+    base: "perdidas",
+    // signal: reunificacion overlaid to surface the D4 reunification rate per unit.
+    signal: "reunificacion",
+    level: "locality",
+    periodPreset: "90d",
+    // Locality-level drill-down question — stays framing-less, same as sintomas
+    // and bienestar (design-QA 2026-07-04 convention).
   },
 ] as const;
 
