@@ -20,10 +20,15 @@ import {
 import type { LayerDataType, LayerPrivacy } from "@/src/modules/panorama/domain/types";
 
 describe("PANORAMA_LAYERS registry", () => {
-  it("has the 9 v2 layers with unique ids", () => {
-    expect(PANORAMA_LAYERS).toHaveLength(9);
+  it("has the 13 v2 layers with unique ids", () => {
+    expect(PANORAMA_LAYERS).toHaveLength(13);
     const ids = PANORAMA_LAYERS.map((l) => l.id);
-    expect(new Set(ids).size).toBe(9);
+    expect(new Set(ids).size).toBe(13);
+  });
+
+  it("every layer declares a unique color (legend swatch collisions confuse the map)", () => {
+    const colors = PANORAMA_LAYERS.map((l) => l.color);
+    expect(new Set(colors).size).toBe(colors.length);
   });
 
   it("every layer declares all required fields with valid values", () => {
@@ -41,9 +46,9 @@ describe("PANORAMA_LAYERS registry", () => {
     }
   });
 
-  it("partitions cleanly into point (6) and choropleth (3) layers", () => {
-    expect(POINT_LAYERS).toHaveLength(6);
-    expect(CHOROPLETH_LAYERS).toHaveLength(3);
+  it("partitions cleanly into point (8) and choropleth (5) layers", () => {
+    expect(POINT_LAYERS).toHaveLength(8);
+    expect(CHOROPLETH_LAYERS).toHaveLength(5);
     expect(POINT_LAYERS.length + CHOROPLETH_LAYERS.length).toBe(PANORAMA_LAYERS.length);
   });
 
@@ -83,13 +88,17 @@ describe("PANORAMA_LAYERS registry", () => {
     // Rate layers + mortalidad must hatch (spatial honesty on the choropleth).
     expect(getLayer("cobertura")?.suppressionStyle).toBe("hatched");
     expect(getLayer("esterilizacion")?.suppressionStyle).toBe("hatched");
+    expect(getLayer("microchip")?.suppressionStyle).toBe("hatched");
+    expect(getLayer("ppp")?.suppressionStyle).toBe("hatched");
     expect(getLayer("mortalidad")?.suppressionStyle).toBe("hatched");
-    // Density-point + reference layers are muted.
+    // Density-point + signal + reference layers are muted.
     for (const id of [
       "perdidas",
       "mordeduras",
       "denuncias",
       "zoonosis",
+      "sintomas",
+      "reunificacion",
       "refugios",
       "decomisos",
     ] as const) {
@@ -109,10 +118,19 @@ describe("PANORAMA_LAYERS registry", () => {
   });
 
   it("marks event-windowable layers temporal and current-state ones not (F4)", () => {
-    // Temporal: the 4 event-based point layers + perdidas (markedLostAt window).
+    // Temporal: the event-based point layers (perdidas, mordeduras, denuncias,
+    // zoonosis, decomisos, sintomas, reunificacion).
     const temporalIds = TEMPORAL_LAYERS.map((l) => l.id).sort();
     expect(temporalIds).toEqual(
-      ["decomisos", "denuncias", "mordeduras", "perdidas", "zoonosis"].sort(),
+      [
+        "decomisos",
+        "denuncias",
+        "mordeduras",
+        "perdidas",
+        "zoonosis",
+        "sintomas",
+        "reunificacion",
+      ].sort(),
     );
     // Non-temporal: refugios (no time) + the three current-state choropleths.
     expect(isTemporalLayer("refugios")).toBe(false);
@@ -134,11 +152,15 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
   it("assigns dataType correctly per layer", () => {
     expect(getLayer("cobertura")?.dataType).toBe("rate");
     expect(getLayer("esterilizacion")?.dataType).toBe("rate");
+    expect(getLayer("microchip")?.dataType).toBe("rate");
+    expect(getLayer("ppp")?.dataType).toBe("rate");
     expect(getLayer("mortalidad")?.dataType).toBe("density");
     expect(getLayer("perdidas")?.dataType).toBe("density");
     expect(getLayer("mordeduras")?.dataType).toBe("density");
     expect(getLayer("denuncias")?.dataType).toBe("density");
+    expect(getLayer("sintomas")?.dataType).toBe("density");
     expect(getLayer("zoonosis")?.dataType).toBe("signal");
+    expect(getLayer("reunificacion")?.dataType).toBe("signal");
     expect(getLayer("refugios")?.dataType).toBe("reference");
     expect(getLayer("decomisos")?.dataType).toBe("reference");
   });
@@ -171,11 +193,21 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
     expect(getLayer("esterilizacion")?.complianceTarget).toBe(70);
   });
 
-  it("AGGREGATED_POINT_LAYERS contains the 4 density+signal point layers", () => {
-    // perdidas, mordeduras, denuncias (density) + zoonosis (signal).
-    // Does NOT include refugios/decomisos (reference) or mortalidad/cobertura (choropleth).
+  it("F5: microchip complianceTarget is 80 (TARGETS.MICROCHIP_PENETRATION_PCT)", () => {
+    expect(getLayer("microchip")?.complianceTarget).toBe(80);
+  });
+
+  it("F5: ppp complianceTarget is 80 (program benchmark, no legal target)", () => {
+    expect(getLayer("ppp")?.complianceTarget).toBe(80);
+  });
+
+  it("AGGREGATED_POINT_LAYERS contains the 6 density+signal point layers", () => {
+    // perdidas, mordeduras, denuncias, sintomas (density) + zoonosis, reunificacion (signal).
+    // Does NOT include refugios/decomisos (reference) or the choropleth layers.
     const ids = AGGREGATED_POINT_LAYERS.map((l) => l.id).sort();
-    expect(ids).toEqual(["denuncias", "mordeduras", "perdidas", "zoonosis"].sort());
+    expect(ids).toEqual(
+      ["denuncias", "mordeduras", "perdidas", "zoonosis", "sintomas", "reunificacion"].sort(),
+    );
   });
 
   it("AGGREGATED_POINT_IDS and isAggregatedPointLayer are consistent", () => {
@@ -212,7 +244,7 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
     expect(ids).toEqual(["decomisos", "refugios"].sort());
   });
 
-  it("partition: AGGREGATED_POINT + REFERENCE covers all 6 point layers", () => {
+  it("partition: AGGREGATED_POINT + REFERENCE covers all 8 point layers", () => {
     const allPointIds = POINT_LAYERS.map((l) => l.id).sort();
     const aggregatedAndReference = [...AGGREGATED_POINT_LAYERS, ...REFERENCE_LAYERS]
       .map((l) => l.id)

@@ -125,6 +125,45 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     caption: { unit: UNIT, measure: "señales de zoonosis", window: "period" },
   },
   {
+    id: "sintomas",
+    label: "Síntomas / vigilancia sindrómica",
+    geomType: "point",
+    source: "pet_events:symptom",
+    color: "#edc948",
+    scopeFilterable: true,
+    privacy: "none",
+    temporal: true,
+    // Symptom-report events — event density, aggregated by unit in F1.
+    dataType: "density",
+    renderPolicy: {
+      province: "graduated-symbol",
+      locality: "graduated-symbol",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "muted",
+    caption: { unit: UNIT, measure: "síntomas reportados", window: "period" },
+  },
+  {
+    id: "reunificacion",
+    label: "Reunificación (D4)",
+    geomType: "point",
+    source: "metrics:reunification",
+    // NOT the stash's #59a14f — that collides with cobertura's green.
+    color: "#86bcb6",
+    scopeFilterable: true,
+    privacy: "none",
+    temporal: true,
+    // Reunification rate per unit — graduated symbol size encodes ratePct (0–100).
+    dataType: "signal",
+    renderPolicy: {
+      province: "graduated-symbol",
+      locality: "graduated-symbol",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "muted",
+    caption: { unit: UNIT, measure: "tasa de reunificación", window: "period" },
+  },
+  {
     id: "refugios",
     label: "Refugios",
     geomType: "point",
@@ -183,6 +222,50 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     },
     suppressionStyle: "hatched",
     caption: { unit: UNIT, measure: "cobertura de esterilización", window: "current" },
+  },
+  {
+    id: "microchip",
+    label: "Penetración microchip (C1)",
+    geomType: "choropleth",
+    source: "metrics:microchip-penetration",
+    // NOT the stash's #4e79a7 — that collides with refugios' blue.
+    color: "#a0cbe8",
+    scopeFilterable: true,
+    privacy: "none",
+    // CURRENT-STATE rollup (EXISTS active microchip_iso) — not event-windowed in v1.
+    temporal: false,
+    dataType: "rate",
+    // F5: divergent choropleth anchored at the microchip programmatic benchmark.
+    complianceTarget: TARGETS.MICROCHIP_PENETRATION_PCT,
+    renderPolicy: {
+      province: "choropleth-fill",
+      locality: "choropleth-fill",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "hatched",
+    caption: { unit: UNIT, measure: "penetración de microchip", window: "current" },
+  },
+  {
+    id: "ppp",
+    label: "Registro PPP (C7)",
+    geomType: "choropleth",
+    source: "metrics:ppp-compliance",
+    color: "#ff9da7",
+    scopeFilterable: true,
+    privacy: "none",
+    temporal: false,
+    dataType: "rate",
+    // Ley Prov 14.107 sets no universal % target for the dangerous-breed
+    // registry; 80 is the program benchmark (mirrors the microchip/rabies
+    // benchmark), not a legal mandate — no TARGETS const exists for this yet.
+    complianceTarget: 80,
+    renderPolicy: {
+      province: "choropleth-fill",
+      locality: "choropleth-fill",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "hatched",
+    caption: { unit: UNIT, measure: "registro PPP", window: "current" },
   },
   {
     id: "cobertura",

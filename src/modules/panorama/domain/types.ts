@@ -14,10 +14,14 @@ export type LayerId =
   | "mordeduras"
   | "denuncias"
   | "zoonosis"
+  | "sintomas"
+  | "reunificacion"
   | "refugios"
   | "decomisos"
   | "cobertura"
   | "esterilizacion"
+  | "microchip"
+  | "ppp"
   | "mortalidad";
 
 /** Point/cluster layers plot individual features; choropleth layers shade
