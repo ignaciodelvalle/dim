@@ -5,7 +5,7 @@ import Link from "next/link";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { speciesLabel } from "@/lib/utils/format";
+import { formatDate, speciesLabel } from "@/lib/utils/format";
 import { desc, eq } from "drizzle-orm";
 
 import { STATUS_LABELS } from "./status-labels";
@@ -87,11 +87,7 @@ export default async function PropuestasInboxPage() {
                       {speciesLabel(pet.species)}
                       {proposal.proposedDurationWeeks &&
                         ` · ${proposal.proposedDurationWeeks} sem.`}{" "}
-                      · Expira{" "}
-                      {new Date(proposal.expiresAt).toLocaleDateString("es-AR", {
-                        day: "numeric",
-                        month: "short",
-                      })}
+                      · Expira {formatDate(proposal.expiresAt)}
                     </p>
                   </div>
                   <span

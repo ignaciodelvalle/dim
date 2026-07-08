@@ -16,6 +16,7 @@ import {
 } from "@/db";
 import type { OrganizationMembership } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { formatDate } from "@/lib/utils/format";
 // Aliased — this file already has a local `capRows` (capability grant rows).
 import { capRows as capListRows } from "@/lib/utils/list-pagination";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -293,14 +294,7 @@ export default async function MiembrosPage({
                         <p className="truncate text-[13px] font-medium text-ln-op-ink">
                           {inv.email}
                         </p>
-                        <p className="text-sm text-ln-op-mute">
-                          Vence{" "}
-                          {inv.expiresAt.toLocaleDateString("es-AR", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })}
-                        </p>
+                        <p className="text-sm text-ln-op-mute">Vence {formatDate(inv.expiresAt)}</p>
                       </div>
                       <OpPill tone={ROLE_PILL_TONE[inv.invitedRole]}>
                         {ROLE_LABEL[inv.invitedRole]}
