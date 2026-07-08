@@ -39,6 +39,7 @@ import {
   welfareReportToMpfDto,
 } from "@/lib/analytics/welfare-exports";
 import { signalWelfareReport } from "@/lib/domain/authority";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { writePoint } from "@/lib/domain/location";
 import {
   CoordError,
@@ -1425,8 +1426,14 @@ async function loadInScopeReport(
   if (!row) return { error: "Denuncia no encontrada." };
 
   if (actor.role === "govt") {
-    const inScope = jurisdictions.some(
-      (j) => j.province === row.jurisdictionProvince && j.locality === row.jurisdictionLocality,
+    // Subsumption-aware scope check (whole-province assignments govern every
+    // barrio) — MUST match the triage queue list and the detail page, so the
+    // full operator circuit (assign/triage/close/derive/MPF) resolves any
+    // denuncia the queue shows. See jurisdictionScopeContains.
+    const inScope = jurisdictionScopeContains(
+      jurisdictions,
+      row.jurisdictionProvince,
+      row.jurisdictionLocality,
     );
     // Uniform "not found" for out-of-scope: never confirm a report exists in
     // another jurisdiction (no existence oracle for a govt with a known UUID).
@@ -1445,8 +1452,12 @@ async function loadAndVerifyScope(
   if (!row) return { ok: false, error: "Denuncia no encontrada." };
 
   if (actor.role === "govt") {
-    const inScope = jurisdictions.some(
-      (j) => j.province === row.jurisdictionProvince && j.locality === row.jurisdictionLocality,
+    // Subsumption-aware scope check — see loadInScopeReport above and
+    // jurisdictionScopeContains.
+    const inScope = jurisdictionScopeContains(
+      jurisdictions,
+      row.jurisdictionProvince,
+      row.jurisdictionLocality,
     );
     if (!inScope) return { ok: false, error: "Denuncia no encontrada." };
   }

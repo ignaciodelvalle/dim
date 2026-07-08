@@ -49,6 +49,7 @@ const GOB_WELFARE_DETAIL_SELECT = {
 } as const;
 import { fetchWelfareTimeline } from "@/lib/analytics/govt-dashboards";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { readPoint } from "@/lib/domain/location";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
@@ -115,10 +116,19 @@ export default async function GobMaltratoDetailPage({
 
   // Govt scope guard — return notFound rather than a permission error so
   // we don't leak "this denuncia exists somewhere else".
+  //
+  // MUST use the same subsumption-aware predicate as the triage queue list
+  // (jurisdictionPairClause via buildMaltratoListConditions). A whole-province
+  // assignment (e.g. whole-CABA / "Ciudad Autónoma de Buenos Aires") governs
+  // every barrio in that province, so a denuncia geocoded to a barrio (Almagro)
+  // is in scope. Hand-rolling an exact (province, locality) pair here — as this
+  // did — diverged from the list: the row appeared in the queue but the detail
+  // 404'd (list-vs-detail authorization inconsistency). See jurisdiction-canonical.
   if (profile.role === "govt") {
-    const inScope = jurisdictions.some(
-      (j) =>
-        j.province === report.jurisdictionProvince && j.locality === report.jurisdictionLocality,
+    const inScope = jurisdictionScopeContains(
+      jurisdictions,
+      report.jurisdictionProvince,
+      report.jurisdictionLocality,
     );
     if (!inScope) notFound();
   }
