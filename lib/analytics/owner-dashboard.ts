@@ -1547,7 +1547,11 @@ export interface PetEventMetadata {
   id: string;
   eventType: string;
   occurredAt: Date;
-  /** payload->>'summary' or a short derived label. May be null. */
+  /**
+   * Short preview label for the collapsed timeline header, derived per event
+   * type from the payload keys the writer schemas actually emit (see
+   * deriveEventSummary). Null for event types with nothing sensible to preview.
+   */
   summary: string | null;
 }
 
@@ -1566,6 +1570,43 @@ export interface PetProfileV2Events {
    * Used by the collapsed PetHealthTimeline header preview.
    */
   recentFive: PetEventMetadata[];
+}
+
+/**
+ * Derive the collapsed-timeline preview line for an event, reading ONLY keys the
+ * writer schemas in lib/events/event-schemas.ts actually emit.
+ *
+ * The header preview historically read `payload.summary`, a key NO schema ever
+ * writes — so the line was always null in production (lint:events ghost-key
+ * finding). Each case below maps an event type to its most human-meaningful
+ * payload field; types with nothing worth previewing fall through to null.
+ */
+function deriveEventSummary(eventType: string, payload: Record<string, unknown>): string | null {
+  const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+  switch (eventType) {
+    case "note_added":
+      return str(payload.text);
+    case "vaccination_administered":
+      return str(payload.vaccine_name);
+    case "deworming_administered":
+      return str(payload.product);
+    case "medication_started":
+      return str(payload.drug_name);
+    case "weight_recorded": {
+      const kg = str(payload.kg);
+      return kg ? `${kg} kg` : null;
+    }
+    case "vet_visit_logged":
+      // diagnosis is the headline when present; otherwise the visit reason.
+      return str(payload.diagnosis) ?? str(payload.reason);
+    case "clinical_info_logged":
+      return str(payload.title);
+    case "incident_reported":
+      return str(payload.injuries_summary);
+    default:
+      return null;
+  }
 }
 
 /**
@@ -1617,7 +1658,7 @@ export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProf
   const recentFive: PetEventMetadata[] = recentRows.map(
     (r: { id: string; eventType: string; occurredAt: Date; payload: unknown }) => {
       const payload = (r.payload ?? {}) as Record<string, unknown>;
-      const summary = typeof payload.summary === "string" ? payload.summary : null;
+      const summary = deriveEventSummary(r.eventType, payload);
       return {
         id: r.id,
         eventType: r.eventType,
