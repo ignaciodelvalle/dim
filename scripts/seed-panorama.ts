@@ -2895,12 +2895,14 @@ async function seedModelProvinceHistory(
                 source: "seed-panorama-history",
                 disease_code: "rabies_suspected",
                 disease_label: "Rabia (sospechada)",
-                // pet_jurisdiction_province is read by petEventsScopeClause;
-                // province is read by the panorama per-unit aggregation loader.
+                // outbreak_signal is the ONE event type that legitimately snapshots
+                // the pet's jurisdiction into pet_jurisdiction_* (schema-valid) — read
+                // by BOTH petEventsScopeClause (metrics scope) AND the zoonosis panorama
+                // aggregation loader (loadZoonosisByUnit / loadUnitHistory). The old flat
+                // province/locality keys no outbreak_signal writer emits were removed;
+                // real signals now render because the loader keys on the snapshot.
                 pet_jurisdiction_province: provinceName,
                 pet_jurisdiction_locality: loc.localityName,
-                province: provinceName,
-                locality: loc.localityName,
                 status: "open",
               },
               ...writePoint({ lat, lng }),
@@ -2922,8 +2924,9 @@ async function seedModelProvinceHistory(
                   .toISOString()
                   .slice(0, 10),
                 clinical_notes: `Zoonosis history ${provinceName} ${year} (seed-panorama-history)`,
-                pet_jurisdiction_province: provinceName,
-                pet_jurisdiction_locality: loc.localityName,
+                // No jurisdiction in the payload: disease_reported never carries it
+                // (only outbreak_signal snapshots pet_jurisdiction_*). fetchActiveZoonosis
+                // scopes via the JOIN to pets. The demo pet_jurisdiction_* keys were removed.
               },
               ...writePoint({ lat, lng }),
             });
@@ -3023,12 +3026,12 @@ async function seedModelProvinceHistory(
                 vet_involved: rng() < 0.6,
                 location_description: `${loc.localityName}, ${provinceName}`,
                 rabies_vaccine_valid_at_incident: rng() < 0.5,
-                // 'province'/'locality' read by loadMordedurassByUnit / loadUnitHistory('mordeduras').
-                province: provinceName,
-                locality: loc.localityName,
-                // 'pet_jurisdiction_*' read by petEventsScopeClause (metrics scope).
-                pet_jurisdiction_province: provinceName,
-                pet_jurisdiction_locality: loc.localityName,
+                // No jurisdiction in the payload: incident_reported never carries it.
+                // The bite panorama loaders (loadBiteEvents / loadMordedurassByUnit /
+                // loadUnitHistory('mordeduras')) and the metrics fetchers (fetchBitesTrend
+                // / fetchBitesPer10k) attribute + scope via the JOIN to pets. The old flat
+                // province/locality (no writer emits) and pet_jurisdiction_* (rejected by
+                // the strict incident_reported schema) demo keys were removed.
               },
               ...writePoint({ lat, lng }),
             });
@@ -3057,15 +3060,12 @@ async function seedModelProvinceHistory(
               authorVerified: false,
               payload: {
                 source: "seed-panorama-history",
-                kind: "pet_lost",
                 from_status: "active",
                 to_status: "lost",
-                // 'province'/'locality' read by perdidas panorama loader.
-                province: provinceName,
-                locality: loc.localityName,
-                // 'pet_jurisdiction_*' read by petEventsScopeClause (metrics).
-                pet_jurisdiction_province: provinceName,
-                pet_jurisdiction_locality: loc.localityName,
+                // A pet marked lost is status_changed(to_status='lost') — the perdidas
+                // panorama loader keys on that real shape and attributes the unit via the
+                // JOIN to pets. The old demo 'kind'/'province'/'locality'/'pet_jurisdiction_*'
+                // keys (no writer emits them; the strict schema rejects them) were removed.
               },
               ...writePoint({ lat, lng }),
             });
