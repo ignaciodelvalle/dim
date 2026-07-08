@@ -709,7 +709,26 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   vaccine_due: "Vacuna próxima a vencer",
   // Rehome
   rehome_request_received: "Solicitud de re-hogar recibida",
+  // Onboarding
+  welcome: "Bienvenida",
 };
+
+/**
+ * es-AR label for a rabies-observation close outcome. Short prose form used in
+ * notification bodies so the owner never sees the raw enum value
+ * ("outcome: negative"). Mirrors the option copy in CloseObservationForm.
+ */
+const RABIES_OUTCOME_LABELS: Record<string, string> = {
+  negative: "resultado negativo (animal sano)",
+  positive_rabies: "resultado positivo (rabia confirmada o sospechada)",
+  dead: "fallecimiento durante la observación",
+  lost_to_followup: "sin seguimiento (animal perdido o sin contacto)",
+};
+
+export function rabiesObservationOutcomeLabel(outcome: string | null | undefined): string {
+  if (!outcome) return "resultado no especificado";
+  return RABIES_OUTCOME_LABELS[outcome] ?? outcome;
+}
 
 /**
  * Returns the es-AR human label for a notification_type code.

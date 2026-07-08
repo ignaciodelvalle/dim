@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  eventTypeLabel,
   formatCount,
   formatDateTime,
   formatDateTimeLegal,
   formatDelta,
   formatPercent,
   formatRate,
+  notificationTypeLabel,
+  rabiesObservationOutcomeLabel,
   relativeDaysShort,
 } from "./format";
 
@@ -114,6 +117,56 @@ describe("formatPercent", () => {
     expect(formatPercent(null)).toBe("—");
     expect(formatPercent(undefined)).toBe("—");
     expect(formatPercent(Number.NaN)).toBe("—");
+  });
+});
+
+describe("eventTypeLabel", () => {
+  // Regression: the shared libreta (/libreta/compartir) rendered raw snake_case
+  // English event types (rabies_observation_ended, incident_reported) to
+  // funcionarios/vets. Every event type must resolve to es-AR prose.
+  it("maps bite + rabies-observation event types to es-AR prose", () => {
+    expect(eventTypeLabel("incident_reported")).toBe("Incidente reportado");
+    expect(eventTypeLabel("rabies_observation_started")).toBe("Observación antirrábica iniciada");
+    expect(eventTypeLabel("rabies_observation_ended")).toBe("Observación antirrábica finalizada");
+  });
+
+  it("never returns raw snake_case for a libreta event type", () => {
+    for (const t of [
+      "incident_reported",
+      "rabies_observation_started",
+      "rabies_observation_ended",
+    ] as const) {
+      expect(eventTypeLabel(t)).not.toMatch(/_/);
+    }
+  });
+});
+
+describe("notificationTypeLabel", () => {
+  it("maps the onboarding welcome type to es-AR prose (not the raw code)", () => {
+    expect(notificationTypeLabel("welcome")).toBe("Bienvenida");
+  });
+
+  it("falls back to the raw code for unknown types", () => {
+    expect(notificationTypeLabel("some_unknown_type")).toBe("some_unknown_type");
+    expect(notificationTypeLabel(null)).toBe("—");
+  });
+});
+
+describe("rabiesObservationOutcomeLabel", () => {
+  it("maps close outcomes to es-AR prose so bodies never show 'outcome: negative'", () => {
+    expect(rabiesObservationOutcomeLabel("negative")).toBe("resultado negativo (animal sano)");
+    expect(rabiesObservationOutcomeLabel("positive_rabies")).toBe(
+      "resultado positivo (rabia confirmada o sospechada)",
+    );
+    expect(rabiesObservationOutcomeLabel("dead")).toBe("fallecimiento durante la observación");
+    expect(rabiesObservationOutcomeLabel("lost_to_followup")).toBe(
+      "sin seguimiento (animal perdido o sin contacto)",
+    );
+  });
+
+  it("handles null/unknown safely", () => {
+    expect(rabiesObservationOutcomeLabel(null)).toBe("resultado no especificado");
+    expect(rabiesObservationOutcomeLabel("mystery")).toBe("mystery");
   });
 });
 

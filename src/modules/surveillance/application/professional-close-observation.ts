@@ -16,6 +16,7 @@
 
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { rabiesObservationOutcomeLabel } from "@/lib/utils/format";
 
 import { PROFESSIONAL_OUTCOMES, outcomeToStatus } from "../domain/rabies-observation";
 import type { RabiesObservationOutcome } from "../domain/rabies-observation";
@@ -181,7 +182,7 @@ export async function professionalCloseObservation(
           notificationType: "rabies_observation_completed_professional_owner",
           severity: notifSeverity,
           title: `Observación cerrada profesionalmente — ${pet.name}`,
-          body: `La observación antirrábica de ${pet.name} fue cerrada por ${actor.profile.role === "admin" ? "un administrador" : "una autoridad sanitaria"} con outcome: ${input.outcome}.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}`,
+          body: `La observación antirrábica de ${pet.name} fue cerrada por ${actor.profile.role === "admin" ? "un administrador" : "una autoridad sanitaria"} con ${rabiesObservationOutcomeLabel(input.outcome)}.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}`,
           relatedPetId: pet.id,
           relatedCaseId: biteCase?.id ?? null,
           ctaLabel: "Ver mascota",
