@@ -46,10 +46,10 @@ export function FinalizeAdoptionForm({
       {usingApplication && (
         <section className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-3">
           <div className="space-y-1">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-ln-op-ok">
+            <h2 className="text-[var(--text-sm)] font-semibold uppercase tracking-wider text-ln-op-ok">
               Postulante aprobado
             </h2>
-            <p className="text-ln-op-ok text-[12px]">
+            <p className="text-ln-op-ok text-[var(--text-sm)]">
               La mascota queda registrada en la cuenta de la persona que se postuló online. La va a
               ver en <strong>Mis mascotas</strong> al instante y recibe una notificación.
             </p>
@@ -60,7 +60,7 @@ export function FinalizeAdoptionForm({
             {approvedApplications.map((app) => (
               <label
                 key={app.applicationEventId}
-                className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-ln-op-ok-bd bg-white/40 px-3 py-2 text-[13px] text-ln-op-ink cursor-pointer"
+                className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-ln-op-ok-bd bg-white/40 px-3 py-2 text-[var(--text-md)] text-ln-op-ink cursor-pointer"
               >
                 <input
                   type="radio"
@@ -78,7 +78,7 @@ export function FinalizeAdoptionForm({
           <button
             type="button"
             onClick={() => setOffline(true)}
-            className="text-[12px] text-ln-op-azul underline hover:text-ln-op-ink"
+            className="text-[var(--text-sm)] text-ln-op-azul underline hover:text-ln-op-ink"
           >
             ¿Adopción por fuera de las postulaciones?
           </button>
@@ -91,7 +91,7 @@ export function FinalizeAdoptionForm({
             <button
               type="button"
               onClick={() => setOffline(false)}
-              className="text-[12px] text-ln-op-azul underline hover:text-ln-op-ink"
+              className="text-[var(--text-sm)] text-ln-op-azul underline hover:text-ln-op-ink"
             >
               ← Volver a las postulaciones aprobadas
             </button>
@@ -104,10 +104,10 @@ export function FinalizeAdoptionForm({
                 checked={useFosterShortcut}
                 onChange={(e) => setUseFosterShortcut(e.target.checked)}
               >
-                <strong className="block text-[13px] text-ln-op-ok">
+                <strong className="block text-[var(--text-md)] text-ln-op-ok">
                   Finalizar adopción al tránsito actual ({fosterShortcut.displayName})
                 </strong>
-                <span className="text-ln-op-ok text-[11px] block mt-1">
+                <span className="text-ln-op-ok text-[var(--text-sm)] block mt-1">
                   El voluntario que está cuidando a esta mascota se convierte en dueño/a. Saltamos
                   el paso de pedirte el DNI.
                 </span>
@@ -120,7 +120,7 @@ export function FinalizeAdoptionForm({
 
           {!useFosterShortcut && (
             <section className="space-y-3">
-              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-ln-op-mute">
+              <h2 className="text-[var(--text-sm)] font-semibold uppercase tracking-wider text-ln-op-mute">
                 Adoptante
               </h2>
               <LnField
@@ -170,7 +170,7 @@ export function FinalizeAdoptionForm({
       )}
 
       <section className="space-y-3 pt-2 border-t border-ln-op-line">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-ln-op-mute">
+        <h2 className="text-[var(--text-sm)] font-semibold uppercase tracking-wider text-ln-op-mute">
           Seguimiento
         </h2>
         <LnField
