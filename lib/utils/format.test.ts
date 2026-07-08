@@ -184,4 +184,26 @@ describe("formatDateTime", () => {
     expect(out).toContain("07:59");
     expect(out).toContain("4 de julio de 2026");
   });
+
+  // Regression guard for QA histórico 2026-07-08 item 1: the admin audit log
+  // (app/admin/auditoria/page.tsx) formatted `entry.performedAt` with a raw
+  // `toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })` and
+  // no timeZone, so a 05:51 ART action rendered as "8:51" (the UTC clock).
+  // The row timestamp now delegates to formatDateTime — this pins the fix.
+  it("keeps the admin audit log timestamp pinned to ART (05:51 action, not 08:51 UTC)", () => {
+    const out = formatDateTime(new Date("2026-07-08T08:51:00.000Z"));
+    expect(out).toContain("05:51");
+    expect(out).not.toContain("08:51");
+  });
+
+  // Regression guard for QA histórico 2026-07-08 item 1: the transfer
+  // detail/list pages (app/(app)/transferencias/**) formatted `expiresAt`
+  // with a raw toLocaleString/toLocaleDateString and no timeZone, so a
+  // transfer expiring at 03:13 ART rendered "Vence 15/7 06:13 a.m." (the
+  // UTC clock). Both surfaces now delegate to formatDate/formatDateTime.
+  it("keeps the transfer-expiry timestamp pinned to ART (03:13 expiry, not 06:13 UTC)", () => {
+    const out = formatDateTime(new Date("2026-07-15T06:13:00.000Z"));
+    expect(out).toContain("03:13");
+    expect(out).not.toContain("06:13");
+  });
 });

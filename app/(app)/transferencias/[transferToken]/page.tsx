@@ -6,6 +6,7 @@ import Link from "next/link";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { formatDateTime } from "@/lib/utils/format";
 import { getTransferForViewerAction as getTransferForViewer } from "@/src/modules/transfers/actions";
 import { AcceptTransferActions } from "./AcceptTransferActions";
 
@@ -23,17 +24,6 @@ const REASON_LABELS: Record<string, string> = {
   inheritance: "Herencia",
   other: "Otro",
 };
-
-function formatExpiresAt(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleString("es-AR", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export default async function TransferPage({
   params,
@@ -109,7 +99,7 @@ export default async function TransferPage({
           <dl className="flex flex-col gap-3">
             {reasonLabel && <DetailRow label="Motivo">{reasonLabel}</DetailRow>}
             {transfer.note && <DetailRow label="Comentario">{transfer.note}</DetailRow>}
-            <DetailRow label="Vence">{formatExpiresAt(transfer.expiresAt)}</DetailRow>
+            <DetailRow label="Vence">{formatDateTime(transfer.expiresAt)}</DetailRow>
             <DetailRow label="Email del receptor">
               <span className="font-[var(--font-ln-mono)] text-[12.5px]">{transfer.toEmail}</span>
             </DetailRow>

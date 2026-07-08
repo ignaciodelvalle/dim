@@ -25,7 +25,7 @@ import {
   libretaSanitariaClause,
 } from "@/lib/infra/libreta-sanitaria";
 import { createClient } from "@/lib/supabase/server";
-import { sexLabel, speciesLabel } from "@/lib/utils/format";
+import { formatDate, formatDateTimeLegal, sexLabel, speciesLabel } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -55,8 +55,7 @@ function extractEventSummary(event: {
   if (typeof p.vaccine_name === "string") parts.push(p.vaccine_name);
   if (typeof p.brand === "string") parts.push(`Marca: ${p.brand}`);
   if (typeof p.lot_number === "string") parts.push(`Lote: ${p.lot_number}`);
-  if (typeof p.next_due_at === "string")
-    parts.push(`Próx. dosis: ${new Date(p.next_due_at).toLocaleDateString("es-AR")}`);
+  if (typeof p.next_due_at === "string") parts.push(`Próx. dosis: ${formatDate(p.next_due_at)}`);
 
   // Weight
   if (typeof p.weight_kg === "number") parts.push(`${p.weight_kg} kg`);
@@ -131,7 +130,7 @@ export async function GET(
     .orderBy(desc(petEvents.occurredAt));
 
   const grouped = groupLibretaEvents(events);
-  const generatedAt = new Date().toLocaleString("es-AR");
+  const generatedAt = formatDateTimeLegal(new Date());
   const petName = htmlEscape(petRow.name);
   const ownerEsc = htmlEscape(ownerName);
 
@@ -155,7 +154,7 @@ export async function GET(
           <tbody>
             ${groupEvents
               .map((e) => {
-                const date = new Date(e.occurredAt).toLocaleDateString("es-AR");
+                const date = formatDate(e.occurredAt);
                 const type = htmlEscape(formatEventLabel(e.eventType));
                 const detail = htmlEscape(
                   extractEventSummary({

@@ -4,6 +4,7 @@ import { OpButton, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui
 import { db, welfareReports } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { type FlagReason, reasonLabel } from "@/lib/infra/welfare-moderation";
+import { formatDate, formatDateTime } from "@/lib/utils/format";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import {
   WELFARE_REPORT_KINDS,
@@ -240,17 +241,10 @@ export default async function ModeracionListPage({
                           <p className="font-mono text-xs text-ln-op-faint">
                             {r.referenceCode}
                             {" · "}
-                            {r.flaggedAt &&
-                              new Date(r.flaggedAt).toLocaleString("es-AR", {
-                                dateStyle: "short",
-                                timeStyle: "short",
-                              })}
+                            {r.flaggedAt && formatDateTime(r.flaggedAt)}
                             {r.moderationResolvedAt && (
                               <span className="ml-2 text-ln-op-verde">
-                                ✓ resuelta{" "}
-                                {new Date(r.moderationResolvedAt).toLocaleString("es-AR", {
-                                  dateStyle: "short",
-                                })}
+                                ✓ resuelta {formatDate(r.moderationResolvedAt)}
                               </span>
                             )}
                           </p>

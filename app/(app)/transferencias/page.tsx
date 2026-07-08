@@ -6,7 +6,7 @@ import Link from "next/link";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, petTransfers, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { speciesLabel } from "@/lib/utils/format";
+import { formatDate, speciesLabel } from "@/lib/utils/format";
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -144,12 +144,7 @@ export default async function TransferenciasHubPage() {
                             </p>
                           )}
                           <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-                            Vence{" "}
-                            {new Date(transfer.expiresAt).toLocaleDateString("es-AR", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })}
+                            Vence {formatDate(transfer.expiresAt)}
                           </p>
                         </div>
                         <div className="flex flex-shrink-0 items-center gap-2">

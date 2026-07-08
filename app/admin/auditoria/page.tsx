@@ -8,6 +8,7 @@ import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/ui/audit-action-lab
 import { parseAuditActions, parseAuditDateRange } from "@/lib/ui/audit-filters";
 import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
 import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
+import { formatDateTime } from "@/lib/utils/format";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 const AUDITORIA_PAGE_LIMIT = 200;
@@ -162,8 +163,7 @@ export default async function AdminAuditoriaPage({
   const actorName = (uid: string | null) =>
     uid ? (namesById.get(uid) ?? "Desconocido") : "Usuario eliminado";
 
-  const fmtTime = (d: Date) =>
-    new Date(d).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
+  const fmtTime = (d: Date) => formatDateTime(d);
 
   // Link a collapsed run to the filtered view (same action + actor). action is
   // always a valid enum code; actor is omitted when the actor was hard-deleted.
