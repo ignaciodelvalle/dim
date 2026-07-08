@@ -3556,8 +3556,21 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   .ln-idrow {
     flex-wrap: wrap;
   }
+  /* A touch smaller so the name + "Inscripta" badge breathe beside the photo
+     on a narrow screen. */
+  .ln-idname {
+    font-size: 26px;
+  }
+  /* The QR takes its OWN full-width row below the identity, centered like a
+     stamp. Without flex-basis:100% the QR stayed on row 1 and the flex:1
+     idmeta collapsed to nothing, so the 32px name overflowed *under* the QR
+     (the reported overlap). Full-basis forces the wrap; width:100% overrides
+     the 118px desktop column so the centered frame sits in the middle. */
   .ln-qr {
     order: 3;
+    flex-basis: 100%;
+    width: 100%;
+    margin-top: 14px;
   }
   .ln-asiento-facts {
     grid-template-columns: 1fr;
