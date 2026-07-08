@@ -189,7 +189,8 @@ describe("AlertInboxTable — render + a11y", () => {
     const rows = await fetchAlertFirings({ status: "all" });
     const mine = rows.filter((r) => seededIds.includes(r.id));
     const html = render(<AlertInboxTable rows={mine} />);
-    expect(html).toContain("Breach");
+    // es-AR copy (commit 53e4f7da) — the breach badge reads "Vencido".
+    expect(html).toContain("Vencido");
   });
 
   it("renders the empty state when no rows match", () => {

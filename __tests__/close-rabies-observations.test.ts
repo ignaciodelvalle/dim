@@ -133,6 +133,38 @@ async function makeRabiesPet(opts: {
   return { id: pet.id, publicToken: pet.publicToken };
 }
 
+/**
+ * A pet flagged in_progress but with NO rabies_observation_started event at
+ * all — the still-real error path (commit 923e5079 replaced the "missing
+ * observation_until" error with a computeObservationUntil fallback, but a
+ * pet with no started event has nothing to fall back to).
+ */
+async function makeRabiesPetWithNoStartedEvent(): Promise<{ id: string; publicToken: string }> {
+  const [pet] = await db
+    .insert(pets)
+    .values({
+      publicToken: generatePublicToken(),
+      name: "RabiesTestPetNoEvent",
+      species: "dog",
+      sex: "male",
+      potentiallyDangerousBreed: false,
+      rabiesObservationStatus: "in_progress",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "Mar del Plata",
+    })
+    .returning();
+  createdPetIds.push(pet.id);
+
+  await db.insert(ownerships).values({
+    petId: pet.id,
+    ownerUserId,
+    role: "owner",
+    startedAt: new Date(),
+  });
+
+  return { id: pet.id, publicToken: pet.publicToken };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -185,14 +217,34 @@ describe("closeEligibleRabiesObservations", () => {
     expect(second.closedNegative).toBe(0);
   });
 
-  it("recovery — bad payload (missing observation_until) is recorded as an error, batch survives", async () => {
-    const bad = await makeRabiesPet({ observationUntil: "missing" });
+  it("recovery — missing observation_until falls back to the computed 10-day deadline and auto-closes (commit 923e5079)", async () => {
+    // No observation_until in the started payload, but the event occurred 11
+    // days ago (see makeRabiesPet) — computeObservationUntil derives a
+    // deadline 10 days after occurredAt, which is already past. The old
+    // behavior recorded this as an error; the closer now auto-closes it.
+    const recovered = await makeRabiesPet({ observationUntil: "missing" });
+
+    const stats = await closeEligibleRabiesObservations();
+    expect(stats.errors.some((e) => e.petId === recovered.id)).toBe(false);
+
+    const [row] = await db
+      .select({ status: pets.rabiesObservationStatus })
+      .from(pets)
+      .where(eq(pets.id, recovered.id));
+    expect(row.status).toBe("completed_negative");
+  });
+
+  it("recovery — in_progress pet with no rabies_observation_started event is recorded as an error, batch survives", async () => {
+    const bad = await makeRabiesPetWithNoStartedEvent();
     const good = await makeRabiesPet({
       observationUntil: new Date(Date.now() - 5 * 60 * 1000),
     });
 
     const stats = await closeEligibleRabiesObservations();
-    expect(stats.errors.some((e) => e.petId === bad.id)).toBe(true);
+    const badError = stats.errors.find((e) => e.petId === bad.id);
+    expect(badError).toBeDefined();
+    expect(badError?.reason).toContain("no rabies_observation_started event found");
+
     // The good pet still got closed despite the bad row in the same batch.
     const [goodRow] = await db
       .select({ status: pets.rabiesObservationStatus })

@@ -25,7 +25,13 @@ import { withMutationOverride } from "./_helpers/db-overrides";
 // ---------------------------------------------------------------------------
 
 const TEST_PROVINCE = "Santa Fe";
-const TEST_LOCALITY = "Rosario";
+// A synthetic locality (not a real one like "Rosario") — scope isolation
+// (commit 9e57a7b7 fixed jurisdiction scoping so seed-panorama's Santa
+// Fe/Rosario bite rows now correctly count too, which broke the absolute
+// reports===1 assertion below when it shared "Rosario" with seed data).
+// Mirrors the unique-locality idiom used elsewhere in this suite (e.g.
+// "DriftKpiVille", "BitesWindowVille").
+const TEST_LOCALITY = "HkCensusKpiVille";
 const TEST_PET_TOKEN = "HK-BITES-TEST-01";
 
 // The INDEC 2022 Santa Fe population seeded in migration 0067.

@@ -153,7 +153,9 @@ describe("uploadRevocationEvidence derives the actor from the session", () => {
     expect(src).not.toMatch(
       /export\s+async\s+function\s+uploadRevocationEvidence\s*\([^)]*actorUserId/s,
     );
-    // The action must bind the session inside the "use server" file.
-    expect(src).toContain("auth.getUser");
+    // The action must bind the session inside the "use server" file via the
+    // institutional admin/govt guard (commits c819a2f9 + a45c68a6) — stronger
+    // than a bare auth.getUser() since it also rejects deactivated/erased actors.
+    expect(src).toContain("requireAdminOrGovtOrRedirect");
   });
 });

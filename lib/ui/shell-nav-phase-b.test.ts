@@ -93,6 +93,12 @@ const ALL_ORG_CAPS = new Set([
   "foster.assign",
   "pet.read_held",
   "service_offering.create",
+  // QA histórico 2026-07-08 #2 — Transferencias (org.transfer.propose OR
+  // org.transfer.accept) and Miembros (member.invite) are now also
+  // capability-gated (f2c1d81f); mirrors nav-presets.test.ts's ALL_GATED_CAPS.
+  "member.invite",
+  "org.transfer.propose",
+  "org.transfer.accept",
 ]);
 
 // Full nav also needs an admin role: Maltrato + Configuración gate on role.
