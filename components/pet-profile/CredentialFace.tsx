@@ -30,6 +30,7 @@ import type { LnHeroProps } from "@/components/ui/Hero";
 import { LnMemorialChip } from "@/components/ui/StatusFlag";
 import type { ComplianceState } from "@/lib/projections/pet-compliance";
 import type { PetSituation } from "@/lib/ui/pet-situation";
+import { registeredAdjective, situationLabelForSex } from "@/lib/utils/format";
 
 export type CredentialFacePppInfo = {
   attested: boolean;
@@ -59,6 +60,12 @@ export type CredentialFaceProps = {
   qrSvg: string;
   /** Public credential page URL. E.g. /p/{token} */
   publicHref: string;
+  /**
+   * Pet's recorded sex ("male" | "female" | "unknown"/null) — drives gender
+   * agreement on the "Inscripto/a" badge and the situation skin's adjective
+   * labels (Perdido/a, Fallecido/a). QA histórico 2026-07-08 #2.
+   */
+  petSex?: string | null;
   /** Rendered only when the jurisdiction PPP rule applies. */
   /** Rendered only for a vigente, in-service registered service dog. */
   serviceDog?: CredentialFaceServiceDogInfo | null;
@@ -98,6 +105,7 @@ export function CredentialFace({
   avisos,
   anotar,
   actions,
+  petSex,
 }: CredentialFaceProps) {
   const memorialYearRange =
     memorial?.birthYear && memorial?.deathYear
@@ -111,6 +119,14 @@ export function CredentialFace({
   // caller already passes null for deceased, but guard on isDefault too so a
   // stray al-dia never tints the credential green as if it were an alert).
   const activeSituation = situation && !situation.isDefault ? situation : null;
+
+  // Gender-agree the two credential-state words that are adjectives
+  // ("Inscripto/a" and the situation skin's "Perdido/a"/"Fallecido/a") with
+  // the pet's recorded sex. QA histórico 2026-07-08 #2.
+  const registeredWord = registeredAdjective(petSex);
+  const situationLabel = activeSituation
+    ? situationLabelForSex(activeSituation.label, petSex)
+    : null;
 
   return (
     <div
@@ -135,7 +151,7 @@ export function CredentialFace({
       {activeSituation && (
         <div className={`ln-sit ln-sit--${activeSituation.tone}`} data-section="pet-situation">
           <Icon name={activeSituation.icon} size="sm" decorative />
-          <span className="ln-sit-label">{activeSituation.label}</span>
+          <span className="ln-sit-label">{situationLabel}</span>
           {situationDetail && <span className="ln-sit-detail">— {situationDetail}</span>}
         </div>
       )}
@@ -163,14 +179,14 @@ export function CredentialFace({
               {!activeSituation && (
                 <span className="ln-badge-reg">
                   <Icon name="check" size="sm" decorative />
-                  Inscripta
+                  {registeredWord}
                 </span>
               )}
             </h1>
             {activeSituation && (
               <div className="ln-reg-quiet">
                 <Icon name="check" size="sm" decorative />
-                Inscripta
+                {registeredWord}
               </div>
             )}
             {heroProps.breed && <div className="ln-idsub">{heroProps.breed}</div>}

@@ -264,6 +264,44 @@ export function sightingPhrase(sex: string | null | undefined): string {
   }
 }
 
+/**
+ * Registration badge word on the pet credential, e.g. "Rocco **Inscripto**"
+ * / "Michi **Inscripta**". QA histórico 2026-07-08 #2: the badge was
+ * hardcoded feminine ("Inscripta"), disagreeing with a male pet's name
+ * ("Rocco Inscripta"). Neutral "/a" (matching the existing roleLabel
+ * "Dueño/a" convention) covers pets with no recorded sex.
+ */
+export function registeredAdjective(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "Inscripto";
+    case "female":
+      return "Inscripta";
+    default:
+      return "Inscripto/a";
+  }
+}
+
+/**
+ * Gender-agrees a `lib/ui/pet-situation.ts` situation label with the pet's
+ * recorded sex. PET_SITUATIONS labels default to feminine (documented there
+ * as "feminine default, matching the app's copy") because most situation
+ * labels are invariant noun phrases ("En tratamiento", "En adopción") where
+ * gender doesn't apply — only "Perdida" and "Fallecida" are adjectives that
+ * must actually agree with the pet. "Preñada" is intentionally excluded:
+ * pregnancy is exclusively a female state, so it never regenders.
+ * QA histórico 2026-07-08 #2: swept the credential's situation skin for the
+ * same masculine/feminine disagreement as the Inscripta badge.
+ */
+export function situationLabelForSex(label: string, sex: string | null | undefined): string {
+  if (normalizeSex(sex) !== "male") return label;
+  const MASCULINE_BY_FEMININE_LABEL: Record<string, string> = {
+    Perdida: "Perdido",
+    Fallecida: "Fallecido",
+  };
+  return MASCULINE_BY_FEMININE_LABEL[label] ?? label;
+}
+
 // Exhaustive map — must have exactly one entry per EventType.
 // If you add a new entry to EVENT_TYPES, TypeScript will fail here until
 // you add a corresponding label. Use `satisfies` so inference stays narrow.

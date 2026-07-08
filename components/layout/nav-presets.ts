@@ -54,8 +54,9 @@ export type OrgNavOptions = {
   /**
    * Capabilities granted to the viewing member (from getGrantedCapabilities).
    * Capability-gated items (Mascotas, Agenda, Ingresos, Tránsitos, Voluntarios,
-   * Operaciones, Check-ins, Servicios, Mordeduras, Permisos) only render when
-   * their capability is present. Omit to build the baseline membership nav.
+   * Operaciones, Check-ins, Servicios, Mordeduras, Permisos, Transferencias,
+   * Casos, Miembros) only render when their capability is present. Omit to
+   * build the near-empty baseline nav (Panel only, plus any role-gated items).
    */
   granted?: ReadonlySet<string>;
   /**
@@ -68,13 +69,15 @@ export type OrgNavOptions = {
    */
   orgType?: string;
   /**
-   * The viewing member's membership role (organization_memberships.role). Two
-   * nav items gate on ROLE, not capability, because their pages do: Maltrato
-   * (welfare reports — page restricts to admin/coordinator/member/vet_individual)
-   * and Configuración (admin-only — the page redirects everyone else). Omit to
-   * hide both. QA histórico 2026-07-08 #81: the sidebar over-exposed modules a
-   * zero-capability foster could not actually use, contradicting the panel copy
-   * "Cada permiso habilita su módulo en el menú".
+   * The viewing member's membership role (organization_memberships.role).
+   * Three nav items gate on ROLE, not capability, because their pages do:
+   * Maltrato (welfare reports — page restricts to
+   * admin/coordinator/member/vet_individual), Configuración (admin-only — the
+   * page redirects everyone else), and Cobertura (no dedicated capability
+   * exists — the page's own `canManage` check is admin/coordinator-only).
+   * Omit to hide all three. QA histórico 2026-07-08 #81 and #2: the sidebar
+   * over-exposed modules a zero-capability foster could not actually use,
+   * contradicting the panel copy "Cada permiso habilita su módulo en el menú".
    */
   role?: string;
 };
@@ -88,10 +91,22 @@ const WELFARE_NAV_ROLES: ReadonlySet<string> = new Set([
   "vet_individual",
 ]);
 
+// Roles allowed to manage coverage zones (mirrors `canManage` in
+// app/org/[orgToken]/cobertura/page.tsx — the page has no dedicated
+// capability, gating is role-only). QA histórico 2026-07-08 #2: nav must
+// match that gate, not leave Cobertura in the un-gated baseline.
+const COVERAGE_MANAGE_ROLES: ReadonlySet<string> = new Set(["admin", "coordinator"]);
+
 type OrgNavItem = NavItem & {
   requiredCapability?: string;
+  /**
+   * Item shown when the member holds ANY of these capabilities (Transferencias —
+   * a member can hold org.transfer.propose, org.transfer.accept, or both, since
+   * they're independently grantable per admin/permisos).
+   */
+  requiredAnyCapability?: readonly string[];
   shelterOnly?: boolean;
-  /** Item shown only when the member's role is in this set (Maltrato, Configuración). */
+  /** Item shown only when the member's role is in this set (Maltrato, Configuración, Cobertura). */
   requiredRoles?: ReadonlySet<string>;
 };
 
@@ -155,11 +170,18 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       section: "Animales",
     },
     {
-      // Membership-level: the received-transfers queue is on the home Pendientes
-      // card for every member, and the page guard is membership-only.
+      // Gated on the cross-org handshake capabilities (spec
+      // 2026-05-19-cross-org-transfer-ux): org.transfer.propose covers the
+      // sender flow (/transferencias, /transferencias/nueva) and
+      // org.transfer.accept covers the receiver flow (/transferencias/recibidas).
+      // They're independently grantable (admin/permisos), so a member with
+      // either one has a real reason to see this module — OR, not AND.
+      // QA histórico 2026-07-08 #2: was un-gated ("membership-level"), which
+      // over-exposed the module to zero-capability fosters.
       href: `/org/${orgToken}/transferencias`,
       label: "Transferencias",
       matchPrefix: `/org/${orgToken}/transferencias`,
+      requiredAnyCapability: ["org.transfer.propose", "org.transfer.accept"],
       section: "Animales",
     },
     // Adopciones
@@ -181,9 +203,15 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
     },
     // Casos
     {
+      // The case queue (listCasesForOrg) surfaces intake/custody/transfer
+      // activity on animals the org holds — same read surface as Mascotas, so
+      // it's gated on the same capability. QA histórico 2026-07-08 #2: was
+      // un-gated ("membership-level"), over-exposing it to zero-capability
+      // fosters.
       href: `/org/${orgToken}/casos`,
       label: "Casos",
       matchPrefix: `/org/${orgToken}/casos`,
+      requiredCapability: "pet.read_held",
       section: "Casos",
     },
     {
@@ -210,15 +238,26 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       section: "Administración",
     },
     {
+      // The members page itself is viewable by any member (roster), but the
+      // page is only ACTIONABLE (invite/manage) with member.invite — gate
+      // nav on that, matching the "member admin" module it represents. QA
+      // histórico 2026-07-08 #2: was un-gated, over-exposing it to
+      // zero-capability fosters.
       href: `/org/${orgToken}/miembros`,
       label: "Miembros",
       matchPrefix: `/org/${orgToken}/miembros`,
+      requiredCapability: "member.invite",
       section: "Administración",
     },
     {
+      // No dedicated capability exists for coverage — the page gates edit
+      // access on role (`canManage` = admin/coordinator). Nav mirrors that
+      // exact role gate. QA histórico 2026-07-08 #2: was un-gated, over-
+      // exposing it to zero-capability fosters.
       href: `/org/${orgToken}/cobertura`,
       label: "Cobertura",
       matchPrefix: `/org/${orgToken}/cobertura`,
+      requiredRoles: COVERAGE_MANAGE_ROLES,
       section: "Administración",
     },
     {
@@ -245,11 +284,16 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
   // capability), then strip internal fields.
   const filtered = allItems
     .filter((item) => !item.requiredCapability || granted.has(item.requiredCapability))
+    .filter(
+      (item) =>
+        !item.requiredAnyCapability || item.requiredAnyCapability.some((cap) => granted.has(cap)),
+    )
     .filter((item) => !item.requiredRoles || (role !== undefined && item.requiredRoles.has(role)))
     .filter((item) => !(item.shelterOnly && isClinic))
     .map(
       ({
         requiredCapability: _cap,
+        requiredAnyCapability: _anyCap,
         requiredRoles: _rr,
         shelterOnly: _so,
         section: _sec,

@@ -18,7 +18,10 @@ import {
 // the gating: Mascotas (pet.read_held), Tránsitos/Voluntarios (foster.assign),
 // Operaciones (adoption.review), Servicios (service_offering.create) are now
 // capability-gated so a zero-capability member's sidebar matches the panel copy
-// "Cada permiso habilita su módulo en el menú".
+// "Cada permiso habilita su módulo en el menú". QA histórico 2026-07-08 #2
+// closed the remaining gap: Transferencias (org.transfer.propose OR
+// org.transfer.accept), Casos (pet.read_held), Miembros (member.invite) are
+// now also capability-gated (Cobertura gates on role — see FULL_NAV below).
 const ALL_GATED_CAPS = new Set([
   "appointment.manage",
   "intake.create",
@@ -28,10 +31,14 @@ const ALL_GATED_CAPS = new Set([
   "foster.assign",
   "pet.read_held",
   "service_offering.create",
+  "member.invite",
+  "org.transfer.propose",
+  "org.transfer.accept",
 ]);
 
-// Full nav = every capability granted AND an admin role (Maltrato + Configuración
-// gate on role, not capability). Use for the "all sections present" invariants.
+// Full nav = every capability granted AND an admin role (Maltrato +
+// Configuración + Cobertura gate on role, not capability). Use for the "all
+// sections present" invariants.
 const FULL_NAV = { granted: ALL_GATED_CAPS, role: "admin" } as const;
 
 describe("PUBLIC_NAV", () => {
@@ -96,12 +103,14 @@ describe("buildOrgNav (section structure)", () => {
 });
 
 describe("buildOrgNavFlat", () => {
-  it("produces 5 baseline membership items when no capabilities/role are passed", () => {
-    // QA histórico 2026-07-08 #81: the sidebar over-exposed capability modules a
-    // zero-capability member could not use. The baseline nav is now just the
-    // membership-level surfaces: Panel, Transferencias, Casos, Miembros, Cobertura.
+  it("produces exactly Panel when no capabilities/role are passed (zero-capability member)", () => {
+    // QA histórico 2026-07-08 #81 gated the operational modules; #2 (round 2)
+    // closed the remaining gap — Transferencias, Casos, Miembros and Cobertura
+    // were still un-gated "membership-level" items, so a zero-capability
+    // foster still saw them. All four are now gated (capability or role), so
+    // the true zero-grant baseline is just Panel.
     const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
-    expect(labels).toEqual(["Panel", "Transferencias", "Casos", "Miembros", "Cobertura"]);
+    expect(labels).toEqual(["Panel"]);
   });
 
   it("produces 18 items when all capabilities are granted and role is admin", () => {
@@ -135,10 +144,57 @@ describe("buildOrgNavFlat", () => {
     expect(agendaOnly).not.toContain("Permisos");
   });
 
-  it("keeps the membership-level items in the baseline nav (Transferencias, Casos)", () => {
-    const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
-    expect(labels).toContain("Transferencias");
-    expect(labels).toContain("Casos");
+  it("gates Transferencias behind org.transfer.propose OR org.transfer.accept (QA #2)", () => {
+    const baseline = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
+    expect(baseline).not.toContain("Transferencias");
+
+    const withPropose = buildOrgNavFlat("ORG-ABC", {
+      granted: new Set(["org.transfer.propose"]),
+    }).map((i) => i.label);
+    expect(withPropose).toContain("Transferencias");
+
+    const withAccept = buildOrgNavFlat("ORG-ABC", {
+      granted: new Set(["org.transfer.accept"]),
+    }).map((i) => i.label);
+    expect(withAccept).toContain("Transferencias");
+  });
+
+  it("gates Casos behind pet.read_held (QA #2)", () => {
+    const baseline = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
+    expect(baseline).not.toContain("Casos");
+
+    const withRead = buildOrgNavFlat("ORG-ABC", { granted: new Set(["pet.read_held"]) }).map(
+      (i) => i.label,
+    );
+    expect(withRead).toContain("Casos");
+  });
+
+  it("gates Miembros behind member.invite (QA #2)", () => {
+    const baseline = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
+    expect(baseline).not.toContain("Miembros");
+
+    const withInvite = buildOrgNavFlat("ORG-ABC", { granted: new Set(["member.invite"]) }).map(
+      (i) => i.label,
+    );
+    expect(withInvite).toContain("Miembros");
+  });
+
+  it("gates Cobertura behind role admin/coordinator, not capability (QA #2)", () => {
+    // Every capability granted, still no role → hidden.
+    const capsOnly = buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS }).map((i) => i.label);
+    expect(capsOnly).not.toContain("Cobertura");
+
+    // A foster (no manage role) still doesn't see it, even with every capability.
+    const foster = buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS, role: "foster" }).map(
+      (i) => i.label,
+    );
+    expect(foster).not.toContain("Cobertura");
+
+    // admin / coordinator do, matching the page's own `canManage` check.
+    const admin = buildOrgNavFlat("ORG-ABC", { role: "admin" }).map((i) => i.label);
+    expect(admin).toContain("Cobertura");
+    const coordinator = buildOrgNavFlat("ORG-ABC", { role: "coordinator" }).map((i) => i.label);
+    expect(coordinator).toContain("Cobertura");
   });
 
   it("gates Tránsitos/Voluntarios behind foster.assign (QA #81)", () => {
@@ -193,10 +249,11 @@ describe("buildOrgNavFlat", () => {
     expect(permisos?.matchPrefix).toBe("/org/ORG-ABC/admin");
   });
 
-  it("does not leak requiredCapability / requiredRoles into the returned NavItem objects", () => {
+  it("does not leak requiredCapability / requiredAnyCapability / requiredRoles into the returned NavItem objects", () => {
     const items = buildOrgNavFlat("ORG-ABC", FULL_NAV);
     for (const item of items) {
       expect("requiredCapability" in item).toBe(false);
+      expect("requiredAnyCapability" in item).toBe(false);
       expect("requiredRoles" in item).toBe(false);
     }
   });
@@ -237,8 +294,8 @@ describe("buildOrgNavFlat", () => {
   });
 
   it("Cobertura entry points to /org/<orgToken>/cobertura", () => {
-    // Cobertura is a baseline membership item — present without caps/role.
-    const items = buildOrgNavFlat("ORG-ABC");
+    // Cobertura is role-gated (admin/coordinator, QA #2) — pass role: "admin".
+    const items = buildOrgNavFlat("ORG-ABC", { role: "admin" });
     const cobertura = items.find((i) => i.label === "Cobertura");
     expect(cobertura).toBeDefined();
     expect(cobertura?.href).toBe("/org/ORG-ABC/cobertura");

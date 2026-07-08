@@ -13,7 +13,9 @@ import {
   lostBannerHeadline,
   lostFirstPersonLine,
   lostThirdPersonPhrase,
+  registeredAdjective,
   sightingPhrase,
+  situationLabelForSex,
 } from "@/lib/utils/format";
 
 describe("lostBannerHeadline", () => {
@@ -88,5 +90,49 @@ describe("sightingPhrase", () => {
     expect(sightingPhrase(null)).toBe("Vi a la mascota cerca de acá");
     expect(sightingPhrase(undefined)).toBe("Vi a la mascota cerca de acá");
     expect(sightingPhrase("nonsense")).toBe("Vi a la mascota cerca de acá");
+  });
+});
+
+// QA histórico 2026-07-08 item 2 (round 2): the pet credential's registration
+// badge showed "Rocco Inscripta" — feminine on a male pet, because
+// CredentialFace hardcoded "Inscripta" instead of routing through a
+// sex-aware helper.
+describe("registeredAdjective", () => {
+  it("genders by sex", () => {
+    expect(registeredAdjective("male")).toBe("Inscripto");
+    expect(registeredAdjective("female")).toBe("Inscripta");
+  });
+  it("neutral for unknown/null/garbage", () => {
+    expect(registeredAdjective("unknown")).toBe("Inscripto/a");
+    expect(registeredAdjective(null)).toBe("Inscripto/a");
+    expect(registeredAdjective(undefined)).toBe("Inscripto/a");
+    expect(registeredAdjective("nonsense")).toBe("Inscripto/a");
+  });
+});
+
+// Same QA finding: the credential's situation skin (lib/ui/pet-situation.ts)
+// carries feminine-default adjective labels ("Perdida", "Fallecida") that
+// must also agree with a male pet's sex on the credential surface.
+describe("situationLabelForSex", () => {
+  it("genders the adjective labels for a male pet", () => {
+    expect(situationLabelForSex("Perdida", "male")).toBe("Perdido");
+    expect(situationLabelForSex("Fallecida", "male")).toBe("Fallecido");
+  });
+  it("keeps the feminine default for female/unknown/null", () => {
+    expect(situationLabelForSex("Perdida", "female")).toBe("Perdida");
+    expect(situationLabelForSex("Perdida", "unknown")).toBe("Perdida");
+    expect(situationLabelForSex("Perdida", null)).toBe("Perdida");
+    expect(situationLabelForSex("Fallecida", "female")).toBe("Fallecida");
+  });
+  it("passes through non-adjective (invariant) situation labels unchanged", () => {
+    expect(situationLabelForSex("En tratamiento", "male")).toBe("En tratamiento");
+    expect(situationLabelForSex("En adopción", "male")).toBe("En adopción");
+    expect(situationLabelForSex("En tránsito", "male")).toBe("En tránsito");
+    expect(situationLabelForSex("En observación antirrábica", "male")).toBe(
+      "En observación antirrábica",
+    );
+  });
+  it("never regenders Preñada — pregnancy is exclusively a female state", () => {
+    expect(situationLabelForSex("Preñada", "male")).toBe("Preñada");
   });
 });

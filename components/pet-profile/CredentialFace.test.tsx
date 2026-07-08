@@ -119,3 +119,59 @@ describe("CredentialFace — In-Memoriam skin (ADR-15)", () => {
     expect(html).not.toContain("–"); // no year range when years are unknown
   });
 });
+
+// QA histórico 2026-07-08 item 2 (round 2): "Rocco Inscripta" — the
+// registration badge disagreed with a male pet's sex. It must now render
+// "Inscripto" for male, "Inscripta" for female, and the neutral "Inscripto/a"
+// when sex is unrecorded — and the same word must agree in BOTH render
+// paths (the prominent badge next to the name, and the quiet marker used
+// when a situation skin is active).
+describe("CredentialFace — Inscripto/a gender agreement", () => {
+  it("renders Inscripto for a male pet", () => {
+    const state = deriveComplianceState(complianceInput());
+    const html = renderToStaticMarkup(
+      <CredentialFace {...baseProps} complianceState={state} petSex="male" />,
+    );
+    expect(html).toContain("Inscripto");
+    expect(html).not.toContain("Inscripta");
+  });
+
+  it("renders Inscripta for a female pet", () => {
+    const state = deriveComplianceState(complianceInput());
+    const html = renderToStaticMarkup(
+      <CredentialFace {...baseProps} complianceState={state} petSex="female" />,
+    );
+    expect(html).toContain("Inscripta");
+  });
+
+  it("renders the neutral Inscripto/a when sex is unrecorded", () => {
+    const state = deriveComplianceState(complianceInput());
+    const html = renderToStaticMarkup(
+      <CredentialFace {...baseProps} complianceState={state} petSex={null} />,
+    );
+    expect(html).toContain("Inscripto/a");
+  });
+
+  it("genders the quiet marker too, when a situation skin demotes the badge", () => {
+    const state = deriveComplianceState(complianceInput());
+    const html = renderToStaticMarkup(
+      <CredentialFace
+        {...baseProps}
+        complianceState={state}
+        petSex="male"
+        situation={{
+          key: "perdida",
+          tone: "alerta",
+          label: "Perdida",
+          icon: "perdida",
+          isDefault: false,
+        }}
+      />,
+    );
+    expect(html).toContain("Inscripto");
+    expect(html).not.toContain("Inscripta");
+    // The situation label itself must also agree — "Perdido", not "Perdida".
+    expect(html).toContain("Perdido");
+    expect(html).not.toContain("Perdida");
+  });
+});

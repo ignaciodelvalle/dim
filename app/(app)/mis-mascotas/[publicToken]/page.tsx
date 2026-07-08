@@ -688,6 +688,7 @@ export default async function PetDetailPage({
                   : null
               }
               petPublicToken={pet.publicToken}
+              petSex={pet.sex}
               memorial={memorial}
               situation={credentialSituation}
               situationDetail={situationDetail}
