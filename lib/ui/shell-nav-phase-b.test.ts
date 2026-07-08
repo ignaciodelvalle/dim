@@ -89,7 +89,14 @@ const ALL_ORG_CAPS = new Set([
   "adoption.review",
   "capability.grant",
   "bite.report",
+  // QA histórico 2026-07-08 #81 — these now gate their nav modules too.
+  "foster.assign",
+  "pet.read_held",
+  "service_offering.create",
 ]);
+
+// Full nav also needs an admin role: Maltrato + Configuración gate on role.
+const FULL_ORG_NAV = { granted: ALL_ORG_CAPS, role: "admin" } as const;
 
 const ORG_HREF_SNAPSHOT = new Set([
   "/org/ORG-ABC",
@@ -202,7 +209,7 @@ describe("Phase B operator parity — admin", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase B operator parity — org", () => {
-  const sections = buildOrgNav("ORG-ABC", { granted: ALL_ORG_CAPS });
+  const sections = buildOrgNav("ORG-ABC", FULL_ORG_NAV);
   const allHrefs = sections.flatMap((s) => s.items.map((i) => i.href));
 
   it("buildOrgNav union contains every frozen snapshot href (snapshot ⊆ union)", () => {
@@ -232,7 +239,7 @@ describe("Phase B operator parity — org", () => {
   });
 
   it("buildOrgNavFlat produces same hrefs as the sections union (flat equals sections.flatMap)", () => {
-    const flat = buildOrgNavFlat("ORG-ABC", { granted: ALL_ORG_CAPS });
+    const flat = buildOrgNavFlat("ORG-ABC", FULL_ORG_NAV);
     expect(flat.map((i) => i.href)).toEqual(allHrefs);
   });
 });

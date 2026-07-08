@@ -53,8 +53,9 @@ export const OWNER_NAV: NavItem[] = [
 export type OrgNavOptions = {
   /**
    * Capabilities granted to the viewing member (from getGrantedCapabilities).
-   * Capability-gated items (Agenda, Ingresos, Check-ins, Permisos) only render
-   * when their capability is present. Omit to build the membership-only nav.
+   * Capability-gated items (Mascotas, Agenda, Ingresos, Tránsitos, Voluntarios,
+   * Operaciones, Check-ins, Servicios, Mordeduras, Permisos) only render when
+   * their capability is present. Omit to build the baseline membership nav.
    */
   granted?: ReadonlySet<string>;
   /**
@@ -66,9 +67,33 @@ export type OrgNavOptions = {
    * org home cards (UX gate M2).
    */
   orgType?: string;
+  /**
+   * The viewing member's membership role (organization_memberships.role). Two
+   * nav items gate on ROLE, not capability, because their pages do: Maltrato
+   * (welfare reports — page restricts to admin/coordinator/member/vet_individual)
+   * and Configuración (admin-only — the page redirects everyone else). Omit to
+   * hide both. QA histórico 2026-07-08 #81: the sidebar over-exposed modules a
+   * zero-capability foster could not actually use, contradicting the panel copy
+   * "Cada permiso habilita su módulo en el menú".
+   */
+  role?: string;
 };
 
-type OrgNavItem = NavItem & { requiredCapability?: string; shelterOnly?: boolean };
+// Roles allowed to open the org welfare inbox (mirrors ALLOWED_ROLES in
+// app/org/[orgToken]/maltrato/recibidos/page.tsx — sensitive PII surface).
+const WELFARE_NAV_ROLES: ReadonlySet<string> = new Set([
+  "admin",
+  "coordinator",
+  "member",
+  "vet_individual",
+]);
+
+type OrgNavItem = NavItem & {
+  requiredCapability?: string;
+  shelterOnly?: boolean;
+  /** Item shown only when the member's role is in this set (Maltrato, Configuración). */
+  requiredRoles?: ReadonlySet<string>;
+};
 
 /**
  * Returns the org nav as grouped NavSection[].
@@ -78,6 +103,7 @@ type OrgNavItem = NavItem & { requiredCapability?: string; shelterOnly?: boolean
 export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSection[] {
   const granted = opts.granted ?? new Set<string>();
   const isClinic = opts.orgType === "clinic";
+  const role = opts.role;
 
   // All candidate items with their section assignment and optional capability gate.
   const allItems: Array<OrgNavItem & { section: string }> = [
@@ -108,6 +134,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       href: `/org/${orgToken}/transitos`,
       label: "Tránsitos",
       matchPrefix: `/org/${orgToken}/transitos`,
+      requiredCapability: "foster.assign",
       section: "Operación",
       shelterOnly: true,
     },
@@ -115,6 +142,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       href: `/org/${orgToken}/voluntarios`,
       label: "Voluntarios",
       matchPrefix: `/org/${orgToken}/voluntarios`,
+      requiredCapability: "foster.assign",
       section: "Operación",
       shelterOnly: true,
     },
@@ -123,9 +151,12 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       href: `/org/${orgToken}/mascotas`,
       label: "Mascotas",
       matchPrefix: `/org/${orgToken}/mascotas`,
+      requiredCapability: "pet.read_held",
       section: "Animales",
     },
     {
+      // Membership-level: the received-transfers queue is on the home Pendientes
+      // card for every member, and the page guard is membership-only.
       href: `/org/${orgToken}/transferencias`,
       label: "Transferencias",
       matchPrefix: `/org/${orgToken}/transferencias`,
@@ -136,6 +167,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       href: `/org/${orgToken}/adopciones`,
       label: "Operaciones",
       matchPrefix: `/org/${orgToken}/adopciones`,
+      requiredCapability: "adoption.review",
       section: "Adopciones",
       shelterOnly: true,
     },
@@ -158,6 +190,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       href: `/org/${orgToken}/maltrato/recibidos`,
       label: "Maltrato",
       matchPrefix: `/org/${orgToken}/maltrato`,
+      requiredRoles: WELFARE_NAV_ROLES,
       section: "Casos",
     },
     {
@@ -173,6 +206,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       href: `/org/${orgToken}/servicios`,
       label: "Servicios",
       matchPrefix: `/org/${orgToken}/servicios`,
+      requiredCapability: "service_offering.create",
       section: "Administración",
     },
     {
@@ -198,6 +232,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       href: `/org/${orgToken}/configuracion`,
       label: "Configuración",
       matchPrefix: `/org/${orgToken}/configuracion`,
+      requiredRoles: new Set(["admin"]),
       section: "Administración",
     },
   ];
@@ -210,11 +245,20 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
   // capability), then strip internal fields.
   const filtered = allItems
     .filter((item) => !item.requiredCapability || granted.has(item.requiredCapability))
+    .filter((item) => !item.requiredRoles || (role !== undefined && item.requiredRoles.has(role)))
     .filter((item) => !(item.shelterOnly && isClinic))
-    .map(({ requiredCapability: _cap, shelterOnly: _so, section: _sec, ...item }) => ({
-      ...item,
-      section: _sec,
-    }));
+    .map(
+      ({
+        requiredCapability: _cap,
+        requiredRoles: _rr,
+        shelterOnly: _so,
+        section: _sec,
+        ...item
+      }) => ({
+        ...item,
+        section: _sec,
+      }),
+    );
 
   // Partition into sections, preserving order. Drop empty sections.
   const sections: NavSection[] = [];

@@ -14,13 +14,25 @@ import {
   buildOrgNavFlat,
 } from "./nav-presets";
 
+// Every capability that gates a nav item. QA histórico 2026-07-08 #81 widened
+// the gating: Mascotas (pet.read_held), Tránsitos/Voluntarios (foster.assign),
+// Operaciones (adoption.review), Servicios (service_offering.create) are now
+// capability-gated so a zero-capability member's sidebar matches the panel copy
+// "Cada permiso habilita su módulo en el menú".
 const ALL_GATED_CAPS = new Set([
   "appointment.manage",
   "intake.create",
   "adoption.review",
   "capability.grant",
   "bite.report",
+  "foster.assign",
+  "pet.read_held",
+  "service_offering.create",
 ]);
+
+// Full nav = every capability granted AND an admin role (Maltrato + Configuración
+// gate on role, not capability). Use for the "all sections present" invariants.
+const FULL_NAV = { granted: ALL_GATED_CAPS, role: "admin" } as const;
 
 describe("PUBLIC_NAV", () => {
   it("has exactly 4 items", () => {
@@ -84,14 +96,16 @@ describe("buildOrgNav (section structure)", () => {
 });
 
 describe("buildOrgNavFlat", () => {
-  it("produces 12 membership-only items when no capabilities are passed", () => {
-    // Mordeduras moved behind bite.report (QA 2026-07-03): the form was
-    // reachable by members whose submits the action would reject.
-    expect(buildOrgNavFlat("ORG-ABC")).toHaveLength(12);
+  it("produces 5 baseline membership items when no capabilities/role are passed", () => {
+    // QA histórico 2026-07-08 #81: the sidebar over-exposed capability modules a
+    // zero-capability member could not use. The baseline nav is now just the
+    // membership-level surfaces: Panel, Transferencias, Casos, Miembros, Cobertura.
+    const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
+    expect(labels).toEqual(["Panel", "Transferencias", "Casos", "Miembros", "Cobertura"]);
   });
 
-  it("produces 18 items when all gated capabilities are granted", () => {
-    expect(buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS })).toHaveLength(18);
+  it("produces 18 items when all capabilities are granted and role is admin", () => {
+    expect(buildOrgNavFlat("ORG-ABC", FULL_NAV)).toHaveLength(18);
   });
 
   it("hides Agenda, Ingresos, Check-ins, Mordeduras and Permisos without their capabilities", () => {
@@ -121,12 +135,48 @@ describe("buildOrgNavFlat", () => {
     expect(agendaOnly).not.toContain("Permisos");
   });
 
-  it("contains the previously missing membership-level items", () => {
+  it("keeps the membership-level items in the baseline nav (Transferencias, Casos)", () => {
     const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
-    expect(labels).toContain("Tránsitos");
-    expect(labels).toContain("Voluntarios");
     expect(labels).toContain("Transferencias");
     expect(labels).toContain("Casos");
+  });
+
+  it("gates Tránsitos/Voluntarios behind foster.assign (QA #81)", () => {
+    const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
+    expect(labels).not.toContain("Tránsitos");
+    expect(labels).not.toContain("Voluntarios");
+    const withFoster = buildOrgNavFlat("ORG-ABC", { granted: new Set(["foster.assign"]) }).map(
+      (i) => i.label,
+    );
+    expect(withFoster).toContain("Tránsitos");
+    expect(withFoster).toContain("Voluntarios");
+  });
+
+  it("gates Mascotas behind pet.read_held (QA #81)", () => {
+    expect(buildOrgNavFlat("ORG-ABC").map((i) => i.label)).not.toContain("Mascotas");
+    const withRead = buildOrgNavFlat("ORG-ABC", { granted: new Set(["pet.read_held"]) }).map(
+      (i) => i.label,
+    );
+    expect(withRead).toContain("Mascotas");
+  });
+
+  it("gates Maltrato + Configuración by role, not capability (QA #81)", () => {
+    // No role → both hidden even with every capability granted.
+    const capsOnly = buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS }).map((i) => i.label);
+    expect(capsOnly).not.toContain("Maltrato");
+    expect(capsOnly).not.toContain("Configuración");
+    // A foster is not a welfare role and is not admin → still hidden.
+    const foster = buildOrgNavFlat("ORG-ABC", { role: "foster" }).map((i) => i.label);
+    expect(foster).not.toContain("Maltrato");
+    expect(foster).not.toContain("Configuración");
+    // A member sees Maltrato (welfare role) but not Configuración (admin-only).
+    const member = buildOrgNavFlat("ORG-ABC", { role: "member" }).map((i) => i.label);
+    expect(member).toContain("Maltrato");
+    expect(member).not.toContain("Configuración");
+    // Admin sees both.
+    const admin = buildOrgNavFlat("ORG-ABC", { role: "admin" }).map((i) => i.label);
+    expect(admin).toContain("Maltrato");
+    expect(admin).toContain("Configuración");
   });
 
   it("shows Mordeduras only with bite.report, pointing at the report form", () => {
@@ -143,10 +193,11 @@ describe("buildOrgNavFlat", () => {
     expect(permisos?.matchPrefix).toBe("/org/ORG-ABC/admin");
   });
 
-  it("does not leak requiredCapability into the returned NavItem objects", () => {
-    const items = buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS });
+  it("does not leak requiredCapability / requiredRoles into the returned NavItem objects", () => {
+    const items = buildOrgNavFlat("ORG-ABC", FULL_NAV);
     for (const item of items) {
       expect("requiredCapability" in item).toBe(false);
+      expect("requiredRoles" in item).toBe(false);
     }
   });
 
@@ -174,8 +225,8 @@ describe("buildOrgNavFlat", () => {
     expect(panel.href).toBe("/org/ORG-ABC");
   });
 
-  it("contains Mascotas, Servicios, Operaciones, Miembros, Cobertura, Configuración, Maltrato entries", () => {
-    const labels = buildOrgNavFlat("ORG-ABC").map((i) => i.label);
+  it("contains Mascotas, Servicios, Operaciones, Miembros, Cobertura, Configuración, Maltrato entries (full nav)", () => {
+    const labels = buildOrgNavFlat("ORG-ABC", FULL_NAV).map((i) => i.label);
     expect(labels).toContain("Mascotas");
     expect(labels).toContain("Servicios");
     expect(labels).toContain("Operaciones");
@@ -186,6 +237,7 @@ describe("buildOrgNavFlat", () => {
   });
 
   it("Cobertura entry points to /org/<orgToken>/cobertura", () => {
+    // Cobertura is a baseline membership item — present without caps/role.
     const items = buildOrgNavFlat("ORG-ABC");
     const cobertura = items.find((i) => i.label === "Cobertura");
     expect(cobertura).toBeDefined();
@@ -193,21 +245,21 @@ describe("buildOrgNavFlat", () => {
   });
 
   it("Configuración entry points to /org/<orgToken>/configuracion", () => {
-    const items = buildOrgNavFlat("ORG-ABC");
+    const items = buildOrgNavFlat("ORG-ABC", { role: "admin" });
     const config = items.find((i) => i.label === "Configuración");
     expect(config).toBeDefined();
     expect(config?.href).toBe("/org/ORG-ABC/configuracion");
   });
 
   it("Maltrato entry points to /org/<orgToken>/maltrato/recibidos", () => {
-    const items = buildOrgNavFlat("ORG-ABC");
+    const items = buildOrgNavFlat("ORG-ABC", { role: "member" });
     const maltrato = items.find((i) => i.label === "Maltrato");
     expect(maltrato).toBeDefined();
     expect(maltrato?.href).toBe("/org/ORG-ABC/maltrato/recibidos");
   });
 
   it("Maltrato entry matchPrefix covers /org/<orgToken>/maltrato (highlights both recibidos and nuevo)", () => {
-    const items = buildOrgNavFlat("ORG-ABC");
+    const items = buildOrgNavFlat("ORG-ABC", { role: "member" });
     const maltrato = items.find((i) => i.label === "Maltrato");
     expect(maltrato?.matchPrefix).toBe("/org/ORG-ABC/maltrato");
   });
@@ -720,7 +772,7 @@ const ORG_HREF_SNAPSHOT = new Set([
 
 describe("buildOrgNav — section invariants", () => {
   it("no href is lost: every frozen-snapshot href appears in sections (snapshot ⊆ union)", () => {
-    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const sections = buildOrgNav("ORG-ABC", FULL_NAV);
     const sectionHrefs = new Set(sections.flatMap((s) => s.items.map((i) => i.href)));
     for (const href of ORG_HREF_SNAPSHOT) {
       expect(sectionHrefs).toContain(href);
@@ -728,7 +780,7 @@ describe("buildOrgNav — section invariants", () => {
   });
 
   it("no href is gained: sections contain only hrefs from the frozen snapshot (union ⊆ snapshot)", () => {
-    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const sections = buildOrgNav("ORG-ABC", FULL_NAV);
     const sectionHrefs = sections.flatMap((s) => s.items.map((i) => i.href));
     for (const href of sectionHrefs) {
       expect(ORG_HREF_SNAPSHOT).toContain(href);
@@ -736,7 +788,7 @@ describe("buildOrgNav — section invariants", () => {
   });
 
   it("no href is duplicated across sections", () => {
-    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const sections = buildOrgNav("ORG-ABC", FULL_NAV);
     const sectionHrefs = sections.flatMap((s) => s.items.map((i) => i.href));
     const unique = new Set(sectionHrefs);
     expect(sectionHrefs.length).toBe(unique.size);
@@ -760,7 +812,7 @@ describe("buildOrgNav — section invariants", () => {
   });
 
   it("with full grants, exactly 5 sections are present and in order", () => {
-    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const sections = buildOrgNav("ORG-ABC", FULL_NAV);
     expect(sections.map((s) => s.label)).toEqual([
       "Operación",
       "Animales",
@@ -771,8 +823,8 @@ describe("buildOrgNav — section invariants", () => {
   });
 
   it("buildOrgNavFlat equals sections.flatMap(s => s.items) for full grants", () => {
-    const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
-    const flat = buildOrgNavFlat("ORG-ABC", { granted: ALL_GATED_CAPS });
+    const sections = buildOrgNav("ORG-ABC", FULL_NAV);
+    const flat = buildOrgNavFlat("ORG-ABC", FULL_NAV);
     expect(flat).toEqual(sections.flatMap((s) => s.items));
   });
 });

@@ -54,6 +54,9 @@ export default async function OrgLayout({
   const orgNavSections = buildOrgNav(orgToken, {
     granted,
     orgType: organization.orgType,
+    // Role gates the two role-based nav items (Maltrato welfare inbox,
+    // Configuración admin-only) so the sidebar matches each page's own guard.
+    role: membership.role,
   });
 
   // Omnibox: show only for members with pet read access.
