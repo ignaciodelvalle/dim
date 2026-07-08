@@ -79,6 +79,11 @@ export { DEFAULT_HORIZON, MIN_POINTS, projectSeries, targetCrossing } from "./fo
 export { TARGETS, computeDeltaPct, decisionsDeltaPct, enoSlaTone, toneForTarget } from "./targets";
 export { lastIngestAt } from "./freshness";
 
+// D4 reunification rate, per administrative unit — feeds the Panorama
+// `reunificacion` layer (src/modules/panorama/infrastructure/repository.ts).
+export { fetchReunificationByUnit } from "./reunification-rollups";
+export type { ReunificationByUnitKpi, ReunificationByUnitRow } from "./reunification-rollups";
+
 // Paquete E — censo poblacional & salud del registro.
 export {
   DORMANT_MONTHS_DEFAULT,
