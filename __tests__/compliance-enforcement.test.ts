@@ -352,7 +352,8 @@ describe("fetchReunificationRate (D4)", () => {
     const r = await fetchReunificationRate(govtCtx([{ province: PROV, locality: LOC_A }]));
     expect(r.lostEpisodes).toBe(3);
     expect(r.recovered).toBe(1);
-    expect(r.ratePct).toBe(33);
+    // 1/3 → 33,3% — one-decimal precision survives the fetcher (audit 2026-07-07).
+    expect(r.ratePct).toBe(33.3);
     expect(r.medianDaysToRecovery).toBe(6);
   });
 });

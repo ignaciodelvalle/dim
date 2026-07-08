@@ -15,6 +15,7 @@ import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/analytics/co
 import { searchUsers } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
+import { formatPercent } from "@/lib/utils/format";
 import { windows } from "@/lib/metrics/period";
 import { deriveTargetHref } from "@/lib/ui/audit-target-link";
 import { portalBase } from "@/lib/ui/portal-base";
@@ -97,7 +98,7 @@ export default async function UsuariosPage({
       >
         <OpKpi
           label="Validez ISO de chips"
-          value={isoValidity.chipped === 0 ? "—" : `${isoValidity.ratePct}%`}
+          value={isoValidity.chipped === 0 ? "—" : formatPercent(isoValidity.ratePct)}
           tone={
             isoValidity.chipped === 0
               ? "neutral"

@@ -51,7 +51,7 @@ const period: AnalyticsPeriod = {
 
 function seedDefaults() {
   vi.mocked(fetchRabiesCoverage).mockResolvedValue({
-    current: 72,
+    current: 72.4,
     target: 80,
     partidos: 3,
     hasData: true,
@@ -77,8 +77,8 @@ function seedDefaults() {
   });
   vi.mocked(fetchOpenWelfareReportsCount).mockResolvedValue({ count: 4 });
   vi.mocked(fetchSterilizationCoverage).mockResolvedValue({
-    rate: 65,
-    sterilized: 650,
+    rate: 65.7,
+    sterilized: 657,
     total: 1000,
     byProvince: [],
   });
@@ -120,9 +120,10 @@ describe("getPanoramaKpis", () => {
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const byId = Object.fromEntries(kpis.map((k) => [k.id, k]));
 
-    expect(byId.cobertura.value).toBe("72%");
-    expect(byId.cobertura.bar).toBe(72);
-    expect(byId.cobertura.tone).toBe("warn"); // 72 < target 80
+    // Percentage — one decimal, es-AR comma (72.4 → "72,4%").
+    expect(byId.cobertura.value).toBe("72,4%");
+    expect(byId.cobertura.bar).toBe(72.4);
+    expect(byId.cobertura.tone).toBe("warn"); // 72.4 < target 80
 
     // Thousands separator (es-AR) — 12345 → "12.345".
     expect(byId.mascotas.value).toBe((12345).toLocaleString("es-AR"));
@@ -132,10 +133,10 @@ describe("getPanoramaKpis", () => {
     expect(byId.zoonosis.value).toBe("9");
     expect(byId.denuncias.value).toBe("4");
 
-    // esterilizacion KPI
-    expect(byId.esterilizacion.value).toBe("65%");
-    expect(byId.esterilizacion.bar).toBe(65);
-    expect(byId.esterilizacion.tone).toBe("warn"); // 65 < target 70
+    // esterilizacion KPI — decimal precision survives to the display (65,7%).
+    expect(byId.esterilizacion.value).toBe("65,7%");
+    expect(byId.esterilizacion.bar).toBe(65.7);
+    expect(byId.esterilizacion.tone).toBe("warn"); // 65.7 < target 70
     expect(byId.esterilizacion.sub).toBe("meta 70%");
 
     // Every KPI carries a non-empty info tooltip (the ⓘ definition).
@@ -147,15 +148,15 @@ describe("getPanoramaKpis", () => {
 
   it("esterilizacion KPI is tone ok when rate >= 70", async () => {
     vi.mocked(fetchSterilizationCoverage).mockResolvedValue({
-      rate: 75,
-      sterilized: 750,
+      rate: 75.3,
+      sterilized: 753,
       total: 1000,
       byProvince: [],
     });
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const kpi = kpis.find((k) => k.id === "esterilizacion")!;
     expect(kpi.tone).toBe("ok");
-    expect(kpi.value).toBe("75%");
+    expect(kpi.value).toBe("75,3%");
   });
 
   it("threads the SAME (actor, jurisdictions, period) to the dashboard fetchers (no scope widening)", async () => {

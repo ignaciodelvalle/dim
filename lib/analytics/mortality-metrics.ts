@@ -74,10 +74,15 @@ export type MortalityDisposition = {
   byLocality: { value: SuppressedCells; suppressedCount: number };
 };
 
-/** Round a ratio (0–1) to a 0–100 integer percentage. */
+/**
+ * Ratio (0–1) → 0–100 percentage, ONE decimal (Math.round(x*1000)/10).
+ * Precision survives to the display layer — a 41.9% disposal rate renders as
+ * 41,9%, not truncated to 41% here (KPI precision audit 2026-07-07). 0 when the
+ * denominator is 0.
+ */
 function pct(numerator: number, denominator: number): number {
   if (denominator === 0) return 0;
-  return Math.round((numerator / denominator) * 100);
+  return Math.round((numerator / denominator) * 1000) / 10;
 }
 
 /**

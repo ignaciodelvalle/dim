@@ -30,7 +30,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
-import { deathCauseLabel } from "@/lib/utils/format";
+import { deathCauseLabel, formatPercent, formatRate } from "@/lib/utils/format";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
 import { RegionRankingTable } from "./_components/RegionRankingTable";
@@ -155,7 +155,7 @@ export default async function GobAnalyticsPage({
     .map((row) => ({
       code: row.code,
       value: row.ratePer10k as number,
-      label: `${(row.ratePer10k as number).toFixed(1)} casos por 10k hab.`,
+      label: `${formatRate(row.ratePer10k as number)} casos por 10k hab.`,
     }));
 
   // Compute bar chart max for death causes.
@@ -211,7 +211,7 @@ export default async function GobAnalyticsPage({
         />
         <OpKpi
           label="Tasa de adopción (12m)"
-          value={`${metrics.adoptionRate}%`}
+          value={formatPercent(metrics.adoptionRate)}
           tone={toneForTarget(metrics.adoptionRate, TARGETS.ADOPTION_RATE_PCT)}
           bar={metrics.adoptionRate}
           sub={`meta ${TARGETS.ADOPTION_RATE_PCT}% del total de adquisiciones`}
@@ -222,7 +222,7 @@ export default async function GobAnalyticsPage({
         />
         <OpKpi
           label={RABIES_VACCINATION_RATE_LABEL_ES}
-          value={`${metrics.rabiesVaccinationRate}%`}
+          value={formatPercent(metrics.rabiesVaccinationRate)}
           tone="blue"
           bar={metrics.rabiesVaccinationRate}
           sub="histórico · toda especie con ≥1 dosis registrada"

@@ -46,7 +46,7 @@ import {
 } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
-import { deathCauseLabel } from "@/lib/utils/format";
+import { deathCauseLabel, formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -176,7 +176,7 @@ export default async function GobMortalidadPage({
       {showBreach && (
         <OpBreach
           title="Baja trazabilidad de disposición"
-          detail={`${m.unknownRate}% de los fallecimientos no tienen método de disposición registrado (umbral ${TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT}%).`}
+          detail={`${formatPercent(m.unknownRate)} de los fallecimientos no tienen método de disposición registrado (umbral ${TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT}%).`}
         />
       )}
 
@@ -199,7 +199,7 @@ export default async function GobMortalidadPage({
         />
         <OpKpi
           label="Trazabilidad de disposición"
-          value={`${m.traceableRate}%`}
+          value={formatPercent(m.traceableRate)}
           tone={toneForTarget(m.traceableRate, TARGETS.DISPOSAL_TRACEABILITY_PCT)}
           bar={m.traceableRate}
           sub={`meta ${TARGETS.DISPOSAL_TRACEABILITY_PCT}% · método + instalación (B3 · Ley 5470)`}
@@ -212,7 +212,7 @@ export default async function GobMortalidadPage({
         />
         <OpKpi
           label="Disposición desconocida"
-          value={`${m.unknownRate}%`}
+          value={formatPercent(m.unknownRate)}
           tone={toneForTarget(m.unknownRate, TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT, {
             higherIsBetter: false,
           })}
@@ -226,7 +226,7 @@ export default async function GobMortalidadPage({
         />
         <OpKpi
           label="Muertes notificables"
-          value={`${m.reportableShare}%`}
+          value={formatPercent(m.reportableShare)}
           tone={m.reportableShare > 0 ? "warn" : undefined}
           sub="del total (B9)"
           info={{
@@ -305,17 +305,17 @@ export default async function GobMortalidadPage({
             <div className="grid grid-cols-3 gap-3">
               <OpKpiSm
                 label="Confirmado por vet"
-                value={`${m.contextSplits.vetConfirmedRate}%`}
+                value={formatPercent(m.contextSplits.vetConfirmedRate)}
                 sub="del total"
               />
               <OpKpiSm
                 label="En clínica"
-                value={`${m.contextSplits.deathAtClinicRate}%`}
+                value={formatPercent(m.contextSplits.deathAtClinicRate)}
                 sub="muertes en establecimiento"
               />
               <OpKpiSm
                 label="Crematorio privado"
-                value={`${m.contextSplits.privateCrematoriumRate}%`}
+                value={formatPercent(m.contextSplits.privateCrematoriumRate)}
                 sub="derivación del propietario"
               />
             </div>

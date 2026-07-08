@@ -38,6 +38,8 @@ import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { TARGETS } from "@/lib/metrics/targets";
 
+import { formatCount, formatPercent, formatRate } from "@/lib/utils/format";
+
 import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/analytics/govt-dashboards";
 import {
   fetchActiveZoonosis,
@@ -146,16 +148,6 @@ export function degradedPanoramaKpis(): PanoramaKpis {
       "No pudimos cargar los indicadores en este momento. Reintentá en unos segundos.",
     dataAsOf: null,
   };
-}
-
-/** es-AR integer formatting (thousands separator). */
-function n(value: number): string {
-  return value.toLocaleString("es-AR");
-}
-
-/** es-AR decimal: a dot becomes a comma (1 decimal figures from the fetchers). */
-function dec(value: number): string {
-  return value.toString().replace(".", ",");
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -312,7 +304,7 @@ export async function getPanoramaKpis(
     {
       id: "cobertura",
       label: "Cobertura antirrábica (perros, 12m)",
-      value: `${coverage.current}%`,
+      value: formatPercent(coverage.current),
       sub: `meta ${coverage.target}% · ${coverage.partidos} ${
         coverage.partidos === 1 ? "partido" : "partidos"
       }`,
@@ -333,7 +325,7 @@ export async function getPanoramaKpis(
     {
       id: "esterilizacion",
       label: "Cobertura de esterilización",
-      value: `${sterilization.rate}%`,
+      value: formatPercent(sterilization.rate),
       sub: `meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`,
       bar: sterilization.rate,
       tone: sterilization.rate >= TARGETS.STERILIZATION_COVERAGE_PCT ? "ok" : "warn",
@@ -351,7 +343,7 @@ export async function getPanoramaKpis(
     {
       id: "perdidas",
       label: "Pérdidas activas",
-      value: n(perdidas.activeCount),
+      value: formatCount(perdidas.activeCount),
       sub:
         perdidas.avgDaysActive > 0
           ? `${perdidas.recoveredMonth} recuperadas (30d) · ${perdidas.avgDaysActive} d prom.`
@@ -370,8 +362,8 @@ export async function getPanoramaKpis(
     {
       id: "mordeduras",
       label: "Mordeduras / 10k hab.",
-      value: dec(bites.rate),
-      sub: `${n(bites.reports)} ${bites.reports === 1 ? "reporte" : "reportes"}`,
+      value: formatRate(bites.rate),
+      sub: `${formatCount(bites.reports)} ${bites.reports === 1 ? "reporte" : "reportes"}`,
       tone: "warn",
       href: "/gob/vigilancia",
       source: "govt-home-kpis.fetchBitesPer10k",
@@ -388,7 +380,7 @@ export async function getPanoramaKpis(
     {
       id: "zoonosis",
       label: "Zoonosis activas",
-      value: n(zoonosis.count),
+      value: formatCount(zoonosis.count),
       sub: `${zoonosis.rabies} rabia · ${zoonosis.lepto} lepto · ${zoonosis.hidat} hidat.`,
       tone: zoonosis.count > 0 ? "danger" : "neutral",
       href: "/gob/vigilancia",
@@ -404,7 +396,7 @@ export async function getPanoramaKpis(
     {
       id: "denuncias",
       label: "Denuncias activas",
-      value: n(welfare.count),
+      value: formatCount(welfare.count),
       sub: welfare.count === 1 ? "denuncia de bienestar" : "denuncias de bienestar",
       tone: welfare.count > 0 ? "warn" : "neutral",
       href: "/gob/maltrato",
@@ -420,7 +412,7 @@ export async function getPanoramaKpis(
     {
       id: "mascotas",
       label: "Mascotas en cobertura",
-      value: n(analytics.totalPets),
+      value: formatCount(analytics.totalPets),
       sub: "activas o perdidas",
       tone: "blue",
       href: "/gob/analytics",

@@ -38,6 +38,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { formatPercent, formatRate } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -131,7 +132,7 @@ export default async function AdminPoblacionPage({
         {/* KPI 1: Sterilization coverage */}
         <OpKpi
           label="Cobertura de esterilización"
-          value={hasData ? `${coverage.rate}%` : "—"}
+          value={hasData ? formatPercent(coverage.rate) : "—"}
           bar={hasData ? coverage.rate : undefined}
           tone={hasData ? coverageTone : "neutral"}
           sub={
@@ -206,7 +207,7 @@ export default async function AdminPoblacionPage({
               Ratio esterilización / natalidad registrada (nacional)
             </p>
             <p className="mt-1 text-[22px] font-semibold tabular-nums text-ln-op-ink">
-              {sterilNatalidadRatio.toFixed(2)}
+              {formatRate(sterilNatalidadRatio, { decimals: 2 })}
             </p>
             <p className="mt-1 text-[11px] text-ln-op-mute">
               esterilizaciones del período por parto en seguimiento ·{" "}
@@ -340,7 +341,7 @@ export default async function AdminPoblacionPage({
                           <td
                             className={`py-2 pl-4 text-right tabular-nums font-semibold ${rateColor}`}
                           >
-                            {row.ratePct}%
+                            {formatPercent(row.ratePct)}
                           </td>
                         </tr>
                       );

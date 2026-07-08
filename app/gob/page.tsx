@@ -52,7 +52,7 @@ import {
 import { windows } from "@/lib/metrics/period";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
-import { formatDate } from "@/lib/utils/format";
+import { formatDate, formatPercent, formatRate } from "@/lib/utils/format";
 
 export default async function GobiernoDashboardPage({
   searchParams,
@@ -251,7 +251,7 @@ export default async function GobiernoDashboardPage({
       >
         <OpKpi
           label="Cobertura antirrábica (perros, 12m)"
-          value={rabiesCoverage.hasData ? `${rabiesCoverage.current}%` : "—"}
+          value={rabiesCoverage.hasData ? formatPercent(rabiesCoverage.current) : "—"}
           tone={
             !rabiesCoverage.hasData
               ? "neutral"
@@ -294,7 +294,7 @@ export default async function GobiernoDashboardPage({
         />
         <OpKpi
           label="Mordeduras / 10k hab."
-          value={bitesPer10k.rate.toString().replace(".", ",")}
+          value={formatRate(bitesPer10k.rate)}
           tone="warn"
           deltaV2={
             bitesPer10k.delta !== 0
@@ -367,7 +367,7 @@ export default async function GobiernoDashboardPage({
             </div>
             <div>
               <p className="text-2xl font-semibold tabular-nums text-ln-op-ink">
-                {mortality.traceableRate}%
+                {formatPercent(mortality.traceableRate)}
               </p>
               <p className="text-xs text-ln-op-mute">Disposición trazable</p>
             </div>
@@ -385,7 +385,7 @@ export default async function GobiernoDashboardPage({
       >
         <OpKpi
           label="Penetración de microchip"
-          value={`${microchipPenetration.ratePct}%`}
+          value={formatPercent(microchipPenetration.ratePct)}
           tone={toneForTarget(microchipPenetration.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
           bar={microchipPenetration.ratePct}
           sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas · Ley 14.107`}
@@ -400,7 +400,7 @@ export default async function GobiernoDashboardPage({
         />
         <OpKpi
           label="Registro PPP"
-          value={breedCompliance.flaggedCount === 0 ? "—" : `${breedCompliance.ratePct}%`}
+          value={breedCompliance.flaggedCount === 0 ? "—" : formatPercent(breedCompliance.ratePct)}
           tone={
             breedCompliance.flaggedCount === 0
               ? "neutral"

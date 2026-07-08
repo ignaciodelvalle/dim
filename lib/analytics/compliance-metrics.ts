@@ -57,9 +57,14 @@ function govtWithoutScope(ctx: ProjectionContext): boolean {
   return ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0;
 }
 
-/** Round a fraction (0..1) to a whole-number percentage. */
+/**
+ * Fraction (0..1) → 0–100 percentage, ONE decimal (Math.round(x*1000)/10).
+ * Precision must survive to the display layer — a 41.9% rate renders as 41,9%,
+ * not truncated to 41% here (KPI precision audit 2026-07-07). 0 when the
+ * denominator is 0.
+ */
 function pct(numerator: number, denominator: number): number {
-  return denominator === 0 ? 0 : Math.round((numerator / denominator) * 100);
+  return denominator === 0 ? 0 : Math.round((numerator / denominator) * 1000) / 10;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { relativeDaysShort } from "./format";
+import { formatCount, formatDelta, formatPercent, formatRate, relativeDaysShort } from "./format";
 
 // Regression coverage for the outreach "hace 20624d" bug: never-vaccinated pets
 // carry an epoch-sentinel date (new Date(0)), and a 56-year "days ago" value is
@@ -54,5 +54,92 @@ describe("relativeDaysShort", () => {
     const out = relativeDaysShort(daysAgo(20624));
     expect(out).not.toMatch(/hace \d+d/);
     expect(out).not.toContain("20624");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Numeric KPI / metric formatters (es-AR) — KPI precision audit 2026-07-07
+// ---------------------------------------------------------------------------
+//
+// Pins the es-AR locale contract: COMMA decimal separator, DOT thousands
+// separator. A regression here means dashboards render "41.3%" (wrong locale)
+// or drop the decimal a fetcher worked to preserve.
+
+describe("formatCount", () => {
+  it("uses the es-AR thousands separator (dot)", () => {
+    expect(formatCount(1982)).toBe("1.982");
+    expect(formatCount(12345)).toBe("12.345");
+    expect(formatCount(0)).toBe("0");
+  });
+
+  it("never fabricates a decimal — rounds to an integer", () => {
+    expect(formatCount(41.9)).toBe("42");
+    expect(formatCount(41.4)).toBe("41");
+  });
+
+  it("returns the empty marker for null/undefined/non-finite", () => {
+    expect(formatCount(null)).toBe("—");
+    expect(formatCount(undefined)).toBe("—");
+    expect(formatCount(Number.NaN)).toBe("—");
+    expect(formatCount(Number.POSITIVE_INFINITY)).toBe("—");
+  });
+});
+
+describe("formatPercent", () => {
+  it("shows one decimal with an es-AR comma", () => {
+    expect(formatPercent(41.3)).toBe("41,3%");
+    expect(formatPercent(72)).toBe("72,0%");
+    expect(formatPercent(66.666)).toBe("66,7%"); // rounds to 1 decimal
+    expect(formatPercent(0.4)).toBe("0,4%"); // a tiny non-zero survives
+  });
+
+  it("renders exactly 0 and 100 clean (no trailing decimal)", () => {
+    expect(formatPercent(0)).toBe("0%");
+    expect(formatPercent(100)).toBe("100%");
+  });
+
+  it("honours a custom decimals option", () => {
+    expect(formatPercent(41.34, { decimals: 2 })).toBe("41,34%");
+  });
+
+  it("returns the empty marker for null/undefined/non-finite", () => {
+    expect(formatPercent(null)).toBe("—");
+    expect(formatPercent(undefined)).toBe("—");
+    expect(formatPercent(Number.NaN)).toBe("—");
+  });
+});
+
+describe("formatRate", () => {
+  it("shows one decimal with an es-AR comma and no unit", () => {
+    expect(formatRate(3.5)).toBe("3,5");
+    expect(formatRate(3)).toBe("3,0");
+    expect(formatRate(12.34)).toBe("12,3");
+  });
+
+  it("uses the es-AR thousands separator for large rates", () => {
+    expect(formatRate(1234.5)).toBe("1.234,5");
+  });
+
+  it("returns the empty marker for null/undefined/non-finite", () => {
+    expect(formatRate(null)).toBe("—");
+    expect(formatRate(Number.NaN)).toBe("—");
+  });
+});
+
+describe("formatDelta", () => {
+  it("prefixes an explicit sign and uses an es-AR comma", () => {
+    expect(formatDelta(2.4)).toBe("+2,4");
+    expect(formatDelta(-1)).toBe("-1,0");
+    expect(formatDelta(0)).toBe("0,0"); // zero carries no sign
+  });
+
+  it("appends a unit suffix when given", () => {
+    expect(formatDelta(2.4, { unit: "pp" })).toBe("+2,4pp");
+    expect(formatDelta(-3, { unit: "%", decimals: 0 })).toBe("-3%");
+  });
+
+  it("returns the empty marker for null/undefined/non-finite", () => {
+    expect(formatDelta(null)).toBe("—");
+    expect(formatDelta(Number.NaN)).toBe("—");
   });
 });

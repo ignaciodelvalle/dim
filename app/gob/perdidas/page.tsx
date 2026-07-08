@@ -22,6 +22,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchLostEpisodeCaseCodesForPets } from "@/lib/infra/case-queries";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import { formatPercent } from "@/lib/utils/format";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
 /**
@@ -220,7 +221,7 @@ export default async function GobPerdidasPage({
         {/* D4 — reunification rate over the selected period (benchmark: TARGETS.REUNIFICATION_PCT). */}
         <OpKpi
           label="Tasa de reunificación"
-          value={`${reunification.ratePct}%`}
+          value={formatPercent(reunification.ratePct)}
           tone={toneForTarget(reunification.ratePct, TARGETS.REUNIFICATION_PCT)}
           bar={reunification.ratePct}
           sub={`meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios`}

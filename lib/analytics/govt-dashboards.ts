@@ -1981,10 +1981,12 @@ export async function fetchAnalyticsMetrics(
   // in the query above (block-scoped const would otherwise capture it in TDZ).
   const custodyDisputesCount = disputeRows[0]?.n ?? 0;
 
+  // 1-decimal precision (Math.round(x*1000)/10) so the display can render
+  // "41,9%" instead of a fetcher-truncated 41% (KPI precision audit 2026-07-07).
   const adoptionRate =
-    totalAcquisitions === 0 ? 0 : Math.round((adopted / totalAcquisitions) * 100);
+    totalAcquisitions === 0 ? 0 : Math.round((adopted / totalAcquisitions) * 1000) / 10;
   const rabiesVaccinationRate =
-    totalPets === 0 ? 0 : Math.round((rabiesVaccinated / totalPets) * 100);
+    totalPets === 0 ? 0 : Math.round((rabiesVaccinated / totalPets) * 1000) / 10;
 
   return {
     totalPets,

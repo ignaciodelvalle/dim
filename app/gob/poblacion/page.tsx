@@ -44,6 +44,7 @@ import {
 } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import { formatPercent, formatRate } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -216,7 +217,7 @@ export default async function GobPoblacionPage({
         {/* KPI 1: Sterilization coverage — with target bar + tone */}
         <OpKpi
           label="Cobertura de esterilización"
-          value={hasData ? `${coverage.rate}%` : "—"}
+          value={hasData ? formatPercent(coverage.rate) : "—"}
           bar={hasData ? coverage.rate : undefined}
           tone={hasData ? coverageTone : "neutral"}
           sub={
@@ -292,7 +293,7 @@ export default async function GobPoblacionPage({
               Ratio esterilización / natalidad registrada
             </p>
             <p className="mt-1 text-[22px] font-semibold tabular-nums text-ln-op-ink">
-              {sterilNatalidadRatio.toFixed(2)}
+              {formatRate(sterilNatalidadRatio, { decimals: 2 })}
             </p>
             <p className="mt-1 text-[11px] text-ln-op-mute">
               esterilizaciones del período por parto en seguimiento ·{" "}

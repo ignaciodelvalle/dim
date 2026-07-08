@@ -231,7 +231,11 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
 
   const totalDogs = dogsRows[0]?.n ?? 0;
   const vaccinatedDogs = vaccDogRows[0]?.n ?? 0;
-  const current = totalDogs === 0 ? 0 : Math.round((vaccinatedDogs / totalDogs) * 100);
+  // One-decimal precision (Math.round(x*1000)/10), NOT a bare integer: a
+  // coverage of 41.9% must survive to the display as 41,9% instead of being
+  // truncated to 41% at the fetcher (KPI precision audit 2026-07-07). Matches
+  // the 1-decimal convention of coverageRate() and fetchBitesPer10k.
+  const current = totalDogs === 0 ? 0 : Math.round((vaccinatedDogs / totalDogs) * 1000) / 10;
 
   return {
     current,
@@ -351,7 +355,8 @@ export async function fetchRabiesCoverageByProvince(
       const total = r.n;
       return {
         province: r.province,
-        ratePct: total > 0 ? Math.round((vaccinated / total) * 100) : 0,
+        // 1-decimal precision (audit 2026-07-07) — same as the national KPI.
+        ratePct: total > 0 ? Math.round((vaccinated / total) * 1000) / 10 : 0,
         vaccinated,
         total,
       };

@@ -637,6 +637,98 @@ export function capCount(n: number, cap = 99): string {
   return n > cap ? `${cap}+` : String(n);
 }
 
+// ---------------------------------------------------------------------------
+// Numeric KPI / metric formatters (es-AR) — KPI precision audit 2026-07-07
+// ---------------------------------------------------------------------------
+//
+// The operator + government dashboards render percentages, rates, and counts.
+// es-AR uses a COMMA decimal separator and a DOT thousands separator
+// ("1.982", "41,3%"). A bare template literal (`${x}%`) and `toFixed()` both
+// emit a DOT decimal ("41.3%") — the WRONG locale. Every KPI/metric display
+// MUST route through these helpers instead of formatting inline.
+//
+// Precision rules (PO KPI-precision directive):
+//   - Percentages: 1 decimal ("41,3%"); exactly 0 or 100 render clean.
+//   - Rates (per 10k, per capita) and averages/durations: 1 decimal.
+//   - Counts: integer, thousands-separated — never a fake decimal.
+//   - Deltas: same precision as their base metric, with an explicit sign.
+//
+// Precision must SURVIVE to this layer: fetchers return full-precision numbers
+// and the DISPLAY decides how many decimals to show. Do NOT round a percentage
+// to a whole integer in the fetcher — that discards the decimal before it can
+// ever reach a formatter.
+
+const AR_COUNT_FORMAT = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 });
+
+/** Cache one fixed-decimal es-AR formatter per decimal count (usually 1). */
+const arDecimalFormatters = new Map<number, Intl.NumberFormat>();
+function arDecimalFormat(decimals: number): Intl.NumberFormat {
+  let fmt = arDecimalFormatters.get(decimals);
+  if (!fmt) {
+    fmt = new Intl.NumberFormat("es-AR", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    arDecimalFormatters.set(decimals, fmt);
+  }
+  return fmt;
+}
+
+/** es-AR integer with a thousands separator ("1.982"). Non-finite → "—". */
+export function formatCount(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return AR_COUNT_FORMAT.format(Math.round(value));
+}
+
+/**
+ * es-AR percentage, 1 decimal by default ("41,3%"). Exactly 0 or 100 render
+ * clean ("0%" / "100%"). Non-finite → "—". `value` is a 0–100 percentage,
+ * NOT a 0–1 fraction.
+ */
+export function formatPercent(
+  value: number | null | undefined,
+  options: { decimals?: number } = {},
+): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const { decimals = 1 } = options;
+  if (value === 0) return "0%";
+  if (value === 100) return "100%";
+  return `${arDecimalFormat(decimals).format(value)}%`;
+}
+
+/**
+ * es-AR decimal rate WITHOUT a unit suffix, 1 decimal by default ("3,5"). For
+ * per-10k / per-capita rates and averages/durations (días promedio); the caller
+ * appends the unit label. Non-finite → "—".
+ */
+export function formatRate(
+  value: number | null | undefined,
+  options: { decimals?: number } = {},
+): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const { decimals = 1 } = options;
+  return arDecimalFormat(decimals).format(value);
+}
+
+/**
+ * es-AR signed delta ("+2,4", "-1,0", "0,0"). Precision matches the base metric
+ * via `decimals` (default 1); `unit` appends a suffix ("pp", "%"). Non-finite →
+ * "—".
+ */
+export function formatDelta(
+  value: number | null | undefined,
+  options: { decimals?: number; unit?: string } = {},
+): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const { decimals = 1, unit = "" } = options;
+  const fmt = new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    signDisplay: "exceptZero",
+  });
+  return `${fmt.format(value)}${unit}`;
+}
+
 export function ageFromDateOfBirth(dateOfBirth: string | null | undefined): string | null {
   if (!dateOfBirth) return null;
   const dob = new Date(dateOfBirth);
