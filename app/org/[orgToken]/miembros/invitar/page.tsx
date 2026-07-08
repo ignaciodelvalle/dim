@@ -52,6 +52,11 @@ export default async function InvitarMiembroPage({
     label: ROLE_LABELS[role],
   }));
 
+  // Default the form to the LEAST-privileged grantable role, not the list's
+  // first entry (which is "admin" whenever the inviter is an admin). An
+  // invite left unchanged should never land as admin by accident.
+  const defaultRole = [...grantableRoles].sort((a, b) => ROLE_RANK[a] - ROLE_RANK[b])[0];
+
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
@@ -66,6 +71,7 @@ export default async function InvitarMiembroPage({
         organizationId={organization.id}
         orgToken={orgToken}
         grantableRoles={grantableRoleOptions}
+        defaultRole={defaultRole}
       />
     </div>
   );

@@ -16,16 +16,20 @@ type Props = {
   organizationId: string;
   orgToken: string;
   grantableRoles: RoleOption[];
+  /** Least-privileged grantable role — pre-selected so an unchanged submit
+   *  never invites someone as admin by accident. Falls back to the first
+   *  option if the caller doesn't provide one. */
+  defaultRole?: string;
 };
 
-export function InviteForm({ organizationId, grantableRoles }: Props) {
+export function InviteForm({ organizationId, grantableRoles, defaultRole }: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState(grantableRoles[0]?.value ?? "");
+  const [role, setRole] = useState(defaultRole ?? grantableRoles[0]?.value ?? "");
   const [canWritePetEvents, setCanWritePetEvents] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
@@ -92,7 +96,7 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
             setInviteUrl(null);
             setCopied(false);
             setEmail("");
-            setRole(grantableRoles[0]?.value ?? "");
+            setRole(defaultRole ?? grantableRoles[0]?.value ?? "");
             setCanWritePetEvents(false);
           }}
         >
