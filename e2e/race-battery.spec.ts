@@ -57,21 +57,34 @@ test.describe(`race battery @ ${BASE}`, () => {
     const { ctx, page } = await openAs(browser, ACCOUNTS.owner);
     try {
       // Discover an owner pet (any is fine — share links are non-destructive).
+      // Anchor on the DIM- token prefix: a bare /mis-mascotas/ prefix match
+      // catches the "/mis-mascotas/nueva" create-pet CTA first (first staging
+      // run skipped on exactly that — token parsed as "nueva").
       await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
-      const petLink = page.locator('a[href^="/mis-mascotas/"]').first();
+      const petLink = page.locator('a[href^="/mis-mascotas/DIM-"]').first();
       test.skip((await petLink.count()) === 0, "owner has no pet — cannot test share generation.");
       const href = (await petLink.getAttribute("href")) ?? "";
       const token = href.split("/mis-mascotas/")[1]?.split(/[?#]/)[0] ?? "";
       expect(token, "pet token parsed").toBeTruthy();
 
-      // Open the Compartir sheet.
+      // Open the Compartir sheet; the "Enlaces activos" list is client-fetched
+      // after mount, so wait for it to settle (either revocable rows or the
+      // "No hay enlaces activos" empty state) before counting.
       await page.goto(`/mis-mascotas/${token}?sheet=compartir`, { waitUntil: "domcontentloaded" });
       await page.waitForLoadState("networkidle").catch(() => {});
+      await page.waitForTimeout(1_500); // hydration — dropped-click guard (#39)
+      await page
+        .getByText(/cargando enlaces/i)
+        .waitFor({ state: "hidden", timeout: 15_000 })
+        .catch(() => {});
 
       // The expiring-share generate button ("Generar link"). Skip if this
       // surface isn't present in the current build.
       const generate = page.getByRole("button", { name: /generar link/i }).first();
-      const hasGenerate = await generate.count().then((c) => c > 0).catch(() => false);
+      const hasGenerate = await generate
+        .count()
+        .then((c) => c > 0)
+        .catch(() => false);
       test.skip(!hasGenerate, "expiring-share 'Generar link' control not present — skipping.");
 
       const before = await countActiveShareLinks(page).catch(() => -1);
@@ -89,7 +102,28 @@ test.describe(`race battery @ ${BASE}`, () => {
       // Re-open the sheet to read the fresh "Enlaces activos" list.
       await page.goto(`/mis-mascotas/${token}?sheet=compartir`, { waitUntil: "domcontentloaded" });
       await page.waitForLoadState("networkidle").catch(() => {});
+      await page
+        .getByText(/cargando enlaces/i)
+        .waitFor({ state: "hidden", timeout: 15_000 })
+        .catch(() => {});
       const after = await countActiveShareLinks(page).catch(() => -1);
+
+      // Cleanup (best-effort): revoke whatever the double-submit created so
+      // nightly repeats don't accumulate share links. Newest links render in
+      // the list; revoke (after - before) of them via the confirm dialog.
+      const created = Math.max(0, after - before);
+      for (let i = 0; i < created; i++) {
+        try {
+          await page.getByRole("button", { name: /^revocar$/i }).last().click({ timeout: 5_000 });
+          await page
+            .getByRole("dialog")
+            .getByRole("button", { name: /^revocar$/i })
+            .click({ timeout: 5_000 });
+          await page.waitForTimeout(1_000);
+        } catch {
+          break; // leave the rest — non-fatal, links are revocable by hand
+        }
+      }
 
       // FINAL STATE: exactly one new active link (never two from one intent).
       if (before >= 0 && after >= 0) {
@@ -121,19 +155,35 @@ test.describe(`race battery @ ${BASE}`, () => {
     const admin = await openAs(browser, ACCOUNTS.admin);
     let caseId = "";
     try {
-      // Find an UNASSIGNED, assignable case from the govt queue.
+      // Find an UNASSIGNED, assignable case from the govt queue. Only VISIBLE
+      // rows count — the queue renders every tabpanel (urgent/mine/all) in the
+      // DOM and inactive [hidden] panels precede the active one. Rows of
+      // already-assigned cases carry an "· Asignada" suffix, so prefer rows
+      // without it. Collect hrefs BEFORE navigating away (the locator would
+      // otherwise re-query the detail page's DOM mid-loop).
       await govt.page.goto("/gob/maltrato?queue=all", { waitUntil: "domcontentloaded" });
-      const rows = govt.page.locator('a[href^="/gob/maltrato/"]');
-      const rowCount = await rows.count();
-      test.skip(rowCount === 0, "no denuncia cases in queue — cannot test assignment race.");
+      const rows = govt.page.locator('a[href^="/gob/maltrato/"]:visible');
+      await rows.first().waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
+      const unassignedHrefs = await rows
+        .filter({ hasNotText: /· Asignada/ })
+        .evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
+      const anyHrefs = await rows.evaluateAll((els) =>
+        els.map((el) => el.getAttribute("href") ?? ""),
+      );
+      const candidates = [...new Set([...unassignedHrefs, ...anyHrefs])].filter(Boolean);
+      test.skip(candidates.length === 0, "no denuncia cases in queue — cannot test assignment race.");
 
-      for (let i = 0; i < Math.min(rowCount, 6); i++) {
-        const rhref = (await rows.nth(i).getAttribute("href")) ?? "";
+      for (const rhref of candidates.slice(0, 6)) {
         const id = rhref.split("/gob/maltrato/")[1]?.split(/[?#]/)[0] ?? "";
         if (!id) continue;
         await govt.page.goto(`/gob/maltrato/${id}`, { waitUntil: "domcontentloaded" });
         const assignable = govt.page.getByRole("button", { name: /asignármela/i });
-        if (await assignable.count().then((c) => c > 0).catch(() => false)) {
+        if (
+          await assignable
+            .count()
+            .then((c) => c > 0)
+            .catch(() => false)
+        ) {
           caseId = id;
           break;
         }
@@ -146,9 +196,19 @@ test.describe(`race battery @ ${BASE}`, () => {
       const adminBtn = admin.page.getByRole("button", { name: /asignármela/i });
       // If admin can't reach the assign control (portal scoping), skip cleanly.
       test.skip(
-        !(await adminBtn.count().then((c) => c > 0).catch(() => false)),
+        !(await adminBtn
+          .count()
+          .then((c) => c > 0)
+          .catch(() => false)),
         "admin cannot assign on /gob/maltrato — skipping cross-operator race.",
       );
+
+      // Let both pages hydrate so neither racing click is silently dropped.
+      await Promise.all([
+        govt.page.waitForLoadState("networkidle").catch(() => {}),
+        admin.page.waitForLoadState("networkidle").catch(() => {}),
+      ]);
+      await govt.page.waitForTimeout(1_500);
 
       // Fire both clicks as close to simultaneously as the harness allows.
       await Promise.allSettled([
@@ -159,11 +219,15 @@ test.describe(`race battery @ ${BASE}`, () => {
 
       // FINAL STATE (source of truth via a fresh govt read): assigned to a
       // single, non-empty agent — never "Sin asignar", never a double owner.
+      // NOTE: match the label <p> EXACTLY — a loose /asignado a/i regex is a
+      // strict-mode violation because the case timeline also logs
+      // "Caso asignado a <name>." (seen on the first staging run, where the
+      // race itself behaved: exactly one winner).
       await govt.page.goto(`/gob/maltrato/${caseId}`, { waitUntil: "domcontentloaded" });
-      const assignedBlock = govt.page.getByText(/asignado a/i).locator("..");
-      await expect(assignedBlock, "case shows an 'Asignado a' block").toBeVisible({
-        timeout: 15_000,
-      });
+      await expect(
+        govt.page.getByText("Asignado a", { exact: true }),
+        "case shows the 'Asignado a' block",
+      ).toBeVisible({ timeout: 15_000 });
       await expect(
         govt.page.getByText(/^sin asignar$/i),
         "case must NOT remain unassigned after a successful assignment race",
@@ -174,11 +238,21 @@ test.describe(`race battery @ ${BASE}`, () => {
         "no lingering 'Asignármela' — the case is now owned",
       ).toHaveCount(0);
 
-      // Cleanup: restore to unassigned so demo state stays coherent.
-      const unassign = govt.page.getByRole("button", { name: /desasignar/i }).first();
-      if (await unassign.count().then((c) => c > 0).catch(() => false)) {
+      // Cleanup: restore to unassigned so demo state stays coherent. Run it
+      // from the ADMIN context — an admin can always unassign (canUnassign =
+      // mine || isAdmin), while a losing govt operator sees no control at all.
+      await admin.page.goto(`/gob/maltrato/${caseId}`, { waitUntil: "domcontentloaded" });
+      await admin.page.waitForLoadState("networkidle").catch(() => {});
+      await admin.page.waitForTimeout(1_000);
+      const unassign = admin.page.getByRole("button", { name: /desasignar/i }).first();
+      if (
+        await unassign
+          .count()
+          .then((c) => c > 0)
+          .catch(() => false)
+      ) {
         await unassign.click().catch(() => {});
-        await govt.page.waitForTimeout(1_500);
+        await admin.page.waitForTimeout(1_500);
       }
     } finally {
       await govt.ctx.close();
@@ -196,8 +270,9 @@ test.describe(`race battery @ ${BASE}`, () => {
     let petToken = "";
     try {
       // Pick an ACTIVE owner pet that is NOT the demo hero (avoid corrupting it).
+      // DIM- prefix excludes the "/mis-mascotas/nueva" create-pet CTA.
       await owner.page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
-      const activePets = owner.page.locator('a[href^="/mis-mascotas/"]', {
+      const activePets = owner.page.locator('a[href^="/mis-mascotas/DIM-"]', {
         hasText: /registrada/i,
       });
       const n = await activePets.count();
@@ -211,10 +286,12 @@ test.describe(`race battery @ ${BASE}`, () => {
       }
       test.skip(petToken === "", "no non-hero active pet to transfer — skipping accept race.");
 
-      // Owner initiates the transfer to owner2.
+      // Owner initiates the transfer to owner2 ("Motivo" defaults to gift).
       await owner.page.goto(`/mis-mascotas/${petToken}?sheet=transferir-mascota`, {
         waitUntil: "domcontentloaded",
       });
+      await owner.page.waitForLoadState("networkidle").catch(() => {});
+      await owner.page.waitForTimeout(1_500); // hydration (#39 dropped-click guard)
       await owner.page.getByLabel(/email del receptor/i).fill(ACCOUNTS.owner2);
       await owner.page.getByRole("button", { name: /enviar propuesta/i }).click();
       await owner.page.waitForURL(/\/transferencias\//, { timeout: 30_000 });
@@ -229,6 +306,12 @@ test.describe(`race battery @ ${BASE}`, () => {
           r1.page.goto(`/transferencias/${transferToken}`, { waitUntil: "domcontentloaded" }),
           r2.page.goto(`/transferencias/${transferToken}`, { waitUntil: "domcontentloaded" }),
         ]);
+        // Let both pages hydrate so neither racing click is silently dropped.
+        await Promise.all([
+          r1.page.waitForLoadState("networkidle").catch(() => {}),
+          r2.page.waitForLoadState("networkidle").catch(() => {}),
+        ]);
+        await r1.page.waitForTimeout(1_500);
         await Promise.allSettled([
           r1.page.getByRole("button", { name: /^aceptar$/i }).click({ timeout: 15_000 }),
           r2.page.getByRole("button", { name: /^aceptar$/i }).click({ timeout: 15_000 }),
@@ -298,16 +381,34 @@ test.describe(`race battery @ ${BASE}`, () => {
     try {
       await a1.page.goto("/mis-mascotas/postulaciones", { waitUntil: "domcontentloaded" });
       const withdraw = a1.page.getByRole("button", { name: /retirar postulación/i });
-      const hasPending = await withdraw.count().then((c) => c > 0).catch(() => false);
-      test.skip(!hasPending, "owner2 has no pending adoption application — skipping withdraw race.");
+      const hasPending = await withdraw
+        .count()
+        .then((c) => c > 0)
+        .catch(() => false);
+      test.skip(
+        !hasPending,
+        "owner2 has no pending adoption application — skipping withdraw race.",
+      );
 
       const a2 = await openAs(browser, ACCOUNTS.owner2);
       try {
         await a2.page.goto("/mis-mascotas/postulaciones", { waitUntil: "domcontentloaded" });
+        // Let both pages hydrate so the confirm clicks aren't silently dropped.
+        await Promise.all([
+          a1.page.waitForLoadState("networkidle").catch(() => {}),
+          a2.page.waitForLoadState("networkidle").catch(() => {}),
+        ]);
+        await a1.page.waitForTimeout(1_500);
 
         // Open the confirm on both, then fire "Sí, retirar" together.
-        await a1.page.getByRole("button", { name: /retirar postulación/i }).first().click();
-        await a2.page.getByRole("button", { name: /retirar postulación/i }).first().click();
+        await a1.page
+          .getByRole("button", { name: /retirar postulación/i })
+          .first()
+          .click();
+        await a2.page
+          .getByRole("button", { name: /retirar postulación/i })
+          .first()
+          .click();
         await Promise.allSettled([
           a1.page.getByRole("button", { name: /sí, retirar/i }).click({ timeout: 15_000 }),
           a2.page.getByRole("button", { name: /sí, retirar/i }).click({ timeout: 15_000 }),

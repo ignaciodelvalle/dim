@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { resolveBaseUrl } from "./_base-url";
-import { ACCOUNTS, DEMO_PHOTOS, clickContinuar, loginAs, pickCard } from "./demo/_helpers";
+import { ACCOUNTS, DEMO_PHOTOS, loginAs, pickCard } from "./demo/_helpers";
 
 /**
  * Synthetic monitor — the 4 critical flows, FAST, aimed at the DEPLOYED staging
@@ -50,9 +50,11 @@ test.describe(`synthetic monitor @ ${BASE}`, () => {
     expect(page.url(), "owner left /login after sign-in").not.toContain("/login");
 
     await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
-    // At least one pet credential card must render for the owner.
+    // At least one pet credential card must render for the owner. Anchor on
+    // the DIM- token prefix so the "/mis-mascotas/nueva" create-pet CTA can
+    // never satisfy this assertion on an empty registry.
     await expect(
-      page.locator('a[href^="/mis-mascotas/"]').first(),
+      page.locator('a[href^="/mis-mascotas/DIM-"]').first(),
       "owner registry shows at least one pet credential",
     ).toBeVisible({ timeout: 20_000 });
 
@@ -99,9 +101,14 @@ test.describe(`synthetic monitor @ ${BASE}`, () => {
       page.getByRole("heading", { name: /denuncias de maltrato/i }),
       "maltrato console heading",
     ).toBeVisible({ timeout: 20_000 });
+    // The queue renders ALL tabpanels in the DOM (urgent/mine/all); inactive
+    // panels carry [hidden] and precede the active one, so a bare .first() on
+    // a global row selector lands on a display:none row (verified against the
+    // live staging DOM: div#tabpanel-urgent[hidden] comes first). Match only
+    // VISIBLE rows.
     await expect(
-      page.locator('a[href^="/gob/maltrato/"]').first(),
-      "maltrato queue has at least one actionable case row",
+      page.locator('a[href^="/gob/maltrato/"]:visible').first(),
+      "maltrato queue has at least one actionable (visible) case row",
     ).toBeVisible({ timeout: 20_000 });
 
     // Panorama map paints a canvas within 60s.
@@ -110,10 +117,9 @@ test.describe(`synthetic monitor @ ${BASE}`, () => {
       page.getByRole("heading", { name: "Panorama" }),
       "panorama console heading",
     ).toBeVisible({ timeout: 20_000 });
-    await expect(
-      page.locator("canvas").first(),
-      "panorama MapLibre canvas painted",
-    ).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator("canvas").first(), "panorama MapLibre canvas painted").toBeVisible({
+      timeout: 60_000,
+    });
   });
 
   // ------------------------------------------------------------------------
@@ -125,28 +131,62 @@ test.describe(`synthetic monitor @ ${BASE}`, () => {
     const description =
       "PRUEBA SINTÉTICA - monitoreo automatico QA, ignorar. No hay animal real involucrado.";
 
+    /**
+     * Click "Continuar" and assert the NEXT step actually rendered; when the
+     * click is silently dropped (hydration race — the recurring task-#39
+     * failure mode: handlers not yet attached, especially on serverless cold
+     * starts), retry once. Without this, step 1 never advances and the
+     * severityCard assertion fails while the app itself works fine.
+     */
+    async function advanceTo(nextStepMarker: ReturnType<typeof page.locator>): Promise<void> {
+      const btn = page.getByRole("button", { name: /continuar/i }).first();
+      await expect(btn, "wizard Continuar button").toBeVisible();
+      await btn.click();
+      try {
+        await expect(nextStepMarker).toBeVisible({ timeout: 8_000 });
+      } catch {
+        await btn.click(); // dropped click — one retry
+        await expect(nextStepMarker, "wizard advanced after Continuar retry").toBeVisible({
+          timeout: 10_000,
+        });
+      }
+    }
+
     await page.goto("/denuncias/nueva", { waitUntil: "domcontentloaded" });
+    // Let hydration finish before the first interaction — clicks dispatched
+    // before React attaches handlers are silently dropped (same wait the
+    // shared loginAs helper uses).
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForTimeout(2_000);
 
     // Step 1 — Qué pasó
     await pickCard(page, "kindCard", "neglect");
-    await clickContinuar(page);
+    await advanceTo(page.getByRole("heading", { name: /qué tan grave/i }));
 
     // Step 2 — Gravedad
     await pickCard(page, "severityCard", "moderado");
-    await clickContinuar(page);
+    await advanceTo(page.locator("textarea#description"));
 
     // Step 3 — Dónde y cuándo (free-text carries the PRUEBA SINTÉTICA marker)
     await page.locator("textarea#description").fill(description);
     await pickCard(page, "occurredAtOption", "today_yesterday");
-    await clickContinuar(page);
+    await advanceTo(page.locator('label:has(input[name="subjectKindCard"])').first());
 
     // Step 4 — Quién (optional): skip fast if a skip control exists, else fill.
     const skip = page.getByRole("button", { name: /saltear este paso/i });
-    if (await skip.count().then((c) => c > 0).catch(() => false)) {
+    if (
+      await skip
+        .count()
+        .then((c) => c > 0)
+        .catch(() => false)
+    ) {
       await skip.click();
+      await expect(page.getByRole("button", { name: /enviar an[oó]nima/i })).toBeVisible({
+        timeout: 10_000,
+      });
     } else {
       await pickCard(page, "subjectKindCard", "unowned_animal");
-      await clickContinuar(page);
+      await advanceTo(page.getByRole("button", { name: /enviar an[oó]nima/i }));
     }
 
     // Step 5 — Cerrar: anonymous + evidence photo + submit

@@ -31,7 +31,10 @@ const DEFAULT_STAGING_URL_FILE =
 function readFirstLine(path: string): string | null {
   try {
     const raw = readFileSync(path, "utf8");
-    const first = raw.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0);
+    const first = raw
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .find((l) => l.length > 0);
     return first ?? null;
   } catch {
     return null;
