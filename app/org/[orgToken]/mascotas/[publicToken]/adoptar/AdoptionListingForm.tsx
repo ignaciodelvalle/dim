@@ -231,7 +231,7 @@ export function AdoptionListingForm({
                 <option value="">Sin definir</option>
                 {ADOPTION_ENERGY_LEVELS.map((e) => (
                   <option key={e} value={e}>
-                    {energyLabel(e)}
+                    {energyLabel(e, petSex)}
                   </option>
                 ))}
               </select>
@@ -304,7 +304,7 @@ export function AdoptionListingForm({
             </dd>
             <dt className="text-ln-op-mute">Energía</dt>
             <dd className="col-span-2 text-ln-op-ink-2">
-              {energyLevel ? energyLabel(energyLevel as EnergyLevel) : "—"}
+              {energyLevel ? energyLabel(energyLevel as EnergyLevel, petSex) : "—"}
             </dd>
             <dt className="text-ln-op-mute">Aporte</dt>
             <dd className="col-span-2 text-ln-op-ink-2">{feeArs || "—"}</dd>

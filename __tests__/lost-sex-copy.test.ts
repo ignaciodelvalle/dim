@@ -13,6 +13,7 @@ import {
   lostBannerHeadline,
   lostFirstPersonLine,
   lostThirdPersonPhrase,
+  sightingPhrase,
 } from "@/lib/utils/format";
 
 describe("lostBannerHeadline", () => {
@@ -70,5 +71,22 @@ describe("foundPossessivePhrase", () => {
     expect(foundPossessivePhrase("unknown")).toBe("Está conmigo");
     expect(foundPossessivePhrase(null)).toBe("Está conmigo");
     expect(foundPossessivePhrase(undefined)).toBe("Está conmigo");
+  });
+});
+
+// QA histórico 2026-07-08 item 2: "La vi cerca de acá" was hardcoded feminine
+// on the sighting-form page headline and the lost public credential's CTA
+// button, disagreeing with the pet's recorded sex (e.g. showing feminine for
+// a male pet). Both surfaces now route through this helper.
+describe("sightingPhrase", () => {
+  it("genders by sex", () => {
+    expect(sightingPhrase("male")).toBe("Lo vi cerca de acá");
+    expect(sightingPhrase("female")).toBe("La vi cerca de acá");
+  });
+  it("neutral for unknown/null/garbage", () => {
+    expect(sightingPhrase("unknown")).toBe("Vi a la mascota cerca de acá");
+    expect(sightingPhrase(null)).toBe("Vi a la mascota cerca de acá");
+    expect(sightingPhrase(undefined)).toBe("Vi a la mascota cerca de acá");
+    expect(sightingPhrase("nonsense")).toBe("Vi a la mascota cerca de acá");
   });
 });

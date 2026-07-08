@@ -23,6 +23,7 @@ import {
   lostBannerHeadline,
   lostFirstPersonLine,
   normalizePhoneForTel,
+  sightingPhrase,
 } from "@/lib/utils/format";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -191,7 +192,7 @@ export function LostPublicCredential({
                 href={sightingFormHref}
                 className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-card border border-ln-line px-5 text-sm font-semibold text-ln-ink hover:bg-ln-stripe   "
               >
-                👀 La vi cerca de acá
+                👀 {sightingPhrase(petSex)}
               </Link>
             )}
           </div>

@@ -190,7 +190,7 @@ export default async function AdoptarFichaPage({
   const facts: string[] = [];
   if (pet.adoptionAgeBucket) facts.push(ageBucketLabel(pet.adoptionAgeBucket, pet.sex));
   if (pet.adoptionSizeEstimate) facts.push(sizeLabel(pet.adoptionSizeEstimate));
-  if (pet.adoptionEnergyLevel) facts.push(energyLabel(pet.adoptionEnergyLevel));
+  if (pet.adoptionEnergyLevel) facts.push(energyLabel(pet.adoptionEnergyLevel, pet.sex));
 
   const convivencia: Array<{ label: string; value: boolean | null }> = [
     { label: "Con chicos", value: pet.adoptionGoodWithKids },

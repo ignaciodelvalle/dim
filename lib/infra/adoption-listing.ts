@@ -50,14 +50,19 @@ export function sizeLabel(size: SizeEstimate): string {
   }
 }
 
-export function energyLabel(energy: EnergyLevel): string {
+// Gendered by `sex` — matches ageBucketLabel's convention just above: `unknown`
+// falls back to masculine rather than inventing a gender (Argentine refugio
+// speech). Previously ungendered ("Activo/a" always), which disagreed with the
+// pet's recorded sex on every /adoptar card (QA histórico 2026-07-08).
+export function energyLabel(energy: EnergyLevel, sex: string): string {
+  const feminine = sex === "female";
   switch (energy) {
     case "low":
-      return "Tranquilo/a";
+      return feminine ? "Tranquila" : "Tranquilo";
     case "medium":
-      return "Moderado/a";
+      return feminine ? "Moderada" : "Moderado";
     case "high":
-      return "Activo/a";
+      return feminine ? "Activa" : "Activo";
   }
 }
 

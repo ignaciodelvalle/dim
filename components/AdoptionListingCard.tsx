@@ -43,7 +43,7 @@ export function AdoptionListingCard({
   const facts: string[] = [];
   if (item.adoptionAgeBucket) facts.push(ageBucketLabel(item.adoptionAgeBucket, item.sex));
   if (item.adoptionSizeEstimate) facts.push(sizeLabel(item.adoptionSizeEstimate));
-  if (item.adoptionEnergyLevel) facts.push(energyLabel(item.adoptionEnergyLevel));
+  if (item.adoptionEnergyLevel) facts.push(energyLabel(item.adoptionEnergyLevel, item.sex));
 
   const sterilizedLabel = item.sex === "female" ? "Castrada" : "Castrado";
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;

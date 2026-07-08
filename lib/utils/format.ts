@@ -248,6 +248,22 @@ export function foundPossessivePhrase(sex: string | null | undefined): string {
   }
 }
 
+/** Sighting CTA/headline, e.g. "La vi cerca de acá" / "Lo vi cerca de acá". Used
+ * both as the sighting-form page headline and the lower-commitment CTA button
+ * next to foundPossessivePhrase on the lost public credential — the two must
+ * agree with the pet's recorded sex, not default to feminine. */
+export function sightingPhrase(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "Lo vi cerca de acá";
+    case "female":
+      return "La vi cerca de acá";
+    default:
+      // Neutral: sidesteps the lo/la pronoun when sex is unknown.
+      return "Vi a la mascota cerca de acá";
+  }
+}
+
 // Exhaustive map — must have exactly one entry per EventType.
 // If you add a new entry to EVENT_TYPES, TypeScript will fail here until
 // you add a corresponding label. Use `satisfies` so inference stays narrow.

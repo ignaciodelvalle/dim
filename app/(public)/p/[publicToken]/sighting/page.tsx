@@ -11,6 +11,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { db, pets } from "@/db";
+import { sightingPhrase } from "@/lib/utils/format";
 
 import { PetSightingForm } from "./PetSightingForm";
 
@@ -26,6 +27,7 @@ export default async function PetSightingPage({
   const [pet] = await db
     .select({
       name: pets.name,
+      sex: pets.sex,
       status: pets.status,
       jurisdictionProvince: pets.jurisdictionProvince,
       jurisdictionLocality: pets.jurisdictionLocality,
@@ -68,7 +70,9 @@ export default async function PetSightingPage({
           >
             ← Volver al perfil
           </Link>
-          <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">La vi cerca de acá</h1>
+          <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">
+            {sightingPhrase(pet.sex)}
+          </h1>
           <p className="text-sm text-[var(--color-ln-mute)]">
             Marcá dónde y cuándo viste a {pet.name}. El dueño/a recibe el aviso al instante.
           </p>

@@ -9,9 +9,29 @@ import { db, organizations, ownerships, pets } from "@/db";
 import {
   type AdoptionListingFilters,
   buildSearchParams,
+  energyLabel,
   parseSearchParams,
 } from "@/lib/infra/adoption-listing";
 import { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
+
+// QA histórico 2026-07-08 item 2: energyLabel previously ignored the pet's
+// sex entirely and always returned the "/a" fallback form ("Activo/a"),
+// disagreeing with the sex-driven gendering already used for ageBucketLabel
+// right next to it on every /adoptar card. Pure-function test — no DB needed.
+describe("energyLabel", () => {
+  it("genders by sex", () => {
+    expect(energyLabel("high", "male")).toBe("Activo");
+    expect(energyLabel("high", "female")).toBe("Activa");
+    expect(energyLabel("low", "male")).toBe("Tranquilo");
+    expect(energyLabel("low", "female")).toBe("Tranquila");
+    expect(energyLabel("medium", "male")).toBe("Moderado");
+    expect(energyLabel("medium", "female")).toBe("Moderada");
+  });
+
+  it("falls back to masculine for unknown sex (matches ageBucketLabel convention)", () => {
+    expect(energyLabel("high", "unknown")).toBe("Activo");
+  });
+});
 
 // Fixtures live under a single org so cleanup is easy.
 const ORG_TOKEN = "DIM-ADOPTLIST-TEST";
