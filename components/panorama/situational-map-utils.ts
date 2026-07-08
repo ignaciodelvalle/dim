@@ -205,6 +205,85 @@ export function computeJurisdictionViewport(
 }
 
 // ---------------------------------------------------------------------------
+// Zoom-driven division activation (PO directive 2026-07-07)
+// ---------------------------------------------------------------------------
+//
+// "A partir de cierto punto SIEMPRE mostrar las localidades" — the admin
+// divisions (departamentos / barrios) must appear automatically once the camera
+// zooms past a sensible threshold, for ANY operator, with or without an explicit
+// province selection. Standard web-map behavior: country → provinces; zoom in →
+// departamentos/barrios of whatever province(s) are in view.
+
+/**
+ * Camera zoom at/above which admin divisions activate for the province(s) in
+ * view. Chosen empirically from the provinces GeoJSON extents: at z≈6.5 roughly
+ * one large province fills the viewport width (~7° of longitude at a typical
+ * width), so departamento outlines read legibly without clutter; below it the
+ * national multi-province view stays clean (provinces only). CABA shares this
+ * cutoff — its ~0.19° extent is only reached when the camera is well past it, so
+ * its barrios naturally appear only when deeply zoomed in.
+ */
+export const Z_DIVISIONS = 6.5;
+
+/** A [[minLng,minLat],[maxLng,maxLat]] bounding box. */
+export type Bbox = [[number, number], [number, number]];
+
+/** True when two bounding boxes overlap (inclusive edges). Cheap AABB test. */
+export function bboxesIntersect(a: Bbox, b: Bbox): boolean {
+  const [[aMinLng, aMinLat], [aMaxLng, aMaxLat]] = a;
+  const [[bMinLng, bMinLat], [bMaxLng, bMaxLat]] = b;
+  return aMinLng <= bMaxLng && aMaxLng >= bMinLng && aMinLat <= bMaxLat && aMaxLat >= bMinLat;
+}
+
+/** A province code paired with its precomputed polygon bbox. */
+export type ProvinceBbox = { code: string; bbox: Bbox };
+
+/**
+ * Precompute a simple bbox per province feature ONCE (perf: point 5 of the
+ * directive). Features with unusable geometry are skipped. Cache the result and
+ * reuse it across every viewport resolution — the bboxes never change.
+ */
+export function computeProvinceBboxes(features: ProvinceLike[]): ProvinceBbox[] {
+  const out: ProvinceBbox[] = [];
+  for (const f of features) {
+    const code = f.properties?.code;
+    if (typeof code !== "string") continue;
+    const bbox = polygonBbox(f);
+    if (bbox) out.push({ code, bbox });
+  }
+  return out;
+}
+
+/**
+ * Resolve which province(s) should render admin divisions RIGHT NOW.
+ *
+ * Precedence (point 2 — compose, don't replace):
+ *  1. An explicit province selection/scope ALWAYS wins, at any zoom → that one
+ *     province (the existing single-province behavior, unchanged).
+ *  2. No selection: the camera decides. Below the threshold → [] (clean national
+ *     provinces view). At/above it → every province whose bbox intersects the
+ *     camera viewport (approximate + cheap; a neighboring-province false positive
+ *     is harmless — it just draws extra outlines).
+ *
+ * Pure — no map, no DOM. Returns ISO province codes; the caller splits CABA
+ * (→ barrios) from the rest (→ departamentos).
+ */
+export function resolveDivisionProvinces(params: {
+  selectedProvince: string | null;
+  zoom: number;
+  cameraBbox: Bbox | null;
+  provinceBboxes: ProvinceBbox[];
+  threshold?: number;
+}): string[] {
+  const { selectedProvince, zoom, cameraBbox, provinceBboxes, threshold = Z_DIVISIONS } = params;
+  // Selection wins, regardless of zoom.
+  if (selectedProvince) return [selectedProvince];
+  // No selection: only the camera can activate divisions, past the cutoff.
+  if (zoom < threshold || cameraBbox === null) return [];
+  return provinceBboxes.filter((p) => bboxesIntersect(p.bbox, cameraBbox)).map((p) => p.code);
+}
+
+// ---------------------------------------------------------------------------
 // panorama-redesign Fase 1 — preset frame viewport helper
 // ---------------------------------------------------------------------------
 

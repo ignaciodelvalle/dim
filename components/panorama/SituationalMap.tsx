@@ -14,14 +14,17 @@ import {
   type DivisionLevel,
   divisionFillColorExpr,
   divisionValueBounds,
-  filterDepartmentsByPrefix,
-  joinCellsToDivisions,
+  joinCellsToDivisionsMulti,
 } from "@/components/panorama/division-fill";
 import {
+  type Bbox,
+  type ProvinceBbox,
   computeJurisdictionViewport,
   computePresetFrameViewport,
+  computeProvinceBboxes,
   countRenderableFeatures,
   hasProvinceChoroplethLayer,
+  resolveDivisionProvinces,
 } from "@/components/panorama/situational-map-utils";
 import {
   isCABA,
@@ -277,6 +280,20 @@ function layersBbox(layers: ActiveLayer[]): [[number, number], [number, number]]
   ];
 }
 
+/** One feature of a local division GeoJSON, as much of it as the join reads. */
+type DivisionRawFeature = { properties?: { code?: string; name?: string } | null };
+
+/** Same-origin fetch of a local GeoJSON asset → its features (null on failure). */
+async function fetchGeojsonFeatures(url: string): Promise<DivisionRawFeature[] | null> {
+  try {
+    // biome-ignore lint/suspicious/noExplicitAny: runtime JSON from local GeoJSON asset.
+    const raw = (await fetch(url).then((r) => r.json())) as any;
+    return (raw.features ?? []) as DivisionRawFeature[];
+  } catch {
+    return null; // Divisions unavailable — the provinces basemap still renders.
+  }
+}
+
 export function SituationalMap({
   layers,
   label,
@@ -334,15 +351,32 @@ export function SituationalMap({
   // divisions loaded (the provinces basemap is the only geometry).
   const selectedProvinceRef = useRef(selectedProvinceCode);
   selectedProvinceRef.current = selectedProvinceCode;
+  // The divisions currently mounted. `signature` is the sorted effective-province
+  // set key — a stable identity so a moveend that does not change the visible
+  // province set skips the rebuild/refetch entirely. `deptCodes`/`barrioCodes`
+  // are the two disjoint code spaces present in the shared source (departamentos
+  // of the non-CABA provinces in view + CABA barrios), so the per-layer fill can
+  // join both levels over the union. null = national clean view, no divisions.
   const divisionsRef = useRef<{
-    provinceIso: string;
-    level: DivisionLevel;
-    codes: Set<string>;
+    signature: string;
+    deptCodes: Set<string>;
+    barrioCodes: Set<string>;
     names: Map<string, string>;
   } | null>(null);
-  // Monotonic token so a superseded division fetch (rapid province switch) never
-  // paints stale polygons over the newer scope.
+  // Monotonic token so a superseded division resolution (rapid zoom/pan/switch)
+  // never paints stale polygons over the newer viewport.
   const divisionTokenRef = useRef(0);
+  // Per-province bbox, computed ONCE from the loaded basemap — the zoom-driven
+  // viewport→province resolution reads these (point 5: approximate + cheap).
+  const provinceBboxesRef = useRef<ProvinceBbox[]>([]);
+  // The full division GeoJSON files, cached after their FIRST fetch so the 693 KB
+  // departments file (and the barrios file) load at most once per session; every
+  // later province-set change filters the cached features client-side (point 3).
+  const departmentsRawRef = useRef<DivisionRawFeature[] | null>(null);
+  const barriosRawRef = useRef<DivisionRawFeature[] | null>(null);
+  // Debounce handle for the moveend-driven division resolution — a rapid zoom/pan
+  // gesture coalesces into a single syncDivisions call once the camera settles.
+  const divisionMoveTimerRef = useRef<number | null>(null);
   // Per-layer division fill values (division code → summed value), populated in
   // syncLayers so the hover/click popup can look up a division's value without
   // recomputing the whole join per pointer move.
@@ -401,6 +435,20 @@ export function SituationalMap({
       // the console can derive the aggregation level (province → locality once
       // the camera crosses Z_LOCALITY). Fires once per gesture, not per frame.
       map.on("zoomend", () => onZoomRef.current?.(map.getZoom()));
+      // PO directive 2026-07-07: divisions are ALSO zoom-driven. After the camera
+      // settles (moveend covers both zoom and pan), re-resolve which province(s)
+      // are in view and (de)activate their admin divisions. Debounced so a rapid
+      // gesture coalesces into ONE resolution (→ at most one file fetch); the
+      // signature dedupe inside syncDivisions then skips no-op rebuilds.
+      map.on("moveend", () => {
+        if (divisionMoveTimerRef.current !== null) {
+          window.clearTimeout(divisionMoveTimerRef.current);
+        }
+        divisionMoveTimerRef.current = window.setTimeout(() => {
+          divisionMoveTimerRef.current = null;
+          void syncDivisions();
+        }, 200);
+      });
       popupRef.current = new maplibregl.Popup({
         closeButton: false,
         closeOnClick: false,
@@ -448,6 +496,9 @@ export function SituationalMap({
               properties: { code: string; name: string } | null;
               geometry: { type: string; coordinates: unknown } | null;
             }>) ?? [];
+          // Precompute each province's bbox ONCE for the zoom-driven division
+          // resolution (viewport → intersecting provinces).
+          provinceBboxesRef.current = computeProvinceBboxes(basemapFeaturesRef.current);
         } catch {
           // Basemap unavailable — points still render over the dark canvas.
         }
@@ -472,6 +523,10 @@ export function SituationalMap({
       cancelled = true;
       loadedRef.current = false;
       mountedRef.current = new Set();
+      if (divisionMoveTimerRef.current !== null) {
+        window.clearTimeout(divisionMoveTimerRef.current);
+        divisionMoveTimerRef.current = null;
+      }
       mapRef.current?.remove();
       mapRef.current = null;
     };
@@ -588,28 +643,26 @@ export function SituationalMap({
   async function syncDivisions() {
     const map = mapRef.current;
     if (!map || !mlRef.current || !loadedRef.current) return;
-    const iso = selectedProvinceRef.current;
 
-    // Resolve the target division context from the province ISO code.
-    let level: DivisionLevel | null = null;
-    let url = "";
-    let prefix: string | null = null;
-    if (iso) {
-      if (isCABA(iso)) {
-        level = "barrio";
-        url = CABA_BARRIOS_URL;
-      } else {
-        const p = provinceDepartmentPrefix(iso);
-        if (p) {
-          level = "department";
-          url = AR_DEPARTMENTS_URL;
-          prefix = p;
-        }
-      }
-    }
+    // Resolve the EFFECTIVE province set. An explicit selection/scope wins at any
+    // zoom (existing behavior); otherwise the camera decides — past the threshold
+    // every province whose bbox intersects the viewport gets its divisions (PO
+    // directive: "a partir de cierto punto SIEMPRE mostrar las localidades").
+    const b = map.getBounds();
+    const cameraBbox: Bbox = [
+      [b.getWest(), b.getSouth()],
+      [b.getEast(), b.getNorth()],
+    ];
+    const provinces = resolveDivisionProvinces({
+      selectedProvince: selectedProvinceRef.current ?? null,
+      zoom: map.getZoom(),
+      cameraBbox,
+      provinceBboxes: provinceBboxesRef.current,
+    });
 
-    // National / unknown province → tear the divisions down, restore the circles.
-    if (level === null || iso === null) {
+    // Empty set (national below the threshold, no selection) → clean provinces
+    // view: tear divisions down, restore any centroid circles.
+    if (provinces.length === 0) {
       if (divisionsRef.current) {
         removeDivisions(map);
         divisionsRef.current = null;
@@ -618,43 +671,81 @@ export function SituationalMap({
       return;
     }
 
-    // Already loaded for this exact province+level — nothing to fetch.
-    if (
-      divisionsRef.current &&
-      divisionsRef.current.provinceIso === iso &&
-      divisionsRef.current.level === level
-    ) {
-      return;
+    // The visible province set is unchanged — nothing to rebuild or refetch. This
+    // is what makes rapid zoom/pan cheap: only a set change touches the map.
+    const signature = [...provinces].sort().join(",");
+    if (divisionsRef.current && divisionsRef.current.signature === signature) return;
+
+    // Split CABA (→ barrios file) from the rest (→ departamentos, one shared file
+    // filtered to the UNION of the visible provinces' INDEC prefixes).
+    const deptPrefixes: string[] = [];
+    let needsBarrios = false;
+    for (const iso of provinces) {
+      if (isCABA(iso)) {
+        needsBarrios = true;
+      } else {
+        const p = provinceDepartmentPrefix(iso);
+        if (p) deptPrefixes.push(p);
+      }
     }
 
     const token = ++divisionTokenRef.current;
-    let raw: { features?: Array<{ properties?: { code?: string; name?: string } | null }> };
-    try {
-      // Same-origin fetch (CSP 'self'), mirroring the provinces basemap load.
-      // biome-ignore lint/suspicious/noExplicitAny: runtime JSON from local GeoJSON asset.
-      raw = (await fetch(url).then((r) => r.json())) as any;
-    } catch {
-      return; // Divisions unavailable — the provinces basemap still renders.
+
+    // Ensure each raw file is fetched AT MOST ONCE per session (perf point 3);
+    // every later set change filters the cached features client-side.
+    if (deptPrefixes.length > 0 && departmentsRawRef.current === null) {
+      const raw = await fetchGeojsonFeatures(AR_DEPARTMENTS_URL);
+      if (token !== divisionTokenRef.current || !mapRef.current) return;
+      if (raw === null) return;
+      departmentsRawRef.current = raw;
     }
-    // Superseded by a newer province switch, or the map went away.
+    if (needsBarrios && barriosRawRef.current === null) {
+      const raw = await fetchGeojsonFeatures(CABA_BARRIOS_URL);
+      if (token !== divisionTokenRef.current || !mapRef.current) return;
+      if (raw === null) return;
+      barriosRawRef.current = raw;
+    }
+    // A newer resolution superseded this one while a fetch was in flight.
     if (token !== divisionTokenRef.current || !mapRef.current) return;
 
-    let features = (raw.features ?? []) as Array<{
-      properties?: { code?: string; name?: string } | null;
-    }>;
-    if (level === "department" && prefix) {
-      features = filterDepartmentsByPrefix({ features }, prefix) as typeof features;
+    // Build the UNION of division polygons for the effective set: departamentos
+    // (filtered by prefix) + CABA barrios, keeping their two code spaces disjoint
+    // so the per-layer fill can join both levels over the shared source.
+    const features: DivisionRawFeature[] = [];
+    const deptCodes = new Set<string>();
+    const barrioCodes = new Set<string>();
+    const names = new Map<string, string>();
+
+    if (deptPrefixes.length > 0 && departmentsRawRef.current) {
+      for (const f of departmentsRawRef.current) {
+        const rawCode = f.properties?.code;
+        if (typeof rawCode !== "string") continue;
+        const code = normalizeDepartmentCode(rawCode);
+        if (!deptPrefixes.some((p) => code.startsWith(p))) continue;
+        features.push(f);
+        deptCodes.add(code);
+        if (f.properties?.name) names.set(code, String(f.properties.name));
+      }
+    }
+    if (needsBarrios && barriosRawRef.current) {
+      for (const f of barriosRawRef.current) {
+        const rawCode = f.properties?.code;
+        if (typeof rawCode !== "string") continue;
+        const code = normalizeBarioCode(rawCode);
+        features.push(f);
+        barrioCodes.add(code);
+        if (f.properties?.name) names.set(code, String(f.properties.name));
+      }
     }
 
-    const codes = new Set<string>();
-    const names = new Map<string, string>();
-    for (const f of features) {
-      const rawCode = f.properties?.code;
-      if (typeof rawCode !== "string") continue;
-      const code =
-        level === "barrio" ? normalizeBarioCode(rawCode) : normalizeDepartmentCode(rawCode);
-      codes.add(code);
-      if (f.properties?.name) names.set(code, String(f.properties.name));
+    // Nothing renderable (e.g. only unknown provinces) → keep the clean view.
+    if (deptCodes.size === 0 && barrioCodes.size === 0) {
+      if (divisionsRef.current) {
+        removeDivisions(map);
+        divisionsRef.current = null;
+        syncLayers();
+      }
+      return;
     }
 
     // Replace any previous divisions, then add the shared source + always-on
@@ -671,7 +762,7 @@ export function SituationalMap({
       source: DIVISION_SRC,
       paint: { "line-color": COLOR_DIVISION_LINE, "line-width": 0.6, "line-opacity": 0.75 },
     });
-    divisionsRef.current = { provinceIso: iso, level, codes, names };
+    divisionsRef.current = { signature, deptCodes, barrioCodes, names };
     syncLayers();
   }
 
@@ -723,14 +814,19 @@ export function SituationalMap({
       // as centroid circles (fallback — no data loss). Suppressed matched cells
       // render outline-only (excluded from both the fill and the circles).
       const divs = divisionsRef.current;
+      // Divisions may now be active WITHOUT a selection (zoom-driven), so the
+      // guard no longer requires a matching selected province — the join itself
+      // fills only cells whose codes are in the loaded division sets; the rest
+      // fall back to centroid circles.
       const divisionActive =
-        layer.geomType === "choropleth" &&
-        layer.level === "locality" &&
-        divs !== null &&
-        selectedProvinceRef.current !== null &&
-        divs.provinceIso === selectedProvinceRef.current;
+        layer.geomType === "choropleth" && layer.level === "locality" && divs !== null;
       if (divisionActive && divs) {
-        const join = joinCellsToDivisions(layer.features, divs.level, divs.codes);
+        // Join over BOTH code spaces present in the shared source (departamentos
+        // and/or CABA barrios) — the multi-province zoom-driven case.
+        const levels: Array<{ level: DivisionLevel; codes: Set<string> }> = [];
+        if (divs.deptCodes.size > 0) levels.push({ level: "department", codes: divs.deptCodes });
+        if (divs.barrioCodes.size > 0) levels.push({ level: "barrio", codes: divs.barrioCodes });
+        const join = joinCellsToDivisionsMulti(layer.features, levels);
         divisionValuesRef.current.set(layer.id, join.values);
         const circleData = join.unmatched as unknown as GeoJSON.FeatureCollection;
         const existing = map.getSource(srcId(layer.id)) as maplibregl.GeoJSONSource | undefined;
@@ -747,7 +843,14 @@ export function SituationalMap({
         if (bounds) {
           nextDivisionLegend = {
             label: layer.label,
-            unitNoun: divs.level === "barrio" ? "barrio" : "departamento",
+            // Name the unit by which code space(s) are in view: a mixed
+            // departamentos+barrios union reads as the generic "división".
+            unitNoun:
+              divs.deptCodes.size > 0 && divs.barrioCodes.size > 0
+                ? "división"
+                : divs.barrioCodes.size > 0
+                  ? "barrio"
+                  : "departamento",
             ...bounds,
           };
         }
@@ -854,10 +957,11 @@ export function SituationalMap({
     const popup = popupRef.current;
     if (!popup) return;
     const fillId = divisionFillLayerId(layer.id);
-    const codeFor = (rawCode: string): string => {
-      const level = divisionsRef.current?.level;
-      return level === "barrio" ? normalizeBarioCode(rawCode) : normalizeDepartmentCode(rawCode);
-    };
+    // The shared source can hold BOTH departamentos (numeric INDEC codes) and
+    // CABA barrios (slug codes). Normalize per-feature by the code's shape rather
+    // than a single division level.
+    const codeFor = (rawCode: string): string =>
+      /^\d/.test(rawCode.trim()) ? normalizeDepartmentCode(rawCode) : normalizeBarioCode(rawCode);
     map.on("mouseenter", fillId, () => {
       map.getCanvas().style.cursor = "pointer";
     });
@@ -888,14 +992,15 @@ export function SituationalMap({
       if (!f) return;
       const props = f.properties as { code?: string; name?: string };
       const code = codeFor(props.code ?? "");
-      const level = divisionsRef.current?.level;
+      // A barrio feature carries a slug code; a departamento a numeric one.
+      const isBarrio = !/^\d/.test((props.code ?? "").trim());
       const value = divisionValuesRef.current.get(layer.id)?.get(code) ?? null;
       onFeatureClickRef.current?.(layer.id, {
         // Barrio divisions map 1:1 to a locality, so surface the name as the
         // locality (unit-history keyed by locality still works). Departamento
         // fills aggregate several localities — carry the department name instead
         // and leave locality null (no single locality to drill).
-        locality: level === "barrio" ? (props.name ?? null) : null,
+        locality: isBarrio ? (props.name ?? null) : null,
         departmentName: props.name ?? null,
         value,
         level: "locality",

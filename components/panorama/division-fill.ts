@@ -95,21 +95,45 @@ export function joinCellsToDivisions(
   level: DivisionLevel,
   divisionCodes: ReadonlySet<string>,
 ): DivisionJoin {
+  return joinCellsToDivisionsMulti(features, [{ level, codes: divisionCodes }]);
+}
+
+/**
+ * Generalization of {@link joinCellsToDivisions} to SEVERAL division levels at
+ * once — the zoom-driven multi-province case. When the camera zooms past the
+ * division threshold with multiple provinces in view, the loaded division source
+ * is the UNION of their polygons: departamentos (for every non-CABA province) AND
+ * CABA barrios, two different code spaces coexisting in one source.
+ *
+ * Each cell is tried against the levels in order; the first level whose code set
+ * contains the cell's code claims it. The two spaces are disjoint in practice (a
+ * departamento cell carries a numeric INDEC code; a CABA barrio cell carries a
+ * locality slug), so order is not load-bearing. A cell matched by NO level falls
+ * back to its centroid circle (unmatched); k-anon is preserved exactly as in the
+ * single-level path — a matched-but-suppressed cell adds no fill (outline only).
+ */
+export function joinCellsToDivisionsMulti(
+  features: FeatureCollection,
+  levels: ReadonlyArray<{ level: DivisionLevel; codes: ReadonlySet<string> }>,
+): DivisionJoin {
   const values = new Map<string, number>();
   const unmatched: PanoramaFeature[] = [];
 
   for (const f of features.features) {
     const props = (f.properties ?? {}) as ChoroplethCellProps;
-    const code = divisionCodeForCell(props, level);
-    if (code === null || !divisionCodes.has(code)) {
-      unmatched.push(f);
-      continue;
+    let matched = false;
+    for (const { level, codes } of levels) {
+      const code = divisionCodeForCell(props, level);
+      if (code === null || !codes.has(code)) continue;
+      matched = true;
+      // Matched: contributes to the fill only when visible (k-anon). A matched
+      // but suppressed cell is intentionally dropped → outline only.
+      if (props.suppressed !== true && typeof props.value === "number") {
+        values.set(code, (values.get(code) ?? 0) + props.value);
+      }
+      break;
     }
-    // Matched: contributes to the fill only when visible (k-anon). A matched but
-    // suppressed cell is intentionally dropped from BOTH maps → outline only.
-    if (props.suppressed !== true && typeof props.value === "number") {
-      values.set(code, (values.get(code) ?? 0) + props.value);
-    }
+    if (!matched) unmatched.push(f);
   }
 
   return { values, unmatched: { type: "FeatureCollection", features: unmatched } };

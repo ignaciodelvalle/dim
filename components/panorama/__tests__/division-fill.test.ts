@@ -9,6 +9,7 @@ import {
   divisionValueBounds,
   filterDepartmentsByPrefix,
   joinCellsToDivisions,
+  joinCellsToDivisionsMulti,
 } from "../division-fill";
 
 // A locality choropleth cell as a Point feature (the shape buildChoroplethFeatures emits).
@@ -117,6 +118,53 @@ describe("joinCellsToDivisions — departamento roll-up", () => {
     );
     expect(join.values.size).toBe(0);
     expect(join.unmatched.features).toHaveLength(1);
+  });
+});
+
+describe("joinCellsToDivisionsMulti — zoom-driven multi-province union", () => {
+  const deptCodes = new Set(["06441", "06007"]);
+  const barrioCodes = new Set(["palermo", "la boca"]);
+  const levels = [
+    { level: "department" as const, codes: deptCodes },
+    { level: "barrio" as const, codes: barrioCodes },
+  ];
+
+  it("fills departamento AND barrio cells over one shared source", () => {
+    const join = joinCellsToDivisionsMulti(
+      fc([
+        cell({ locality: "La Plata", departmentCode: "06441", value: 10, suppressed: false }),
+        cell({ locality: "Palermo", value: 4, suppressed: false }),
+      ]),
+      levels,
+    );
+    expect(join.values.get("06441")).toBe(10);
+    expect(join.values.get("palermo")).toBe(4);
+    expect(join.unmatched.features).toHaveLength(0);
+  });
+
+  it("routes a cell matching NO level to the centroid-circle fallback", () => {
+    const join = joinCellsToDivisionsMulti(
+      fc([cell({ locality: "Nowhere", departmentCode: "99999", value: 3, suppressed: false })]),
+      levels,
+    );
+    expect(join.values.size).toBe(0);
+    expect(join.unmatched.features).toHaveLength(1);
+  });
+
+  it("keeps a matched-but-suppressed cell OUTLINE-only (k-anon preserved across levels)", () => {
+    const join = joinCellsToDivisionsMulti(
+      fc([cell({ locality: "La Boca", value: null, suppressed: true })]),
+      levels,
+    );
+    expect(join.values.has("la boca")).toBe(false);
+    expect(join.unmatched.features).toHaveLength(0);
+  });
+
+  it("is equivalent to the single-level join for a single level", () => {
+    const cells = fc([cell({ locality: "Palermo", value: 7, suppressed: false })]);
+    const single = joinCellsToDivisions(cells, "barrio", barrioCodes);
+    const multi = joinCellsToDivisionsMulti(cells, [{ level: "barrio", codes: barrioCodes }]);
+    expect(multi.values.get("palermo")).toBe(single.values.get("palermo"));
   });
 });
 
