@@ -74,10 +74,15 @@ export default async function AssignFosterPage({
   }
   const pet = petRow.pet;
 
-  // Candidate fosters: every active member of the org except the actor.
-  // We don't filter by role — any active member can take a foster role per
-  // AGENTS.md → "A foster requires an active organization_membership". The
-  // <select> sorts foster-role first so coordinators see them at the top.
+  // Candidate fosters: every active member of the org except the actor and
+  // `vet_individual` members. AGENTS.md → "A foster requires an active
+  // organization_membership" doesn't name a specific membership role, so
+  // admin/coordinator/member/volunteer/foster all remain eligible — but
+  // `vet_individual` links a veterinarian to the org for clinical purposes,
+  // not physical caretaking, so listing them as foster candidates was a bug
+  // (2026-07 persona validation). The <select> sorts foster-role first so
+  // coordinators see them at the top; the empty-state hint in
+  // AssignFosterForm already covers orgs left with zero candidates.
   const candidateRows = await db
     .select({
       userId: organizationMemberships.userId,
@@ -91,6 +96,7 @@ export default async function AssignFosterPage({
         eq(organizationMemberships.organizationId, organization.id),
         isNull(organizationMemberships.leftAt),
         ne(organizationMemberships.userId, user.id),
+        ne(organizationMemberships.role, "vet_individual"),
       ),
     )
     .orderBy(asc(organizationMemberships.role), asc(profiles.displayName));
