@@ -4,7 +4,14 @@
 // The lib file becomes a thin re-export shim (strangler pattern).
 //
 // Scan: adoption_listing cases with status='open' that have an
-// `adoption_finalized` pet_event whose payload.followup_until is in the past.
+// `adoption_finalized` pet_event whose post-adoption follow-up window has
+// elapsed. The adoptionFinalized schema writes `post_adoption_followup_months`
+// (a duration), NOT a `followup_until` timestamp — the deadline is computed at
+// read time as occurred_at + post_adoption_followup_months months, matching the
+// month-based check-in windows finalizeAdoption schedules (setMonth offsets in
+// insertAdoptionFinalized). Reading the never-written `followup_until` key made
+// this scan match nothing, so the cron never closed a case (lint:events
+// ghost-key finding). Read-side computation only — events stay append-only.
 // Process: in ONE tx — UPDATE status='closed', closed_reason='resolved'
 // (guarded AND status='open'); if 0 rows → return (anti-race); if
 // primaryPetId then insert note_added(category=system, Spanish copy).
@@ -52,8 +59,11 @@ export async function findFollowupExpiredAdoptions(
           SELECT 1 FROM ${petEvents}
           WHERE ${petEvents.caseId} = ${cases.id}
             AND ${petEvents.eventType} = 'adoption_finalized'
-            AND (${petEvents.payload}->>'followup_until') IS NOT NULL
-            AND (${petEvents.payload}->>'followup_until')::timestamptz < ${nowIso}::timestamptz
+            AND (${petEvents.payload}->>'post_adoption_followup_months') IS NOT NULL
+            AND (
+              ${petEvents.occurredAt}
+                + ((${petEvents.payload}->>'post_adoption_followup_months')::int * interval '1 month')
+            ) < ${nowIso}::timestamptz
         )`,
       ),
     )
