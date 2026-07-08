@@ -136,6 +136,47 @@ describe("MinimalNewPetForm — PPP notice (paso 1, live)", () => {
   });
 });
 
+describe("MinimalNewPetForm — data-quality gates", () => {
+  it("posts a stable clientIdempotencyKey hidden field (gate P1)", () => {
+    const { container } = render(<MinimalNewPetForm action={noopAction} />);
+    const key = container.querySelector<HTMLInputElement>('input[name="clientIdempotencyKey"]');
+    expect(key).not.toBeNull();
+    // UUID v4 shape — generated once on mount by useIdempotencyKey.
+    expect(key?.value).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    // duplicateOverride starts OFF — the first submit runs the P2 check.
+    const override = container.querySelector<HTMLInputElement>('input[name="duplicateOverride"]');
+    expect(override?.value).toBe("0");
+  });
+
+  it("renders the soft same-owner dedupe confirm when the action returns a duplicatePrompt (gate P2)", async () => {
+    const dupAction = async (): Promise<NewPetFormState> => ({
+      error: null,
+      duplicatePrompt: {
+        name: "Pampa",
+        species: "dog",
+        sex: "male",
+        publicToken: "DIM-TEST-0001",
+      },
+    });
+    render(<MinimalNewPetForm action={dupAction} />);
+    await completeStep1();
+    fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+
+    // Inline confirm surfaces with the existing pet + a link to open it.
+    expect(await screen.findByText(/¿es la misma\?/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /ver a pampa/i })).toHaveAttribute(
+      "href",
+      "/mis-mascotas/DIM-TEST-0001",
+    );
+    // The plain "Crear mascota" submit is replaced by the two-choice prompt.
+    expect(screen.queryByRole("button", { name: /^crear mascota$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /no, es otra/i })).toBeInTheDocument();
+  });
+});
+
 describe("MinimalNewPetForm — photo field", () => {
   it("offers camera OR gallery (no forced-camera capture attribute)", async () => {
     const { container } = render(<MinimalNewPetForm action={noopAction} />);

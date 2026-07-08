@@ -48,10 +48,25 @@ type Deps = {
 export async function registerPet(
   input: RegisterPetInput,
   deps: Deps,
-): Promise<UseCaseResult<{ petId: string; eventId: string; publicToken: string }>> {
+): Promise<
+  UseCaseResult<{
+    petId: string;
+    eventId: string;
+    publicToken: string;
+    /** True when a double-submit was detected — the pet was NOT created again. */
+    wasDuplicate: boolean;
+  }>
+> {
   const { repo, actor, transaction } = deps;
   const { user } = actor;
-  const { parsed, potentiallyDangerousBreed, uploadedPath, uploadMimeType, uploadSize } = input;
+  const {
+    parsed,
+    potentiallyDangerousBreed,
+    uploadedPath,
+    uploadMimeType,
+    uploadSize,
+    clientIdempotencyKey,
+  } = input;
 
   const now = new Date();
 
@@ -61,10 +76,29 @@ export async function registerPet(
   const pendingNotifications: NewNotification[] = [];
   let petId = "";
   let eventId = "";
+  // Resolves to the existing pet's token when a double-submit is detected.
+  let resolvedPublicToken = publicToken;
+  let wasDuplicate = false;
 
   // 2. Atomic transaction.
   try {
     await transaction(async (tx) => {
+      // Double-submit idempotency guard (audit §6): the wizard posts a stable
+      // clientIdempotencyKey per form session. An advisory lock + lookup inside
+      // the tx makes a second same-key submit see the first one's committed pet
+      // instead of creating a duplicate. Mirrors create-intake.ts.
+      if (clientIdempotencyKey) {
+        const existing = await repo.findDuplicateRegistration(
+          clientIdempotencyKey,
+          tx as Parameters<typeof repo.findDuplicateRegistration>[1],
+        );
+        if (existing) {
+          wasDuplicate = true;
+          resolvedPublicToken = existing.publicToken;
+          return;
+        }
+      }
+
       const result = await repo.insertPetRegistered(
         {
           publicToken,
@@ -75,6 +109,7 @@ export async function registerPet(
           uploadSize,
           userId: user.id,
           now,
+          clientIdempotencyKey,
         },
         tx as Parameters<typeof repo.insertPetRegistered>[1],
       );
@@ -104,5 +139,9 @@ export async function registerPet(
     };
   }
 
-  return { ok: true, value: { petId, eventId, publicToken }, notifications: pendingNotifications };
+  return {
+    ok: true,
+    value: { petId, eventId, publicToken: resolvedPublicToken, wasDuplicate },
+    notifications: pendingNotifications,
+  };
 }

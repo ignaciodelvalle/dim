@@ -67,6 +67,17 @@ export type NewPetFormState = {
   warning?: "CHIP_MATCH_ACTIVE";
   matchedPetToken?: string;
   forceToken?: string;
+  // Soft same-owner dedupe (data-quality gate P2). Non-blocking: set when the
+  // caller already has an ACTIVE owned pet with the same normalized name +
+  // species + sex. The form renders an inline "¿es la misma?" confirmation and
+  // lets the owner either open the existing pet or resubmit with
+  // duplicateOverride=1 to create anyway.
+  duplicatePrompt?: {
+    name: string;
+    species: string;
+    sex: "male" | "female" | "unknown";
+    publicToken: string;
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -84,6 +95,13 @@ export type RegisterPetInput = {
   uploadedPath: string | null;
   uploadMimeType: string | null;
   uploadSize: number | null;
+  /**
+   * Double-submit idempotency guard (projection-writes audit §6). Stable UUID
+   * per form session, posted as a hidden field by the alta wizard. When set,
+   * a re-submit that finds an existing pet_registered event with this key does
+   * NOT create a second pet — it resolves to the already-created one.
+   */
+  clientIdempotencyKey: string | null;
 };
 
 /**

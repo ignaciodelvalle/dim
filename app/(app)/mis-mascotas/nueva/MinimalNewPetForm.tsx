@@ -23,7 +23,8 @@
 //   3. it sidesteps the React 19 uncontrolled-<form action> auto-reset (text
 //      fields are also controlled via useState for reset-safety).
 
-import { type FormEvent, useActionState, useRef, useState } from "react";
+import Link from "next/link";
+import { type FormEvent, useActionState, useEffect, useRef, useState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
 import { LnCallout } from "@/components/ui/DocElements";
@@ -31,7 +32,25 @@ import { LnField, LnInput, LnRadio, LnSelect } from "@/components/ui/Field";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/reference/breeds";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { NewPetFormState } from "@/src/modules/pets/actions";
+
+// es-AR labels for the soft-dedupe confirmation (gate P2). Mirrors the species
+// options offered in paso 1; falls back to the raw value for anything else.
+const SPECIES_LABEL: Record<string, string> = {
+  dog: "perro/a",
+  cat: "gato/a",
+  rabbit: "conejo/a",
+  guinea_pig: "cobayo",
+  ferret: "hurón",
+  other: "otra especie",
+};
+
+const SEX_LABEL: Record<string, string> = {
+  female: "hembra",
+  male: "macho",
+  unknown: "sexo sin especificar",
+};
 
 const initialState: NewPetFormState = { error: null };
 
@@ -67,8 +86,33 @@ export function MinimalNewPetForm({
 
   const formRef = useRef<HTMLFormElement>(null);
 
+  // Double-submit idempotency (gate P1): a stable UUID per form mount, posted
+  // as a hidden field. A network retry / bounce re-submits the SAME key, so the
+  // server resolves to the already-created pet instead of minting a duplicate.
+  const { key: idempotencyKey } = useIdempotencyKey();
+
   const [step, setStep] = useState<1 | 2>(1);
   const [clientError, setClientError] = useState<string | null>(null);
+
+  // Soft same-owner dedupe (gate P2). When the owner confirms "no, es otra", we
+  // resubmit with duplicateOverride=1 to skip the P2 check (but NOT P1). The
+  // effect fires the resubmit only after the hidden input has re-rendered to "1".
+  const [overrideDuplicate, setOverrideDuplicate] = useState(false);
+  const resubmitAfterOverride = useRef(false);
+
+  useEffect(() => {
+    if (overrideDuplicate && resubmitAfterOverride.current) {
+      resubmitAfterOverride.current = false;
+      formRef.current?.requestSubmit();
+    }
+  }, [overrideDuplicate]);
+
+  function createAnyway() {
+    resubmitAfterOverride.current = true;
+    setOverrideDuplicate(true);
+  }
+
+  const duplicatePrompt = !overrideDuplicate ? state.duplicatePrompt : undefined;
 
   // Controlled field state — survives the React 19 form-reset on a server-error
   // return and preserves values across step back-navigation.
@@ -133,6 +177,9 @@ export function MinimalNewPetForm({
 
   return (
     <form ref={formRef} action={formAction} onSubmit={handleSubmit}>
+      {/* Data-quality gates: stable idempotency key (P1) + soft-dedupe override (P2). */}
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
+      <input type="hidden" name="duplicateOverride" value={overrideDuplicate ? "1" : "0"} />
       <LnWizardShell
         currentStep={step}
         totalSteps={TOTAL_STEPS}
@@ -308,6 +355,34 @@ export function MinimalNewPetForm({
           </p>
         )}
 
+        {/* ── Soft same-owner dedupe confirm (gate P2) ───────────────── */}
+        {step === 2 && duplicatePrompt && (
+          <div className="mt-4" role="alert">
+            <LnCallout tone="azul" title="¿Es la misma mascota?">
+              <p className="m-0">
+                Ya tenés registrada a <strong>{duplicatePrompt.name}</strong> (
+                {SPECIES_LABEL[duplicatePrompt.species] ?? duplicatePrompt.species},{" "}
+                {SEX_LABEL[duplicatePrompt.sex] ?? duplicatePrompt.sex}). ¿Es la misma?
+              </p>
+              <div className="mt-3 flex flex-col gap-2">
+                <Link
+                  href={`/mis-mascotas/${duplicatePrompt.publicToken}`}
+                  className="inline-flex w-full items-center justify-center rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-[13px] font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)]"
+                >
+                  Ver a {duplicatePrompt.name}
+                </Link>
+                <button
+                  type="button"
+                  onClick={createAnyway}
+                  className="inline-flex w-full cursor-pointer items-center justify-center rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-2.5 text-[13px] font-semibold text-[var(--color-ln-ink-2)] transition-colors hover:border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-celeste-050)]"
+                >
+                  No, es otra — crear igual
+                </button>
+              </div>
+            </LnCallout>
+          </div>
+        )}
+
         {/* ── Footer actions ─────────────────────────────────────────── */}
         <div className="mt-6">
           {step === 1 ? (
@@ -318,7 +393,7 @@ export function MinimalNewPetForm({
             >
               Continuar
             </button>
-          ) : (
+          ) : duplicatePrompt ? null : (
             <button
               type="submit"
               disabled={isPending}

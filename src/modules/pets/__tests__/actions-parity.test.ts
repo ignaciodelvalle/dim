@@ -97,6 +97,13 @@ vi.mock("@/lib/infra/chip-lookup", () => ({
   lookupByChip: vi.fn().mockResolvedValue(null),
 }));
 
+// Soft same-owner dedupe (gate P2) — orchestration tests default to "no
+// duplicate" so createPetAction proceeds to registerPet, same posture as the
+// chip-lookup mock above.
+vi.mock("@/lib/infra/owner-pet-dedupe", () => ({
+  findSameOwnerDuplicatePet: vi.fn().mockResolvedValue(null),
+}));
+
 // ARCH-S: updatePetAction now calls fetchActiveIdentifications to get canonical chip presence.
 vi.mock("@/lib/infra/pet-identifiers", () => ({
   fetchActiveIdentifications: vi.fn().mockResolvedValue({ microchip: null, tattoo: null }),
@@ -316,6 +323,83 @@ describe("createPetAction", () => {
       expect(result.error).toMatch(/No se pudo crear la mascota/);
     });
   });
+
+  describe("data-quality gates", () => {
+    it("P1: threads clientIdempotencyKey to registerPet", async () => {
+      const { registerPet } = await import("@/src/modules/pets/application/register-pet");
+      await createPetAction(
+        { error: null },
+        makeCreateFormData({ clientIdempotencyKey: "11111111-1111-4111-8111-111111111111" }),
+      );
+      expect(registerPet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clientIdempotencyKey: "11111111-1111-4111-8111-111111111111",
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("P1: resolves a double-submit to the existing pet without re-flushing", async () => {
+      const { registerPet } = await import("@/src/modules/pets/application/register-pet");
+      (registerPet as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        value: { petId: "", eventId: "", publicToken: "DIM-DUPE-0001", wasDuplicate: true },
+        notifications: [],
+      });
+
+      const result = (await createPetAction({ error: null }, makeCreateFormData())) as {
+        error: null;
+        redirectTo: string;
+      };
+      expect(result.redirectTo).toBe("/mis-mascotas/nueva/DIM-DUPE-0001/credencial");
+    });
+
+    it("P2: returns a duplicatePrompt and skips registerPet on a same-owner match", async () => {
+      const { findSameOwnerDuplicatePet } = await import("@/lib/infra/owner-pet-dedupe");
+      (findSameOwnerDuplicatePet as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        publicToken: "DIM-MINE-0001",
+        name: "Luna",
+        species: "perro",
+        sex: "female",
+      });
+      const { registerPet } = await import("@/src/modules/pets/application/register-pet");
+
+      const result = (await createPetAction({ error: null }, makeCreateFormData())) as {
+        error: null;
+        duplicatePrompt: { publicToken: string; name: string };
+      };
+      expect(result.duplicatePrompt.publicToken).toBe("DIM-MINE-0001");
+      expect(registerPet).not.toHaveBeenCalled();
+    });
+
+    it("P2: duplicateOverride=1 skips the dedupe check and proceeds", async () => {
+      const { findSameOwnerDuplicatePet } = await import("@/lib/infra/owner-pet-dedupe");
+      const { registerPet } = await import("@/src/modules/pets/application/register-pet");
+
+      const result = (await createPetAction(
+        { error: null },
+        makeCreateFormData({ duplicateOverride: "1" }),
+      )) as { redirectTo: string };
+      expect(findSameOwnerDuplicatePet).not.toHaveBeenCalled();
+      expect(registerPet).toHaveBeenCalledOnce();
+      expect(result.redirectTo).toBe("/mis-mascotas/nueva/DIM-TEST-0001/credencial");
+    });
+
+    it("P3: blocks a non-found_stray chip already registered elsewhere", async () => {
+      const { lookupByChip } = await import("@/lib/infra/chip-lookup");
+      (lookupByChip as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        pet: { id: "other-pet", status: "active", publicToken: "DIM-OTHER-0001" },
+      });
+      const { registerPet } = await import("@/src/modules/pets/application/register-pet");
+
+      const result = (await createPetAction(
+        { error: null },
+        makeCreateFormData({ acquisitionMethod: "adopted", microchipId: "724123456789012" }),
+      )) as { error: string };
+      expect(result.error).toMatch(/ya figura registrado/i);
+      expect(registerPet).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("updatePetAction", () => {
@@ -404,6 +488,24 @@ describe("updatePetAction", () => {
         makeUpdateFormData(),
       )) as { error: string };
       expect(result.error).toMatch(/No se pudo actualizar/);
+    });
+  });
+
+  describe("data-quality gate P3 (edit path)", () => {
+    it("blocks adding a chip already registered on another pet", async () => {
+      const { lookupByChip } = await import("@/lib/infra/chip-lookup");
+      (lookupByChip as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        pet: { id: "other-pet", status: "active", publicToken: "DIM-OTHER-0001" },
+      });
+      const { updatePet } = await import("@/src/modules/pets/application/update-pet");
+
+      const result = (await updatePetAction(
+        "DIM-TEST-0001",
+        { error: null },
+        makeUpdateFormData({ microchipId: "724123456789012" }),
+      )) as { error: string };
+      expect(result.error).toMatch(/ya figura registrado/i);
+      expect(updatePet).not.toHaveBeenCalled();
     });
   });
 

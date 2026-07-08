@@ -70,6 +70,7 @@ function makeInput(overrides?: Partial<RegisterPetInput>): RegisterPetInput {
     uploadedPath: null,
     uploadMimeType: null,
     uploadSize: null,
+    clientIdempotencyKey: null,
     ...overrides,
   };
 }

@@ -4,7 +4,7 @@
 // Returns domain shapes (not raw Drizzle row types).
 // No auth logic — auth lives at the action edge.
 
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { attachments, type db, ownerships, petEvents, petIdentifications, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
@@ -42,6 +42,12 @@ type InsertPetRegisteredArgs = {
   uploadSize: number | null;
   userId: string;
   now: Date;
+  /**
+   * Idempotency guard — anchored on the pet_registered event (audit §6).
+   * Optional at the repo boundary (defaults to NULL) so pre-existing callers /
+   * tests need not thread it; the use-case (registerPet) always supplies it.
+   */
+  clientIdempotencyKey?: string | null;
 };
 
 type UpdatePetProfileArgs = {
@@ -85,6 +91,40 @@ export const PetsRepository = {
   },
 
   /**
+   * Double-submit idempotency lookup for the owner alta (audit §6). Must be
+   * called inside the same db.transaction() as insertPetRegistered.
+   *
+   * Mirrors the intake writer (create-intake.ts): takes a session-stable
+   * advisory lock on the key so concurrent same-key submits serialize, then
+   * looks for a pet_registered event already anchored on that key. A hit means
+   * a prior submit already created the pet — the caller must NOT insert again.
+   *
+   * NOTE: the partial unique index pet_events_idempotency_idx is keyed on
+   * (pet_id, event_type, client_idempotency_key); for a brand-new pet the
+   * pet_id differs on every attempt, so the index cannot serialize alta
+   * double-submits on its own. The advisory lock + this SELECT is the actual
+   * guard (the index remains a same-pet backstop, as in the replace flow).
+   */
+  async findDuplicateRegistration(
+    clientIdempotencyKey: string,
+    tx: Tx,
+  ): Promise<{ publicToken: string; name: string } | null> {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${clientIdempotencyKey}))`);
+    const [existing] = await tx
+      .select({ publicToken: pets.publicToken, name: pets.name })
+      .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
+      .where(
+        and(
+          eq(petEvents.eventType, "pet_registered"),
+          eq(petEvents.clientIdempotencyKey, clientIdempotencyKey),
+        ),
+      )
+      .limit(1);
+    return existing ?? null;
+  },
+
+  /**
    * Composite atomic write for registering a new pet.
    * Must be called inside a db.transaction().
    *
@@ -108,6 +148,7 @@ export const PetsRepository = {
       uploadSize,
       userId,
       now,
+      clientIdempotencyKey,
     } = args;
 
     // Insert pet row. Legacy chip/tattoo columns (microchipId, microchipCountryCode,
@@ -204,6 +245,9 @@ export const PetsRepository = {
         recordedByUserId: userId,
         authorRole: "owner",
         payload: petRegisteredPayload,
+        // Anchors the double-submit idempotency guard (audit §6). NULL for any
+        // caller that does not supply a key (unaffected by the partial index).
+        clientIdempotencyKey: clientIdempotencyKey ?? null,
       })
       .returning();
 

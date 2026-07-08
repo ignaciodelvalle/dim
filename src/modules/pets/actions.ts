@@ -28,6 +28,7 @@ import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
 import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
+import { findSameOwnerDuplicatePet } from "@/lib/infra/owner-pet-dedupe";
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePppClassificationForJurisdiction } from "@/lib/infra/ppp-classification";
@@ -58,6 +59,14 @@ import { PetsRepository } from "./infrastructure/pets-repository";
 // Species accepted by the credential (must match parsePetForm / the register
 // forms). Used by the FULL-LOCK species-correction path to reject junk.
 const ALLOWED_SPECIES = ["dog", "cat", "rabbit", "guinea_pig", "ferret", "other"] as const;
+
+// Duplicate-chip gate (data-quality gate P3). A microchip is a globally-unique
+// identity: if it already exists in MiMAR, the pet exists — the owner must
+// claim it or request a transfer, not register a second credential for it.
+// Points at the claim wizard (/mis-mascotas/reclamar), which also opens a
+// custody dispute when the chip is registered to someone else.
+const CHIP_ALREADY_REGISTERED_MSG =
+  "Este microchip ya figura registrado en MiMAR para otra mascota. Si es tuya, vinculala a tu cuenta o pedí la transferencia desde “Mis mascotas › Reclamar una mascota”.";
 
 // Re-export for consumers that import the type from this module.
 export type { NewPetFormState } from "./domain/types";
@@ -131,6 +140,32 @@ export async function createPetAction(
     }
   }
 
+  // Data-quality gate P2 — soft same-owner dedupe. BEFORE any insert (and before
+  // the photo upload, so a bounced submit leaves no orphan storage object): if
+  // the caller already has an ACTIVE owned pet matching on normalized name +
+  // species + sex, surface a non-blocking "¿es la misma?" prompt. The owner can
+  // open the existing pet or resubmit with duplicateOverride=1 to create anyway.
+  const duplicateOverride = String(formData.get("duplicateOverride") ?? "").trim() === "1";
+  if (!duplicateOverride) {
+    const dup = await findSameOwnerDuplicatePet({
+      ownerUserId: user.id,
+      name: parsed.name,
+      species: parsed.species,
+      sex: parsed.sex,
+    });
+    if (dup) {
+      return {
+        error: null,
+        duplicatePrompt: {
+          name: dup.name,
+          species: dup.species,
+          sex: dup.sex,
+          publicToken: dup.publicToken,
+        },
+      };
+    }
+  }
+
   // Chip format validation (ISO 11784/11785, 15 digits).
   if (parsed.microchipId) {
     const chipValidation = validateMicrochipId(parsed.microchipId);
@@ -172,6 +207,20 @@ export async function createPetAction(
     }
   }
 
+  // Data-quality gate P3 — duplicate-chip block for NON-found_stray alta. The
+  // found_stray path above owns its own reunification handling (lost → match
+  // page, active → force-token warning). For every other acquisition method a
+  // chip that already exists means the pet is already registered: block and
+  // point the owner at the claim/transfer path instead of minting a second
+  // credential for the same animal (the pet_identifications chip_unique index
+  // would otherwise reject the insert with an opaque error).
+  if (parsed.microchipId && parsed.acquisitionMethod !== "found_stray") {
+    const match = await lookupByChip(parsed.microchipId);
+    if (match) {
+      return { error: CHIP_ALREADY_REGISTERED_MSG };
+    }
+  }
+
   const photoFile = formData.get("photo") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
   if (upload.error) return { error: upload.error };
@@ -187,6 +236,10 @@ export async function createPetAction(
     },
   );
 
+  // Double-submit idempotency guard (audit §6): stable UUID per form session,
+  // posted by the alta wizard as a hidden field.
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
   const result = await registerPet(
     {
       parsed,
@@ -194,6 +247,7 @@ export async function createPetAction(
       uploadedPath: upload.uploadedPath,
       uploadMimeType: upload.mimeType,
       uploadSize: upload.size,
+      clientIdempotencyKey,
     },
     {
       repo: PetsRepository,
@@ -215,9 +269,29 @@ export async function createPetAction(
     return { error: result.error };
   }
 
+  const registered = result.value as NonNullable<typeof result.value>;
+
+  // Double-submit detected: the first submit already created the pet. Remove the
+  // photo this retry just uploaded (it would otherwise orphan in storage) and
+  // resolve to the already-created pet's success surface — no second pet, no
+  // duplicate notifications (registerPet queued none on the duplicate path).
+  if (registered.wasDuplicate) {
+    if (upload.uploadedPath) {
+      try {
+        await supabase.storage.from("pet-photos").remove([upload.uploadedPath]);
+      } catch {
+        // Swallow.
+      }
+    }
+    return {
+      error: null,
+      redirectTo: `/mis-mascotas/nueva/${registered.publicToken}/credencial`,
+    };
+  }
+
   await flushNotifications(result.notifications);
 
-  const newPublicToken = (result.value as NonNullable<typeof result.value>).publicToken;
+  const newPublicToken = registered.publicToken;
   // Onboarding aha: show the QR credential success screen (Item 13).
   // N3 contract: return redirectTo — MinimalNewPetForm navigates client-side
   // (production redirect() from server actions is dropped by Next 15.5 router).
@@ -280,6 +354,24 @@ export async function updatePetAction(
         return { error: err.message };
       }
       throw err;
+    }
+  }
+
+  // Data-quality gate P3 — duplicate-chip block on the profile-edit path. When
+  // the owner adds a chip that this pet did not have (existingCanonicalIds.microchip
+  // === null) we normalize it and cross-check pet_identifications: a match on a
+  // DIFFERENT pet means the chip is already registered elsewhere. Block with the
+  // claim/transfer copy instead of letting the chip_unique index reject the
+  // insert with an opaque error. Only normalizes on a valid ISO code — malformed
+  // input keeps the pre-existing behavior (no new rejection path introduced here).
+  if (parsed.microchipId && existingCanonicalIds.microchip === null) {
+    const chipValidation = validateMicrochipId(parsed.microchipId);
+    if (chipValidation.ok) {
+      parsed.microchipId = chipValidation.normalized;
+      const match = await lookupByChip(parsed.microchipId);
+      if (match && match.pet.id !== existingPet.id) {
+        return { error: CHIP_ALREADY_REGISTERED_MSG };
+      }
     }
   }
 
