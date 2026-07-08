@@ -196,8 +196,9 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
               <Link href={publicHref} className="text-white no-underline hover:underline">
                 Credencial pública
               </Link>
-              {scanCount > 0 && ` · ${scanCount} escaneos`}
-              {sightingsCount > 0 && ` · ${sightingsCount} avistamientos`}
+              {scanCount > 0 && ` · ${scanCount} ${scanCount === 1 ? "escaneo" : "escaneos"}`}
+              {sightingsCount > 0 &&
+                ` · ${sightingsCount} ${sightingsCount === 1 ? "avistamiento" : "avistamientos"}`}
             </p>
           </div>
           {/* "Marcar como encontrada" lives in the owner body below as a

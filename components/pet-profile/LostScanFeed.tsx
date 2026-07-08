@@ -112,8 +112,8 @@ export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Pr
       </div>
 
       <div className="mb-3 grid grid-cols-2 gap-2">
-        <CountBox value={totalScans} label="escaneos" />
-        <CountBox value={totalSightings} label="avistajes" />
+        <CountBox value={totalScans} label={totalScans === 1 ? "escaneo" : "escaneos"} />
+        <CountBox value={totalSightings} label={totalSightings === 1 ? "avistaje" : "avistajes"} />
       </div>
 
       {items.length === 0 ? (
