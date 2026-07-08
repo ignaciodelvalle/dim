@@ -1,0 +1,120 @@
+// Unit tests for lib/events/plausibility.ts (P4 plausibility layer, item 1).
+// Pure function — no mocks needed.
+
+import { describe, expect, it } from "vitest";
+import { CLOCK_SKEW_TOLERANCE_MS, assertOccurredAtPlausible } from "./plausibility";
+
+const NOW = new Date("2026-07-08T12:00:00Z");
+
+describe("assertOccurredAtPlausible", () => {
+  describe("future-date guard", () => {
+    it("accepts an occurredAt exactly at now", () => {
+      const result = assertOccurredAtPlausible({ occurredAt: NOW, now: NOW });
+      expect(result.ok).toBe(true);
+    });
+
+    it("accepts an occurredAt in the past", () => {
+      const result = assertOccurredAtPlausible({
+        occurredAt: new Date("2026-01-01T00:00:00Z"),
+        now: NOW,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("accepts an occurredAt within the clock-skew tolerance", () => {
+      const withinSkew = new Date(NOW.getTime() + CLOCK_SKEW_TOLERANCE_MS - 1000);
+      const result = assertOccurredAtPlausible({ occurredAt: withinSkew, now: NOW });
+      expect(result.ok).toBe(true);
+    });
+
+    it("accepts an occurredAt exactly at the tolerance boundary", () => {
+      const atBoundary = new Date(NOW.getTime() + CLOCK_SKEW_TOLERANCE_MS);
+      const result = assertOccurredAtPlausible({ occurredAt: atBoundary, now: NOW });
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects an occurredAt just past the tolerance boundary", () => {
+      const pastBoundary = new Date(NOW.getTime() + CLOCK_SKEW_TOLERANCE_MS + 1000);
+      const result = assertOccurredAtPlausible({ occurredAt: pastBoundary, now: NOW });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe("FUTURE_DATE");
+    });
+
+    it("rejects an occurredAt far in the future", () => {
+      const result = assertOccurredAtPlausible({
+        occurredAt: new Date("2030-01-01T00:00:00Z"),
+        now: NOW,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe("FUTURE_DATE");
+    });
+  });
+
+  describe("birth-floor guard", () => {
+    it("accepts an occurredAt after the pet's date of birth", () => {
+      const result = assertOccurredAtPlausible({
+        occurredAt: new Date("2025-06-01T00:00:00Z"),
+        petDateOfBirth: "2024-01-01",
+        now: NOW,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("accepts an occurredAt on the pet's date of birth", () => {
+      const result = assertOccurredAtPlausible({
+        occurredAt: new Date("2024-01-01T12:00:00Z"),
+        petDateOfBirth: "2024-01-01",
+        now: NOW,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects an occurredAt before the pet's date of birth", () => {
+      const result = assertOccurredAtPlausible({
+        occurredAt: new Date("2023-12-31T00:00:00Z"),
+        petDateOfBirth: "2024-01-01",
+        now: NOW,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe("BEFORE_BIRTH");
+    });
+
+    it("ignores the birth floor when petDateOfBirth is null (unknown DOB)", () => {
+      const result = assertOccurredAtPlausible({
+        occurredAt: new Date("1990-01-01T00:00:00Z"),
+        petDateOfBirth: null,
+        now: NOW,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("ignores the birth floor when petDateOfBirth is omitted", () => {
+      const result = assertOccurredAtPlausible({
+        occurredAt: new Date("1990-01-01T00:00:00Z"),
+        now: NOW,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("ignores a malformed petDateOfBirth instead of throwing", () => {
+      const result = assertOccurredAtPlausible({
+        occurredAt: new Date("1990-01-01T00:00:00Z"),
+        petDateOfBirth: "not-a-date",
+        now: NOW,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("future-date check takes priority when both would fail", () => {
+      // occurredAt is both in the future AND before an (absurd) future DOB —
+      // future-date must win since it is checked first.
+      const result = assertOccurredAtPlausible({
+        occurredAt: new Date("2030-01-01T00:00:00Z"),
+        petDateOfBirth: "2031-01-01",
+        now: NOW,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe("FUTURE_DATE");
+    });
+  });
+});

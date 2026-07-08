@@ -34,6 +34,7 @@ import { db, profiles } from "@/db";
 import { pets } from "@/db";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import { assertOccurredAtPlausible } from "@/lib/events/plausibility";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/infra/pet-access";
 import type { SupabaseServerClient } from "@/lib/infra/pet-access";
@@ -102,6 +103,38 @@ function makeTransaction(): <T>(cb: (tx: unknown) => Promise<T>) => Promise<T> {
   return <T>(cb: (tx: unknown) => Promise<T>) =>
     db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>;
 }
+
+// ---------------------------------------------------------------------------
+// P4 item 1 (2026-07-08): shared IMPOSSIBLE-date guard for the medical/
+// clinical/identity writers below that parse an occurred-at/date input.
+// Bite actions (src/modules/surveillance/actions.ts:123,287) already reject
+// future dates on their own and are intentionally left as-is — this does not
+// change their behavior.
+// ---------------------------------------------------------------------------
+
+function plausibilityErrorMessage(error: "FUTURE_DATE" | "BEFORE_BIRTH"): string {
+  return error === "FUTURE_DATE"
+    ? "La fecha no puede ser futura."
+    : "La fecha es anterior a la fecha de nacimiento registrada de la mascota.";
+}
+
+/** Returns an EventFormState-shaped error, or null when the date is plausible. */
+function checkOccurredAtPlausible(
+  occurredAt: Date,
+  petDateOfBirth: string | null,
+): { error: string } | null {
+  const result = assertOccurredAtPlausible({ occurredAt, petDateOfBirth });
+  return result.ok ? null : { error: plausibilityErrorMessage(result.error) };
+}
+
+// P4 item 2 (2026-07-08): upper bound on weight_recorded.kg. The write path
+// below parses kg as a bare positive float with no upper bound, so a
+// fat-fingered value like "500" persists silently. 120 kg sits comfortably
+// above any dog breed's healthy adult weight (the heaviest recognized
+// breeds — Mastín, San Bernardo — top out well under 100 kg) — generous
+// enough to never block a real entry, tight enough to catch a decimal-point
+// slip or a kg/lb mixup.
+const MAX_WEIGHT_KG = 120;
 
 const surveillanceRepoForEno = new SurveillanceRepository();
 
@@ -225,9 +258,14 @@ export async function createWeightAction(
 
   const kgNum = Number.parseFloat(kgRaw);
   if (!Number.isFinite(kgNum) || kgNum <= 0) return { error: "Peso inválido." };
+  if (kgNum > MAX_WEIGHT_KG) {
+    return { error: `El peso no puede superar los ${MAX_WEIGHT_KG} kg.` };
+  }
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -368,6 +406,8 @@ export async function createSterilizationAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -437,6 +477,8 @@ export async function createMedicationStartAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de inicio inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const frequencyRaw = String(formData.get("frequency") ?? "").trim();
   const customHoursRaw = String(formData.get("customHours") ?? "").trim() || null;
@@ -540,6 +582,8 @@ export async function createMedicationEndAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de fin inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -649,6 +693,8 @@ export async function createMicrochipAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -721,6 +767,8 @@ export async function createDangerousBreedAttestationAction(
   if (!attestedAtRaw) return { error: "Falta la fecha de atestación." };
   const attestedAt = parseDateInput(attestedAtRaw);
   if (!attestedAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(attestedAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -786,6 +834,8 @@ export async function createNoteAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const category = (NOTE_CATEGORIES as readonly string[]).includes(categoryRaw)
     ? categoryRaw
@@ -870,6 +920,8 @@ export async function createVetVisitAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -959,6 +1011,8 @@ export async function createClinicalInfoAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -1072,6 +1126,9 @@ export async function recordDiseaseDiagnosisAction(
   // Resolve pet by publicToken — NO ownership check (vet can diagnose any pet).
   const [pet] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
   if (!pet) return { error: "Mascota no encontrada." };
+
+  const plausibility = checkOccurredAtPlausible(diagnosisDate, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const repo = new EventsRepository();
 
