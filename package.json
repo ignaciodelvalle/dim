@@ -47,6 +47,7 @@
     "seed:demo": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-demo.ts",
     "seed:coverage": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-coverage.ts",
     "seed:panorama": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-panorama.ts",
+    "redistribute:caba-barrios": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/redistribute-caba-barrios.ts",
     "seed:pet-photos": "tsx scripts/seed-pet-photos.ts",
     "seed:demo-polish": "tsx scripts/seed-demo-polish.ts",
     "seed:real-photos": "tsx scripts/seed-real-photos.ts",

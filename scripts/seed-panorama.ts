@@ -57,6 +57,12 @@ import {
   provinceProfile,
 } from "./seed-history-utils";
 
+// CABA barrio reference data (names + centroids + weights). Pure data — safe to
+// import statically (no db side-effect). Used to replace the whole-city
+// "Ciudad Autónoma de Buenos Aires" placeholder locality with the 48 real
+// barrios so CABA pets distribute across barrios instead of one blob.
+import { CABA_BARRIOS, CABA_PLACEHOLDER_LOCALITY } from "./caba-barrios-data";
+
 // ---------------------------------------------------------------------------
 // 1. Env bootstrap (must run before db/index.ts is imported)
 // ---------------------------------------------------------------------------
@@ -530,6 +536,37 @@ async function loadLocalities(): Promise<Map<string, LocalityRow[]>> {
   const total = [...byProvince.values()].reduce((s, arr) => s + arr.length, 0);
   log("INFO", `Loaded ${total} localities across ${byProvince.size} province codes`);
   return byProvince;
+}
+
+/**
+ * Replace CABA's whole-city placeholder locality with the 48 real barrios.
+ *
+ * ar_localities imports the barrios (scripts/import-caba-barrios.ts) WITHOUT
+ * coordinates, so loadLocalities() (which requires lat/lng) drops them and the
+ * AR-C bucket contains only the INDEC "Ciudad Autónoma de Buenos Aires"
+ * placeholder — which then catches every CABA pet, producing one undifferentiated
+ * blob instead of a by-barrio distribution. Here we swap that placeholder for the
+ * 48 barrios (with frozen centroids) so pickLocality + seedModelProvinceHistory
+ * naturally spread CABA pets/events across barrios. The CABA METRO_ANCHORS
+ * (Palermo, Caballito, Belgrano, Recoleta, Flores) now resolve to real barrio
+ * rows, giving the big barrios the bulk while every barrio still gets some.
+ */
+function injectCabaBarrios(byProvince: Map<string, LocalityRow[]>): void {
+  const existing = byProvince.get("AR-C") ?? [];
+  // Keep any unexpected non-placeholder AR-C rows; drop the whole-city blob.
+  const kept = existing.filter((l) => l.localityName !== CABA_PLACEHOLDER_LOCALITY);
+  const barrioRows: LocalityRow[] = CABA_BARRIOS.map((b) => ({
+    id: `caba-barrio-${b.slug}`,
+    provinceCode: "AR-C",
+    localityName: b.name,
+    lat: b.lat,
+    lng: b.lng,
+  }));
+  byProvince.set("AR-C", [...kept, ...barrioRows]);
+  log(
+    "INFO",
+    `CABA: replaced the whole-city placeholder with ${barrioRows.length} real barrios (dropped ${existing.length - kept.length} placeholder row)`,
+  );
 }
 
 interface CensusRow {
@@ -3720,6 +3757,10 @@ async function main(): Promise<void> {
 
   // Load reference data
   const [localitiesByCode, census] = await Promise.all([loadLocalities(), loadCensus()]);
+
+  // Swap CABA's whole-city placeholder locality for the 48 real barrios so CABA
+  // pets/events distribute across barrios instead of one undifferentiated blob.
+  injectCabaBarrios(localitiesByCode);
 
   if (census.length === 0) {
     log("FAIL", "jurisdictions_census is empty — run db:bootstrap first.");
