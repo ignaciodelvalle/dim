@@ -18,7 +18,9 @@ import "server-only";
 
 import { and, sql } from "drizzle-orm";
 
-import { db, petEvents } from "@/db";
+// Heavy read-only analytics — routed through the ANALYTICS pool (session
+// pooler in production; see db/index.ts, task #74 dual-pool split).
+import { analyticsDb as db, petEvents } from "@/db";
 
 import type { ProjectionContext } from "./context";
 import { petEventsScopeClause } from "./scope";

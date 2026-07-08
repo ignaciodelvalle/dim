@@ -12,7 +12,16 @@
 import { and, count, countDistinct, gte, inArray, lt, lte, not, sql, sum } from "drizzle-orm";
 import { eq } from "drizzle-orm";
 
-import { cases, db, jurisdictionsCensus, petEvents, pets, welfareReports } from "@/db";
+// Heavy read-only analytics — routed through the ANALYTICS pool (session
+// pooler in production; see db/index.ts, task #74 dual-pool split).
+import {
+  cases,
+  analyticsDb as db,
+  jurisdictionsCensus,
+  petEvents,
+  pets,
+  welfareReports,
+} from "@/db";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {
   type ProjectionContext,

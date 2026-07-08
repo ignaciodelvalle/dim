@@ -28,12 +28,14 @@ import {
   sql,
 } from "drizzle-orm";
 
+// Heavy read-only analytics — routed through the ANALYTICS pool (session
+// pooler in production; see db/index.ts, task #74 dual-pool split).
 import {
   arLocalities,
   caseEvents,
   cases,
   custodyDisputes,
-  db,
+  analyticsDb as db,
   jurisdictionsCensus,
   organizations,
   ownerships,

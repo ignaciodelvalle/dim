@@ -20,7 +20,17 @@
 
 import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
-import { arLocalities, cases, db, organizations, petEvents, pets, welfareReports } from "@/db";
+// Heavy read-only analytics — routed through the ANALYTICS pool (session
+// pooler in production; see db/index.ts, task #74 dual-pool split).
+import {
+  arLocalities,
+  cases,
+  analyticsDb as db,
+  organizations,
+  petEvents,
+  pets,
+  welfareReports,
+} from "@/db";
 import { fetchRabiesCoverageByProvince } from "@/lib/analytics/govt-home-kpis";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {

@@ -31,7 +31,9 @@
 
 import { and, count, countDistinct, eq, gte, lte, sql } from "drizzle-orm";
 
-import { db, petEvents, pets } from "@/db";
+// Heavy read-only analytics — routed through the ANALYTICS pool (session
+// pooler in production; see db/index.ts, task #74 dual-pool split).
+import { analyticsDb as db, petEvents, pets } from "@/db";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 
 import type { ProjectionContext } from "./context";

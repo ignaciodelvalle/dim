@@ -44,6 +44,7 @@ const isTest = process.env.VITEST === "true" || process.env.NODE_ENV === "test";
 // production (no HMR; Supavisor/pgBouncer sits in front).
 const globalForDb = globalThis as unknown as {
   __dimPgClient?: ReturnType<typeof postgres>;
+  __dimPgAnalyticsClient?: ReturnType<typeof postgres>;
 };
 
 // SERVERLESS RESILIENCE (task #74 — staging DB death spiral). On Vercel each
@@ -64,14 +65,14 @@ const globalForDb = globalThis as unknown as {
 //   - max_lifetime: 300s — recycle connections so none lingers across the pooler's
 //     own recycling and accumulates stale/degraded server-side state.
 //   - statement_timeout / idle_in_transaction_session_timeout (15s) — the DB-level
-//     backstop. The client budget bounds the RESPONSE; this bounds the RESOURCE:
-//     a runaway query is CANCELLED server-side so it stops holding a pooler slot,
-//     which is what actually breaks the spiral. Enforced through supavisor
-//     TRANSACTION mode via the `options` startup parameter (`-c ...`) — a STANDARD
-//     libpq startup field the pooler forwards, unlike a bare `statement_timeout`
-//     GUC key (which transaction poolers may reject). Verified: postgres.js
-//     `connection.options` cancels an over-budget query with SQLSTATE 57014
-//     against a real Postgres (see docs/design/handoffs/2026-07-07-deploy-checklist.md §4).
+//     backstop, sent as the libpq `options` startup parameter (`-c ...`). It
+//     cancels a runaway query server-side (SQLSTATE 57014) so it releases its
+//     pooler slot — verified against direct Postgres. ⚠️ MEASURED ON STAGING
+//     (task #74 follow-up): supavisor TRANSACTION mode (6543) does NOT apply
+//     this startup parameter — `show statement_timeout` through the pooler
+//     returns the server default. It still protects direct + local + SESSION-
+//     pooler connections, which is why the analytics client below (session
+//     pooler) is where it actually bites in production.
 // Tests keep the tighter, no-statement-timeout profile (local direct DB, serial
 // runner) — a 15s statement_timeout could flake a legitimately slow suite.
 const client =
@@ -103,6 +104,64 @@ const client =
 if (process.env.NODE_ENV === "development") globalForDb.__dimPgClient = client;
 
 export const db = drizzle(client, { schema });
+
+// ---------------------------------------------------------------------------
+// ANALYTICS pool (task #74 follow-up — dual-pool split).
+//
+// MEASURED ON STAGING: the panorama analytics fan-out (getPanoramaKpis,
+// universal scope, 3y window — ~11 aggregate statements) runs in ~1.7s through
+// the SESSION pooler (5432) but >180s through the TRANSACTION pooler (6543) on
+// the SAME freshly-restarted DB — a >100x supavisor transaction-mode pathology
+// for many-statement analytics reads. And transaction mode ignores the
+// `options` startup GUCs, so no statement_timeout lands there either.
+//
+// Split the traffic:
+//   - `db` (above, DATABASE_URL → transaction pooler): ALL OLTP — short reads,
+//     every write. Transaction mode is the only mode a micro instance survives
+//     under wide lambda concurrency, so OLTP stays there.
+//   - `analyticsDb` (ANALYTICS_DATABASE_URL → SESSION pooler, 5432): ONLY the
+//     heavy read-only analytics paths (panorama repository + the dashboard
+//     fetchers getPanoramaKpis composes). Falls back to DATABASE_URL when the
+//     var is unset (local dev/direct connections behave identically).
+//
+// Session-pooler-appropriate settings — session mode assigns ONE backend per
+// client connection for the connection's LIFETIME, so the pool must be tiny and
+// must let go of backends fast:
+//   - max: 3 — hard-bounds the backends this lambda can pin (the fan-out
+//     multiplexes over them; measured total is ~1.7s anyway).
+//   - idle_timeout: 10s — release the backend quickly after the burst; a warm
+//     lambda must not sit on session-pooler backends between requests.
+//   - max_lifetime: 300s + connect_timeout: 10s — same recycling/fail-fast
+//     rationale as the OLTP pool.
+//   - statement_timeout / idle_in_transaction_session_timeout (15s): session
+//     mode DOES honor startup GUCs (verified: SQLSTATE 57014 cancellation), so
+//     the runaway-query backstop is real on this pool.
+//
+// In tests both exports share ONE pool (max 3): the analytics split is a
+// production concern, and a second pool would double connections per test file.
+const analyticsClient = isTest
+  ? client
+  : (globalForDb.__dimPgAnalyticsClient ??
+    postgres(process.env.ANALYTICS_DATABASE_URL ?? process.env.DATABASE_URL, {
+      prepare: false, // harmless on session mode; keeps the DATABASE_URL fallback transaction-pooler-safe
+      max: 3, // tiny — session mode pins one backend per connection
+      connect_timeout: 10, // seconds — fail fast when the pooler is saturated
+      idle_timeout: 10, // seconds — release session-pooler backends quickly
+      max_lifetime: 300, // seconds — recycle to avoid stale/degraded connections
+      connection: {
+        options: "-c statement_timeout=15000 -c idle_in_transaction_session_timeout=15000",
+      },
+    }));
+
+if (process.env.NODE_ENV === "development") globalForDb.__dimPgAnalyticsClient = analyticsClient;
+
+/**
+ * Drizzle handle for HEAVY READ-ONLY analytics (panorama fan-out + the
+ * dashboard fetchers it composes). Routed through the session pooler in
+ * production (`ANALYTICS_DATABASE_URL`). Never use this for writes or for
+ * request-path OLTP reads — those belong on `db`.
+ */
+export const analyticsDb = drizzle(analyticsClient, { schema });
 
 // Re-export everything from schema so app code can `import { pets, db } from "@/db"`.
 export * from "./schema";

@@ -29,11 +29,14 @@ import { resolveInstitutionalPanoramaActor } from "../_guard";
 
 export const dynamic = "force-dynamic";
 
-// Client-side budget for the KPI fan-out. Set BELOW the DB statement_timeout
-// (15s, db/index.ts) so the request degrades to an honest empty strip before the
-// query is force-cancelled, and well below the lambda ceiling so the response is
-// never truncated. On expiry the route answers 200 with a degraded payload.
-const KPIS_BUDGET_MS = 8000;
+// Client-side budget for the KPI fan-out. The fan-out runs on the ANALYTICS
+// pool (session pooler — measured ~1.7s for the worst case: universal scope,
+// 3y window), so 20s is generous headroom, ABOVE the 15s DB statement_timeout:
+// a genuinely stuck query is cancelled server-side first (SQLSTATE 57014 →
+// rejection → 503 envelope below) and only a pathology the DB can't cancel
+// falls through to the budget's degraded 200. Well below the lambda ceiling so
+// the response is never truncated.
+const KPIS_BUDGET_MS = 20_000;
 
 export async function GET(request: Request) {
   // 1. Non-redirect auth: ACTIVE INSTITUTIONAL admin or govt only (same full
