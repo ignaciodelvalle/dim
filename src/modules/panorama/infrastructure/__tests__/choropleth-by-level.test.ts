@@ -200,3 +200,45 @@ describe("U5 loadChoroplethByLevel overload routing", () => {
     expect(a).toEqual(b);
   }, 30_000);
 });
+
+// ---------------------------------------------------------------------------
+// U5 — microchip-penetration + ppp-compliance metric enumeration (panorama-
+// operator-ia port). Both are RATE metrics with the SAME v1 shape contract as
+// rabies-coverage/sterilization-coverage: province emits ratePct (via the
+// canonical compliance-metrics ByProvince fetchers), locality emits
+// count-density AND carries noLocalityCount (the stash's equivalent loaders
+// omitted this field — the regression this suite guards against).
+// ---------------------------------------------------------------------------
+
+describe("U5 metric enumeration — microchip-penetration + ppp-compliance", () => {
+  it.each(["microchip-penetration", "ppp-compliance"] as const)(
+    "%s: province level returns ProvinceChoroplethRows (no suppressedCount, valid codes)",
+    async (metric) => {
+      const rows = await loadChoroplethByLevel(metric, "province", ADMIN, []);
+      expect(rows).not.toHaveProperty("suppressedCount");
+      for (const c of rows.cells) {
+        expect(VALID_CODES.has(c.provinceCode)).toBe(true);
+        expect(typeof c.value).toBe("number");
+      }
+    },
+    30_000,
+  );
+
+  it.each(["microchip-penetration", "ppp-compliance"] as const)(
+    "%s: locality level returns ChoroplethRows carrying noLocalityCount (U5 residual contract)",
+    async (metric) => {
+      const rows = await loadChoroplethByLevel(metric, "locality", ADMIN, []);
+      expect(rows).toHaveProperty("suppressedCount");
+      expect(rows).toHaveProperty("noLocalityCount");
+      expect(typeof rows.noLocalityCount).toBe("number");
+      for (const cell of rows.cells) {
+        if (cell.suppressed) {
+          expect(cell.value).toBeNull();
+        } else {
+          expect(cell.value ?? 0).toBeGreaterThanOrEqual(5);
+        }
+      }
+    },
+    30_000,
+  );
+});

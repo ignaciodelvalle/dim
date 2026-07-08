@@ -31,12 +31,17 @@ import {
   pets,
   welfareReports,
 } from "@/db";
+import {
+  fetchMicrochipPenetrationByProvince,
+  fetchPppComplianceByProvince,
+} from "@/lib/analytics/compliance-metrics";
 import { fetchRabiesCoverageByProvince } from "@/lib/analytics/govt-home-kpis";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
   buildProjectionContext,
+  fetchReunificationByUnit,
   jurisdictionPairClause,
   petEventsScopeClause as metricsPetEventsScopeClause,
   petsScopeClause as metricsPetsScopeClause,
@@ -731,7 +736,12 @@ export type ProvinceChoroplethRows = {
  *  DENSITY metrics (mortality): value = raw count.
  *  The distinction matters for the divergent choropleth scale: rate layers anchor
  *  at complianceTarget (a percentage), so value MUST be a percentage too. */
-export type ChoroplethMetric = "rabies-coverage" | "sterilization-coverage" | "mortality";
+export type ChoroplethMetric =
+  | "rabies-coverage"
+  | "sterilization-coverage"
+  | "microchip-penetration"
+  | "ppp-compliance"
+  | "mortality";
 
 /** Build the metric-specific pets predicate for LOCALITY-level loaders.
  * Defined ONCE so province and locality rollups can NEVER drift apart on the
@@ -766,6 +776,26 @@ function metricPredicate(metric: ChoroplethMetric, signedOnly = false): SQL {
       SELECT 1 FROM ${petEvents} pe_steril
       WHERE pe_steril.pet_id = ${pets.id}
         AND pe_steril.event_type = 'sterilization_performed'
+    )`;
+  }
+  if (metric === "microchip-penetration") {
+    // Active pets with an ACTIVE microchip_iso identification — same numerator
+    // as fetchMicrochipPenetration (lib/analytics/compliance-metrics.ts, C1).
+    return sql`EXISTS (
+      SELECT 1 FROM pet_identifications pi
+      WHERE pi.pet_id = ${pets.id}
+        AND pi.kind = 'microchip_iso'
+        AND pi.status = 'active'
+    )`;
+  }
+  if (metric === "ppp-compliance") {
+    // PPP-flagged pets with a dangerous_breed_attested event — same numerator
+    // as fetchDangerousBreedCompliance (C7). Graceful 0% until the attestation
+    // writer-form exists (umbrella §7).
+    return sql`${pets.potentiallyDangerousBreed} = true AND EXISTS (
+      SELECT 1 FROM ${petEvents} pe_ppp
+      WHERE pe_ppp.pet_id = ${pets.id}
+        AND pe_ppp.event_type = 'dangerous_breed_attested'
     )`;
   }
   // mortality — pets currently in status='deceased'.
@@ -936,6 +966,42 @@ export async function loadSterilizationCoverage(
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
+// metrics:microchip-penetration (microchip) — count of chipped pets at the
+// LOCALITY level (centroid graduated symbols, k-anon). Same v1 count-density
+// limitation as rabies/sterilization above (rate-by-locality deferred).
+export async function loadMicrochipCoverage(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<ChoroplethRows> {
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const [rollup, noLocalityCount] = await Promise.all([
+    rollupPetsPerLocality([metricPredicate("microchip-penetration")], scope),
+    countPetsNoLocality([metricPredicate("microchip-penetration")], scope),
+  ]);
+  const { cells, suppressedCount } = toChoroplethCells(rollup);
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+// metrics:ppp-compliance (ppp) — count of attested PPP-flagged pets at the
+// LOCALITY level (centroid graduated symbols, k-anon). Same v1 count-density
+// limitation as rabies/sterilization above (rate-by-locality deferred).
+export async function loadPppCompliance(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<ChoroplethRows> {
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const [rollup, noLocalityCount] = await Promise.all([
+    rollupPetsPerLocality([metricPredicate("ppp-compliance")], scope),
+    countPetsNoLocality([metricPredicate("ppp-compliance")], scope),
+  ]);
+  const { cells, suppressedCount } = toChoroplethCells(rollup);
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
 // metrics:mortality (mortalidad) — count of pets in scope currently in
 // status='deceased', at the LOCALITY level (centroid graduated symbols, k-anon).
 export async function loadMortality(
@@ -1023,6 +1089,54 @@ export async function loadSterilizationCoverageByProvince(
   return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
 }
 
+// metrics:microchip-penetration (microchip) — per-province microchip rate via
+// the canonical fetcher. Delegates to fetchMicrochipPenetrationByProvince
+// (lib/analytics/compliance-metrics). value = ratePct (active-pets denominator,
+// matching the C1 KPI). Parity guaranteed by reuse.
+export async function loadMicrochipCoverageByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<ProvinceChoroplethRows> {
+  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+    adminProvince,
+    adminLocality,
+  });
+  const byProvince = await fetchMicrochipPenetrationByProvince(ctx);
+  const cells: ProvinceChoroplethCell[] = [];
+  for (const r of byProvince) {
+    const code = PROVINCE_ISO[r.province];
+    if (!code) continue;
+    cells.push({ provinceCode: code, label: r.province, value: r.ratePct });
+  }
+  return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
+}
+
+// metrics:ppp-compliance (ppp) — per-province PPP registry compliance via the
+// canonical fetcher. Delegates to fetchPppComplianceByProvince
+// (lib/analytics/compliance-metrics). value = ratePct (PPP-flagged-pets
+// denominator, matching the C7 KPI). Parity guaranteed by reuse.
+export async function loadPppComplianceByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<ProvinceChoroplethRows> {
+  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+    adminProvince,
+    adminLocality,
+  });
+  const byProvince = await fetchPppComplianceByProvince(ctx);
+  const cells: ProvinceChoroplethCell[] = [];
+  for (const r of byProvince) {
+    const code = PROVINCE_ISO[r.province];
+    if (!code) continue;
+    cells.push({ provinceCode: code, label: r.province, value: r.ratePct });
+  }
+  return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
+}
+
 export async function loadMortalityByProvince(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
@@ -1095,6 +1209,10 @@ export function loadChoroplethByLevel(
         adminProvince,
         adminLocality,
       );
+    if (metric === "microchip-penetration")
+      return loadMicrochipCoverageByProvince(actor, jurisdictions, adminProvince, adminLocality);
+    if (metric === "ppp-compliance")
+      return loadPppComplianceByProvince(actor, jurisdictions, adminProvince, adminLocality);
     return loadMortalityByProvince(actor, jurisdictions, adminProvince, adminLocality);
   }
   // Locality level.
@@ -1102,6 +1220,10 @@ export function loadChoroplethByLevel(
     return loadRabiesCoverage(actor, jurisdictions, adminProvince, adminLocality, verifiedOnly);
   if (metric === "sterilization-coverage")
     return loadSterilizationCoverage(actor, jurisdictions, adminProvince, adminLocality);
+  if (metric === "microchip-penetration")
+    return loadMicrochipCoverage(actor, jurisdictions, adminProvince, adminLocality);
+  if (metric === "ppp-compliance")
+    return loadPppCompliance(actor, jurisdictions, adminProvince, adminLocality);
   return loadMortality(actor, jurisdictions, adminProvince, adminLocality);
 }
 
@@ -1697,6 +1819,188 @@ export async function loadZoonosisByUnit(
     }));
   const { cells, suppressedCount } = toAggregatedCells(rollup, true);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+// ---------------------------------------------------------------------------
+// pet_events:symptom (sintomas) — per-unit aggregation (DENSITY).
+// Groups symptom_observed by the pet's home jurisdiction (pets table) —
+// symptom_observed carries no flat jurisdiction of its own in its payload,
+// same attribution rule as perdidas/mordeduras.
+// ---------------------------------------------------------------------------
+
+export async function loadSintomasByUnit(
+  level: AggregationLevel,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
+  // task #77 bitemporal: "valid" (occurred_at, default) or "transaction" (recorded_at).
+  basis: TimeBasis = "valid",
+): Promise<AggregatedPointRows> {
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const tcol = eventWindowCol(basis);
+  const conditions: SQL[] = [
+    eq(petEvents.eventType, "symptom_observed"),
+    gte(tcol, since),
+    isNotNull(pets.jurisdictionProvince),
+  ];
+  if (asOf) conditions.push(lte(tcol, asOf));
+  if (scope) conditions.push(sql`(${scope})`);
+
+  if (level === "province") {
+    const rows = await db
+      .select({
+        province: pets.jurisdictionProvince,
+        // AVG (not MIN): unweighted locality centroid, not the province SW corner.
+        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
+        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
+        n: countDistinct(petEvents.id),
+      })
+      .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
+      .leftJoin(
+        arLocalities,
+        and(
+          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
+          sql`${arLocalities.removedAt} IS NULL`,
+        ),
+      )
+      .where(and(...conditions))
+      .groupBy(pets.jurisdictionProvince)
+      .limit(PER_LAYER_CAP);
+    const rollup: RollupRow[] = rows
+      .filter((r) => r.province)
+      .map((r) => ({
+        key: r.province as string,
+        province: r.province as string,
+        locality: "",
+        centroidLat: r.centroidLat,
+        centroidLng: r.centroidLng,
+        count: r.n,
+      }));
+    const { cells, suppressedCount } = toAggregatedCells(rollup, false);
+    return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  }
+
+  const rows = await db
+    .select({
+      province: pets.jurisdictionProvince,
+      locality: pets.jurisdictionLocality,
+      centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
+      centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+      n: countDistinct(petEvents.id),
+    })
+    .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
+    .leftJoin(
+      arLocalities,
+      and(
+        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
+        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`${pets.jurisdictionLocality}`)}`,
+        sql`${arLocalities.removedAt} IS NULL`,
+      ),
+    )
+    .where(and(...conditions, isNotNull(pets.jurisdictionLocality)))
+    .groupBy(pets.jurisdictionProvince, pets.jurisdictionLocality)
+    .limit(PER_LAYER_CAP);
+  const rollup: RollupRow[] = rows
+    .filter((r) => r.province && r.locality)
+    .map((r) => ({
+      key: `${r.province}|${r.locality}`,
+      province: r.province as string,
+      locality: r.locality as string,
+      centroidLat: r.centroidLat,
+      centroidLng: r.centroidLng,
+      count: r.n,
+    }));
+  const { cells, suppressedCount } = toAggregatedCells(rollup, true);
+  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+// ---------------------------------------------------------------------------
+// metrics:reunification (reunificacion) — per-unit aggregation (SIGNAL).
+// Graduated-symbol count encodes the reunification ratePct (0–100) per unit.
+// The k-anon suppression happens INSIDE fetchReunificationByUnit (lib/metrics/
+// reunification-rollups.ts), keyed on the lostEpisodes DENOMINATOR — never on
+// ratePct (the bug this port deliberately does not reproduce). This loader
+// does NOT re-suppress; it only resolves centroids for the already-visible
+// units, via the SAME shared leftJoin-arLocalities pattern every other
+// per-unit loader in this file uses (one grouped query, not an N+1 per-unit
+// centroid loop).
+// ---------------------------------------------------------------------------
+
+export async function loadReunificacionByUnit(
+  level: AggregationLevel,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<AggregatedPointRows> {
+  const ctx = buildProjectionContext(
+    actor,
+    jurisdictions,
+    { since, until: asOf ?? new Date() },
+    { adminProvince, adminLocality },
+  );
+  const { byUnit, suppressedCount } = await fetchReunificationByUnit(ctx, level);
+  if (byUnit.length === 0) {
+    return { cells: [], suppressedCount, truncated: false };
+  }
+
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const centroidByKey = new Map<string, { lat: string | null; lng: string | null }>();
+
+  if (level === "province") {
+    const rows = await db
+      .select({
+        province: pets.jurisdictionProvince,
+        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
+        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
+      })
+      .from(pets)
+      .leftJoin(
+        arLocalities,
+        and(
+          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
+          sql`${arLocalities.removedAt} IS NULL`,
+        ),
+      )
+      .where(and(isNotNull(pets.jurisdictionProvince), ...(scope ? [sql`(${scope})`] : [])))
+      .groupBy(pets.jurisdictionProvince);
+    for (const r of rows) {
+      if (r.province) centroidByKey.set(r.province, { lat: r.centroidLat, lng: r.centroidLng });
+    }
+  } else {
+    // rollupPetsPerLocality already resolves the locality centroid via the
+    // shared MIN(arLocalities.*) leftJoin — an empty whereExtra means every
+    // pet in scope counts toward centroid resolution (no metric predicate).
+    const rollup = await rollupPetsPerLocality([], scope);
+    for (const r of rollup) {
+      centroidByKey.set(r.key, { lat: r.centroidLat, lng: r.centroidLng });
+    }
+  }
+
+  const rollup: RollupRow[] = byUnit.map((u) => {
+    const key = level === "province" ? u.province : `${u.province}|${u.locality}`;
+    const centroid = centroidByKey.get(key);
+    return {
+      key,
+      province: u.province,
+      locality: u.locality ?? "",
+      centroidLat: centroid?.lat ?? null,
+      centroidLng: centroid?.lng ?? null,
+      // The value plotted IS the ratePct — the graduated symbol encodes the
+      // reunification rate, not an event count (spec: dataType "signal").
+      count: u.ratePct,
+    };
+  });
+
+  const { cells } = toAggregatedCells(rollup, false);
+  return { cells, suppressedCount, truncated: false };
 }
 
 // ---------------------------------------------------------------------------
