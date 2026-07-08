@@ -21,6 +21,7 @@ import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import {
   emptyLayerFeatures,
   getLayerFeatures,
+  resolvePointsMode,
 } from "@/src/modules/panorama/application/get-layer-features";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
 import { clampAsOf, parseAsOf } from "@/src/modules/panorama/domain/time-scrub";
@@ -101,6 +102,14 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
   const adminLocality =
     profile.role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
 
+  // panorama-event-points Slice 1 — SERVER-AUTHORITATIVE points-mode gate (A1).
+  // The client sends `mode=points` when zoomed into a jurisdiction, but the
+  // server independently requires a province to be RESOLVED (provinceObj != null,
+  // for admin AND govt alike). Govt stays additionally bound by petsScope inside
+  // the loader. A crafted `?mode=points` with no province → false → aggregated
+  // bubbles, never a national dump of every lost-pet coordinate.
+  const pointsMode = resolvePointsMode(url.searchParams.get("mode"), provinceObj != null);
+
   // 5. Delegate to the use-case (cap + k-anon enforced inside). The level only
   // affects the two choropleth layers; point layers ignore it. Bounded + never
   // throws to the runtime (task #74): budget expiry → empty features (200);
@@ -123,6 +132,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
         level,
         adminProvince,
         adminLocality,
+        pointsMode,
       ),
       LAYER_BUDGET_MS,
       `GET /api/panorama/${layer}`,
@@ -136,6 +146,10 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
         suppressedCount: result.suppressedCount,
         noLocalityCount: result.noLocalityCount ?? 0,
         level: result.level,
+        // panorama-event-points Slice 1: points-mode envelope (undefined for the
+        // aggregated path — the console falls back to its aggregated disclosure).
+        mode: result.mode,
+        sinUbicacionCount: result.sinUbicacionCount ?? 0,
       },
       { headers: { "cache-control": "no-store" } },
     );

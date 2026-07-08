@@ -53,6 +53,7 @@ import type {
   ChoroplethCell,
   DecomisoRow,
   DenunciaCentroidRow,
+  LostPointRow,
   OutbreakRow,
   ProvinceChoroplethCell,
   ShelterRow,
@@ -176,6 +177,21 @@ function perdidasEventPredicate(): SQL {
     (${petEvents.eventType} = 'status_changed' AND (${petEvents.payload}->>'to_status') = 'lost')
     OR (${petEvents.eventType} = 'note_added' AND (${petEvents.payload}->>'kind') = 'sighting')
   )`;
+}
+
+// panorama-event-points Slice 1 — SIGHTINGS-ONLY predicate (review A3).
+//
+// The near-zoom real-dot loader (loadPerdidasEvents) is deliberately NARROWER
+// than perdidasEventPredicate (which also matches status_changed→lost). It
+// matches ONLY `note_added` with payload kind='sighting' — an anonymous finder's
+// report, ~100% coord coverage (report-pet-sighting.ts writes with
+// requireCoords:true). The lost-MARK coordinate is the owner's last-seen governed
+// by discloseLastLocationWhenLost — NOT unconditionally public — so it is EXCLUDED
+// from Slice 1 dots (deferred until the disclosure-pref interplay is designed).
+// Keeping the dot source to public-by-consent sightings makes the k-anon-bypass
+// justification (an individual dot on a k-suppressed cell) uniformly airtight.
+function sightingEventPredicate(): SQL {
+  return sql`(${petEvents.eventType} = 'note_added' AND (${petEvents.payload}->>'kind') = 'sighting')`;
 }
 
 // Synthetic type discriminator for the event-detail list: reproduce the old
@@ -1208,6 +1224,97 @@ export async function loadPerdidasByUnit(
     }));
   const { cells, suppressedCount } = toAggregatedCells(rollup, true);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+// ---------------------------------------------------------------------------
+// pet_events:lost (perdidas) — REAL sighting DOTS (panorama-event-points Slice 1).
+//
+// The near-zoom counterpart to loadPerdidasByUnit: instead of one graduated
+// bubble per administrative unit, it returns individual sighting coordinates as
+// dots. Used ONLY when the server has authorized points mode (mode=points AND a
+// province is resolved — see get-layer-features/route). Governance:
+//   - SIGHTINGS ONLY (A3): sightingEventPredicate, NOT perdidasEventPredicate —
+//     lost-mark coords are out of Slice 1.
+//   - located rows only: isNotNull(locationLat); non-located sightings are counted
+//     into the `noCoordCount` residual ("N avistajes sin ubicación exacta"),
+//     never plotted as a fake centroid dot (fallback honesty, §5).
+//   - SCOPE (A2): petsScope — attribution by the pet's HOME jurisdiction (JOIN
+//     pets), the SAME scope as loadPerdidasByUnit. Dots are the operator's OWN
+//     cases; a pet homed in province X but sighted in Y plots physically in Y and
+//     is visible to the X operator (not a breach — it is X's case). NOT
+//     petEventsScope (incident payloads carry no jurisdiction; sightings none).
+//   - CAP (A8): PER_LAYER_CAP, ordered occurredAt DESC so a capped result keeps
+//     the N MOST RECENT sightings ("mostrando los N más recientes"); scope + cap +
+//     client-side MapLibre clustering is the mitigation — no viewport culling.
+// ---------------------------------------------------------------------------
+
+/** Result envelope for the real-sighting-dots loader (Slice 1). */
+export type PointEventsRows = {
+  rows: LostPointRow[];
+  /** True when PER_LAYER_CAP clipped the result (the N most recent are kept). */
+  truncated: boolean;
+  /**
+   * Sightings matching scope+period whose columnar coordinate is NULL — surfaced
+   * as an honest "sin ubicación exacta" residual, never plotted. ~0 in practice
+   * (sightings are written requireCoords:true) but counted for honesty.
+   */
+  noCoordCount: number;
+};
+
+export async function loadPerdidasEvents(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<PointEventsRows> {
+  // Same pets-table scope + pets-JOIN attribution as loadPerdidasByUnit (A2).
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const base: SQL[] = [sightingEventPredicate(), gte(petEvents.occurredAt, since)];
+  if (asOf) base.push(lte(petEvents.occurredAt, asOf));
+  if (scope) base.push(sql`(${scope})`);
+
+  const rows = await db
+    .select({
+      publicToken: pets.publicToken,
+      name: pets.name,
+      species: pets.species,
+      status: pets.status,
+      locationLat: petEvents.locationLat,
+      locationLng: petEvents.locationLng,
+      occurredAt: petEvents.occurredAt,
+      locationSource: sql<string | null>`(${petEvents.payload}->>'location_source')`,
+    })
+    .from(petEvents)
+    .innerJoin(pets, eq(petEvents.petId, pets.id))
+    .where(and(...base, isNotNull(petEvents.locationLat)))
+    // Most-recent-first so a capped result keeps the freshest sightings.
+    .orderBy(sql`${petEvents.occurredAt} DESC`)
+    .limit(PER_LAYER_CAP);
+
+  // Residual: in-scope sightings with NO columnar coordinate (honest "sin
+  // ubicación exacta" count — never a fake dot). Separate cheap COUNT.
+  const [residual] = await db
+    .select({ n: count() })
+    .from(petEvents)
+    .innerJoin(pets, eq(petEvents.petId, pets.id))
+    .where(and(...base, sql`${petEvents.locationLat} IS NULL`));
+
+  return {
+    rows: rows.map((r) => ({
+      publicToken: r.publicToken,
+      name: r.name,
+      species: r.species,
+      status: r.status,
+      locationLat: r.locationLat,
+      locationLng: r.locationLng,
+      lastSeenAt: r.occurredAt ? r.occurredAt.toISOString() : null,
+      locationSource: r.locationSource,
+    })),
+    truncated: rows.length >= PER_LAYER_CAP,
+    noCoordCount: residual?.n ?? 0,
+  };
 }
 
 // ---------------------------------------------------------------------------

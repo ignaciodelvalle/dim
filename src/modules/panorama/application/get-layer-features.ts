@@ -23,6 +23,7 @@ import {
   loadDenunciasByUnit,
   loadMordedurassByUnit,
   loadPerdidasByUnit,
+  loadPerdidasEvents,
   loadShelters,
   loadZoonosisByUnit,
 } from "@/src/modules/panorama/infrastructure/repository";
@@ -36,9 +37,24 @@ import {
   buildAggregatedPointFeatures,
   buildChoroplethFeatures,
   buildDecomisosFeatures,
+  buildPerdidasFeatures,
   buildProvinceChoroplethFeatures,
   buildRefugiosFeatures,
 } from "./build-features";
+
+/**
+ * panorama-event-points Slice 1 — SERVER-AUTHORITATIVE points-mode gate (A1).
+ *
+ * The client's `pointsEligible` is UX only; THIS is the security boundary. Points
+ * mode requires BOTH the client-requested `mode=points` AND a province actually
+ * resolved server-side (for admin this is the drilled-in province; for govt the
+ * selected province, on top of the always-on `petsScope` binding). A crafted
+ * `?mode=points` with no province resolves to false → aggregated bubbles, never a
+ * national dot-dump of every lost-pet coordinate in the country.
+ */
+export function resolvePointsMode(modeParam: string | null, provinceResolved: boolean): boolean {
+  return modeParam === "points" && provinceResolved;
+}
 
 /**
  * The active period plus an optional `asOf` upper bound (F4 temporal reproduction).
@@ -71,6 +87,18 @@ export type LayerFeaturesResult = {
   noLocalityCount: number;
   /** "province" only for a choropleth layer aggregated by province; else "locality". */
   level: AggregationLevel;
+  /**
+   * panorama-event-points Slice 1: "points" when the result is a REAL
+   * sighting-dots collection (server-authorized points mode), else "aggregated".
+   * The console branches its residual/cap disclosure copy on this (A6).
+   */
+  mode?: "points" | "aggregated";
+  /**
+   * Points mode only: in-scope sightings with no exact coordinate — surfaced as
+   * "N avistajes sin ubicación exacta" (a DISTINCT residual from `noLocalityCount`,
+   * which means "unknown HOME jurisdiction" and carries the wrong copy — A6).
+   */
+  sinUbicacionCount?: number;
 };
 
 const empty = (): LayerFeaturesResult => ({
@@ -197,6 +225,14 @@ export async function getLayerFeatures(
    */
   adminProvince?: string,
   adminLocality?: string,
+  /**
+   * panorama-event-points Slice 1: SERVER-authorized near-zoom points mode (A1).
+   * Only honored for `perdidas`. When true, perdidas returns REAL sighting DOTS
+   * (loadPerdidasEvents) instead of per-unit aggregated bubbles. The caller MUST
+   * have already gated this via `resolvePointsMode` (mode=points AND a province
+   * resolved) — this function trusts the resolved flag, not a raw query param.
+   */
+  pointsMode = false,
 ): Promise<LayerFeaturesResult> {
   switch (layer) {
     // -----------------------------------------------------------------------
@@ -206,6 +242,28 @@ export async function getLayerFeatures(
     // level applies suppressSmallCells (k=5).
     // -----------------------------------------------------------------------
     case "perdidas": {
+      // panorama-event-points Slice 1: at server-authorized points mode, plot
+      // REAL sighting coordinates as dots instead of aggregated bubbles.
+      if (pointsMode) {
+        const r = await loadPerdidasEvents(
+          actor,
+          jurisdictions,
+          period.since,
+          period.asOf,
+          adminProvince,
+          adminLocality,
+        );
+        return {
+          features: buildPerdidasFeatures(r.rows),
+          truncated: r.truncated,
+          suppressedCount: 0,
+          noLocalityCount: 0,
+          // Points ignore the aggregation axis; report "locality" for the map.
+          level: "locality",
+          mode: "points",
+          sinUbicacionCount: r.noCoordCount,
+        };
+      }
       const r = await loadPerdidasByUnit(
         level,
         actor,

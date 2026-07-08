@@ -92,6 +92,17 @@ export type RenderPolicy = {
   locality: RenderMode;
   /** Below this camera zoom, force `level` (nacional overview → province fill). */
   autoLevel?: { belowZoom: number; level: AggregationLevel };
+  /**
+   * panorama-event-points (design D5): the NEAR-ZOOM mark drawn when points mode
+   * is active (camera ≥ Z_POINTS AND a province is in scope — see
+   * situational-map-utils `pointsEligible`). Absence = the layer NEVER shows real
+   * dots (denuncias, mordeduras until its writer lands, reference layers): points
+   * mode falls back to the `level` mark. Only `perdidas` sets this in Slice 1
+   * (`clustered-points`). NOTE (A7): this descriptor is documentation of intent;
+   * the runtime switch is imperative in PanoramaConsole (it never reads
+   * renderPolicy) — the two are kept in sync via `POINTS_LAYER_IDS`.
+   */
+  points?: RenderMode;
 };
 
 /**

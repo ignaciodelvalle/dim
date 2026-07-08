@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
   loadPerdidasByUnit: vi.fn(),
+  loadPerdidasEvents: vi.fn(),
   loadMordedurassByUnit: vi.fn(),
   loadDenunciasByUnit: vi.fn(),
   loadZoonosisByUnit: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
 import type {
   AggregatedPointRows,
   ChoroplethRows,
+  PointEventsRows,
 } from "@/src/modules/panorama/infrastructure/repository";
 import {
   loadChoroplethByLevel,
@@ -26,11 +28,12 @@ import {
   loadDenunciasByUnit,
   loadMordedurassByUnit,
   loadPerdidasByUnit,
+  loadPerdidasEvents,
   loadShelters,
   loadZoonosisByUnit,
 } from "@/src/modules/panorama/infrastructure/repository";
 
-import { getLayerFeatures } from "../get-layer-features";
+import { getLayerFeatures, resolvePointsMode } from "../get-layer-features";
 
 // ---------------------------------------------------------------------------
 // Shared mock factories
@@ -57,6 +60,7 @@ function aggRows(over: Partial<AggregatedPointRows> = {}): AggregatedPointRows {
 }
 
 const mockLoadPerdidas = vi.mocked(loadPerdidasByUnit);
+const mockLoadPerdidasEvents = vi.mocked(loadPerdidasEvents);
 const mockLoadMordeduras = vi.mocked(loadMordedurassByUnit);
 const mockLoadDenuncias = vi.mocked(loadDenunciasByUnit);
 const mockLoadZoonosis = vi.mocked(loadZoonosisByUnit);
@@ -160,6 +164,108 @@ describe("getLayerFeatures — perdidas (F1 aggregated point)", () => {
     expect(result.truncated).toBe(true);
     expect(result.suppressedCount).toBe(2);
     expect(result.features.type).toBe("FeatureCollection");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// panorama-event-points Slice 1 — near-zoom REAL sighting dots + server gate.
+// ---------------------------------------------------------------------------
+
+function eventRows(over: Partial<PointEventsRows> = {}): PointEventsRows {
+  return {
+    rows: [
+      {
+        publicToken: "DIM-AAAA-1111",
+        name: "Firulai",
+        species: "dog",
+        status: "lost",
+        locationLat: "-34.6037000",
+        locationLng: "-58.3816000",
+        lastSeenAt: "2026-06-19T12:00:00.000Z",
+        locationSource: "gps",
+      },
+    ],
+    truncated: false,
+    noCoordCount: 0,
+    ...over,
+  };
+}
+
+describe("resolvePointsMode (server-authoritative gate — A1)", () => {
+  it("is false when mode is not 'points' regardless of province", () => {
+    expect(resolvePointsMode(null, true)).toBe(false);
+    expect(resolvePointsMode("aggregated", true)).toBe(false);
+  });
+
+  it("is false when mode=points but NO province is resolved (no national dot-dump)", () => {
+    // admin session with mode=points and no province → aggregated, never dots.
+    expect(resolvePointsMode("points", false)).toBe(false);
+  });
+
+  it("is true only when mode=points AND a province is resolved", () => {
+    expect(resolvePointsMode("points", true)).toBe(true);
+  });
+});
+
+describe("getLayerFeatures — perdidas points mode (Slice 1)", () => {
+  it("routes to loadPerdidasEvents (NOT the aggregated loader) and returns a points envelope", async () => {
+    mockLoadPerdidasEvents.mockResolvedValue(eventRows({ truncated: true, noCoordCount: 3 }));
+
+    const actor = { role: "govt" as const };
+    const jur = [{ province: "Córdoba", locality: "Córdoba" }];
+    const since = new Date("2026-06-01T00:00:00.000Z");
+    const asOf = new Date("2026-06-15T00:00:00.000Z");
+
+    const result = await getLayerFeatures(
+      "perdidas",
+      actor,
+      jur,
+      { since, asOf },
+      "locality",
+      "Córdoba",
+      "Córdoba",
+      /* pointsMode */ true,
+    );
+
+    // The aggregated loader is NOT called; the per-event dot loader is.
+    expect(mockLoadPerdidas).not.toHaveBeenCalled();
+    expect(mockLoadPerdidasEvents).toHaveBeenCalledWith(
+      actor,
+      jur,
+      since,
+      asOf,
+      "Córdoba",
+      "Córdoba",
+    );
+    expect(result.mode).toBe("points");
+    expect(result.truncated).toBe(true);
+    // Distinct residual field (A6) — NOT noLocalityCount.
+    expect(result.sinUbicacionCount).toBe(3);
+    expect(result.features.features).toHaveLength(1);
+    // The dot carries the public-by-consent props, no province (A3/D7).
+    expect(result.features.features[0].properties).toMatchObject({
+      token: "DIM-AAAA-1111",
+      locationSource: "gps",
+    });
+    expect(
+      (result.features.features[0].properties as Record<string, unknown>).province,
+    ).toBeUndefined();
+  });
+
+  it("falls back to the aggregated loader when pointsMode is false (default)", async () => {
+    mockLoadPerdidas.mockResolvedValue(aggRows());
+
+    const result = await getLayerFeatures(
+      "perdidas",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "locality",
+    );
+
+    expect(mockLoadPerdidasEvents).not.toHaveBeenCalled();
+    expect(mockLoadPerdidas).toHaveBeenCalledOnce();
+    expect(result.mode).toBeUndefined();
   });
 });
 

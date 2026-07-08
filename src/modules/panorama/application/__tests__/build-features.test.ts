@@ -29,6 +29,7 @@ const row = (over: Partial<LostPointRow> = {}): LostPointRow => ({
   locationLat: "-34.6037000",
   locationLng: "-58.3816000",
   lastSeenAt: "2026-06-19T12:00:00.000Z",
+  locationSource: null,
   ...over,
 });
 
@@ -40,14 +41,17 @@ describe("buildPerdidasFeatures", () => {
     expect(fc.features[0].geometry?.coordinates).toEqual([-58.3816, -34.6037]);
   });
 
-  it("carries the public properties (token/name/species/status/lastSeenAt)", () => {
-    const fc = buildPerdidasFeatures([row({ publicToken: "DIM-BBBB-2222", name: "Mishi" })]);
+  it("carries the public properties (token/name/species/status/lastSeenAt/locationSource)", () => {
+    const fc = buildPerdidasFeatures([
+      row({ publicToken: "DIM-BBBB-2222", name: "Mishi", locationSource: "pin_manual" }),
+    ]);
     expect(fc.features[0].properties).toEqual({
       token: "DIM-BBBB-2222",
       name: "Mishi",
       species: "dog",
       status: "lost",
       lastSeenAt: "2026-06-19T12:00:00.000Z",
+      locationSource: "pin_manual",
     });
   });
 

@@ -48,6 +48,10 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       province: "graduated-symbol",
       locality: "graduated-symbol",
       autoLevel: AUTO_PROVINCE,
+      // panorama-event-points Slice 1 (design D3/D5): at street zoom inside a
+      // jurisdiction, perdidas swaps its count-bubbles for REAL sighting dots,
+      // rendered through the shared clustered-points path.
+      points: "clustered-points",
     },
     suppressionStyle: "muted",
     caption: { unit: UNIT, measure: "reportes de mascotas perdidas", window: "period" },
@@ -278,4 +282,20 @@ export const REFERENCE_LAYERS: readonly PanoramaLayer[] = PANORAMA_LAYERS.filter
 /** True for density/signal point layers that F1 aggregates per unit. */
 export function isAggregatedPointLayer(id: LayerId): boolean {
   return AGGREGATED_POINT_IDS.has(id);
+}
+
+/**
+ * panorama-event-points (design D5): ids of the layers that swap to REAL
+ * event-location dots at near zoom (renderPolicy.points set). Slice 1: perdidas
+ * only. The console reads THIS to decide the imperative points-mode render switch
+ * (A7 — renderPolicy is never read at runtime), keeping descriptor and behavior
+ * in sync from a single declarative source.
+ */
+export const POINTS_LAYER_IDS: ReadonlySet<LayerId> = new Set(
+  PANORAMA_LAYERS.filter((l) => l.renderPolicy.points != null).map((l) => l.id),
+);
+
+/** True when the layer renders real event-location dots in near-zoom points mode. */
+export function isPointsLayer(id: LayerId): boolean {
+  return POINTS_LAYER_IDS.has(id);
 }

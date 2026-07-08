@@ -43,6 +43,35 @@ export function derivedLevel(
 }
 
 // ---------------------------------------------------------------------------
+// panorama-event-points Slice 1 — near-zoom real-location dot mode (design D1/D2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Camera zoom at/above which the map switches from graduated count-bubbles to
+ * REAL event-location dots (design D1). Deeper than Z_DIVISIONS (6.5): real dots
+ * are only legible — and only defensible (the operator is looking INSIDE their
+ * turf) — at street scale. `mode` is ORTHOGONAL to `level` (design D6/A4): the
+ * aggregation level stays a 2-state province|locality axis; points mode is an
+ * additive dimension that swaps the perdidas mark for individual sighting dots.
+ */
+export const Z_POINTS = 10;
+
+/**
+ * UX-only predicate for near-zoom real-dot mode (design D1/D2). True when the
+ * camera is at/beyond Z_POINTS AND a province is in scope (an explicit picker
+ * selection or a govt operator's implicit single-province scope).
+ *
+ * SECURITY (A1): this is a CLIENT UX gate only — it decides whether the console
+ * REQUESTS points mode. It is NOT the security boundary. The server independently
+ * re-derives points mode (`mode=points` AND a province is actually resolved) and
+ * govt users stay bound by `petsScope`; a crafted `?mode=points` with no province
+ * MUST NOT return dots. See app/api/panorama/[layer]/route.ts + get-layer-features.
+ */
+export function pointsEligible(scope: PanoramaScope, zoom: number): boolean {
+  return zoom >= Z_POINTS && scope.province != null;
+}
+
+// ---------------------------------------------------------------------------
 // Empty-state helpers (PR-6)
 // ---------------------------------------------------------------------------
 //

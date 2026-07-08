@@ -35,6 +35,10 @@ vi.mock("@/src/modules/panorama/application/get-panorama-kpis", () => ({
 const mockGetLayerFeatures = vi.fn();
 vi.mock("@/src/modules/panorama/application/get-layer-features", () => ({
   getLayerFeatures: (...a: unknown[]) => mockGetLayerFeatures(...a),
+  // panorama-event-points Slice 1: the route now imports resolvePointsMode; keep
+  // the real gate semantics in the mock (mode=points AND a province resolved).
+  resolvePointsMode: (mode: string | null, provinceResolved: boolean) =>
+    mode === "points" && provinceResolved,
   emptyLayerFeatures: () => ({
     features: { type: "FeatureCollection", features: [] },
     truncated: false,

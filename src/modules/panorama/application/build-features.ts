@@ -21,16 +21,31 @@ export type LostPointRow = {
   locationLat: string | null;
   locationLng: string | null;
   lastSeenAt: string | null;
+  /**
+   * panorama-event-points Slice 1: how the sighting coordinate was captured
+   * ('gps' | 'pin_manual' | 'geocodificada'), from the note_added payload. Null
+   * for legacy sightings written before the field existed (forward-only). Drives
+   * a subtle precision hint in the dot popup — carries NO PII.
+   */
+  locationSource: string | null;
 };
 
-/** GeoJSON feature properties for a perdidas point (no PII beyond the public
- * token + the owner-opt-in last-seen; privacy=none per spec §8). */
+/** GeoJSON feature properties for a perdidas point.
+ *
+ * PRIVACY INVARIANT (review A3/D7): carries only the public token + the
+ * public-by-consent sighting facts (name, species, status, last-seen) and the
+ * capture-precision hint. It deliberately carries NO `province` — that keeps
+ * `shouldFetchHistory` false on a dot click (no k-anon unit-history double-fetch)
+ * and the disclosure uniformly airtight for public-by-consent sightings. Do NOT
+ * add `province` here. */
 export type LostPointProps = {
   token: string;
   name: string;
   species: string;
   status: string;
   lastSeenAt: string | null;
+  /** Coordinate-capture precision hint ('gps' | 'pin_manual' | 'geocodificada'); null when unknown. */
+  locationSource: string | null;
 };
 
 /**
@@ -49,6 +64,7 @@ export function buildPerdidasFeatures(
         species: r.species,
         status: r.status,
         lastSeenAt: r.lastSeenAt,
+        locationSource: r.locationSource,
       }),
     )
     .filter((f) => f.geometry !== null);
