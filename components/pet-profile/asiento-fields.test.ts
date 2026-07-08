@@ -179,3 +179,59 @@ describe("toAsientoView — vaccine 'Aplicó' attribution is consistent with the
     expect(aplicoOf(row).value).toBe("Declarado por el titular");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Sighting attribution — a third-party /p report is NOT an owner note
+// (QA A4: a sighting loaded from the public page rendered "NOTA · CARGADO POR
+// VOS" in the owner's own libreta, misattributing a stranger's report to the
+// titular). A sighting is note_added, kind="sighting", authorRole="scanner".
+// ---------------------------------------------------------------------------
+
+describe("toAsientoView — sighting note is attributed to a third party, not the owner", () => {
+  const baseSighting: HistorialEventRow = {
+    id: "evt-sighting",
+    petId: "pet-1",
+    eventType: "note_added",
+    payload: { category: "otro", kind: "sighting", text: "La vi cerca de la plaza." },
+    occurredAt: new Date("2026-07-02T12:00:00Z"),
+    notes: null,
+    authorRole: "scanner",
+    authorVerified: false,
+    authorOrganizationId: null,
+    attachmentUrl: null,
+    amendedAt: null,
+  };
+
+  it("never reads 'Cargado por vos' for a scanner-authored sighting", () => {
+    const view = toAsientoView(baseSighting, "TOKEN-1234", NOW);
+    expect(view.provenance.verified).toBe(false);
+    expect(view.provenance.label).toBe("Reportado por un tercero");
+    expect(view.provenance.label).not.toBe("Cargado por vos");
+  });
+
+  it("uses an 'Avistaje' eyebrow, not 'Nota'", () => {
+    const view = toAsientoView(baseSighting, "TOKEN-1234", NOW);
+    expect(view.kind).toBe("Avistaje");
+    expect(view.handwrittenNote).toBe("La vi cerca de la plaza.");
+  });
+
+  it("names the finder in the title when the sighting carries one", () => {
+    const row: HistorialEventRow = {
+      ...baseSighting,
+      payload: { ...(baseSighting.payload as object), finderName: "Vecina del 3B" },
+    };
+    const view = toAsientoView(row, "TOKEN-1234", NOW);
+    expect(view.title).toBe("Avistaje · Vecina del 3B");
+  });
+
+  it("still renders an ordinary owner note (no sighting kind) as 'Nota · Cargado por vos'", () => {
+    const row: HistorialEventRow = {
+      ...baseSighting,
+      payload: { category: "recordatorio", text: "Cumple hoy." },
+      authorRole: "owner",
+    };
+    const view = toAsientoView(row, "TOKEN-1234", NOW);
+    expect(view.kind).toBe("Nota");
+    expect(view.provenance.label).toBe("Cargado por vos");
+  });
+});

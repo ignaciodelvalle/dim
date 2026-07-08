@@ -138,6 +138,13 @@ function deriveProvenance(
     // (#43 VET keystone) — a valid record, NOT verification.
     return { verified: false, label: "Registrado por la organización" };
   }
+  // A third-party scanner (anonymous QR scan — e.g. a lost-pet sighting
+  // reported from the public /p page) is NEVER the owner. "Cargado por vos"
+  // would misattribute a stranger's report to the titular (QA A4: a /p
+  // sighting rendered "NOTA · CARGADO POR VOS" in the owner's own libreta).
+  if (row.authorRole === "scanner") {
+    return { verified: false, label: "Reportado por un tercero" };
+  }
   // Owner-declared (self_reported / corroborated / unverified). When the owner
   // NAMES a professional they only CITE (did not sign), say so explicitly so a
   // named vet never masquerades as verification (#45 QA §2).
@@ -396,6 +403,23 @@ export function toAsientoView(
 
     case "note_added": {
       const text = str(p, "text");
+      // A sighting is a THIRD-PARTY report (note_added, kind="sighting",
+      // authorRole="scanner") loaded from the public /p page while the pet is
+      // lost — not an owner note. It must read as such in the libreta timeline:
+      // an "Avistaje" eyebrow + third-party provenance (deriveProvenance's
+      // scanner branch), never "NOTA · CARGADO POR VOS" (QA A4).
+      if (str(p, "kind") === "sighting") {
+        const finderName = str(p, "finderName");
+        return {
+          ...base,
+          icon: "map-pin",
+          tint: "ln-ic-azul",
+          kind: "Avistaje",
+          title: finderName ? `Avistaje · ${finderName}` : "Avistaje de un tercero",
+          handwrittenNote: text ?? undefined,
+          facts: text ? [] : [{ key: "Reporte", value: "Sin descripción", missing: true }],
+        };
+      }
       return {
         ...base,
         kind: "Nota",
