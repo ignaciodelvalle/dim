@@ -73,9 +73,7 @@ test.describe(`synthetic monitor @ ${BASE}`, () => {
     const cacheControl = res.headers()["cache-control"] ?? "";
     expect(
       cacheControl,
-      `/p/${ROCCO_TOKEN} Cache-Control must forbid shared caching (no-store) — got "${cacheControl}". ` +
-        "A stale CDN copy would keep serving a found pet as SE BUSCA + phone, or a revoked share. " +
-        "This is the privacy-class fix in middleware.ts + lib/infra/public-cache-policy.ts.",
+      `/p/${ROCCO_TOKEN} Cache-Control must forbid shared caching (no-store) — got "${cacheControl}". A stale CDN copy would keep serving a found pet as SE BUSCA + phone, or a revoked share. This is the privacy-class fix in middleware.ts + lib/infra/public-cache-policy.ts.`,
     ).toMatch(/no-store/i);
 
     // Body must carry NO owner PII.

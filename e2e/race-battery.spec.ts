@@ -114,7 +114,10 @@ test.describe(`race battery @ ${BASE}`, () => {
       const created = Math.max(0, after - before);
       for (let i = 0; i < created; i++) {
         try {
-          await page.getByRole("button", { name: /^revocar$/i }).last().click({ timeout: 5_000 });
+          await page
+            .getByRole("button", { name: /^revocar$/i })
+            .last()
+            .click({ timeout: 5_000 });
           await page
             .getByRole("dialog")
             .getByRole("button", { name: /^revocar$/i })
@@ -129,8 +132,7 @@ test.describe(`race battery @ ${BASE}`, () => {
       if (before >= 0 && after >= 0) {
         expect(
           after - before,
-          `double-submit created ${after - before} links (want exactly 1) — before=${before} after=${after}. ` +
-            "Two links from one intent = missing server-side dedup on libreta-share generation.",
+          `double-submit created ${after - before} links (want exactly 1) — before=${before} after=${after}. Two links from one intent = missing server-side dedup on libreta-share generation.`,
         ).toBe(1);
       } else {
         // Could not count reliably — fail soft with a visible marker rather
@@ -163,7 +165,10 @@ test.describe(`race battery @ ${BASE}`, () => {
       // otherwise re-query the detail page's DOM mid-loop).
       await govt.page.goto("/gob/maltrato?queue=all", { waitUntil: "domcontentloaded" });
       const rows = govt.page.locator('a[href^="/gob/maltrato/"]:visible');
-      await rows.first().waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
+      await rows
+        .first()
+        .waitFor({ state: "visible", timeout: 20_000 })
+        .catch(() => {});
       const unassignedHrefs = await rows
         .filter({ hasNotText: /· Asignada/ })
         .evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
@@ -171,7 +176,10 @@ test.describe(`race battery @ ${BASE}`, () => {
         els.map((el) => el.getAttribute("href") ?? ""),
       );
       const candidates = [...new Set([...unassignedHrefs, ...anyHrefs])].filter(Boolean);
-      test.skip(candidates.length === 0, "no denuncia cases in queue — cannot test assignment race.");
+      test.skip(
+        candidates.length === 0,
+        "no denuncia cases in queue — cannot test assignment race.",
+      );
 
       for (const rhref of candidates.slice(0, 6)) {
         const id = rhref.split("/gob/maltrato/")[1]?.split(/[?#]/)[0] ?? "";

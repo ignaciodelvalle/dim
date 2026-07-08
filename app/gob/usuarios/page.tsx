@@ -15,10 +15,10 @@ import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/analytics/co
 import { searchUsers } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
-import { formatPercent } from "@/lib/utils/format";
 import { windows } from "@/lib/metrics/period";
 import { deriveTargetHref } from "@/lib/ui/audit-target-link";
 import { portalBase } from "@/lib/ui/portal-base";
+import { formatPercent } from "@/lib/utils/format";
 import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
 import { ProposeUserActions } from "./ProposeUserActions";
