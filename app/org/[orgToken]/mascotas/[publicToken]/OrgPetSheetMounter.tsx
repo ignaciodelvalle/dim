@@ -9,6 +9,9 @@
  *
  * Supported sheet IDs:
  *   elegibilidad | reemplazar-microchip | fin-transito | devolver-al-dueno
+ *   vacuna | peso | nota (event recording — gated on `event.write`, bug 2
+ *   staging validation 2026-07-04; forms + writers reused from the owner side,
+ *   same precedent as AtenderCaptureMounter)
  *
  * Props are threaded from the server page so no client-side fetching is needed.
  */
@@ -21,8 +24,17 @@ import { useCallback } from "react";
 
 import { replaceMicrochipVetAction } from "@/app/org/[orgToken]/mascotas/[publicToken]/microchip/reemplazar/action";
 
+import { NoteForm } from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/nota/NoteForm";
+import { WeightForm } from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/peso/WeightForm";
+import { VaccinationForm } from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/vacuna/VaccinationForm";
+
 import { ProposeReturnForm } from "./devolver-al-dueno/ProposeReturnForm";
 import { EligibilityForm } from "./eligibility/EligibilityForm";
+import {
+  orgRecordNoteAction,
+  orgRecordVaccinationAction,
+  orgRecordWeightAction,
+} from "./eventos/actions";
 import { EndFosterForm } from "./foster-fin/EndFosterForm";
 import { ReplaceMicrochipForm } from "./microchip/reemplazar/ReplaceMicrochipForm";
 
@@ -37,6 +49,18 @@ type Props = {
   orgToken: string;
   petPublicToken: string;
   petName: string;
+  /** Pet species — the VaccinationForm needs it for the vaccine catalog. */
+  petSpecies: string;
+  /**
+   * Member holds `event.write` — gates the nota sheet. The server actions
+   * re-enforce this capability independently (pet-access.ts).
+   */
+  canWriteEvents: boolean;
+  /**
+   * event.write AND the pet is alive — gates vacuna/peso (their actions go
+   * through requireAlivePetAccess; nota allows deceased pets, owner parity).
+   */
+  canRecordClinical: boolean;
   /** Adoption eligibility data for the EligibilityForm. */
   eligibility: EligibilityData;
   /** Current microchip ID — null if the pet has no microchip. */
@@ -57,6 +81,9 @@ export function OrgPetSheetMounter({
   orgToken,
   petPublicToken,
   petName,
+  petSpecies,
+  canWriteEvents,
+  canRecordClinical,
   eligibility,
   currentChip,
   fosterName,
@@ -155,6 +182,40 @@ export function OrgPetSheetMounter({
     return (
       <Sheet id="devolver-al-dueno" title={`Devolver · ${petName}`} open onClose={close} size="lg">
         <ProposeReturnForm orgToken={orgToken} petPublicToken={petPublicToken} petName={petName} />
+      </Sheet>
+    );
+  }
+
+  // Event recording (bug 2, staging validation 2026-07-04) — owner-side forms
+  // bound to org-scoped redirect adapters. UI-gated on event.write; the shared
+  // server actions re-enforce the capability at the signing boundary.
+  if (sheet === "vacuna" && canRecordClinical) {
+    const action = orgRecordVaccinationAction.bind(null, orgToken, petPublicToken);
+    return (
+      <Sheet id="vacuna" title={`Registrar vacuna · ${petName}`} open onClose={close}>
+        <VaccinationForm
+          action={action}
+          species={petSpecies}
+          defaults={{ occurredAt: null, notes: null }}
+        />
+      </Sheet>
+    );
+  }
+
+  if (sheet === "peso" && canRecordClinical) {
+    const action = orgRecordWeightAction.bind(null, orgToken, petPublicToken);
+    return (
+      <Sheet id="peso" title={`Registrar peso · ${petName}`} open onClose={close}>
+        <WeightForm action={action} defaults={{ kg: null, occurredAt: null, notes: null }} />
+      </Sheet>
+    );
+  }
+
+  if (sheet === "nota" && canWriteEvents) {
+    const action = orgRecordNoteAction.bind(null, orgToken, petPublicToken);
+    return (
+      <Sheet id="nota" title={`Nota · ${petName}`} open onClose={close}>
+        <NoteForm action={action} defaults={{ text: null, occurredAt: null }} />
       </Sheet>
     );
   }

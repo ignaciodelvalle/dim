@@ -1,6 +1,6 @@
 // Org pet detail page — shows the animal's key data and mounts the
 // ?sheet= action flows (elegibilidad, reemplazar-microchip, fin-transito,
-// devolver-al-dueno) via OrgPetSheetMounter.
+// devolver-al-dueno, vacuna, peso, nota) via OrgPetSheetMounter.
 //
 // Only accessible to org members with at least `pet.read_held` capability
 // who have an active ownership row (shelter_custody or foster) on this pet.
@@ -155,6 +155,14 @@ export default async function OrgPetDetailPage({
 
   const canManageEligibility = granted.has("intake.create") && ownershipRole === "shelter_custody";
   const canReplaceMicrochip = granted.has("event.write");
+  // Clinical event recording on the held-pet ficha (staging validation
+  // 2026-07-04, bug 2): the capability existed but had no surface here. The
+  // shared server actions re-enforce event.write at the signing boundary
+  // (lib/infra/pet-access.ts), so this flag only gates UI visibility.
+  // Vaccine/weight require a living pet (requireAlivePetAccess); nota stays
+  // available for deceased pets (parity with the owner-side note action).
+  const canWriteEvents = granted.has("event.write");
+  const canRecordClinical = canWriteEvents && pet.status !== "deceased";
   const canEndFoster = granted.has("foster.end") && !!fosterName;
   // Finalize adoption is reachable from the pet ficha (not only the list card),
   // so the "aprobación → finalizá en la ficha" guidance actually lands on a
@@ -251,6 +259,7 @@ export default async function OrgPetDetailPage({
         {/* Action buttons */}
         {(canManageEligibility ||
           canReplaceMicrochip ||
+          canWriteEvents ||
           canEndFoster ||
           canProposeReturn ||
           canFinalizeAdoption) && (
@@ -277,6 +286,30 @@ export default async function OrgPetDetailPage({
                     : pet.adoptionEligible === false
                       ? "Elegibilidad · NO apta"
                       : "Elegibilidad"}
+                </Link>
+              )}
+              {canRecordClinical && (
+                <>
+                  <Link
+                    href={`/org/${orgToken}/mascotas/${publicToken}?sheet=vacuna`}
+                    className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                  >
+                    Registrar vacuna
+                  </Link>
+                  <Link
+                    href={`/org/${orgToken}/mascotas/${publicToken}?sheet=peso`}
+                    className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                  >
+                    Registrar peso
+                  </Link>
+                </>
+              )}
+              {canWriteEvents && (
+                <Link
+                  href={`/org/${orgToken}/mascotas/${publicToken}?sheet=nota`}
+                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                >
+                  Agregar nota
                 </Link>
               )}
               {canReplaceMicrochip && (
@@ -325,6 +358,9 @@ export default async function OrgPetDetailPage({
             orgToken={orgToken}
             petPublicToken={publicToken}
             petName={pet.name}
+            petSpecies={pet.species}
+            canWriteEvents={canWriteEvents}
+            canRecordClinical={canRecordClinical}
             eligibility={eligibility}
             currentChip={canonicalIds.microchip?.code ?? null}
             fosterName={fosterName}
