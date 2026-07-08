@@ -76,6 +76,48 @@ describe("parsePetForm — required fields", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Locality must resolve to a real catalog row (PO decision 2026-07-08)
+// A locality typed by hand that never resolved via the autocomplete arrives
+// with NO province (the autocomplete only emits a province when a real
+// ar_localities result is picked). Such free text must be rejected so junk
+// localities never enter the national registry.
+// ---------------------------------------------------------------------------
+
+describe("parsePetForm — locality must resolve to a real locality", () => {
+  it("accepts a resolved locality (province + locality present)", () => {
+    const fd = makeFormData(BASE_VALID);
+    const result = parsePetForm(fd);
+    expect(result.error).toBeNull();
+    expect(result.parsed?.jurisdictionProvince).toBe("Buenos Aires");
+    expect(result.parsed?.jurisdictionLocality).toBe("La Plata");
+  });
+
+  it("rejects a free-typed locality that never resolved (no provinceCode)", () => {
+    const { provinceCode: _omitted, ...withoutProvince } = BASE_VALID;
+    const fd = makeFormData({ ...withoutProvince, localityName: "Villa Inventada" });
+    const result = parsePetForm(fd);
+    expect(result).toMatchObject({ parsed: null, error: "LOCALITY_UNRESOLVED" });
+  });
+
+  it("rejects when the provinceCode is unresolvable garbage", () => {
+    const fd = makeFormData({
+      ...BASE_VALID,
+      localityName: "Villa Inventada",
+      provinceCode: "NOT-A-CODE",
+    });
+    const result = parsePetForm(fd);
+    expect(result).toMatchObject({ parsed: null, error: "LOCALITY_UNRESOLVED" });
+  });
+
+  it("checks locality emptiness before province resolution", () => {
+    // Empty locality + empty province → LOCALITY_REQUIRED wins (locality first).
+    const fd = makeFormData({ name: "Rex", species: "dog", localityName: "" });
+    const result = parsePetForm(fd);
+    expect(result).toMatchObject({ parsed: null, error: "LOCALITY_REQUIRED" });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Age → DOB conversion
 // ---------------------------------------------------------------------------
 

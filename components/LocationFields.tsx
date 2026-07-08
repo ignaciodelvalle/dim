@@ -85,8 +85,9 @@ export function LocationFields({
   biasLocality?: string | null;
   /** Renders the red-seal `*` on the L1 "Localidad" label, matching the
    * LnField required marker used by sibling fields (QA round 2 2026-07-03 #7:
-   * the helper said "Requerido" but the label carried no asterisk). Does not
-   * add native validation — callers own the required semantics. */
+   * the helper said "Requerido" but the label carried no asterisk). For L1 it is
+   * also forwarded to the locality autocomplete, adding native `required` +
+   * `aria-required` on the text input so an empty submit is blocked client-side. */
   required?: boolean;
   /** Overrides the L1 field label. Defaults to "Localidad". Lets a caller name
    * the field in context (e.g. "Localidad donde ejercés") WITHOUT rendering a
@@ -326,6 +327,7 @@ export function LocationFields({
           </label>
           <LocalityPickerAcross
             id="localityName"
+            required={required}
             defaultValue={{
               provinceCode: defaultValue?.provinceCode ?? null,
               localityName: defaultValue?.localityName ?? null,

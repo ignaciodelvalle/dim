@@ -379,14 +379,15 @@ export function PetForm({
       )}
       {!compact && !isEdit && (
         <div className="flex flex-col gap-1.5">
-          <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
-            Localidad{" "}
-            <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
-              *
-            </span>
-          </p>
-          {/* Create mode: no established pet yet, so the picker starts empty. */}
-          <LocationFields mode="l1" defaultValue={{ provinceCode: null, localityName: null }} />
+          {/* Create mode: no established pet yet, so the picker starts empty.
+              `required` renders the "Localidad *" label + adds native required /
+              aria-required on the input; the duplicate wrapper <p> was removed
+              (parity with MinimalNewPetForm). */}
+          <LocationFields
+            mode="l1"
+            required
+            defaultValue={{ provinceCode: null, localityName: null }}
+          />
           <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
             Requerido. Ayuda a las campañas regionales de salud animal.
           </p>

@@ -116,11 +116,23 @@ export function parsePetForm(
 
   const loc = parseLocationFromFormData(formData);
 
-  // Locality is required — pets must always have a jurisdiction.
-  // Existing pets without a locality are forced to set one on their next edit.
+  // Locality is required — pets must always have a jurisdiction (PO decision
+  // 2026-07-08: a serious national registry needs at least the barrio/localidad
+  // as epidemiological signal). Existing pets without a locality are forced to
+  // set one via a movement.
   const localityNameRaw = loc.locality ?? "";
   if (!localityNameRaw) {
     return { parsed: null, error: "LOCALITY_REQUIRED" };
+  }
+
+  // The locality MUST come from the autocomplete — a real `ar_localities` row,
+  // which always carries its province. A value typed by hand that never
+  // resolved to a catalog result arrives with an empty province: reject it so
+  // free text can never enter the registry as a locality. The strict INDEC
+  // (province, locality) pair check still runs downstream in the action.
+  const provinceForStorage = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
+  if (!provinceForStorage) {
+    return { parsed: null, error: "LOCALITY_UNRESOLVED" };
   }
 
   const sexRaw = String(formData.get("sex") ?? "unknown");
@@ -216,7 +228,7 @@ export function parsePetForm(
     trainingLevel,
     insuranceCompany: String(formData.get("insuranceCompany") ?? "").trim() || null,
     insurancePolicyNumber: String(formData.get("insurancePolicyNumber") ?? "").trim() || null,
-    jurisdictionProvince: canonicalProvinceNameForStorage(loc.provinceCode ?? ""),
+    jurisdictionProvince: provinceForStorage,
     jurisdictionLocality: loc.locality,
     acquisitionMethod,
     emergencyInfoVisible: formData.get("emergencyInfoVisible") === "true",

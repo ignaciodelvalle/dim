@@ -97,7 +97,9 @@ export async function createPetAction(
     const msg =
       parseResult.error === "LOCALITY_REQUIRED"
         ? "Seleccioná la localidad antes de continuar."
-        : parseResult.error;
+        : parseResult.error === "LOCALITY_UNRESOLVED"
+          ? "Elegí la localidad/barrio de la lista de sugerencias."
+          : parseResult.error;
     return { error: msg };
   }
   // Safe: parseResult.error === null implies parsed is non-null (discriminated union).
@@ -247,7 +249,9 @@ export async function updatePetAction(
     const msg =
       parseResult.error === "LOCALITY_REQUIRED"
         ? "Seleccioná la localidad antes de continuar."
-        : parseResult.error;
+        : parseResult.error === "LOCALITY_UNRESOLVED"
+          ? "Elegí la localidad/barrio de la lista de sugerencias."
+          : parseResult.error;
     return { error: msg };
   }
   // Safe: parseResult.error === null implies parsed is non-null (discriminated union).

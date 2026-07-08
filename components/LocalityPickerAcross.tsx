@@ -191,6 +191,7 @@ export function LocalityPickerAcross({
         }}
         placeholder={placeholder}
         required={required}
+        aria-required={required || undefined}
         aria-autocomplete="list"
         aria-expanded={open}
       />
