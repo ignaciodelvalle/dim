@@ -76,6 +76,18 @@ export async function reportPetSighting(
   const description = String(formData.get("description") ?? "").trim();
   const sightedAtIso = String(formData.get("sightedAt") ?? "").trim();
 
+  // panorama-event-points Slice 1: how the coordinate was captured (LocationFields
+  // emits a `locationSource` hidden field). Only the three known enum values are
+  // honored; anything else (absent / legacy form) leaves it undefined so the zod
+  // optional passes and the payload simply omits it.
+  const rawLocationSource = String(formData.get("locationSource") ?? "").trim();
+  const locationSource =
+    rawLocationSource === "gps" ||
+    rawLocationSource === "pin_manual" ||
+    rawLocationSource === "geocodificada"
+      ? (rawLocationSource as "gps" | "pin_manual" | "geocodificada")
+      : undefined;
+
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   // P0d: optional finder identity + photo.
@@ -164,6 +176,7 @@ export async function reportPetSighting(
     finderName: finderName ?? undefined,
     finderContact: finderContact ?? undefined,
     photoStoragePath: photoStoragePath ?? undefined,
+    location_source: locationSource,
   });
 
   // Resolve the open lost_pet_episode case so the sighting event is associated

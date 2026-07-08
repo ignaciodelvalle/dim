@@ -713,6 +713,14 @@ const noteAdded = z
       finderName: z.string().max(80).nullable().optional(),
       finderContact: z.string().max(120).nullable().optional(),
       photoStoragePath: z.string().nullable().optional(),
+      // panorama-event-points Slice 1 (PO-approved): how the sighting coordinate
+      // was captured, so the map dot can show a subtle precision hint —
+      //   gps           — device geolocation (navigator.geolocation)
+      //   pin_manual    — the finder dropped/dragged a point on the map
+      //   geocodificada — derived from a typed address (forward geocode)
+      // OPTIONAL/nullable so every pre-existing note (and non-sighting note)
+      // validates unchanged; forward-only, no backfill of old events.
+      location_source: z.enum(["gps", "pin_manual", "geocodificada"]).nullable().optional(),
       // P0e finder-in-possession extended fields. Optional so that plain notes
       // and sighting notes continue to validate without changes. kind=finder_in_possession
       // rows MUST include these; enforcement is at the action layer (server-side checks).

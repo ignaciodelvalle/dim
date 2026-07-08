@@ -116,6 +116,14 @@ export function LocationFields({
   );
   const [geoError, setGeoError] = useState<string | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
+  // panorama-event-points Slice 1: how the CURRENT coordinate was captured, so
+  // consumers (the sighting writer) can record a precision hint. Set on each
+  // coordinate origin: device geolocation → 'gps', a map gesture → 'pin_manual',
+  // a typed-address geocode → 'geocodificada'. Emitted as a hidden `locationSource`
+  // field; forms that don't read it simply ignore the extra field.
+  const [locationSource, setLocationSource] = useState<
+    "gps" | "pin_manual" | "geocodificada" | null
+  >(null);
 
   // Picked jurisdiction (L2 only) — driven by Nominatim result selection or
   // map-drag reverse geocoding. The hidden inputs read from here. Defaults
@@ -181,6 +189,7 @@ export function LocationFields({
           // LocationPicker only fires onChange on user gestures, so this
           // doesn't loop back into handlePointChange.
           setPoint({ lat: results[0].lat, lng: results[0].lng });
+          setLocationSource("geocodificada");
           applyJurisdictionFromResult(results[0]);
           // Show alternates so the user can correct the top guess.
           setGeocodeResults(results.length > 1 ? results : []);
@@ -209,8 +218,14 @@ export function LocationFields({
   }, [pickedProvince, pickedLocality, addressText, point]);
 
   // Reverse geocoding (coords → address + jurisdiction). Fires on map gesture.
-  async function handlePointChange(newPoint: { lat: number; lng: number }) {
+  // `source` records the coordinate origin (default 'pin_manual' — a map click/
+  // drag; handleUseMyLocation passes 'gps').
+  async function handlePointChange(
+    newPoint: { lat: number; lng: number },
+    source: "gps" | "pin_manual" = "pin_manual",
+  ) {
     setPoint(newPoint);
+    setLocationSource(source);
     if (!isL2) return;
     setGeocodeLoading("reverse");
     setGeocodeMessage(null);
@@ -248,6 +263,7 @@ export function LocationFields({
     skipNextForward.current = true;
     setAddressText(result.display_name);
     setPoint({ lat: result.lat, lng: result.lng });
+    setLocationSource("geocodificada");
     applyJurisdictionFromResult(result);
     setGeocodeResults([]);
     setGeocodeMessage(null);
@@ -262,8 +278,9 @@ export function LocationFields({
     setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        // Treat as a pin move so we reverse-geocode and fill the address.
-        handlePointChange({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        // Treat as a pin move so we reverse-geocode and fill the address, but
+        // record the true origin: device GPS.
+        handlePointChange({ lat: pos.coords.latitude, lng: pos.coords.longitude }, "gps");
         setGeoLoading(false);
       },
       (err) => {
@@ -411,6 +428,13 @@ export function LocationFields({
           <input type="hidden" name="localityNameIndecId" value="" />
           <input type="hidden" name={latInputName} value={point ? String(point.lat) : ""} />
           <input type="hidden" name={lngInputName} value={point ? String(point.lng) : ""} />
+          {/* panorama-event-points Slice 1: coordinate-capture origin. Only
+              emitted alongside a real point; consumers that don't read it ignore it. */}
+          <input
+            type="hidden"
+            name="locationSource"
+            value={point && locationSource ? locationSource : ""}
+          />
         </>
       )}
     </div>
