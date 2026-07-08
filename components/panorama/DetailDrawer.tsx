@@ -310,6 +310,67 @@ function FeatureBody({
       );
     }
 
+    case "sintomas": {
+      // Aggregated point cell — sintomas has no near-zoom individual-dot mode
+      // (unlike perdidas/mordeduras), so this always renders a unit summary
+      // (place + reported-symptom count), same shape as the choropleth cells.
+      const isProvince = str(properties, "level") === "province";
+      const suppressed = properties.suppressed === true;
+      const place =
+        str(properties, "place") ??
+        (isProvince
+          ? (str(properties, "province") ?? "—")
+          : [str(properties, "locality"), str(properties, "province")].filter(Boolean).join(", "));
+      return (
+        <>
+          <dl>
+            <Row label={isProvince ? "Provincia" : "Localidad"} value={place || "—"} />
+            <Row
+              label="Síntomas reportados"
+              value={
+                suppressed ? (
+                  <span className="text-ln-op-mute">Suprimido (privacidad · k‑anon)</span>
+                ) : (
+                  String(properties.count ?? 0)
+                )
+              }
+            />
+          </dl>
+          <DrillLink href="/gob/vigilancia">Ver vigilancia →</DrillLink>
+        </>
+      );
+    }
+
+    case "reunificacion": {
+      // Aggregated signal cell — the graduated-symbol count IS the D4
+      // reunification ratePct (0–100), not an event count (see loadReunificacionByUnit).
+      const isProvince = str(properties, "level") === "province";
+      const suppressed = properties.suppressed === true;
+      const place =
+        str(properties, "place") ??
+        (isProvince
+          ? (str(properties, "province") ?? "—")
+          : [str(properties, "locality"), str(properties, "province")].filter(Boolean).join(", "));
+      return (
+        <>
+          <dl>
+            <Row label={isProvince ? "Provincia" : "Localidad"} value={place || "—"} />
+            <Row
+              label="Tasa de reunificación"
+              value={
+                suppressed ? (
+                  <span className="text-ln-op-mute">Suprimido (privacidad · k‑anon)</span>
+                ) : (
+                  `${properties.count ?? 0}%`
+                )
+              }
+            />
+          </dl>
+          <DrillLink href="/gob/perdidas">Ver pérdidas →</DrillLink>
+        </>
+      );
+    }
+
     case "refugios": {
       const verified = properties.verified === true;
       return (
@@ -327,7 +388,9 @@ function FeatureBody({
     }
 
     case "cobertura":
-    case "mortalidad": {
+    case "mortalidad":
+    case "microchip":
+    case "ppp": {
       // Choropleth cell. U5: province mode carries no locality + no suppression
       // (province cells are large); locality mode may be suppressed (k-anon).
       const isProvince = str(properties, "level") === "province";
@@ -336,12 +399,18 @@ function FeatureBody({
       const place = isProvince
         ? (str(properties, "province") ?? "—")
         : [str(properties, "locality"), str(properties, "province")].filter(Boolean).join(", ");
+      const valueLabel = {
+        cobertura: "Perros vacunados",
+        mortalidad: "Mascotas fallecidas",
+        microchip: "Mascotas con microchip activo",
+        ppp: "Mascotas PPP registradas",
+      }[layerId];
       return (
         <>
           <dl>
             <Row label={isProvince ? "Provincia" : "Localidad"} value={place || "—"} />
             <Row
-              label={layerId === "cobertura" ? "Perros vacunados" : "Mascotas fallecidas"}
+              label={valueLabel}
               value={
                 !isProvince && suppressed ? (
                   <span className="text-ln-op-mute">Suprimido (privacidad · k‑anon)</span>
