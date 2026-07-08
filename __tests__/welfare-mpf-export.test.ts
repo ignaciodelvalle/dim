@@ -144,6 +144,53 @@ describe("welfareReportToMpfDto — occurredAt", () => {
   });
 });
 
+describe("welfareReportToMpfDto — knowledge chronology (task #77 bitemporal)", () => {
+  it("computes the knowledge gap between occurrence (valid time) and intake (transaction time)", () => {
+    // occurred 2026-05-15 10:00Z, recorded 2026-05-21 08:00Z → ~6 days later.
+    const report = makeReport({
+      occurredAt: new Date("2026-05-15T10:00:00Z"),
+      createdAt: new Date("2026-05-21T08:00:00Z"),
+    });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.knowledgeGapLabel).not.toBeNull();
+    expect(dto.knowledgeGapLabel).toContain("6 días");
+    expect(dto.knowledgeGapLabel).toContain("conocimiento");
+  });
+
+  it("returns a null gap when the denunciante declared no occurrence date", () => {
+    const report = makeReport({ occurredAt: null });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.knowledgeGapLabel).toBeNull();
+  });
+
+  it("uses the singular form for a one-day gap", () => {
+    const report = makeReport({
+      occurredAt: new Date("2026-05-20T09:00:00Z"),
+      createdAt: new Date("2026-05-21T09:00:00Z"),
+    });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.knowledgeGapLabel).toContain("1 día después");
+  });
+});
+
 describe("MPF_EXPORT_SCHEMA_VERSION", () => {
   it("is a non-empty string", () => {
     expect(typeof MPF_EXPORT_SCHEMA_VERSION).toBe("string");

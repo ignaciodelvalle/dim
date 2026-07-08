@@ -209,6 +209,11 @@ export async function generateMpfExport(
       exportGeneratedAt: exportGeneratedAt.toISOString(),
       reportCreatedAt: report.createdAt.toISOString(),
       exportedByDisplayName,
+      // task #77: placeholder — the production action rebuilds the DTO via the real
+      // welfareReportToMpfDto mapper (which computes the knowledge gap), so this
+      // inline value never reaches the PDF. Kept null to satisfy the type contract
+      // without pulling the pdf-lib chain into the use-case.
+      knowledgeGapLabel: null,
     });
   } catch (err) {
     console.error("[welfare/generate-mpf-export] PDF render failed:", err);

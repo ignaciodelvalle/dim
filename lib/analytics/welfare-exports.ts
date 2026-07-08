@@ -70,7 +70,29 @@ export type WelfareMpfDto = {
   exportGeneratedAt: string;
   reportCreatedAt: string;
   exportedByDisplayName: string;
+  // task #77 bitemporal — knowledge chronology. `occurredAtLabel` is VALID time
+  // (when the hecho happened); `reportCreatedAt` is TRANSACTION time (when the
+  // authority took knowledge via the denuncia). `knowledgeGapLabel` names the gap
+  // between the two — the diligence/plazos-de-actuación signal for the fiscalía.
+  // Null when the denunciante did not declare an occurrence date (no gap to compute).
+  knowledgeGapLabel: string | null;
 };
+
+/**
+ * task #77 bitemporal — human es-AR sentence naming the gap between WHEN the hecho
+ * occurred (valid time) and WHEN the authority took knowledge of it (transaction
+ * time = report intake). Null when no occurrence date was declared.
+ */
+export function knowledgeGapLabel(occurredAt: Date | null, createdAt: Date): string | null {
+  if (!occurredAt) return null;
+  const days = Math.round((createdAt.getTime() - occurredAt.getTime()) / 86_400_000);
+  if (days <= 0) {
+    return "La autoridad tomó conocimiento el mismo día del hecho (o antes de la fecha declarada por el denunciante).";
+  }
+  if (days === 1)
+    return "La autoridad tomó conocimiento 1 día después de la fecha del hecho denunciado.";
+  return `La autoridad tomó conocimiento ${days} días después de la fecha del hecho denunciado.`;
+}
 
 // ---------------------------------------------------------------------------
 // Mapper
@@ -121,6 +143,7 @@ export function welfareReportToMpfDto(
     exportGeneratedAt: formatDateTimeLegal(opts.exportGeneratedAt),
     reportCreatedAt: formatDate(report.createdAt),
     exportedByDisplayName: opts.exportedByDisplayName,
+    knowledgeGapLabel: knowledgeGapLabel(report.occurredAt, report.createdAt),
   };
 }
 
@@ -525,6 +548,63 @@ export async function generateWelfareMpfPdf(dto: WelfareMpfDto): Promise<Uint8Ar
     y,
     boldFont,
     regularFont,
+    maxWidth: contentWidth,
+  });
+  y -= 4;
+
+  // ------------------------------------------------------------------
+  // Cronología según conocimiento (task #77 bitemporal)
+  //
+  // For the fiscalía: WHAT the authority knew WHEN. The occurrence date (valid
+  // time) and the intake date (transaction time = when the denuncia reached the
+  // system) are distinct facts; the gap between them speaks to diligence and
+  // plazos de actuación — institutional legal defense.
+  // ------------------------------------------------------------------
+  y = drawSectionHeader(page, {
+    text: "CRONOLOGÍA SEGÚN CONOCIMIENTO",
+    x: margin,
+    y,
+    width: contentWidth,
+    boldFont,
+  });
+  y = drawField(page, {
+    label: "Fecha del hecho (ocurrencia)",
+    value: dto.occurredAtLabel,
+    x: margin,
+    y,
+    boldFont,
+    regularFont,
+    maxWidth: contentWidth,
+  });
+  y = drawField(page, {
+    label: "Conocimiento por la autoridad (recepción de la denuncia)",
+    value: dto.reportCreatedAt,
+    x: margin,
+    y,
+    boldFont,
+    regularFont,
+    maxWidth: contentWidth,
+  });
+  if (dto.knowledgeGapLabel) {
+    y = drawField(page, {
+      label: "Brecha de conocimiento",
+      value: dto.knowledgeGapLabel,
+      x: margin,
+      y,
+      boldFont,
+      regularFont,
+      maxWidth: contentWidth,
+    });
+  }
+  y = drawField(page, {
+    label: "Nota bitemporal",
+    value:
+      "La fecha de ocurrencia indica cuándo sucedió el hecho; la fecha de conocimiento, cuándo la autoridad tomó noticia de él. La distinción es jurídicamente relevante para evaluar la diligencia y los plazos de actuación.",
+    x: margin,
+    y,
+    boldFont,
+    regularFont,
+    valueSize: 7,
     maxWidth: contentWidth,
   });
   y -= 4;
