@@ -26,6 +26,7 @@ import { getProfileCached } from "@/lib/infra/request-cache";
 import { resolveVetLanding } from "@/lib/infra/role-landing";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
+import { speciesLabel } from "@/lib/utils/format";
 import { and, count, eq, isNull } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";
@@ -300,7 +301,12 @@ function MemorialRow({
   );
 }
 
-/** Short species display name for the right column of each row. */
+/**
+ * Short species display name for the right column of each row. Dog/cat keep the
+ * adjectival "especie" form (Canina/Felina) used on the libreta; every other
+ * species falls through to the shared es-AR label map so the raw English enum
+ * (rabbit, guinea_pig, ferret) never leaks into the UI.
+ */
 function speciesLabelShort(species: string): string {
   switch (species) {
     case "dog":
@@ -308,6 +314,6 @@ function speciesLabelShort(species: string): string {
     case "cat":
       return "Felina";
     default:
-      return species;
+      return speciesLabel(species);
   }
 }

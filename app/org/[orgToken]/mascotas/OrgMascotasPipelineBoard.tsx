@@ -12,6 +12,7 @@
 import Link from "next/link";
 
 import { PIPELINE_COLUMNS, groupIntoPipelineColumns } from "@/lib/infra/pet-pipeline";
+import { speciesLabel } from "@/lib/utils/format";
 import type { PetCardData } from "./OrgMascotasBulkList";
 
 // ─── Column color palette ─────────────────────────────────────────────────────
@@ -72,16 +73,9 @@ const COLUMN_STYLES: Record<string, ColumnStyle> = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const SPECIES_LABELS: Record<string, string> = {
-  dog: "Perro",
-  cat: "Gato",
-  other: "Otro",
-};
-
-function speciesLabel(s: string): string {
-  return SPECIES_LABELS[s] ?? s;
-}
+// Species labels come from the shared es-AR map (@/lib/utils/format) so the
+// board covers every species (conejo/cobayo/hurón) instead of leaking the raw
+// English enum through a local, incomplete dog/cat/other map.
 
 function calcAge(dob: string): string {
   const birth = new Date(dob);
