@@ -207,9 +207,8 @@ export async function loadBiteEvents(
   adminLocality?: string,
 ): Promise<LayerRows<BiteRow>> {
   const conditions = [
-    eq(petEvents.eventType, "incident_reported"),
     // bite_inflicted | bite_suffered are the two bite variants (event-schemas.ts).
-    sql`(${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered')`,
+    mordedurasEventPredicate(),
     gte(petEvents.occurredAt, since),
     // Located events only — a point layer never plots a null coordinate.
     isNotNull(petEvents.locationLat),
@@ -217,7 +216,11 @@ export async function loadBiteEvents(
   // F4 temporal reproduction: upper-bound the event window so the layer can be
   // reconstructed "as of t" while the TimeScrubber plays.
   if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
-  const scope = petEventsScope(actor, jurisdictions, adminProvince, adminLocality);
+  // incident_reported carries NO jurisdiction in its payload (only outbreak_signal
+  // snapshots pet_jurisdiction_* — see petEventsScopeClause jsdoc), so scope by the
+  // pet's home jurisdiction via the JOIN to pets, exactly like loadMordedurassByUnit.
+  // The old petEventsScope filtered out every real bite for scoped govt users.
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
   if (scope) conditions.push(sql`(${scope})`);
 
   const rows = await db
@@ -230,6 +233,7 @@ export async function loadBiteEvents(
       occurredAt: petEvents.occurredAt,
     })
     .from(petEvents)
+    .innerJoin(pets, eq(petEvents.petId, pets.id))
     .where(and(...conditions))
     .limit(PER_LAYER_CAP);
 
@@ -1415,9 +1419,14 @@ export async function loadDenunciasByUnit(
 // ---------------------------------------------------------------------------
 // outbreak_signals (zoonosis) — per-unit aggregation (SIGNAL).
 //
-// Counts outbreak_signal pet_events grouped by (province) or (province, locality),
-// joining ar_localities for the unit centroid. Mirrors loadOutbreakSignals in
-// scope + period clauses.
+// Counts outbreak_signal pet_events grouped by the payload jurisdiction SNAPSHOT
+// (pet_jurisdiction_province / pet_jurisdiction_locality) — the ONLY event type
+// that legitimately carries jurisdiction in its payload (see petEventsScopeClause
+// jsdoc; the schema snapshots it at signal time so surveillance aggregates hold
+// even if the pet later moves). Previously grouped by flat payload province/locality
+// that no outbreak_signal writer emits — only the raw-insert seed produced them, so
+// real signals were invisible on the choropleth. Joins ar_localities for the unit
+// centroid. Mirrors loadOutbreakSignals in scope + period clauses.
 // ---------------------------------------------------------------------------
 
 export async function loadZoonosisByUnit(
@@ -1433,7 +1442,7 @@ export async function loadZoonosisByUnit(
   const conditions: SQL[] = [
     eq(petEvents.eventType, "outbreak_signal"),
     gte(petEvents.occurredAt, since),
-    isNotNull(sql`(${petEvents.payload}->>'province')`),
+    isNotNull(sql`(${petEvents.payload}->>'pet_jurisdiction_province')`),
   ];
   if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
   if (scope) conditions.push(sql`(${scope})`);
@@ -1441,7 +1450,7 @@ export async function loadZoonosisByUnit(
   if (level === "province") {
     const rows = await db
       .select({
-        province: sql<string>`(${petEvents.payload}->>'province')`,
+        province: sql<string>`(${petEvents.payload}->>'pet_jurisdiction_province')`,
         // AVG (not MIN): unweighted locality centroid, not the province SW corner.
         centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
         centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
@@ -1451,12 +1460,12 @@ export async function loadZoonosisByUnit(
       .leftJoin(
         arLocalities,
         and(
-          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
+          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'pet_jurisdiction_province')`)}`,
           sql`${arLocalities.removedAt} IS NULL`,
         ),
       )
       .where(and(...conditions))
-      .groupBy(sql`(${petEvents.payload}->>'province')`)
+      .groupBy(sql`(${petEvents.payload}->>'pet_jurisdiction_province')`)
       .limit(PER_LAYER_CAP);
     const rollup: RollupRow[] = rows
       .filter((r) => r.province)
@@ -1474,8 +1483,8 @@ export async function loadZoonosisByUnit(
 
   const rows = await db
     .select({
-      province: sql<string>`(${petEvents.payload}->>'province')`,
-      locality: sql<string>`(${petEvents.payload}->>'locality')`,
+      province: sql<string>`(${petEvents.payload}->>'pet_jurisdiction_province')`,
+      locality: sql<string>`(${petEvents.payload}->>'pet_jurisdiction_locality')`,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
       n: countDistinct(petEvents.id),
@@ -1484,13 +1493,16 @@ export async function loadZoonosisByUnit(
     .leftJoin(
       arLocalities,
       and(
-        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
-        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`(${petEvents.payload}->>'locality')`)}`,
+        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'pet_jurisdiction_province')`)}`,
+        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`(${petEvents.payload}->>'pet_jurisdiction_locality')`)}`,
         sql`${arLocalities.removedAt} IS NULL`,
       ),
     )
-    .where(and(...conditions, isNotNull(sql`(${petEvents.payload}->>'locality')`)))
-    .groupBy(sql`(${petEvents.payload}->>'province')`, sql`(${petEvents.payload}->>'locality')`)
+    .where(and(...conditions, isNotNull(sql`(${petEvents.payload}->>'pet_jurisdiction_locality')`)))
+    .groupBy(
+      sql`(${petEvents.payload}->>'pet_jurisdiction_province')`,
+      sql`(${petEvents.payload}->>'pet_jurisdiction_locality')`,
+    )
     .limit(PER_LAYER_CAP);
   const rollup: RollupRow[] = rows
     .filter((r) => r.province && r.locality)
@@ -1694,8 +1706,11 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
           eq(petEvents.eventType, "outbreak_signal"),
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
-          sql`(${petEvents.payload}->>'province') = ${province}`,
-          sql`(${petEvents.payload}->>'locality') = ${locality}`,
+          // outbreak_signal snapshots the pet's jurisdiction into the payload at
+          // signal time (pet_jurisdiction_*, the ONLY event that legitimately does
+          // — see petEventsScopeClause jsdoc); it never writes flat province/locality.
+          sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${province}`,
+          sql`(${petEvents.payload}->>'pet_jurisdiction_locality') = ${locality}`,
         ];
         if (scope) conditions.push(sql`(${scope})`);
         const [row] = await db
@@ -1789,10 +1804,16 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
   type RawEvent = { date: Date | null; type: string; label: string };
 
   async function queryEvents(): Promise<RawEvent[]> {
-    // Build province+locality filter for pet_events JSONB-payload layers.
+    // Build province+locality filter for the outbreak_signal (zoonosis) layer,
+    // which snapshots the pet's jurisdiction into pet_jurisdiction_* at signal
+    // time (the ONLY event type that legitimately carries these payload keys —
+    // see petEventsScopeClause jsdoc). Perdidas/mordeduras use petsJurisdictionFilter.
     function payloadJurisdictionFilter(): SQL[] {
-      const filters: SQL[] = [sql`(${petEvents.payload}->>'province') = ${province}`];
-      if (locality) filters.push(sql`(${petEvents.payload}->>'locality') = ${locality}`);
+      const filters: SQL[] = [
+        sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${province}`,
+      ];
+      if (locality)
+        filters.push(sql`(${petEvents.payload}->>'pet_jurisdiction_locality') = ${locality}`);
       return filters;
     }
 
@@ -2034,9 +2055,14 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
     const dayBucket = (tsCol: SQL) =>
       sql<string>`to_char(date_trunc('day', ${tsCol}), 'YYYY-MM-DD')`;
 
+    // outbreak_signal (zoonosis) snapshots the pet's jurisdiction into
+    // pet_jurisdiction_* at signal time — see the queryEvents copy above.
     function payloadJurisdictionFilter(): SQL[] {
-      const filters: SQL[] = [sql`(${petEvents.payload}->>'province') = ${province}`];
-      if (locality) filters.push(sql`(${petEvents.payload}->>'locality') = ${locality}`);
+      const filters: SQL[] = [
+        sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${province}`,
+      ];
+      if (locality)
+        filters.push(sql`(${petEvents.payload}->>'pet_jurisdiction_locality') = ${locality}`);
       return filters;
     }
 
