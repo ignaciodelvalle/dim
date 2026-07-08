@@ -58,7 +58,7 @@ export function LibretaSanitariaView({ groupedEvents, publicToken, vista }: Prop
           <LnSectionHead
             num="01"
             title="Registro de vacunación"
-            meta="Asientos certificados"
+            meta="Asientos de la libreta"
             className="mb-4"
           />
           <LnVaccineLedger rows={vaccinationEvents.map(eventToVaccineRow)} />
