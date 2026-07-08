@@ -27,8 +27,11 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { computeVaccinationSummary, hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
 import { readPoint } from "@/lib/domain/location";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
+import { overlayAmendments } from "@/lib/infra/amendment";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/infra/origin-org";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -48,12 +51,7 @@ import { notFound } from "next/navigation";
 import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
 import { Tier2MedicalView } from "./Tier2MedicalView";
-import {
-  type CredentialEvent,
-  countActiveVaccineNames,
-  deriveActiveMedications,
-  isRabiesAtRisk,
-} from "./credential-badges";
+import { type CredentialEvent, deriveActiveMedications, isRabiesAtRisk } from "./credential-badges";
 
 // The page calls headers() at runtime — mark it dynamic explicitly so Next.js
 // does not attempt to statically render it (matches the sibling encontre /
@@ -308,63 +306,85 @@ export default async function PublicCredentialPage({
   const tier2Active =
     pet.tier2PublicPermanent || (!!tier2EnabledUntil && tier2EnabledUntil > new Date());
 
-  let tier2VaccineActive = 0;
+  let tier2VaccineSummary = { active: 0, expired: 0, dueSoon: 0, missing: 0 };
+  let tier2HasVaccineRecord = false;
   let tier2IsSterilized = false;
   const tier2ActiveMedications: string[] = [];
   if (tier2Active) {
-    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
     // Run the tier2 queries concurrently — none depends on the others. Each
     // clinical query selects the full overlay shape (id/eventType/occurredAt/
     // payload) and is folded with the pet's `event_amended` rows (WAVE D1) so a
     // corrected vaccine/medication supersedes on the public credential too.
-    const [recentVaccines, sterilRows, medRows, amendmentEvents] = await Promise.all([
-      // Vacunación "vigente" v1: unique vaccine_name applied in the last 12
-      // months. Conservative — a future PR can wire computeVaccinationSummary
-      // (catalog interval-aware) once the libreta health-status helpers land.
-      db
-        .select({
-          id: petEvents.id,
-          eventType: petEvents.eventType,
-          occurredAt: petEvents.occurredAt,
-          payload: petEvents.payload,
-        })
-        .from(petEvents)
-        .where(
-          and(
-            eq(petEvents.petId, pet.id),
-            eq(petEvents.eventType, "vaccination_administered"),
-            sql`${petEvents.occurredAt} >= ${oneYearAgo.toISOString()}`,
+    const [vaccineEvents, sterilRows, medRows, amendmentEvents, dueSoonWindowRule] =
+      await Promise.all([
+        // FULL vaccination history — the same input the owner's libreta feeds
+        // into computeVaccinationSummary (a dose from years ago still determines
+        // catalog currency). The former 12-month name-dedupe stopgap
+        // (countActiveVaccineNames) produced counts that contradicted the
+        // owner's libreta for the same pet (staging validation 2026-07-04,
+        // bug 3). Type-narrow, so it stays cheap at scale (same rationale as
+        // get-libreta-face-data's uncapped summary query).
+        db
+          .select({
+            id: petEvents.id,
+            eventType: petEvents.eventType,
+            occurredAt: petEvents.occurredAt,
+            payload: petEvents.payload,
+          })
+          .from(petEvents)
+          .where(
+            and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")),
           ),
-        ),
-      db
-        .select({ id: petEvents.id })
-        .from(petEvents)
-        .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "sterilization_performed")))
-        .limit(1),
-      // Active medications: started without a referencing stop. Same shape
-      // as computeMedicationsActive (lib/domain/libreta-health-status.ts) but
-      // inlined to avoid coupling this page to that PR until both ship.
-      db
-        .select({
-          id: petEvents.id,
-          eventType: petEvents.eventType,
-          occurredAt: petEvents.occurredAt,
-          payload: petEvents.payload,
-        })
-        .from(petEvents)
-        .where(
-          and(
-            eq(petEvents.petId, pet.id),
-            sql`${petEvents.eventType} IN ('medication_started','medication_stopped')`,
+        db
+          .select({ id: petEvents.id })
+          .from(petEvents)
+          .where(
+            and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "sterilization_performed")),
+          )
+          .limit(1),
+        // Active medications: started without a referencing stop. Same shape
+        // as computeMedicationsActive (lib/domain/libreta-health-status.ts) but
+        // inlined to avoid coupling this page to that PR until both ship.
+        db
+          .select({
+            id: petEvents.id,
+            eventType: petEvents.eventType,
+            occurredAt: petEvents.occurredAt,
+            payload: petEvents.payload,
+          })
+          .from(petEvents)
+          .where(
+            and(
+              eq(petEvents.petId, pet.id),
+              sql`${petEvents.eventType} IN ('medication_started','medication_stopped')`,
+            ),
           ),
-        ),
-      getAmendmentEvents(),
-    ]);
+        getAmendmentEvents(),
+        // Same jurisdiction-resolved window the owner's libreta uses — the two
+        // surfaces MUST share the whole derivation, thresholds included.
+        resolveBusinessRule("due_soon_window", {
+          country: "AR",
+          province: pet.jurisdictionProvince,
+          locality: pet.jurisdictionLocality,
+        }),
+      ]);
 
-    // Fold corrections BEFORE deriving each badge (overlayAmendments inside the
-    // pure helpers). A corrected vaccine_name / drug_name changes what the QR
-    // scanner sees, not just the owner's timeline.
-    tier2VaccineActive = countActiveVaccineNames([...recentVaccines, ...amendmentEvents]);
+    // SINGLE SHARED DERIVATION (bug 3): the exact function + inputs the owner
+    // libreta uses (get-libreta-face-data.ts) — corrections folded first, then
+    // catalog/due-date classification. Owner and share can no longer disagree.
+    const summary = computeVaccinationSummary(
+      overlayAmendments([...vaccineEvents, ...amendmentEvents]),
+      pet.species,
+      new Date(),
+      dueSoonWindowRule.payload.days,
+    );
+    tier2VaccineSummary = {
+      active: summary.active,
+      expired: summary.expired,
+      dueSoon: summary.dueSoon,
+      missing: summary.missing,
+    };
+    tier2HasVaccineRecord = hasAnyVaccineRecord(summary);
 
     tier2IsSterilized = sterilRows.length > 0;
 
@@ -820,12 +840,8 @@ export default async function PublicCredentialPage({
             <div className="border-t border-ln-line-2">
               <Tier2MedicalView
                 enabledUntil={tier2EnabledUntil}
-                vaccineSummary={{
-                  active: tier2VaccineActive,
-                  expired: 0,
-                  dueSoon: 0,
-                  missing: 0,
-                }}
+                vaccineSummary={tier2VaccineSummary}
+                hasVaccineRecords={tier2HasVaccineRecord}
                 isSterilized={tier2IsSterilized}
                 activeMedications={tier2ActiveMedications}
                 permanentConditions={pet.permanentConditions ?? []}

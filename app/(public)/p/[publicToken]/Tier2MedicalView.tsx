@@ -29,6 +29,13 @@ interface Props {
     dueSoon: number;
     missing: number;
   };
+  /**
+   * True when the pet has at least one REGISTERED dose (hasAnyVaccineRecord,
+   * lib/domain/libreta-health-status). False renders the "Sin vacunas
+   * registradas" empty state — the same predicate the owner libreta uses, so
+   * the two surfaces can never disagree (staging validation 2026-07-04, bug 3).
+   */
+  hasVaccineRecords: boolean;
   /** Pet has at least one sterilization_performed event. */
   isSterilized: boolean;
   /** Names of currently-active medications (started without a stop). */
@@ -42,6 +49,7 @@ interface Props {
 export function Tier2MedicalView({
   enabledUntil,
   vaccineSummary,
+  hasVaccineRecords,
   isSterilized,
   activeMedications,
   permanentConditions,
@@ -64,16 +72,35 @@ export function Tier2MedicalView({
       })
     : null;
 
-  // Determine vaccine tone based on summary
-  const vaccineTone: "ok" | "warn" | "danger" =
-    vaccineSummary.expired > 0 ? "danger" : vaccineSummary.missing > 0 ? "warn" : "ok";
+  // Determine vaccine tone based on summary. Zero registered doses is a
+  // NEUTRAL empty state ("Sin vacunas registradas") — never a fabricated
+  // count or an alarm derived from catalog-only "missing" entries.
+  const vaccineTone: "ok" | "warn" | "danger" | "neutral" = !hasVaccineRecords
+    ? "neutral"
+    : vaccineSummary.expired > 0
+      ? "danger"
+      : vaccineSummary.dueSoon > 0 || vaccineSummary.missing > 0
+        ? "warn"
+        : "ok";
 
-  const vaccineSubLabel =
-    vaccineSummary.expired > 0
+  const vaccineValue = !hasVaccineRecords
+    ? "—"
+    : String(
+        vaccineSummary.active ||
+          vaccineSummary.expired ||
+          vaccineSummary.dueSoon ||
+          vaccineSummary.missing,
+      );
+
+  const vaccineSubLabel = !hasVaccineRecords
+    ? "Sin vacunas registradas"
+    : vaccineSummary.expired > 0
       ? `${vaccineSummary.expired} vencida${vaccineSummary.expired === 1 ? "" : "s"}`
-      : vaccineSummary.missing > 0
-        ? `${vaccineSummary.missing} faltante${vaccineSummary.missing === 1 ? "" : "s"}`
-        : `${vaccineSummary.active} vigente${vaccineSummary.active === 1 ? "" : "s"}`;
+      : vaccineSummary.dueSoon > 0
+        ? `${vaccineSummary.dueSoon} por vencer`
+        : vaccineSummary.missing > 0
+          ? `${vaccineSummary.missing} faltante${vaccineSummary.missing === 1 ? "" : "s"}`
+          : `${vaccineSummary.active} vigente${vaccineSummary.active === 1 ? "" : "s"}`;
 
   return (
     <section aria-labelledby="tier2-h" className="px-4 py-[13px]">
@@ -101,12 +128,7 @@ export function Tier2MedicalView({
       <dl
         className={`grid grid-cols-2 gap-x-3 gap-y-2.5 ${conditionLabels.length > 0 || activeMedications.length > 0 ? "mb-3" : ""}`}
       >
-        <MedStat
-          label="Vacunación"
-          value={String(vaccineSummary.active || vaccineSummary.expired || vaccineSummary.missing)}
-          sub={vaccineSubLabel}
-          tone={vaccineTone}
-        />
+        <MedStat label="Vacunación" value={vaccineValue} sub={vaccineSubLabel} tone={vaccineTone} />
         <MedStat
           label="Esterilización"
           value={isSterilized ? "Sí" : "No"}

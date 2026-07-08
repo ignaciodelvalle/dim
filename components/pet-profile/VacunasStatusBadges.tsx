@@ -8,11 +8,38 @@
 // Accordion: one state open at a time; keyboard-accessible via real <button>
 // semantics + aria-expanded/aria-controls.
 
-import type { VaccinationSummary, VaccineSnapshot } from "@/lib/domain/libreta-health-status";
+import {
+  type VaccinationSummary,
+  type VaccineSnapshot,
+  hasAnyVaccineRecord,
+} from "@/lib/domain/libreta-health-status";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { useState } from "react";
 
 type BadgeKey = "vigente" | "por-vencer" | "vencida";
+
+/**
+ * Pure badge-count derivation (exported for unit tests — staging validation
+ * 2026-07-04, bug 3). "Por vencer" counts ONLY registered doses approaching
+ * their next due date (`due_soon`); core vaccines that were NEVER administered
+ * (`missing`) are NOT "por vencer" — they surface separately as "sin aplicar".
+ * A pet with zero registered doses renders the empty state instead of counts.
+ */
+export function deriveVacunasBadgeCounts(summary: VaccinationSummary): {
+  vigente: number;
+  porVencer: number;
+  vencida: number;
+  sinAplicar: number;
+  hasRecords: boolean;
+} {
+  return {
+    vigente: summary.active,
+    porVencer: summary.dueSoon,
+    vencida: summary.expired,
+    sinAplicar: summary.missing,
+    hasRecords: hasAnyVaccineRecord(summary),
+  };
+}
 
 function fmtDate(d: Date | null): string {
   if (!d) return "—";
@@ -41,6 +68,7 @@ function metaFor(v: VaccineSnapshot): string {
 
 export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }) {
   const [open, setOpen] = useState<BadgeKey | null>(null);
+  const counts = deriveVacunasBadgeCounts(summary);
 
   const badges: Array<{
     key: BadgeKey;
@@ -58,7 +86,7 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
       // also requires professional verification); using it here contradicted
       // that panel for an owner-declared dose (QA round 2 2026-07-03 finding A).
       label: "Vigente",
-      count: summary.active,
+      count: counts.vigente,
       items: summary.perVaccine.filter((v) => v.status === "active"),
       bg: "var(--color-ln-ok-050)",
       border: "var(--color-ln-ok-100)",
@@ -67,8 +95,11 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
     {
       key: "por-vencer",
       label: "Por vencer",
-      count: summary.dueSoon + summary.missing,
-      items: summary.perVaccine.filter((v) => v.status === "due_soon" || v.status === "missing"),
+      // ONLY registered doses approaching next_due — never-administered core
+      // vaccines are NOT "por vencer" (bug 3, staging validation 2026-07-04);
+      // they surface in the "sin aplicar" note below instead.
+      count: counts.porVencer,
+      items: summary.perVaccine.filter((v) => v.status === "due_soon"),
       bg: "var(--color-ln-warn-025)",
       border: "var(--color-ln-warn-050)",
       text: "var(--color-ln-warn)",
@@ -76,7 +107,7 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
     {
       key: "vencida",
       label: "Vencida",
-      count: summary.expired,
+      count: counts.vencida,
       items: summary.perVaccine.filter((v) => v.status === "expired"),
       bg: "var(--color-ln-err-050)",
       border: "var(--color-ln-err-100)",
@@ -85,6 +116,31 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
   ];
 
   const openBadge = badges.find((b) => b.key === open) ?? null;
+
+  // Zero registered doses → honest empty state, never a fabricated count
+  // (shared predicate with the public share view — hasAnyVaccineRecord).
+  if (!counts.hasRecords) {
+    return (
+      <section aria-label="Estado de vacunación">
+        <p
+          className="mb-2 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] font-semibold"
+          style={{ color: "var(--color-ln-mute)" }}
+        >
+          Estado de vacunación
+        </p>
+        <p className="text-sm" style={{ color: "var(--color-ln-mute)" }}>
+          Sin vacunas registradas
+          {counts.sinAplicar > 0 && (
+            <span className="block text-xs mt-1">
+              {counts.sinAplicar === 1
+                ? "1 vacuna del calendario recomendado sin aplicar"
+                : `${counts.sinAplicar} vacunas del calendario recomendado sin aplicar`}
+            </span>
+          )}
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section aria-label="Estado de vacunación">
@@ -133,6 +189,14 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
           </section>
         )}
       </div>
+
+      {counts.sinAplicar > 0 && (
+        <p className="mt-2 text-xs" style={{ color: "var(--color-ln-mute)" }}>
+          {counts.sinAplicar === 1
+            ? "1 vacuna del calendario recomendado sin aplicar"
+            : `${counts.sinAplicar} vacunas del calendario recomendado sin aplicar`}
+        </p>
+      )}
 
       {summary.otherCount > 0 && (
         <p className="mt-2 text-xs" style={{ color: "var(--color-ln-mute)" }}>

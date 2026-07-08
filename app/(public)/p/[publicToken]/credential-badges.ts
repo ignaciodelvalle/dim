@@ -25,25 +25,12 @@ export type CredentialEvent = {
   payload: unknown;
 };
 
-/**
- * Count of DISTINCT vaccine names in the stream (Tier 2 "vacunas vigentes" v1).
- *
- * The caller pre-filters to the reporting window (last 12 months) in SQL; this
- * helper only dedupes by CORRECTED, normalized `vaccine_name`. Pass the window's
- * `vaccination_administered` rows together with the pet's `event_amended` rows so
- * a corrected name is counted under its current value.
- */
-export function countActiveVaccineNames(events: CredentialEvent[]): number {
-  const projected = overlayAmendments(events);
-  const seen = new Set<string>();
-  for (const e of projected) {
-    if (e.eventType !== "vaccination_administered") continue;
-    const raw = (e.payload as { vaccine_name?: unknown })?.vaccine_name;
-    const name = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-    if (name) seen.add(name);
-  }
-  return seen.size;
-}
+// countActiveVaccineNames (Tier 2 "vacunas vigentes" v1 — a 12-month distinct
+// name dedupe) was REMOVED (staging validation 2026-07-04, bug 3): its counts
+// contradicted the owner libreta for the same pet. The Tier 2 vaccine summary
+// now derives from the SAME shared function the owner path uses —
+// computeVaccinationSummary (lib/domain/libreta-health-status.ts) — with
+// overlayAmendments folded by the caller (page.tsx).
 
 /**
  * Active medications (Tier 2): `medication_started` events with no referencing

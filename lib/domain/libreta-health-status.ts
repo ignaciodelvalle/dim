@@ -207,6 +207,21 @@ export function computeVaccinationSummary(
 }
 
 /**
+ * True when the pet has at least ONE registered vaccine dose (catalog or
+ * off-catalog). A pet with zero records must render a "sin vacunas
+ * registradas" empty state — never a fabricated count (staging validation
+ * 2026-07-04, bug 3: a fresh pet showed "3 POR VENCER" because catalog-core
+ * vaccines with no dose were folded into the "por vencer" bucket).
+ *
+ * SINGLE SHARED PREDICATE: both the owner libreta (VacunasStatusBadges) and
+ * the public share view (Tier2MedicalView via /p/[publicToken]) must gate
+ * their empty state on this function so the two surfaces can never disagree.
+ */
+export function hasAnyVaccineRecord(summary: VaccinationSummary): boolean {
+  return summary.active + summary.dueSoon + summary.expired > 0 || summary.otherCount > 0;
+}
+
+/**
  * Open medication treatments — medication_started events that don't have a
  * matching medication_stopped event referencing them via
  * payload.medication_started_event_id. Returns them oldest first so the

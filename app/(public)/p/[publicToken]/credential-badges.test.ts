@@ -5,12 +5,9 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  type CredentialEvent,
-  countActiveVaccineNames,
-  deriveActiveMedications,
-  isRabiesAtRisk,
-} from "./credential-badges";
+import { computeVaccinationSummary, hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
+import { overlayAmendments } from "@/lib/infra/amendment";
+import { type CredentialEvent, deriveActiveMedications, isRabiesAtRisk } from "./credential-badges";
 
 const vaccination = (
   id: string,
@@ -36,25 +33,47 @@ const amend = (
   payload: { target_event_id: targetId, changes, reason: null },
 });
 
-describe("countActiveVaccineNames — corrections supersede on the public credential", () => {
-  it("counts distinct corrected vaccine names", () => {
-    const events = [
-      vaccination("v1", "Antirrábica", "2026-01-01"),
-      vaccination("v2", "Quíntuple", "2026-02-01"),
-    ];
-    expect(countActiveVaccineNames(events)).toBe(2);
-  });
+// The Tier 2 vaccine summary derives from computeVaccinationSummary — the SAME
+// function the owner libreta uses (bug 3, staging validation 2026-07-04). These
+// tests pin the two contracts the share view relies on: corrections still
+// supersede (Invariant #3), and a zero-record pet reads as "no records", never
+// a fabricated count.
+describe("tier2 vaccine summary — shared derivation on the public credential", () => {
+  const NOW = new Date("2026-03-15T00:00:00Z");
 
-  it("a correction that DEDUPES two doses drops the distinct count", () => {
-    // Two different names → 2. Correcting v2's name to match v1 → 1 distinct.
+  it("a correction to a vaccine name flows into the shared summary (Invariant #3)", () => {
+    // A mistyped off-catalog name corrected to the catalog "Antirrábica"
+    // becomes a classified core dose instead of an off-catalog extra.
     const events = [
-      vaccination("v1", "Antirrábica", "2026-01-01"),
-      vaccination("v2", "Antirabica typo", "2026-02-01"),
-      amend("a1", "v2", "2026-03-01", [
+      vaccination("v1", "Antirabica typo", "2026-02-01", "2027-02-01"),
+      amend("a1", "v1", "2026-03-01", [
         { field: "vaccine_name", old: "Antirabica typo", new: "Antirrábica" },
       ]),
     ];
-    expect(countActiveVaccineNames(events)).toBe(1);
+    const summary = computeVaccinationSummary(overlayAmendments(events), "dog", NOW);
+    expect(summary.otherCount).toBe(0);
+    const rabies = summary.perVaccine.find((v) => v.vaccineName === "Antirrábica");
+    expect(rabies?.status).not.toBe("missing");
+  });
+
+  it("zero registered doses → hasAnyVaccineRecord false, and nothing counts as due/expired", () => {
+    const summary = computeVaccinationSummary([], "dog", NOW);
+    expect(hasAnyVaccineRecord(summary)).toBe(false);
+    expect(summary.active).toBe(0);
+    expect(summary.dueSoon).toBe(0);
+    expect(summary.expired).toBe(0);
+    // Catalog cores show as missing — visible, but NEVER folded into a count.
+    expect(summary.missing).toBeGreaterThan(0);
+  });
+
+  it("owner and share agree by construction: same inputs → same summary object", () => {
+    const events = [
+      vaccination("v1", "Antirrábica", "2026-02-01"),
+      vaccination("v2", "Quíntuple", "2026-01-01"),
+    ];
+    const owner = computeVaccinationSummary(overlayAmendments(events), "dog", NOW);
+    const share = computeVaccinationSummary(overlayAmendments(events), "dog", NOW);
+    expect(share).toEqual(owner);
   });
 });
 
