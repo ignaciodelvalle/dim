@@ -1,16 +1,18 @@
-// Nueva mascota — onboarding wizard (Item 13, 2026-06-18).
+// Nueva mascota — onboarding alta (Item 13, 2026-06-18).
 //
 // Entry point from /mis-mascotas empty-state or post-signup.
-// Wrapped in LnWizardShell to signal guided onboarding context.
 // On success → /mis-mascotas/nueva/[token]/credencial (aha moment).
 //
-// UX 3.5 item 1: first-pet framing ("Registrar tu primera mascota" / wizard
-// step label) is gated on the owner having zero pets. Owners who already have
-// ≥1 pet receive neutral copy ("Registrar mascota").
+// PO decision 2026-07-08: the alta is a 2-step wizard (identidad → foto y más).
+// The wizard chrome + step state live in the client MinimalNewPetForm; this
+// server component only resolves the auth + first-pet framing.
+//
+// UX 3.5 item 1: first-pet framing ("Registrar tu primera mascota") is gated on
+// the owner having zero pets. Owners who already have ≥1 pet receive neutral
+// copy ("Registrar mascota").
 
 import { and, count, eq, isNull } from "drizzle-orm";
 
-import { LnWizardShell } from "@/components/ui/WizardShell";
 import { db, ownerships } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createPetAction } from "@/src/modules/pets/actions";
@@ -28,23 +30,8 @@ export default async function NewPetPage() {
 
   const isFirstPet = petCount === 0;
 
-  return (
-    <LnWizardShell
-      currentStep={1}
-      totalSteps={1}
-      stepLabels={[isFirstPet ? "Registrar tu primera mascota" : "Registrar mascota"]}
-      mainId="main-content"
-    >
-      <div className="mb-6">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
-          Registrar mascota
-        </h1>
-        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
-          Empezamos con lo mínimo. Vas a poder completar el resto en su perfil.
-        </p>
-      </div>
-
-      <MinimalNewPetForm action={createPetAction} />
-    </LnWizardShell>
-  );
+  // The wizard chrome (step counter, progress bar, back navigation) and the
+  // heading now live inside the client form, which owns the paso-1/paso-2 step
+  // state. See MinimalNewPetForm.
+  return <MinimalNewPetForm action={createPetAction} isFirstPet={isFirstPet} />;
 }
