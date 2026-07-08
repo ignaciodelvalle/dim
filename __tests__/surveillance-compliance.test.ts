@@ -268,6 +268,40 @@ describe("fetchEnoSla", () => {
     expect(m.total).toBe(0);
     expect(m.breachedOpen).toBe(0);
   });
+
+  it("scope: whole-province operator (CABA) sees barrio-scoped deliveries", async () => {
+    // A whole-CABA operator is assigned the whole-province INDEC locality
+    // ("Ciudad Autónoma de Buenos Aires"). Outbox rows target a specific barrio
+    // (or a null locality). Before whole-province subsumption the exact-pair
+    // clause matched neither, so the operator saw "sin entregas" despite live
+    // deliveries — the bug this test locks down.
+    const prov = "CABA";
+    const wholeProvince = "Ciudad Autónoma de Buenos Aires";
+    const barrio = "Palermo";
+    const pet = await insertFixturePet({ name: "EnoCaba", province: prov, locality: barrio });
+    const ev = await insertEvent({
+      petId: pet,
+      eventType: "outbreak_signal",
+      payload: {},
+      occurredAt: new Date(Date.now() - DAY_MS),
+    });
+    await insertOutboxRow({
+      sourceEventId: ev,
+      province: prov,
+      locality: barrio,
+      status: "delivered",
+      createdAt: new Date(Date.now() - DAY_MS),
+      slaDueAt: new Date(Date.now()),
+      deliveredAt: new Date(Date.now() - DAY_MS + 60 * 60 * 1000),
+    });
+
+    const scoped = await fetchEnoSla(
+      ctxFor({ role: "govt" }, [{ province: prov, locality: wholeProvince }]),
+    );
+    // Whole-province subsumption: the barrio-scoped delivery is in scope.
+    expect(scoped.total).toBe(1);
+    expect(scoped.onTime).toBe(1);
+  });
 });
 
 // ===========================================================================

@@ -444,7 +444,7 @@ export default async function GobVigilanciaPage({
             title={<span id={panelEnoId}>Notificación ENO (SLA de la bandeja de salida)</span>}
             actions={
               <Link
-                href="/admin/outbox"
+                href="/gob/outbox"
                 className="text-sm text-ln-op-azul hover:underline no-underline"
               >
                 Ver bandeja de salida →

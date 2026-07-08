@@ -71,12 +71,16 @@ function outboxScopeClause(ctx: ProjectionContext) {
   if (ctx.scope.kind === "global") return null;
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) =>
-      sql`(${eventNotificationOutbox.targetJurisdictionProvince} = ${j.province}
-        AND ${eventNotificationOutbox.targetJurisdictionLocality} = ${j.locality})`,
+  // Whole-province subsumption (jurisdictionPairClause): a whole-CABA operator
+  // must see CABA-barrio-scoped (and null-locality CABA) outbox rows too, not
+  // only rows whose locality string exactly equals the whole-province name.
+  // Previously this hand-rolled an exact (province AND locality) pair, so the
+  // SLA tile read "sin entregas" for deliveries the operator legitimately owns.
+  return jurisdictionPairClause(
+    jurisdictions,
+    sql`${eventNotificationOutbox.targetJurisdictionProvince}`,
+    sql`${eventNotificationOutbox.targetJurisdictionLocality}`,
   );
-  return sql.join(pairs, sql` OR `);
 }
 
 function hasNoScope(ctx: ProjectionContext): boolean {

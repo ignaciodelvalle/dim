@@ -17,7 +17,7 @@
 // targetJurisdictionLocality='La Plata'). They cannot widen this because
 // resolveScopedJurisdictions already ensured filteredJurisdictions ⊆ assignments.
 
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -36,7 +36,7 @@ import { PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
 import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildBreachCue } from "@/lib/infra/outbox-list";
-import { buildProjectionContext } from "@/lib/metrics";
+import { buildProjectionContext, jurisdictionPairClause } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
@@ -100,11 +100,18 @@ export default async function GobOutboxPage({
   // For govt role: restrict to assigned (province, locality) pairs.
   // For admin: no restriction — all rows visible.
   if (profile.role === "govt" && jurisdictions.length > 0) {
-    const jurisClauses = jurisdictions.map(
-      (j) =>
-        sql`(${eventNotificationOutbox.targetJurisdictionProvince} = ${j.province} AND ${eventNotificationOutbox.targetJurisdictionLocality} = ${j.locality})`,
+    // Whole-province subsumption (jurisdictionPairClause): a whole-CABA operator
+    // sees every CABA row — barrio-scoped or null-locality — not only rows whose
+    // locality string exactly equals the whole-province name. A barrio-specific
+    // assignment (CABA / Palermo) still keeps the exact pair. Previously this
+    // hand-rolled an exact (province AND locality) pair, so a whole-province
+    // operator saw "sin entregas" for deliveries it legitimately governs.
+    const jurisClause = jurisdictionPairClause(
+      jurisdictions,
+      sql`${eventNotificationOutbox.targetJurisdictionProvince}`,
+      sql`${eventNotificationOutbox.targetJurisdictionLocality}`,
     );
-    conditions.push(or(...jurisClauses));
+    if (jurisClause) conditions.push(jurisClause);
   }
 
   // --- User-facing filter conditions ---
