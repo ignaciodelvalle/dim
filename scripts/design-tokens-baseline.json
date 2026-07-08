@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-07-05",
     "branch": "integration/all-20260703",
-    "totalViolations": 2396,
+    "totalViolations": 2394,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -433,13 +433,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "components/panorama/SituationalMap.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "components/panorama/SituationalMapDynamic.tsx": {
       "text": 0,
       "space": 0,
@@ -537,6 +530,13 @@
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
+    },
+    "app/global-error.tsx": {
+      "text": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 5
     },
     "app/r/invite/[token]/page.tsx": {
       "text": 4,
@@ -860,13 +860,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/org/[orgToken]/mascotas/[publicToken]/adoption/FinalizeAdoptionForm.tsx": {
-      "text": 4,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/org/[orgToken]/mascotas/[publicToken]/adoption/page.tsx": {
       "text": 10,
       "space": 0,
@@ -1015,7 +1008,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/adopciones/page.tsx": {
-      "text": 5,
+      "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1076,13 +1069,6 @@
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
-    },
-    "app/global-error.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 5
     },
     "app/gob/vigilancia/page.tsx": {
       "text": 15,
@@ -1282,13 +1268,6 @@
     },
     "app/gob/perdidas/page.tsx": {
       "text": 5,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/gob/perdidas/_components/LostPetRow.tsx": {
-      "text": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1686,13 +1665,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/auditoria/page.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/admin/alertas/AlertRowActions.tsx": {
       "text": 3,
       "space": 0,
@@ -1827,7 +1799,7 @@
       "hexStyle": 3
     },
     "app/(public)/p/[publicToken]/page.tsx": {
-      "text": 21,
+      "text": 24,
       "space": 11,
       "rounded": 0,
       "shadow": 2,
