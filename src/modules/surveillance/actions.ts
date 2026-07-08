@@ -399,6 +399,7 @@ export async function professionalCloseRabiesObservationAction(
         await closeCase(args, tx as Parameters<typeof closeCase>[1]);
       },
       transaction: db.transaction.bind(db),
+      findAuthoritiesForJurisdiction,
     },
   );
 

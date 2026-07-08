@@ -805,7 +805,12 @@ const rabiesObservationStarted = z
 const rabiesObservationEnded = z
   .object(
     withVersion({
-      bite_event_id: z.string().uuid(),
+      // Nullable: an observation can legitimately end without a linked bite
+      // event (older/seed observations, or an observation opened without a
+      // recorded incident). The close MUST NOT fail just because the started
+      // event carried no bite_event_id. See professional-close-observation and
+      // close-eligible-observations (both coalesce a missing id to null).
+      bite_event_id: z.string().uuid().nullable(),
       observation_started_event_id: z.string().uuid(),
       outcome: z.enum(["negative", "positive_rabies", "dead", "lost_to_followup"]),
       closed_by_role: z.enum(["owner", "vet", "govt", "admin", "system"]),

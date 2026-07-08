@@ -738,6 +738,10 @@ export default async function PublicCredentialPage({
           </div>
         )}
 
+        {/* Active rabies observation — public-safety signal (no PII). A vecino
+            scanning a dog currently under a 10-day observation must see it. */}
+        {pet.rabiesObservationStatus === "in_progress" && <RabiesObservationBanner />}
+
         {/* Service dog banner — Ley 26.858 */}
         {showServiceDogBanner && <ServiceDogBanner rabiesAtRisk={rabiesAtRisk} />}
 
@@ -1021,6 +1025,36 @@ function ServiceDogBanner({ rabiesAtRisk }: { rabiesAtRisk: boolean }) {
           mantener la vacunación al día (Art. 8, Ley 26.858).
         </p>
       )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RabiesObservationBanner — active 10-day antirrábica observation (public safety)
+// ---------------------------------------------------------------------------
+//
+// Public-safe, PII-free signal shown to anyone scanning the QR while the pet is
+// under an active rabies observation (Decreto 4669/1973 PBA, Ord. CABA 41.831).
+// A vecino who was bitten, or who sees the animal, must know it is under formal
+// observation and whom to contact. No owner data, no bite details — just the
+// state and the safety instruction.
+function RabiesObservationBanner() {
+  return (
+    <section
+      role="alert"
+      aria-label="Aviso — mascota en observación antirrábica"
+      className="mb-4 rounded-[var(--radius-sm)] border border-ln-warn-100 border-l-[3px] border-l-ln-warn bg-ln-warn-050 px-4 py-3"
+    >
+      <p className="mb-1 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-warn">
+        Observación antirrábica
+      </p>
+      <p className="m-0 text-[13.5px] font-semibold text-ln-ink">
+        Esta mascota está en observación antirrábica activa (período de 10 días).
+      </p>
+      <p className="mt-1 text-[11.5px] text-ln-mute">
+        Si te mordió o tuviste contacto, comunicate con la autoridad sanitaria o el centro
+        antirrábico de tu localidad.
+      </p>
     </section>
   );
 }

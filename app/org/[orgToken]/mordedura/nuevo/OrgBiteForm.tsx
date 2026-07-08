@@ -114,8 +114,12 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         }
         next={[
           {
-            label: "Ver ficha de la mascota",
-            href: `/org/${orgToken}/mascotas/${state.petToken}`,
+            // Public credential — always reachable by the reporter. A clinic can
+            // report a bite by a pet it does NOT hold, so the org custody route
+            // (/org/{org}/mascotas/{token}) 404s for them. The public credential
+            // works for any reporter and now surfaces the observation banner.
+            label: "Ver credencial de la mascota",
+            href: `/p/${state.petToken}`,
           },
           {
             label: "Volver al panel del refugio",

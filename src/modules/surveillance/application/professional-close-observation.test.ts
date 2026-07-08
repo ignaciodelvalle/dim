@@ -172,6 +172,70 @@ describe("professionalCloseObservation — admin actor", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Positive rabies escalation + incomplete payload resilience (QA 2026-07-08)
+// ---------------------------------------------------------------------------
+
+describe("professionalCloseObservation — positive rabies escalation", () => {
+  it("fans out an urgent authority notification on positive_rabies close", async () => {
+    const deps = makeDeps();
+    const findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue(["auth-1", "auth-2"]);
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "positive_rabies" },
+      { ...deps, findAuthoritiesForJurisdiction },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(findAuthoritiesForJurisdiction).toHaveBeenCalledWith({
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    const authNotifs = result.notifications.filter(
+      (n) => n.notificationType === "rabies_observation_positive_authority",
+    );
+    expect(authNotifs).toHaveLength(2);
+    expect(authNotifs.every((n) => n.severity === "urgent")).toBe(true);
+  });
+
+  it("does NOT fan out to authorities for a negative close", async () => {
+    const deps = makeDeps();
+    const findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue(["auth-1"]);
+    const result = await professionalCloseObservation(BASE_INPUT, {
+      ...deps,
+      findAuthoritiesForJurisdiction,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(findAuthoritiesForJurisdiction).not.toHaveBeenCalled();
+    expect(
+      result.notifications.some(
+        (n) => n.notificationType === "rabies_observation_positive_authority",
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("professionalCloseObservation — resilient close for incomplete payloads", () => {
+  it("closes cleanly when the started event has NO bite_event_id (records null)", async () => {
+    const startedNoBite = {
+      ...makeStartedEvent(),
+      payload: {
+        observation_until: new Date("2024-08-11").toISOString(),
+        location: "in_situ",
+        official_site_organization_id: null,
+      },
+    } as unknown as PetEvent;
+    const deps = makeDeps({
+      findLatestObservationStarted: vi.fn().mockResolvedValue(startedNoBite),
+    });
+    const result = await professionalCloseObservation(BASE_INPUT, deps);
+    expect(result.ok).toBe(true);
+    const call = (deps.repo.insertObservationEnded as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as { payload: Record<string, unknown> };
+    expect(call.payload.bite_event_id).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Govt actor — jurisdiction scope enforcement (CRITICAL: cross-org bypass guard)
 // ---------------------------------------------------------------------------
 

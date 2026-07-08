@@ -13,6 +13,7 @@
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
+import { computeObservationUntil } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { NewNotification } from "./types";
 
@@ -110,14 +111,15 @@ export async function closeEligibleObservations(
 
       const startedPayload = startedEvent.payload as Record<string, unknown>;
       const observationUntilRaw = startedPayload.observation_until as string | undefined;
-      const observationUntil = observationUntilRaw ? new Date(observationUntilRaw) : null;
-      if (!observationUntil || !Number.isFinite(observationUntil.getTime())) {
-        stats.errors.push({
-          petId: pet.id,
-          reason: "observation_until missing or invalid in started payload",
-        });
-        continue;
-      }
+      const parsedUntil = observationUntilRaw ? new Date(observationUntilRaw) : null;
+      // Fallback deadline: when the started payload has no (or an invalid)
+      // observation_until, derive it from when the observation started + the
+      // legal 10-day window. Older/seed observations without the field would
+      // otherwise stay EN CURSO forever — the deadline is always computable.
+      const observationUntil =
+        parsedUntil && Number.isFinite(parsedUntil.getTime())
+          ? parsedUntil
+          : computeObservationUntil(startedEvent.occurredAt);
 
       // 2. Not yet due — skip.
       if (observationUntil > now) {
@@ -165,7 +167,10 @@ export async function closeEligibleObservations(
       }
 
       // 4. Happy path: auto-close as negative.
-      const biteEventId = startedPayload.bite_event_id as string;
+      // Coalesce to null (schema now accepts it) so a seed/older observation
+      // without a linked bite event still auto-closes instead of throwing a
+      // zod error that would leave it EN CURSO indefinitely.
+      const biteEventId = (startedPayload.bite_event_id as string | undefined) ?? null;
       const biteCase = await repo.findOpenBiteCase(pet.id);
 
       await transaction(async (tx) => {

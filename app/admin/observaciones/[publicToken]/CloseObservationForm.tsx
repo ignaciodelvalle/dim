@@ -120,6 +120,15 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
         </p>
       )}
 
+      {/* Non-silent gate: the positive-rabies close stays disabled until the
+          operator clears the friction step above. Without this hint the disabled
+          button reads as a silent no-op (nothing happens, no explanation). */}
+      {isPositiveRabies && !canSubmit && (
+        <output className="block text-xs text-ln-op-danger">
+          {`Para habilitar el cierre POSITIVO, escribí "${RABIES_CONFIRMATION_WORD}" o marcá la casilla de reconocimiento de arriba.`}
+        </output>
+      )}
+
       <OpButton type="submit" disabled={isPending || !canSubmit} variant="primary" block>
         {isPending ? "Cerrando..." : "Cerrar observación"}
       </OpButton>

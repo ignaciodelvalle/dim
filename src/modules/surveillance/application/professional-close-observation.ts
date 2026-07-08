@@ -51,6 +51,16 @@ type Deps = {
     tx: unknown,
   ) => Promise<void>;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
+  /**
+   * Authority fan-out for a POSITIVE rabies close — the public-health escalation
+   * hook. Optional so unit tests that don't exercise escalation can omit it; the
+   * action layer always supplies it. Returns authority user ids for the pet's
+   * jurisdiction.
+   */
+  findAuthoritiesForJurisdiction?: (jurisdiction: {
+    province: string;
+    locality: string;
+  }) => Promise<string[]>;
 };
 
 export type ProfessionalCloseObservationResult = UseCaseResult<void>;
@@ -63,7 +73,7 @@ export async function professionalCloseObservation(
   input: ProfessionalCloseObservationInput,
   deps: Deps,
 ): Promise<ProfessionalCloseObservationResult> {
-  const { repo, closeCase, transaction } = deps;
+  const { repo, closeCase, transaction, findAuthoritiesForJurisdiction } = deps;
   const { actor } = input;
 
   // 1. Validate outcome.
@@ -101,7 +111,10 @@ export async function professionalCloseObservation(
   }
 
   const startedPayload = startedEvent.payload as Record<string, unknown>;
-  const biteEventId = startedPayload.bite_event_id as string;
+  // Coalesce to null: an observation may legitimately lack a linked bite event
+  // (older/seed rows). The rabies_observation_ended schema now accepts null, so
+  // the close no longer throws a raw zod "bite_event_id invalid_type" error.
+  const biteEventId = (startedPayload.bite_event_id as string | undefined) ?? null;
   const now = new Date();
 
   // 6. Determine close reason: lost_to_followup → cancelled; else → resolved.
@@ -177,11 +190,45 @@ export async function professionalCloseObservation(
       }
     });
   } catch (err) {
+    // NEVER surface a raw zod / internal error to the operator (spec: friendly
+    // es-AR message only). Log the real detail for diagnostics.
     console.error("professionalCloseObservation tx failed:", err);
     return {
       ok: false,
-      error: `No se pudo cerrar: ${err instanceof Error ? err.message : "error desconocido"}`,
+      error: "No se pudo cerrar la observación. Reintentá; si persiste, avisá al equipo técnico.",
     };
+  }
+
+  // POSITIVE rabies escalation hook (public-health critical): fan out an urgent
+  // alert to the jurisdiction's sanitary authorities. Best-effort and post-tx —
+  // like the bite-report fan-out — a routing miss NEVER undoes a recorded close.
+  if (input.outcome === "positive_rabies" && findAuthoritiesForJurisdiction) {
+    if (pet.jurisdictionProvince && pet.jurisdictionLocality) {
+      try {
+        const authorityIds = await findAuthoritiesForJurisdiction({
+          province: pet.jurisdictionProvince,
+          locality: pet.jurisdictionLocality,
+        });
+        for (const authorityId of authorityIds) {
+          pendingNotifications.push({
+            userId: authorityId,
+            notificationType: "rabies_observation_positive_authority",
+            severity: "urgent",
+            title: `RABIA CONFIRMADA — ${pet.name}`,
+            body: `Se cerró una observación antirrábica con resultado POSITIVO para ${pet.name}. Activá el protocolo de salud pública para la jurisdicción.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}`,
+            relatedPetId: pet.id,
+            relatedCaseId: biteCase?.id ?? null,
+            ctaLabel: "Ver vigilancia",
+            ctaUrl: "/gob/vigilancia",
+          });
+        }
+      } catch (notifyErr) {
+        console.error(
+          "[professionalCloseObservation] authority escalation notification failed:",
+          notifyErr,
+        );
+      }
+    }
   }
 
   return { ok: true, value: undefined, notifications: pendingNotifications };
