@@ -11,7 +11,7 @@
  * ─── IDENTITY ───────────────────────────────────────────────────────────────
  *   Token   : DIM-PAMP-0001  (fixed — survives re-seeds; same shape as the
  *             DIM-DEMO-000N demo tokens, valid against the DIM-XXXX-XXXX scheme)
- *   Species : dog, FEMALE, name "Pampa", ~4 años (DOB 2021-11), Mestiza
+ *   Species : dog, FEMALE, name "Pampa", ~4 años (DOB 2021-11), Caniche blanca
  *   Owner   : owner@dim.test  (the narrative "Martín"; created if missing)
  *   Photo   : public/landing/pampa-hero.jpg → pet-photos bucket → primary_photo_id
  *             (so /p/DIM-PAMP-0001 shows the SAME photo as the portada hero)
@@ -263,12 +263,12 @@ async function ensurePampa(ownerId: string): Promise<{ id: string; created: bool
     .values({
       publicToken: PAMPA_TOKEN,
       species: "dog",
-      breed: "Mestiza",
+      breed: "Caniche",
       name: "Pampa",
       sex: "female",
       dateOfBirth: "2021-11-20",
       birthDateIsEstimated: true,
-      color: "marrón y blanco",
+      color: "blanco",
       status: "active",
       acquisitionMethod: "adopted",
       jurisdictionCountry: "AR",
@@ -384,10 +384,10 @@ function buildLibreta(
         name: "Pampa",
         species: "dog",
         sex: "female",
-        breed: "Mestiza",
+        breed: "Caniche",
         date_of_birth: "2021-11-20",
         birth_date_is_estimated: true,
-        color: "marrón y blanco",
+        color: "blanco",
         acquisition_method: "adopted",
         has_photo: true,
         has_microchip: false,
