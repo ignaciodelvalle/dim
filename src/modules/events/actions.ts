@@ -1467,7 +1467,7 @@ export async function updateLostLastSeenAction(
       locationLng: normalizedLoc.lng != null ? String(normalizedLoc.lng) : null,
       clientIdempotencyKey,
     },
-    { repo },
+    { repo, transaction: makeTransaction() },
   );
 
   if (result.error) return { error: result.error };

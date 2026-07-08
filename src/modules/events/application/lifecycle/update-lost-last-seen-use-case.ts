@@ -61,6 +61,15 @@ type Deps = {
   repo: Pick<EventsRepository, "insertEventIdempotent">;
   /** Injected for tests; defaults to the real case-helpers lookup. */
   findOpenCase?: typeof findOpenCaseForPetAndKind;
+  /**
+   * P4 item 3 (2026-07-08): this use-case used to call repo.insertEventIdempotent
+   * with no executor (defaulting to the bare `db`), so insertEventIdempotent's
+   * advisory lock (tx-scoped) would acquire-and-release inside its own
+   * auto-committed statement instead of holding across the insert. Wrapping in
+   * a transaction — same `transaction` dep shape every sibling lifecycle/medical
+   * use-case already takes — closes that.
+   */
+  transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
 };
 
 const FALLBACK_TEXT = "El dueño actualizó la última ubicación conocida.";
@@ -106,19 +115,24 @@ export async function updateLostLastSeen(
     kind: "sighting",
   });
 
-  await deps.repo.insertEventIdempotent({
-    petId,
-    eventType: "note_added",
-    occurredAt: now,
-    recordedAt: now,
-    recordedByUserId,
-    ...eventAuthorship,
-    payload,
-    locationLat,
-    locationLng,
-    caseId: lostCase.id,
-    clientIdempotencyKey,
-  } as Parameters<typeof deps.repo.insertEventIdempotent>[0]);
+  await deps.transaction((tx) =>
+    deps.repo.insertEventIdempotent(
+      {
+        petId,
+        eventType: "note_added",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId,
+        ...eventAuthorship,
+        payload,
+        locationLat,
+        locationLng,
+        caseId: lostCase.id,
+        clientIdempotencyKey,
+      } as Parameters<typeof deps.repo.insertEventIdempotent>[0],
+      tx as Parameters<typeof deps.repo.insertEventIdempotent>[1],
+    ),
+  );
 
   return { error: null };
 }

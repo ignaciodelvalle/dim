@@ -105,6 +105,15 @@ const INSERTED_EVENT_ID = "evt-0000-0000-0000-000000000001";
 const mockDb = {
   select: vi.fn(),
   insert: vi.fn(),
+  // P4 item 3 (2026-07-08): the action now wraps insertEventIdempotent in
+  // db.transaction() (advisory lock inside it requires an active tx). The
+  // mock tx is just `mockDb` itself — its .select/.insert get reassigned by
+  // buildMockDb() before each test same as the top-level `db` reference.
+  transaction: vi.fn((cb: (tx: typeof mockDb) => unknown) => cb(mockDb)),
+  // The lock statement itself (`select pg_advisory_xact_lock(...)`) — only
+  // reached on the keyed path; a no-op stub is enough since these tests never
+  // assert on its SQL.
+  execute: vi.fn(async () => undefined),
 };
 
 // Rebuild mock DB state before each test.
@@ -430,9 +439,12 @@ describe("reportPetSightingAction — idempotency guard", () => {
     const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
     expect(result.ok).toBe(true);
-    // insertEventIdempotent must have been called with the key.
+    // insertEventIdempotent must have been called with the key. P4 item 3:
+    // the call now also carries the tx executor as a 2nd arg (advisory lock
+    // requires an active transaction) — match it loosely.
     expect(mockInsertEventIdempotent).toHaveBeenCalledWith(
       expect.objectContaining({ clientIdempotencyKey: IDEMPOTENCY_KEY }),
+      expect.anything(),
     );
   });
 
@@ -467,8 +479,10 @@ describe("reportPetSightingAction — idempotency guard", () => {
     const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
     expect(result.ok).toBe(true);
+    // P4 item 3: 2nd arg is the tx executor — match it loosely.
     expect(mockInsertEventIdempotent).toHaveBeenCalledWith(
       expect.objectContaining({ clientIdempotencyKey: null }),
+      expect.anything(),
     );
     // Normal path inserts the notification.
     expect(capturedNotificationInsert).not.toBeNull();

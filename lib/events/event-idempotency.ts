@@ -32,7 +32,8 @@ import type { NewPetEvent, PetEvent } from "@/db/schema";
 
 // Minimal db-shaped executor interface used for test injection.
 // In production, the real `db` instance satisfies this at runtime.
-type DbExecutor = Pick<typeof db, "select" | "insert">;
+// `execute` is required for the pg_advisory_xact_lock statement below.
+type DbExecutor = Pick<typeof db, "select" | "insert" | "execute">;
 
 // ─── findExistingByKey ────────────────────────────────────────────────────────
 
@@ -78,6 +79,27 @@ export type IdempotentInsertResult = {
  * plain insert (admin-tool / legacy path — decision B4).
  *
  * When the key is present:
+ *   - Acquires a transaction-scoped advisory lock keyed on the idempotency
+ *     key (P4 item 3, 2026-07-08) BEFORE the ON CONFLICT insert below — the
+ *     same `pg_advisory_xact_lock(hashtext(key))` pattern already used by
+ *     pets-repository.ts findDuplicateRegistration (alta double-submit) and
+ *     replace-microchip.ts. For a single-statement INSERT ... ON CONFLICT DO
+ *     NOTHING, Postgres already blocks a second concurrent inserter on the
+ *     first inserter's uncommitted index entry and correctly resolves to a
+ *     conflict once it commits — the lock's payoff is for callers (like
+ *     createVaccination/createDeworming) that do MORE than one statement
+ *     inside the same transaction keyed off this event (attachment insert,
+ *     reminder supersede-and-replace): it gives every writer one consistent,
+ *     explicit serialization point up front instead of relying on each
+ *     caller's own statement ordering to produce the same effect.
+ *   - REQUIRES an active transaction: pg_advisory_xact_lock holds the lock
+ *     until COMMIT/ROLLBACK and errors outside a transaction. Every
+ *     production call site routes through `db.transaction()` (see
+ *     EventsRepository.insertEventIdempotent and sibling *-repository.ts
+ *     wrappers) — verified 2026-07-08 across all ~23 writers; the two
+ *     exceptions found (report-pet-sighting.ts, update-lost-last-seen-use-case.ts)
+ *     were wrapped in their own transaction as part of this change rather
+ *     than left un-locked.
  *   - Uses ON CONFLICT DO NOTHING on the partial unique index
  *     `pet_events_idempotency_idx` (pet_id, event_type, key WHERE key IS NOT NULL).
  *   - If the conflict fires (returning is empty), fetches the original row via
@@ -103,7 +125,12 @@ export async function insertEventIdempotent(
     return { event, wasNoop: false };
   }
 
-  // Key present → try insert with conflict guard.
+  // Key present → serialize concurrent writers on this key, then try insert
+  // with conflict guard. hashtext() collapses the text key to an int4 (the
+  // single-key pg_advisory_xact_lock overload); a hash collision only costs
+  // an unrelated key a spurious wait, never a correctness issue.
+  await executor.execute(sql`select pg_advisory_xact_lock(hashtext(${key}))`);
+
   // The unique index `pet_events_idempotency_idx` is PARTIAL (`WHERE client_idempotency_key
   // IS NOT NULL`). Postgres requires the same WHERE clause in ON CONFLICT to match the
   // partial index — without `targetWhere`, Postgres errors with "no unique or exclusion

@@ -194,23 +194,33 @@ export async function reportPetSighting(
     )
     .limit(1);
 
-  const { event: insertedEvent, wasNoop } = await insertEventIdempotent({
-    petId: pet.id,
-    eventType: "note_added",
-    occurredAt,
-    recordedAt: new Date(),
-    recordedByUserId: null,
-    authorRole: "scanner",
-    authorVerified: false,
-    payload,
-    locationLat: lat.toString(),
-    locationLng: lng.toString(),
-    // Associate with the open case when available (pet is in active lost mode).
-    // caseId stays null if no open case exists (guard above already blocked
-    // non-lost pets, but we keep the null path for safety).
-    caseId: openCase?.id ?? null,
-    clientIdempotencyKey,
-  });
+  // P4 item 3 (2026-07-08): insertEventIdempotent's advisory lock requires an
+  // active transaction (pg_advisory_xact_lock is tx-scoped) — this call site
+  // used to pass no executor (defaulting to the bare `db`), so the lock would
+  // acquire-and-release inside its own auto-committed statement and never
+  // actually hold across the insert. Wrapping in db.transaction() closes that.
+  const { event: insertedEvent, wasNoop } = await db.transaction((tx) =>
+    insertEventIdempotent(
+      {
+        petId: pet.id,
+        eventType: "note_added",
+        occurredAt,
+        recordedAt: new Date(),
+        recordedByUserId: null,
+        authorRole: "scanner",
+        authorVerified: false,
+        payload,
+        locationLat: lat.toString(),
+        locationLng: lng.toString(),
+        // Associate with the open case when available (pet is in active lost mode).
+        // caseId stays null if no open case exists (guard above already blocked
+        // non-lost pets, but we keep the null path for safety).
+        caseId: openCase?.id ?? null,
+        clientIdempotencyKey,
+      },
+      tx,
+    ),
+  );
 
   // Idempotency: a duplicate submission with the same key means the event was
   // already recorded. Return ok without re-sending the notification.

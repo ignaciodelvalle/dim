@@ -16,6 +16,8 @@
 //   - blank/whitespace-only text falls back to a generic note instead of
 //     writing an empty payload.text (schema requires text: string).
 //   - clientIdempotencyKey passthrough for idempotent replay.
+//   - P4 item 3: the insert runs inside deps.transaction (advisory lock
+//     inside insertEventIdempotent requires an active transaction).
 
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,6 +50,20 @@ function makeRepo() {
   };
 }
 
+// P4 item 3: the use-case now wraps the insert in a transaction (advisory
+// lock inside insertEventIdempotent requires one) — same fake-tx pattern the
+// sibling medical/lifecycle use-case tests already use.
+function makeTransaction() {
+  return vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => cb("fake-tx"));
+}
+
+function makeDeps(repo: ReturnType<typeof makeRepo>) {
+  return {
+    repo: repo as unknown as Pick<EventsRepository, "insertEventIdempotent">,
+    transaction: makeTransaction(),
+  };
+}
+
 const petId = randomUUID();
 const userId = randomUUID();
 const caseId = randomUUID();
@@ -77,10 +93,7 @@ describe("updateLostLastSeen", () => {
 
   it("returns an error and does not write when pet status is not 'lost'", async () => {
     const repo = makeRepo();
-    const result = await updateLostLastSeen(
-      { ...baseParams, petStatus: "active" },
-      { repo: repo as unknown as Pick<EventsRepository, "insertEventIdempotent"> },
-    );
+    const result = await updateLostLastSeen({ ...baseParams, petStatus: "active" }, makeDeps(repo));
 
     expect(result.error).toBe("Esta mascota no está marcada como perdida.");
     expect(repo.insertEventIdempotent).not.toHaveBeenCalled();
@@ -89,9 +102,7 @@ describe("updateLostLastSeen", () => {
   it("returns an error and does not write when there is no open lost_pet_episode case", async () => {
     mockFindOpenCaseForPetAndKind.mockResolvedValue(null);
     const repo = makeRepo();
-    const result = await updateLostLastSeen(baseParams, {
-      repo: repo as unknown as Pick<EventsRepository, "insertEventIdempotent">,
-    });
+    const result = await updateLostLastSeen(baseParams, makeDeps(repo));
 
     expect(result.error).toContain("ya no está activa");
     expect(repo.insertEventIdempotent).not.toHaveBeenCalled();
@@ -99,21 +110,26 @@ describe("updateLostLastSeen", () => {
 
   it("emits a note_added event with kind='sighting' scoped to the open case id", async () => {
     const repo = makeRepo();
-    const result = await updateLostLastSeen(baseParams, {
-      repo: repo as unknown as Pick<EventsRepository, "insertEventIdempotent">,
-    });
+    const deps = makeDeps(repo);
+    const result = await updateLostLastSeen(baseParams, deps);
 
     expect(result.error).toBeNull();
     expect(mockFindOpenCaseForPetAndKind).toHaveBeenCalledWith(petId, "lost_pet_episode");
+    expect(deps.transaction).toHaveBeenCalledOnce();
 
     expect(repo.insertEventIdempotent).toHaveBeenCalledOnce();
-    const [insertArg] = repo.insertEventIdempotent.mock.calls[0] as [Record<string, unknown>];
+    const [insertArg, txArg] = repo.insertEventIdempotent.mock.calls[0] as [
+      Record<string, unknown>,
+      unknown,
+    ];
     expect(insertArg.eventType).toBe("note_added");
     expect(insertArg.petId).toBe(petId);
     expect(insertArg.caseId).toBe(caseId);
     expect(insertArg.locationLat).toBe(baseParams.locationLat);
     expect(insertArg.locationLng).toBe(baseParams.locationLng);
     expect(insertArg.clientIdempotencyKey).toBe("update-key-1");
+    // Passed inside the injected transaction callback, not the bare `db`.
+    expect(txArg).toBe("fake-tx");
 
     const payload = insertArg.payload as Record<string, unknown>;
     expect(payload.kind).toBe("sighting");
@@ -123,9 +139,7 @@ describe("updateLostLastSeen", () => {
 
   it("never emits a status_changed event (append-only — lost→lost is not a real transition)", async () => {
     const repo = makeRepo();
-    await updateLostLastSeen(baseParams, {
-      repo: repo as unknown as Pick<EventsRepository, "insertEventIdempotent">,
-    });
+    await updateLostLastSeen(baseParams, makeDeps(repo));
 
     const [insertArg] = repo.insertEventIdempotent.mock.calls[0] as [Record<string, unknown>];
     expect(insertArg.eventType).not.toBe("status_changed");
@@ -133,10 +147,7 @@ describe("updateLostLastSeen", () => {
 
   it("falls back to a generic note when text is blank", async () => {
     const repo = makeRepo();
-    await updateLostLastSeen(
-      { ...baseParams, text: "   " },
-      { repo: repo as unknown as Pick<EventsRepository, "insertEventIdempotent"> },
-    );
+    await updateLostLastSeen({ ...baseParams, text: "   " }, makeDeps(repo));
 
     const [insertArg] = repo.insertEventIdempotent.mock.calls[0] as [Record<string, unknown>];
     const payload = insertArg.payload as Record<string, unknown>;
@@ -145,10 +156,7 @@ describe("updateLostLastSeen", () => {
 
   it("falls back to a generic note when text is null", async () => {
     const repo = makeRepo();
-    await updateLostLastSeen(
-      { ...baseParams, text: null },
-      { repo: repo as unknown as Pick<EventsRepository, "insertEventIdempotent"> },
-    );
+    await updateLostLastSeen({ ...baseParams, text: null }, makeDeps(repo));
 
     const [insertArg] = repo.insertEventIdempotent.mock.calls[0] as [Record<string, unknown>];
     const payload = insertArg.payload as Record<string, unknown>;
@@ -159,7 +167,7 @@ describe("updateLostLastSeen", () => {
     const repo = makeRepo();
     await updateLostLastSeen(
       { ...baseParams, locationLat: null, locationLng: null },
-      { repo: repo as unknown as Pick<EventsRepository, "insertEventIdempotent"> },
+      makeDeps(repo),
     );
 
     const [insertArg] = repo.insertEventIdempotent.mock.calls[0] as [Record<string, unknown>];
