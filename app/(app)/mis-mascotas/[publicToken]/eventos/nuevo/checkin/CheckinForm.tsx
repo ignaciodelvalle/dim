@@ -51,7 +51,7 @@ export function CheckinForm({
             )}
           </LnField>
           <LnSheetAccordion num="+" title="Ubicación">
-            <LocationFields mode="l1" />
+            <LocationFields mode="l1" cascade />
           </LnSheetAccordion>
           <AttachmentField />
           {state.error && (

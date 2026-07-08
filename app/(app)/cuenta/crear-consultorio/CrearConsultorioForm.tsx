@@ -121,7 +121,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
             <p className="text-xs text-[var(--color-ln-mute)] mb-2">
               Para enrutar la verificación al govt correspondiente.
             </p>
-            <LocationFields mode="l1" />
+            <LocationFields mode="l1" cascade />
           </div>
 
           {state.error && (

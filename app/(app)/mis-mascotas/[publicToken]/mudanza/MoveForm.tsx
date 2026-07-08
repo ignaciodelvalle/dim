@@ -57,6 +57,7 @@ export function MoveForm({
         <LocationFields
           mode="l1"
           required
+          cascade
           defaultValue={{
             provinceCode: provinceByName(currentProvince)?.code ?? null,
             localityName: currentLocality,
