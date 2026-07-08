@@ -156,6 +156,45 @@ function normNameSql(col: SQL): SQL {
 }
 
 // ---------------------------------------------------------------------------
+// pet_events:lost (perdidas) — production event predicate + attribution.
+//
+// The perdidas layer surfaces lost-and-found activity. Production writes TWO
+// distinct events — NOT a payload 'kind' discriminator (no writer emits one;
+// the note_added zod enum never even had a 'pet_found_sighting' value):
+//   - a pet marked lost   → status_changed with payload.to_status = 'lost'
+//                           (set-pet-lost-use-case.ts)
+//   - a sighting reported → note_added with payload.kind = 'sighting'
+//                           (app/actions/pet-sighting.ts; updateLostLastSeen)
+// Neither carries jurisdiction in its payload — geography is attributed by the
+// JOIN to pets (pets.jurisdiction_province/locality), the pet's home unit, which
+// is also the correct product semantics. This replaced the demo-only
+// `payload->>'kind' IN ('pet_lost','pet_found_sighting')` predicate that ONLY the
+// raw-insert seed produced (the event-schema-drift pre-pilot blocker: real
+// lost/sighting events were invisible on the map + unit history).
+function perdidasEventPredicate(): SQL {
+  return sql`(
+    (${petEvents.eventType} = 'status_changed' AND (${petEvents.payload}->>'to_status') = 'lost')
+    OR (${petEvents.eventType} = 'note_added' AND (${petEvents.payload}->>'kind') = 'sighting')
+  )`;
+}
+
+// Synthetic type discriminator for the event-detail list: reproduce the old
+// pet_lost / pet_found_sighting types from the REAL event type without a payload
+// 'kind' field. note_added ⇒ pet_found_sighting (Avistaje); a status_changed
+// to_status='lost' ⇒ pet_lost (Mascota perdida).
+function perdidasKindExpr(): SQL<string> {
+  return sql<string>`CASE WHEN ${petEvents.eventType} = 'note_added' THEN 'pet_found_sighting' ELSE 'pet_lost' END`;
+}
+
+// Bite incidents — the incident_type discriminator IS real (event-schemas.ts
+// incidentReported); only the geography attribution needed fixing (the demo
+// keyed on flat payload province/locality the schema never writes). Attribution
+// is via the JOIN to pets, same as perdidas.
+function mordedurasEventPredicate(): SQL {
+  return sql`(${petEvents.eventType} = 'incident_reported' AND (${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered'))`;
+}
+
+// ---------------------------------------------------------------------------
 // pet_events:bite (mordeduras) — individual bite incident_reported events.
 // ---------------------------------------------------------------------------
 
@@ -1084,12 +1123,13 @@ export async function loadPerdidasByUnit(
   adminProvince?: string,
   adminLocality?: string,
 ): Promise<AggregatedPointRows> {
-  const scope = petEventsScope(actor, jurisdictions, adminProvince, adminLocality);
+  // pets-table scope + pets-JOIN attribution: lost/sighting events carry NO
+  // jurisdiction in their payload, so the pet's home jurisdiction is the unit.
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
   const conditions: SQL[] = [
-    // lost/sighting pet events (F1 — matches the per-event perdidas loader logic).
-    sql`(${petEvents.payload}->>'kind') IN ('pet_lost', 'pet_found_sighting')`,
+    perdidasEventPredicate(),
     gte(petEvents.occurredAt, since),
-    isNotNull(sql`(${petEvents.payload}->>'province')`),
+    isNotNull(pets.jurisdictionProvince),
   ];
   if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
   if (scope) conditions.push(sql`(${scope})`);
@@ -1097,27 +1137,30 @@ export async function loadPerdidasByUnit(
   if (level === "province") {
     const rows = await db
       .select({
-        province: sql<string>`(${petEvents.payload}->>'province')`,
-        centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
-        centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+        province: pets.jurisdictionProvince,
+        // AVG (not MIN): MIN over every locality in the province is the SW corner
+        // of the bbox, not a centroid. AVG is the unweighted locality centroid.
+        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
+        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
         n: countDistinct(petEvents.id),
       })
       .from(petEvents)
+      .innerJoin(pets, eq(petEvents.petId, pets.id))
       .leftJoin(
         arLocalities,
         and(
-          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
+          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
           sql`${arLocalities.removedAt} IS NULL`,
         ),
       )
       .where(and(...conditions))
-      .groupBy(sql`(${petEvents.payload}->>'province')`)
+      .groupBy(pets.jurisdictionProvince)
       .limit(PER_LAYER_CAP);
     const rollup: RollupRow[] = rows
       .filter((r) => r.province)
       .map((r) => ({
-        key: r.province,
-        province: r.province,
+        key: r.province as string,
+        province: r.province as string,
         locality: "",
         centroidLat: r.centroidLat,
         centroidLng: r.centroidLng,
@@ -1130,30 +1173,31 @@ export async function loadPerdidasByUnit(
   // Locality level: group by (province, locality), left-join ar_localities for centroid.
   const rows = await db
     .select({
-      province: sql<string>`(${petEvents.payload}->>'province')`,
-      locality: sql<string>`(${petEvents.payload}->>'locality')`,
+      province: pets.jurisdictionProvince,
+      locality: pets.jurisdictionLocality,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
       n: countDistinct(petEvents.id),
     })
     .from(petEvents)
+    .innerJoin(pets, eq(petEvents.petId, pets.id))
     .leftJoin(
       arLocalities,
       and(
-        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
-        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`(${petEvents.payload}->>'locality')`)}`,
+        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
+        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`${pets.jurisdictionLocality}`)}`,
         sql`${arLocalities.removedAt} IS NULL`,
       ),
     )
-    .where(and(...conditions, isNotNull(sql`(${petEvents.payload}->>'locality')`)))
-    .groupBy(sql`(${petEvents.payload}->>'province')`, sql`(${petEvents.payload}->>'locality')`)
+    .where(and(...conditions, isNotNull(pets.jurisdictionLocality)))
+    .groupBy(pets.jurisdictionProvince, pets.jurisdictionLocality)
     .limit(PER_LAYER_CAP);
   const rollup: RollupRow[] = rows
     .filter((r) => r.province && r.locality)
     .map((r) => ({
       key: `${r.province}|${r.locality}`,
-      province: r.province,
-      locality: r.locality,
+      province: r.province as string,
+      locality: r.locality as string,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
       count: r.n,
@@ -1179,12 +1223,14 @@ export async function loadMordedurassByUnit(
   adminProvince?: string,
   adminLocality?: string,
 ): Promise<AggregatedPointRows> {
-  const scope = petEventsScope(actor, jurisdictions, adminProvince, adminLocality);
+  // pets-table scope + pets-JOIN attribution (same rationale as perdidas): the
+  // incident payload never carries flat province/locality, so the pet's home
+  // jurisdiction is the map unit.
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
   const conditions: SQL[] = [
-    eq(petEvents.eventType, "incident_reported"),
-    sql`(${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered')`,
+    mordedurasEventPredicate(),
     gte(petEvents.occurredAt, since),
-    isNotNull(sql`(${petEvents.payload}->>'province')`),
+    isNotNull(pets.jurisdictionProvince),
   ];
   if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
   if (scope) conditions.push(sql`(${scope})`);
@@ -1192,27 +1238,29 @@ export async function loadMordedurassByUnit(
   if (level === "province") {
     const rows = await db
       .select({
-        province: sql<string>`(${petEvents.payload}->>'province')`,
-        centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
-        centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+        province: pets.jurisdictionProvince,
+        // AVG (not MIN): unweighted locality centroid, not the province SW corner.
+        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
+        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
         n: countDistinct(petEvents.id),
       })
       .from(petEvents)
+      .innerJoin(pets, eq(petEvents.petId, pets.id))
       .leftJoin(
         arLocalities,
         and(
-          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
+          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
           sql`${arLocalities.removedAt} IS NULL`,
         ),
       )
       .where(and(...conditions))
-      .groupBy(sql`(${petEvents.payload}->>'province')`)
+      .groupBy(pets.jurisdictionProvince)
       .limit(PER_LAYER_CAP);
     const rollup: RollupRow[] = rows
       .filter((r) => r.province)
       .map((r) => ({
-        key: r.province,
-        province: r.province,
+        key: r.province as string,
+        province: r.province as string,
         locality: "",
         centroidLat: r.centroidLat,
         centroidLng: r.centroidLng,
@@ -1224,30 +1272,31 @@ export async function loadMordedurassByUnit(
 
   const rows = await db
     .select({
-      province: sql<string>`(${petEvents.payload}->>'province')`,
-      locality: sql<string>`(${petEvents.payload}->>'locality')`,
+      province: pets.jurisdictionProvince,
+      locality: pets.jurisdictionLocality,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
       n: countDistinct(petEvents.id),
     })
     .from(petEvents)
+    .innerJoin(pets, eq(petEvents.petId, pets.id))
     .leftJoin(
       arLocalities,
       and(
-        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'province')`)}`,
-        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`(${petEvents.payload}->>'locality')`)}`,
+        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
+        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`${pets.jurisdictionLocality}`)}`,
         sql`${arLocalities.removedAt} IS NULL`,
       ),
     )
-    .where(and(...conditions, isNotNull(sql`(${petEvents.payload}->>'locality')`)))
-    .groupBy(sql`(${petEvents.payload}->>'province')`, sql`(${petEvents.payload}->>'locality')`)
+    .where(and(...conditions, isNotNull(pets.jurisdictionLocality)))
+    .groupBy(pets.jurisdictionProvince, pets.jurisdictionLocality)
     .limit(PER_LAYER_CAP);
   const rollup: RollupRow[] = rows
     .filter((r) => r.province && r.locality)
     .map((r) => ({
       key: `${r.province}|${r.locality}`,
-      province: r.province,
-      locality: r.locality,
+      province: r.province as string,
+      locality: r.locality as string,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
       count: r.n,
@@ -1295,8 +1344,9 @@ export async function loadDenunciasByUnit(
     const rows = await db
       .select({
         province: welfareReports.jurisdictionProvince,
-        centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
-        centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+        // AVG (not MIN): unweighted locality centroid, not the province SW corner.
+        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
+        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
         // countDistinct: the arLocalities LEFT JOIN fans out (one report ×
         // matching localities), so a plain count() multiplies by the join.
         n: countDistinct(welfareReports.id),
@@ -1392,8 +1442,9 @@ export async function loadZoonosisByUnit(
     const rows = await db
       .select({
         province: sql<string>`(${petEvents.payload}->>'province')`,
-        centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
-        centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+        // AVG (not MIN): unweighted locality centroid, not the province SW corner.
+        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
+        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
         n: countDistinct(petEvents.id),
       })
       .from(petEvents)
@@ -1577,36 +1628,40 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
 
     switch (layer) {
       case "perdidas": {
-        const scope = petEventsScope(actor, jurisdictions);
+        // Mirror the choropleth exactly: pets-JOIN attribution + distinct-event
+        // count (countDistinct(petEvents.id)) so this k-anon guard suppresses
+        // the SAME cells the map does.
+        const scope = petsScope(actor, jurisdictions);
         const conditions: SQL[] = [
-          sql`(${petEvents.payload}->>'kind') IN ('pet_lost', 'pet_found_sighting')`,
+          perdidasEventPredicate(),
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
-          sql`(${petEvents.payload}->>'province') = ${province}`,
-          sql`(${petEvents.payload}->>'locality') = ${locality}`,
+          sql`${pets.jurisdictionProvince} = ${province}`,
+          sql`${pets.jurisdictionLocality} = ${locality}`,
         ];
         if (scope) conditions.push(sql`(${scope})`);
         const [row] = await db
-          .select({ n: count() })
+          .select({ n: countDistinct(petEvents.id) })
           .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
           .where(and(...conditions));
         totalCount = row?.n ?? 0;
         break;
       }
       case "mordeduras": {
-        const scope = petEventsScope(actor, jurisdictions);
+        const scope = petsScope(actor, jurisdictions);
         const conditions: SQL[] = [
-          eq(petEvents.eventType, "incident_reported"),
-          sql`(${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered')`,
+          mordedurasEventPredicate(),
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
-          sql`(${petEvents.payload}->>'province') = ${province}`,
-          sql`(${petEvents.payload}->>'locality') = ${locality}`,
+          sql`${pets.jurisdictionProvince} = ${province}`,
+          sql`${pets.jurisdictionLocality} = ${locality}`,
         ];
         if (scope) conditions.push(sql`(${scope})`);
         const [row] = await db
-          .select({ n: count() })
+          .select({ n: countDistinct(petEvents.id) })
           .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
           .where(and(...conditions));
         totalCount = row?.n ?? 0;
         break;
@@ -1678,14 +1733,20 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
           eq(petEvents.eventType, "vaccination_administered"),
           // Amendment overlay (audit A2): count by the CURRENT vaccine name.
           sql`unaccent(lower(coalesce(${amendedPayloadText("vaccine_name")}, ''))) LIKE '%rabi%'`,
+          // Mirror metricPredicate('rabies-coverage'): the rabies choropleth
+          // counts DOGS only, so the guard must too (k-anon parity).
+          sql`${pets.species} = 'dog'`,
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
           sql`${pets.jurisdictionProvince} = ${province}`,
           sql`${pets.jurisdictionLocality} = ${locality}`,
         ];
         if (scope) conditions.push(sql`(${scope})`);
+        // countDistinct(pet) not count(rows): the choropleth counts DISTINCT
+        // PETS, so one dog with several boosters must not clear k=5 for a cell
+        // the map suppressed (re-identification guard).
         const [row] = await db
-          .select({ n: count() })
+          .select({ n: countDistinct(petEvents.petId) })
           .from(petEvents)
           .innerJoin(pets, eq(petEvents.petId, pets.id))
           .where(and(...conditions));
@@ -1702,8 +1763,9 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
           sql`${pets.jurisdictionLocality} = ${locality}`,
         ];
         if (scope) conditions.push(sql`(${scope})`);
+        // countDistinct(pet): mortality choropleth counts distinct deceased pets.
         const [row] = await db
-          .select({ n: count() })
+          .select({ n: countDistinct(petEvents.petId) })
           .from(petEvents)
           .innerJoin(pets, eq(petEvents.petId, pets.id))
           .where(and(...conditions));
@@ -1751,20 +1813,24 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
 
     switch (layer) {
       case "perdidas": {
-        const scope = petEventsScope(actor, jurisdictions);
+        // pets-JOIN attribution (payload carries no jurisdiction); synthetic
+        // kind reproduces the pet_lost / pet_found_sighting labels from the real
+        // event type (status_changed lost vs note_added sighting).
+        const scope = petsScope(actor, jurisdictions);
         const conditions: SQL[] = [
-          sql`(${petEvents.payload}->>'kind') IN ('pet_lost', 'pet_found_sighting')`,
+          perdidasEventPredicate(),
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
-          ...payloadJurisdictionFilter(),
+          ...petsJurisdictionFilter(),
         ];
         if (scope) conditions.push(sql`(${scope})`);
         const rows = await db
           .select({
             occurredAt: petEvents.occurredAt,
-            kind: sql<string>`(${petEvents.payload}->>'kind')`,
+            kind: perdidasKindExpr(),
           })
           .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
           .where(and(...conditions))
           .orderBy(sql`${petEvents.occurredAt} DESC`)
           .limit(EVENT_LIMIT);
@@ -1776,13 +1842,12 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
 
       case "mordeduras": {
-        const scope = petEventsScope(actor, jurisdictions);
+        const scope = petsScope(actor, jurisdictions);
         const conditions: SQL[] = [
-          eq(petEvents.eventType, "incident_reported"),
-          sql`(${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered')`,
+          mordedurasEventPredicate(),
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
-          ...payloadJurisdictionFilter(),
+          ...petsJurisdictionFilter(),
         ];
         if (scope) conditions.push(sql`(${scope})`);
         const rows = await db
@@ -1791,6 +1856,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
             incidentType: sql<string>`(${petEvents.payload}->>'incident_type')`,
           })
           .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
           .where(and(...conditions))
           .orderBy(sql`${petEvents.occurredAt} DESC`)
           .limit(EVENT_LIMIT);
@@ -1990,17 +2056,18 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
 
     switch (layer) {
       case "perdidas": {
-        const scope = petEventsScope(actor, jurisdictions);
+        const scope = petsScope(actor, jurisdictions);
         const conditions: SQL[] = [
-          sql`(${petEvents.payload}->>'kind') IN ('pet_lost', 'pet_found_sighting')`,
+          perdidasEventPredicate(),
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
-          ...payloadJurisdictionFilter(),
+          ...petsJurisdictionFilter(),
         ];
         if (scope) conditions.push(sql`(${scope})`);
         rows = await db
           .select({ day: dayBucket(sql`${petEvents.occurredAt}`), n: count() })
           .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
           .where(and(...conditions))
           .groupBy(dayBucket(sql`${petEvents.occurredAt}`))
           .orderBy(dayBucket(sql`${petEvents.occurredAt}`));
@@ -2008,18 +2075,18 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
 
       case "mordeduras": {
-        const scope = petEventsScope(actor, jurisdictions);
+        const scope = petsScope(actor, jurisdictions);
         const conditions: SQL[] = [
-          eq(petEvents.eventType, "incident_reported"),
-          sql`(${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered')`,
+          mordedurasEventPredicate(),
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
-          ...payloadJurisdictionFilter(),
+          ...petsJurisdictionFilter(),
         ];
         if (scope) conditions.push(sql`(${scope})`);
         rows = await db
           .select({ day: dayBucket(sql`${petEvents.occurredAt}`), n: count() })
           .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
           .where(and(...conditions))
           .groupBy(dayBucket(sql`${petEvents.occurredAt}`))
           .orderBy(dayBucket(sql`${petEvents.occurredAt}`));

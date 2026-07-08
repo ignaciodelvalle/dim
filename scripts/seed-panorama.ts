@@ -162,6 +162,7 @@ const {
   appointments,
 } = await import("../db");
 const { writePoint } = await import("@/lib/domain/location");
+const { validateEventPayload } = await import("@/lib/events/event-schemas");
 const { PROVINCES } = await import("@/lib/reference/ar-provincias");
 const { generateReferenceCode } = await import("../src/modules/welfare/domain/reference-code");
 const { generatePrefixedToken } = await import("@/lib/infra/publicToken");
@@ -2640,8 +2641,9 @@ function historyPetsPerLocality(localityCount: number): number {
  *   existing  → pet_registered, vaccination_administered, sterilization_performed,
  *               outbreak_signal, disease_reported
  *   new       → death_recorded, incident_reported (bite), status_changed
- *               (kind=pet_lost / kind=pet_found_sighting), shelter_intake_recorded,
- *               foster_assigned, adoption_finalized
+ *               (to_status='lost' = pet lost), note_added (kind='sighting' =
+ *               avistaje), shelter_intake_recorded, foster_assigned,
+ *               adoption_finalized
  *
  * Payload keys mirror the base-seed generators so dashboard/map loaders read
  * the same JSONB paths.
@@ -3155,8 +3157,14 @@ async function seedModelProvinceHistory(
         }
       }
 
-      // 7. pet_found_sighting: ~40 % of lost pets get a sighting event some days later.
-      //    Payload mirrors the perdidas panorama loader: kind + province + locality.
+      // 7. Sighting ("Avistaje"): ~40 % of lost pets get a sighting some days
+      //    later. Production writes this as note_added(kind='sighting') during
+      //    the open lost episode (app/actions/pet-sighting.ts / updateLostLastSeen)
+      //    — NOT a status_changed with a payload 'kind' (no writer emits that;
+      //    the note_added zod enum never had a 'pet_found_sighting' value). The
+      //    perdidas panorama loader keys on this real shape and attributes the
+      //    unit via the JOIN to pets, so no payload jurisdiction is needed.
+      //    Routed through validateEventPayload so the seed no longer bypasses zod.
       for (const lost of lostEvents) {
         if (rng() < 0.4) {
           const daysLater = 7 + Math.floor(rng() * 30);
@@ -3166,24 +3174,19 @@ async function seedModelProvinceHistory(
           const { lat, lng } = jitteredCoord(lost.lat, lost.lng, 0.02);
           eventRows.push({
             petId: lost.petId,
-            eventType: "status_changed" satisfies EventType,
+            eventType: "note_added" satisfies EventType,
             occurredAt: foundAt,
             recordedByUserId: ownerUserId,
             authorRole: "owner",
             authorVerified: false,
-            payload: {
-              source: "seed-panorama-history",
-              kind: "pet_found_sighting",
-              from_status: "lost",
-              to_status: "active",
-              province: provinceName,
-              locality: lost.localityName,
-              pet_jurisdiction_province: provinceName,
-              pet_jurisdiction_locality: lost.localityName,
-            },
+            payload: validateEventPayload("note_added", {
+              category: "otro",
+              text: "Avistaje reportado durante episodio de búsqueda (seed-panorama-history)",
+              kind: "sighting",
+            }),
             ...writePoint({ lat, lng }),
           });
-          bump("status_changed");
+          bump("note_added");
         }
       }
     }
