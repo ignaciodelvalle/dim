@@ -65,7 +65,7 @@ export const LEGAL_KNOWLEDGE_GROUPS: LegalKnowledgeGroup[] = [
         whoItAppliesTo:
           "Dueños que identifican a su mascota con microchip, veterinarios que lo implantan y fabricantes/proveedores de chips.",
         mimarObligation:
-          "`pet_identifications` descompone el ISO ID en `iso_country_code` / `manufacturer_code` / `national_id` — el mismo estándar que exige la norma.",
+          "MiMAR guarda el identificador de tu mascota separado en país, fabricante y número de serie del chip — el mismo estándar que exige la norma.",
         sourceLabel: "Res. SENASA 284/2024 — texto completo",
         sourceUrl:
           "https://www.argentina.gob.ar/normativa/nacional/resoluci%C3%B3n-284-2024-398615/texto",
@@ -81,7 +81,7 @@ export const LEGAL_KNOWLEDGE_GROUPS: LegalKnowledgeGroup[] = [
         whoItAppliesTo:
           "Dueños de perros de las razas listadas en el Anexo I, con residencia en la Provincia de Buenos Aires.",
         mimarObligation:
-          "El flag `potentially_dangerous_breed` se activa según la lista de razas de esta ley cuando `jurisdiction_province` del dueño es Buenos Aires.",
+          "MiMAR marca automáticamente a tu mascota como raza potencialmente peligrosa según la lista de esta ley, cuando tu jurisdicción es la Provincia de Buenos Aires.",
         sourceLabel: "Ley 14.107/2010 — texto completo",
         sourceUrl: "https://normas.gba.gob.ar/documentos/0PNzEIAB.html",
       },
@@ -96,7 +96,7 @@ export const LEGAL_KNOWLEDGE_GROUPS: LegalKnowledgeGroup[] = [
         whoItAppliesTo:
           "Dueños de las 17 razas listadas (o cruzas de más de 20 kg) residentes en CABA.",
         mimarObligation:
-          "El evento de atestación de raza peligrosa cubre el dato de póliza de responsabilidad civil que exige esta ley; `fetchDangerousBreedCompliance` reporta adhesión por jurisdicción.",
+          "El registro de raza peligrosa en MiMAR guarda el dato de la póliza de responsabilidad civil que exige esta ley, y permite a las autoridades verificar el cumplimiento por jurisdicción.",
         sourceLabel: "Ley CABA 4078/2012 — texto completo",
         sourceUrl: "https://boletinoficial.buenosaires.gob.ar/normativaba/norma/302801",
       },
@@ -110,7 +110,7 @@ export const LEGAL_KNOWLEDGE_GROUPS: LegalKnowledgeGroup[] = [
           "Tenencia de animales domésticos en CABA: Registro Municipal de Animales Domésticos, vacunación antirrábica obligatoria desde los 3 meses, identificación por tatuaje o microchip.",
         whoItAppliesTo: "Dueños de perros y gatos residentes en CABA.",
         mimarObligation:
-          "Es probablemente la norma operativa más cercana a lo que MiMAR digitaliza en CABA: el Art. 4° (tatuaje) se cubre con `pet_identifications kind='tattoo'` y el Art. 9° (observación antirrábica de 10 días) con `tipo_evento_code='observacion_antirrabica'`.",
+          "Es probablemente la norma operativa más cercana a lo que MiMAR digitaliza en CABA: el Art. 4° (tatuaje) se cubre con el identificador de tatuaje registrado de tu mascota, y el Art. 9° (observación antirrábica de 10 días) con el evento sanitario de observación antirrábica.",
         sourceLabel: "Ordenanza 41.831/1987 (texto consolidado) — Boletín Oficial CABA",
         sourceUrl: "https://boletinoficial.buenosaires.gob.ar/normativaba/norma/30564",
       },
@@ -252,7 +252,7 @@ export const LEGAL_KNOWLEDGE_GROUPS: LegalKnowledgeGroup[] = [
         whoItAppliesTo:
           "Cualquier responsable de una base de datos personales en la Argentina, incluida MiMAR respecto de los datos de sus usuarios.",
         mimarObligation:
-          "Cada tabla con datos personales (`profiles`, `pets`, `pet_identifications`, `custody_disputes`) lleva un campo `purpose` (`data_purpose`) que ata el dato a su base legal, más `deleted_at`. Las RPCs `export_subject_data` (Art. 14°) y `erase_subject_data` (Art. 16°) están disponibles desde /cuenta/privacidad.",
+          "Cada dato personal que guardamos (tu perfil, tus mascotas, los identificadores registrados de tu mascota, las disputas de tenencia) queda vinculado a la base legal que lo justifica, y puede eliminarse cuando corresponda. Desde /cuenta/privacidad podés pedir la exportación de tus datos (Art. 14°) o su eliminación (Art. 16°).",
         sourceLabel: "Ley 25.326 — Protección de Datos Personales",
       },
     ],
