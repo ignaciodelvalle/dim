@@ -145,6 +145,28 @@ async function simulateIntake(opts: {
     if (opts.microchipId) {
       const chipCode = opts.microchipId;
       const implantSite = chipImplantSiteFromLocation(null);
+      // EVENT FIRST — validate + insert the microchip_implanted event exactly as
+      // create-intake.ts does. Regression guard (QA 2026-07-08): the intake
+      // payload MUST carry country_code / implanted_by / location_on_body as
+      // explicit (nullable) keys, or the strict schema rejects it with
+      // invalid_type and the intake crashes with a raw zod error.
+      const microchipEventPayload = validateEventPayload("microchip_implanted", {
+        chip_number: chipCode,
+        country_code: null,
+        implanted_by: null,
+        location_on_body: null,
+        implant_date_known: false,
+      });
+      await tx.insert(petEvents).values({
+        petId: newPet.id,
+        eventType: "microchip_implanted",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: userId!,
+        authorRole: "shelter",
+        authorVerified: true,
+        payload: microchipEventPayload,
+      });
       await tx.insert(petIdentifications).values({
         petId: newPet.id,
         kind: "microchip_iso",
@@ -247,5 +269,37 @@ describe("intake canonical dual-write — chip + tattoo", () => {
     const tattooRow = rows.find((r) => r.kind === "tattoo")!;
     expect(tattooRow.code).toBe(TATTOO_INTAKE);
     expect(tattooRow.status).toBe("active");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// microchip_implanted payload schema — pure regression (no DB)
+//
+// QA 2026-07-08: org intake WITH a chip crashed with a raw zod error
+// ("country_code/implanted_by/location_on_body invalid_type") because the
+// intake writer omitted those nullable-but-required keys. These pure asserts
+// pin the exact contract so the fix cannot silently regress.
+// ---------------------------------------------------------------------------
+
+describe("intake microchip_implanted payload — schema contract", () => {
+  it("passes when the nullable keys are present (the intake shape)", () => {
+    expect(() =>
+      validateEventPayload("microchip_implanted", {
+        chip_number: CHIP_INTAKE,
+        country_code: null,
+        implanted_by: null,
+        location_on_body: null,
+        implant_date_known: false,
+      }),
+    ).not.toThrow();
+  });
+
+  it("throws when country_code / implanted_by / location_on_body are omitted (the pre-fix bug)", () => {
+    expect(() =>
+      validateEventPayload("microchip_implanted", {
+        chip_number: CHIP_INTAKE,
+        implant_date_known: false,
+      }),
+    ).toThrow(/invalid_type|country_code|implanted_by|location_on_body/);
   });
 });

@@ -33,7 +33,7 @@ import {
 } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
-import { validateEventPayload } from "@/lib/events/event-schemas";
+import { EventPayloadValidationError, validateEventPayload } from "@/lib/events/event-schemas";
 import { openCase } from "@/lib/infra/case-helpers";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
 import { generateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
@@ -461,8 +461,18 @@ export async function createIntake(
       if (parsed.microchipId) {
         const chipCode = parsed.microchipId;
         const implantSite = chipImplantSiteFromLocation(null); // no location at intake
+        // The microchip_implanted schema requires country_code / implanted_by /
+        // location_on_body as explicit (nullable) keys — omitting them makes the
+        // strict schema reject the payload with an invalid_type error. At intake
+        // the chip pre-exists: the org did not implant it, so implanted_by and
+        // location_on_body are genuinely unknown (null), and country_code carries
+        // the form value (same as the pet_registered snapshot above). This mirrors
+        // the owner-side writer in pets-repository.ts::insertPetRegistered.
         const microchipEventPayload = validateEventPayload("microchip_implanted", {
           chip_number: chipCode,
+          country_code: parsed.microchipCountryCode,
+          implanted_by: null,
+          location_on_body: null,
           implant_date_known: false,
         });
         await tx.insert(petEvents).values({
@@ -534,6 +544,20 @@ export async function createIntake(
       });
     });
   } catch (err) {
+    // Never surface a raw Zod validation message to the user. A payload-schema
+    // failure is an internal contract bug — log the detail for us, show a
+    // friendly es-AR message to the operator.
+    if (err instanceof EventPayloadValidationError) {
+      console.error(
+        "[intake] event payload validation failed",
+        err.eventType,
+        err.zodError?.issues ?? err.message,
+      );
+      return {
+        error:
+          "No pudimos registrar el ingreso por un problema con los datos de la mascota. Revisá los campos e intentá de nuevo; si persiste, avisanos.",
+      };
+    }
     return {
       error: `No se pudo registrar el ingreso: ${
         err instanceof Error ? err.message : "error desconocido"
