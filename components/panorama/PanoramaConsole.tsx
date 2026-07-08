@@ -68,6 +68,7 @@ import {
   type RankingKind,
   rankWorstUnits,
 } from "@/src/modules/panorama/domain/ranking";
+import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type {
   AggregationLevel,
   FeatureCollection,
@@ -506,6 +507,16 @@ export function PanoramaConsole({
   const [asOf, setAsOf] = useState<Date | null>(null);
   const scrubbing = asOf !== null;
 
+  // task #77 bitemporal — the replay basis. "valid" (occurred_at, default) replays
+  // "what happened when"; "transaction" (recorded_at) replays "what the State KNEW
+  // when". Threaded into the as-of layer fetch as `?basis=`; only matters while
+  // scrubbing (the live view is current-state, basis-agnostic). Client-only view
+  // state — intentionally NOT URL-encoded (a replay basis is a viewing lens, not a
+  // data-scope filter like level/verified).
+  const [timeBasis, setTimeBasis] = useState<TimeBasis>("valid");
+  const timeBasisRef = useRef(timeBasis);
+  timeBasisRef.current = timeBasis;
+
   // A new period/scope window invalidates the as-of cache and parks at live. It
   // also invalidates the province-level cache and the LOCALITY-level entries in
   // dataRef for choropleth layers AND aggregated point layers (their counts are
@@ -628,6 +639,8 @@ export function PanoramaConsole({
       activeTemporal.map(async (l) => {
         const params = new URLSearchParams(baseQs);
         params.set("asOf", iso);
+        // task #77: replay by recorded_at when the operator picked transaction time.
+        if (timeBasis === "transaction") params.set("basis", "transaction");
         try {
           const res = await fetch(`/api/panorama/${l.id}?${params.toString()}`, {
             headers: { accept: "application/json" },
@@ -645,7 +658,7 @@ export function PanoramaConsole({
     return () => {
       cancelled = true;
     };
-  }, [asOf, searchParams]);
+  }, [asOf, searchParams, timeBasis]);
 
   // Selected map feature → DetailDrawer. Null when the drawer is closed.
   const [selected, setSelected] = useState<SelectedFeature | null>(null);
@@ -832,6 +845,8 @@ export function PanoramaConsole({
     async (id: LayerId, at: Date) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("asOf", at.toISOString());
+      // task #77: honor the active replay basis (recorded_at when transaction).
+      if (timeBasisRef.current === "transaction") params.set("basis", "transaction");
       try {
         const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
           headers: { accept: "application/json" },
@@ -1653,6 +1668,17 @@ export function PanoramaConsole({
 
   const onScrub = useCallback((next: Date | null) => setAsOf(next), []);
 
+  // task #77: flip the replay basis (valid ↔ transaction). The as-of feature cache
+  // holds features resolved under the PREVIOUS basis, so clear it; the as-of effect
+  // (which now depends on timeBasis) refetches the active temporal layers under the
+  // new basis when a scrub is active. No-op visually while parked at live.
+  const onBasisChange = useCallback((next: TimeBasis) => {
+    if (next === timeBasisRef.current) return;
+    timeBasisRef.current = next;
+    asOfDataRef.current.clear();
+    setTimeBasis(next);
+  }, []);
+
   // map-QOL selective refresh (freshness chip's "Actualizar"): refetch the
   // KPIs + every ACTIVE layer with plain client fetches. No reload, no router,
   // the map stays mounted — caches are simply overwritten with fresh data.
@@ -1772,7 +1798,13 @@ export function PanoramaConsole({
           Reproducir en el tiempo
         </summary>
         <div className="mt-2">
-          <TimeScrubber since={since} until={until} onChange={onScrub} />
+          <TimeScrubber
+            since={since}
+            until={until}
+            onChange={onScrub}
+            basis={timeBasis}
+            onBasisChange={onBasisChange}
+          />
         </div>
       </details>
       <div className="grid gap-4 lg:grid-cols-[1fr_220px]">

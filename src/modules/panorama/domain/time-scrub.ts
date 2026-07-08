@@ -20,6 +20,23 @@ const MONTH_STEP_THRESHOLD_DAYS = 90;
 /** Each scrub step is a whole day (short windows) or a whole month (long ones). */
 export type ScrubGranularity = "day" | "month";
 
+/**
+ * Bitemporal replay basis (task #77). Every pet_events row carries occurred_at
+ * (VALID time — when the fact happened) and recorded_at (TRANSACTION time — when
+ * the system/State learned it). The scrubber replays by one or the other:
+ *   - "valid"       → occurred_at. "What happened when." (default)
+ *   - "transaction" → recorded_at. "What the State KNEW when." An event that
+ *                     occurred 2026-03-01 but was recorded 2026-03-13 appears 12
+ *                     days later in transaction-time replay — the gap IS the
+ *                     reporting-lag / territorial-presence metric.
+ */
+export type TimeBasis = "valid" | "transaction";
+
+/** Parse a raw `?basis=` query value; anything but "transaction" is the default "valid". */
+export function parseTimeBasis(raw: string | null | undefined): TimeBasis {
+  return raw === "transaction" ? "transaction" : "valid";
+}
+
 /** A discrete reproduction axis over [since, until], stepped by day or month. */
 export type ScrubWindow = {
   /** Inclusive lower bound (the active period's `since`, floored to the step). */

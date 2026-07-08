@@ -25,6 +25,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 
 import {
   type ScrubWindow,
+  type TimeBasis,
   buildScrubWindow,
   dayIndexToDate,
   formatAsOfLabel,
@@ -44,9 +45,17 @@ type Props = {
    * parent refetches active temporal layers with this (null → drop `asOf`).
    */
   onChange: (asOf: Date | null) => void;
+  /**
+   * task #77 bitemporal — the active replay basis. "valid" (occurred_at, default)
+   * replays "what happened when"; "transaction" (recorded_at) replays "what the
+   * State KNEW when". The parent owns this so it can thread it into the layer fetch.
+   */
+  basis: TimeBasis;
+  /** Emits the chosen basis when the operator flips the toggle. */
+  onBasisChange: (basis: TimeBasis) => void;
 };
 
-export function TimeScrubber({ since, until, onChange }: Props) {
+export function TimeScrubber({ since, until, onChange, basis, onBasisChange }: Props) {
   // Rebuild the day-stepped axis only when the window endpoints change. Compare
   // by timestamp so a new Date object with the same instant does not rebuild.
   const sinceMs = since.getTime();
@@ -194,9 +203,49 @@ export function TimeScrubber({ since, until, onChange }: Props) {
         <span className="tabular-nums">Ahora</span>
       </div>
 
+      {/* task #77 bitemporal — replay-basis toggle. Default "valid" replays by
+          occurred_at ("cuándo pasó"); "transaction" replays by recorded_at
+          ("cuándo lo supo el Estado"). The gap between the two IS the reporting-lag
+          signal: an event that occurred el 1/3 pero se registró el 13/3 aparece 12
+          días más tarde en el modo "según lo conocido". */}
+      <fieldset className="m-0 flex flex-wrap items-center gap-1.5 border-0 p-0">
+        <legend className="sr-only">Base temporal de la reproducción</legend>
+        <span
+          aria-hidden="true"
+          className="mr-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+        >
+          Base
+        </span>
+        <button
+          type="button"
+          aria-pressed={basis === "valid"}
+          onClick={() => onBasisChange("valid")}
+          className={`rounded-[var(--radius-md)] border px-2 py-1 text-[11px] transition-colors ${
+            basis === "valid"
+              ? "border-ln-op-azul bg-ln-op-azul/10 font-semibold text-ln-op-ink"
+              : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul"
+          }`}
+        >
+          Cuándo ocurrió
+        </button>
+        <button
+          type="button"
+          aria-pressed={basis === "transaction"}
+          onClick={() => onBasisChange("transaction")}
+          className={`rounded-[var(--radius-md)] border px-2 py-1 text-[11px] transition-colors ${
+            basis === "transaction"
+              ? "border-ln-op-azul bg-ln-op-azul/10 font-semibold text-ln-op-ink"
+              : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul"
+          }`}
+        >
+          Según lo conocido al momento
+        </button>
+      </fieldset>
+
       <p className="text-[11px] text-ln-op-mute">
-        Reproduciendo: arrastrá o reproducí para ver la situación formarse. Las capas sin dimensión
-        temporal (refugios, cobertura, mortalidad) se atenúan durante la reproducción.
+        {basis === "transaction"
+          ? "Reproduciendo por fecha de registro (cuándo el Estado tomó conocimiento): la brecha con la fecha de ocurrencia revela demoras de reporte y presencia territorial."
+          : "Reproduciendo: arrastrá o reproducí para ver la situación formarse. Las capas sin dimensión temporal (refugios, cobertura, mortalidad) se atenúan durante la reproducción."}
       </p>
 
       {/* Live region: announces the as-of date to assistive tech as it changes. */}

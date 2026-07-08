@@ -24,7 +24,7 @@ import {
   resolvePointsMode,
 } from "@/src/modules/panorama/application/get-layer-features";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
-import { clampAsOf, parseAsOf } from "@/src/modules/panorama/domain/time-scrub";
+import { clampAsOf, parseAsOf, parseTimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 
@@ -66,6 +66,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
   // it into [since, until] (until = "now" for presets) so a crafted param can
   // never widen the window below `since` or above the live edge. null = live.
   const asOf = clampAsOf(parseAsOf(url.searchParams.get("asOf")), since, until) ?? undefined;
+
+  // task #77 bitemporal: replay basis. "valid" (occurred_at, default) reproduces
+  // "what happened when"; "transaction" (recorded_at) reproduces "what the State
+  // KNEW when". Honored by the pet_events-backed layers; a crafted value can only
+  // pick between the two safe modes — it never widens scope, k-anon or auth.
+  const basis = parseTimeBasis(url.searchParams.get("basis"));
 
   const provinceIso = url.searchParams.get("province");
   const localitySlug = url.searchParams.get("locality");
@@ -134,7 +140,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
         layer,
         actor,
         scoped,
-        { since, asOf: windowUntil },
+        { since, asOf: windowUntil, basis },
         level,
         adminProvince,
         adminLocality,

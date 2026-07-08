@@ -103,6 +103,7 @@ describe("getLayerFeatures — perdidas (F1 aggregated point)", () => {
       asOf,
       undefined,
       undefined,
+      undefined,
     );
 
     // Return shape: aggregated features + envelope.
@@ -133,6 +134,7 @@ describe("getLayerFeatures — perdidas (F1 aggregated point)", () => {
       asOf,
       undefined,
       undefined,
+      undefined,
     );
   });
 
@@ -149,6 +151,7 @@ describe("getLayerFeatures — perdidas (F1 aggregated point)", () => {
       { role: "govt" },
       jur,
       expect.any(Date),
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -242,6 +245,7 @@ describe("getLayerFeatures — perdidas points mode (Slice 1)", () => {
       asOf,
       "Córdoba",
       "Córdoba",
+      undefined,
     );
     expect(result.mode).toBe("points");
     expect(result.truncated).toBe(true);
@@ -298,6 +302,7 @@ describe("getLayerFeatures — mordeduras (F1 aggregated point)", () => {
       asOf,
       undefined,
       undefined,
+      undefined,
     );
     expect(result.level).toBe("province");
   });
@@ -349,6 +354,7 @@ describe("getLayerFeatures — mordeduras points mode (Slice 2)", () => {
       undefined,
       "Córdoba",
       "Córdoba",
+      undefined,
     );
     expect(result.mode).toBe("points");
     // Older coord-less bites → honest residual (not a fake dot).
@@ -496,6 +502,7 @@ describe("getLayerFeatures — zoonosis (F1 aggregated signal point)", () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
     expect(result.level).toBe("province");
     expect(result.features.type).toBe("FeatureCollection");
@@ -633,6 +640,7 @@ describe("getLayerFeatures — mortalidad (LOCALITY choropleth)", () => {
       [],
       undefined,
       undefined,
+      false,
     );
     expect(result.features.features).toHaveLength(2);
     expect(result.suppressedCount).toBe(1);
@@ -670,6 +678,7 @@ describe("getLayerFeatures — cobertura (PROVINCE choropleth)", () => {
       [],
       undefined,
       undefined,
+      false,
     );
     expect(result.level).toBe("province");
     expect(result.features.features).toHaveLength(2);
@@ -708,6 +717,7 @@ describe("getLayerFeatures — esterilizacion (North-Star PROVINCE choropleth)",
       [],
       undefined,
       undefined,
+      false,
     );
     expect(result.level).toBe("province");
     expect(result.features.features).toHaveLength(2);
@@ -740,7 +750,93 @@ describe("getLayerFeatures — esterilizacion (North-Star PROVINCE choropleth)",
       [],
       undefined,
       undefined,
+      false,
     );
     expect(result.level).toBe("locality");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// task #77 bitemporal — replay basis threading (valid=occurred_at vs
+// transaction=recorded_at). The pet_events-backed loaders receive `period.basis`
+// as their final argument so the same fixture animates differently in each mode
+// (an event with occurred_at ≠ recorded_at moves in transaction-time replay).
+// ---------------------------------------------------------------------------
+
+describe("getLayerFeatures — bitemporal replay basis (task #77)", () => {
+  const since = new Date("2026-03-01T00:00:00.000Z");
+  const asOf = new Date("2026-03-10T00:00:00.000Z");
+
+  it("threads basis='transaction' to loadPerdidasByUnit (recorded_at replay)", async () => {
+    mockLoadPerdidas.mockResolvedValue(aggRows());
+    await getLayerFeatures(
+      "perdidas",
+      { role: "admin" },
+      [],
+      { since, asOf, basis: "transaction" },
+      "province",
+    );
+    expect(mockLoadPerdidas).toHaveBeenCalledWith(
+      "province",
+      { role: "admin" },
+      [],
+      since,
+      asOf,
+      undefined,
+      undefined,
+      "transaction",
+    );
+  });
+
+  it("threads basis='transaction' to loadZoonosisByUnit", async () => {
+    mockLoadZoonosis.mockResolvedValue(aggRows());
+    await getLayerFeatures(
+      "zoonosis",
+      { role: "admin" },
+      [],
+      { since, asOf, basis: "transaction" },
+      "locality",
+    );
+    expect(mockLoadZoonosis).toHaveBeenCalledWith(
+      "locality",
+      { role: "admin" },
+      [],
+      since,
+      asOf,
+      undefined,
+      undefined,
+      "transaction",
+    );
+  });
+
+  it("threads basis='transaction' to the points-mode loader (loadPerdidasEvents)", async () => {
+    mockLoadPerdidasEvents.mockResolvedValue(eventRows());
+    await getLayerFeatures(
+      "perdidas",
+      { role: "govt" },
+      [{ province: "Salta", locality: "Salta" }],
+      { since, asOf, basis: "transaction" },
+      "locality",
+      "Salta",
+      "Salta",
+      /* pointsMode */ true,
+    );
+    expect(mockLoadPerdidasEvents).toHaveBeenCalledWith(
+      { role: "govt" },
+      [{ province: "Salta", locality: "Salta" }],
+      since,
+      asOf,
+      "Salta",
+      "Salta",
+      "transaction",
+    );
+  });
+
+  it("defaults to valid-time (final arg undefined) when basis is not set", async () => {
+    mockLoadMordeduras.mockResolvedValue(aggRows());
+    await getLayerFeatures("mordeduras", { role: "admin" }, [], { since, asOf }, "province");
+    // Final arg is undefined → the loader's own default ("valid") applies.
+    const call = mockLoadMordeduras.mock.calls[0];
+    expect(call[call.length - 1]).toBeUndefined();
   });
 });

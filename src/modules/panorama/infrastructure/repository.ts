@@ -58,11 +58,32 @@ import type {
   ProvinceChoroplethCell,
   ShelterRow,
 } from "@/src/modules/panorama/application/build-features";
+import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type { AggregationLevel } from "@/src/modules/panorama/domain/types";
 
 // Per-layer hard cap. Each loader limits at this; when the row count equals the
 // cap the result is (potentially) truncated and the envelope says so.
 export const PER_LAYER_CAP = 2000;
+
+/**
+ * task #77 bitemporal — the pet_events window column for a replay basis.
+ *   - "valid"       → occurred_at (when the fact happened). DEFAULT.
+ *   - "transaction" → recorded_at (when the State/system learned it).
+ * The gap between the two surfaces reporting lag / territorial-presence blind
+ * spots. Only the pet_events-backed temporal layers (perdidas, mordeduras,
+ * zoonosis) carry a true bitemporal pair; denuncias (welfare_reports.created_at =
+ * intake time) and decomisos (cases) have no distinct recorded_at, so they ignore
+ * the basis and replay by their single timestamp in both modes.
+ *
+ * PERF: recorded_at is NOT indexed (only occurred_at is —
+ * pet_events_pet_id_occurred_at_idx + pet_events_event_type_occurred_at_idx), so a
+ * transaction-basis replay is an unindexed range scan. Acceptable at pilot scale;
+ * a future migration should add a recorded_at index if this path gets hot. No
+ * migration is added in this lane by design.
+ */
+function eventWindowCol(basis: TimeBasis) {
+  return basis === "transaction" ? petEvents.recordedAt : petEvents.occurredAt;
+}
 
 /** Every loader returns its rows plus whether the cap clipped the result. */
 export type LayerRows<Row> = {
@@ -221,16 +242,20 @@ export async function loadBiteEvents(
   asOf?: Date,
   adminProvince?: string,
   adminLocality?: string,
+  // task #77 bitemporal: "valid" (occurred_at, default) or "transaction" (recorded_at).
+  basis: TimeBasis = "valid",
 ): Promise<LayerRows<BiteRow> & { noCoordCount: number }> {
+  // task #77: the replay-basis window column (occurred_at vs recorded_at).
+  const tcol = eventWindowCol(basis);
   // Base scope+period predicate shared by the dot query and the residual COUNT.
   const base: SQL[] = [
     // bite_inflicted | bite_suffered are the two bite variants (event-schemas.ts).
     mordedurasEventPredicate(),
-    gte(petEvents.occurredAt, since),
+    gte(tcol, since),
   ];
   // F4 temporal reproduction: upper-bound the event window so the layer can be
   // reconstructed "as of t" while the TimeScrubber plays.
-  if (asOf) base.push(lte(petEvents.occurredAt, asOf));
+  if (asOf) base.push(lte(tcol, asOf));
   // incident_reported carries NO jurisdiction in its payload (only outbreak_signal
   // snapshots pet_jurisdiction_* — see petEventsScopeClause jsdoc), so scope by the
   // pet's home jurisdiction via the JOIN to pets, exactly like loadMordedurassByUnit.
@@ -254,8 +279,9 @@ export async function loadBiteEvents(
     .innerJoin(pets, eq(petEvents.petId, pets.id))
     // Located events only — a point layer never plots a null coordinate.
     .where(and(...base, isNotNull(petEvents.locationLat)))
-    // Most-recent-first so a capped result keeps the freshest incidents.
-    .orderBy(sql`${petEvents.occurredAt} DESC`)
+    // Most-recent-first (by the active basis) so a capped result keeps the
+    // freshest incidents — most-recently-recorded under transaction basis.
+    .orderBy(sql`${tcol} DESC`)
     .limit(PER_LAYER_CAP);
 
   // Residual: in-scope bites with NO columnar coordinate (older events written
@@ -1177,16 +1203,19 @@ export async function loadPerdidasByUnit(
   asOf?: Date,
   adminProvince?: string,
   adminLocality?: string,
+  // task #77 bitemporal: "valid" (occurred_at, default) or "transaction" (recorded_at).
+  basis: TimeBasis = "valid",
 ): Promise<AggregatedPointRows> {
   // pets-table scope + pets-JOIN attribution: lost/sighting events carry NO
   // jurisdiction in their payload, so the pet's home jurisdiction is the unit.
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const tcol = eventWindowCol(basis);
   const conditions: SQL[] = [
     perdidasEventPredicate(),
-    gte(petEvents.occurredAt, since),
+    gte(tcol, since),
     isNotNull(pets.jurisdictionProvince),
   ];
-  if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
+  if (asOf) conditions.push(lte(tcol, asOf));
   if (scope) conditions.push(sql`(${scope})`);
 
   if (level === "province") {
@@ -1303,11 +1332,14 @@ export async function loadPerdidasEvents(
   asOf?: Date,
   adminProvince?: string,
   adminLocality?: string,
+  // task #77 bitemporal: "valid" (occurred_at, default) or "transaction" (recorded_at).
+  basis: TimeBasis = "valid",
 ): Promise<PointEventsRows> {
   // Same pets-table scope + pets-JOIN attribution as loadPerdidasByUnit (A2).
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
-  const base: SQL[] = [sightingEventPredicate(), gte(petEvents.occurredAt, since)];
-  if (asOf) base.push(lte(petEvents.occurredAt, asOf));
+  const tcol = eventWindowCol(basis);
+  const base: SQL[] = [sightingEventPredicate(), gte(tcol, since)];
+  if (asOf) base.push(lte(tcol, asOf));
   if (scope) base.push(sql`(${scope})`);
 
   const rows = await db
@@ -1324,8 +1356,9 @@ export async function loadPerdidasEvents(
     .from(petEvents)
     .innerJoin(pets, eq(petEvents.petId, pets.id))
     .where(and(...base, isNotNull(petEvents.locationLat)))
-    // Most-recent-first so a capped result keeps the freshest sightings.
-    .orderBy(sql`${petEvents.occurredAt} DESC`)
+    // Most-recent-first (by the active basis) so a capped result keeps the
+    // freshest sightings — most-recently-recorded under transaction basis.
+    .orderBy(sql`${tcol} DESC`)
     .limit(PER_LAYER_CAP);
 
   // Residual: in-scope sightings with NO columnar coordinate (honest "sin
@@ -1368,17 +1401,20 @@ export async function loadMordedurassByUnit(
   asOf?: Date,
   adminProvince?: string,
   adminLocality?: string,
+  // task #77 bitemporal: "valid" (occurred_at, default) or "transaction" (recorded_at).
+  basis: TimeBasis = "valid",
 ): Promise<AggregatedPointRows> {
   // pets-table scope + pets-JOIN attribution (same rationale as perdidas): the
   // incident payload never carries flat province/locality, so the pet's home
   // jurisdiction is the map unit.
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const tcol = eventWindowCol(basis);
   const conditions: SQL[] = [
     mordedurasEventPredicate(),
-    gte(petEvents.occurredAt, since),
+    gte(tcol, since),
     isNotNull(pets.jurisdictionProvince),
   ];
-  if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
+  if (asOf) conditions.push(lte(tcol, asOf));
   if (scope) conditions.push(sql`(${scope})`);
 
   if (level === "province") {
@@ -1579,14 +1615,17 @@ export async function loadZoonosisByUnit(
   asOf?: Date,
   adminProvince?: string,
   adminLocality?: string,
+  // task #77 bitemporal: "valid" (occurred_at, default) or "transaction" (recorded_at).
+  basis: TimeBasis = "valid",
 ): Promise<AggregatedPointRows> {
   const scope = petEventsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const tcol = eventWindowCol(basis);
   const conditions: SQL[] = [
     eq(petEvents.eventType, "outbreak_signal"),
-    gte(petEvents.occurredAt, since),
+    gte(tcol, since),
     isNotNull(sql`(${petEvents.payload}->>'pet_jurisdiction_province')`),
   ];
-  if (asOf) conditions.push(lte(petEvents.occurredAt, asOf));
+  if (asOf) conditions.push(lte(tcol, asOf));
   if (scope) conditions.push(sql`(${scope})`);
 
   if (level === "province") {

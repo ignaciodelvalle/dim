@@ -30,6 +30,7 @@ import {
   loadZoonosisByUnit,
 } from "@/src/modules/panorama/infrastructure/repository";
 
+import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type {
   AggregationLevel,
   FeatureCollection,
@@ -66,8 +67,13 @@ export function resolvePointsMode(modeParam: string | null, provinceResolved: bo
  * opened_at <= asOf` (in addition to `>= since`) so the operator can scrub the
  * situation back in time. Non-temporal layers (refugios + the current-state
  * choropleths) ignore `asOf` — the console dims them while a scrub is active.
+ *
+ * `basis` (task #77 bitemporal): "valid" (occurred_at, default — "what happened
+ * when") or "transaction" (recorded_at — "what the State KNEW when"). Honored by
+ * the pet_events-backed layers (perdidas, mordeduras, zoonosis); denuncias/decomisos
+ * have no distinct recorded_at and replay by their single timestamp in both modes.
  */
-export type LayerPeriod = { since: Date; asOf?: Date };
+export type LayerPeriod = { since: Date; asOf?: Date; basis?: TimeBasis };
 
 /**
  * Aggregation axis. Controls both choropleth layers AND the density+signal point
@@ -276,6 +282,7 @@ export async function getLayerFeatures(
           period.asOf,
           adminProvince,
           adminLocality,
+          period.basis,
         );
         return {
           features: buildPerdidasFeatures(r.rows),
@@ -296,6 +303,7 @@ export async function getLayerFeatures(
         period.asOf,
         adminProvince,
         adminLocality,
+        period.basis,
       );
       return aggregatedPointResult(r, level);
     }
@@ -313,6 +321,7 @@ export async function getLayerFeatures(
           period.asOf,
           adminProvince,
           adminLocality,
+          period.basis,
         );
         return {
           features: buildMordedurasFeatures(r.rows),
@@ -332,6 +341,7 @@ export async function getLayerFeatures(
         period.asOf,
         adminProvince,
         adminLocality,
+        period.basis,
       );
       return aggregatedPointResult(r, level);
     }
@@ -389,6 +399,7 @@ export async function getLayerFeatures(
         period.asOf,
         adminProvince,
         adminLocality,
+        period.basis,
       );
       return aggregatedPointResult(r, level);
     }
