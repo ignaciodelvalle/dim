@@ -445,7 +445,12 @@ export interface ProposeCrossOrgInput {
 export async function proposeCrossOrgTransferAction(
   input: ProposeCrossOrgInput,
 ): Promise<CrossOrgTransferResult> {
-  const auth = await requireCapability("org.transfer.propose");
+  // URL-pinned org resolution (same confused-deputy fix as accept/reject): a
+  // multi-org member proposing from /org/{sender}/… must be authorized against
+  // the sender org, not the session-default (most-recently-joined) membership.
+  // Sender custody (findActiveShelterCustody scoped to org.id) stays enforced
+  // inside the use-case.
+  const auth = await requireCapabilityForOrgToken("org.transfer.propose", input.senderOrgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
@@ -600,7 +605,10 @@ export async function cancelCrossOrgTransferAction(input: {
   reason?: string | null;
   message?: string | null;
 }): Promise<CrossOrgTransferResult> {
-  const auth = await requireCapability("org.transfer.propose");
+  // Same URL-pinned org resolution as propose: the sender's cancel must resolve
+  // the acting org from the URL token, not the last-joined membership. org.id vs
+  // case.openedByOrganizationId stays enforced in the use-case (defense in depth).
+  const auth = await requireCapabilityForOrgToken("org.transfer.propose", input.senderOrgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
