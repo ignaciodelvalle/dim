@@ -994,12 +994,15 @@ body {
   letter-spacing: 0.04em;
 }
 .lp .lp-hcard-qr {
-  width: 58px;
-  height: 58px;
-  border-radius: 6px;
+  /* Enlarged from 58px so the real, scannable hero QR reads comfortably from a
+     phone camera off-screen (PO: 58px was too small to scan). The card body is
+     a `64px 1fr auto` grid, so the wider QR just grows its own `auto` column. */
+  width: 96px;
+  height: 96px;
+  border-radius: 8px;
   border: 1px solid var(--color-ln-line);
   background: #fff;
-  padding: 5px;
+  padding: 6px;
   display: block;
   flex-shrink: 0;
   overflow: hidden;

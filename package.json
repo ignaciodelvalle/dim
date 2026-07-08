@@ -52,6 +52,7 @@
     "seed:real-photos": "tsx scripts/seed-real-photos.ts",
     "verify:history": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/verify-history-coverage.ts",
     "seed:demo:scenario": "node --conditions=react-server --import tsx scripts/seed-demo-scenario.ts",
+    "seed:flagship": "node --conditions=react-server --import tsx scripts/seed-flagship-pampa.ts",
     "demo:verify": "node --conditions=react-server --import tsx scripts/demo-verify.ts",
     "materialize:slots": "tsx scripts/materialize-slots.ts",
     "close:rabies-observations": "tsx scripts/close-rabies-observations.ts",

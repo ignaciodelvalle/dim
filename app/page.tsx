@@ -85,11 +85,16 @@ export default async function Home() {
   // phone camera can resolve. Trim guards whitespace-only values too.
   const siteBaseUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://mimar.ar";
   const publicHref = `/p/${DEMO_PUBLIC_TOKEN}`;
+  // width 160 (up from 64) + errorCorrectionLevel "Q": the hero QR must scan
+  // comfortably from a phone against the on-screen credential. The SVG is vector
+  // so the real display size comes from the `.lp-hcard-qr` container (globals.css),
+  // but generating at a larger module size keeps it crisp; "Q" adds scan
+  // robustness (25% recovery) for camera reads off a glossy screen.
   const qrSvg = await QRCode.toString(`${siteBaseUrl}${publicHref}`, {
     type: "svg",
     margin: 1,
-    width: 64,
-    errorCorrectionLevel: "M",
+    width: 160,
+    errorCorrectionLevel: "Q",
   });
 
   return (
