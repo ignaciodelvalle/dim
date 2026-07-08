@@ -247,7 +247,8 @@ export function OrgIntakeScreen() {
             <div className="min-w-0">
               <b>Custodia devuelta</b>
               <span className="lp-intake-sub flex flex-wrap items-center gap-1.5">
-                <span className="lp-lib-type">status_changed</span> <LnStatusFlag status="ok" />
+                <span className="lp-lib-type">{eventTypeLabel("status_changed")}</span>{" "}
+                <LnStatusFlag status="ok" />
               </span>
             </div>
           </div>
