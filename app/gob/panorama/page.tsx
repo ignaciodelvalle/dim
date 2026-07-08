@@ -20,10 +20,8 @@ import {
   emptyLayerFeatures,
   getLayerFeatures,
 } from "@/src/modules/panorama/application/get-layer-features";
-import {
-  degradedPanoramaKpis,
-  getPanoramaKpis,
-} from "@/src/modules/panorama/application/get-panorama-kpis";
+import { degradedPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { loadCachedPanoramaKpis } from "@/src/modules/panorama/application/load-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
 
 // Centro de Situación Nacional — gobierno view (jurisdiction scope).
@@ -151,12 +149,21 @@ export default async function GobPanoramaPage({
       "gob/panorama layer",
       emptyLayerFeatures(),
     ).catch(() => emptyLayerFeatures()),
-    withDbBudget(
-      getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
-      PAGE_BUDGET_MS,
-      "gob/panorama kpis",
-      degradedPanoramaKpis(),
-    ).catch(() => degradedPanoramaKpis()),
+    // KPIs go through the SHARED cached loader (staging QA 2026-07-08 #1): a
+    // browser reload now hits the warm 60s per-lambda cache instead of re-running
+    // the ~12-query fan-out under a tight budget, so the indicators can't vanish
+    // on reload. The loader carries its own 20s budget (headroom above the 15s
+    // statement_timeout); the trailing `.catch` degrades on an early rejection.
+    loadCachedPanoramaKpis({
+      actor,
+      jurisdictions: scoped,
+      period,
+      adminProvince,
+      adminLocality,
+      label: "gob/panorama kpis",
+    })
+      .then((r) => r.value)
+      .catch(() => degradedPanoramaKpis()),
     // Govt → bbox of their assigned localities; admin (jurisdictions=[]) → null.
     jurisdictionBounds(jurisdictions),
   ]);

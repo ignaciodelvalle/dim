@@ -214,20 +214,32 @@ export function LayerPanel({
                         </span>
                       </div>
                     )}
-                    {/* task #78 Part 3: "solo firmado por matrícula" — narrows the
+                    {/* task #78 Part 3 — "solo firmado por matrícula": narrows the
                         rabies-coverage numerator to vet-signed doses. ONLY the
-                        active cobertura layer shows it. */}
+                        active cobertura layer shows it.
+                        Discoverability (staging QA 2026-07-08 #3): rendered as a
+                        bordered, non-muted control CARD (not a tiny grey line that
+                        reads as part of the opacity slider) with a caption that
+                        explains what it does, so an operator finds it at a glance
+                        when the antirrábica-coverage layer is active. */}
                     {active && onToggleVerified && layer.id === "cobertura" && (
-                      <div className="flex items-center gap-2 px-1.5 pb-0.5 pl-8">
-                        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ln-op-mute">
+                      <div className="mt-1 mr-1.5 ml-8">
+                        <label className="flex cursor-pointer items-start gap-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink-2 transition-colors hover:border-ln-op-ink-2">
                           <input
                             type="checkbox"
-                            className="h-3.5 w-3.5 accent-current"
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-current"
                             checked={verifiedOnly}
                             onChange={() => onToggleVerified(layer.id)}
                           />
-                          <span title="Cuenta solo las dosis firmadas por un veterinario matriculado (author_role='vet', verificado).">
-                            Solo firmado por matrícula
+                          <span className="flex flex-col gap-0.5">
+                            <span className="text-xs font-semibold">
+                              Solo firmado por matrícula
+                            </span>
+                            <span className="text-xs leading-snug text-ln-op-mute">
+                              Cuenta solo las dosis firmadas por un veterinario matriculado
+                              (verificado) — la porción que el registro oficial cuenta como «al
+                              día».
+                            </span>
                           </span>
                         </label>
                       </div>

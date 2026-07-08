@@ -897,7 +897,12 @@ export function PanoramaConsole({
   // layers active+loading BEFORE calling this. `baseParams` carries the target
   // scope/period (the client-only board params are stripped from the API URL).
   const fetchLayersInto = useCallback(
-    async (ids: LayerId[], lvl: AggregationLevel, baseParams: URLSearchParams) => {
+    async (
+      ids: LayerId[],
+      lvl: AggregationLevel,
+      baseParams: URLSearchParams,
+      opts?: { preserveOnError?: boolean },
+    ) => {
       await Promise.all(
         ids.map(async (id) => {
           const params = new URLSearchParams(baseParams);
@@ -937,7 +942,19 @@ export function PanoramaConsole({
             // layer's state — running the failure branch here would
             // deactivate the layer on every superseded fetch.
             if (isAbortError(err)) return;
-            // On failure, leave the layer off and clear loading; no silent half-state.
+            // REFRESH path (opts.preserveOnError, staging QA 2026-07-08 #2): the
+            // layer is ALREADY active with last-known data — a failed REFETCH
+            // must NOT deactivate it. Deactivating would shrink `activeLayersKey`,
+            // and the URL-sync effect would then write `layers=` (empty) and lose
+            // the operator's selection — exactly the "Actualizar drops the layers"
+            // symptom under load. Keep it active, drop the loading flag, retain
+            // the last-known count/envelope.
+            if (opts?.preserveOnError) {
+              setStates((s) => ({ ...s, [id]: { ...s[id], loading: false } }));
+              return;
+            }
+            // Initial activation path: the layer had no data — leave it off and
+            // clear loading; no silent half-state.
             setStates((s) => ({
               ...s,
               [id]: {
@@ -1716,9 +1733,13 @@ export function PanoramaConsole({
         console.error("[PanoramaConsole] selective KPI refresh failed", err);
         setKpisStale(true);
       });
-    void Promise.all([kpiFetch, fetchLayersInto(activeIds, levelRef.current, params)]).finally(() =>
-      setRefreshing(false),
-    );
+    void Promise.all([
+      kpiFetch,
+      // preserveOnError: a REFRESH must never deactivate an already-active layer
+      // just because its refetch failed under load — that would empty `layers=`
+      // in the URL and lose the operator's selection (staging QA 2026-07-08 #2).
+      fetchLayersInto(activeIds, levelRef.current, params, { preserveOnError: true }),
+    ]).finally(() => setRefreshing(false));
   }, [refreshing, scopePeriodQs, fetchLayersInto, signalFor]);
 
   // A1 PR-7: autozoom — derive the current jurisdiction selection from
