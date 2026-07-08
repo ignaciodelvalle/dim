@@ -192,7 +192,7 @@ export function TimeScrubber({ since, until, onChange, basis, onBasisChange }: P
           onClick={reset}
           disabled={atLive && !playing}
           aria-label="Volver a ahora (en vivo)"
-          className="inline-flex h-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[11px] text-ln-op-ink-2 hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[var(--text-sm)] text-ln-op-ink-2 hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
         >
           Ahora
         </button>
@@ -212,7 +212,7 @@ export function TimeScrubber({ since, until, onChange, basis, onBasisChange }: P
         <legend className="sr-only">Base temporal de la reproducción</legend>
         <span
           aria-hidden="true"
-          className="mr-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+          className="mr-1 text-[var(--text-sm)] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
         >
           Base
         </span>
@@ -220,7 +220,7 @@ export function TimeScrubber({ since, until, onChange, basis, onBasisChange }: P
           type="button"
           aria-pressed={basis === "valid"}
           onClick={() => onBasisChange("valid")}
-          className={`rounded-[var(--radius-md)] border px-2 py-1 text-[11px] transition-colors ${
+          className={`rounded-[var(--radius-md)] border px-2 py-1 text-[var(--text-sm)] transition-colors ${
             basis === "valid"
               ? "border-ln-op-azul bg-ln-op-azul/10 font-semibold text-ln-op-ink"
               : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul"
@@ -232,7 +232,7 @@ export function TimeScrubber({ since, until, onChange, basis, onBasisChange }: P
           type="button"
           aria-pressed={basis === "transaction"}
           onClick={() => onBasisChange("transaction")}
-          className={`rounded-[var(--radius-md)] border px-2 py-1 text-[11px] transition-colors ${
+          className={`rounded-[var(--radius-md)] border px-2 py-1 text-[var(--text-sm)] transition-colors ${
             basis === "transaction"
               ? "border-ln-op-azul bg-ln-op-azul/10 font-semibold text-ln-op-ink"
               : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul"
@@ -242,7 +242,7 @@ export function TimeScrubber({ since, until, onChange, basis, onBasisChange }: P
         </button>
       </fieldset>
 
-      <p className="text-[11px] text-ln-op-mute">
+      <p className="text-[var(--text-sm)] text-ln-op-mute">
         {basis === "transaction"
           ? "Reproduciendo por fecha de registro (cuándo el Estado tomó conocimiento): la brecha con la fecha de ocurrencia revela demoras de reporte y presencia territorial."
           : "Reproduciendo: arrastrá o reproducí para ver la situación formarse. Las capas sin dimensión temporal (refugios, cobertura, mortalidad) se atenúan durante la reproducción."}
